@@ -133,7 +133,7 @@ const FACE_TO_BUBBLE: Record<QuantyExpression, BubbleState> = {
 
 export function Quanty({
   expression = 'idle',
-  size = 32,
+  size = 48,
   bob = false,
   figure = 'auto',
   className = '',

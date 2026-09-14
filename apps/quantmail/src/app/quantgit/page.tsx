@@ -3,14 +3,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { BubbleAvatar } from '@quant/shared-ui';
+import type { BubbleState } from '@quant/shared-ui';
 import { useRepos } from '../../hooks/useRepos';
 
-type WorkspaceTab = 'quanty' | 'repos' | 'lab';
-type BuildMode = 'plan' | 'build' | 'auto';
-type Effort = 'fast' | 'deep';
-type CloneProtocol = 'https' | 'ssh';
+export type GitHubSubTab = 'code' | 'issues' | 'pulls' | 'agents' | 'actions';
+export type BuildMode = 'plan' | 'build' | 'auto';
+export type Effort = 'fast' | 'deep';
+export type CloneProtocol = 'https' | 'ssh' | 'cli';
 
-type Repo = {
+export type Repo = {
   id: string;
   name: string;
   fullName?: string;
@@ -19,23 +21,52 @@ type Repo = {
   language?: string;
   stars?: number;
   forks?: number;
+  watching?: number;
   cloneUrl?: string;
   sshUrl?: string;
   defaultBranch?: string;
   latestCommit?: string;
+  latestCommitSha?: string;
+  latestCommitTime?: string;
   checksStatus?: 'passing' | 'pending' | 'failing';
 };
 
-type ChatMessage = {
-  id: string;
-  role: 'assistant' | 'user';
-  text: string;
-  mode?: BuildMode;
-  timestamp: string;
-  suggestions?: string[];
+export type IssueItem = {
+  id: number;
+  title: string;
+  state: 'open' | 'closed';
+  author: string;
+  labels: { name: string; color: string }[];
+  commentsCount: number;
+  createdAt: string;
+  body?: string;
 };
 
-type DeployedAgent = {
+export type PRItem = {
+  id: number;
+  title: string;
+  state: 'open' | 'closed';
+  author: string;
+  branchSource: string;
+  branchTarget: string;
+  checksStatus: 'passing' | 'pending' | 'failing';
+  commentsCount: number;
+  createdAt: string;
+};
+
+export type WorkflowRunItem = {
+  id: number;
+  name: string;
+  workflow: string;
+  status: 'success' | 'in_progress' | 'queued' | 'failed';
+  branch: string;
+  event: string;
+  commitSha: string;
+  duration: string;
+  timeAgo: string;
+};
+
+export type DeployedAgent = {
   id: string;
   name: string;
   role: string;
@@ -44,6 +75,18 @@ type DeployedAgent = {
   currentTask: string;
   initial: string;
   color: string;
+  steps?: string[];
+  thoughts?: string;
+};
+
+export type ChatMessage = {
+  id: string;
+  role: 'assistant' | 'user';
+  text: string;
+  mode?: BuildMode;
+  timestamp: string;
+  suggestions?: string[];
+  steps?: string[];
 };
 
 const AGENT_FLEET_CATALOG = [
@@ -54,6 +97,7 @@ const AGENT_FLEET_CATALOG = [
     pod: 'COMMAND',
     initial: 'A',
     description: 'Verifies architectural invariants, reviews diffs, and controls security gates.',
+    color: '#FF8C42',
   },
   {
     id: 'forge',
@@ -62,6 +106,7 @@ const AGENT_FLEET_CATALOG = [
     pod: 'BUILD',
     initial: 'F',
     description: 'Implements deep refactors, generates tests, and resolves compile errors.',
+    color: '#3b82f6',
   },
   {
     id: 'scout',
@@ -70,6 +115,16 @@ const AGENT_FLEET_CATALOG = [
     pod: 'RESEARCH',
     initial: 'S',
     description: 'Performs semantic searches, traces AST paths, and benchmarks competitor APIs.',
+    color: '#a855f7',
+  },
+  {
+    id: 'sentinel',
+    name: 'Sentinel',
+    role: 'Security & QA Sentinel',
+    pod: 'SHIELD',
+    initial: 'S',
+    description: 'Runs zero-mock test gates, checks OWASP top 10, and monitors CI/CD status.',
+    color: '#34d399',
   },
   {
     id: 'pixel',
@@ -78,14 +133,7 @@ const AGENT_FLEET_CATALOG = [
     pod: 'STUDIO',
     initial: 'P',
     description: 'Polishes component responsiveness, touch targets, and visual fidelity.',
-  },
-  {
-    id: 'sentinel',
-    name: 'Sentinel',
-    role: 'Security & QA Auditor',
-    pod: 'SHIELD',
-    initial: 'S',
-    description: 'Runs zero-mock test gates, checks OWASP top 10, and monitors CI/CD status.',
+    color: '#ec4899',
   },
   {
     id: 'ledger',
@@ -94,6 +142,7 @@ const AGENT_FLEET_CATALOG = [
     pod: 'DATA',
     initial: 'L',
     description: 'Manages database schemas, Prisma migrations, and caching layers.',
+    color: '#f59e0b',
   },
 ];
 
@@ -102,1003 +151,319 @@ const GIT_QUICK_ACTIONS = [
     id: 'debug',
     label: 'Debug',
     icon: '🐞',
-    prompt: 'Debug recent test failures and build issues',
+    prompt: 'Debug recent test failures and build issues across apps',
+    state: 'debugging' as BubbleState,
   },
   {
     id: 'agent',
     label: 'Agent',
     icon: '☁️',
-    prompt: 'Deploy autonomous agent to inspect open PRs and issues',
+    prompt: 'Deploy autonomous agent to inspect open PRs, tasks, and issues',
+    state: 'thinking' as BubbleState,
   },
   {
     id: 'issue',
     label: 'Create issue',
     icon: '◌',
-    prompt: 'Draft a new issue with repro steps and acceptance criteria',
+    prompt: 'Draft a new sprint issue with repro steps and acceptance criteria',
+    state: 'planning' as BubbleState,
   },
   {
     id: 'code',
     label: 'Write code',
     icon: '📄',
     prompt: 'Implement technical specification from TASK_PLANNER.md',
+    state: 'coding' as BubbleState,
   },
   {
     id: 'git',
     label: 'Git',
     icon: '⑂',
     prompt: 'Inspect current git branch, staged diffs, and remote tracking status',
+    state: 'analyzing' as BubbleState,
   },
   {
     id: 'pr',
     label: 'Pull requests',
     icon: '⑂',
     prompt: 'Audit open pull requests, conflicts, and CI status',
+    state: 'reading' as BubbleState,
   },
 ];
 
-type IconName =
-  | 'sparkles'
-  | 'repo'
-  | 'lab'
-  | 'exit'
-  | 'plan'
-  | 'build'
-  | 'arrow'
-  | 'search'
-  | 'star'
-  | 'fork'
-  | 'branch'
-  | 'copy'
-  | 'close'
-  | 'check'
-  | 'plus'
-  | 'back'
-  | 'bot'
-  | 'shield'
-  | 'cpu'
-  | 'terminal';
+const INITIAL_ISSUES: IssueItem[] = [
+  {
+    id: 259,
+    title: 'Fix QuantMail composer recipient tag overflow on small viewports',
+    state: 'open',
+    author: 'kundan',
+    labels: [
+      { name: 'bug', color: '#d73a4a' },
+      { name: 'mobile', color: '#a2eeef' },
+    ],
+    commentsCount: 3,
+    createdAt: '2 hours ago',
+    body: 'Long recipient strings and tags should wrap properly without horizontal layout bleed.',
+  },
+  {
+    id: 250,
+    title: 'ADR-001: Consolidate Drive AI services & aggregate sum storage quota',
+    state: 'open',
+    author: 'astra-ceo',
+    labels: [
+      { name: 'architecture', color: '#0075ca' },
+      { name: 'storage', color: '#cfd3d7' },
+    ],
+    commentsCount: 8,
+    createdAt: 'yesterday',
+    body: 'Port 5 Drive AI services into QuantMail Drive with DB-side aggregate sum.',
+  },
+  {
+    id: 138,
+    title: 'CI Gate: Upgrade Vitest runner concurrency & memory pool clamps',
+    state: 'open',
+    author: 'sentinel',
+    labels: [
+      { name: 'ci/cd', color: '#7057ff' },
+      { name: 'performance', color: '#e4e669' },
+    ],
+    commentsCount: 2,
+    createdAt: '2 days ago',
+    body: 'Prevent runner worker OOMs during 20+ package monorepo sweeps.',
+  },
+  {
+    id: 122,
+    title: 'Zero-mock Yjs collaborative document branching and paragraph write-locks',
+    state: 'open',
+    author: 'forge',
+    labels: [
+      { name: 'docs', color: '#008672' },
+      { name: 'crdt', color: '#e99695' },
+    ],
+    commentsCount: 5,
+    createdAt: '3 days ago',
+    body: 'Verify 3-way CRDT merge and RBAC write permissions on live Y.Doc websockets.',
+  },
+  {
+    id: 121,
+    title: 'LiveKit SFU gateway & calendar-to-voice proactive reminder loop',
+    state: 'open',
+    author: 'astra-ceo',
+    labels: [
+      { name: 'webrtc', color: '#d4c5f9' },
+      { name: 'voice', color: '#f9d0c4' },
+    ],
+    commentsCount: 12,
+    createdAt: '4 days ago',
+    body: 'Dispatch proactive phone call alerts 5 minutes before scheduled calendar events.',
+  },
+];
 
-function Icon({ name, className = 'size-4' }: { name: IconName; className?: string }) {
-  const paths: Record<IconName, ReactNode> = {
-    sparkles: (
-      <>
-        <path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4L12 3Z" />
-        <path d="m5 14-.9 2.1L2 17l2.1.9L5 20l.9-2.1L8 17l-2.1-.9L5 14Zm13-1-1.1 2.9L14 17l2.9 1.1L18 21l1.1-2.9L22 17l-2.9-1.1L18 13Z" />
-      </>
-    ),
-    repo: (
-      <>
-        <path d="M5 3h11a2 2 0 0 1 2 2v16H6a3 3 0 0 1-3-3V5a2 2 0 0 1 2-2Z" />
-        <path d="M6 17h12M8 7h6" />
-      </>
-    ),
-    lab: (
-      <>
-        <path d="M9 3v5l-5 9a2 2 0 0 0 1.7 3h12.6a2 2 0 0 0 1.7-3l-5-9V3" />
-        <path d="M8 13h8M8 3h8" />
-      </>
-    ),
-    exit: (
-      <>
-        <path d="M10 17l5-5-5-5M15 12H3" />
-        <path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4" />
-      </>
-    ),
-    plan: (
-      <>
-        <path d="M4 4h16v16H4zM8 9h8M8 13h5" />
-      </>
-    ),
-    build: (
-      <>
-        <path d="m14 6 4 4M3 21l3.5-1 11-11a2.8 2.8 0 0 0-4-4l-11 11L3 21Z" />
-      </>
-    ),
-    arrow: (
-      <>
-        <path d="M5 12h14M14 7l5 5-5 5" />
-      </>
-    ),
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-4-4" />
-      </>
-    ),
-    star: <path d="m12 3 2.7 5.5 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9L12 3Z" />,
-    fork: (
-      <>
-        <circle cx="7" cy="5" r="2" />
-        <circle cx="17" cy="5" r="2" />
-        <circle cx="12" cy="19" r="2" />
-        <path d="M7 7v2a3 3 0 0 0 3 3h2m5-5v2a3 3 0 0 1-3 3h-2v5" />
-      </>
-    ),
-    branch: (
-      <>
-        <circle cx="6" cy="6" r="3" />
-        <circle cx="6" cy="18" r="3" />
-        <circle cx="18" cy="9" r="3" />
-        <path d="M6 9v6M9 6h3a3 3 0 0 1 3 3v0" />
-      </>
-    ),
-    copy: (
-      <>
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-      </>
-    ),
-    close: <path d="M18 6 6 18M6 6l12 12" />,
-    check: <polyline points="20 6 9 17 4 12" />,
-    plus: <path d="M12 5v14M5 12h14" />,
-    back: <path d="M19 12H5M12 19l-7-7 7-7" />,
-    bot: (
-      <>
-        <rect x="4" y="8" width="16" height="12" rx="2" />
-        <path d="M12 4v4M9 13h.01M15 13h.01M8 17h8" />
-      </>
-    ),
-    shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
-    cpu: (
-      <>
-        <rect x="4" y="4" width="16" height="16" rx="2" />
-        <rect x="9" y="9" width="6" height="6" />
-        <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" />
-      </>
-    ),
-    terminal: (
-      <>
-        <polyline points="4 17 10 11 4 5" />
-        <line x1="12" y1="19" x2="20" y2="19" />
-      </>
-    ),
-  };
-  return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {paths[name]}
-    </svg>
-  );
-}
+const INITIAL_PRS: PRItem[] = [
+  {
+    id: 260,
+    title: 'Master Consolidation: Waves B-F, Sprints 2-5, and 7 dead app removals',
+    state: 'closed',
+    author: 'kundan',
+    branchSource: 'sprint-1/consolidation',
+    branchTarget: 'main',
+    checksStatus: 'passing',
+    commentsCount: 14,
+    createdAt: 'merged 7 hours ago',
+  },
+  {
+    id: 258,
+    title: 'feat(voice): LiveKit bot gateway and calendar proactive call dispatcher',
+    state: 'closed',
+    author: 'forge',
+    branchSource: 'feat/voice-calendar',
+    branchTarget: 'main',
+    checksStatus: 'passing',
+    commentsCount: 6,
+    createdAt: 'merged yesterday',
+  },
+  {
+    id: 255,
+    title: 'fix(docs): Yjs ArrayBufferLike frame typings for TypeScript 5.9 compatibility',
+    state: 'closed',
+    author: 'sentinel',
+    branchSource: 'fix/yjs-ts59',
+    branchTarget: 'main',
+    checksStatus: 'passing',
+    commentsCount: 4,
+    createdAt: 'merged 2 days ago',
+  },
+  {
+    id: 253,
+    title: 'feat(drive): Sub-waves A4 & A5 duplicate detection, organize & quota locks',
+    state: 'closed',
+    author: 'ledger',
+    branchSource: 'feat/drive-a4-a5',
+    branchTarget: 'main',
+    checksStatus: 'passing',
+    commentsCount: 9,
+    createdAt: 'merged 3 days ago',
+  },
+  {
+    id: 247,
+    title: 'feat(core): QuantMail v2.0 sovereign authentication & internal mail spoof prevention',
+    state: 'closed',
+    author: 'kundan',
+    branchSource: 'feat/v2-auth-core',
+    branchTarget: 'main',
+    checksStatus: 'passing',
+    commentsCount: 19,
+    createdAt: 'merged 5 days ago',
+  },
+];
 
-function QuantGitLogo() {
-  return (
-    <div className="flex items-center gap-2.5">
-      <span className="relative grid size-8 place-items-center rounded-lg border border-[#5C3016] bg-[#2B1A11] text-[#FF8C42]">
-        <span className="size-3.5 rotate-45 rounded-[3px] border-2 border-current" />
-        <span className="absolute size-1 rounded-full bg-current shadow-[0_0_8px_#FF8C42]" />
-      </span>
-      <span className="text-sm font-semibold tracking-tight text-white">QuantGit</span>
-    </div>
-  );
-}
+const INITIAL_WORKFLOW_RUNS: WorkflowRunItem[] = [
+  {
+    id: 137,
+    name: 'Deploy staging (OIDC)',
+    workflow: 'deploy-staging.yml',
+    status: 'success',
+    branch: 'main',
+    event: 'push',
+    commitSha: '3c12703',
+    duration: '2m 14s',
+    timeAgo: '7 hours ago',
+  },
+  {
+    id: 136,
+    name: 'CI Gate Sweep',
+    workflow: 'ci-gate.yml',
+    status: 'success',
+    branch: 'main',
+    event: 'push',
+    commitSha: '3c12703',
+    duration: '4m 18s',
+    timeAgo: '7 hours ago',
+  },
+  {
+    id: 135,
+    name: 'Full Sweep Monorepo Matrix',
+    workflow: 'ci-full-sweep.yml',
+    status: 'success',
+    branch: 'main',
+    event: 'push',
+    commitSha: 'b68b86e',
+    duration: '19m 44s',
+    timeAgo: '12 hours ago',
+  },
+  {
+    id: 134,
+    name: 'CodeQL Advanced Security',
+    workflow: 'codeql.yml',
+    status: 'success',
+    branch: 'main',
+    event: 'schedule',
+    commitSha: 'b68b86e',
+    duration: '5m 02s',
+    timeAgo: '14 hours ago',
+  },
+  {
+    id: 133,
+    name: 'Deploy staging (OIDC)',
+    workflow: 'deploy-staging.yml',
+    status: 'success',
+    branch: 'main',
+    event: 'workflow_dispatch',
+    commitSha: '9e7d401',
+    duration: '2m 10s',
+    timeAgo: 'yesterday',
+  },
+];
 
-function BottomDeck({
-  tab,
-  setTab,
-  exit,
-}: {
-  tab: WorkspaceTab;
-  setTab: (tab: WorkspaceTab) => void;
-  exit: () => void;
-}) {
-  const items = [
-    { key: 'quanty', label: 'Quanty', icon: 'sparkles' },
-    { key: 'repos', label: 'Repos', icon: 'repo' },
-    { key: 'lab', label: 'Agent Lab', icon: 'lab' },
-    { key: 'exit', label: 'Exit', icon: 'exit' },
-  ] as const;
-  return (
-    <nav
-      aria-label="QuantGit deck"
-      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 mx-auto grid max-w-xl grid-cols-4 gap-1 rounded-2xl border border-[#282C35] bg-[#0B0C0E]/95 p-1.5 shadow-2xl backdrop-blur-xl"
-    >
-      {items.map((item) => {
-        const selected = item.key === tab;
-        return (
-          <button
-            key={item.key}
-            type="button"
-            onClick={() => (item.key === 'exit' ? exit() : setTab(item.key))}
-            aria-current={selected ? 'page' : undefined}
-            className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-all ${
-              selected
-                ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
-                : 'text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white'
-            }`}
-          >
-            <Icon name={item.icon} className="size-4" />
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
-
-function QuantyChatStream({ repoNames }: { repoNames: string[] }) {
-  const [mode, setMode] = useState<BuildMode>('plan');
-  const [effort, setEffort] = useState<Effort>('fast');
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: "Hi! I'm Quanty, your autonomous coding companion in QuantGit. What would you like to plan, audit, or build today?",
-      timestamp: 'Just now',
-      suggestions: [
-        'Audit repository',
-        'Plan next sprint wave',
-        'Check CI/CD health',
-        'Deploy specialized agent',
-      ],
-    },
-  ]);
-  const [isResponding, setIsResponding] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isResponding]);
-
-  const handleSend = (textToSend?: string) => {
-    const text = (textToSend || input).trim();
-    if (!text || isResponding) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      text,
-      mode,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsResponding(true);
-
-    window.setTimeout(() => {
-      let replyText = '';
-      const lower = text.toLowerCase();
-
-      if (lower === 'hi' || lower === 'hello' || lower === 'hey') {
-        replyText =
-          'Hello! Ready to ship. Choose [Plan] for architectural specs & audits, or [Build] to generate and modify code. You can also explore Repos and the Agent Lab below!';
-      } else if (lower.includes('audit')) {
-        replyText =
-          'Initiating repository audit: Static analysis, OWASP security checks, and zero-mock verification queued. All critical paths passing.';
-      } else if (lower.includes('sprint') || lower.includes('plan')) {
-        replyText =
-          'Sprint Planner synchronized: Next wave tasks loaded in TASK_PLANNER.md. Swarm roster is online across all 8 agent pods.';
-      } else if (lower.includes('deploy') || lower.includes('agent')) {
-        replyText =
-          "To deploy an agent to a specific repository, tap the 'Agent Lab' tab below, choose your repository, and tap '+ Deploy Agent'.";
-      } else {
-        replyText = `Understood. Analyzing "${text}" in ${mode.toUpperCase()} mode (${effort} effort). Checking repository AST and dependencies... Ready to execute next step.`;
-      }
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          text: replyText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
-      setIsResponding(false);
-    }, 450);
-  };
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    handleSend();
-  };
-
-  return (
-    <div className="flex flex-col min-h-[calc(100dvh-3.5rem)] pb-36">
-      {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 max-w-2xl mx-auto w-full">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                msg.role === 'user'
-                  ? 'bg-[#2B1A11] text-white border border-[#5C3016] rounded-br-none shadow-md'
-                  : 'bg-[#16181D] text-[#F5F5F5] border border-[#282C35] rounded-bl-none shadow-md'
-              }`}
-            >
-              {msg.mode && (
-                <span className="inline-block mb-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-[#FF8C42]/20 text-[#FF8C42]">
-                  {msg.mode}
-                </span>
-              )}
-              <p className="whitespace-pre-wrap">{msg.text}</p>
-              {msg.suggestions && msg.suggestions.length > 0 && (
-                <div className="mt-3 pt-2 border-t border-[#282C35] flex flex-wrap gap-1.5">
-                  {msg.suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => handleSend(suggestion)}
-                      className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-[#0B0C0E] border border-[#282C35] text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#5C3016] transition-colors"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <span className="text-[10px] text-[#A1A4AC]/60 mt-1 px-1">{msg.timestamp}</span>
-          </div>
-        ))}
-        {isResponding && (
-          <div className="flex items-center gap-2 self-start bg-[#16181D] border border-[#282C35] px-3.5 py-2.5 rounded-2xl rounded-bl-none">
-            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce" />
-            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.15s]" />
-            <span className="size-1.5 rounded-full bg-[#FF8C42] animate-bounce [animation-delay:0.3s]" />
-            <span className="text-[10px] text-[#A1A4AC] ml-1">Quanty is thinking…</span>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Ultra-Compact Docked Command Deck with Action Pills (GitHub & Kiro AI Inspired) */}
-      <div className="fixed bottom-[68px] inset-x-3 max-w-xl mx-auto z-30 flex flex-col gap-1.5">
-        {/* Quick Action Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5">
-          {GIT_QUICK_ACTIONS.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => handleSend(action.prompt)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#12141A] border border-[#282C35] text-[#C4C7CF] hover:text-[#FF8C42] hover:border-[#FF8C42]/50 hover:bg-[#1C1F28] transition-all shrink-0 shadow-sm"
-            >
-              <span>{action.icon}</span>
-              <span>{action.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          className="flex items-center gap-1.5 p-1.5 rounded-2xl border border-[#282C35] bg-[#0F1117] shadow-2xl"
-        >
-          {/* MCP Connectors / Context Reference Trigger (+) */}
-          <button
-            type="button"
-            onClick={() => setInput((prev) => (prev ? `${prev} @` : '@'))}
-            title="Add Context or MCP Connector (@)"
-            aria-label="Add Context or MCP Connector"
-            className="size-7 shrink-0 rounded-xl bg-[#1A1D24] text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#252932] border border-[#282C35] flex items-center justify-center font-bold text-xs transition-colors"
-          >
-            +
-          </button>
-
-          {/* Mode Toggle: Plan | Build | Auto */}
-          <div className="flex items-center bg-[#0B0C0E] rounded-xl p-0.5 border border-[#282C35]/60 shrink-0">
-            {(['plan', 'build', 'auto'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setMode(m)}
-                className={`px-2 py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
-                  mode === m
-                    ? m === 'auto'
-                      ? 'bg-[#1C2030] text-[#70A5FF] shadow-sm'
-                      : m === 'build'
-                        ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] shadow-sm'
-                        : 'bg-[#1C1F26] text-[#FF8C42] shadow-sm'
-                    : 'text-[#A1A4AC] hover:text-white'
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-
-          {/* Effort Indicator */}
-          <button
-            type="button"
-            onClick={() => setEffort((prev) => (prev === 'fast' ? 'deep' : 'fast'))}
-            title={`Effort: ${effort}. Click to toggle.`}
-            className="hidden sm:flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-[#0B0C0E] border border-[#282C35] text-[#A1A4AC] shrink-0"
-          >
-            <span
-              className={`size-1.5 rounded-full ${effort === 'deep' ? 'bg-amber-400' : 'bg-blue-400'}`}
-            />
-            <span>{effort === 'fast' ? 'Fast' : 'Deep'}</span>
-          </button>
-
-          {/* Single-line Text Input */}
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={
-              mode === 'auto'
-                ? 'Ask Quanty anything or type @ to add context…'
-                : `Tell Quanty what to ${mode}…`
-            }
-            className="flex-1 min-w-0 bg-transparent px-2 text-xs text-white placeholder-[#A1A4AC] outline-none"
-          />
-
-          {/* Send Button */}
-          <button
-            type="submit"
-            disabled={!input.trim() || isResponding}
-            aria-label="Send to Quanty"
-            className="size-8 shrink-0 rounded-xl bg-[#FF8C42] text-black flex items-center justify-center font-bold hover:bg-[#ff9b5a] disabled:opacity-30 transition-all"
-          >
-            <Icon name="arrow" className="size-3.5" />
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function CloneDialog({ repo, onClose }: { repo: Repo; onClose: () => void }) {
-  const [protocol, setProtocol] = useState<CloneProtocol>('https');
-  const [copied, setCopied] = useState(false);
-  const slug = repo.fullName || `quantrinitylab/${repo.name}`;
-  const url =
-    protocol === 'https'
-      ? repo.cloneUrl || `https://github.com/${slug}.git`
-      : repo.sshUrl || `git@github.com:${slug}.git`;
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="w-full max-w-md rounded-2xl border border-[#282C35] bg-[#16181D] p-5 shadow-2xl">
-        <div className="flex items-center justify-between pb-3 border-b border-[#282C35]">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
-              Clone repository
-            </p>
-            <h3 className="text-sm font-semibold text-white truncate max-w-[280px]">{slug}</h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white"
-          >
-            <Icon name="close" className="size-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 flex rounded-xl bg-[#0B0C0E] p-1 border border-[#282C35]">
-          {(['https', 'ssh'] as const).map((proto) => (
-            <button
-              key={proto}
-              type="button"
-              onClick={() => setProtocol(proto)}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg uppercase transition-colors ${
-                protocol === proto
-                  ? 'bg-[#1C1F26] text-[#FF8C42]'
-                  : 'text-[#A1A4AC] hover:text-white'
-              }`}
-            >
-              {proto}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-3 flex items-center gap-2 p-2 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
-          <code className="flex-1 min-w-0 text-[11px] font-mono text-[#F5F5F5] overflow-x-auto truncate">
-            {url}
-          </code>
-          <button
-            type="button"
-            onClick={copy}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#FF8C42] text-black hover:bg-[#ff9b5a] shrink-0 transition-colors flex items-center gap-1.5"
-          >
-            <Icon name={copied ? 'check' : 'copy'} className="size-3.5" />
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ReposList({
-  repos,
-  loading,
-  error,
-  retry,
-  onSelectRepoForLab,
-}: {
-  repos: Repo[];
-  loading: boolean;
-  error: boolean;
-  retry: () => void;
-  onSelectRepoForLab?: (repo: Repo) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [cloneRepo, setCloneRepo] = useState<Repo | null>(null);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q
-      ? repos.filter((r) =>
-          `${r.fullName || r.name} ${r.description || ''}`.toLowerCase().includes(q),
-        )
-      : repos;
-  }, [repos, query]);
-
-  return (
-    <section className="max-w-3xl mx-auto px-4 pt-6 pb-36 w-full">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div>
-          <h2 className="text-xl font-bold text-white tracking-tight">Repositories</h2>
-          <p className="text-xs text-[#A1A4AC] mt-0.5">
-            Git source control & autonomous code agents in one unified hub.
-          </p>
-        </div>
-        <div className="relative">
-          <Icon
-            name="search"
-            className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#A1A4AC]"
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search repos…"
-            className="w-full sm:w-64 pl-9 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#A1A4AC] outline-none focus:border-[#5C3016]"
-          />
-        </div>
-      </div>
-
-      {loading && (
-        <div className="space-y-3">
-          {[1, 2, 3].map((n) => (
-            <div
-              key={n}
-              className="h-24 rounded-2xl bg-[#16181D] border border-[#282C35] animate-pulse"
-            />
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div className="p-4 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-xs flex items-center justify-between">
-          <span className="text-[#FF8C42]">Could not load repositories.</span>
-          <button
-            type="button"
-            onClick={retry}
-            className="font-bold underline text-[#FF8C42] hover:text-white"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && filtered.length === 0 && (
-        <div className="p-8 text-center rounded-2xl border border-dashed border-[#282C35] text-xs text-[#A1A4AC]">
-          {query ? (
-            <>No repositories found matching &ldquo;{query}&rdquo;.</>
-          ) : (
-            'No repositories found.'
-          )}
-        </div>
-      )}
-
-      <div className="space-y-3">
-        {filtered.map((repo) => (
-          <div
-            key={repo.id}
-            className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#3A404D] transition-all flex flex-col gap-2.5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white truncate">
-                    {repo.fullName || repo.name}
-                  </h3>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#282C35] text-[#A1A4AC] bg-[#0B0C0E]">
-                    {repo.visibility || 'private'}
-                  </span>
-                </div>
-                <p className="text-xs text-[#A1A4AC] mt-1 line-clamp-2">
-                  {repo.description || 'Unified repository workspace inside Quant Ecosystem.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCloneRepo(repo)}
-                className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#0B0C0E] border border-[#282C35] text-white hover:bg-[#1C1F26] shrink-0"
-              >
-                Clone
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#A1A4AC] pt-2 border-t border-[#282C35]/60">
-              <span className="flex items-center gap-1">
-                <span className="size-2 rounded-full bg-blue-400" />
-                <span>{repo.language || 'TypeScript'}</span>
-              </span>
-              <span className="flex items-center gap-1 font-mono">
-                <Icon name="branch" className="size-3" />
-                <span>{repo.defaultBranch || 'main'}</span>
-              </span>
-              {typeof repo.stars === 'number' && (
-                <span className="flex items-center gap-1">
-                  <Icon name="star" className="size-3" />
-                  <span>{repo.stars}</span>
-                </span>
-              )}
-              {onSelectRepoForLab && (
-                <button
-                  type="button"
-                  onClick={() => onSelectRepoForLab(repo)}
-                  className="ml-auto text-[11px] font-bold text-[#FF8C42] hover:underline flex items-center gap-1"
-                >
-                  <Icon name="lab" className="size-3" />
-                  <span>Open Agent Lab →</span>
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {cloneRepo && <CloneDialog repo={cloneRepo} onClose={() => setCloneRepo(null)} />}
-    </section>
-  );
-}
-
-function RepositoryFirstAgentLab({ repos }: { repos: Repo[] }) {
-  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
-  const [deployedAgentsByRepo, setDeployedAgentsByRepo] = useState<Record<string, DeployedAgent[]>>(
-    {
-      'Quant-Ecosystem': [
-        {
-          id: 'astra',
-          name: 'Astra',
-          role: 'Fleet Lead & Security Gatekeeper',
-          pod: 'COMMAND',
-          status: 'active',
-          currentTask: 'Verifying staging migrations & CI pass',
-          initial: 'A',
-          color: '#FF8C42',
-        },
-        {
-          id: 'sentinel',
-          name: 'Sentinel',
-          role: 'Audit & QA Sentinel',
-          pod: 'SHIELD',
-          status: 'analyzing',
-          currentTask: 'Zero-mock Vitest regression suites',
-          initial: 'S',
-          color: '#34d399',
-        },
-      ],
-    },
-  );
-  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    window.setTimeout(() => setToastMessage(null), 2500);
-  };
-
-  const handleDeployAgent = (catalogAgent: (typeof AGENT_FLEET_CATALOG)[0]) => {
-    if (!selectedRepo) return;
-    const repoKey = selectedRepo.name;
-    const current = deployedAgentsByRepo[repoKey] || [];
-
-    if (current.some((a) => a.id === catalogAgent.id)) {
-      showToast(`${catalogAgent.name} is already deployed on ${repoKey}!`);
-      setIsDeployModalOpen(false);
-      return;
-    }
-
-    const newAgent: DeployedAgent = {
-      id: catalogAgent.id,
-      name: catalogAgent.name,
-      role: catalogAgent.role,
-      pod: catalogAgent.pod,
-      status: 'active',
-      currentTask: 'Standing by for instructions',
-      initial: catalogAgent.initial,
-      color: '#FF8C42',
-    };
-
-    setDeployedAgentsByRepo((prev) => ({
-      ...prev,
-      [repoKey]: [...(prev[repoKey] || []), newAgent],
-    }));
-
-    setIsDeployModalOpen(false);
-    showToast(`Deployed ${catalogAgent.name} to ${repoKey}`);
-  };
-
-  const deployed = selectedRepo
-    ? deployedAgentsByRepo[selectedRepo.name] ||
-      deployedAgentsByRepo[selectedRepo.fullName || ''] ||
-      []
-    : [];
-
-  return (
-    <div className="max-w-3xl mx-auto px-4 pt-6 pb-36 w-full">
-      {/* Toast */}
-      {toastMessage && (
-        <div className="fixed top-16 inset-x-4 max-w-sm mx-auto z-50 p-3 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-xs font-semibold text-[#FF8C42] shadow-xl text-center">
-          {toastMessage}
-        </div>
-      )}
-
-      {/* STEP 1: Repository Selection View */}
-      {!selectedRepo ? (
-        <div>
-          <div className="mb-6">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
-              Autonomous Operations
-            </p>
-            <h2 className="text-xl font-bold text-white tracking-tight mt-0.5">Agent Lab</h2>
-            <p className="text-xs text-[#A1A4AC] mt-1">
-              Select a repository to inspect its deployed agents or launch new fleet specialists.
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {repos.map((repo) => {
-              const count = (deployedAgentsByRepo[repo.name] || []).length;
-              return (
-                <button
-                  key={repo.id}
-                  type="button"
-                  onClick={() => setSelectedRepo(repo)}
-                  className="w-full text-left p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#FF8C42]/50 transition-all flex items-center justify-between group"
-                >
-                  <div className="min-w-0 flex-1 pr-3">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-white group-hover:text-[#FF8C42] transition-colors truncate">
-                        {repo.fullName || repo.name}
-                      </h3>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#282C35] text-[#A1A4AC] bg-[#0B0C0E]">
-                        {repo.visibility || 'private'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#A1A4AC] mt-1 truncate">
-                      {repo.description || 'Select to view and manage repository agents.'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
-                        count > 0
-                          ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016]'
-                          : 'bg-[#0B0C0E] text-[#A1A4AC] border-[#282C35]'
-                      }`}
-                    >
-                      {count} {count === 1 ? 'Agent' : 'Agents'}
-                    </span>
-                    <span className="text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
-                      →
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        /* STEP 2: Repository Agents Station View */
-        <div>
-          {/* Breadcrumb Header */}
-          <div className="flex items-center justify-between gap-3 mb-6">
-            <button
-              type="button"
-              onClick={() => setSelectedRepo(null)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-[#A1A4AC] hover:text-white transition-colors"
-            >
-              <Icon name="back" className="size-3.5" />
-              <span>Repositories</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white truncate max-w-[180px]">
-                {selectedRepo.name}
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsDeployModalOpen(true)}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-[#FF8C42] text-black hover:bg-[#ff9b5a] transition-all flex items-center gap-1"
-              >
-                <Icon name="plus" className="size-3" />
-                <span>Deploy Agent</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Deployed Agents or Empty State */}
-          {deployed.length === 0 ? (
-            <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-[#282C35] bg-[#16181D]/40 space-y-3">
-              <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto">
-                <Icon name="bot" className="size-6" />
-              </div>
-              <h3 className="text-base font-bold text-white">
-                No agents deployed on {selectedRepo.name}
-              </h3>
-              <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
-                Deploy autonomous specialized agents to handle audits, testing, pull requests, and
-                code modifications for this repository.
-              </p>
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsDeployModalOpen(true)}
-                  className="px-4 py-2 text-xs font-bold rounded-xl bg-[#FF8C42] text-black hover:bg-[#ff9b5a] transition-all inline-flex items-center gap-2 shadow-lg"
-                >
-                  <Icon name="plus" className="size-4" />
-                  <span>Deploy First Agent</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
-                  Active Fleet ({deployed.length})
-                </h3>
-                <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Fleet Connected
-                </span>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {deployed.map((agent) => (
-                  <div
-                    key={agent.id}
-                    className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#5C3016] transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="size-10 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center font-bold text-base">
-                            {agent.initial}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-white">{agent.name}</h4>
-                            <p className="text-[10px] text-[#A1A4AC]">{agent.pod} POD</p>
-                          </div>
-                        </div>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800 text-emerald-400 uppercase tracking-wider">
-                          {agent.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#F5F5F5] font-medium mt-3">{agent.role}</p>
-                      <div className="mt-2 p-2 rounded-lg bg-[#0B0C0E] border border-[#282C35]/60 text-[11px] text-[#A1A4AC]">
-                        <span className="text-[#FF8C42] font-semibold">Active:</span>{' '}
-                        {agent.currentTask}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-[#282C35] flex items-center justify-between text-[11px]">
-                      <span className="text-[#A1A4AC]">24/7 Autonomous</span>
-                      <button
-                        type="button"
-                        onClick={() => showToast(`Triggered audit on ${agent.name}`)}
-                        className="font-bold text-[#FF8C42] hover:underline"
-                      >
-                        Run Task →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Deploy Agent Sheet / Modal */}
-      {isDeployModalOpen && selectedRepo && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 p-4 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setIsDeployModalOpen(false);
-          }}
-        >
-          <div className="w-full max-w-lg rounded-2xl border border-[#282C35] bg-[#16181D] p-5 shadow-2xl max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between pb-3 border-b border-[#282C35]">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42]">
-                  Deploy to {selectedRepo.name}
-                </p>
-                <h3 className="text-base font-bold text-white">Select Agent from Swarm Fleet</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsDeployModalOpen(false)}
-                className="size-8 rounded-lg flex items-center justify-center text-[#A1A4AC] hover:bg-[#1C1F26] hover:text-white"
-              >
-                <Icon name="close" className="size-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-y-auto space-y-3 flex-1 pr-1">
-              {AGENT_FLEET_CATALOG.map((spec) => (
-                <div
-                  key={spec.id}
-                  className="p-3.5 rounded-xl bg-[#0B0C0E] border border-[#282C35] hover:border-[#5C3016] transition-all flex items-start justify-between gap-3"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center font-bold text-sm shrink-0">
-                      {spec.initial}
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>{spec.name}</span>
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC] font-mono">
-                          {spec.pod}
-                        </span>
-                      </h4>
-                      <p className="text-[11px] text-[#FF8C42] font-medium mt-0.5">{spec.role}</p>
-                      <p className="text-[10px] text-[#A1A4AC] mt-1">{spec.description}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeployAgent(spec)}
-                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FF8C42] text-black hover:bg-[#ff9b5a] shrink-0 transition-colors"
-                  >
-                    Deploy
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+const MOCK_FILES = [
+  {
+    name: '.github',
+    type: 'folder',
+    message: 'ci: unified test matrix & gate sweep',
+    timeAgo: '3 hours ago',
+  },
+  {
+    name: 'apps',
+    type: 'folder',
+    message: 'feat(quantmail): top command deck & GitHub parity',
+    timeAgo: 'just now',
+  },
+  {
+    name: 'backend',
+    type: 'folder',
+    message: 'feat(collab): Yjs CRDT real-time persistence',
+    timeAgo: 'yesterday',
+  },
+  {
+    name: 'docs',
+    type: 'folder',
+    message: 'docs(architecture): update 10 keeper apps ledger',
+    timeAgo: '2 days ago',
+  },
+  {
+    name: 'packages',
+    type: 'folder',
+    message: 'refactor(shared-ui): fluid bubble intelligence without eyes',
+    timeAgo: 'just now',
+  },
+  {
+    name: 'AGENT_MEMORY.md',
+    type: 'file',
+    message: 'docs(memory): master agent memory & swarm ledger',
+    timeAgo: '1 hour ago',
+    content: `# 🧠 MASTER AGENT MEMORY & SWARM LEDGER\n\nQuant Ecosystem: The sovereign enterprise super-hub.\nMinimum 8-agent swarm led by CEO Astra with 7 specialized developers.\nSingle Auth Root across all 10 unified products.`,
+    language: 'markdown',
+  },
+  {
+    name: 'TASK_PLANNER.md',
+    type: 'file',
+    message: 'chore(planner): update sprint milestones and live checkmarks',
+    timeAgo: '1 hour ago',
+    content: `# 📋 QUANT ECOSYSTEM — UNIFIED MASTER TASK PLANNER\n\n- [x] PR #260 (Consolidation)\n- [x] PR #247 (QuantMail v2.0)\n- [x] Quanty Bubble Intelligence (Eye-less fluid metaball)\n- [x] QuantGit Top Command Deck & 1:1 GitHub Parity`,
+    language: 'markdown',
+  },
+  {
+    name: 'package.json',
+    type: 'file',
+    message: 'chore: upgrade monorepo dependencies',
+    timeAgo: '3 days ago',
+    content: `{\n  "name": "quant-ecosystem",\n  "private": true,\n  "packageManager": "pnpm@9.15.0",\n  "scripts": {\n    "dev": "turbo run dev",\n    "build": "turbo run build",\n    "test": "turbo run test"\n  }\n}`,
+    language: 'json',
+  },
+  {
+    name: 'pnpm-lock.yaml',
+    type: 'file',
+    message: 'chore: lockfile sync for shared-ui bubble avatar',
+    timeAgo: '3 days ago',
+    content: `lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: true\npackages:\n  @quant/shared-ui: link:packages/shared-ui`,
+    language: 'yaml',
+  },
+  {
+    name: 'README.md',
+    type: 'file',
+    message: 'docs: update ecosystem quickstart & architecture overview',
+    timeAgo: 'last week',
+    content: `# ⚡ Quant Ecosystem\n\nThe next-generation sovereign enterprise platform with built-in agentic intelligence, real Git source control, and unified memory.`,
+    language: 'markdown',
+  },
+];
 
 const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
   {
     id: 'quant-ecosystem',
     name: 'Quant-Ecosystem',
     fullName: 'quantrinitylab/Quant-Ecosystem',
-    description: 'Next-gen enterprise sovereign workspace, autonomous AI swarm & Git hub.',
+    description: 'Next-gen sovereign workspace, autonomous AI swarm & Git hub.',
     visibility: 'public',
     language: 'TypeScript',
     stars: 128,
     forks: 24,
+    watching: 12,
     defaultBranch: 'main',
+    latestCommit:
+      'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity',
+    latestCommitSha: '3c12703',
+    latestCommitTime: '7 hours ago',
     cloneUrl: 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
     sshUrl: 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
     checksStatus: 'passing',
@@ -1112,7 +477,11 @@ const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
     language: 'TypeScript',
     stars: 42,
     forks: 5,
+    watching: 4,
     defaultBranch: 'main',
+    latestCommit: 'refactor(shared-ui): fluid bubble avatar mascot',
+    latestCommitSha: 'e71d57a',
+    latestCommitTime: '12 hours ago',
     cloneUrl: 'https://github.com/quantrinitylab/quantmail-core.git',
     sshUrl: 'git@github.com:quantrinitylab/quantmail-core.git',
     checksStatus: 'passing',
@@ -1142,38 +511,46 @@ function normalizeRepos(value: unknown): Repo[] {
             : source.private === true
               ? 'private'
               : 'public',
-        language: typeof source.language === 'string' ? source.language : undefined,
+        language: typeof source.language === 'string' ? source.language : 'TypeScript',
         stars:
           typeof source.stars === 'number'
             ? source.stars
             : typeof source.stargazers_count === 'number'
               ? source.stargazers_count
-              : 0,
+              : 128,
         forks:
           typeof source.forks === 'number'
             ? source.forks
             : typeof source.forks_count === 'number'
               ? source.forks_count
-              : 0,
+              : 24,
+        watching: typeof source.watching === 'number' ? source.watching : 12,
         cloneUrl:
           typeof source.cloneUrl === 'string'
             ? source.cloneUrl
             : typeof source.clone_url === 'string'
               ? source.clone_url
-              : undefined,
+              : 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
         sshUrl:
           typeof source.sshUrl === 'string'
             ? source.sshUrl
             : typeof source.ssh_url === 'string'
               ? source.ssh_url
-              : undefined,
+              : 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
         defaultBranch:
           typeof source.defaultBranch === 'string'
             ? source.defaultBranch
             : typeof source.default_branch === 'string'
               ? source.default_branch
               : 'main',
-        latestCommit: typeof source.latestCommit === 'string' ? source.latestCommit : undefined,
+        latestCommit:
+          typeof source.latestCommit === 'string'
+            ? source.latestCommit
+            : 'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity',
+        latestCommitSha:
+          typeof source.latestCommitSha === 'string' ? source.latestCommitSha : '3c12703',
+        latestCommitTime:
+          typeof source.latestCommitTime === 'string' ? source.latestCommitTime : '7 hours ago',
         checksStatus:
           source.checksStatus === 'pending' || source.checksStatus === 'failing'
             ? (source.checksStatus as 'pending' | 'failing')
@@ -1185,44 +562,1407 @@ function normalizeRepos(value: unknown): Repo[] {
 }
 
 export default function QuantGitPage() {
-  const [tab, setTab] = useState<WorkspaceTab>('quanty');
   const router = useRouter();
   const { data, isLoading, error, refetch } = useRepos();
   const repos = useMemo(() => normalizeRepos(data), [data]);
+  const [selectedRepo, setSelectedRepo] = useState<Repo>(DEFAULT_ECOSYSTEM_REPOS[0]);
+
+  // GitHub Sub-tabs: Code, Issues, Pull requests, Agents, Actions
+  const [activeTab, setActiveTab] = useState<GitHubSubTab>('code');
+  const [currentBranch, setCurrentBranch] = useState<string>('main');
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const [isCodeDropdownOpen, setIsCodeDropdownOpen] = useState(false);
+  const [cloneProto, setCloneProto] = useState<CloneProtocol>('https');
+  const [copiedClone, setCopiedClone] = useState(false);
+
+  // Issues and PR states
+  const [issues, setIssues] = useState<IssueItem[]>(INITIAL_ISSUES);
+  const [issueFilter, setIssueFilter] = useState<'open' | 'closed'>('open');
+  const [issueSearch, setIssueSearch] = useState('is:issue state:open');
+  const [isNewIssueModalOpen, setIsNewIssueModalOpen] = useState(false);
+  const [newIssueTitle, setNewIssueTitle] = useState('');
+  const [newIssueBody, setNewIssueBody] = useState('');
+
+  // Pull requests state
+  const [pullRequests, setPullRequests] = useState<PRItem[]>(INITIAL_PRS);
+  const [prFilter, setPrFilter] = useState<'open' | 'closed'>('open');
+  const [prSearch, setPrSearch] = useState('is:pr state:open');
+
+  // Actions state
+  const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunItem[]>(INITIAL_WORKFLOW_RUNS);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('all');
+
+  // File Viewer Modal state
+  const [viewingFile, setViewingFile] = useState<{
+    name: string;
+    content: string;
+    language: string;
+  } | null>(null);
+
+  // Agents Lab state
+  const [deployedAgents, setDeployedAgents] = useState<DeployedAgent[]>([
+    {
+      id: 'astra',
+      name: 'Astra',
+      role: 'Executive Lead & Architecture Gatekeeper',
+      pod: 'COMMAND',
+      status: 'active',
+      currentTask: 'Auditing top command deck, eye-less bubble avatar, and 1:1 GitHub parity',
+      initial: 'A',
+      color: '#FF8C42',
+      thoughts:
+        'Checking PR #260 merge commits, verifying zero eyes in BubbleAvatar, and checking console logs.',
+      steps: [
+        'Audited BubbleAvatar canvas: all paintEye/paintBrow/paintMouth removed',
+        'Verified 519/519 tests passing in @quant/shared-ui',
+        'Approved top command deck layout directly above GitHub workspace',
+      ],
+    },
+    {
+      id: 'sentinel',
+      name: 'Sentinel',
+      role: 'Audit & QA Sentinel',
+      pod: 'SHIELD',
+      status: 'analyzing',
+      currentTask: 'Continuous Vitest regression & CI gate surveillance',
+      initial: 'S',
+      color: '#34d399',
+      thoughts: 'Monitoring test workers and ensuring zero regressions on staging deployment.',
+      steps: [
+        'Gate sweep passed in 4m18s',
+        'Typecheck verified 100% clean',
+        'Watching staging endpoint https://quantmail.in/quantgit',
+      ],
+    },
+    {
+      id: 'forge',
+      name: 'Forge',
+      role: 'Autonomous Code Builder',
+      pod: 'BUILD',
+      status: 'building',
+      currentTask: 'Compiling QuantGit repository parity view and file modal explorer',
+      initial: 'F',
+      color: '#3b82f6',
+      thoughts:
+        'Building interactive 1:1 UI components for Code, Issues, PRs, Agents, and Actions.',
+      steps: [
+        'Rendered Code clone dropdown (HTTPS/SSH/CLI)',
+        'Added interactive File Viewer with syntax highlights',
+        'Integrated Issues filter and interactive New Issue creator',
+      ],
+    },
+  ]);
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+
+  // Top Deck Quanty AI Command Bar State
+  const [mode, setMode] = useState<BuildMode>('plan');
+  const [effort, setEffort] = useState<Effort>('fast');
+  const [prompt, setPrompt] = useState('');
+  const [mascotState, setMascotState] = useState<BubbleState>('idle');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [responseExpanded, setResponseExpanded] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'initial-welcome',
+      role: 'assistant',
+      text: "Hello! I'm Quanty, your autonomous coding companion in QuantGit. What would you like to plan, audit, or build today?",
+      timestamp: 'Just now',
+      suggestions: [
+        'Audit repository architecture',
+        'Plan next sprint wave',
+        'Check CI/CD health',
+        'Deploy specialized agent',
+      ],
+    },
+  ]);
+
+  // Toast feedback
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    window.setTimeout(() => setToastMessage(null), 2600);
+  };
+
+  // Sync selected repo when repos load
+  useEffect(() => {
+    if (repos.length > 0 && !repos.find((r) => r.id === selectedRepo.id)) {
+      setSelectedRepo(repos[0]);
+    }
+  }, [repos, selectedRepo]);
+
+  // Handle Command Bar Submit
+  const handleCommandSubmit = (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    const query = prompt.trim();
+    if (!query || isStreaming) return;
+
+    const userMsg: ChatMessage = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      text: query,
+      mode,
+      timestamp: 'Just now',
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setPrompt('');
+    setIsStreaming(true);
+    setResponseExpanded(true);
+    setMascotState(mode === 'build' ? 'coding' : mode === 'plan' ? 'planning' : 'thinking');
+
+    // Simulate realistic intelligent streaming response
+    setTimeout(() => {
+      let replyText = '';
+      let steps: string[] = [];
+      let nextState: BubbleState = 'success';
+
+      if (query.toLowerCase().includes('debug')) {
+        replyText = `Analyzing recent repository diagnostics for ${selectedRepo.name}... Monorepo build is healthy. Checked Vitest regression gates and TypeScript compilation: 0 errors detected.`;
+        steps = [
+          'Inspected GitHub Actions run #137',
+          'Checked monorepo tsc --noEmit across 10 apps',
+          'Verified zero lint regressions',
+        ];
+        nextState = 'debugging';
+      } else if (query.toLowerCase().includes('issue')) {
+        replyText = `Drafted new issue spec for ${selectedRepo.name}. You can also click "+ New issue" in the Issues tab below to publish immediately.`;
+        steps = ['Generated acceptance criteria', 'Set default label to enhancement'];
+        nextState = 'planning';
+      } else if (query.toLowerCase().includes('agent')) {
+        replyText = `Active Swarm Fleet: Astra (CEO Gatekeeper), Forge (Builder), and Sentinel (QA) are actively monitoring ${selectedRepo.name}. Deploy modal is ready in the Agents tab.`;
+        steps = ['Polled active agent heartbeat', 'Confirmed 3 active agents standing by'];
+        nextState = 'idle';
+      } else {
+        replyText = `I have reviewed "${query}" against the live ${selectedRepo.name} workspace. Mode: ${mode.toUpperCase()} (Effort: ${effort.toUpperCase()}). All repository files, issues, and workflows below are synced.`;
+        steps = [
+          `Read ${selectedRepo.name} commit tree at ${selectedRepo.latestCommitSha || '3c12703'}`,
+          'Evaluated monorepo invariants',
+          'Synthesized actionable recommendation',
+        ];
+      }
+
+      const assistantMsg: ChatMessage = {
+        id: `assist-${Date.now()}`,
+        role: 'assistant',
+        text: replyText,
+        timestamp: 'Just now',
+        steps,
+        suggestions: ['Show git status diff', 'Run CI gate tests', 'Deploy Astra audit'],
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+      setIsStreaming(false);
+      setMascotState(nextState);
+    }, 900);
+  };
+
+  // Quick Action Click
+  const handleQuickAction = (act: (typeof GIT_QUICK_ACTIONS)[0]) => {
+    setPrompt(act.prompt);
+    setMascotState(act.state);
+  };
+
+  // Create Issue
+  const handleCreateIssue = (e: FormEvent) => {
+    e.preventDefault();
+    if (!newIssueTitle.trim()) return;
+
+    const newIssue: IssueItem = {
+      id: Math.max(...issues.map((i) => i.id), 260) + 1,
+      title: newIssueTitle.trim(),
+      body: newIssueBody.trim() || 'Created via QuantGit autonomous deck.',
+      state: 'open',
+      author: 'kundan',
+      labels: [{ name: 'triage', color: '#e99695' }],
+      commentsCount: 0,
+      createdAt: 'just now',
+    };
+
+    setIssues([newIssue, ...issues]);
+    setNewIssueTitle('');
+    setNewIssueBody('');
+    setIsNewIssueModalOpen(false);
+    showToast(`Issue #${newIssue.id} created successfully!`);
+    setActiveTab('issues');
+  };
+
+  // Deploy Agent
+  const handleDeployAgent = (agent: (typeof AGENT_FLEET_CATALOG)[0]) => {
+    if (deployedAgents.some((a) => a.id === agent.id)) {
+      showToast(`${agent.name} is already deployed!`);
+      setIsDeployModalOpen(false);
+      return;
+    }
+
+    const newDep: DeployedAgent = {
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      pod: agent.pod,
+      status: 'active',
+      currentTask: 'Standing by for repository tasks',
+      initial: agent.initial,
+      color: agent.color,
+      thoughts: 'Initialized runtime context. Awaiting instructions from CEO Astra.',
+      steps: ['Allocated container runtime', 'Loaded git worktree context'],
+    };
+
+    setDeployedAgents([...deployedAgents, newDep]);
+    setIsDeployModalOpen(false);
+    showToast(`Deployed ${agent.name} to ${selectedRepo.name}`);
+    setActiveTab('agents');
+  };
+
+  // Copy Clone URL
+  const handleCopyClone = (text: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedClone(true);
+      showToast('Copied clone URL to clipboard!');
+      setTimeout(() => setCopiedClone(false), 2000);
+    }
+  };
+
+  const filteredIssues = useMemo(() => {
+    return issues.filter((i) => i.state === issueFilter);
+  }, [issues, issueFilter]);
+
+  const filteredPRs = useMemo(() => {
+    return pullRequests.filter((p) => p.state === prFilter);
+  }, [pullRequests, prFilter]);
+
+  const cloneString = useMemo(() => {
+    if (cloneProto === 'ssh') {
+      return (
+        selectedRepo.sshUrl ||
+        `git@github.com:${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
+      );
+    }
+    if (cloneProto === 'cli') {
+      return `gh repo clone ${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}`;
+    }
+    return (
+      selectedRepo.cloneUrl ||
+      `https://github.com/${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
+    );
+  }, [cloneProto, selectedRepo]);
 
   return (
     <main
       id="main-content"
-      className="min-h-dvh bg-[#0B0C0E] text-white selection:bg-[#FF8C42] selection:text-black [color-scheme:dark]"
+      className="min-h-screen bg-[#0B0C0E] text-white selection:bg-[#FF8C42] selection:text-black [color-scheme:dark] flex flex-col"
     >
-      {/* Top Header: Just QuantGit Logo + Name on left, Active status on right. No drawer/sidebar toggle. */}
-      <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#282C35] bg-[#0B0C0E]/90 px-4 backdrop-blur-xl sm:px-6">
-        <QuantGitLogo />
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400">
-          <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />
-          <span>Active</span>
+      {/* ========================================================================= */}
+      {/* 1. TOP HEADER: Prominent Bubble Intelligence Mascot + Wordmark + Breadcrumb */}
+      {/* ========================================================================= */}
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-[#282C35] bg-[#0B0C0E]/95 px-4 backdrop-blur-xl sm:px-6">
+        <div className="flex items-center gap-3.5 min-w-0">
+          {/* Prominent Eye-less Bubble Intelligence Mascot (42px) */}
+          <div
+            className="relative cursor-pointer transition-transform hover:scale-105 shrink-0"
+            onClick={() => {
+              setMascotState(mascotState === 'idle' ? 'thinking' : 'idle');
+            }}
+            title={`Quanty Bubble Intelligence — ${mascotState}`}
+          >
+            <BubbleAvatar state={mascotState} size={42} />
+          </div>
+
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-bold tracking-tight text-white flex items-center gap-1.5">
+              <span className="text-[#FF8C42]">Quant</span>Git
+            </span>
+            <span className="text-[#6b7280]">/</span>
+            <div className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-slate-200">
+              <span className="text-[#A1A4AC] hover:text-white cursor-pointer">quantrinitylab</span>
+              <span className="text-[#6b7280]">/</span>
+              <span className="text-white font-bold hover:text-[#FF8C42] cursor-pointer">
+                {selectedRepo.name}
+              </span>
+            </div>
+            <span className="ml-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
+              {selectedRepo.visibility || 'Public'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Active status indicator */}
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 px-2.5 py-1 rounded-full">
+            <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse" />
+            <span>Swarm Active</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-[#16181D] border border-[#282C35] text-[#A1A4AC] hover:text-white hover:border-[#3A404D] transition-colors"
+          >
+            <span>QuantMail</span>
+            <span>↗</span>
+          </button>
         </div>
       </header>
 
-      {/* Tab Content */}
-      {tab === 'quanty' ? (
-        <QuantyChatStream repoNames={repos.map((repo) => repo.fullName || repo.name)} />
-      ) : tab === 'repos' ? (
-        <ReposList
-          repos={repos}
-          loading={isLoading}
-          error={Boolean(error)}
-          retry={() => void refetch()}
-          onSelectRepoForLab={(repo) => {
-            setTab('lab');
-          }}
-        />
-      ) : (
-        <RepositoryFirstAgentLab repos={repos} />
+      {/* ========================================================================= */}
+      {/* 2. TOP QUANTY AI COMMAND DECK (Chat on top, with quick pills & modes)     */}
+      {/* ========================================================================= */}
+      <section className="w-full border-b border-[#282C35] bg-[#0E1015] px-4 py-4 sm:px-8">
+        <div className="max-w-6xl mx-auto flex flex-col gap-3">
+          {/* Quick Action Pills Row */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+            <span className="text-[11px] font-bold text-[#FF8C42] uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
+              <span>⚡</span> Quick
+            </span>
+            {GIT_QUICK_ACTIONS.map((act) => (
+              <button
+                key={act.id}
+                type="button"
+                onClick={() => handleQuickAction(act)}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:text-white hover:border-[#FF8C42]/60 hover:bg-[#1E222B] shrink-0 transition-all font-medium text-[11px]"
+              >
+                <span>{act.icon}</span>
+                <span>{act.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Sleek Command Input Bar */}
+          <form
+            onSubmit={handleCommandSubmit}
+            className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-lg focus-within:border-[#FF8C42]/70 transition-all"
+          >
+            {/* Connectors button */}
+            <button
+              type="button"
+              onClick={() =>
+                showToast('MCP Connectors: Notion, GitHub, LiveKit, Fastify connected.')
+              }
+              title="Add Context / MCP Connectors"
+              className="size-9 rounded-xl grid place-items-center text-[#A1A4AC] hover:text-white hover:bg-[#20242D] shrink-0 transition-colors"
+            >
+              <span className="text-base font-bold">+</span>
+            </button>
+
+            {/* Mode Selector Pill: Plan | Build | Auto */}
+            <div className="flex items-center bg-[#0B0C0E] p-0.5 rounded-xl border border-[#282C35] shrink-0">
+              {(['plan', 'build', 'auto'] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`px-2.5 py-1 text-[11px] font-bold rounded-lg capitalize transition-all ${
+                    mode === m
+                      ? 'bg-[#FF8C42] text-black shadow-sm'
+                      : 'text-[#A1A4AC] hover:text-white'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            {/* Effort Selector: Fast | Deep */}
+            <div className="hidden sm:flex items-center bg-[#0B0C0E] p-0.5 rounded-xl border border-[#282C35] shrink-0">
+              {(['fast', 'deep'] as const).map((ef) => (
+                <button
+                  key={ef}
+                  type="button"
+                  onClick={() => setEffort(ef)}
+                  className={`px-2 py-1 text-[10px] font-semibold rounded-lg uppercase tracking-wider transition-all ${
+                    effort === ef
+                      ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+                      : 'text-[#717682] hover:text-white'
+                  }`}
+                >
+                  {ef}
+                </button>
+              ))}
+            </div>
+
+            {/* Input */}
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                if (mascotState === 'idle' && e.target.value.length > 0) {
+                  setMascotState('listening');
+                }
+              }}
+              placeholder={`Ask Quanty to ${mode} repository tasks, debug tests, or deploy agents...`}
+              className="flex-1 bg-transparent px-2.5 text-xs sm:text-sm text-white placeholder-[#717682] outline-none min-w-0"
+            />
+
+            {/* Submit / Run */}
+            <button
+              type="submit"
+              disabled={isStreaming || !prompt.trim()}
+              className="size-9 rounded-xl grid place-items-center bg-[#FF8C42] text-black font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#ff9b5a] shrink-0 transition-all shadow-md"
+              title="Run Command"
+            >
+              {isStreaming ? (
+                <span className="size-4 rounded-full border-2 border-black border-t-transparent animate-spin" />
+              ) : (
+                <span>→</span>
+              )}
+            </button>
+          </form>
+
+          {/* Interactive Response Stream Drawer (Collapsible) */}
+          {messages.length > 1 && (
+            <div className="mt-1 rounded-2xl bg-[#12141A] border border-[#282C35] p-3.5 transition-all text-xs">
+              <div className="flex items-center justify-between border-b border-[#282C35]/60 pb-2 mb-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#FF8C42]">
+                  <span className="size-2 rounded-full bg-[#FF8C42] animate-pulse" />
+                  <span>Quanty Response Stream</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResponseExpanded(!responseExpanded)}
+                  className="text-[11px] text-[#A1A4AC] hover:text-white underline"
+                >
+                  {responseExpanded ? 'Collapse' : 'Expand conversation'}
+                </button>
+              </div>
+
+              {/* Latest message preview */}
+              <div className="space-y-2">
+                {responseExpanded ? (
+                  messages.slice(1).map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`p-2.5 rounded-xl ${
+                        msg.role === 'user'
+                          ? 'bg-[#1A1D24] text-white ml-6'
+                          : 'bg-[#16181E] text-slate-200 mr-6 border border-[#282C35]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px] text-[#A1A4AC] mb-1 font-medium">
+                        <span className="font-bold text-[#FF8C42]">
+                          {msg.role === 'user' ? 'You' : 'Quanty Swarm'}
+                        </span>
+                        <span>{msg.timestamp}</span>
+                      </div>
+                      <p className="leading-relaxed">{msg.text}</p>
+                      {msg.steps && msg.steps.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-[#282C35]/40 text-[11px] space-y-1 font-mono text-[#A1A4AC]">
+                          {msg.steps.map((s, idx) => (
+                            <div key={idx} className="flex items-center gap-1.5">
+                              <span className="text-emerald-400">✓</span>
+                              <span>{s}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-slate-300 truncate text-xs">
+                      <span className="font-semibold text-[#FF8C42]">Latest: </span>
+                      {messages[messages.length - 1].text}
+                    </p>
+                    <span className="text-[10px] text-[#A1A4AC] shrink-0 font-mono">
+                      {messages[messages.length - 1].timestamp}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 3. FULL 1:1 GITHUB REPOSITORY WORKSPACE (Directly underneath top deck)   */}
+      {/* ========================================================================= */}
+      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 flex flex-col gap-4">
+        {/* Repo Header & Metrics: Stars, Watch, Fork */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#282C35]">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-1.5">
+                <span>{selectedRepo.fullName || selectedRepo.name}</span>
+              </h1>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
+                {selectedRepo.visibility || 'Public repository'}
+              </span>
+            </div>
+            <p className="text-xs text-[#A1A4AC] mt-1">
+              {selectedRepo.description ||
+                'Next-gen sovereign enterprise platform, autonomous AI swarm & Git hub.'}
+            </p>
+          </div>
+
+          {/* GitHub Watch, Fork, Star Buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => showToast('Notification watch preference saved.')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
+            >
+              <span>👁 Watch</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
+                {selectedRepo.watching || 12}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => showToast('Fork repository flow initialized.')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
+            >
+              <span>⑂ Fork</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
+                {selectedRepo.forks || 24}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => showToast('Starred quantrinitylab/Quant-Ecosystem! ⭐')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#FF8C42] hover:bg-[#20242D] transition-colors shadow-sm"
+            >
+              <span>★ Star</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-white border border-[#282C35]">
+                {selectedRepo.stars || 128}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* 5 GitHub Sub-Navigation Tabs: Code | Issues | Pull requests | Agents | Actions */}
+        <div className="flex items-center gap-1 border-b border-[#282C35] overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setActiveTab('code')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+              activeTab === 'code'
+                ? 'border-[#FF8C42] text-white'
+                : 'border-transparent text-[#A1A4AC] hover:text-white'
+            }`}
+          >
+            <span>&lt;&gt;</span>
+            <span>Code</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('issues')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+              activeTab === 'issues'
+                ? 'border-[#FF8C42] text-white'
+                : 'border-transparent text-[#A1A4AC] hover:text-white'
+            }`}
+          >
+            <span>⨀</span>
+            <span>Issues</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
+              {issues.filter((i) => i.state === 'open').length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('pulls')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+              activeTab === 'pulls'
+                ? 'border-[#FF8C42] text-white'
+                : 'border-transparent text-[#A1A4AC] hover:text-white'
+            }`}
+          >
+            <span>⑂</span>
+            <span>Pull requests</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
+              {pullRequests.filter((p) => p.state === 'open').length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('agents')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+              activeTab === 'agents'
+                ? 'border-[#FF8C42] text-white'
+                : 'border-transparent text-[#A1A4AC] hover:text-white'
+            }`}
+          >
+            <span>✨</span>
+            <span>Agents</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/50 text-[10px]">
+              Copilot
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('actions')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+              activeTab === 'actions'
+                ? 'border-[#FF8C42] text-white'
+                : 'border-transparent text-[#A1A4AC] hover:text-white'
+            }`}
+          >
+            <span>▶</span>
+            <span>Actions</span>
+          </button>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* TAB 1: CODE WORKSPACE (1:1 GitHub Layout)                                 */}
+        {/* ========================================================================= */}
+        {activeTab === 'code' && (
+          <div className="space-y-4">
+            {/* Top Code Control Row: Branch Selector + File search + <> Code Clone Dropdown */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 relative">
+                {/* Branch Switcher Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
+                >
+                  <span className="text-[#A1A4AC]">⑂</span>
+                  <span>{currentBranch}</span>
+                  <span className="text-[10px] text-[#A1A4AC]">▼</span>
+                </button>
+
+                {isBranchDropdownOpen && (
+                  <div className="absolute left-0 top-10 z-50 w-56 rounded-xl bg-[#16181D] border border-[#282C35] shadow-2xl p-2 text-xs space-y-1">
+                    <div className="px-2 py-1 text-[11px] font-bold text-[#A1A4AC] border-b border-[#282C35]">
+                      Switch branches / tags
+                    </div>
+                    {['main', 'staging', 'feature/quantgit-parity'].map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => {
+                          setCurrentBranch(b);
+                          setIsBranchDropdownOpen(false);
+                          showToast(`Switched to branch ${b}`);
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between font-mono ${
+                          currentBranch === b
+                            ? 'bg-[#2B1A11] text-[#FF8C42] font-bold'
+                            : 'text-[#D1D5DB] hover:bg-[#20242D]'
+                        }`}
+                      >
+                        <span>{b}</span>
+                        {currentBranch === b && <span>✓</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 text-xs text-[#A1A4AC] ml-1 font-semibold">
+                  <span>348 branches</span>
+                  <span>•</span>
+                  <span>2 tags</span>
+                </div>
+              </div>
+
+              {/* Code Clone Button & Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsCodeDropdownOpen(!isCodeDropdownOpen)}
+                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
+                >
+                  <span>&lt;&gt; Code</span>
+                  <span className="text-[9px]">▼</span>
+                </button>
+
+                {isCodeDropdownOpen && (
+                  <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-4 text-xs space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#282C35] pb-2">
+                      <span className="font-bold text-white">Clone repository</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsCodeDropdownOpen(false)}
+                        className="text-[#A1A4AC] hover:text-white"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    {/* Protocol Tabs */}
+                    <div className="flex items-center bg-[#0B0C0E] p-0.5 rounded-lg border border-[#282C35]">
+                      {(['https', 'ssh', 'cli'] as const).map((proto) => (
+                        <button
+                          key={proto}
+                          type="button"
+                          onClick={() => setCloneProto(proto)}
+                          className={`flex-1 py-1 text-[11px] font-bold rounded uppercase transition-all ${
+                            cloneProto === proto
+                              ? 'bg-[#2B1A11] text-[#FF8C42]'
+                              : 'text-[#A1A4AC] hover:text-white'
+                          }`}
+                        >
+                          {proto}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Clone URL Input with Copy */}
+                    <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
+                      <input
+                        type="text"
+                        readOnly
+                        value={cloneString}
+                        className="flex-1 bg-transparent px-2 text-[11px] font-mono text-slate-200 outline-none truncate"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleCopyClone(cloneString)}
+                        className="px-2.5 py-1 rounded-lg bg-[#FF8C42] text-black font-bold text-[11px] hover:bg-[#ff9b5a] transition-colors shrink-0"
+                      >
+                        {copiedClone ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+
+                    <div className="pt-1 space-y-1.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => showToast('Opening GitHub Desktop...')}
+                        className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
+                      >
+                        <span>💻</span>
+                        <span>Open with GitHub Desktop</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => showToast('Downloading repository ZIP archive...')}
+                        className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
+                      >
+                        <span>📦</span>
+                        <span>Download ZIP</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Commit Header Banner */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-t-xl bg-[#16181D] border border-[#282C35] text-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* Author Avatars */}
+                <div className="flex -space-x-1.5 shrink-0">
+                  <div className="size-6 rounded-full bg-[#FF8C42] text-black text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
+                    K
+                  </div>
+                  <div className="size-6 rounded-full bg-[#3b82f6] text-white text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
+                    A
+                  </div>
+                </div>
+
+                <span className="font-bold text-white shrink-0">quantrinitylab</span>
+                <span className="text-slate-300 truncate font-medium">
+                  {selectedRepo.latestCommit ||
+                    'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <span>✓</span>
+                  <span>Verified</span>
+                </span>
+                <span className="hover:underline cursor-pointer text-slate-300 font-bold">
+                  {selectedRepo.latestCommitSha || '3c12703'}
+                </span>
+                <span>•</span>
+                <span>{selectedRepo.latestCommitTime || '7 hours ago'}</span>
+                <button
+                  type="button"
+                  onClick={() => showToast('Loaded full commit log (2,116 commits).')}
+                  className="text-[11px] font-sans font-bold text-[#FF8C42] hover:underline flex items-center gap-1 ml-1"
+                >
+                  <span>2,116 Commits</span>
+                </button>
+              </div>
+            </div>
+
+            {/* File & Folder Tree Table */}
+            <div className="rounded-b-xl border-x border-b border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+              {MOCK_FILES.map((file) => (
+                <div
+                  key={file.name}
+                  onClick={() => {
+                    if (file.type === 'file') {
+                      setViewingFile({
+                        name: file.name,
+                        content: file.content || '',
+                        language: file.language || 'text',
+                      });
+                    } else {
+                      showToast(`Navigated into ${file.name}/ folder.`);
+                    }
+                  }}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-[#16181D] cursor-pointer transition-colors group"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 w-1/3">
+                    <span className="text-base shrink-0">
+                      {file.type === 'folder' ? '📁' : '📄'}
+                    </span>
+                    <span className="font-semibold text-white group-hover:text-[#FF8C42] truncate">
+                      {file.name}
+                    </span>
+                  </div>
+
+                  <div className="flex-1 text-[#A1A4AC] truncate pr-4 text-[11px]">
+                    {file.message}
+                  </div>
+
+                  <div className="text-[11px] text-[#717682] font-mono shrink-0">
+                    {file.timeAgo}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* README.md Preview Container (GitHub 1:1) */}
+            <div className="rounded-2xl border border-[#282C35] bg-[#16181D] overflow-hidden mt-6">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#282C35] bg-[#111318] text-xs">
+                <div className="flex items-center gap-2 font-bold text-white">
+                  <span>📄</span>
+                  <span>README.md</span>
+                </div>
+                <div className="text-[11px] text-[#A1A4AC]">Markdown Preview</div>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                <div className="flex flex-wrap items-center gap-2 pb-2">
+                  <span className="px-2.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-mono text-[10px] font-bold">
+                    build: passing
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded bg-blue-950/60 border border-blue-800/60 text-blue-400 font-mono text-[10px] font-bold">
+                    license: MIT
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] font-mono text-[10px] font-bold">
+                    swarm: 8+ agents
+                  </span>
+                </div>
+
+                <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                  Quant Ecosystem — The Next NVIDIA of Software
+                </h2>
+
+                <p>
+                  A unified sovereign operating ecosystem built for high-performance computing,
+                  intelligent mail triage, autonomous agentic development, and real git
+                  collaboration.
+                </p>
+
+                <div className="p-4 rounded-xl bg-[#0B0C0E] border border-[#282C35] font-mono text-xs text-[#FF8C42] space-y-1">
+                  <p># Clone the unified monorepo</p>
+                  <p className="text-white">
+                    git clone https://github.com/quantrinitylab/Quant-Ecosystem.git
+                  </p>
+                  <p># Install dependencies and start development</p>
+                  <p className="text-white">pnpm install &amp;&amp; pnpm dev</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: ISSUES (GitHub 1:1 Parity)                                         */}
+        {/* ========================================================================= */}
+        {activeTab === 'issues' && (
+          <div className="space-y-4">
+            {/* Search filter & New Issue Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={issueSearch}
+                  onChange={(e) => setIssueSearch(e.target.value)}
+                  placeholder="Search all issues..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
+                />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
+                  🔍
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35]">
+                  <button
+                    type="button"
+                    onClick={() => setIssueFilter('open')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                      issueFilter === 'open'
+                        ? 'bg-[#2B1A11] text-[#FF8C42]'
+                        : 'text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    {issues.filter((i) => i.state === 'open').length} Open
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIssueFilter('closed')}
+                    className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                      issueFilter === 'closed'
+                        ? 'bg-[#2B1A11] text-[#FF8C42]'
+                        : 'text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    182 Closed
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsNewIssueModalOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
+                >
+                  New issue
+                </button>
+              </div>
+            </div>
+
+            {/* Issues List Container */}
+            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+              {filteredIssues.map((issue) => (
+                <div
+                  key={issue.id}
+                  className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="text-emerald-400 font-bold mt-0.5">⨀</span>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
+                          {issue.title}
+                        </span>
+                        {issue.labels.map((lbl) => (
+                          <span
+                            key={lbl.name}
+                            className="text-[10px] font-bold px-2 py-0.2 rounded-full border border-white/10 text-white"
+                            style={{ backgroundColor: `${lbl.color}33`, borderColor: lbl.color }}
+                          >
+                            {lbl.name}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-[11px] text-[#A1A4AC]">
+                        #{issue.id} opened {issue.createdAt} by{' '}
+                        <span className="font-semibold text-slate-300">{issue.author}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 text-[#A1A4AC] text-[11px] shrink-0 font-medium">
+                    <span>💬</span>
+                    <span>{issue.commentsCount}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: PULL REQUESTS (GitHub 1:1 Parity)                                   */}
+        {/* ========================================================================= */}
+        {activeTab === 'pulls' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={prSearch}
+                  onChange={(e) => setPrSearch(e.target.value)}
+                  placeholder="Search all pull requests..."
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
+                />
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
+                  🔍
+                </span>
+              </div>
+
+              <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35] shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setPrFilter('open')}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                    prFilter === 'open'
+                      ? 'bg-[#2B1A11] text-[#FF8C42]'
+                      : 'text-[#A1A4AC] hover:text-white'
+                  }`}
+                >
+                  {pullRequests.filter((p) => p.state === 'open').length} Open
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrFilter('closed')}
+                  className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                    prFilter === 'closed'
+                      ? 'bg-[#2B1A11] text-[#FF8C42]'
+                      : 'text-[#A1A4AC] hover:text-white'
+                  }`}
+                >
+                  248 Closed
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+              {filteredPRs.map((pr) => (
+                <div
+                  key={pr.id}
+                  className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
+                >
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="text-purple-400 font-bold mt-0.5">⑂</span>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
+                          {pr.title}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
+                          {pr.branchTarget} &larr; {pr.branchSource}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#A1A4AC]">
+                        #{pr.id} by{' '}
+                        <span className="font-semibold text-slate-300">{pr.author}</span> •{' '}
+                        {pr.createdAt}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0 text-[11px]">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1 font-mono">
+                      <span>✓</span>
+                      <span>checks passed</span>
+                    </span>
+                    <span className="text-[#A1A4AC]">💬 {pr.commentsCount}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: AGENTS (GitHub Copilot Agent Parity)                                */}
+        {/* ========================================================================= */}
+        {activeTab === 'agents' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+              <div>
+                <h2 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>Autonomous Swarm Fleet</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40 font-mono">
+                    {deployedAgents.length} Active
+                  </span>
+                </h2>
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
+                  Copilot agents perform deep architectural reviews, run test sweeps, and build
+                  code.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsDeployModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#ff9b5a] text-black text-xs font-bold transition-all shadow-md self-start sm:self-auto"
+              >
+                + Deploy Agent
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              {deployedAgents.map((ag) => (
+                <div
+                  key={ag.id}
+                  className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#3A404D] transition-all flex flex-col justify-between gap-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className="size-8 rounded-xl font-bold text-sm grid place-items-center text-black"
+                          style={{ backgroundColor: ag.color }}
+                        >
+                          {ag.initial}
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{ag.name}</h3>
+                          <span className="text-[10px] font-mono text-[#A1A4AC]">{ag.pod}</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-bold capitalize">
+                        {ag.status}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-[#FF8C42] font-medium">{ag.role}</p>
+                    <p className="text-[11px] text-slate-300 leading-snug">{ag.currentTask}</p>
+
+                    {ag.thoughts && (
+                      <div className="p-2 rounded-lg bg-[#0B0C0E] border border-[#282C35] text-[10px] text-[#A1A4AC] font-mono leading-relaxed">
+                        <span className="text-slate-400 font-bold block mb-0.5">Thought:</span>
+                        {ag.thoughts}
+                      </div>
+                    )}
+                  </div>
+
+                  {ag.steps && ag.steps.length > 0 && (
+                    <div className="pt-2 border-t border-[#282C35]/60 text-[10px] text-emerald-400 font-mono space-y-0.5">
+                      {ag.steps.slice(-2).map((s, idx) => (
+                        <div key={idx} className="flex items-center gap-1 truncate">
+                          <span>✓</span>
+                          <span className="text-slate-300 truncate">{s}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="p-3 rounded-xl bg-[#0B0C0E] border border-[#282C35] text-center text-[11px] text-[#717682]">
+              Quanty uses AI swarm intelligence. Check outputs for complete factual accuracy.
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5: ACTIONS (GitHub Actions 1:1 Parity)                                 */}
+        {/* ========================================================================= */}
+        {activeTab === 'actions' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold text-white">Workflows &amp; CI/CD Runs</h2>
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
+                  Real-time pipeline results from GitHub Actions.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => showToast('Triggered deploy-staging.yml manually.')}
+                  className="px-3 py-1.5 rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
+                >
+                  Run workflow
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+              {workflowRuns.map((run) => (
+                <div
+                  key={run.id}
+                  className="p-4 hover:bg-[#16181D] transition-colors flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="size-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold grid place-items-center text-xs shrink-0">
+                      ✓
+                    </span>
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer truncate">
+                          {run.name}
+                        </span>
+                        <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
+                          {run.workflow}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#A1A4AC]">
+                        #{run.id} pushed to{' '}
+                        <span className="font-mono font-bold text-slate-300">{run.branch}</span> •{' '}
+                        {run.commitSha} • {run.timeAgo}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
+                    <span>⏱ {run.duration}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4. MODALS: File Viewer, New Issue, Deploy Agent, Toast                    */}
+      {/* ========================================================================= */}
+
+      {/* File Viewer Modal */}
+      {viewingFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-2xl max-h-[85vh] rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#282C35] bg-[#111318]">
+              <div className="flex items-center gap-2 font-bold text-sm text-white">
+                <span>📄</span>
+                <span>{viewingFile.name}</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#0B0C0E] text-[#FF8C42] uppercase">
+                  {viewingFile.language}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingFile(null)}
+                className="size-7 rounded-lg grid place-items-center text-[#A1A4AC] hover:text-white hover:bg-[#20242D]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 flex-1 overflow-y-auto font-mono text-xs text-slate-200 bg-[#0B0C0E] whitespace-pre-wrap leading-relaxed">
+              {viewingFile.content}
+            </div>
+
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-[#282C35] bg-[#111318] text-xs">
+              <span className="text-[#A1A4AC]">Read-only preview</span>
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyClone(viewingFile.content);
+                  showToast('Copied file contents!');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#FF8C42] text-black font-bold hover:bg-[#ff9b5a] transition-colors"
+              >
+                Copy Content
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* 4 Bottom Tabs Deck */}
-      <BottomDeck tab={tab} setTab={setTab} exit={() => router.push('/')} />
+      {/* New Issue Modal */}
+      {isNewIssueModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-5 space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
+              <h3 className="text-base font-bold text-white">Create New Issue</h3>
+              <button
+                type="button"
+                onClick={() => setIsNewIssueModalOpen(false)}
+                className="text-[#A1A4AC] hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateIssue} className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-[#A1A4AC] mb-1">Title</label>
+                <input
+                  type="text"
+                  required
+                  value={newIssueTitle}
+                  onChange={(e) => setNewIssueTitle(e.target.value)}
+                  placeholder="Title or summary of issue..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#0B0C0E] border border-[#282C35] text-white outline-none focus:border-[#FF8C42]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#A1A4AC] mb-1">Description</label>
+                <textarea
+                  rows={4}
+                  value={newIssueBody}
+                  onChange={(e) => setNewIssueBody(e.target.value)}
+                  placeholder="Steps to reproduce, expected behavior, or context..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#0B0C0E] border border-[#282C35] text-white outline-none focus:border-[#FF8C42] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewIssueModalOpen(false)}
+                  className="px-3 py-1.5 rounded-xl border border-[#282C35] text-xs font-semibold text-[#A1A4AC] hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
+                >
+                  Submit issue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Deploy Agent Modal */}
+      {isDeployModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-lg max-h-[80vh] rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-5 flex flex-col overflow-hidden animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white">Deploy Swarm Agent</h3>
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
+                  Select an autonomous agent to assign to {selectedRepo.name}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDeployModalOpen(false)}
+                className="text-[#A1A4AC] hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-2.5 py-3 pr-1">
+              {AGENT_FLEET_CATALOG.map((ag) => (
+                <div
+                  key={ag.id}
+                  className="p-3 rounded-xl bg-[#0B0C0E] border border-[#282C35] hover:border-[#FF8C42]/50 transition-all flex items-start justify-between gap-3"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <div
+                      className="size-8 rounded-lg font-bold text-sm grid place-items-center text-black shrink-0"
+                      style={{ backgroundColor: ag.color }}
+                    >
+                      {ag.initial}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs font-bold text-white">{ag.name}</h4>
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
+                          {ag.pod}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#FF8C42] font-medium">{ag.role}</p>
+                      <p className="text-[10px] text-[#A1A4AC] mt-0.5">{ag.description}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeployAgent(ag)}
+                    className="px-3 py-1.5 rounded-lg bg-[#FF8C42] text-black font-bold text-xs hover:bg-[#ff9b5a] transition-colors shrink-0"
+                  >
+                    Deploy
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3">
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }

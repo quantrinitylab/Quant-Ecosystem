@@ -262,10 +262,6 @@ export interface BubbleAvatarProps {
 const CX = 46;
 const CY = 55;
 const R = 26;
-const EYE_DX = 8.5;
-const EYE_CY = 50;
-const EYE_W = 6.8;
-const EYE_H = 10.5;
 const MOUTH_CY = 63.5;
 
 /** `noUncheckedIndexedAccess`-safe spec lookup. */
@@ -360,212 +356,9 @@ function paintBody(ctx: CanvasRenderingContext2D, t: number, amp: number): void 
   ctx.fill();
 }
 
-/** LED paint for the face: espresso ink so it reads as printed on amber. */
-function ink(ctx: CanvasRenderingContext2D, bloom: number): void {
-  ctx.shadowColor = `rgba(58, 28, 6, ${0.25 * bloom})`;
-  ctx.shadowBlur = 2;
-  ctx.fillStyle = C.ink;
-  ctx.strokeStyle = C.ink;
-}
-
-function capsuleEye(ctx: CanvasRenderingContext2D, x: number, w: number, h: number): void {
-  const hh = Math.max(1.4, h);
-  ctx.beginPath();
-  ctx.roundRect(x - w / 2, EYE_CY - hh / 2, w, hh, Math.min(w, hh) / 2);
-}
-
-function archEye(ctx: CanvasRenderingContext2D, x: number, bulge: number, span: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x - span, EYE_CY + 2);
-  ctx.quadraticCurveTo(x, EYE_CY - bulge, x + span, EYE_CY + 2);
-}
-
-function starEye(ctx: CanvasRenderingContext2D, x: number, r: number): void {
-  const i = r * 0.28;
-  ctx.beginPath();
-  ctx.moveTo(x, EYE_CY - r);
-  ctx.quadraticCurveTo(x + i, EYE_CY - i, x + r, EYE_CY);
-  ctx.quadraticCurveTo(x + i, EYE_CY + i, x, EYE_CY + r);
-  ctx.quadraticCurveTo(x - i, EYE_CY + i, x - r, EYE_CY);
-  ctx.quadraticCurveTo(x - i, EYE_CY - i, x, EYE_CY - r);
-  ctx.closePath();
-}
-
-function heartEye(ctx: CanvasRenderingContext2D, x: number, s: number): void {
-  ctx.beginPath();
-  ctx.moveTo(x, EYE_CY + s * 1.1);
-  ctx.bezierCurveTo(
-    x - s * 1.8,
-    EYE_CY - s * 0.2,
-    x - s * 0.9,
-    EYE_CY - s * 1.3,
-    x,
-    EYE_CY - s * 0.3,
-  );
-  ctx.bezierCurveTo(
-    x + s * 0.9,
-    EYE_CY - s * 1.3,
-    x + s * 1.8,
-    EYE_CY - s * 0.2,
-    x,
-    EYE_CY + s * 1.1,
-  );
-  ctx.closePath();
-}
-
-function paintEye(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  spec: BubbleSpec,
-  open: number,
-  t: number,
-): void {
-  const w = EYE_W * (spec.eyeW ?? 1);
-  const h = EYE_H * (spec.eyeH ?? 1);
-  ink(ctx, 1);
-  switch (spec.eyes) {
-    case 'arch':
-      ctx.lineWidth = 2.6;
-      ctx.lineCap = 'round';
-      archEye(ctx, x, 5, 5.5);
-      ctx.stroke();
-      return;
-    case 'shut':
-      ctx.lineWidth = 2.4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - 4.5, EYE_CY - 1);
-      ctx.quadraticCurveTo(x, EYE_CY + 3.4, x + 4.5, EYE_CY - 1);
-      ctx.stroke();
-      return;
-    case 'bar':
-      capsuleEye(ctx, x, w + 1.5, Math.max(2.6, h * 0.36) * open);
-      ctx.fill();
-      return;
-    case 'wide': {
-      const pop = 1 + Math.sin(t * 3.2) * 0.04;
-      capsuleEye(ctx, x, w * 1.22, h * 1.08 * open * pop);
-      ctx.fill();
-      return;
-    }
-    case 'star':
-      starEye(ctx, x, 5.4);
-      ctx.fill();
-      return;
-    case 'heart':
-      heartEye(ctx, x, 3.2);
-      ctx.fill();
-      return;
-    default:
-      capsuleEye(ctx, x, w, h * open);
-      ctx.fill();
-  }
-  // Specular dot on filled eyes.
-  ctx.beginPath();
-  ctx.arc(x - w * 0.2, EYE_CY - h * 0.22, 1.1, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-  ctx.fill();
-}
-
-function paintBrow(ctx: CanvasRenderingContext2D, x: number, sign: number): void {
-  ink(ctx, 0.8);
-  ctx.save();
-  ctx.translate(x, EYE_CY - 9);
-  ctx.rotate(sign * 0.32);
-  ctx.beginPath();
-  ctx.roundRect(-4.5, -1.1, 9, 2.2, 1.1);
-  ctx.fill();
-  ctx.restore();
-}
-
-function paintMouth(
-  ctx: CanvasRenderingContext2D,
-  kind: MouthKind,
-  t: number,
-  reduced: boolean,
-): void {
-  ink(ctx, 0.9);
-  ctx.lineCap = 'round';
-  switch (kind) {
-    case 'smile':
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(CX - 5, MOUTH_CY - 1.5);
-      ctx.quadraticCurveTo(CX, MOUTH_CY + 3, CX + 5, MOUTH_CY - 1.5);
-      ctx.stroke();
-      return;
-    case 'grin': {
-      ctx.beginPath();
-      ctx.moveTo(CX - 6, MOUTH_CY - 2);
-      ctx.quadraticCurveTo(CX, MOUTH_CY + 7, CX + 6, MOUTH_CY - 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.save();
-      ctx.clip();
-      ctx.beginPath();
-      ctx.roundRect(CX - 6, MOUTH_CY - 2, 12, 2.2, 1);
-      ctx.fillStyle = C.cream;
-      ctx.fill();
-      ctx.restore();
-      return;
-    }
-    case 'o':
-      ctx.beginPath();
-      ctx.arc(CX, MOUTH_CY + 0.5, 2.6, 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    case 'gasp':
-      ctx.beginPath();
-      ctx.arc(CX, MOUTH_CY + 1, 3.6, 0, Math.PI * 2);
-      ctx.fill();
-      return;
-    case 'flat':
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(CX - 4.5, MOUTH_CY);
-      ctx.lineTo(CX + 4.5, MOUTH_CY);
-      ctx.stroke();
-      return;
-    case 'frown':
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(CX - 4.5, MOUTH_CY + 2);
-      ctx.quadraticCurveTo(CX, MOUTH_CY - 2.6, CX + 4.5, MOUTH_CY + 2);
-      ctx.stroke();
-      return;
-    case 'clench':
-      ctx.beginPath();
-      ctx.roundRect(CX - 5, MOUTH_CY - 1.4, 10, 3, 1.4);
-      ctx.fill();
-      ctx.strokeStyle = C.mid;
-      ctx.lineWidth = 0.9;
-      ctx.beginPath();
-      ctx.moveTo(CX - 5, MOUTH_CY);
-      ctx.lineTo(CX + 5, MOUTH_CY);
-      ctx.stroke();
-      return;
-    case 'smirk':
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.moveTo(CX - 3.5, MOUTH_CY);
-      ctx.quadraticCurveTo(CX + 1.5, MOUTH_CY + 3.4, CX + 5.5, MOUTH_CY - 1.6);
-      ctx.stroke();
-      return;
-    case 'wobble': {
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      const swing = reduced ? 0 : Math.sin(t * 6) * 1.4;
-      ctx.moveTo(CX - 5, MOUTH_CY + swing);
-      ctx.quadraticCurveTo(CX - 2.5, MOUTH_CY - 2.4, CX, MOUTH_CY + swing * 0.4);
-      ctx.quadraticCurveTo(CX + 2.5, MOUTH_CY + 2.4, CX + 5, MOUTH_CY + swing * 0.4);
-      ctx.stroke();
-      return;
-    }
-  }
-}
-
-/** The typing ellipsis: three ink dots under the eyes, lighting in sequence. */
+/** The typing ellipsis: three warm dots pulsing in sequence. */
 function paintTyping(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
+  ctx.fillStyle = C.ink;
   for (let i = 0; i < 3; i += 1) {
     const phase = reduced ? (i === 1 ? 1 : 0.3) : (Math.sin(t * 3 - i * 0.9) + 1) / 2;
     ctx.globalAlpha = 0.25 + phase * 0.75;
@@ -579,7 +372,7 @@ function paintTyping(ctx: CanvasRenderingContext2D, t: number, reduced: boolean)
 function paintSweat(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
   const p = reduced ? 0.5 : (Math.sin(t * 1.6) + 1) / 2;
   const x = CX + 13;
-  const y = EYE_CY - 6 + p * 8;
+  const y = 44 + p * 8;
   ctx.save();
   ctx.fillStyle = C.cream;
   ctx.beginPath();
@@ -951,32 +744,9 @@ export const BubbleAvatar: React.FC<BubbleAvatarProps> = ({
       if (spec.confetti && detail) paintConfetti(ctx, t, reduced);
       paintBody(ctx, t, amp);
 
-      // Blink: fast d^2 shut, irregular rhythm — unless the state holds gaze.
-      let open = 1;
-      if (!reduced && !spec.noBlink) {
-        const period = 6.4;
-        const n = Math.floor(t / period);
-        const jitter = Math.abs(Math.sin(n * 12.9898) * 43758.5453) % 1;
-        const at = (0.3 + jitter * 0.55) * period;
-        const d = (t - n * period - at) / 0.16;
-        open = Math.abs(d) >= 1 ? 1 : d * d;
-      }
-
-      const [gx, gy] = spec.gaze ?? [0, 0];
-      const drift = reduced || !spec.gaze ? 0 : Math.sin(t * 1.1) * 1.6;
-      const L = CX - EYE_DX;
-      const Rr = CX + EYE_DX;
-      ctx.save();
-      ctx.translate(gx + drift, gy);
-      paintEye(ctx, L, spec, open, t);
-      paintEye(ctx, Rr, spec, open, t);
-      ctx.restore();
-      if (spec.brow) {
-        paintBrow(ctx, L, spec.brow);
-        paintBrow(ctx, Rr, -spec.brow);
-      }
+      // Bubble Intelligence: pure fluid glowing amber droplet with organic wobble & satellite bead.
+      // No cartoon eyes, brows, or human mouth drawn inside the bubble.
       if (stateRef.current === 'typing') paintTyping(ctx, t, reduced);
-      else if (spec.mouth) paintMouth(ctx, spec.mouth, t, reduced);
       if (spec.sweat) paintSweat(ctx, t, reduced);
       if (spec.burst) paintBurst(ctx, t, reduced);
       if (spec.chip && detail) paintChip(ctx, spec.chip, t, reduced);
