@@ -113,6 +113,118 @@ function markMPath(ctx: CanvasRenderingContext2D): void {
   ctx.closePath();
 }
 
+/** Eye centreline and half-spacing — the original's `my + 8` and 9.5. */
+const EYE_CY = 60;
+const EYE_DX = 9.5;
+
+/**
+ * The blink, from `time` alone.
+ *
+ * The mark this restores ran a `setTimeout` chain — 3000 ms to the first blink, 150 ms
+ * shut, then `3500 + random * 2000` to the next — which meant a timer per mounted mark
+ * and a `Math.random()` that re-rolled on every remount. `useLiveMark` already seeds
+ * its clock with `Math.random() * 100` per instance, so a function of `time` is
+ * desynchronised across all eight call sites for nothing, and the hash keeps the rhythm
+ * irregular the way the original's jitter did. Openness follows `d^2`, so the lid
+ * accelerates shut and eases open rather than snapping between two states.
+ *
+ * The hash constant differs from `Quanty`'s deliberately: the two mascots share a page
+ * in the shell header, and two characters blinking in lockstep is the tell that both
+ * are widgets.
+ */
+const BLINK_PERIOD = 4.6;
+function blinkOpenness(time: number): number {
+  const n = Math.floor(time / BLINK_PERIOD);
+  const jitter = Math.abs(Math.sin(n * 78.233) * 43758.5453) % 1;
+  const at = (0.3 + jitter * 0.58) * BLINK_PERIOD;
+  const d = (time - n * BLINK_PERIOD - at) / 0.17;
+  return Math.abs(d) >= 1 ? 1 : d * d;
+}
+
+/**
+ * One pupil: a dark ellipse that squashes about its own centre as the lid falls, plus a
+ * white catchlight above and left of centre.
+ *
+ * The original drew a filled `arc` for open and two straight `lineTo`s for shut, which
+ * are different shapes — so the eye jumped rather than closed. An ellipse at `r` by
+ * `r * open` is a disc at rest and a line at 0.06, and every frame between is a real
+ * lid. The fill is warm-dark rather than `#060709`: a black hole in white paper lying
+ * on ember is the one thing on this plate nothing would light, and the same reasoning
+ * that made the side wall warm applies to a recess in the surface.
+ *
+ * The catchlight is gated on openness because a specular dot inside a slit is not a
+ * highlight, it is a stray pixel.
+ *
+ * It sits above and *left* of centre, which is two corrections to the mark this restores.
+ * The original put it at `(+1.1, -1.1)` — upper right — while every other light in this
+ * file comes from the upper left: `paintEmberPlate`'s radial is centred at `(cx-8, cy-10)`,
+ * the body ramp runs from the M's top-left corner, and this function's own iris focus is
+ * at `(-0.3r, -0.34r)`. A specular on the opposite side from the light is the tell that
+ * a highlight was placed by eye rather than derived.
+ *
+ * The second correction is that it must clear the pupil's own centreline. Measured at the
+ * 36px sidebar mount, the old `(-0.3r, r*0.34)` dot straddled y and the device raster read
+ * the pupil as 24, 49, **91**, 57 — a bright pixel in the middle of a four-pixel eye, so
+ * the pupil rendered hollow. At `-0.46r` with radius `0.28r` the blob spans `-0.74r` to
+ * `-0.18r`: entirely in the upper half, with 0.18r of margin for the downsample kernel.
+ */
+function paintPupil(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  open: number,
+): void {
+  const ry = Math.max(r * 0.055, r * open);
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
+  const iris = ctx.createRadialGradient(x - r * 0.3, y - r * 0.34, r * 0.1, x, y, r * 1.15);
+  iris.addColorStop(0, '#3A281E');
+  iris.addColorStop(0.55, '#170F0A');
+  iris.addColorStop(1, '#080605');
+  ctx.fillStyle = iris;
+  ctx.fill();
+
+  if (open > 0.42) {
+    const cr = r * 0.28;
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.3, y - r * 0.46, cr, cr * open, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.86 * open})`;
+    ctx.fill();
+  }
+}
+
+/**
+ * The wink's left eye: an upward arc, `^`.
+ *
+ * Stroked rather than filled, and it keeps the original's exact sweep — `1.15pi` to
+ * `1.85pi` around a centre 1.5 units low — because that asymmetric window is what makes
+ * it read as one eye scrunched shut rather than as an eyebrow.
+ */
+function paintWinkArc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.beginPath();
+  ctx.arc(x, y + 1.5, r * 1.26, Math.PI * 1.15, Math.PI * 1.85, false);
+  ctx.lineWidth = 2.8;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#170F0A';
+  ctx.stroke();
+}
+
+/**
+ * Blush, as a gradient. The original filled two 2.6-radius discs at `rgba(255,140,66,
+ * 0.35)`, which at 20px is 1.5 device pixels of flat orange — a dot on a cheek, not
+ * warmth in it. A radial with no hard edge is the same colour doing the job it was
+ * chosen for, and ember is already the plate's own light.
+ */
+function paintBlush(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const g = ctx.createRadialGradient(x, y, 0.4, x, y, 6.2);
+  g.addColorStop(0, 'rgba(255, 140, 66, 0.42)');
+  g.addColorStop(0.6, 'rgba(255, 140, 66, 0.16)');
+  g.addColorStop(1, 'rgba(255, 140, 66, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 7, y - 7, 14, 14);
+}
+
 export function QuantMailLogo({
   size = 40,
   unreadCount = 0,
@@ -133,6 +245,7 @@ export function QuantMailLogo({
    * before the next frame, so there is no stale-capture window.
    */
   const unreadRef = useRef(unreadCount);
+  const winkRef = useRef(false);
 
   useEffect(() => {
     unreadRef.current = unreadCount;
@@ -141,6 +254,7 @@ export function QuantMailLogo({
   const paint = useCallback(
     ({ ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced }: MarkFrame) => {
       const unread = unreadRef.current;
+      const wink = winkRef.current;
       const pulse = reduced ? 1 : 0.88 + Math.sin(time * 1.6) * 0.12;
 
       ctx.save();
@@ -230,9 +344,26 @@ export function QuantMailLogo({
       paintGlossSweep(ctx, M.x, M.y, M.w, M.h, sweep, 0.1 + hover * 0.12);
 
       /*
-       * Clean architectural M glyph: embossed frosted-glass letterform with unread inner bloom,
-       * specular gloss sweep, and dimensional edge highlights (zero cartoon eyes or pupils).
+       * The face. Blush first so the pupils sit on top of it, and the whole thing is
+       * inside the glyph clip, so nothing can spill onto the plate the way a stray
+       * gradient rect would.
        */
+      paintBlush(ctx, M_MID_X - EYE_DX - 7.5, EYE_CY + 5.5);
+      paintBlush(ctx, M_MID_X + EYE_DX + 7.5, EYE_CY + 5.5);
+
+      const r = unread > 5 ? 4.2 : 3.5;
+      const ex = M_MID_X + tiltX * 2.2;
+      const ey = EYE_CY + tiltY * 1.6;
+      const open = Math.max(0.06, (reduced ? 1 : blinkOpenness(time)) * (1 - press * 0.45));
+
+      if (wink) {
+        paintWinkArc(ctx, M_MID_X - EYE_DX, EYE_CY, r);
+        paintPupil(ctx, ex + EYE_DX, ey, r, 1);
+      } else {
+        paintPupil(ctx, ex - EYE_DX, ey, r, open);
+        paintPupil(ctx, ex + EYE_DX, ey, r, open);
+      }
+
       ctx.restore();
 
       /*
@@ -272,9 +403,17 @@ export function QuantMailLogo({
 
   const handleClick = useCallback(() => {
     setIsSpinning(true);
+    /*
+     * The wink lives in a ref rather than in state because the painter reads it every
+     * frame and React has no business re-rendering for it. `repaint()` at both edges is
+     * what makes it visible under `prefers-reduced-motion`, where the loop is stopped
+     * and exactly one frame is ever drawn.
+     */
+    winkRef.current = true;
     repaint();
     setTimeout(() => {
       setIsSpinning(false);
+      winkRef.current = false;
       repaint();
     }, 650);
 
