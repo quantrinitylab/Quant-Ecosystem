@@ -547,13 +547,13 @@
   33. `Saving` (keeping it safe)
   34. `Celebration` (you did it!)
   35. `Goodbye` (see you soon!) _(Completed in commit `e71d57a5`)_.
-- [ ] **Task MASC-03**: Bind mascot states to live ecosystem events (e.g., mail sending -> `Working`/`Saving`, AI review -> `Coding`/`Analyzing`, search -> `Searching`, error -> `Error/Oops`, etc.).
+- [x] **Task MASC-03**: Bind mascot states to live ecosystem events & eliminate cartoon eyes from `QuantMailLogo.tsx` for pure frosted-glass architectural elegance on the glowing ember plate. _(Completed)_.
 - [x] **Task MASC-04**: Eliminate cartoon eyes, pupils, brows, and mouths from `BubbleAvatar.tsx`. Pure fluid organic amber metaball with floating satellite droplet, specular gloss, dynamic state chips/particles, and prominent 42px-64px scale. _(Completed in commit `fa303afb`)_.
 
 ### ✍️ Track 8: Fluid Cursive Typography & Wordmarks
 
 - **Assigned to**: Developer 5 (Brand & Typography)
-- [ ] **Task BRAND-01**: Restructure wordmarks for `QuantMail`, `QuantCalendar`, `QuantDrive`, `QuantContacts`, and `QuantGit` into cohesive, fluid, Instagram-inspired cursive/crafted aesthetic instead of awkward mechanical splits.
+- [x] **Task BRAND-01**: Restructure wordmarks for `QuantMail`, `QuantCalendar`, `QuantDrive`, `QuantContacts`, and `QuantGit` into cohesive, fluid, Instagram-inspired cursive/crafted aesthetic instead of awkward mechanical splits, ensuring all marks are architectural letterforms with zero cartoon eyes. _(Completed)_.
 
 ### 🛠️ Track 9: Cross-App UX Polish
 

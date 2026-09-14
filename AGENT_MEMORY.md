@@ -1107,3 +1107,11 @@ graph TD
   - Solid `#0B0C0E` background, 4 prominent navigation buttons (`✨ Quanty`, `📁 Repos`, `🧪 Agent Lab`, `↗ Exit`), with fluid state transitions between directory and repository detail views.
 - **5. Pure Fluid Mascot Styling**:
   - All Bubble mascot states use lowercase `state="coding"` with pure organic amber glow and zero cartoon facial features.
+
+### 13. Brand Identity & Zero-Cartoon-Eyes Architectural Purity:
+
+- **1. Total Elimination of Cartoon Facial Features from `QuantMailLogo.tsx`**:
+  - Excised all cartoon pupil drawing (`paintPupil`), wink arcs (`paintWinkArc`), and cheek blushes (`paintBlush`), along with `blinkOpenness` and `winkRef`.
+  - The M glyph is rendered as a clean, embossed frosted-glass architectural letterform resting on an illuminated ember plate with unread heat bloom, specular gloss sweep, and dimensional edge highlights.
+  - Aligns 100% with `BubbleAvatar.tsx` (fluid organic amber metaball with floating satellite droplet, specular gloss reflections, and live activity particles — zero cartoon eyes, brows, or mouths).
+  - TypeScript typecheck passed cleanly with zero errors (`tsc --noEmit` exited 0).
