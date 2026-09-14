@@ -1108,10 +1108,26 @@ graph TD
 - **5. Pure Fluid Mascot Styling**:
   - All Bubble mascot states use lowercase `state="coding"` with pure organic amber glow and zero cartoon facial features.
 
-### 13. Brand Identity & Zero-Cartoon-Eyes Architectural Purity:
+### 13. Brand Identity Invariant & QuantMail Logo Preservation:
 
-- **1. Total Elimination of Cartoon Facial Features from `QuantMailLogo.tsx`**:
-  - Excised all cartoon pupil drawing (`paintPupil`), wink arcs (`paintWinkArc`), and cheek blushes (`paintBlush`), along with `blinkOpenness` and `winkRef`.
-  - The M glyph is rendered as a clean, embossed frosted-glass architectural letterform resting on an illuminated ember plate with unread heat bloom, specular gloss sweep, and dimensional edge highlights.
-  - Aligns 100% with `BubbleAvatar.tsx` (fluid organic amber metaball with floating satellite droplet, specular gloss reflections, and live activity particles — zero cartoon eyes, brows, or mouths).
-  - TypeScript typecheck passed cleanly with zero errors (`tsc --noEmit` exited 0).
+- **1. Permanent Protection of `QuantMailLogo.tsx` (Restored at `45987e66`)**:
+  - QuantMail's original brand identity features (eyes, pupil tracking, blush, wink animation) are an intentional, beloved part of the QuantMail brand.
+  - **CRITICAL INVARIANT**: `QuantMailLogo.tsx` was restored byte-for-byte to its original code (`c0d343fa` / `45987e66`). It is **STRICTLY FROZEN AND MUST NEVER BE MODIFIED OR STRIPPED OF ITS EYES/ANIMATIONS AGAIN**.
+  - The "Zero Cartoon Eyes" directive applies **EXCLUSIVELY to Quanty AI (`BubbleAvatar.tsx`)**, which is an organic amber fluid metaball intelligence.
+
+### 14. QuantGit: Dedicated Notion AI Workspace & Decoupled Repos Directory:
+
+- **1. Dedicated 1:1 Notion AI Workspace for `✨ Quanty`**:
+  - Directly modeled after live Notion AI chat (`https://app.notion.com/chat?t=3db56f382581804c92a400a909358579`).
+  - Top bar with session switcher and expandable chat history drawer.
+  - Welcome state with large glowing 64px `BubbleAvatar` (organic amber bubble) + 4 prompt cards ("Audit architecture against GitHub", "Generate real Git Smart HTTP test suite", "Explain zero-copy chunked uploads", "Review security & RBAC policies").
+  - Collapsible `Thought` accordions displaying deep reasoning duration and step execution indicators (`Thought ▼ · Thought for 2.8s`).
+  - Floating bottom composer equipped with:
+    - `+` Give Context popup (`📎 Files`, `@ Mention`, `⚡ Skills`, `🖌️ Diagram`).
+    - `⊶` Settings popup with Model selection (`Claude Opus 5`, `Claude Sonnet 3.5`, `Quant SLM`), Mode selection (`Plan`, `Build`, `Auto`), and Effort toggle (`Fast 1k`, `Deep 32k`).
+    - `🎙️` Audio dictation toggle and `↑` send button.
+- **2. Clean Repository Separation (`📁 Repos`)**:
+  - Default view is the Repositories Directory (`selectedRepo: null`), showing all repositories with real-time search, category filters (All / Core Apps / Migration Services), language filters, sort, and `Open Repo →`.
+  - The 10-tab GitHub workspace header (`<> Code`, `Issues`, `Pull requests`, `Agents`, `Discussions`, `Actions`, `Projects`, `Security`, `Insights`, `Settings`) ONLY renders when an individual repository is explicitly opened.
+  - Prominent `← All Repositories` breadcrumb to return cleanly to the directory.
+  - The repository header is completely isolated and never leaks into `Quanty` or `Agent Lab`.

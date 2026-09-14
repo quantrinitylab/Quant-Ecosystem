@@ -155,9 +155,12 @@ export type ChatMessage = {
   role: 'assistant' | 'user';
   text: string;
   mode?: BuildMode;
+  model?: string;
   timestamp: string;
   suggestions?: string[];
   steps?: string[];
+  thoughts?: string;
+  thoughtDuration?: string;
 };
 
 // Initial Mock Repositories
@@ -759,11 +762,48 @@ export default function QuantGitPage() {
 
   // Navigation & Deck State
   const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
-  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(INITIAL_REPOS[0]);
+  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
   const [currentBranch, setCurrentBranch] = useState<string>('main');
   const [currentPath, setCurrentPath] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<FileNode | null>(null);
+
+  // Notion AI & Quanty Studio State
+  const [activeModel, setActiveModel] = useState<'opus-5' | 'sonnet-35' | 'quant-slm'>('opus-5');
+  const [isContextOpen, setIsContextOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [expandedThoughts, setExpandedThoughts] = useState<Record<string, boolean>>({
+    'msg-1': true,
+  });
+  const [activeSessionId, setActiveSessionId] = useState('sess-1');
+  const [chatSessions, setChatSessions] = useState([
+    {
+      id: 'sess-1',
+      title: 'Urgent GitHub parity & Notion AI overhaul',
+      date: 'Just now',
+      count: 4,
+    },
+    {
+      id: 'sess-2',
+      title: 'Wave A Drive consolidation & 5 AI services',
+      date: 'Yesterday',
+      count: 12,
+    },
+    {
+      id: 'sess-3',
+      title: 'LiveKit WebRTC gateway & proactive call alerts',
+      date: '2 days ago',
+      count: 8,
+    },
+    {
+      id: 'sess-4',
+      title: 'Yjs CRDT merge & real-time collaboration',
+      date: '3 days ago',
+      count: 15,
+    },
+  ]);
 
   // Data Collections
   const [repos, setRepos] = useState<Repo[]>(INITIAL_REPOS);
@@ -825,8 +865,17 @@ export default function QuantGitPage() {
     {
       id: 'msg-1',
       role: 'assistant',
-      text: 'Hello! I am Quanty, your autonomous GitHub Copilot & Swarm Orchestrator. I can plan architecture, debug CI workflows, review PR diffs, or deploy specialized agents. What would you like to build?',
+      model: 'Opus 5',
+      text: 'Hello! I am Quanty, your autonomous AI Copilot & Swarm Orchestrator. I can plan architecture, inspect monorepo ASTs, debug CI workflows, or coordinate developer agents. What would you like to build today?',
       timestamp: 'just now',
+      thoughts:
+        'Context initialized for Quant Ecosystem monorepo.\nModel: Claude Opus 5 / GPT-6 Astra reasoning core.\nTools active: Git daemon, AST search, Vitest runner, LiveKit WebRTC.\nReady for prompt input or context attachment.',
+      thoughtDuration: '2.1s',
+      steps: [
+        'Loaded monorepo workspace metadata and package graph',
+        'Verified live branch main at commit 45987e66',
+        'Attached GitHub MCP and autonomous Swarm fleet tools',
+      ],
       suggestions: [
         'Audit repository architecture →',
         'Review open pull requests (#261) →',
@@ -1045,30 +1094,49 @@ export default function QuantGitPage() {
     );
   };
 
-  const handleChatSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  const handleChatSubmit = (e?: FormEvent) => {
+    if (e) e.preventDefault();
     if (!promptInput.trim()) return;
+    const userText = promptInput.trim();
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
-      text: promptInput.trim(),
+      text: userText,
       mode: buildMode,
       timestamp: 'just now',
     };
+    const botMsgId = `bot-${Date.now() + 1}`;
+    const modelName =
+      activeModel === 'opus-5'
+        ? 'Opus 5'
+        : activeModel === 'sonnet-35'
+          ? 'Sonnet 3.5'
+          : 'Quant SLM';
     const botReply: ChatMessage = {
-      id: `bot-${Date.now()}`,
+      id: botMsgId,
       role: 'assistant',
-      text: `Understood. Executing ${buildMode.toUpperCase()} mode with ${effort.toUpperCase()} effort for: "${promptInput.trim()}". Analyzing repository context, parsing AST, and preparing verified changes.`,
+      model: modelName,
+      text: `Understood. Executing ${buildMode.toUpperCase()} mode with ${effort.toUpperCase()} effort via ${modelName}.\n\nI have analyzed your request: "${userText}". The monorepo dependency graph, AST parse trees, and active service routes have been verified. All architectural changes and tool operations are prepared for execution.`,
       timestamp: 'just now',
+      thoughts: `1. Analyzed user intent: "${userText}"\n2. Target workspace: Quant-Ecosystem monorepo\n3. Model selected: ${modelName} (Reasoning effort: ${effort}, Mode: ${buildMode})\n4. Inspected files and dependencies for regression risks\n5. Generated validated solution plan with step-by-step verification`,
+      thoughtDuration: '2.8s',
       steps: [
         'Checked repository status and verified main branch',
-        'Scoped diff to directly affected modules',
-        'Verified test passes and syntax cleanliness',
+        'Parsed AST structure across active workspace packages',
+        'Validated zero-mock invariants and typecheck cleanliness',
+        'Verified tool output with Swarm Fleet orchestrator',
       ],
-      suggestions: ['Run automated verification tests →', 'View proposed git diff →'],
+      suggestions: [
+        'Run automated verification tests →',
+        'Inspect proposed git diff →',
+        'Deploy changes to staging cluster →',
+      ],
     };
-    setChatMessages([...chatMessages, userMsg, botReply]);
+    setChatMessages((prev) => [...prev, userMsg, botReply]);
+    setExpandedThoughts((prev) => ({ ...prev, [botMsgId]: true }));
     setPromptInput('');
+    setIsContextOpen(false);
+    setIsSettingsOpen(false);
   };
 
   return (
@@ -1101,13 +1169,32 @@ export default function QuantGitPage() {
           </button>
 
           {/* Breadcrumbs */}
-          {selectedRepo ? (
+          {activeDeckTab === 'quanty' ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-[#7D8590]">/</span>
+              <span className="text-white font-bold flex items-center gap-1.5">
+                <span className="text-[#FF8C42]">✨</span> Quanty AI Workspace
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#FF8C42]/30 text-[#FF8C42] bg-[#FF8C42]/10 uppercase tracking-wider">
+                Opus 5 Astra
+              </span>
+            </div>
+          ) : activeDeckTab === 'lab' ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-[#7D8590]">/</span>
+              <span className="text-white font-bold flex items-center gap-1.5">
+                <span>🧪</span> Agent Lab
+              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase tracking-wider">
+                Fleet Command
+              </span>
+            </div>
+          ) : selectedRepo ? (
             <div className="flex items-center gap-1.5 text-sm">
               <span className="text-[#7D8590]">/</span>
               <button
                 type="button"
                 onClick={() => {
-                  setActiveDeckTab('repos');
                   setSelectedRepo(null);
                 }}
                 className="text-[#58A6FF] hover:underline font-medium"
@@ -1186,7 +1273,7 @@ export default function QuantGitPage() {
       {/* ========================================================================= */}
       {/* 2. REPOSITORY HEADER & 10 SUB-NAVIGATION TABS                              */}
       {/* ========================================================================= */}
-      {selectedRepo && (
+      {activeDeckTab === 'repos' && selectedRepo && (
         <div className="bg-[#010409] border-b border-[#30363D] pt-4 px-4 sm:px-8">
           {/* Top Repository Meta Row */}
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3">
@@ -2334,99 +2421,578 @@ export default function QuantGitPage() {
         {/* VIEW C: QUANTY AI AUTONOMOUS COPILOT STUDIO                             */}
         {/* ======================================================================= */}
         {activeDeckTab === 'quanty' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="p-5 rounded-xl bg-[#161B22] border border-[#30363D] space-y-4 shadow-xl">
-              <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
-                <div className="flex items-center gap-2">
-                  <BubbleAvatar state="coding" size={28} />
-                  <div>
-                    <h3 className="font-bold text-white text-base">Quanty Autonomous Copilot</h3>
-                    <p className="text-[11px] text-[#7D8590]">
-                      Claude Opus 5 & GPT-6 Astra reasoning core.
-                    </p>
+          <div className="max-w-4xl mx-auto space-y-4 min-h-[calc(100vh-220px)] flex flex-col justify-between">
+            <div>
+              {/* Notion AI Style Top Bar */}
+              <div className="flex items-center justify-between border-b border-[#21262D] pb-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+                    title="Toggle Chat History"
+                  >
+                    <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+                      <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75Zm0 5a.75.75 0 0 1 1.75-1.5h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1-.75-.75Z" />
+                    </svg>
+                  </button>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <BubbleAvatar state="coding" size={20} />
+                      Quanty AI
+                    </span>
+                    <span className="text-[#7D8590]">/</span>
+                    <span className="text-[#E6EDF3] font-medium truncate max-w-[240px] sm:max-w-md">
+                      {chatSessions.find((s) => s.id === activeSessionId)?.title ||
+                        'Urgent GitHub parity & Notion AI overhaul'}
+                    </span>
+                    <span className="text-[#7D8590] text-[10px]">▾</span>
                   </div>
                 </div>
 
-                {/* Plan / Build / Auto Mode Toggle */}
-                <div className="flex items-center gap-1 bg-[#0D1117] p-1 rounded-lg border border-[#30363D] text-xs">
-                  {(['plan', 'build', 'auto'] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setBuildMode(m)}
-                      className={`px-3 py-1 rounded font-bold capitalize transition-colors ${
-                        buildMode === m
-                          ? 'bg-[#FF8C42] text-black'
-                          : 'text-[#7D8590] hover:text-white'
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
+                <div className="flex items-center gap-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatMessages([]);
+                      showToast('Started new chat session');
+                    }}
+                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+                    title="New Chat"
+                  >
+                    <span className="text-base font-bold leading-none">+</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showToast('Conversation link copied to clipboard')}
+                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+                    title="Share / Export"
+                  >
+                    <svg height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                      <path d="M7.75 1.5a.75.75 0 0 0-1.5 0v7.69L4.03 6.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.25 9.19V1.5Z" />
+                      <path d="M2.5 12a.75.75 0 0 0 0 1.5h11a.75.75 0 0 0 0-1.5h-11Z" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showToast('Thread pinned to workspace')}
+                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+                    title="Pin thread"
+                  >
+                    📌
+                  </button>
                 </div>
               </div>
 
-              {/* Chat Stream */}
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                {chatMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`p-3.5 rounded-lg text-xs leading-relaxed space-y-2 ${
-                      msg.role === 'user'
-                        ? 'bg-[#1F242C] border border-[#30363D] text-white ml-12'
-                        : 'bg-[#0D1117] border border-[#21262D] text-[#E6EDF3] mr-12'
-                    }`}
-                  >
-                    <p>{msg.text}</p>
-                    {msg.steps && (
-                      <div className="pt-1 space-y-1">
-                        {msg.steps.map((st, i) => (
-                          <div
-                            key={i}
-                            className="flex items-center gap-1.5 text-[11px] text-[#3FB950]"
-                          >
-                            <span>✓</span>
-                            <span>{st}</span>
+              {/* Collapsible Chat History Drawer */}
+              {isHistoryOpen && (
+                <div className="mb-4 p-3 rounded-xl bg-[#161B22] border border-[#30363D] animate-in fade-in slide-in-from-top-2">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D] text-xs">
+                    <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                      Recent Chat Sessions
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = `sess-${Date.now()}`;
+                        setChatSessions([
+                          { id: newId, title: 'New Conversation', date: 'Just now', count: 0 },
+                          ...chatSessions,
+                        ]);
+                        setActiveSessionId(newId);
+                        setChatMessages([]);
+                        setIsHistoryOpen(false);
+                      }}
+                      className="text-[11px] text-[#58A6FF] hover:underline font-semibold"
+                    >
+                      + New chat
+                    </button>
+                  </div>
+                  <div className="divide-y divide-[#21262D] max-h-48 overflow-y-auto">
+                    {chatSessions.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveSessionId(s.id);
+                          setIsHistoryOpen(false);
+                          showToast(`Switched to: ${s.title}`);
+                        }}
+                        className={`w-full py-2 px-2 flex items-center justify-between text-xs rounded-md text-left transition-colors ${
+                          activeSessionId === s.id
+                            ? 'bg-[#21262D] text-white font-semibold'
+                            : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                        }`}
+                      >
+                        <span className="truncate max-w-[280px]">{s.title}</span>
+                        <span className="text-[10px] text-[#7D8590] shrink-0">{s.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Welcome Screen (when no messages) */}
+              {chatMessages.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center space-y-5">
+                  <BubbleAvatar state="coding" size={64} />
+                  <div className="space-y-1 max-w-lg">
+                    <h2 className="text-xl font-bold text-white tracking-tight">
+                      How can I help you build, analyze, or automate today?
+                    </h2>
+                    <p className="text-xs text-[#7D8590] leading-relaxed">
+                      Autonomous Swarm intelligence powered by Claude Opus 5 & GPT-6 Astra. Fully
+                      wired into monorepo ASTs, Git smart HTTP, and verified test pipelines.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-xl w-full text-left pt-2">
+                    {[
+                      {
+                        icon: '⚡',
+                        title: 'Code & Architecture',
+                        prompt: 'Audit monorepo for performance and zero-mock parity',
+                      },
+                      {
+                        icon: '🐛',
+                        title: 'Deep Debugging',
+                        prompt: 'Trace unhandled rejections and memory leaks in Fastify routes',
+                      },
+                      {
+                        icon: '🚀',
+                        title: 'CI/CD & Deploy',
+                        prompt: 'Inspect GitHub Actions pipeline status and EKS cluster health',
+                      },
+                      {
+                        icon: '🛡️',
+                        title: 'Security Audit',
+                        prompt:
+                          'Scan for Dependabot alerts, token leakages, and timing vulnerabilities',
+                      },
+                    ].map((card) => (
+                      <button
+                        key={card.title}
+                        type="button"
+                        onClick={() => {
+                          setPromptInput(card.prompt);
+                        }}
+                        className="p-3 rounded-xl bg-[#161B22] border border-[#30363D] hover:border-[#58A6FF] hover:bg-[#1C2128] transition-all group"
+                      >
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-[#E6EDF3] group-hover:text-[#58A6FF]">
+                          <span>{card.icon}</span>
+                          <span>{card.title}</span>
+                        </div>
+                        <p className="text-[11px] text-[#7D8590] mt-1 line-clamp-2">
+                          {card.prompt}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                /* Chat Stream (when messages exist) */
+                <div className="space-y-4 overflow-y-auto pr-1 pb-4">
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id}>
+                      {msg.role === 'user' ? (
+                        <div className="flex justify-end">
+                          <div className="max-w-xl bg-[#1F242C] border border-[#30363D] text-white p-3.5 rounded-2xl text-xs space-y-1.5 shadow-md">
+                            <p className="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+                            <div className="flex items-center justify-between text-[10px] text-[#7D8590] pt-1">
+                              <span>{msg.timestamp}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(msg.text);
+                                  showToast('Copied user message');
+                                }}
+                                className="hover:text-white"
+                              >
+                                Copy
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                    )}
-                    {msg.suggestions && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {msg.suggestions.map((sug) => (
+                        </div>
+                      ) : (
+                        <div className="max-w-2xl bg-[#161B22] border border-[#30363D] p-4 rounded-2xl text-xs space-y-3 shadow-md">
+                          {/* Bot Message Header */}
+                          <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
+                            <div className="flex items-center gap-2">
+                              <BubbleAvatar state="coding" size={22} />
+                              <span className="font-bold text-white">Quanty AI</span>
+                              <span className="px-1.5 py-0.2 rounded bg-[#FF8C42]/20 text-[#FF8C42] text-[10px] font-mono font-bold">
+                                {msg.model || 'Opus 5'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-[#7D8590]">{msg.timestamp}</span>
+                          </div>
+
+                          {/* Notion AI Style Thought Accordion */}
+                          {msg.thoughts && (
+                            <div className="rounded-lg border border-[#21262D] bg-[#0B0C0E] overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedThoughts((prev) => ({
+                                    ...prev,
+                                    [msg.id]: !prev[msg.id],
+                                  }))
+                                }
+                                className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] text-[#7D8590] hover:text-white transition-colors bg-[#111418]"
+                              >
+                                <span className="flex items-center gap-1.5 font-mono">
+                                  <span>{expandedThoughts[msg.id] ? '▼' : '▶'}</span>
+                                  <span className="font-semibold text-[#E6EDF3]">Thought</span>
+                                  <span className="text-[10px] text-[#7D8590]">
+                                    · Thought for {msg.thoughtDuration || '2.8s'}
+                                  </span>
+                                </span>
+                                <span className="text-[10px] text-[#58A6FF]">
+                                  {expandedThoughts[msg.id] ? 'Collapse' : 'Expand'}
+                                </span>
+                              </button>
+                              {expandedThoughts[msg.id] && (
+                                <div className="p-3 text-[11px] font-mono text-[#8B949E] space-y-2 leading-relaxed border-t border-[#21262D]">
+                                  <pre className="whitespace-pre-wrap font-mono text-[10px] leading-relaxed text-[#7D8590]">
+                                    {msg.thoughts}
+                                  </pre>
+                                  {msg.steps && (
+                                    <div className="pt-1.5 border-t border-[#1C2128] space-y-1">
+                                      {msg.steps.map((st, i) => (
+                                        <div
+                                          key={i}
+                                          className="flex items-center gap-1.5 text-[11px] text-[#3FB950]"
+                                        >
+                                          <span>✓</span>
+                                          <span>{st}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Response Text */}
+                          <div className="space-y-2 leading-relaxed text-[#E6EDF3] whitespace-pre-wrap">
+                            {msg.text}
+                          </div>
+
+                          {/* Action Suggestions */}
+                          {msg.suggestions && (
+                            <div className="flex flex-wrap gap-2 pt-1 border-t border-[#21262D]/60">
+                              {msg.suggestions.map((sug) => (
+                                <button
+                                  key={sug}
+                                  type="button"
+                                  onClick={() => {
+                                    setPromptInput(sug.replace(' →', ''));
+                                  }}
+                                  className="px-2.5 py-1 rounded-md bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[11px] font-semibold transition-colors"
+                                >
+                                  {sug}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Message Bottom Action Bar */}
+                          <div className="flex items-center gap-3 pt-2 text-[11px] text-[#7D8590] border-t border-[#21262D]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(msg.text);
+                                showToast('Copied response to clipboard');
+                              }}
+                              className="hover:text-white transition-colors flex items-center gap-1"
+                            >
+                              📋 Copy
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => showToast('Saved to private pages')}
+                              className="hover:text-white transition-colors flex items-center gap-1"
+                            >
+                              + Save to Docs
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => showToast('Feedback recorded: Helpful')}
+                              className="hover:text-white transition-colors"
+                            >
+                              👍
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => showToast('Feedback recorded: Needs improvement')}
+                              className="hover:text-white transition-colors"
+                            >
+                              👎
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Notion AI Bottom Floating Composer */}
+            <div className="sticky bottom-0 z-20 pt-2 pb-1 bg-gradient-to-t from-[#0D1117] via-[#0D1117]/95 to-transparent">
+              <div className="relative">
+                {/* Popup Menu for Give Context (+) */}
+                {isContextOpen && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 p-1.5 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 divide-y divide-[#21262D] text-xs animate-in fade-in slide-in-from-bottom-2">
+                    <div className="p-1 space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showToast('Files / Photos attached');
+                          setIsContextOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                      >
+                        <span>📎</span>
+                        <span>Add photos and files</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPromptInput((prev) => prev + ' @Quant-Ecosystem ');
+                          setIsContextOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                      >
+                        <span>@</span>
+                        <span>Mention pages, repos or files</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showToast('Enabled active skills: Git Smart HTTP, AST, Vitest, LiveKit');
+                          setIsContextOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                      >
+                        <span>⚡</span>
+                        <span>Skills & Tools</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showToast('Diagram / Image generator selected');
+                          setIsContextOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                      >
+                        <span>🖌️</span>
+                        <span>Create image or diagram</span>
+                        <span className="ml-auto text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#58A6FF]/20 text-[#58A6FF]">
+                          New
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Popup Menu for Settings (⊶) */}
+                {isSettingsOpen && (
+                  <div className="absolute bottom-full left-10 mb-2 w-80 p-3 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 text-xs space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                    <div>
+                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                        Model Selector
+                      </span>
+                      <div className="grid grid-cols-1 gap-1 mt-1.5">
+                        {[
+                          {
+                            id: 'opus-5',
+                            name: 'Claude Opus 5 / GPT-6 Astra',
+                            desc: 'Deep architecture, reasoning & swarm leader',
+                          },
+                          {
+                            id: 'sonnet-35',
+                            name: 'Claude 3.5 Sonnet',
+                            desc: 'High-speed code synthesis & diff generation',
+                          },
+                          {
+                            id: 'quant-slm',
+                            name: 'Quant AI Fast SLM',
+                            desc: 'Instant local triage & AST queries',
+                          },
+                        ].map((m) => (
                           <button
-                            key={sug}
+                            key={m.id}
                             type="button"
                             onClick={() => {
-                              setPromptInput(sug.replace(' →', ''));
+                              setActiveModel(m.id as any);
+                              showToast(`Selected model: ${m.name}`);
                             }}
-                            className="px-2.5 py-1 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[11px] font-semibold"
+                            className={`p-2 rounded-lg text-left transition-colors border ${
+                              activeModel === m.id
+                                ? 'border-[#FF8C42] bg-[#FF8C42]/10 text-white'
+                                : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
+                            }`}
                           >
-                            {sug}
+                            <div className="font-bold text-xs text-white">{m.name}</div>
+                            <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
                           </button>
                         ))}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                    </div>
 
-              {/* Prompt Input */}
-              <form onSubmit={handleChatSubmit} className="flex items-center gap-2 pt-2">
-                <input
-                  type="text"
-                  value={promptInput}
-                  onChange={(e) => setPromptInput(e.target.value)}
-                  placeholder="Ask Quanty to plan features, debug code, or inspect diffs..."
-                  className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-lg px-4 py-2.5 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#FF8C42]"
-                />
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-lg bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
-                >
-                  Send →
-                </button>
-              </form>
+                    <div className="pt-2 border-t border-[#21262D]">
+                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                        Execution Mode
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {(['plan', 'build', 'auto'] as const).map((mode) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setBuildMode(mode)}
+                            className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
+                              buildMode === mode
+                                ? 'bg-[#FF8C42] text-black'
+                                : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                            }`}
+                          >
+                            {mode}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-[#21262D]">
+                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                        Reasoning Effort
+                      </span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {(['fast', 'deep'] as const).map((eff) => (
+                          <button
+                            key={eff}
+                            type="button"
+                            onClick={() => setEffort(eff)}
+                            className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
+                              effort === eff
+                                ? 'bg-[#58A6FF] text-black'
+                                : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                            }`}
+                          >
+                            {eff} ({eff === 'deep' ? '32k' : '1k'})
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Input Textarea Container */}
+                <div className="relative rounded-2xl bg-[#161B22] border border-[#30363D] p-3 shadow-2xl focus-within:border-[#58A6FF] transition-all">
+                  <textarea
+                    rows={2}
+                    value={promptInput}
+                    onChange={(e) => setPromptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleChatSubmit();
+                      }
+                    }}
+                    placeholder="Do anything with AI..."
+                    className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed"
+                  />
+
+                  {/* Bottom Action Bar inside Textarea container */}
+                  <div className="flex items-center justify-between pt-2 border-t border-[#21262D]/60 text-xs">
+                    <div className="flex items-center gap-2">
+                      {/* Give context (+) button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsContextOpen(!isContextOpen);
+                          setIsSettingsOpen(false);
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          isContextOpen
+                            ? 'bg-[#30363D] border-[#58A6FF] text-white'
+                            : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                        }`}
+                        title="Give context (Files, @ Mention, Skills)"
+                      >
+                        <span className="font-bold text-sm leading-none">+</span>
+                      </button>
+
+                      {/* Settings (⊶) button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSettingsOpen(!isSettingsOpen);
+                          setIsContextOpen(false);
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          isSettingsOpen
+                            ? 'bg-[#30363D] border-[#58A6FF] text-white'
+                            : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                        }`}
+                        title="Model & Execution Settings"
+                      >
+                        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                          <path d="M14 10.5a.75.75 0 0 1-.75.75H10v1.5a.75.75 0 0 1-1.5 0v-1.5H2.75a.75.75 0 0 1 0-1.5H8.5V8.25a.75.75 0 0 1 1.5 0V9.75h3.25a.75.75 0 0 1 .75.75ZM6 5.5a.75.75 0 0 1-.75.75H2.75a.75.75 0 0 1 0-1.5H5.25V3.25a.75.75 0 0 1 1.5 0v1.5h6.5a.75.75 0 0 1 0 1.5H6.75v1.5a.75.75 0 0 1-1.5 0v-1.5Z" />
+                        </svg>
+                      </button>
+
+                      {/* Active model pill */}
+                      <span className="text-[10px] font-semibold text-[#7D8590] bg-[#21262D] px-2 py-0.5 rounded-md border border-[#30363D]">
+                        {activeModel === 'opus-5'
+                          ? 'Opus 5'
+                          : activeModel === 'sonnet-35'
+                            ? 'Sonnet 3.5'
+                            : 'Quant SLM'}{' '}
+                        · {buildMode}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* Voice recording button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsRecording(!isRecording);
+                          showToast(
+                            isRecording
+                              ? 'Voice dictation stopped'
+                              : 'Listening... speak your prompt',
+                          );
+                        }}
+                        className={`p-1.5 rounded-lg border transition-colors ${
+                          isRecording
+                            ? 'bg-[#DA3633] border-[#F85149] text-white animate-pulse'
+                            : 'bg-[#21262D] border-[#30363D] text-[#7D8590] hover:text-white hover:bg-[#30363D]'
+                        }`}
+                        title="Start voice recording"
+                      >
+                        🎙️
+                      </button>
+
+                      {/* Submit button */}
+                      <button
+                        type="button"
+                        disabled={!promptInput.trim()}
+                        onClick={() => handleChatSubmit()}
+                        className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all ${
+                          promptInput.trim()
+                            ? 'bg-[#FF8C42] text-black shadow-lg hover:scale-105 cursor-pointer'
+                            : 'bg-[#21262D] text-[#7D8590] cursor-not-allowed opacity-50'
+                        }`}
+                        title="Submit AI message"
+                      >
+                        ↑
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
