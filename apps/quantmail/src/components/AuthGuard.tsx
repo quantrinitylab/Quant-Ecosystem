@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/quantgit'];
 
 /**
  * Internal design labs under `/lab/…` render without a session. They read no
@@ -24,7 +24,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  const isPublicPath = PUBLIC_PATHS.includes(pathname ?? '') || isInternalLabPath(pathname ?? '');
+  const isPublicPath =
+    PUBLIC_PATHS.includes(pathname ?? '') ||
+    pathname?.startsWith('/quantgit') ||
+    isInternalLabPath(pathname ?? '');
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicPath) {
