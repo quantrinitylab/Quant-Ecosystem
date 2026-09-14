@@ -585,6 +585,13 @@
   - When opening a repo: Transition into full 1:1 GitHub workspace (`Code`, `Issues`, `Pull requests`, `Agents`, `Actions`) with `← All Repositories` back link.
   - In `Quanty`: Autonomous AI coding stream with mode selector, effort toggle, prompt input, and collapsible thought chains.
   - In `Agent Lab`: Swarm fleet management console with 6 specialized agents, live task execution indicators, thought stream inspectors, and Deploy Agent dialog. _(Completed)_.
+- [x] **Task GIT-04**: QuantGit 1:1 Complete GitHub Functional Parity & Dark UI/UX Overhaul:
+  - 10 GitHub Tabs: `<> Code`, `⨀ Issues`, `⑂ Pull requests`, `✨ Agents`, `💬 Discussions`, `▶ Actions`, `📊 Projects` (Kanban), `🛡️ Security`, `📈 Insights`, `⚙️ Settings`.
+  - Authentic GitHub dark tokens: `#0D1117`, `#010409`, `#161B22`, `#30363D`, `#FF8C42`, `#238636`.
+  - Authentic two-column repository layout (75% code workspace + 25% right sidebar with About, Releases, Packages, Contributors, Languages bar).
+  - Working modals: Branch switcher (`main` + branches/tags), File Finder (`t`), Clone Drawer (HTTPS/SSH/CLI + ZIP), Line-Numbered File Blob Viewer with copy raw, New Issue Modal, New PR Modal, New Repo Modal, Deploy Agent Modal, and Actions Run Detail flowchart with live execution logs.
+  - Direct Releases card APK download integration pointing to `apk testing/Quant-v1.0-debug.apk` and `quant-app.apk`.
+  - TypeScript typecheck passed 100% cleanly (0 errors), Next.js production build validated. _(Completed)_.
 
 ### 🌐 Track 10: Competitor Benchmarking Matrix & Notion AI Swarm Orchestration
 

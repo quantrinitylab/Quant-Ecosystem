@@ -1085,3 +1085,25 @@ graph TD
 - **3. Pure Fluid Organic Amber Mascot (Zero Cartoon Eyes)**:
   - Eliminated all cartoon eyes, pupils, brows, and mouths from `BubbleAvatar.tsx`.
   - Rendered authentic organic fluid amber metaball with satellite droplet, specular gloss reflections, and live activity particles.
+
+### 12. QuantGit 1:1 Authentic GitHub Parity & Dark Theme Overhaul:
+
+- **1. Authentic GitHub Design System Tokens**:
+  - Canvas: `#0D1117`, Header & Subheader: `#010409`, Surface / Card: `#161B22`, Border: `#30363D`, Active Underline: `#FF8C42` / `#F78166`, GitHub Green Buttons: `#238636` hover `#2EA043`.
+- **2. All 10 GitHub Repository Tabs with Working State**:
+  - `<> Code`: Authentic two-column layout (75% code workspace + 25% right sidebar with About, Releases, Packages, Contributors, Languages distribution bar). Working branch/tag switcher dropdown, latest commit banner with verification badge and copy SHA, file tree explorer with interactive line-numbered code blob viewer modal, clone drawer (HTTPS/SSH/CLI tabs + download ZIP), and rendered `README.md` viewer.
+  - `⨀ Issues`: Searchable/filterable issues tracker with open/closed filters, search syntax (`is:issue state:open`), and interactive New Issue modal.
+  - `⑂ Pull requests`: Pull request tracker with merge status pills, review assignments, diff badges, and New PR draft modal.
+  - `✨ Agents`: Autonomous Swarm Fleet & GitHub Copilot Workspace with live agent pods, status metrics, and Deploy Agent modal.
+  - `💬 Discussions`: Categorized forum (Announcements, General, Q&A, Ideas) with upvoting, pinned threads, and author avatars.
+  - `▶ Actions`: Interactive CI/CD pipeline monitor with workflow run status, duration, branch trigger, and full visual step-by-step job flowchart modal with live terminal logs.
+  - `📊 Projects`: GitHub Projects v2 Kanban board with interactive column views (Todo, In Progress, Review, Done) and draggable card creation.
+  - `🛡️ Security`: Security overview with Dependabot alerts (Critical, High, Moderate), CodeQL SAST scanning metrics, Secret scanning status, and security policy link.
+  - `📈 Insights`: Pulse activity metrics, commit frequency charts, traffic views, and code frequency contributor graphs.
+  - `⚙️ Settings`: General repo settings, visibility toggles, branch protection rule configuration, Webhooks, and Danger Zone.
+- **3. Android APK Direct Releases Integration**:
+  - Releases card in the right sidebar directly links to download the native Android APKs (`Quant-v1.0-debug.apk` and `quant-app.apk`) stored in the repository's `apk testing/` directory.
+- **4. 4-Button Docked Bottom Deck**:
+  - Solid `#0B0C0E` background, 4 prominent navigation buttons (`✨ Quanty`, `📁 Repos`, `🧪 Agent Lab`, `↗ Exit`), with fluid state transitions between directory and repository detail views.
+- **5. Pure Fluid Mascot Styling**:
+  - All Bubble mascot states use lowercase `state="coding"` with pure organic amber glow and zero cartoon facial features.
