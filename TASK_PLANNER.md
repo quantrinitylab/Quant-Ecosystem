@@ -24,7 +24,7 @@
 
 - [x] **QuantGit UI/UX Overhaul & QuantMail Brand Integrity (`45987e66` + pending commit)**:
   - [x] **QuantMail Brand Integrity**: Reverted `QuantMailLogo.tsx` 100% to original state with eye/wink/blush animations; permanently locked against modifications.
-  - [x] **Quanty Notion AI Transformation**: Transformed `✨ Quanty` into a 1:1 Notion AI workspace with Bubble mascot, history drawer, collapsible `Thought` accordions, and rich floating composer (`+` Give Context popup, `⊶` Settings popup, `🎙️` dictation, `↑` submit).
+  - [x] **Quanty Notion AI Transformation**: Transformed `✨ Quanty` into a 1:1 Notion AI workspace with Bubble mascot, dedicated Notion AI header (no GitHub Octocat/breadcrumbs), history drawer, collapsible `Thought` accordions, and rich floating composer (`+` Give Context popup with Skills search & file pills, `⊶` Settings popup with Computer Workers Beta, My sources toggles, MCP servers, Mode switch, Model selector, and Personalize modal with 10 accessories), elevated above docked bottom bar.
   - [x] **Repository Separation**: Decoupled `📁 Repos` default state to Repositories Directory (`selectedRepo: null`), hiding 10-tab repo header until a repository is explicitly opened.
   - [x] Verified zero TypeScript errors (`tsc --noEmit`) across `@quant/quantmail`.
 - [x] **PR #260 (`b68b86e4`)**: Master Consolidation PR (Waves B-F, Sprints 2-5, Wave F Deletions)

@@ -805,6 +805,38 @@ export default function QuantGitPage() {
     },
   ]);
 
+  // Notion AI Submenus & Personalization States
+  const [activeSettingsSubmenu, setActiveSettingsSubmenu] = useState<
+    'none' | 'computer' | 'sources' | 'mcp' | 'mode'
+  >('none');
+  const [activeContextSubmenu, setActiveContextSubmenu] = useState<'none' | 'skills'>('none');
+  const [isPersonalizeOpen, setIsPersonalizeOpen] = useState(false);
+  const [quantyName, setQuantyName] = useState('Quanty');
+  const [quantyInstructions, setQuantyInstructions] = useState('');
+  const [selectedAccessory, setSelectedAccessory] = useState<
+    | 'none'
+    | 'firefighter'
+    | 'mustache'
+    | 'scarf'
+    | 'flower'
+    | 'pencil'
+    | 'duck'
+    | 'crown'
+    | 'cowboy'
+    | 'propeller'
+  >('none');
+  const [enableWorkersBeta, setEnableWorkersBeta] = useState(true);
+  const [sourcesState, setSourcesState] = useState({
+    all: true,
+    dev6: true,
+    helpCenter: true,
+    webAccess: true,
+  });
+  const [mcpServers, setMcpServers] = useState<string[]>(['Cloudflare', 'GitHub']);
+  const [notionMode, setNotionMode] = useState<'default' | 'ask'>('default');
+  const [skillsSearch, setSkillsSearch] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
+
   // Data Collections
   const [repos, setRepos] = useState<Repo[]>(INITIAL_REPOS);
   const [files, setFiles] = useState<FileNode[]>(MOCK_FILES);
@@ -1142,133 +1174,195 @@ export default function QuantGitPage() {
   return (
     <main className="min-h-screen bg-[#0D1117] text-[#E6EDF3] font-sans antialiased pb-32">
       {/* ========================================================================= */}
-      {/* 1. AUTHENTIC GITHUB GLOBAL NAVIGATION BAR                                 */}
+      {/* 1. GLOBAL NAVIGATION BAR (NOTION AI FOR QUANTY / GITHUB FOR REPOS & LAB)  */}
       {/* ========================================================================= */}
-      <header className="sticky top-0 z-40 bg-[#010409] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
-        <div className="flex items-center gap-3">
-          {/* GitHub Octocat / Branch Mark */}
-          <button
-            type="button"
-            onClick={() => {
-              setActiveDeckTab('repos');
-              setSelectedRepo(null);
-            }}
-            className="flex items-center gap-2 text-white hover:text-[#FF8C42] transition-colors p-1 rounded-md"
-            title="GitHub / QuantGit Home"
-          >
-            <svg
-              height="24"
-              viewBox="0 0 16 16"
-              width="24"
-              fill="currentColor"
-              className="text-white"
+      {activeDeckTab === 'quanty' ? (
+        <header className="sticky top-0 z-40 bg-[#0D1117]/95 backdrop-blur border-b border-[#21262D] px-4 py-2.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className={`p-1.5 rounded-md hover:bg-[#21262D] transition-colors ${
+                isHistoryOpen ? 'bg-[#21262D] text-white' : 'text-[#7D8590] hover:text-white'
+              }`}
+              title="Lock sidebar open / Chat history"
             >
-              <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
-            </svg>
-            <span className="font-bold text-sm tracking-tight text-[#E6EDF3]">QuantGit</span>
-          </button>
-
-          {/* Breadcrumbs */}
-          {activeDeckTab === 'quanty' ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-[#7D8590]">/</span>
-              <span className="text-white font-bold flex items-center gap-1.5">
-                <span className="text-[#FF8C42]">✨</span> Quanty AI Workspace
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#FF8C42]/30 text-[#FF8C42] bg-[#FF8C42]/10 uppercase tracking-wider">
-                Opus 5 Astra
-              </span>
-            </div>
-          ) : activeDeckTab === 'lab' ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-[#7D8590]">/</span>
-              <span className="text-white font-bold flex items-center gap-1.5">
-                <span>🧪</span> Agent Lab
-              </span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase tracking-wider">
-                Fleet Command
-              </span>
-            </div>
-          ) : selectedRepo ? (
-            <div className="flex items-center gap-1.5 text-sm">
+              <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+                <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75Zm0 5a.75.75 0 0 1 1.75-1.5h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1-.75-.75Z" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <BubbleAvatar state="coding" size={20} />
+              <span className="font-bold text-[#E6EDF3] text-sm">Quanty AI</span>
               <span className="text-[#7D8590]">/</span>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedRepo(null);
-                }}
-                className="text-[#58A6FF] hover:underline font-medium"
+                onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                className="flex items-center gap-1 text-[#E6EDF3] hover:text-white font-medium hover:bg-[#21262D] px-2 py-1 rounded transition-colors"
               >
-                quantrinitylab
+                <span className="max-w-[180px] sm:max-w-xs truncate">
+                  {chatSessions.find((s) => s.id === activeSessionId)?.title ||
+                    'Urgent GitHub parity & Notion AI overhaul'}
+                </span>
+                <span className="text-[#7D8590] text-[10px]">▾</span>
               </button>
-              <span className="text-[#7D8590]">/</span>
-              <button
-                type="button"
-                onClick={() => setActiveGitHubTab('code')}
-                className="text-[#58A6FF] hover:underline font-bold text-white"
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setChatMessages([]);
+                showToast('Started new chat session');
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-medium border border-[#30363D] transition-colors"
+              title="Start new chat"
+            >
+              <span className="font-bold">+</span>
+              <span className="hidden sm:inline">New chat</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Share link copied to clipboard')}
+              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              title="Share"
+            >
+              <svg height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                <path d="M7.75 1.5a.75.75 0 0 0-1.5 0v7.69L4.03 6.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.25 9.19V1.5Z" />
+                <path d="M2.5 12a.75.75 0 0 0 0 1.5h11a.75.75 0 0 0 0-1.5h-11Z" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => showToast('Chat pinned')}
+              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              title="Pin chat"
+            >
+              📌
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPersonalizeOpen(true)}
+              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              title="Personalize Quanty AI"
+            >
+              🎨
+            </button>
+          </div>
+        </header>
+      ) : (
+        <header className="sticky top-0 z-40 bg-[#010409] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-3">
+            {/* GitHub Octocat / Branch Mark */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveDeckTab('repos');
+                setSelectedRepo(null);
+              }}
+              className="flex items-center gap-2 text-white hover:text-[#FF8C42] transition-colors p-1 rounded-md"
+              title="GitHub / QuantGit Home"
+            >
+              <svg
+                height="24"
+                viewBox="0 0 16 16"
+                width="24"
+                fill="currentColor"
+                className="text-white"
               >
-                {selectedRepo.name}
-              </button>
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590]">
-                {selectedRepo.visibility}
+                <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
+              </svg>
+              <span className="font-bold text-sm tracking-tight text-[#E6EDF3]">QuantGit</span>
+            </button>
+
+            {/* Breadcrumbs */}
+            {activeDeckTab === 'lab' ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-[#7D8590]">/</span>
+                <span className="text-white font-bold flex items-center gap-1.5">
+                  <span>🧪</span> Agent Lab
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase tracking-wider">
+                  Fleet Command
+                </span>
+              </div>
+            ) : selectedRepo ? (
+              <div className="flex items-center gap-1.5 text-sm">
+                <span className="text-[#7D8590]">/</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedRepo(null);
+                  }}
+                  className="text-[#58A6FF] hover:underline font-medium"
+                >
+                  quantrinitylab
+                </button>
+                <span className="text-[#7D8590]">/</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveGitHubTab('code')}
+                  className="text-[#58A6FF] hover:underline font-bold text-white"
+                >
+                  {selectedRepo.name}
+                </button>
+                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590]">
+                  {selectedRepo.visibility}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-sm">
+                <span className="text-[#7D8590]">/</span>
+                <span className="text-white font-bold">quantrinitylab</span>
+                <span className="text-[#7D8590] text-xs">· Organization Hub</span>
+              </div>
+            )}
+          </div>
+
+          {/* Global Search & Action Buttons */}
+          <div className="flex items-center gap-3">
+            <div className="relative hidden sm:block">
+              <input
+                id="global-search-input"
+                type="text"
+                placeholder="Type / to search"
+                className="w-56 lg:w-72 bg-[#161B22] border border-[#30363D] rounded-md px-2.5 py-1 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] focus:w-80 transition-all"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#21262D] text-[10px] font-mono text-[#7D8590]">
+                /
               </span>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-sm">
-              <span className="text-[#7D8590]">/</span>
-              <span className="text-white font-bold">quantrinitylab</span>
-              <span className="text-[#7D8590] text-xs">· Organization Hub</span>
+
+            <button
+              type="button"
+              onClick={() => setModalState('new-repo')}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
+              title="Create New..."
+            >
+              <span className="text-[#7D8590]">+</span> ▼
+            </button>
+
+            <button
+              type="button"
+              onClick={() => showToast('All notifications read')}
+              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors relative"
+              title="Notifications"
+            >
+              <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+                <path d="M8 16a2 2 0 0 0 1.985-1.75c.001-.014.004-.028.005-.042.005-.07.01-.14.01-.208H6a2 2 0 0 0 2 2Zm.636-14.708a.75.75 0 0 0-1.272 0A5.5 5.5 0 0 0 3 6.5v3.428l-.78 1.56a.75.75 0 0 0 .67 1.012h10.22a.75.75 0 0 0 .67-1.012L13 9.928V6.5a5.5 5.5 0 0 0-4.364-5.208Z" />
+              </svg>
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#58A6FF]" />
+            </button>
+
+            <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">
+              <BubbleAvatar state="coding" size={24} />
+              <span className="hidden md:inline text-[11px] font-bold text-[#FF8C42]">
+                Astra Swarm
+              </span>
             </div>
-          )}
-        </div>
-
-        {/* Global Search & Action Buttons */}
-        <div className="flex items-center gap-3">
-          {/* Quick Search */}
-          <div className="relative hidden sm:block">
-            <input
-              id="global-search-input"
-              type="text"
-              placeholder="Type / to search"
-              className="w-56 lg:w-72 bg-[#161B22] border border-[#30363D] rounded-md px-2.5 py-1 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] focus:w-80 transition-all"
-            />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#21262D] text-[10px] font-mono text-[#7D8590]">
-              /
-            </span>
           </div>
-
-          {/* Create New Dropdown Button */}
-          <button
-            type="button"
-            onClick={() => setModalState('new-repo')}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
-            title="Create New..."
-          >
-            <span className="text-[#7D8590]">+</span> ▼
-          </button>
-
-          {/* Notifications Bell */}
-          <button
-            type="button"
-            onClick={() => showToast('All notifications read')}
-            className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors relative"
-            title="Notifications"
-          >
-            <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
-              <path d="M8 16a2 2 0 0 0 1.985-1.75c.001-.014.004-.028.005-.042.005-.07.01-.14.01-.208H6a2 2 0 0 0 2 2Zm.636-14.708a.75.75 0 0 0-1.272 0A5.5 5.5 0 0 0 3 6.5v3.428l-.78 1.56a.75.75 0 0 0 .67 1.012h10.22a.75.75 0 0 0 .67-1.012L13 9.928V6.5a5.5 5.5 0 0 0-4.364-5.208Z" />
-            </svg>
-            <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#58A6FF]" />
-          </button>
-
-          {/* Swarm Ambient Bubble Mascot */}
-          <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">
-            <BubbleAvatar state="coding" size={24} />
-            <span className="hidden md:inline text-[11px] font-bold text-[#FF8C42]">
-              Astra Swarm
-            </span>
-          </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* ========================================================================= */}
       {/* 2. REPOSITORY HEADER & 10 SUB-NAVIGATION TABS                              */}
@@ -2421,69 +2515,8 @@ export default function QuantGitPage() {
         {/* VIEW C: QUANTY AI AUTONOMOUS COPILOT STUDIO                             */}
         {/* ======================================================================= */}
         {activeDeckTab === 'quanty' && (
-          <div className="max-w-4xl mx-auto space-y-4 min-h-[calc(100vh-220px)] flex flex-col justify-between">
+          <div className="max-w-4xl mx-auto space-y-4 min-h-[calc(100vh-180px)] flex flex-col justify-between pt-2 pb-24">
             <div>
-              {/* Notion AI Style Top Bar */}
-              <div className="flex items-center justify-between border-b border-[#21262D] pb-3 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-                    title="Toggle Chat History"
-                  >
-                    <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
-                      <path d="M1 2.75A.75.75 0 0 1 1.75 2h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 2.75Zm0 5A.75.75 0 0 1 1.75 7h12.5a.75.75 0 0 1 0 1.5H1.75A.75.75 0 0 1 1 7.75Zm0 5a.75.75 0 0 1 1.75-1.5h12.5a.75.75 0 0 1 0 1.5H1.75a.75.75 0 0 1-.75-.75Z" />
-                    </svg>
-                  </button>
-                  <div className="flex items-center gap-1.5 text-xs">
-                    <span className="font-bold text-white flex items-center gap-1.5">
-                      <BubbleAvatar state="coding" size={20} />
-                      Quanty AI
-                    </span>
-                    <span className="text-[#7D8590]">/</span>
-                    <span className="text-[#E6EDF3] font-medium truncate max-w-[240px] sm:max-w-md">
-                      {chatSessions.find((s) => s.id === activeSessionId)?.title ||
-                        'Urgent GitHub parity & Notion AI overhaul'}
-                    </span>
-                    <span className="text-[#7D8590] text-[10px]">▾</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setChatMessages([]);
-                      showToast('Started new chat session');
-                    }}
-                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-                    title="New Chat"
-                  >
-                    <span className="text-base font-bold leading-none">+</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => showToast('Conversation link copied to clipboard')}
-                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-                    title="Share / Export"
-                  >
-                    <svg height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
-                      <path d="M7.75 1.5a.75.75 0 0 0-1.5 0v7.69L4.03 6.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.25 9.19V1.5Z" />
-                      <path d="M2.5 12a.75.75 0 0 0 0 1.5h11a.75.75 0 0 0 0-1.5h-11Z" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => showToast('Thread pinned to workspace')}
-                    className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-                    title="Pin thread"
-                  >
-                    📌
-                  </button>
-                </div>
-              </div>
-
               {/* Collapsible Chat History Drawer */}
               {isHistoryOpen && (
                 <div className="mb-4 p-3 rounded-xl bg-[#161B22] border border-[#30363D] animate-in fade-in slide-in-from-top-2">
@@ -2739,156 +2772,515 @@ export default function QuantGitPage() {
             </div>
 
             {/* Notion AI Bottom Floating Composer */}
-            <div className="sticky bottom-0 z-20 pt-2 pb-1 bg-gradient-to-t from-[#0D1117] via-[#0D1117]/95 to-transparent">
+            <div className="sticky bottom-20 z-20 pt-2 pb-2 bg-gradient-to-t from-[#0D1117] via-[#0D1117]/95 to-transparent">
               <div className="relative">
                 {/* Popup Menu for Give Context (+) */}
                 {isContextOpen && (
-                  <div className="absolute bottom-full left-0 mb-2 w-64 p-1.5 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 divide-y divide-[#21262D] text-xs animate-in fade-in slide-in-from-bottom-2">
-                    <div className="p-1 space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          showToast('Files / Photos attached');
-                          setIsContextOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
-                      >
-                        <span>📎</span>
-                        <span>Add photos and files</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPromptInput((prev) => prev + ' @Quant-Ecosystem ');
-                          setIsContextOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
-                      >
-                        <span>@</span>
-                        <span>Mention pages, repos or files</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          showToast('Enabled active skills: Git Smart HTTP, AST, Vitest, LiveKit');
-                          setIsContextOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
-                      >
-                        <span>⚡</span>
-                        <span>Skills & Tools</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          showToast('Diagram / Image generator selected');
-                          setIsContextOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
-                      >
-                        <span>🖌️</span>
-                        <span>Create image or diagram</span>
-                        <span className="ml-auto text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#58A6FF]/20 text-[#58A6FF]">
-                          New
-                        </span>
-                      </button>
-                    </div>
+                  <div className="absolute bottom-full left-0 mb-2 w-72 p-2 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
+                    {activeContextSubmenu === 'none' ? (
+                      <div className="space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttachedFiles((prev) => [...prev, 'monorepo-spec.md']);
+                            showToast('Attached: monorepo-spec.md');
+                            setIsContextOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <span className="text-base">📎</span>
+                          <div>
+                            <div className="font-semibold text-white">Add photos and files</div>
+                            <div className="text-[10px] text-[#7D8590]">
+                              Attach workspace files, PDFs, or diagrams
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPromptInput((prev) => prev + ' @Quant-Ecosystem ');
+                            showToast('Mentioned @Quant-Ecosystem');
+                            setIsContextOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <span className="text-base font-mono font-bold text-[#58A6FF]">@</span>
+                          <div>
+                            <div className="font-semibold text-white">
+                              Mention pages, repos or files
+                            </div>
+                            <div className="text-[10px] text-[#7D8590]">
+                              Link context from repositories and docs
+                            </div>
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveContextSubmenu('skills')}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base text-[#FF8C42]">⚡</span>
+                            <div>
+                              <div className="font-semibold text-white">Skills & Tools</div>
+                              <div className="text-[10px] text-[#7D8590]">
+                                Autonomous coding and search skills
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[#7D8590] text-sm">›</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPromptInput(
+                              'Create an interactive architecture diagram of Quant Ecosystem swarm',
+                            );
+                            setIsContextOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <span className="text-base">🖌️</span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-white">
+                                Create image or diagram
+                              </span>
+                              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#58A6FF]/20 text-[#58A6FF]">
+                                New
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-[#7D8590]">
+                              Render system flowcharts & UI mockups
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    ) : (
+                      /* Skills Submenu */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveContextSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">Skills & Tools</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={skillsSearch}
+                          onChange={(e) => setSkillsSearch(e.target.value)}
+                          placeholder="Search skills…"
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                        />
+                        <div className="flex items-center justify-between text-[11px] pt-1">
+                          <button
+                            type="button"
+                            onClick={() => showToast('Opened Skills Library')}
+                            className="text-[#58A6FF] hover:underline font-semibold"
+                          >
+                            See all skills in Library
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => showToast('Add skill modal')}
+                            className="text-[#3FB950] hover:underline font-semibold"
+                          >
+                            + Add skill
+                          </button>
+                        </div>
+                        <div className="divide-y divide-[#21262D] max-h-48 overflow-y-auto pt-1">
+                          {[
+                            {
+                              name: 'Git Smart HTTP Engine',
+                              desc: 'Wire protocol & push/clone validation',
+                            },
+                            {
+                              name: 'Monorepo AST Parser',
+                              desc: 'Deep TypeScript symbol & import inspection',
+                            },
+                            { name: 'Vitest QA Sentinel', desc: 'Automated regression test runs' },
+                            {
+                              name: 'LiveKit WebRTC Gateway',
+                              desc: 'Realtime audio/video streaming tools',
+                            },
+                            {
+                              name: 'Redis Vector Memory',
+                              desc: 'Hierarchical 3-layer persistence',
+                            },
+                          ]
+                            .filter((s) =>
+                              s.name.toLowerCase().includes(skillsSearch.toLowerCase()),
+                            )
+                            .map((sk) => (
+                              <div
+                                key={sk.name}
+                                className="py-1.5 flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <div className="font-medium text-white">{sk.name}</div>
+                                  <div className="text-[10px] text-[#7D8590]">{sk.desc}</div>
+                                </div>
+                                <span className="text-[#3FB950] font-bold text-sm">✓</span>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Popup Menu for Settings (⊶) */}
                 {isSettingsOpen && (
-                  <div className="absolute bottom-full left-10 mb-2 w-80 p-3 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 text-xs space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                    <div>
-                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
-                        Model Selector
-                      </span>
-                      <div className="grid grid-cols-1 gap-1 mt-1.5">
-                        {[
-                          {
-                            id: 'opus-5',
-                            name: 'Claude Opus 5 / GPT-6 Astra',
-                            desc: 'Deep architecture, reasoning & swarm leader',
-                          },
-                          {
-                            id: 'sonnet-35',
-                            name: 'Claude 3.5 Sonnet',
-                            desc: 'High-speed code synthesis & diff generation',
-                          },
-                          {
-                            id: 'quant-slm',
-                            name: 'Quant AI Fast SLM',
-                            desc: 'Instant local triage & AST queries',
-                          },
-                        ].map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => {
-                              setActiveModel(m.id as any);
-                              showToast(`Selected model: ${m.name}`);
-                            }}
-                            className={`p-2 rounded-lg text-left transition-colors border ${
-                              activeModel === m.id
-                                ? 'border-[#FF8C42] bg-[#FF8C42]/10 text-white'
-                                : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
-                            }`}
-                          >
-                            <div className="font-bold text-xs text-white">{m.name}</div>
-                            <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="absolute bottom-full left-10 mb-2 w-80 p-2.5 rounded-xl bg-[#161B22] border border-[#30363D] shadow-2xl z-30 text-xs animate-in fade-in slide-in-from-bottom-2">
+                    {activeSettingsSubmenu === 'none' ? (
+                      <div className="space-y-1">
+                        {/* Computer */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsSubmenu('computer')}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>💻</span>
+                            <span className="font-semibold text-white">Computer</span>
+                          </div>
+                          <span className="text-[#7D8590]">›</span>
+                        </button>
 
-                    <div className="pt-2 border-t border-[#21262D]">
-                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
-                        Execution Mode
-                      </span>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {(['plan', 'build', 'auto'] as const).map((mode) => (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setBuildMode(mode)}
-                            className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
-                              buildMode === mode
-                                ? 'bg-[#FF8C42] text-black'
-                                : 'bg-[#21262D] text-[#7D8590] hover:text-white'
-                            }`}
-                          >
-                            {mode}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                        {/* My sources */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsSubmenu('sources')}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>📚</span>
+                            <span className="font-semibold text-white">My sources</span>
+                            <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#58A6FF] font-bold">
+                              3
+                            </span>
+                          </div>
+                          <span className="text-[#7D8590]">›</span>
+                        </button>
 
-                    <div className="pt-2 border-t border-[#21262D]">
-                      <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
-                        Reasoning Effort
-                      </span>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        {(['fast', 'deep'] as const).map((eff) => (
+                        {/* MCP servers */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsSubmenu('mcp')}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>🔌</span>
+                            <span className="font-semibold text-white">MCP servers</span>
+                            <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#3FB950] font-bold">
+                              {mcpServers.length}
+                            </span>
+                          </div>
+                          <span className="text-[#7D8590]">›</span>
+                        </button>
+
+                        {/* Mode */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveSettingsSubmenu('mode')}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>⚡</span>
+                            <span className="font-semibold text-white">Mode</span>
+                            <span className="text-[10px] text-[#7D8590] capitalize">
+                              ({notionMode})
+                            </span>
+                          </div>
+                          <span className="text-[#7D8590]">›</span>
+                        </button>
+
+                        {/* Personalize */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPersonalizeOpen(true);
+                            setIsSettingsOpen(false);
+                          }}
+                          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>🎨</span>
+                            <span className="font-semibold text-white">Personalize</span>
+                          </div>
+                          <span className="text-[#7D8590]">›</span>
+                        </button>
+
+                        <div className="pt-2 border-t border-[#21262D]">
+                          <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                            Model Selector
+                          </span>
+                          <div className="grid grid-cols-1 gap-1 mt-1">
+                            {[
+                              {
+                                id: 'opus-5',
+                                name: 'Claude Opus 5 / GPT-6 Astra',
+                                desc: 'Deep architecture, reasoning & swarm leader',
+                              },
+                              {
+                                id: 'sonnet-35',
+                                name: 'Claude 3.5 Sonnet',
+                                desc: 'High-speed code synthesis & diff generation',
+                              },
+                              {
+                                id: 'quant-slm',
+                                name: 'Quant AI Fast SLM',
+                                desc: 'Instant local triage & AST queries',
+                              },
+                            ].map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() => {
+                                  setActiveModel(m.id as any);
+                                  showToast(`Selected: ${m.name}`);
+                                }}
+                                className={`p-2 rounded-lg text-left transition-colors border ${
+                                  activeModel === m.id
+                                    ? 'border-[#FF8C42] bg-[#FF8C42]/10 text-white'
+                                    : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
+                                }`}
+                              >
+                                <div className="font-bold text-xs text-white">{m.name}</div>
+                                <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-[#21262D]">
+                          <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                            Reasoning Effort
+                          </span>
+                          <div className="flex items-center gap-1 mt-1">
+                            {(['fast', 'deep'] as const).map((eff) => (
+                              <button
+                                key={eff}
+                                type="button"
+                                onClick={() => setEffort(eff)}
+                                className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
+                                  effort === eff
+                                    ? 'bg-[#58A6FF] text-black'
+                                    : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                                }`}
+                              >
+                                {eff} ({eff === 'deep' ? '32k' : '1k'})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : activeSettingsSubmenu === 'computer' ? (
+                      /* Computer Submenu */
+                      <div className="space-y-3 p-1">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
                           <button
-                            key={eff}
                             type="button"
-                            onClick={() => setEffort(eff)}
-                            className={`flex-1 py-1 rounded text-[11px] font-bold capitalize transition-colors ${
-                              effort === eff
-                                ? 'bg-[#58A6FF] text-black'
-                                : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                            onClick={() => setActiveSettingsSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">Computer Settings</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-white text-xs">Enable Workers Beta</div>
+                            <div className="text-[10px] text-[#7D8590] max-w-[210px] leading-relaxed mt-0.5">
+                              Allows the computer to create, deploy, update, and delete Notion
+                              Workers in this workspace.
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEnableWorkersBeta(!enableWorkersBeta)}
+                            className={`w-9 h-5 rounded-full p-0.5 transition-colors ${
+                              enableWorkersBeta ? 'bg-[#238636]' : 'bg-[#30363D]'
                             }`}
                           >
-                            {eff} ({eff === 'deep' ? '32k' : '1k'})
+                            <div
+                              className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                                enableWorkersBeta ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
                           </button>
-                        ))}
+                        </div>
                       </div>
-                    </div>
+                    ) : activeSettingsSubmenu === 'sources' ? (
+                      /* Sources Submenu */
+                      <div className="space-y-2.5 p-1">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSettingsSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">Knowledge Sources</span>
+                        </div>
+                        <div className="space-y-2">
+                          {[
+                            { key: 'all', label: 'All sources I can access' },
+                            {
+                              key: 'dev6',
+                              label: 'Developer 6 with gpt 5.6 sol , opus 5 and kimi k3',
+                            },
+                            { key: 'helpCenter', label: 'Quant Help Center' },
+                            { key: 'webAccess', label: 'Web access' },
+                          ].map((item) => (
+                            <div key={item.key} className="flex items-center justify-between">
+                              <span className="text-xs text-white truncate max-w-[210px]">
+                                {item.label}
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={(sourcesState as any)[item.key]}
+                                onChange={() =>
+                                  setSourcesState((prev) => ({
+                                    ...prev,
+                                    [item.key]: !(prev as any)[item.key],
+                                  }))
+                                }
+                                className="accent-[#58A6FF] w-4 h-4 cursor-pointer"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div className="pt-2 border-t border-[#21262D] flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => showToast('Source connector dialog')}
+                            className="text-[#58A6FF] hover:underline text-[11px] font-semibold"
+                          >
+                            + Add sources
+                          </button>
+                          <span className="text-[9px] text-[#7D8590]">Sources scoped</span>
+                        </div>
+                        <p className="text-[10px] text-[#7D8590] leading-relaxed">
+                          Quanty AI will only search information from the sources selected here.
+                        </p>
+                      </div>
+                    ) : activeSettingsSubmenu === 'mcp' ? (
+                      /* MCP Servers Submenu */
+                      <div className="space-y-2.5 p-1">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSettingsSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">MCP Servers</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {mcpServers.map((server) => (
+                            <div
+                              key={server}
+                              className="p-2 rounded bg-[#0D1117] border border-[#30363D] flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-[#3FB950]" />
+                                <span className="font-semibold text-white">{server}</span>
+                              </div>
+                              <span className="text-[10px] text-[#7D8590]">Connected</span>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMcpServers([...mcpServers, `Server-${mcpServers.length + 1}`]);
+                            showToast('Added MCP Server connection');
+                          }}
+                          className="w-full py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] font-semibold text-xs border border-[#30363D] transition-colors"
+                        >
+                          + Add MCP server
+                        </button>
+                      </div>
+                    ) : (
+                      /* Mode Submenu */
+                      <div className="space-y-2.5 p-1">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSettingsSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">Operating Mode</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {[
+                            { id: 'default', title: 'Default', desc: 'Can search, edit, and more' },
+                            { id: 'ask', title: 'Ask', desc: 'Answers only, won’t make edits' },
+                          ].map((md) => (
+                            <button
+                              key={md.id}
+                              type="button"
+                              onClick={() => setNotionMode(md.id as any)}
+                              className={`w-full p-2 rounded-lg text-left border transition-colors ${
+                                notionMode === md.id
+                                  ? 'bg-[#58A6FF]/10 border-[#58A6FF] text-white'
+                                  : 'border-transparent hover:bg-[#21262D] text-[#7D8590]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-white">{md.title}</span>
+                                {notionMode === md.id && (
+                                  <span className="text-[#58A6FF] font-bold">●</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-[#7D8590] mt-0.5">{md.desc}</div>
+                            </button>
+                          ))}
+                        </div>
+                        <div className="text-[10px] text-[#7D8590] pt-1 border-t border-[#21262D]">
+                          Tip: Cycle through modes with shift+tab
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Input Textarea Container */}
                 <div className="relative rounded-2xl bg-[#161B22] border border-[#30363D] p-3 shadow-2xl focus-within:border-[#58A6FF] transition-all">
+                  {/* Attached Files Row */}
+                  {attachedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#21262D]/60 mb-2">
+                      {attachedFiles.map((f, idx) => (
+                        <span
+                          key={idx}
+                          className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#21262D] border border-[#30363D] text-[11px] text-[#E6EDF3]"
+                        >
+                          <span>📎</span>
+                          <span className="font-mono text-[10px]">{f}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setAttachedFiles(attachedFiles.filter((_, i) => i !== idx))
+                            }
+                            className="text-[#7D8590] hover:text-[#F85149] font-bold"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <textarea
                     rows={2}
                     value={promptInput}
@@ -2912,6 +3304,7 @@ export default function QuantGitPage() {
                         onClick={() => {
                           setIsContextOpen(!isContextOpen);
                           setIsSettingsOpen(false);
+                          setActiveContextSubmenu('none');
                         }}
                         className={`p-1.5 rounded-lg border transition-colors ${
                           isContextOpen
@@ -2929,6 +3322,7 @@ export default function QuantGitPage() {
                         onClick={() => {
                           setIsSettingsOpen(!isSettingsOpen);
                           setIsContextOpen(false);
+                          setActiveSettingsSubmenu('none');
                         }}
                         className={`p-1.5 rounded-lg border transition-colors ${
                           isSettingsOpen
@@ -2942,14 +3336,15 @@ export default function QuantGitPage() {
                         </svg>
                       </button>
 
-                      {/* Active model pill */}
+                      {/* Active model & mode pill */}
                       <span className="text-[10px] font-semibold text-[#7D8590] bg-[#21262D] px-2 py-0.5 rounded-md border border-[#30363D]">
                         {activeModel === 'opus-5'
                           ? 'Opus 5'
                           : activeModel === 'sonnet-35'
                             ? 'Sonnet 3.5'
                             : 'Quant SLM'}{' '}
-                        · {buildMode}
+                        · {notionMode === 'default' ? 'Default' : 'Ask'} ·{' '}
+                        {effort === 'deep' ? '32k' : '1k'}
                       </span>
                     </div>
 
@@ -3581,6 +3976,139 @@ export default function QuantGitPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Personalize Quanty AI Modal */}
+      {isPersonalizeOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#161B22] border border-[#30363D] rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl p-6 text-xs space-y-5 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">🎨</span>
+                <div>
+                  <h3 className="font-bold text-white text-sm">Personalize your Quanty AI</h3>
+                  <p className="text-[11px] text-[#7D8590]">
+                    Customize accessory, name, and swarm instructions
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPersonalizeOpen(false)}
+                className="text-[#7D8590] hover:text-white text-base font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Avatar Preview & Accessories */}
+            <div className="flex flex-col items-center justify-center space-y-3 py-2 bg-[#0D1117] rounded-xl border border-[#21262D]">
+              <div className="relative">
+                <BubbleAvatar state="coding" size={64} />
+                {selectedAccessory !== 'none' && (
+                  <span className="absolute -top-2 -right-2 text-2xl drop-shadow-md">
+                    {selectedAccessory === 'crown' && '👑'}
+                    {selectedAccessory === 'firefighter' && '🚒'}
+                    {selectedAccessory === 'mustache' && '🥸'}
+                    {selectedAccessory === 'scarf' && '🧣'}
+                    {selectedAccessory === 'flower' && '🌸'}
+                    {selectedAccessory === 'pencil' && '✏️'}
+                    {selectedAccessory === 'duck' && '🦆'}
+                    {selectedAccessory === 'cowboy' && '🤠'}
+                    {selectedAccessory === 'propeller' && '🚁'}
+                  </span>
+                )}
+              </div>
+              <span className="font-bold text-white text-sm">{quantyName}</span>
+            </div>
+
+            {/* Accessory Selector Grid */}
+            <div className="space-y-2">
+              <label className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                Accessories
+              </label>
+              <div className="grid grid-cols-5 gap-2">
+                {[
+                  { id: 'none', label: 'None', icon: '🚫' },
+                  { id: 'crown', label: 'Crown', icon: '👑' },
+                  { id: 'firefighter', label: 'Firefighter', icon: '🚒' },
+                  { id: 'mustache', label: 'Mustache', icon: '🥸' },
+                  { id: 'scarf', label: 'Scarf', icon: '🧣' },
+                  { id: 'flower', label: 'Flower', icon: '🌸' },
+                  { id: 'pencil', label: 'Pencil', icon: '✏️' },
+                  { id: 'duck', label: 'Duck', icon: '🦆' },
+                  { id: 'cowboy', label: 'Cowboy', icon: '🤠' },
+                  { id: 'propeller', label: 'Propeller', icon: '🚁' },
+                ].map((acc) => (
+                  <button
+                    key={acc.id}
+                    type="button"
+                    onClick={() => setSelectedAccessory(acc.id as any)}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${
+                      selectedAccessory === acc.id
+                        ? 'bg-[#58A6FF]/20 border-[#58A6FF] text-white shadow-md'
+                        : 'bg-[#0D1117] border-[#30363D] text-[#7D8590] hover:text-white hover:border-[#58A6FF]'
+                    }`}
+                  >
+                    <span className="text-xl">{acc.icon}</span>
+                    <span className="text-[10px] font-medium truncate w-full text-center">
+                      {acc.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* AI Name Input */}
+            <div className="space-y-1">
+              <label className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                AI Name
+              </label>
+              <input
+                type="text"
+                value={quantyName}
+                onChange={(e) => setQuantyName(e.target.value)}
+                placeholder="Quanty"
+                className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg px-3 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+              />
+            </div>
+
+            {/* Custom Instructions Textarea */}
+            <div className="space-y-1">
+              <label className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
+                Custom Instructions & Context
+              </label>
+              <textarea
+                rows={3}
+                value={quantyInstructions}
+                onChange={(e) => setQuantyInstructions(e.target.value)}
+                placeholder="What would you like Quanty to know about you to provide better responses? (e.g., Preferred tech stack, architecture constraints)"
+                className="w-full bg-[#0D1117] border border-[#30363D] rounded-lg px-3 py-2 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] resize-none"
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#21262D]">
+              <button
+                type="button"
+                onClick={() => setIsPersonalizeOpen(false)}
+                className="px-4 py-2 rounded-lg bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPersonalizeOpen(false);
+                  showToast('Personalization preferences saved!');
+                }}
+                className="px-4 py-2 rounded-lg bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold shadow-md transition-colors"
+              >
+                Save Preferences
+              </button>
             </div>
           </div>
         </div>
