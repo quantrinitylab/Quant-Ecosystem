@@ -38,3 +38,10 @@ _bedrock-probe*.mts
 .kiro/settings/mcp.json
 infra/scripts/patch-secret.json
 infra/scripts/patch-cf.json
+
+# Android build caches
+.gradle/
+android-project/**/build/
+android-project/.gradle/
+android-project/local.properties
+

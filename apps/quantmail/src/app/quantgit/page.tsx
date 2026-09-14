@@ -7,6 +7,7 @@ import { BubbleAvatar } from '@quant/shared-ui';
 import type { BubbleState } from '@quant/shared-ui';
 import { useRepos } from '../../hooks/useRepos';
 
+export type MainDeckTab = 'quanty' | 'repos' | 'lab';
 export type GitHubSubTab = 'code' | 'issues' | 'pulls' | 'agents' | 'actions';
 export type BuildMode = 'plan' | 'build' | 'auto';
 export type Effort = 'fast' | 'deep';
@@ -383,9 +384,21 @@ const MOCK_FILES = [
     timeAgo: '3 hours ago',
   },
   {
+    name: 'android-project',
+    type: 'folder',
+    message: 'feat(mobile): native Jetpack Compose sovereign client',
+    timeAgo: '1 hour ago',
+  },
+  {
+    name: 'apk testing',
+    type: 'folder',
+    message: 'release(android): Quant v1.0 universal APK build',
+    timeAgo: 'just now',
+  },
+  {
     name: 'apps',
     type: 'folder',
-    message: 'feat(quantmail): top command deck & GitHub parity',
+    message: 'feat(quantmail): top command deck & 1:1 GitHub workspace',
     timeAgo: 'just now',
   },
   {
@@ -419,7 +432,7 @@ const MOCK_FILES = [
     type: 'file',
     message: 'chore(planner): update sprint milestones and live checkmarks',
     timeAgo: '1 hour ago',
-    content: `# 📋 QUANT ECOSYSTEM — UNIFIED MASTER TASK PLANNER\n\n- [x] PR #260 (Consolidation)\n- [x] PR #247 (QuantMail v2.0)\n- [x] Quanty Bubble Intelligence (Eye-less fluid metaball)\n- [x] QuantGit Top Command Deck & 1:1 GitHub Parity`,
+    content: `# 📋 QUANT ECOSYSTEM — UNIFIED MASTER TASK PLANNER\n\n- [x] PR #260 (Consolidation)\n- [x] PR #247 (QuantMail v2.0)\n- [x] Quanty Bubble Intelligence (Eye-less fluid metaball)\n- [x] QuantGit Top Command Deck & 1:1 GitHub Parity\n- [x] Android Universal APK Build in apk testing/`,
     language: 'markdown',
   },
   {
@@ -453,7 +466,7 @@ const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
     id: 'quant-ecosystem',
     name: 'Quant-Ecosystem',
     fullName: 'quantrinitylab/Quant-Ecosystem',
-    description: 'Next-gen sovereign workspace, autonomous AI swarm & Git hub.',
+    description: 'Next-gen sovereign workspace, autonomous AI swarm, Git hub & Android client.',
     visibility: 'public',
     language: 'TypeScript',
     stars: 128,
@@ -462,8 +475,8 @@ const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
     defaultBranch: 'main',
     latestCommit:
       'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity',
-    latestCommitSha: '3c12703',
-    latestCommitTime: '7 hours ago',
+    latestCommitSha: 'fa303af',
+    latestCommitTime: 'just now',
     cloneUrl: 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
     sshUrl: 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
     checksStatus: 'passing',
@@ -486,6 +499,24 @@ const DEFAULT_ECOSYSTEM_REPOS: Repo[] = [
     sshUrl: 'git@github.com:quantrinitylab/quantmail-core.git',
     checksStatus: 'passing',
   },
+  {
+    id: 'quantchat-meet',
+    name: 'quantchat-meet',
+    fullName: 'quantrinitylab/quantchat-meet',
+    description: 'LiveKit WebRTC gateway, SFU, voice AI agent, and calendar proactive alerts.',
+    visibility: 'private',
+    language: 'TypeScript',
+    stars: 35,
+    forks: 3,
+    watching: 6,
+    defaultBranch: 'main',
+    latestCommit: 'feat(voice): proactive call reminder dispatcher',
+    latestCommitSha: 'b68b86e',
+    latestCommitTime: 'yesterday',
+    cloneUrl: 'https://github.com/quantrinitylab/quantchat-meet.git',
+    sshUrl: 'git@github.com:quantrinitylab/quantchat-meet.git',
+    checksStatus: 'passing',
+  },
 ];
 
 function normalizeRepos(value: unknown): Repo[] {
@@ -503,7 +534,7 @@ function normalizeRepos(value: unknown): Repo[] {
             ? source.fullName
             : typeof source.full_name === 'string'
               ? source.full_name
-              : undefined,
+              : `quantrinitylab/${name}`,
         description: typeof source.description === 'string' ? source.description : undefined,
         visibility:
           typeof source.visibility === 'string'
@@ -530,13 +561,13 @@ function normalizeRepos(value: unknown): Repo[] {
             ? source.cloneUrl
             : typeof source.clone_url === 'string'
               ? source.clone_url
-              : 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
+              : `https://github.com/quantrinitylab/${name}.git`,
         sshUrl:
           typeof source.sshUrl === 'string'
             ? source.sshUrl
             : typeof source.ssh_url === 'string'
               ? source.ssh_url
-              : 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
+              : `git@github.com:quantrinitylab/${name}.git`,
         defaultBranch:
           typeof source.defaultBranch === 'string'
             ? source.defaultBranch
@@ -548,9 +579,9 @@ function normalizeRepos(value: unknown): Repo[] {
             ? source.latestCommit
             : 'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity',
         latestCommitSha:
-          typeof source.latestCommitSha === 'string' ? source.latestCommitSha : '3c12703',
+          typeof source.latestCommitSha === 'string' ? source.latestCommitSha : 'fa303af',
         latestCommitTime:
-          typeof source.latestCommitTime === 'string' ? source.latestCommitTime : '7 hours ago',
+          typeof source.latestCommitTime === 'string' ? source.latestCommitTime : 'just now',
         checksStatus:
           source.checksStatus === 'pending' || source.checksStatus === 'failing'
             ? (source.checksStatus as 'pending' | 'failing')
@@ -565,10 +596,16 @@ export default function QuantGitPage() {
   const router = useRouter();
   const { data, isLoading, error, refetch } = useRepos();
   const repos = useMemo(() => normalizeRepos(data), [data]);
-  const [selectedRepo, setSelectedRepo] = useState<Repo>(DEFAULT_ECOSYSTEM_REPOS[0]);
 
-  // GitHub Sub-tabs: Code, Issues, Pull requests, Agents, Actions
-  const [activeTab, setActiveTab] = useState<GitHubSubTab>('code');
+  // 4 Bottom Deck Tabs: Quanty | Repos | Agent Lab | Exit
+  const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
+
+  // Selected repo for detail view (null means viewing repository overview list)
+  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(DEFAULT_ECOSYSTEM_REPOS[0]);
+  const [repoSearchQuery, setRepoSearchQuery] = useState('');
+
+  // GitHub Sub-tabs inside an opened repo: Code, Issues, Pull requests, Agents, Actions
+  const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubSubTab>('code');
   const [currentBranch, setCurrentBranch] = useState<string>('main');
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
   const [isCodeDropdownOpen, setIsCodeDropdownOpen] = useState(false);
@@ -590,7 +627,6 @@ export default function QuantGitPage() {
 
   // Actions state
   const [workflowRuns, setWorkflowRuns] = useState<WorkflowRunItem[]>(INITIAL_WORKFLOW_RUNS);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<string>('all');
 
   // File Viewer Modal state
   const [viewingFile, setViewingFile] = useState<{
@@ -598,6 +634,9 @@ export default function QuantGitPage() {
     content: string;
     language: string;
   } | null>(null);
+
+  // Clone Repo Dialog for Repos List
+  const [cloningRepoItem, setCloningRepoItem] = useState<Repo | null>(null);
 
   // Agents Lab state
   const [deployedAgents, setDeployedAgents] = useState<DeployedAgent[]>([
@@ -640,7 +679,7 @@ export default function QuantGitPage() {
       role: 'Autonomous Code Builder',
       pod: 'BUILD',
       status: 'building',
-      currentTask: 'Compiling QuantGit repository parity view and file modal explorer',
+      currentTask: 'Compiling QuantGit repository parity view and Android client build',
       initial: 'F',
       color: '#3b82f6',
       thoughts:
@@ -649,6 +688,7 @@ export default function QuantGitPage() {
         'Rendered Code clone dropdown (HTTPS/SSH/CLI)',
         'Added interactive File Viewer with syntax highlights',
         'Integrated Issues filter and interactive New Issue creator',
+        'Compiled universal Android APK to apk testing/',
       ],
     },
   ]);
@@ -683,13 +723,6 @@ export default function QuantGitPage() {
     window.setTimeout(() => setToastMessage(null), 2600);
   };
 
-  // Sync selected repo when repos load
-  useEffect(() => {
-    if (repos.length > 0 && !repos.find((r) => r.id === selectedRepo.id)) {
-      setSelectedRepo(repos[0]);
-    }
-  }, [repos, selectedRepo]);
-
   // Handle Command Bar Submit
   const handleCommandSubmit = (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -710,14 +743,14 @@ export default function QuantGitPage() {
     setResponseExpanded(true);
     setMascotState(mode === 'build' ? 'coding' : mode === 'plan' ? 'planning' : 'thinking');
 
-    // Simulate realistic intelligent streaming response
     setTimeout(() => {
       let replyText = '';
       let steps: string[] = [];
       let nextState: BubbleState = 'success';
+      const repoTarget = selectedRepo ? selectedRepo.name : 'Quant-Ecosystem';
 
       if (query.toLowerCase().includes('debug')) {
-        replyText = `Analyzing recent repository diagnostics for ${selectedRepo.name}... Monorepo build is healthy. Checked Vitest regression gates and TypeScript compilation: 0 errors detected.`;
+        replyText = `Analyzing recent repository diagnostics for ${repoTarget}... Monorepo build is healthy. Checked Vitest regression gates and TypeScript compilation: 0 errors detected.`;
         steps = [
           'Inspected GitHub Actions run #137',
           'Checked monorepo tsc --noEmit across 10 apps',
@@ -725,17 +758,17 @@ export default function QuantGitPage() {
         ];
         nextState = 'debugging';
       } else if (query.toLowerCase().includes('issue')) {
-        replyText = `Drafted new issue spec for ${selectedRepo.name}. You can also click "+ New issue" in the Issues tab below to publish immediately.`;
+        replyText = `Drafted new issue spec for ${repoTarget}. You can also click "+ New issue" in the Issues tab below to publish immediately.`;
         steps = ['Generated acceptance criteria', 'Set default label to enhancement'];
         nextState = 'planning';
       } else if (query.toLowerCase().includes('agent')) {
-        replyText = `Active Swarm Fleet: Astra (CEO Gatekeeper), Forge (Builder), and Sentinel (QA) are actively monitoring ${selectedRepo.name}. Deploy modal is ready in the Agents tab.`;
+        replyText = `Active Swarm Fleet: Astra (CEO Gatekeeper), Forge (Builder), and Sentinel (QA) are actively monitoring ${repoTarget}. Deploy modal is ready in the Agents tab.`;
         steps = ['Polled active agent heartbeat', 'Confirmed 3 active agents standing by'];
         nextState = 'idle';
       } else {
-        replyText = `I have reviewed "${query}" against the live ${selectedRepo.name} workspace. Mode: ${mode.toUpperCase()} (Effort: ${effort.toUpperCase()}). All repository files, issues, and workflows below are synced.`;
+        replyText = `I have reviewed "${query}" against the live ${repoTarget} workspace. Mode: ${mode.toUpperCase()} (Effort: ${effort.toUpperCase()}). All repository files, issues, and workflows below are synced.`;
         steps = [
-          `Read ${selectedRepo.name} commit tree at ${selectedRepo.latestCommitSha || '3c12703'}`,
+          `Read ${repoTarget} commit tree at ${selectedRepo?.latestCommitSha || 'fa303af'}`,
           'Evaluated monorepo invariants',
           'Synthesized actionable recommendation',
         ];
@@ -753,7 +786,7 @@ export default function QuantGitPage() {
       setMessages((prev) => [...prev, assistantMsg]);
       setIsStreaming(false);
       setMascotState(nextState);
-    }, 900);
+    }, 850);
   };
 
   // Quick Action Click
@@ -783,7 +816,7 @@ export default function QuantGitPage() {
     setNewIssueBody('');
     setIsNewIssueModalOpen(false);
     showToast(`Issue #${newIssue.id} created successfully!`);
-    setActiveTab('issues');
+    setActiveGitHubTab('issues');
   };
 
   // Deploy Agent
@@ -794,6 +827,7 @@ export default function QuantGitPage() {
       return;
     }
 
+    const targetRepoName = selectedRepo ? selectedRepo.name : 'Quant-Ecosystem';
     const newDep: DeployedAgent = {
       id: agent.id,
       name: agent.name,
@@ -809,8 +843,8 @@ export default function QuantGitPage() {
 
     setDeployedAgents([...deployedAgents, newDep]);
     setIsDeployModalOpen(false);
-    showToast(`Deployed ${agent.name} to ${selectedRepo.name}`);
-    setActiveTab('agents');
+    showToast(`Deployed ${agent.name} to ${targetRepoName}`);
+    setActiveGitHubTab('agents');
   };
 
   // Copy Clone URL
@@ -831,26 +865,37 @@ export default function QuantGitPage() {
     return pullRequests.filter((p) => p.state === prFilter);
   }, [pullRequests, prFilter]);
 
+  const filteredReposList = useMemo(() => {
+    const q = repoSearchQuery.trim().toLowerCase();
+    return q
+      ? repos.filter(
+          (r) =>
+            r.name.toLowerCase().includes(q) ||
+            (r.fullName && r.fullName.toLowerCase().includes(q)) ||
+            (r.description && r.description.toLowerCase().includes(q)),
+        )
+      : repos;
+  }, [repos, repoSearchQuery]);
+
   const cloneString = useMemo(() => {
+    const repo = cloningRepoItem || selectedRepo || DEFAULT_ECOSYSTEM_REPOS[0];
     if (cloneProto === 'ssh') {
       return (
-        selectedRepo.sshUrl ||
-        `git@github.com:${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
+        repo.sshUrl || `git@github.com:${repo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
       );
     }
     if (cloneProto === 'cli') {
-      return `gh repo clone ${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}`;
+      return `gh repo clone ${repo.fullName || 'quantrinitylab/Quant-Ecosystem'}`;
     }
     return (
-      selectedRepo.cloneUrl ||
-      `https://github.com/${selectedRepo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
+      repo.cloneUrl || `https://github.com/${repo.fullName || 'quantrinitylab/Quant-Ecosystem'}.git`
     );
-  }, [cloneProto, selectedRepo]);
+  }, [cloneProto, cloningRepoItem, selectedRepo]);
 
   return (
     <main
       id="main-content"
-      className="min-h-screen bg-[#0B0C0E] text-white selection:bg-[#FF8C42] selection:text-black [color-scheme:dark] flex flex-col"
+      className="min-h-screen bg-[#0B0C0E] text-white selection:bg-[#FF8C42] selection:text-black [color-scheme:dark] flex flex-col pb-28"
     >
       {/* ========================================================================= */}
       {/* 1. TOP HEADER: Prominent Bubble Intelligence Mascot + Wordmark + Breadcrumb */}
@@ -875,14 +920,25 @@ export default function QuantGitPage() {
             <span className="text-[#6b7280]">/</span>
             <div className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-slate-200">
               <span className="text-[#A1A4AC] hover:text-white cursor-pointer">quantrinitylab</span>
-              <span className="text-[#6b7280]">/</span>
-              <span className="text-white font-bold hover:text-[#FF8C42] cursor-pointer">
-                {selectedRepo.name}
-              </span>
+              {selectedRepo && (
+                <>
+                  <span className="text-[#6b7280]">/</span>
+                  <span
+                    onClick={() => {
+                      setActiveDeckTab('repos');
+                    }}
+                    className="text-white font-bold hover:text-[#FF8C42] cursor-pointer"
+                  >
+                    {selectedRepo.name}
+                  </span>
+                </>
+              )}
             </div>
-            <span className="ml-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
-              {selectedRepo.visibility || 'Public'}
-            </span>
+            {selectedRepo && (
+              <span className="ml-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
+                {selectedRepo.visibility || 'Public'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -905,10 +961,10 @@ export default function QuantGitPage() {
       </header>
 
       {/* ========================================================================= */}
-      {/* 2. TOP QUANTY AI COMMAND DECK (Chat on top, with quick pills & modes)     */}
+      {/* 2. TOP QUANTY AI COMMAND DECK (Always Accessible at the Top)              */}
       {/* ========================================================================= */}
-      <section className="w-full border-b border-[#282C35] bg-[#0E1015] px-4 py-4 sm:px-8">
-        <div className="max-w-6xl mx-auto flex flex-col gap-3">
+      <section className="w-full border-b border-[#282C35] bg-[#0E1015] px-4 py-3.5 sm:px-8">
+        <div className="max-w-6xl mx-auto flex flex-col gap-2.5">
           {/* Quick Action Pills Row */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
             <span className="text-[11px] font-bold text-[#FF8C42] uppercase tracking-wider mr-1 shrink-0 flex items-center gap-1">
@@ -932,7 +988,6 @@ export default function QuantGitPage() {
             onSubmit={handleCommandSubmit}
             className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-lg focus-within:border-[#FF8C42]/70 transition-all"
           >
-            {/* Connectors button */}
             <button
               type="button"
               onClick={() =>
@@ -1009,7 +1064,7 @@ export default function QuantGitPage() {
             </button>
           </form>
 
-          {/* Interactive Response Stream Drawer (Collapsible) */}
+          {/* Collapsible Response Stream */}
           {messages.length > 1 && (
             <div className="mt-1 rounded-2xl bg-[#12141A] border border-[#282C35] p-3.5 transition-all text-xs">
               <div className="flex items-center justify-between border-b border-[#282C35]/60 pb-2 mb-2">
@@ -1026,7 +1081,6 @@ export default function QuantGitPage() {
                 </button>
               </div>
 
-              {/* Latest message preview */}
               <div className="space-y-2">
                 {responseExpanded ? (
                   messages.slice(1).map((msg) => (
@@ -1075,595 +1129,952 @@ export default function QuantGitPage() {
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. FULL 1:1 GITHUB REPOSITORY WORKSPACE (Directly underneath top deck)   */}
+      {/* 3. MAIN WORKSPACE VIEW (Driven by Bottom Deck: Quanty | Repos | Agent Lab) */}
       {/* ========================================================================= */}
-      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 flex flex-col gap-4">
-        {/* Repo Header & Metrics: Stars, Watch, Fork */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#282C35]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-1.5">
-                <span>{selectedRepo.fullName || selectedRepo.name}</span>
-              </h1>
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
-                {selectedRepo.visibility || 'Public repository'}
-              </span>
-            </div>
-            <p className="text-xs text-[#A1A4AC] mt-1">
-              {selectedRepo.description ||
-                'Next-gen sovereign enterprise platform, autonomous AI swarm & Git hub.'}
-            </p>
-          </div>
-
-          {/* GitHub Watch, Fork, Star Buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => showToast('Notification watch preference saved.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
-            >
-              <span>👁 Watch</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
-                {selectedRepo.watching || 12}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => showToast('Fork repository flow initialized.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
-            >
-              <span>⑂ Fork</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
-                {selectedRepo.forks || 24}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => showToast('Starred quantrinitylab/Quant-Ecosystem! ⭐')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#FF8C42] hover:bg-[#20242D] transition-colors shadow-sm"
-            >
-              <span>★ Star</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-white border border-[#282C35]">
-                {selectedRepo.stars || 128}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* 5 GitHub Sub-Navigation Tabs: Code | Issues | Pull requests | Agents | Actions */}
-        <div className="flex items-center gap-1 border-b border-[#282C35] overflow-x-auto no-scrollbar">
-          <button
-            type="button"
-            onClick={() => setActiveTab('code')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-              activeTab === 'code'
-                ? 'border-[#FF8C42] text-white'
-                : 'border-transparent text-[#A1A4AC] hover:text-white'
-            }`}
-          >
-            <span>&lt;&gt;</span>
-            <span>Code</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('issues')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-              activeTab === 'issues'
-                ? 'border-[#FF8C42] text-white'
-                : 'border-transparent text-[#A1A4AC] hover:text-white'
-            }`}
-          >
-            <span>⨀</span>
-            <span>Issues</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
-              {issues.filter((i) => i.state === 'open').length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('pulls')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-              activeTab === 'pulls'
-                ? 'border-[#FF8C42] text-white'
-                : 'border-transparent text-[#A1A4AC] hover:text-white'
-            }`}
-          >
-            <span>⑂</span>
-            <span>Pull requests</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
-              {pullRequests.filter((p) => p.state === 'open').length}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('agents')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-              activeTab === 'agents'
-                ? 'border-[#FF8C42] text-white'
-                : 'border-transparent text-[#A1A4AC] hover:text-white'
-            }`}
-          >
-            <span>✨</span>
-            <span>Agents</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/50 text-[10px]">
-              Copilot
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('actions')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
-              activeTab === 'actions'
-                ? 'border-[#FF8C42] text-white'
-                : 'border-transparent text-[#A1A4AC] hover:text-white'
-            }`}
-          >
-            <span>▶</span>
-            <span>Actions</span>
-          </button>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* TAB 1: CODE WORKSPACE (1:1 GitHub Layout)                                 */}
-        {/* ========================================================================= */}
-        {activeTab === 'code' && (
+      <div className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-5 flex flex-col gap-5">
+        {/* ----------------------------------------------------------------------- */}
+        {/* VIEW A: DEDICATED QUANTY CHAT STREAM                                    */}
+        {/* ----------------------------------------------------------------------- */}
+        {activeDeckTab === 'quanty' && (
           <div className="space-y-4">
-            {/* Top Code Control Row: Branch Selector + File search + <> Code Clone Dropdown */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 relative">
-                {/* Branch Switcher Button */}
-                <button
-                  type="button"
-                  onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
-                >
-                  <span className="text-[#A1A4AC]">⑂</span>
-                  <span>{currentBranch}</span>
-                  <span className="text-[10px] text-[#A1A4AC]">▼</span>
-                </button>
+            <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>Autonomous Coding Studio</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40 font-mono">
+                    QuantAI v2
+                  </span>
+                </h2>
+                <p className="text-xs text-[#A1A4AC] mt-0.5">
+                  Full-fidelity autonomous agentic planning, multi-file edits, and diff generation.
+                </p>
+              </div>
 
-                {isBranchDropdownOpen && (
-                  <div className="absolute left-0 top-10 z-50 w-56 rounded-xl bg-[#16181D] border border-[#282C35] shadow-2xl p-2 text-xs space-y-1">
-                    <div className="px-2 py-1 text-[11px] font-bold text-[#A1A4AC] border-b border-[#282C35]">
-                      Switch branches / tags
+              <button
+                type="button"
+                onClick={() => {
+                  setMessages([messages[0]]);
+                  showToast('Cleared chat history.');
+                }}
+                className="px-3 py-1 text-xs rounded-lg border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#16181D]"
+              >
+                Clear session
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`p-4 rounded-2xl border ${
+                    m.role === 'user'
+                      ? 'bg-[#1A1D24] text-white ml-8 border-[#3A404D]'
+                      : 'bg-[#12141A] text-slate-200 mr-8 border-[#282C35]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs text-[#A1A4AC] mb-2 font-medium">
+                    <div className="flex items-center gap-2">
+                      {m.role === 'assistant' && (
+                        <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
+                      )}
+                      <span className="font-bold text-white">
+                        {m.role === 'user' ? 'You' : 'Quanty Swarm Orchestrator'}
+                      </span>
                     </div>
-                    {['main', 'staging', 'feature/quantgit-parity'].map((b) => (
-                      <button
-                        key={b}
-                        type="button"
-                        onClick={() => {
-                          setCurrentBranch(b);
-                          setIsBranchDropdownOpen(false);
-                          showToast(`Switched to branch ${b}`);
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between font-mono ${
-                          currentBranch === b
-                            ? 'bg-[#2B1A11] text-[#FF8C42] font-bold'
-                            : 'text-[#D1D5DB] hover:bg-[#20242D]'
-                        }`}
-                      >
-                        <span>{b}</span>
-                        {currentBranch === b && <span>✓</span>}
-                      </button>
-                    ))}
+                    <span className="text-[11px] font-mono">{m.timestamp}</span>
+                  </div>
+
+                  <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">{m.text}</p>
+
+                  {m.steps && m.steps.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#282C35] space-y-1 text-xs font-mono text-[#A1A4AC]">
+                      {m.steps.map((s, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-emerald-400 font-bold">✓</span>
+                          <span>{s}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {m.suggestions && m.suggestions.length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-[#282C35] flex flex-wrap gap-2">
+                      {m.suggestions.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            setPrompt(s);
+                            setMascotState('thinking');
+                          }}
+                          className="px-2.5 py-1 text-xs rounded-lg bg-[#0B0C0E] border border-[#282C35] text-[#FF8C42] hover:bg-[#2B1A11] transition-colors"
+                        >
+                          {s} &rarr;
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ----------------------------------------------------------------------- */}
+        {/* VIEW B: REPOSITORIES (Overview List OR Opened Repo Workspace)            */}
+        {/* ----------------------------------------------------------------------- */}
+        {activeDeckTab === 'repos' && (
+          <>
+            {/* SUB-STATE 1: REPOSITORY LIST OVERVIEW (When selectedRepo is null)   */}
+            {!selectedRepo ? (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-white tracking-tight">
+                      All Repositories
+                    </h2>
+                    <p className="text-xs text-[#A1A4AC] mt-0.5">
+                      Git source control, PR pipelines & autonomous code agents in one unified hub.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={repoSearchQuery}
+                        onChange={(e) => setRepoSearchQuery(e.target.value)}
+                        placeholder="Search repositories..."
+                        className="pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
+                      />
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
+                        🔍
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => showToast('Create repository wizard ready.')}
+                      className="px-3 py-1.5 text-xs font-bold rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white transition-colors shrink-0"
+                    >
+                      + New
+                    </button>
+                  </div>
+                </div>
+
+                {/* Repos Grid / List */}
+                <div className="space-y-3">
+                  {filteredReposList.map((r) => (
+                    <div
+                      key={r.id}
+                      className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#FF8C42]/60 transition-all flex flex-col gap-3 group"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3
+                              onClick={() => setSelectedRepo(r)}
+                              className="text-sm font-bold text-white group-hover:text-[#FF8C42] cursor-pointer truncate"
+                            >
+                              {r.fullName || r.name}
+                            </h3>
+                            <span className="text-[10px] px-2 py-0.2 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#0B0C0E]">
+                              {r.visibility || 'public'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[#A1A4AC] mt-1 line-clamp-2">
+                            {r.description || 'Unified sovereign repository in Quant Ecosystem.'}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setCloningRepoItem(r)}
+                            className="px-3 py-1 text-xs font-semibold rounded-lg bg-[#0B0C0E] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white"
+                          >
+                            Clone
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRepo(r)}
+                            className="px-3 py-1 text-xs font-bold rounded-lg bg-[#FF8C42] text-black hover:bg-[#ff9b5a] transition-colors"
+                          >
+                            Open Repo &rarr;
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-4 text-[11px] text-[#A1A4AC] pt-2 border-t border-[#282C35]/60">
+                        <span className="flex items-center gap-1.5">
+                          <span className="size-2 rounded-full bg-blue-400" />
+                          <span>{r.language || 'TypeScript'}</span>
+                        </span>
+                        <span className="flex items-center gap-1 font-mono">
+                          <span>⑂</span>
+                          <span>{r.defaultBranch || 'main'}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span>★</span>
+                          <span>{r.stars ?? 128}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span>⑂</span>
+                          <span>{r.forks ?? 24}</span>
+                        </span>
+                        <span className="ml-auto text-[11px] font-mono text-[#717682]">
+                          {r.latestCommitTime || 'just now'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* SUB-STATE 2: 1:1 GITHUB REPOSITORY WORKSPACE (When a repo is clicked) */
+              <div className="space-y-4">
+                {/* Back to all repos header */}
+                <div className="flex items-center justify-between pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRepo(null)}
+                    className="flex items-center gap-1.5 text-xs font-bold text-[#FF8C42] hover:underline"
+                  >
+                    <span>&larr;</span>
+                    <span>All Repositories</span>
+                  </button>
+                  <span className="text-xs text-[#A1A4AC] font-mono">
+                    Viewing {selectedRepo.name}
+                  </span>
+                </div>
+
+                {/* Repo Header & Metrics: Stars, Watch, Fork */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#282C35]">
+                  <div>
+                    <div className="flex items-center gap-2.5">
+                      <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-1.5">
+                        <span>{selectedRepo.fullName || selectedRepo.name}</span>
+                      </h1>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full border border-[#282C35] text-[#A1A4AC] bg-[#16181D]">
+                        {selectedRepo.visibility || 'Public repository'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#A1A4AC] mt-1">
+                      {selectedRepo.description ||
+                        'Next-gen sovereign enterprise platform, autonomous AI swarm & Git hub.'}
+                    </p>
+                  </div>
+
+                  {/* GitHub Watch, Fork, Star Buttons */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => showToast('Notification watch preference saved.')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
+                    >
+                      <span>👁 Watch</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
+                        {selectedRepo.watching || 12}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => showToast('Fork repository flow initialized.')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#D1D5DB] hover:bg-[#20242D] hover:text-white transition-colors"
+                    >
+                      <span>⑂ Fork</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-[#A1A4AC] border border-[#282C35]">
+                        {selectedRepo.forks || 24}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => showToast('Starred repository! ⭐')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#16181D] border border-[#282C35] text-[#FF8C42] hover:bg-[#20242D] transition-colors shadow-sm"
+                    >
+                      <span>★ Star</span>
+                      <span className="px-1.5 py-0.2 rounded-full bg-[#0B0C0E] text-[10px] text-white border border-[#282C35]">
+                        {selectedRepo.stars || 128}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 5 GitHub Sub-Navigation Tabs: Code | Issues | Pull requests | Agents | Actions */}
+                <div className="flex items-center gap-1 border-b border-[#282C35] overflow-x-auto no-scrollbar">
+                  <button
+                    type="button"
+                    onClick={() => setActiveGitHubTab('code')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+                      activeGitHubTab === 'code'
+                        ? 'border-[#FF8C42] text-white'
+                        : 'border-transparent text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    <span>&lt;&gt;</span>
+                    <span>Code</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveGitHubTab('issues')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+                      activeGitHubTab === 'issues'
+                        ? 'border-[#FF8C42] text-white'
+                        : 'border-transparent text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    <span>⨀</span>
+                    <span>Issues</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
+                      {issues.filter((i) => i.state === 'open').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveGitHubTab('pulls')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+                      activeGitHubTab === 'pulls'
+                        ? 'border-[#FF8C42] text-white'
+                        : 'border-transparent text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    <span>⑂</span>
+                    <span>Pull requests</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-[#1C1F26] text-[10px] text-[#A1A4AC]">
+                      {pullRequests.filter((p) => p.state === 'open').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveGitHubTab('agents')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+                      activeGitHubTab === 'agents'
+                        ? 'border-[#FF8C42] text-white'
+                        : 'border-transparent text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    <span>✨</span>
+                    <span>Agents</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-blue-950/80 text-blue-400 border border-blue-800/50 text-[10px]">
+                      Copilot
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveGitHubTab('actions')}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0 ${
+                      activeGitHubTab === 'actions'
+                        ? 'border-[#FF8C42] text-white'
+                        : 'border-transparent text-[#A1A4AC] hover:text-white'
+                    }`}
+                  >
+                    <span>▶</span>
+                    <span>Actions</span>
+                  </button>
+                </div>
+
+                {/* 1:1 CODE TAB */}
+                {activeGitHubTab === 'code' && (
+                  <div className="space-y-4">
+                    {/* Branch & Clone Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
+                        >
+                          <span className="text-[#A1A4AC]">⑂</span>
+                          <span>{currentBranch}</span>
+                          <span className="text-[10px] text-[#A1A4AC]">▼</span>
+                        </button>
+
+                        {isBranchDropdownOpen && (
+                          <div className="absolute left-0 top-10 z-50 w-56 rounded-xl bg-[#16181D] border border-[#282C35] shadow-2xl p-2 text-xs space-y-1">
+                            <div className="px-2 py-1 text-[11px] font-bold text-[#A1A4AC] border-b border-[#282C35]">
+                              Switch branches / tags
+                            </div>
+                            {['main', 'staging', 'feature/quantgit-parity'].map((b) => (
+                              <button
+                                key={b}
+                                type="button"
+                                onClick={() => {
+                                  setCurrentBranch(b);
+                                  setIsBranchDropdownOpen(false);
+                                  showToast(`Switched to branch ${b}`);
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between font-mono ${
+                                  currentBranch === b
+                                    ? 'bg-[#2B1A11] text-[#FF8C42] font-bold'
+                                    : 'text-[#D1D5DB] hover:bg-[#20242D]'
+                                }`}
+                              >
+                                <span>{b}</span>
+                                {currentBranch === b && <span>✓</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 text-xs text-[#A1A4AC] ml-1 font-semibold">
+                          <span>348 branches</span>
+                          <span>•</span>
+                          <span>2 tags</span>
+                        </div>
+                      </div>
+
+                      {/* Code Clone Button & Dropdown */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setIsCodeDropdownOpen(!isCodeDropdownOpen)}
+                          className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
+                        >
+                          <span>&lt;&gt; Code</span>
+                          <span className="text-[9px]">▼</span>
+                        </button>
+
+                        {isCodeDropdownOpen && (
+                          <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-4 text-xs space-y-3">
+                            <div className="flex items-center justify-between border-b border-[#282C35] pb-2">
+                              <span className="font-bold text-white">Clone repository</span>
+                              <button
+                                type="button"
+                                onClick={() => setIsCodeDropdownOpen(false)}
+                                className="text-[#A1A4AC] hover:text-white"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            <div className="flex items-center bg-[#0B0C0E] p-0.5 rounded-lg border border-[#282C35]">
+                              {(['https', 'ssh', 'cli'] as const).map((proto) => (
+                                <button
+                                  key={proto}
+                                  type="button"
+                                  onClick={() => setCloneProto(proto)}
+                                  className={`flex-1 py-1 text-[11px] font-bold rounded uppercase transition-all ${
+                                    cloneProto === proto
+                                      ? 'bg-[#2B1A11] text-[#FF8C42]'
+                                      : 'text-[#A1A4AC] hover:text-white'
+                                  }`}
+                                >
+                                  {proto}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
+                              <input
+                                type="text"
+                                readOnly
+                                value={cloneString}
+                                className="flex-1 bg-transparent px-2 text-[11px] font-mono text-slate-200 outline-none truncate"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleCopyClone(cloneString)}
+                                className="px-2.5 py-1 rounded-lg bg-[#FF8C42] text-black font-bold text-[11px] hover:bg-[#ff9b5a] transition-colors shrink-0"
+                              >
+                                {copiedClone ? 'Copied!' : 'Copy'}
+                              </button>
+                            </div>
+
+                            <div className="pt-1 space-y-1.5 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() => showToast('Opening GitHub Desktop...')}
+                                className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
+                              >
+                                <span>💻</span>
+                                <span>Open with GitHub Desktop</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => showToast('Downloading repository ZIP archive...')}
+                                className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
+                              >
+                                <span>📦</span>
+                                <span>Download ZIP</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Commit Banner */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-t-xl bg-[#16181D] border border-[#282C35] text-xs">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex -space-x-1.5 shrink-0">
+                          <div className="size-6 rounded-full bg-[#FF8C42] text-black text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
+                            K
+                          </div>
+                          <div className="size-6 rounded-full bg-[#3b82f6] text-white text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
+                            A
+                          </div>
+                        </div>
+
+                        <span className="font-bold text-white shrink-0">quantrinitylab</span>
+                        <span className="text-slate-300 truncate font-medium">
+                          {selectedRepo.latestCommit ||
+                            'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <span>✓</span>
+                          <span>Verified</span>
+                        </span>
+                        <span className="hover:underline cursor-pointer text-slate-300 font-bold">
+                          {selectedRepo.latestCommitSha || 'fa303af'}
+                        </span>
+                        <span>•</span>
+                        <span>{selectedRepo.latestCommitTime || 'just now'}</span>
+                        <button
+                          type="button"
+                          onClick={() => showToast('Loaded full commit log (2,116 commits).')}
+                          className="text-[11px] font-sans font-bold text-[#FF8C42] hover:underline flex items-center gap-1 ml-1"
+                        >
+                          <span>2,116 Commits</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* File Tree Table */}
+                    <div className="rounded-b-xl border-x border-b border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+                      {MOCK_FILES.map((file) => (
+                        <div
+                          key={file.name}
+                          onClick={() => {
+                            if (file.type === 'file') {
+                              setViewingFile({
+                                name: file.name,
+                                content: file.content || '',
+                                language: file.language || 'text',
+                              });
+                            } else {
+                              showToast(`Navigated into ${file.name}/ folder.`);
+                            }
+                          }}
+                          className="flex items-center justify-between px-4 py-2.5 hover:bg-[#16181D] cursor-pointer transition-colors group"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 w-1/3">
+                            <span className="text-base shrink-0">
+                              {file.type === 'folder' ? '📁' : '📄'}
+                            </span>
+                            <span className="font-semibold text-white group-hover:text-[#FF8C42] truncate">
+                              {file.name}
+                            </span>
+                          </div>
+
+                          <div className="flex-1 text-[#A1A4AC] truncate pr-4 text-[11px]">
+                            {file.message}
+                          </div>
+
+                          <div className="text-[11px] text-[#717682] font-mono shrink-0">
+                            {file.timeAgo}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* README Container */}
+                    <div className="rounded-2xl border border-[#282C35] bg-[#16181D] overflow-hidden mt-6">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#282C35] bg-[#111318] text-xs">
+                        <div className="flex items-center gap-2 font-bold text-white">
+                          <span>📄</span>
+                          <span>README.md</span>
+                        </div>
+                        <div className="text-[11px] text-[#A1A4AC]">Markdown Preview</div>
+                      </div>
+
+                      <div className="p-6 space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+                        <div className="flex flex-wrap items-center gap-2 pb-2">
+                          <span className="px-2.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-mono text-[10px] font-bold">
+                            build: passing
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded bg-blue-950/60 border border-blue-800/60 text-blue-400 font-mono text-[10px] font-bold">
+                            license: MIT
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] font-mono text-[10px] font-bold">
+                            swarm: 8+ agents
+                          </span>
+                        </div>
+
+                        <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
+                          Quant Ecosystem — The Next NVIDIA of Software
+                        </h2>
+
+                        <p>
+                          A unified sovereign operating ecosystem built for high-performance
+                          computing, intelligent mail triage, autonomous agentic development, and
+                          real git collaboration.
+                        </p>
+
+                        <div className="p-4 rounded-xl bg-[#0B0C0E] border border-[#282C35] font-mono text-xs text-[#FF8C42] space-y-1">
+                          <p># Clone the unified monorepo</p>
+                          <p className="text-white">
+                            git clone https://github.com/quantrinitylab/Quant-Ecosystem.git
+                          </p>
+                          <p># Install dependencies and start development</p>
+                          <p className="text-white">pnpm install &amp;&amp; pnpm dev</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 text-xs text-[#A1A4AC] ml-1 font-semibold">
-                  <span>348 branches</span>
-                  <span>•</span>
-                  <span>2 tags</span>
-                </div>
-              </div>
+                {/* 1:1 ISSUES TAB */}
+                {activeGitHubTab === 'issues' && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={issueSearch}
+                          onChange={(e) => setIssueSearch(e.target.value)}
+                          placeholder="Search all issues..."
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
+                        />
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
+                          🔍
+                        </span>
+                      </div>
 
-              {/* Code Clone Button & Dropdown */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIsCodeDropdownOpen(!isCodeDropdownOpen)}
-                  className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
-                >
-                  <span>&lt;&gt; Code</span>
-                  <span className="text-[9px]">▼</span>
-                </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35]">
+                          <button
+                            type="button"
+                            onClick={() => setIssueFilter('open')}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                              issueFilter === 'open'
+                                ? 'bg-[#2B1A11] text-[#FF8C42]'
+                                : 'text-[#A1A4AC] hover:text-white'
+                            }`}
+                          >
+                            {issues.filter((i) => i.state === 'open').length} Open
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIssueFilter('closed')}
+                            className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                              issueFilter === 'closed'
+                                ? 'bg-[#2B1A11] text-[#FF8C42]'
+                                : 'text-[#A1A4AC] hover:text-white'
+                            }`}
+                          >
+                            182 Closed
+                          </button>
+                        </div>
 
-                {isCodeDropdownOpen && (
-                  <div className="absolute right-0 top-10 z-50 w-80 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-4 text-xs space-y-3">
-                    <div className="flex items-center justify-between border-b border-[#282C35] pb-2">
-                      <span className="font-bold text-white">Clone repository</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsCodeDropdownOpen(false)}
-                        className="text-[#A1A4AC] hover:text-white"
-                      >
-                        ✕
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsNewIssueModalOpen(true)}
+                          className="px-3.5 py-1.5 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
+                        >
+                          New issue
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Protocol Tabs */}
-                    <div className="flex items-center bg-[#0B0C0E] p-0.5 rounded-lg border border-[#282C35]">
-                      {(['https', 'ssh', 'cli'] as const).map((proto) => (
+                    <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+                      {filteredIssues.map((issue) => (
+                        <div
+                          key={issue.id}
+                          className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span className="text-emerald-400 font-bold mt-0.5">⨀</span>
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
+                                  {issue.title}
+                                </span>
+                                {issue.labels.map((lbl) => (
+                                  <span
+                                    key={lbl.name}
+                                    className="text-[10px] font-bold px-2 py-0.2 rounded-full border border-white/10 text-white"
+                                    style={{
+                                      backgroundColor: `${lbl.color}33`,
+                                      borderColor: lbl.color,
+                                    }}
+                                  >
+                                    {lbl.name}
+                                  </span>
+                                ))}
+                              </div>
+                              <p className="text-[11px] text-[#A1A4AC]">
+                                #{issue.id} opened {issue.createdAt} by{' '}
+                                <span className="font-semibold text-slate-300">{issue.author}</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-[#A1A4AC] text-[11px] shrink-0 font-medium">
+                            <span>💬</span>
+                            <span>{issue.commentsCount}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 1:1 PULL REQUESTS TAB */}
+                {activeGitHubTab === 'pulls' && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={prSearch}
+                          onChange={(e) => setPrSearch(e.target.value)}
+                          placeholder="Search all pull requests..."
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
+                        />
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
+                          🔍
+                        </span>
+                      </div>
+
+                      <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35] shrink-0">
                         <button
-                          key={proto}
                           type="button"
-                          onClick={() => setCloneProto(proto)}
-                          className={`flex-1 py-1 text-[11px] font-bold rounded uppercase transition-all ${
-                            cloneProto === proto
+                          onClick={() => setPrFilter('open')}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                            prFilter === 'open'
                               ? 'bg-[#2B1A11] text-[#FF8C42]'
                               : 'text-[#A1A4AC] hover:text-white'
                           }`}
                         >
-                          {proto}
+                          {pullRequests.filter((p) => p.state === 'open').length} Open
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrFilter('closed')}
+                          className={`px-3 py-1 text-xs font-bold rounded-lg ${
+                            prFilter === 'closed'
+                              ? 'bg-[#2B1A11] text-[#FF8C42]'
+                              : 'text-[#A1A4AC] hover:text-white'
+                          }`}
+                        >
+                          248 Closed
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+                      {filteredPRs.map((pr) => (
+                        <div
+                          key={pr.id}
+                          className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <span className="text-purple-400 font-bold mt-0.5">⑂</span>
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
+                                  {pr.title}
+                                </span>
+                                <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
+                                  {pr.branchTarget} &larr; {pr.branchSource}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#A1A4AC]">
+                                #{pr.id} by{' '}
+                                <span className="font-semibold text-slate-300">{pr.author}</span> •{' '}
+                                {pr.createdAt}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 text-[11px]">
+                            <span className="text-emerald-400 font-bold flex items-center gap-1 font-mono">
+                              <span>✓</span>
+                              <span>checks passed</span>
+                            </span>
+                            <span className="text-[#A1A4AC]">💬 {pr.commentsCount}</span>
+                          </div>
+                        </div>
                       ))}
                     </div>
+                  </div>
+                )}
 
-                    {/* Clone URL Input with Copy */}
-                    <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
-                      <input
-                        type="text"
-                        readOnly
-                        value={cloneString}
-                        className="flex-1 bg-transparent px-2 text-[11px] font-mono text-slate-200 outline-none truncate"
-                      />
+                {/* 1:1 AGENTS TAB */}
+                {activeGitHubTab === 'agents' && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+                      <div>
+                        <h2 className="text-base font-bold text-white flex items-center gap-2">
+                          <span>Autonomous Swarm Fleet</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40 font-mono">
+                            {deployedAgents.length} Active
+                          </span>
+                        </h2>
+                        <p className="text-xs text-[#A1A4AC] mt-0.5">
+                          Copilot agents perform deep architectural reviews, run test sweeps, and
+                          build code.
+                        </p>
+                      </div>
+
                       <button
                         type="button"
-                        onClick={() => handleCopyClone(cloneString)}
-                        className="px-2.5 py-1 rounded-lg bg-[#FF8C42] text-black font-bold text-[11px] hover:bg-[#ff9b5a] transition-colors shrink-0"
+                        onClick={() => setIsDeployModalOpen(true)}
+                        className="px-3.5 py-1.5 rounded-xl bg-[#FF8C42] hover:bg-[#ff9b5a] text-black text-xs font-bold transition-all shadow-md self-start sm:self-auto"
                       >
-                        {copiedClone ? 'Copied!' : 'Copy'}
+                        + Deploy Agent
                       </button>
                     </div>
 
-                    <div className="pt-1 space-y-1.5 text-[11px]">
-                      <button
-                        type="button"
-                        onClick={() => showToast('Opening GitHub Desktop...')}
-                        className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
-                      >
-                        <span>💻</span>
-                        <span>Open with GitHub Desktop</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => showToast('Downloading repository ZIP archive...')}
-                        className="w-full text-left py-1 text-[#D1D5DB] hover:text-white flex items-center gap-2"
-                      >
-                        <span>📦</span>
-                        <span>Download ZIP</span>
-                      </button>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {deployedAgents.map((ag) => (
+                        <div
+                          key={ag.id}
+                          className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#3A404D] transition-all flex flex-col justify-between gap-3"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className="size-8 rounded-xl font-bold text-sm grid place-items-center text-black"
+                                  style={{ backgroundColor: ag.color }}
+                                >
+                                  {ag.initial}
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-bold text-white">{ag.name}</h3>
+                                  <span className="text-[10px] font-mono text-[#A1A4AC]">
+                                    {ag.pod}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-bold capitalize">
+                                {ag.status}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-[#FF8C42] font-medium">{ag.role}</p>
+                            <p className="text-[11px] text-slate-300 leading-snug">
+                              {ag.currentTask}
+                            </p>
+
+                            {ag.thoughts && (
+                              <div className="p-2 rounded-lg bg-[#0B0C0E] border border-[#282C35] text-[10px] text-[#A1A4AC] font-mono leading-relaxed">
+                                <span className="text-slate-400 font-bold block mb-0.5">
+                                  Thought:
+                                </span>
+                                {ag.thoughts}
+                              </div>
+                            )}
+                          </div>
+
+                          {ag.steps && ag.steps.length > 0 && (
+                            <div className="pt-2 border-t border-[#282C35]/60 text-[10px] text-emerald-400 font-mono space-y-0.5">
+                              {ag.steps.slice(-2).map((s, idx) => (
+                                <div key={idx} className="flex items-center gap-1 truncate">
+                                  <span>✓</span>
+                                  <span className="text-slate-300 truncate">{s}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* 1:1 ACTIONS TAB */}
+                {activeGitHubTab === 'actions' && (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-bold text-white">
+                          Workflows &amp; CI/CD Runs
+                        </h2>
+                        <p className="text-xs text-[#A1A4AC] mt-0.5">
+                          Real-time pipeline results from GitHub Actions.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => showToast('Triggered deploy-staging.yml manually.')}
+                          className="px-3 py-1.5 rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
+                        >
+                          Run workflow
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
+                      {workflowRuns.map((run) => (
+                        <div
+                          key={run.id}
+                          className="p-4 hover:bg-[#16181D] transition-colors flex items-center justify-between gap-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="size-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold grid place-items-center text-xs shrink-0">
+                              ✓
+                            </span>
+                            <div className="space-y-0.5 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer truncate">
+                                  {run.name}
+                                </span>
+                                <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
+                                  {run.workflow}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#A1A4AC]">
+                                #{run.id} pushed to{' '}
+                                <span className="font-mono font-bold text-slate-300">
+                                  {run.branch}
+                                </span>{' '}
+                                • {run.commitSha} • {run.timeAgo}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
+                            <span>⏱ {run.duration}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Commit Header Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-t-xl bg-[#16181D] border border-[#282C35] text-xs">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {/* Author Avatars */}
-                <div className="flex -space-x-1.5 shrink-0">
-                  <div className="size-6 rounded-full bg-[#FF8C42] text-black text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
-                    K
-                  </div>
-                  <div className="size-6 rounded-full bg-[#3b82f6] text-white text-[10px] font-bold grid place-items-center border-2 border-[#16181D]">
-                    A
-                  </div>
-                </div>
-
-                <span className="font-bold text-white shrink-0">quantrinitylab</span>
-                <span className="text-slate-300 truncate font-medium">
-                  {selectedRepo.latestCommit ||
-                    'feat(quantgit): top command deck, eye-less bubble mascot & 1:1 github repository parity'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
-                <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <span>✓</span>
-                  <span>Verified</span>
-                </span>
-                <span className="hover:underline cursor-pointer text-slate-300 font-bold">
-                  {selectedRepo.latestCommitSha || '3c12703'}
-                </span>
-                <span>•</span>
-                <span>{selectedRepo.latestCommitTime || '7 hours ago'}</span>
-                <button
-                  type="button"
-                  onClick={() => showToast('Loaded full commit log (2,116 commits).')}
-                  className="text-[11px] font-sans font-bold text-[#FF8C42] hover:underline flex items-center gap-1 ml-1"
-                >
-                  <span>2,116 Commits</span>
-                </button>
-              </div>
-            </div>
-
-            {/* File & Folder Tree Table */}
-            <div className="rounded-b-xl border-x border-b border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
-              {MOCK_FILES.map((file) => (
-                <div
-                  key={file.name}
-                  onClick={() => {
-                    if (file.type === 'file') {
-                      setViewingFile({
-                        name: file.name,
-                        content: file.content || '',
-                        language: file.language || 'text',
-                      });
-                    } else {
-                      showToast(`Navigated into ${file.name}/ folder.`);
-                    }
-                  }}
-                  className="flex items-center justify-between px-4 py-2.5 hover:bg-[#16181D] cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 w-1/3">
-                    <span className="text-base shrink-0">
-                      {file.type === 'folder' ? '📁' : '📄'}
-                    </span>
-                    <span className="font-semibold text-white group-hover:text-[#FF8C42] truncate">
-                      {file.name}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 text-[#A1A4AC] truncate pr-4 text-[11px]">
-                    {file.message}
-                  </div>
-
-                  <div className="text-[11px] text-[#717682] font-mono shrink-0">
-                    {file.timeAgo}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* README.md Preview Container (GitHub 1:1) */}
-            <div className="rounded-2xl border border-[#282C35] bg-[#16181D] overflow-hidden mt-6">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#282C35] bg-[#111318] text-xs">
-                <div className="flex items-center gap-2 font-bold text-white">
-                  <span>📄</span>
-                  <span>README.md</span>
-                </div>
-                <div className="text-[11px] text-[#A1A4AC]">Markdown Preview</div>
-              </div>
-
-              <div className="p-6 space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
-                <div className="flex flex-wrap items-center gap-2 pb-2">
-                  <span className="px-2.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-mono text-[10px] font-bold">
-                    build: passing
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded bg-blue-950/60 border border-blue-800/60 text-blue-400 font-mono text-[10px] font-bold">
-                    license: MIT
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] font-mono text-[10px] font-bold">
-                    swarm: 8+ agents
-                  </span>
-                </div>
-
-                <h2 className="text-lg sm:text-xl font-extrabold text-white tracking-tight">
-                  Quant Ecosystem — The Next NVIDIA of Software
-                </h2>
-
-                <p>
-                  A unified sovereign operating ecosystem built for high-performance computing,
-                  intelligent mail triage, autonomous agentic development, and real git
-                  collaboration.
-                </p>
-
-                <div className="p-4 rounded-xl bg-[#0B0C0E] border border-[#282C35] font-mono text-xs text-[#FF8C42] space-y-1">
-                  <p># Clone the unified monorepo</p>
-                  <p className="text-white">
-                    git clone https://github.com/quantrinitylab/Quant-Ecosystem.git
-                  </p>
-                  <p># Install dependencies and start development</p>
-                  <p className="text-white">pnpm install &amp;&amp; pnpm dev</p>
-                </div>
-              </div>
-            </div>
-          </div>
+            )}
+          </>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2: ISSUES (GitHub 1:1 Parity)                                         */}
-        {/* ========================================================================= */}
-        {activeTab === 'issues' && (
+        {/* ----------------------------------------------------------------------- */}
+        {/* VIEW C: AGENT LAB (Fleet Swarm & Pods Control)                           */}
+        {/* ----------------------------------------------------------------------- */}
+        {activeDeckTab === 'lab' && (
           <div className="space-y-4">
-            {/* Search filter & New Issue Button */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={issueSearch}
-                  onChange={(e) => setIssueSearch(e.target.value)}
-                  placeholder="Search all issues..."
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
-                />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
-                  🔍
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35]">
-                  <button
-                    type="button"
-                    onClick={() => setIssueFilter('open')}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg ${
-                      issueFilter === 'open'
-                        ? 'bg-[#2B1A11] text-[#FF8C42]'
-                        : 'text-[#A1A4AC] hover:text-white'
-                    }`}
-                  >
-                    {issues.filter((i) => i.state === 'open').length} Open
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIssueFilter('closed')}
-                    className={`px-3 py-1 text-xs font-bold rounded-lg ${
-                      issueFilter === 'closed'
-                        ? 'bg-[#2B1A11] text-[#FF8C42]'
-                        : 'text-[#A1A4AC] hover:text-white'
-                    }`}
-                  >
-                    182 Closed
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsNewIssueModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#238636] hover:bg-[#2ea043] text-white text-xs font-bold transition-all shadow-md"
-                >
-                  New issue
-                </button>
-              </div>
-            </div>
-
-            {/* Issues List Container */}
-            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
-              {filteredIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
-                >
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <span className="text-emerald-400 font-bold mt-0.5">⨀</span>
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
-                          {issue.title}
-                        </span>
-                        {issue.labels.map((lbl) => (
-                          <span
-                            key={lbl.name}
-                            className="text-[10px] font-bold px-2 py-0.2 rounded-full border border-white/10 text-white"
-                            style={{ backgroundColor: `${lbl.color}33`, borderColor: lbl.color }}
-                          >
-                            {lbl.name}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        #{issue.id} opened {issue.createdAt} by{' '}
-                        <span className="font-semibold text-slate-300">{issue.author}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 text-[#A1A4AC] text-[11px] shrink-0 font-medium">
-                    <span>💬</span>
-                    <span>{issue.commentsCount}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 3: PULL REQUESTS (GitHub 1:1 Parity)                                   */}
-        {/* ========================================================================= */}
-        {activeTab === 'pulls' && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  value={prSearch}
-                  onChange={(e) => setPrSearch(e.target.value)}
-                  placeholder="Search all pull requests..."
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-[#16181D] border border-[#282C35] text-white placeholder-[#717682] outline-none focus:border-[#FF8C42]"
-                />
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#717682]">
-                  🔍
-                </span>
-              </div>
-
-              <div className="flex items-center bg-[#16181D] p-0.5 rounded-xl border border-[#282C35] shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setPrFilter('open')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg ${
-                    prFilter === 'open'
-                      ? 'bg-[#2B1A11] text-[#FF8C42]'
-                      : 'text-[#A1A4AC] hover:text-white'
-                  }`}
-                >
-                  {pullRequests.filter((p) => p.state === 'open').length} Open
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPrFilter('closed')}
-                  className={`px-3 py-1 text-xs font-bold rounded-lg ${
-                    prFilter === 'closed'
-                      ? 'bg-[#2B1A11] text-[#FF8C42]'
-                      : 'text-[#A1A4AC] hover:text-white'
-                  }`}
-                >
-                  248 Closed
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
-              {filteredPRs.map((pr) => (
-                <div
-                  key={pr.id}
-                  className="p-4 hover:bg-[#16181D] transition-colors flex items-start justify-between gap-3"
-                >
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <span className="text-purple-400 font-bold mt-0.5">⑂</span>
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer">
-                          {pr.title}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
-                          {pr.branchTarget} &larr; {pr.branchSource}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        #{pr.id} by{' '}
-                        <span className="font-semibold text-slate-300">{pr.author}</span> •{' '}
-                        {pr.createdAt}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0 text-[11px]">
-                    <span className="text-emerald-400 font-bold flex items-center gap-1 font-mono">
-                      <span>✓</span>
-                      <span>checks passed</span>
-                    </span>
-                    <span className="text-[#A1A4AC]">💬 {pr.commentsCount}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 4: AGENTS (GitHub Copilot Agent Parity)                                */}
-        {/* ========================================================================= */}
-        {activeTab === 'agents' && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#282C35] pb-3">
               <div>
-                <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <span>Autonomous Swarm Fleet</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40 font-mono">
-                    {deployedAgents.length} Active
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>Autonomous Swarm Fleet &amp; Agent Lab</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-mono">
+                    {deployedAgents.length} Running
                   </span>
                 </h2>
                 <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  Copilot agents perform deep architectural reviews, run test sweeps, and build
-                  code.
+                  Executive Orchestrator &amp; 7 developer agents executing zero-mock software
+                  engineering.
                 </p>
               </div>
 
@@ -1676,24 +2087,26 @@ export default function QuantGitPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {deployedAgents.map((ag) => (
                 <div
                   key={ag.id}
-                  className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#3A404D] transition-all flex flex-col justify-between gap-3"
+                  className="p-4 rounded-2xl bg-[#16181D] border border-[#282C35] hover:border-[#FF8C42]/50 transition-all flex flex-col justify-between gap-3"
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2.5">
                         <div
-                          className="size-8 rounded-xl font-bold text-sm grid place-items-center text-black"
+                          className="size-9 rounded-xl font-bold text-sm grid place-items-center text-black"
                           style={{ backgroundColor: ag.color }}
                         >
                           {ag.initial}
                         </div>
                         <div>
                           <h3 className="text-sm font-bold text-white">{ag.name}</h3>
-                          <span className="text-[10px] font-mono text-[#A1A4AC]">{ag.pod}</span>
+                          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#0B0C0E] text-[#A1A4AC] border border-[#282C35]">
+                            {ag.pod}
+                          </span>
                         </div>
                       </div>
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 font-bold capitalize">
@@ -1702,20 +2115,20 @@ export default function QuantGitPage() {
                     </div>
 
                     <p className="text-xs text-[#FF8C42] font-medium">{ag.role}</p>
-                    <p className="text-[11px] text-slate-300 leading-snug">{ag.currentTask}</p>
+                    <p className="text-xs text-slate-300 leading-snug">{ag.currentTask}</p>
 
                     {ag.thoughts && (
-                      <div className="p-2 rounded-lg bg-[#0B0C0E] border border-[#282C35] text-[10px] text-[#A1A4AC] font-mono leading-relaxed">
-                        <span className="text-slate-400 font-bold block mb-0.5">Thought:</span>
+                      <div className="p-2.5 rounded-xl bg-[#0B0C0E] border border-[#282C35] text-[11px] text-[#A1A4AC] font-mono leading-relaxed">
+                        <span className="text-slate-300 font-bold block mb-1">Thought Log:</span>
                         {ag.thoughts}
                       </div>
                     )}
                   </div>
 
                   {ag.steps && ag.steps.length > 0 && (
-                    <div className="pt-2 border-t border-[#282C35]/60 text-[10px] text-emerald-400 font-mono space-y-0.5">
-                      {ag.steps.slice(-2).map((s, idx) => (
-                        <div key={idx} className="flex items-center gap-1 truncate">
+                    <div className="pt-2 border-t border-[#282C35]/60 text-[10px] text-emerald-400 font-mono space-y-1">
+                      {ag.steps.map((s, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 truncate">
                           <span>✓</span>
                           <span className="text-slate-300 truncate">{s}</span>
                         </div>
@@ -1725,76 +2138,68 @@ export default function QuantGitPage() {
                 </div>
               ))}
             </div>
-
-            <div className="p-3 rounded-xl bg-[#0B0C0E] border border-[#282C35] text-center text-[11px] text-[#717682]">
-              Quanty uses AI swarm intelligence. Check outputs for complete factual accuracy.
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 5: ACTIONS (GitHub Actions 1:1 Parity)                                 */}
-        {/* ========================================================================= */}
-        {activeTab === 'actions' && (
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-bold text-white">Workflows &amp; CI/CD Runs</h2>
-                <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  Real-time pipeline results from GitHub Actions.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => showToast('Triggered deploy-staging.yml manually.')}
-                  className="px-3 py-1.5 rounded-xl bg-[#16181D] border border-[#282C35] text-xs font-bold text-white hover:bg-[#20242D] transition-colors"
-                >
-                  Run workflow
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-[#282C35] bg-[#0E1015] divide-y divide-[#282C35]/60 overflow-hidden text-xs">
-              {workflowRuns.map((run) => (
-                <div
-                  key={run.id}
-                  className="p-4 hover:bg-[#16181D] transition-colors flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="size-5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold grid place-items-center text-xs shrink-0">
-                      ✓
-                    </span>
-                    <div className="space-y-0.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white hover:text-[#FF8C42] cursor-pointer truncate">
-                          {run.name}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-[#1C1F26] text-[#A1A4AC]">
-                          {run.workflow}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#A1A4AC]">
-                        #{run.id} pushed to{' '}
-                        <span className="font-mono font-bold text-slate-300">{run.branch}</span> •{' '}
-                        {run.commitSha} • {run.timeAgo}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-xs text-[#A1A4AC] font-mono shrink-0">
-                    <span>⏱ {run.duration}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. MODALS: File Viewer, New Issue, Deploy Agent, Toast                    */}
+      {/* 4. THE 4 BOTTOM DECK TABS (Quanty | Repos | Agent Lab | Exit)            */}
+      {/* ========================================================================= */}
+      <nav
+        aria-label="QuantGit bottom deck"
+        className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-lg rounded-2xl border border-[#282C35] bg-[#0B0C0E]/95 p-1.5 shadow-2xl backdrop-blur-2xl grid grid-cols-4 gap-1.5"
+      >
+        <button
+          type="button"
+          onClick={() => setActiveDeckTab('quanty')}
+          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-all ${
+            activeDeckTab === 'quanty'
+              ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+              : 'text-[#A1A4AC] hover:bg-[#16181D] hover:text-white'
+          }`}
+        >
+          <span className="text-base">✨</span>
+          <span>Quanty</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveDeckTab('repos')}
+          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-all ${
+            activeDeckTab === 'repos'
+              ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+              : 'text-[#A1A4AC] hover:bg-[#16181D] hover:text-white'
+          }`}
+        >
+          <span className="text-base">📁</span>
+          <span>Repos</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveDeckTab('lab')}
+          className={`flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition-all ${
+            activeDeckTab === 'lab'
+              ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+              : 'text-[#A1A4AC] hover:bg-[#16181D] hover:text-white'
+          }`}
+        >
+          <span className="text-base">🧪</span>
+          <span>Agent Lab</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => router.push('/')}
+          className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold text-[#A1A4AC] hover:bg-[#16181D] hover:text-white transition-all"
+        >
+          <span className="text-base">↗</span>
+          <span>Exit</span>
+        </button>
+      </nav>
+
+      {/* ========================================================================= */}
+      {/* 5. MODALS: File Viewer, New Issue, Deploy Agent, Clone Dialog             */}
       {/* ========================================================================= */}
 
       {/* File Viewer Modal */}
@@ -1833,6 +2238,57 @@ export default function QuantGitPage() {
                 className="px-3 py-1.5 rounded-lg bg-[#FF8C42] text-black font-bold hover:bg-[#ff9b5a] transition-colors"
               >
                 Copy Content
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clone Dialog from Repos List */}
+      {cloningRepoItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-2xl bg-[#16181D] border border-[#282C35] shadow-2xl p-5 space-y-4 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-[#282C35] pb-3">
+              <h3 className="text-base font-bold text-white">Clone {cloningRepoItem.name}</h3>
+              <button
+                type="button"
+                onClick={() => setCloningRepoItem(null)}
+                className="text-[#A1A4AC] hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-center bg-[#0B0C0E] p-0.5 rounded-lg border border-[#282C35]">
+              {(['https', 'ssh', 'cli'] as const).map((proto) => (
+                <button
+                  key={proto}
+                  type="button"
+                  onClick={() => setCloneProto(proto)}
+                  className={`flex-1 py-1 text-[11px] font-bold rounded uppercase transition-all ${
+                    cloneProto === proto
+                      ? 'bg-[#2B1A11] text-[#FF8C42]'
+                      : 'text-[#A1A4AC] hover:text-white'
+                  }`}
+                >
+                  {proto}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-[#0B0C0E] border border-[#282C35]">
+              <input
+                type="text"
+                readOnly
+                value={cloneString}
+                className="flex-1 bg-transparent px-2 text-[11px] font-mono text-slate-200 outline-none truncate"
+              />
+              <button
+                type="button"
+                onClick={() => handleCopyClone(cloneString)}
+                className="px-2.5 py-1 rounded-lg bg-[#FF8C42] text-black font-bold text-[11px] hover:bg-[#ff9b5a] transition-colors shrink-0"
+              >
+                {copiedClone ? 'Copied!' : 'Copy'}
               </button>
             </div>
           </div>
@@ -1906,7 +2362,7 @@ export default function QuantGitPage() {
               <div>
                 <h3 className="text-base font-bold text-white">Deploy Swarm Agent</h3>
                 <p className="text-xs text-[#A1A4AC] mt-0.5">
-                  Select an autonomous agent to assign to {selectedRepo.name}.
+                  Select an autonomous agent to assign to {selectedRepo?.name || 'Quant-Ecosystem'}.
                 </p>
               </div>
               <button
@@ -1959,7 +2415,7 @@ export default function QuantGitPage() {
 
       {/* Floating Toast notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3">
           {toastMessage}
         </div>
       )}

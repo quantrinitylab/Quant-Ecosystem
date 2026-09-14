@@ -548,6 +548,7 @@
   34. `Celebration` (you did it!)
   35. `Goodbye` (see you soon!) _(Completed in commit `e71d57a5`)_.
 - [ ] **Task MASC-03**: Bind mascot states to live ecosystem events (e.g., mail sending -> `Working`/`Saving`, AI review -> `Coding`/`Analyzing`, search -> `Searching`, error -> `Error/Oops`, etc.).
+- [x] **Task MASC-04**: Eliminate cartoon eyes, pupils, brows, and mouths from `BubbleAvatar.tsx`. Pure fluid organic amber metaball with floating satellite droplet, specular gloss, dynamic state chips/particles, and prominent 42px-64px scale. _(Completed in commit `fa303afb`)_.
 
 ### ✍️ Track 8: Fluid Cursive Typography & Wordmarks
 
@@ -568,6 +569,22 @@
   - Replace side-by-side Plan/Build buttons with a sleek mode selector dropdown / toggle (`Plan`, `Build`, `Auto`).
   - Add MCP Connectors trigger button (`+`).
   - Add quick action pills (`🐞 Debug`, `☁️ Agent`, `◌ Create issue`, `📄 Write code`, `⑂ Git`, `⑂ Pull requests`). _(Completed in commit `e71d57a5`)_.
+- [x] **Task GIT-02**: QuantGit Top Command Deck & 1:1 GitHub Repository Parity:
+  - Relocated Quanty command deck to the **TOP** of the view (`Plan` | `Build` | `Auto`, `Fast` | `Deep`, prompt input, quick action pills, and collapsible response stream).
+  - Placed full 1:1 GitHub repository workspace **DIRECTLY UNDERNEATH**:
+    - Repository breadcrumbs: `quantrinitylab / Quant-Ecosystem` + `Public` + `Watch (0)` + `Fork (0)` + `Star (128)`.
+    - 5 Sub-nav tabs: `<> Code`, `⨀ Issues (24)`, `⑂ Pull requests (0)`, `✨ Agents` (GitHub Copilot Agent Parity), `▶ Actions`.
+    - Code tab: Branch switcher (`main`), `<> Code` clone dropdown (HTTPS / SSH / CLI + ZIP), commit banner (`3c12703`, `2,116 Commits`), file tree explorer with interactive File Viewer modal, and formatted `README.md` container.
+    - Issues tab: `is:issue state:open`, open/closed filter, live issue list (#259, #250, #138, etc.), and interactive "New issue" modal.
+    - Pull requests tab: `is:pr state:open`, PR list with check badges `✓ checks passed`.
+    - Agents tab: Copilot agent fleet (Astra, Forge, Scout, Sentinel, Pixel, Ledger), thought inspector, and Deploy Agent modal.
+    - Actions tab: Workflows list and live run cards (#137, #136, #135, #134). _(Completed in commit `fa303afb`)_.
+- [x] **Task GIT-03**: QuantGit Bottom Deck & Repos Overview Restructure:
+  - Restored the 4 bottom docked navigation tabs (`Quanty`, `Repos`, `Agent Lab`, `Exit`) with solid casing and zero bleed.
+  - In `Repos`: Implemented repository card directory with search/filter, repo metadata (`Quant-Ecosystem`, `quantmail-core`, `quantchat-meet`), star count, forks, quick clone copy, and `Open Repo →`.
+  - When opening a repo: Transition into full 1:1 GitHub workspace (`Code`, `Issues`, `Pull requests`, `Agents`, `Actions`) with `← All Repositories` back link.
+  - In `Quanty`: Autonomous AI coding stream with mode selector, effort toggle, prompt input, and collapsible thought chains.
+  - In `Agent Lab`: Swarm fleet management console with 6 specialized agents, live task execution indicators, thought stream inspectors, and Deploy Agent dialog. _(Completed)_.
 
 ### 🌐 Track 10: Competitor Benchmarking Matrix & Notion AI Swarm Orchestration
 
@@ -578,3 +595,11 @@
   - Kiro AI (`app.kiro.dev/home`)
   - iCloud / Proton / Yahoo _(Completed via Chrome MCP live snapshots)_.
 - [ ] **Task SWARM-01**: Dispatch technical specifications to all Notion agents (CEO Astra + Devs 1-7) in Notion chat sessions for deep implementation.
+
+### 📱 Track 11: Android Native Sovereign App & APK Testing Distribution
+
+- **Assigned to**: Developer 5 (Mobile/Capacitor) + Developer 1 (Security) + Antigravity Orchestrator
+- [x] **Task APK-01**: Setup official Android CLI and SDK environment (`platforms/android-36`, `build-tools/34.0.0`, `cmdline-tools`, Java 17). _(Completed)_.
+- [x] **Task APK-02**: Develop native Android Sovereign Shell in `android-project/` (Jetpack Compose + hardware-accelerated WebView, top status bar with glowing amber Bubble Mascot, bottom 5-tab ecosystem navigation: Mail, QuantGit, Calendar, Drive, Contacts, and offline retry screen). _(Completed)_.
+- [x] **Task APK-03**: Compile universal debug APK (`com.example.quant`, minSdk 24, targetSdk 36, ~11.39 MB) via Gradle 9.1 and output to `apk testing/` folder in monorepo root. Verified badging via `aapt2`. _(Completed)_.
+- [x] **Task APK-04**: Publish and distribute `apk testing/` folder to GitHub remote `origin main` containing `Quant-v1.0-debug.apk`, `quant-app.apk`, and installation/testing guide `README.md`. _(Completed)_.
