@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { BubbleAvatar } from '@quant/shared-ui';
 import type { BubbleState } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
+import { browserAuthSession } from '../../services/browser-auth-session';
 import { QuantGitLogo } from '../../components/QuantGitLogo';
 
 export type MainDeckTab = 'quanty' | 'repos' | 'lab';
@@ -945,10 +946,16 @@ export default function QuantGitPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const apiFetch = useCallback(
+    (input: RequestInfo | URL, init: RequestInit = {}) =>
+      browserAuthSession.authenticatedFetch(input, init),
+    [],
+  );
+
   // Fetch real repositories from backend
   const fetchRepos = useCallback(async () => {
     try {
-      const res = await fetch('/api/repos', { credentials: 'include' });
+      const res = await apiFetch('/api/repos');
       if (res.ok) {
         const json = await res.json();
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -988,96 +995,102 @@ export default function QuantGitPage() {
   }, [fetchRepos]);
 
   // Fetch real issues and PRs when a repository is selected
-  const fetchRepoIssues = useCallback(async (repoIdOrName: string) => {
-    try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/issues`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const mappedIssues: IssueItem[] = json.data.map((item: any) => ({
-            id: item.number || item.id,
-            title: item.title,
-            state: item.status === 'closed' || item.state === 'closed' ? 'closed' : 'open',
-            author: item.author || 'user',
-            labels: Array.isArray(item.labels) ? item.labels : [{ name: 'bug', color: '#D73A4A' }],
-            commentsCount: item.commentsCount || 0,
-            createdAt: item.createdAt || 'recently',
-            body: item.body || '',
-            assignee: item.assignee || 'Developer 6',
-          }));
-          setIssues(mappedIssues);
+  const fetchRepoIssues = useCallback(
+    async (repoIdOrName: string) => {
+      try {
+        const res = await apiFetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/issues`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            const mappedIssues: IssueItem[] = json.data.map((item: any) => ({
+              id: item.number || item.id,
+              title: item.title,
+              state: item.status === 'closed' || item.state === 'closed' ? 'closed' : 'open',
+              author: item.author || 'user',
+              labels: Array.isArray(item.labels)
+                ? item.labels
+                : [{ name: 'bug', color: '#D73A4A' }],
+              commentsCount: item.commentsCount || 0,
+              createdAt: item.createdAt || 'recently',
+              body: item.body || '',
+              assignee: item.assignee || 'Developer 6',
+            }));
+            setIssues(mappedIssues);
+          }
         }
+      } catch {
+        // Retain existing issues
       }
-    } catch {
-      // Retain existing issues
-    }
-  }, []);
+    },
+    [apiFetch],
+  );
 
-  const fetchRepoPulls = useCallback(async (repoIdOrName: string) => {
-    try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/pulls`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const mappedPulls: PRItem[] = json.data.map((item: any) => ({
-            id: item.number || item.id,
-            title: item.title,
-            state:
-              item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
-            author: item.author || 'user',
-            branchSource: item.branchSource || 'main',
-            branchTarget: item.branchTarget || 'main',
-            checksStatus: 'passing',
-            commentsCount: item.commentsCount || 0,
-            createdAt: item.createdAt || 'recently',
-            body: item.body || '',
-            additions: item.additions || 12,
-            deletions: item.deletions || 2,
-            changedFiles: item.changedFiles || 1,
-          }));
-          setPulls(mappedPulls);
+  const fetchRepoPulls = useCallback(
+    async (repoIdOrName: string) => {
+      try {
+        const res = await apiFetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/pulls`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            const mappedPulls: PRItem[] = json.data.map((item: any) => ({
+              id: item.number || item.id,
+              title: item.title,
+              state:
+                item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
+              author: item.author || 'user',
+              branchSource: item.branchSource || 'main',
+              branchTarget: item.branchTarget || 'main',
+              checksStatus: 'passing',
+              commentsCount: item.commentsCount || 0,
+              createdAt: item.createdAt || 'recently',
+              body: item.body || '',
+              additions: item.additions || 12,
+              deletions: item.deletions || 2,
+              changedFiles: item.changedFiles || 1,
+            }));
+            setPulls(mappedPulls);
+          }
         }
+      } catch {
+        // Retain existing pulls
       }
-    } catch {
-      // Retain existing pulls
-    }
-  }, []);
+    },
+    [apiFetch],
+  );
 
-  const fetchRepoBranches = useCallback(async (repoIdOrName: string) => {
-    try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/branches`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setRepoBranches(json.data.map((b: any) => b.name));
+  const fetchRepoBranches = useCallback(
+    async (repoIdOrName: string) => {
+      try {
+        const res = await apiFetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/branches`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            setRepoBranches(json.data.map((b: any) => b.name));
+          }
         }
+      } catch {
+        // Retain existing branches
       }
-    } catch {
-      // Retain existing branches
-    }
-  }, []);
+    },
+    [apiFetch],
+  );
 
-  const fetchRepoActions = useCallback(async (repoIdOrName: string) => {
-    try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/actions`, {
-        credentials: 'include',
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          setActions(json.data);
+  const fetchRepoActions = useCallback(
+    async (repoIdOrName: string) => {
+      try {
+        const res = await apiFetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/actions`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            setActions(json.data);
+          }
         }
+      } catch {
+        // Retain existing actions
       }
-    } catch {
-      // Retain existing actions
-    }
-  }, []);
+    },
+    [apiFetch],
+  );
 
   useEffect(() => {
     if (selectedRepo) {
@@ -1192,10 +1205,9 @@ export default function QuantGitPage() {
     const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
 
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           title,
           body,
@@ -1260,9 +1272,8 @@ export default function QuantGitPage() {
     }
     showToast(`Issue #${issueNumber} marked as ${nextState}!`);
     try {
-      await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`, {
+      await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`, {
         method: 'POST',
-        credentials: 'include',
       });
     } catch {
       // Soft ignore
@@ -1278,10 +1289,9 @@ export default function QuantGitPage() {
     const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
 
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/pulls`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/pulls`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           title,
           body,
@@ -1350,10 +1360,9 @@ export default function QuantGitPage() {
     const slug = `${currentUsername}/${name}`;
 
     try {
-      const res = await fetch('/api/repos', {
+      const res = await apiFetch('/api/repos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           name,
           description: desc,
@@ -1440,9 +1449,8 @@ export default function QuantGitPage() {
     showToast('Starred repository!');
 
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/star`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/star`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (res.ok) {
         const json = await res.json();
@@ -1467,9 +1475,8 @@ export default function QuantGitPage() {
     const repoTarget = selectedRepo.id || selectedRepo.name;
     const repoName = selectedRepo.name;
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (res.ok) {
         showToast(`Repository ${repoName} archived and deleted.`);
@@ -1490,10 +1497,9 @@ export default function QuantGitPage() {
     setIsSavingSettings(true);
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           name: settingsName.trim() || selectedRepo.name,
           description: settingsDesc.trim(),
@@ -1534,11 +1540,10 @@ export default function QuantGitPage() {
     if (!selectedRepo) return;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/repos/${encodeURIComponent(repoTarget)}/pulls/${prNumber}/merge`,
         {
           method: 'POST',
-          credentials: 'include',
         },
       );
       if (res.ok) {
@@ -1560,10 +1565,9 @@ export default function QuantGitPage() {
     const branchName = newBranchInput.trim();
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ name: branchName, sha: selectedRepo.latestCommitSha || '948e3612' }),
       });
       if (res.ok) {
@@ -1587,9 +1591,8 @@ export default function QuantGitPage() {
     if (!selectedRepo) return;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/actions/trigger`, {
+      const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/actions/trigger`, {
         method: 'POST',
-        credentials: 'include',
       });
       if (res.ok) {
         const json = await res.json();
