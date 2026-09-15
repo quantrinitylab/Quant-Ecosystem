@@ -292,7 +292,7 @@ function blobPath(ctx: CanvasRenderingContext2D, t: number, wob: number): void {
 }
 
 /** Body + satellite: gradients, bloom, gloss. Called before the face. */
-function paintBody(ctx: CanvasRenderingContext2D, t: number, amp: number): void {
+function paintBody(ctx: CanvasRenderingContext2D, t: number, amp: number, reduced = false): void {
   // Soft outer bloom — one shadow pass, no full-canvas blur filter.
   ctx.save();
   ctx.shadowColor = 'rgba(255, 140, 66, 0.55)';
@@ -305,6 +305,44 @@ function paintBody(ctx: CanvasRenderingContext2D, t: number, amp: number): void 
   body.addColorStop(1, C.deep);
   ctx.fillStyle = body;
   ctx.fill();
+  ctx.restore();
+
+  // Living AI Neural Cloud / Swirling Aurora Nebula inside the droplet
+  ctx.save();
+  blobPath(ctx, t, amp);
+  ctx.clip();
+  if (!reduced) {
+    // Cloud Layer 1: Warm luminous core cloud drifting elliptically
+    const c1x = CX + Math.sin(t * 1.1) * 7;
+    const c1y = CY + Math.cos(t * 0.9) * 5;
+    const cloud1 = ctx.createRadialGradient(c1x, c1y, 1, c1x, c1y, R * 0.7);
+    cloud1.addColorStop(0, 'rgba(255, 246, 232, 0.45)');
+    cloud1.addColorStop(0.5, 'rgba(255, 213, 74, 0.25)');
+    cloud1.addColorStop(1, 'rgba(255, 140, 66, 0)');
+    ctx.fillStyle = cloud1;
+    ctx.fillRect(0, 0, 100, 100);
+
+    // Cloud Layer 2: Swirling ethereal pearl/aurora current
+    const c2x = CX - Math.cos(t * 1.3) * 6;
+    const c2y = CY - Math.sin(t * 0.8) * 6;
+    const cloud2 = ctx.createRadialGradient(c2x, c2y, 1, c2x, c2y, R * 0.85);
+    cloud2.addColorStop(0, 'rgba(255, 220, 160, 0.35)');
+    cloud2.addColorStop(0.6, 'rgba(232, 117, 47, 0.2)');
+    cloud2.addColorStop(1, 'rgba(184, 84, 28, 0)');
+    ctx.fillStyle = cloud2;
+    ctx.fillRect(0, 0, 100, 100);
+
+    // Cloud Layer 3: Subtle energetic harmonic pulse
+    const pulsePhase = (Math.sin(t * 2.2) + 1) * 0.5;
+    const c3x = CX + Math.sin(t * 0.7 + 2) * 4;
+    const c3y = CY + Math.cos(t * 1.4) * 4;
+    const cloud3 = ctx.createRadialGradient(c3x, c3y, 0.5, c3x, c3y, R * (0.4 + pulsePhase * 0.15));
+    cloud3.addColorStop(0, `rgba(255, 255, 255, ${0.25 + pulsePhase * 0.2})`);
+    cloud3.addColorStop(0.8, 'rgba(255, 179, 71, 0.05)');
+    cloud3.addColorStop(1, 'rgba(255, 140, 66, 0)');
+    ctx.fillStyle = cloud3;
+    ctx.fillRect(0, 0, 100, 100);
+  }
   ctx.restore();
 
   // Rim light bottom-right (translucent light on a wet surface).
@@ -742,7 +780,7 @@ export const BubbleAvatar: React.FC<BubbleAvatarProps> = ({
       if (spec.ring) paintRing(ctx, spec.ring, t, spec.progress ?? 1, reduced);
       if (spec.rays && detail) paintRays(ctx, t, reduced);
       if (spec.confetti && detail) paintConfetti(ctx, t, reduced);
-      paintBody(ctx, t, amp);
+      paintBody(ctx, t, amp, reduced);
 
       // Bubble Intelligence: pure fluid glowing amber droplet with organic wobble & satellite bead.
       // No cartoon eyes, brows, or human mouth drawn inside the bubble.

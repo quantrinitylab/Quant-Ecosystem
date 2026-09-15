@@ -13,6 +13,8 @@ import type { FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { BubbleAvatar } from '@quant/shared-ui';
 import type { BubbleState } from '@quant/shared-ui';
+import { useAuth } from '../../providers/auth-provider';
+import { QuantGitLogo } from '../../components/QuantGitLogo';
 
 export type MainDeckTab = 'quanty' | 'repos' | 'lab';
 
@@ -168,15 +170,15 @@ const INITIAL_REPOS: Repo[] = [
   {
     id: 'quant-ecosystem',
     name: 'Quant-Ecosystem',
-    fullName: 'quantrinitylab/Quant-Ecosystem',
+    fullName: 'Quant-Ecosystem',
     description: 'Next-gen sovereign workspace, autonomous AI swarm, Git hub & Android client.',
     visibility: 'public',
     language: 'TypeScript',
     stars: 128,
     forks: 24,
     watching: 12,
-    cloneUrl: 'https://github.com/quantrinitylab/Quant-Ecosystem.git',
-    sshUrl: 'git@github.com:quantrinitylab/Quant-Ecosystem.git',
+    cloneUrl: 'https://quantmail.in/quantgit/Quant-Ecosystem.git',
+    sshUrl: 'git@quantmail.in:Quant-Ecosystem.git',
     defaultBranch: 'main',
     latestCommit:
       'feat(quantgit): restore 4 bottom deck tabs, repos overview & publish android testing apk',
@@ -197,7 +199,7 @@ const INITIAL_REPOS: Repo[] = [
   {
     id: 'quantmail-core',
     name: 'quantmail-core',
-    fullName: 'quantrinitylab/quantmail-core',
+    fullName: 'quantmail-core',
     description:
       'Ultra-fast sovereign mail client with inline triage lenses & local ONNX semantic search.',
     visibility: 'private',
@@ -205,8 +207,8 @@ const INITIAL_REPOS: Repo[] = [
     stars: 42,
     forks: 5,
     watching: 8,
-    cloneUrl: 'https://github.com/quantrinitylab/quantmail-core.git',
-    sshUrl: 'git@github.com:quantrinitylab/quantmail-core.git',
+    cloneUrl: 'https://quantmail.in/quantgit/quantmail-core.git',
+    sshUrl: 'git@quantmail.in:quantmail-core.git',
     defaultBranch: 'main',
     latestCommit: 'refactor(core): unify Bayesian spam classifier with isolated tenant indexes',
     latestCommitSha: '7f9104b2',
@@ -219,15 +221,15 @@ const INITIAL_REPOS: Repo[] = [
   {
     id: 'quantchat-meet',
     name: 'quantchat-meet',
-    fullName: 'quantrinitylab/quantchat-meet',
+    fullName: 'quantchat-meet',
     description: 'LiveKit WebRTC gateway, SFU, voice AI agent, and calendar proactive alerts.',
     visibility: 'private',
     language: 'TypeScript',
     stars: 35,
     forks: 3,
     watching: 4,
-    cloneUrl: 'https://github.com/quantrinitylab/quantchat-meet.git',
-    sshUrl: 'git@github.com:quantrinitylab/quantchat-meet.git',
+    cloneUrl: 'https://quantmail.in/quantgit/quantchat-meet.git',
+    sshUrl: 'git@quantmail.in:quantchat-meet.git',
     defaultBranch: 'main',
     latestCommit: 'feat(webrtc): LiveKit SFU cluster resilience and proactive voice call dispatch',
     latestCommitSha: '4fcec52e',
@@ -240,7 +242,7 @@ const INITIAL_REPOS: Repo[] = [
   {
     id: 'quant-mobile-android',
     name: 'quant-mobile-android',
-    fullName: 'quantrinitylab/quant-mobile-android',
+    fullName: 'quant-mobile-android',
     description:
       'Native Jetpack Compose Android client with hardware-accelerated WebView and offline resilience.',
     visibility: 'public',
@@ -248,8 +250,8 @@ const INITIAL_REPOS: Repo[] = [
     stars: 89,
     forks: 14,
     watching: 19,
-    cloneUrl: 'https://github.com/quantrinitylab/quant-mobile-android.git',
-    sshUrl: 'git@github.com:quantrinitylab/quant-mobile-android.git',
+    cloneUrl: 'https://quantmail.in/quantgit/quant-mobile-android.git',
+    sshUrl: 'git@quantmail.in:quant-mobile-android.git',
     defaultBranch: 'main',
     latestCommit: 'release(android): Quant v1.0 universal APK build (targetSdk 36)',
     latestCommitSha: 'fa303afb',
@@ -355,7 +357,7 @@ const MOCK_FILES: FileNode[] = [
     size: '4.82 KB',
     lastCommit: 'docs: update ecosystem quickstart & architecture overview',
     lastCommitDate: 'last week',
-    content: `# Quant Ecosystem — The Next NVIDIA of Software\n\nA unified sovereign operating ecosystem built for high-performance computing, intelligent mail triage, autonomous agentic development, and real git collaboration.\n\n\`\`\`bash\n# Clone the unified monorepo\ngit clone https://github.com/quantrinitylab/Quant-Ecosystem.git\n\n# Install dependencies and start development\npnpm install && pnpm dev\n\`\`\`\n\n## 📦 Features\n- **Flagship QuantMail**: Lightning-fast triage, local ONNX semantic search, offline drafts.\n- **QuantGit (CodeHub)**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.\n- **QuantChat & Meet**: WebRTC LiveKit meetings, voice AI assistants, proactive alarms.\n- **QuantDrive & Docs**: Multi-layer cloud storage, Yjs CRDT real-time document collaboration.\n- **Native Android Sovereign Shell**: Jetpack Compose + hardware-accelerated WebView client.`,
+    content: `# Quant Ecosystem — The Next NVIDIA of Software\n\nA unified sovereign operating ecosystem built for high-performance computing, intelligent mail triage, autonomous agentic development, and real git collaboration.\n\n\`\`\`bash\n# Clone the unified monorepo\ngit clone https://quantmail.in/quantgit/Quant-Ecosystem.git\n\n# Install dependencies and start development\npnpm install && pnpm dev\n\`\`\`\n\n## 📦 Features\n- **Flagship QuantMail**: Lightning-fast triage, local ONNX semantic search, offline drafts.\n- **QuantGit (CodeHub)**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.\n- **QuantChat & Meet**: WebRTC LiveKit meetings, voice AI assistants, proactive alarms.\n- **QuantDrive & Docs**: Multi-layer cloud storage, Yjs CRDT real-time document collaboration.\n- **Native Android Sovereign Shell**: Jetpack Compose + hardware-accelerated WebView client.`,
   },
 ];
 
@@ -761,7 +763,10 @@ export default function QuantGitPage() {
   const router = useRouter();
 
   // Navigation & Deck State
-  const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
+  const { user } = useAuth();
+  const currentUsername =
+    user?.username || (user?.email ? user.email.split('@')[0] : 'kundansinghrajput31980');
+  const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('quanty');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
   const [currentBranch, setCurrentBranch] = useState<string>('main');
@@ -838,7 +843,15 @@ export default function QuantGitPage() {
   const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
 
   // Data Collections
-  const [repos, setRepos] = useState<Repo[]>(INITIAL_REPOS);
+  const [baseRepos, setBaseRepos] = useState<Repo[]>(INITIAL_REPOS);
+  const repos = useMemo(() => {
+    return baseRepos.map((r) => ({
+      ...r,
+      fullName: `${currentUsername}/${r.name}`,
+      cloneUrl: `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
+      sshUrl: `git@quantmail.in:${currentUsername}/${r.name}.git`,
+    }));
+  }, [baseRepos, currentUsername]);
   const [files, setFiles] = useState<FileNode[]>(MOCK_FILES);
   const [issues, setIssues] = useState<IssueItem[]>(INITIAL_ISSUES);
   const [pulls, setPulls] = useState<PRItem[]>(INITIAL_PRS);
@@ -893,29 +906,7 @@ export default function QuantGitPage() {
   const [buildMode, setBuildMode] = useState<BuildMode>('plan');
   const [effort, setEffort] = useState<Effort>('fast');
   const [promptInput, setPromptInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: 'msg-1',
-      role: 'assistant',
-      model: 'Opus 5',
-      text: 'Hello! I am Quanty, your autonomous AI Copilot & Swarm Orchestrator. I can plan architecture, inspect monorepo ASTs, debug CI workflows, or coordinate developer agents. What would you like to build today?',
-      timestamp: 'just now',
-      thoughts:
-        'Context initialized for Quant Ecosystem monorepo.\nModel: Claude Opus 5 / GPT-6 Astra reasoning core.\nTools active: Git daemon, AST search, Vitest runner, LiveKit WebRTC.\nReady for prompt input or context attachment.',
-      thoughtDuration: '2.1s',
-      steps: [
-        'Loaded monorepo workspace metadata and package graph',
-        'Verified live branch main at commit 45987e66',
-        'Attached GitHub MCP and autonomous Swarm fleet tools',
-      ],
-      suggestions: [
-        'Audit repository architecture →',
-        'Review open pull requests (#261) →',
-        'Debug CI Gate workflows →',
-        'Inspect Dependabot security alerts →',
-      ],
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -1060,7 +1051,7 @@ export default function QuantGitPage() {
   const handleCreateRepo = (e: FormEvent) => {
     e.preventDefault();
     if (!newRepoName.trim()) return;
-    const slug = `quantrinitylab/${newRepoName.trim()}`;
+    const slug = `${currentUsername}/${newRepoName.trim()}`;
     const newRepo: Repo = {
       id: newRepoName
         .trim()
@@ -1074,8 +1065,8 @@ export default function QuantGitPage() {
       stars: 1,
       forks: 0,
       watching: 1,
-      cloneUrl: `https://github.com/${slug}.git`,
-      sshUrl: `git@github.com:${slug}.git`,
+      cloneUrl: `https://quantmail.in/quantgit/${slug}.git`,
+      sshUrl: `git@quantmail.in:${slug}.git`,
       defaultBranch: 'main',
       latestCommit: 'Initial repository setup with README.md',
       latestCommitSha: '1a2b3c4d',
@@ -1085,7 +1076,7 @@ export default function QuantGitPage() {
       website: 'https://quantmail.in',
       topics: ['quant', 'workspace'],
     };
-    setRepos([newRepo, ...repos]);
+    setBaseRepos([newRepo, ...baseRepos]);
     setSelectedRepo(newRepo);
     setNewRepoName('');
     setNewRepoDesc('');
@@ -1172,12 +1163,12 @@ export default function QuantGitPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0D1117] text-[#E6EDF3] font-sans antialiased pb-32">
+    <main className="h-screen w-full flex flex-col bg-[#0D1117] text-[#E6EDF3] font-sans antialiased overflow-hidden">
       {/* ========================================================================= */}
       {/* 1. GLOBAL NAVIGATION BAR (NOTION AI FOR QUANTY / GITHUB FOR REPOS & LAB)  */}
       {/* ========================================================================= */}
       {activeDeckTab === 'quanty' ? (
-        <header className="sticky top-0 z-40 bg-[#0D1117]/95 backdrop-blur border-b border-[#21262D] px-4 py-2.5 flex items-center justify-between text-xs">
+        <header className="shrink-0 z-30 bg-[#0D1117]/95 backdrop-blur border-b border-[#21262D] px-4 py-2.5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -1192,7 +1183,7 @@ export default function QuantGitPage() {
               </svg>
             </button>
             <div className="flex items-center gap-2">
-              <BubbleAvatar state="coding" size={20} />
+              <BubbleAvatar state="coding" size={32} />
               <span className="font-bold text-[#E6EDF3] text-sm">Quanty AI</span>
               <span className="text-[#7D8590]">/</span>
               <button
@@ -1251,9 +1242,9 @@ export default function QuantGitPage() {
           </div>
         </header>
       ) : (
-        <header className="sticky top-0 z-40 bg-[#010409] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
+        <header className="shrink-0 z-30 bg-[#010409] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
           <div className="flex items-center gap-3">
-            {/* GitHub Octocat / Branch Mark */}
+            {/* Sovereign QuantGit Logo */}
             <button
               type="button"
               onClick={() => {
@@ -1261,17 +1252,9 @@ export default function QuantGitPage() {
                 setSelectedRepo(null);
               }}
               className="flex items-center gap-2 text-white hover:text-[#FF8C42] transition-colors p-1 rounded-md"
-              title="GitHub / QuantGit Home"
+              title="QuantGit Home"
             >
-              <svg
-                height="24"
-                viewBox="0 0 16 16"
-                width="24"
-                fill="currentColor"
-                className="text-white"
-              >
-                <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z" />
-              </svg>
+              <QuantGitLogo size={28} />
               <span className="font-bold text-sm tracking-tight text-[#E6EDF3]">QuantGit</span>
             </button>
 
@@ -1287,34 +1270,36 @@ export default function QuantGitPage() {
                 </span>
               </div>
             ) : selectedRepo ? (
-              <div className="flex items-center gap-1.5 text-sm">
+              <div className="flex items-center gap-1.5 text-sm min-w-0">
                 <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedRepo(null);
                   }}
-                  className="text-[#58A6FF] hover:underline font-medium"
+                  className="text-[#58A6FF] hover:underline font-medium truncate max-w-[120px] sm:max-w-none"
                 >
-                  quantrinitylab
+                  {currentUsername}
                 </button>
                 <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
                   onClick={() => setActiveGitHubTab('code')}
-                  className="text-[#58A6FF] hover:underline font-bold text-white"
+                  className="text-[#58A6FF] hover:underline font-bold text-white truncate max-w-[140px] sm:max-w-none"
                 >
                   {selectedRepo.name}
                 </button>
-                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590]">
+                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
                   {selectedRepo.visibility}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-sm">
+              <div className="flex items-center gap-1.5 text-sm min-w-0">
                 <span className="text-[#7D8590]">/</span>
-                <span className="text-white font-bold">quantrinitylab</span>
-                <span className="text-[#7D8590] text-xs">· Organization Hub</span>
+                <span className="text-white font-bold truncate max-w-[140px] sm:max-w-none">
+                  {currentUsername}
+                </span>
+                <span className="text-[#7D8590] text-xs shrink-0">· Repositories</span>
               </div>
             )}
           </div>
@@ -1362,6 +1347,71 @@ export default function QuantGitPage() {
             </div>
           </div>
         </header>
+      )}
+
+      {/* Sliding Left History Drawer with Backdrop */}
+      {isHistoryOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity"
+            onClick={() => setIsHistoryOpen(false)}
+          />
+          <aside className="fixed top-0 left-0 bottom-0 w-80 bg-[#161B22] border-r border-[#30363D] z-50 p-4 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
+            <div className="flex items-center justify-between pb-3 border-b border-[#21262D]">
+              <div className="flex items-center gap-2">
+                <BubbleAvatar state="coding" size={28} />
+                <span className="font-bold text-sm text-white">Chat History</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newId = `sess-${Date.now()}`;
+                    setChatSessions([
+                      { id: newId, title: 'New Conversation', date: 'Just now', count: 0 },
+                      ...chatSessions,
+                    ]);
+                    setActiveSessionId(newId);
+                    setChatMessages([]);
+                    setIsHistoryOpen(false);
+                    showToast('Started new chat');
+                  }}
+                  className="px-2.5 py-1 rounded bg-[#21262D] hover:bg-[#30363D] text-[11px] text-[#58A6FF] font-semibold transition-colors"
+                >
+                  + New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="p-1 rounded text-[#7D8590] hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-[#21262D] mt-2">
+              {chatSessions.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setActiveSessionId(s.id);
+                    setIsHistoryOpen(false);
+                    showToast(`Switched to: ${s.title}`);
+                  }}
+                  className={`w-full py-3 px-2 flex items-center justify-between text-xs rounded-lg text-left transition-colors ${
+                    activeSessionId === s.id
+                      ? 'bg-[#21262D] text-white font-semibold'
+                      : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                  }`}
+                >
+                  <span className="truncate max-w-[200px]">{s.title}</span>
+                  <span className="text-[10px] text-[#7D8590] shrink-0">{s.date}</span>
+                </button>
+              ))}
+            </div>
+          </aside>
+        </>
       )}
 
       {/* ========================================================================= */}
@@ -1478,115 +1528,117 @@ export default function QuantGitPage() {
       {/* ========================================================================= */}
       {/* 3. MAIN WORKSPACE / TAB CONTENT BODY                                      */}
       {/* ========================================================================= */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6">
+      <div className="flex-1 w-full min-h-0 flex flex-col overflow-hidden">
         {/* ======================================================================= */}
         {/* VIEW A: ALL REPOSITORIES DIRECTORY (when selectedRepo === null)         */}
         {/* ======================================================================= */}
         {activeDeckTab === 'repos' && !selectedRepo && (
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#30363D]">
-              <div>
-                <h2 className="text-xl font-bold text-white tracking-tight">All Repositories</h2>
-                <p className="text-xs text-[#7D8590] mt-0.5">
-                  Git source control, PR review pipelines & autonomous swarm agents.
-                </p>
+          <div className="flex-1 w-full min-h-0 overflow-y-auto">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 pb-20">
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#30363D]">
+                <div>
+                  <h2 className="text-xl font-bold text-white tracking-tight">All Repositories</h2>
+                  <p className="text-xs text-[#7D8590] mt-0.5">
+                    Git source control, PR review pipelines & autonomous swarm agents.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModalState('new-repo')}
+                  className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-md transition-colors flex items-center gap-1.5"
+                >
+                  <span>+</span> New repository
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setModalState('new-repo')}
-                className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-md transition-colors flex items-center gap-1.5"
-              >
-                <span>+</span> New repository
-              </button>
-            </div>
 
-            {/* Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2.5 py-4 border-b border-[#21262D] text-xs">
-              <input
-                type="text"
-                value={repoSearchQuery}
-                onChange={(e) => setRepoSearchQuery(e.target.value)}
-                placeholder="Find a repository..."
-                className="flex-1 min-w-[200px] bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
-              />
-              <select
-                value={repoTypeFilter}
-                onChange={(e) => setRepoTypeFilter(e.target.value as any)}
-                className="bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:outline-none"
-              >
-                <option value="all">Type: All</option>
-                <option value="public">Public</option>
-                <option value="private">Private</option>
-              </select>
-              <select
-                value={repoLangFilter}
-                onChange={(e) => setRepoLangFilter(e.target.value)}
-                className="bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:outline-none"
-              >
-                <option value="all">Language: All</option>
-                <option value="typescript">TypeScript</option>
-                <option value="kotlin">Kotlin</option>
-              </select>
-            </div>
+              {/* Filter Bar */}
+              <div className="flex flex-wrap items-center gap-2.5 py-4 border-b border-[#21262D] text-xs">
+                <input
+                  type="text"
+                  value={repoSearchQuery}
+                  onChange={(e) => setRepoSearchQuery(e.target.value)}
+                  placeholder="Find a repository..."
+                  className="flex-1 min-w-[200px] bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                />
+                <select
+                  value={repoTypeFilter}
+                  onChange={(e) => setRepoTypeFilter(e.target.value as any)}
+                  className="bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:outline-none"
+                >
+                  <option value="all">Type: All</option>
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+                <select
+                  value={repoLangFilter}
+                  onChange={(e) => setRepoLangFilter(e.target.value)}
+                  className="bg-[#21262D] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-[#E6EDF3] focus:outline-none"
+                >
+                  <option value="all">Language: All</option>
+                  <option value="typescript">TypeScript</option>
+                  <option value="kotlin">Kotlin</option>
+                </select>
+              </div>
 
-            {/* Repositories List */}
-            <div className="divide-y divide-[#21262D]">
-              {filteredRepos.map((r) => (
-                <div key={r.id} className="py-4 flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-1.5 max-w-2xl">
+              {/* Repositories List */}
+              <div className="divide-y divide-[#21262D]">
+                {filteredRepos.map((r) => (
+                  <div key={r.id} className="py-4 flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-1.5 max-w-2xl">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRepo(r);
+                            setActiveGitHubTab('code');
+                          }}
+                          className="text-base font-bold text-[#58A6FF] hover:underline"
+                        >
+                          {r.name}
+                        </button>
+                        <span className="px-2 py-0.2 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase">
+                          {r.visibility}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#7D8590] leading-relaxed">{r.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-[#7D8590] pt-1">
+                        <span className="flex items-center gap-1.5">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${r.language === 'TypeScript' ? 'bg-[#3178C6]' : 'bg-[#A97BFF]'}`}
+                          />
+                          {r.language}
+                        </span>
+                        <span>★ {r.stars}</span>
+                        <span>⑂ {r.forks}</span>
+                        <span>Updated {r.latestCommitTime}</span>
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRepo(r);
+                          setModalState('clone');
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-xs font-semibold hover:bg-[#30363D] transition-colors"
+                      >
+                        Clone
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
                           setSelectedRepo(r);
                           setActiveGitHubTab('code');
                         }}
-                        className="text-base font-bold text-[#58A6FF] hover:underline"
+                        className="px-3.5 py-1 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
                       >
-                        {r.name}
+                        Open Repo →
                       </button>
-                      <span className="px-2 py-0.2 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase">
-                        {r.visibility}
-                      </span>
-                    </div>
-                    <p className="text-xs text-[#7D8590] leading-relaxed">{r.description}</p>
-                    <div className="flex items-center gap-4 text-xs text-[#7D8590] pt-1">
-                      <span className="flex items-center gap-1.5">
-                        <span
-                          className={`w-2.5 h-2.5 rounded-full ${r.language === 'TypeScript' ? 'bg-[#3178C6]' : 'bg-[#A97BFF]'}`}
-                        />
-                        {r.language}
-                      </span>
-                      <span>★ {r.stars}</span>
-                      <span>⑂ {r.forks}</span>
-                      <span>Updated {r.latestCommitTime}</span>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRepo(r);
-                        setModalState('clone');
-                      }}
-                      className="px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-xs font-semibold hover:bg-[#30363D] transition-colors"
-                    >
-                      Clone
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRepo(r);
-                        setActiveGitHubTab('code');
-                      }}
-                      className="px-3.5 py-1 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
-                    >
-                      Open Repo →
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1595,919 +1647,931 @@ export default function QuantGitPage() {
         {/* VIEW B: 1:1 REPOSITORY WORKSPACE (when selectedRepo !== null)           */}
         {/* ======================================================================= */}
         {activeDeckTab === 'repos' && selectedRepo && (
-          <div>
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 1: <> CODE (TWO-COLUMN GITHUB LAYOUT)                          */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'code' && (
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-                {/* Left / Main Column (75%) */}
-                <div className="lg:col-span-3 space-y-4">
-                  {/* File Navigation Controls Bar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      {/* Branch Switcher Button */}
-                      <button
-                        type="button"
-                        onClick={() => setModalState('branch-switcher')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
-                      >
-                        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                          <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" />
-                        </svg>
-                        <span>{currentBranch}</span>
-                        <span className="text-[#7D8590] text-[10px]">▼</span>
-                      </button>
+          <div className="flex-1 w-full min-h-0 overflow-y-auto">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 pb-20">
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 1: <> CODE (TWO-COLUMN GITHUB LAYOUT)                          */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'code' && (
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                  {/* Left / Main Column (75%) */}
+                  <div className="lg:col-span-3 space-y-4">
+                    {/* File Navigation Controls Bar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        {/* Branch Switcher Button */}
+                        <button
+                          type="button"
+                          onClick={() => setModalState('branch-switcher')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+                        >
+                          <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                            <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" />
+                          </svg>
+                          <span>{currentBranch}</span>
+                          <span className="text-[#7D8590] text-[10px]">▼</span>
+                        </button>
 
-                      <span className="text-[#7D8590] hidden sm:inline">
-                        <span className="text-white font-semibold">348</span> branches ·{' '}
-                        <span className="text-white font-semibold">2</span> tags
-                      </span>
-                    </div>
-
-                    {/* Quick Finder, Add File & Clone Dropdown */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setModalState('file-finder')}
-                        className="px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
-                        title="Go to file (t)"
-                      >
-                        Go to file{' '}
-                        <span className="text-[10px] text-[#7D8590] border border-[#30363D] px-1 rounded ml-1 font-mono">
-                          t
+                        <span className="text-[#7D8590] hidden sm:inline">
+                          <span className="text-white font-semibold">348</span> branches ·{' '}
+                          <span className="text-white font-semibold">2</span> tags
                         </span>
-                      </button>
+                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => showToast('Create/Upload file action')}
-                        className="px-2.5 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
-                      >
-                        Add file ▼
-                      </button>
-
-                      {/* Green Code Clone Button */}
-                      <button
-                        type="button"
-                        onClick={() => setModalState('clone')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors shadow-sm"
-                      >
-                        <span>&lt;&gt; Code</span>
-                        <span className="text-[10px]">▼</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Latest Commit Banner */}
-                  <div className="bg-[#161B22] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-5 h-5 rounded-full bg-[#FF8C42] text-black font-bold flex items-center justify-center text-[10px] shrink-0">
-                        K
-                      </span>
-                      <span className="font-semibold text-white">Developer 6</span>
-                      <span
-                        className="text-[#7D8590] truncate max-w-md"
-                        title={selectedRepo.latestCommit}
-                      >
-                        {selectedRepo.latestCommit}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0 text-[#7D8590]">
-                      <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
-                        ✓ Verified
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => showToast(`Commit SHA: ${selectedRepo.latestCommitSha}`)}
-                        className="font-mono text-[#58A6FF] hover:underline"
-                      >
-                        {selectedRepo.latestCommitSha}
-                      </button>
-                      <span>· {selectedRepo.latestCommitTime}</span>
-                      <button
-                        type="button"
-                        onClick={() => showToast('Opening commit history...')}
-                        className="text-white hover:text-[#58A6FF] font-semibold flex items-center gap-1"
-                      >
-                        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                          <path d="M1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
-                        </svg>
-                        2,118 Commits
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* File Tree Table Explorer */}
-                  <div className="border border-t-0 border-[#30363D] rounded-b-md divide-y divide-[#21262D] text-xs bg-[#0D1117] overflow-hidden">
-                    {files.map((file) => (
-                      <div
-                        key={file.path}
-                        className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[#161B22] transition-colors cursor-pointer group"
-                        onClick={() => {
-                          if (file.type === 'dir') {
-                            showToast(`Opening folder ${file.name}`);
-                          } else {
-                            setViewingFile(file);
-                          }
-                        }}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {file.type === 'dir' ? (
-                            <svg
-                              height="16"
-                              viewBox="0 0 16 16"
-                              width="16"
-                              fill="#58A6FF"
-                              className="shrink-0"
-                            >
-                              <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
-                            </svg>
-                          ) : (
-                            <svg
-                              height="16"
-                              viewBox="0 0 16 16"
-                              width="16"
-                              fill="#7D8590"
-                              className="shrink-0"
-                            >
-                              <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.793V4.25c0 .138.112.25.25.25h2.457Z" />
-                            </svg>
-                          )}
-                          <span className="font-medium text-[#E6EDF3] group-hover:text-[#58A6FF] truncate">
-                            {file.name}
+                      {/* Quick Finder, Add File & Clone Dropdown */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setModalState('file-finder')}
+                          className="px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+                          title="Go to file (t)"
+                        >
+                          Go to file{' '}
+                          <span className="text-[10px] text-[#7D8590] border border-[#30363D] px-1 rounded ml-1 font-mono">
+                            t
                           </span>
-                        </div>
+                        </button>
 
-                        <div className="flex items-center gap-4 text-[#7D8590] text-[11px] shrink-0">
-                          <span className="hidden md:inline truncate max-w-xs">
-                            {file.lastCommit}
-                          </span>
-                          <span className="text-right w-20">{file.lastCommitDate}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                        <button
+                          type="button"
+                          onClick={() => showToast('Create/Upload file action')}
+                          className="px-2.5 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
+                        >
+                          Add file ▼
+                        </button>
 
-                  {/* Formatted README.md Preview Container */}
-                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden mt-6">
-                    <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 font-bold text-white">
-                        <svg height="16" viewBox="0 0 16 16" width="16" fill="#7D8590">
-                          <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.53-.53a3.75 3.75 0 0 1 2.65-1.094h3.57V2.5h-3.006a2.25 2.25 0 0 0-2.25 2.25v6.524ZM6.75 4.75A2.25 2.25 0 0 0 4.504 2.5H1.5v7.95h3.757a3.75 3.75 0 0 1 2.651 1.094Z" />
-                        </svg>
-                        README.md
-                      </div>
-                      <div className="flex items-center gap-3 text-[11px] text-[#7D8590]">
-                        <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#3FB950] font-semibold">
-                          build: passing
-                        </span>
-                        <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-semibold">
-                          license: MIT
-                        </span>
+                        {/* Green Code Clone Button */}
+                        <button
+                          type="button"
+                          onClick={() => setModalState('clone')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors shadow-sm"
+                        >
+                          <span>&lt;&gt; Code</span>
+                          <span className="text-[10px]">▼</span>
+                        </button>
                       </div>
                     </div>
 
-                    <div className="p-6 space-y-4 text-xs leading-relaxed text-[#E6EDF3]">
-                      <h2 className="text-xl font-bold text-white border-b border-[#21262D] pb-2">
-                        Quant Ecosystem — The Next NVIDIA of Software
-                      </h2>
-                      <p className="text-[#7D8590]">
-                        A unified sovereign operating ecosystem built for high-performance
-                        computing, intelligent mail triage, autonomous agentic development, and real
-                        git collaboration.
-                      </p>
-
-                      <div className="bg-[#161B22] border border-[#30363D] rounded-md p-3 font-mono text-[11px] text-[#58A6FF] space-y-1">
-                        <p className="text-[#7D8590]"># Clone the unified monorepo</p>
-                        <p>git clone https://github.com/quantrinitylab/Quant-Ecosystem.git</p>
-                        <p className="text-[#7D8590] pt-1">
-                          # Install dependencies and start development
-                        </p>
-                        <p>pnpm install && pnpm dev</p>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                        <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D]">
-                          <h4 className="font-bold text-[#FF8C42] mb-1">⚡ Flagship QuantMail</h4>
-                          <p className="text-[11px] text-[#7D8590]">
-                            Inline triage lenses, Bayesian spam protection, and local ONNX
-                            embeddings.
-                          </p>
-                        </div>
-                        <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D]">
-                          <h4 className="font-bold text-[#58A6FF] mb-1">
-                            📱 Sovereign Android Client
-                          </h4>
-                          <p className="text-[11px] text-[#7D8590]">
-                            Jetpack Compose + hardware-accelerated WebView client in apk testing/.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right / Sidebar Column (25%) */}
-                <div className="space-y-6 text-xs">
-                  {/* About Card */}
-                  <div className="space-y-3 pb-6 border-b border-[#30363D]">
-                    <h3 className="font-bold text-sm text-white">About</h3>
-                    <p className="text-[#7D8590] leading-relaxed">{selectedRepo.description}</p>
-                    <a
-                      href={selectedRepo.website}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[#58A6FF] hover:underline font-semibold flex items-center gap-1"
-                    >
-                      🔗 {selectedRepo.website.replace('https://', '')}
-                    </a>
-
-                    {/* Topics Pills */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {selectedRepo.topics.map((t) => (
+                    {/* Latest Commit Banner */}
+                    <div className="bg-[#161B22] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-5 h-5 rounded-full bg-[#FF8C42] text-black font-bold flex items-center justify-center text-[10px] shrink-0">
+                          K
+                        </span>
+                        <span className="font-semibold text-white">Developer 6</span>
                         <span
-                          key={t}
-                          className="px-2 py-0.5 rounded-full bg-[#1F242C] text-[#58A6FF] hover:bg-[#28313E] text-[10px] font-semibold cursor-pointer"
+                          className="text-[#7D8590] truncate max-w-md"
+                          title={selectedRepo.latestCommit}
                         >
-                          {t}
+                          {selectedRepo.latestCommit}
                         </span>
-                      ))}
-                    </div>
+                      </div>
 
-                    <div className="space-y-2 pt-2 text-[#7D8590]">
-                      <div className="flex items-center gap-2">
-                        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                          <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Z" />
-                        </svg>
-                        <span>Readme</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                          <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
-                        </svg>
-                        <span>Activity</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>★</span>
-                        <span className="text-white font-semibold">{selectedRepo.stars}</span> stars
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>👁</span>
-                        <span className="text-white font-semibold">
-                          {selectedRepo.watching}
-                        </span>{' '}
-                        watching
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>⑂</span>
-                        <span className="text-white font-semibold">{selectedRepo.forks}</span> forks
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Releases Card (With Download Links for APK!) */}
-                  <div className="space-y-3 pb-6 border-b border-[#30363D]">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-bold text-sm text-white">Releases</h3>
-                      <span className="px-1.5 py-0.2 rounded-full bg-[#238636] text-white text-[10px] font-bold">
-                        Latest
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D] space-y-2">
-                      <div className="font-bold text-[#58A6FF]">Quant v1.0 Universal APK</div>
-                      <p className="text-[11px] text-[#7D8590]">
-                        Native Android release with targetSdk 36 & Compose.
-                      </p>
-                      <div className="space-y-1 pt-1">
-                        <a
-                          href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/Quant-v1.0-debug.apk"
-                          className="block text-[11px] text-[#FF8C42] hover:underline font-semibold"
-                        >
-                          📥 Quant-v1.0-debug.apk (11.39 MB)
-                        </a>
-                        <a
-                          href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/quant-app.apk"
-                          className="block text-[11px] text-[#7D8590] hover:underline font-mono"
-                        >
-                          📦 quant-app.apk (Mirror)
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Packages Card */}
-                  <div className="space-y-2 pb-6 border-b border-[#30363D]">
-                    <h3 className="font-bold text-sm text-white">Packages</h3>
-                    <p className="text-[11px] text-[#7D8590]">
-                      No published packages yet in registry.
-                    </p>
-                  </div>
-
-                  {/* Contributors Card */}
-                  <div className="space-y-3 pb-6 border-b border-[#30363D]">
-                    <h3 className="font-bold text-sm text-white">
-                      Contributors{' '}
-                      <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
-                        8
-                      </span>
-                    </h3>
-                    <div className="flex flex-wrap gap-1.5">
-                      {['K', 'A', 'S', 'F', 'R', 'P', 'L', 'D'].map((init, idx) => (
-                        <span
-                          key={idx}
-                          className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] text-[#E6EDF3] font-bold flex items-center justify-center text-[10px]"
-                        >
-                          {init}
+                      <div className="flex items-center gap-3 shrink-0 text-[#7D8590]">
+                        <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
+                          ✓ Verified
                         </span>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => showToast(`Commit SHA: ${selectedRepo.latestCommitSha}`)}
+                          className="font-mono text-[#58A6FF] hover:underline"
+                        >
+                          {selectedRepo.latestCommitSha}
+                        </button>
+                        <span>· {selectedRepo.latestCommitTime}</span>
+                        <button
+                          type="button"
+                          onClick={() => showToast('Opening commit history...')}
+                          className="text-white hover:text-[#58A6FF] font-semibold flex items-center gap-1"
+                        >
+                          <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                            <path d="M1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
+                          </svg>
+                          2,118 Commits
+                        </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Languages Card */}
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-sm text-white">Languages</h3>
-                    <div className="h-2 rounded-full overflow-hidden flex">
-                      <div className="bg-[#3178C6] w-[84%]" title="TypeScript 84.2%" />
-                      <div className="bg-[#A97BFF] w-[8%]" title="Kotlin 8.1%" />
-                      <div className="bg-[#3572A5] w-[4%]" title="Python 4.3%" />
-                      <div className="bg-[#89E051] w-[2%]" title="Shell 2.1%" />
-                      <div className="bg-[#F1E05A] w-[2%]" title="Other 1.3%" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7D8590] pt-1">
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#3178C6]" /> TypeScript 84.2%
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#A97BFF]" /> Kotlin 8.1%
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#3572A5]" /> Python 4.3%
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-[#89E051]" /> Shell 2.1%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 2: ⨀ ISSUES                                                    */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'issues' && (
-              <div className="space-y-4 text-xs">
-                {/* Issues Filter & New Issue Button */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex-1 min-w-[240px] relative">
-                    <input
-                      type="text"
-                      value={issueSearchQuery}
-                      onChange={(e) => setIssueSearchQuery(e.target.value)}
-                      placeholder="Search all issues..."
-                      className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setModalState('new-issue')}
-                      className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm transition-colors"
-                    >
-                      New issue
-                    </button>
-                  </div>
-                </div>
-
-                {/* Issues List Container */}
-                <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden">
-                  <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
-                    <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setIssueSearchQuery('is:issue state:open')}
-                        className={`flex items-center gap-1.5 ${!issueSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
-                      >
-                        ⨀ {openIssuesCount} Open
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIssueSearchQuery('is:issue state:closed')}
-                        className={`flex items-center gap-1.5 ${issueSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
-                      >
-                        ✓ 182 Closed
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="divide-y divide-[#21262D]">
-                    {filteredIssues.map((issue) => (
-                      <div
-                        key={issue.id}
-                        className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[#3FB950] font-bold">⨀</span>
-                            <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
-                              {issue.title}
-                            </span>
-                            {issue.labels.map((lbl) => (
-                              <span
-                                key={lbl.name}
-                                className="px-2 py-0.2 rounded-full text-[10px] font-bold text-white"
-                                style={{ backgroundColor: lbl.color }}
+                    {/* File Tree Table Explorer */}
+                    <div className="border border-t-0 border-[#30363D] rounded-b-md divide-y divide-[#21262D] text-xs bg-[#0D1117] overflow-hidden">
+                      {files.map((file) => (
+                        <div
+                          key={file.path}
+                          className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[#161B22] transition-colors cursor-pointer group"
+                          onClick={() => {
+                            if (file.type === 'dir') {
+                              showToast(`Opening folder ${file.name}`);
+                            } else {
+                              setViewingFile(file);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {file.type === 'dir' ? (
+                              <svg
+                                height="16"
+                                viewBox="0 0 16 16"
+                                width="16"
+                                fill="#58A6FF"
+                                className="shrink-0"
                               >
-                                {lbl.name}
-                              </span>
-                            ))}
+                                <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z" />
+                              </svg>
+                            ) : (
+                              <svg
+                                height="16"
+                                viewBox="0 0 16 16"
+                                width="16"
+                                fill="#7D8590"
+                                className="shrink-0"
+                              >
+                                <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.793V4.25c0 .138.112.25.25.25h2.457Z" />
+                              </svg>
+                            )}
+                            <span className="font-medium text-[#E6EDF3] group-hover:text-[#58A6FF] truncate">
+                              {file.name}
+                            </span>
                           </div>
-                          <p className="text-[11px] text-[#7D8590]">
-                            #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
-                            {issue.assignee}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 text-[#7D8590]">
-                          <span>💬</span>
-                          <span>{issue.commentsCount}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 3: ⑂ PULL REQUESTS                                             */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'pulls' && (
-              <div className="space-y-4 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex-1 min-w-[240px]">
-                    <input
-                      type="text"
-                      value={pullSearchQuery}
-                      onChange={(e) => setPullSearchQuery(e.target.value)}
-                      placeholder="Search all pull requests..."
-                      className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setModalState('new-pr')}
-                    className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm transition-colors"
-                  >
-                    New pull request
-                  </button>
-                </div>
-
-                <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden">
-                  <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
-                    <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setPullSearchQuery('is:pr state:open')}
-                        className={`flex items-center gap-1.5 ${!pullSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
-                      >
-                        ⑂ {openPullsCount} Open
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPullSearchQuery('is:pr state:closed')}
-                        className={`flex items-center gap-1.5 ${pullSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
-                      >
-                        ✓ 246 Closed
-                      </button>
+                          <div className="flex items-center gap-4 text-[#7D8590] text-[11px] shrink-0">
+                            <span className="hidden md:inline truncate max-w-xs">
+                              {file.lastCommit}
+                            </span>
+                            <span className="text-right w-20">{file.lastCommitDate}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
 
-                  <div className="divide-y divide-[#21262D]">
-                    {filteredPulls.map((pr) => (
-                      <div
-                        key={pr.id}
-                        className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={
-                                pr.state === 'merged' ? 'text-[#A371F7]' : 'text-[#3FB950]'
-                              }
-                            >
-                              ⑂
-                            </span>
-                            <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
-                              {pr.title}
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
-                              {pr.branchSource}
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold">
-                              ✓ checks passed
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-[#7D8590]">
-                            #{pr.id} by {pr.author} was {pr.state} {pr.createdAt} · +{pr.additions}{' '}
-                            -{pr.deletions}
-                          </p>
+                    {/* Formatted README.md Preview Container */}
+                    <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden mt-6">
+                      <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 font-bold text-white">
+                          <svg height="16" viewBox="0 0 16 16" width="16" fill="#7D8590">
+                            <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.53-.53a3.75 3.75 0 0 1 2.65-1.094h3.57V2.5h-3.006a2.25 2.25 0 0 0-2.25 2.25v6.524ZM6.75 4.75A2.25 2.25 0 0 0 4.504 2.5H1.5v7.95h3.757a3.75 3.75 0 0 1 2.651 1.094Z" />
+                          </svg>
+                          README.md
                         </div>
-                        <div className="flex items-center gap-1 text-[#7D8590]">
-                          <span>💬</span>
-                          <span>{pr.commentsCount}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 4: ✨ AGENTS (COPILOT & AUTONOMOUS SWARM)                       */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'agents' && (
-              <div className="space-y-6 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
-                  <div className="space-y-1">
-                    <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <BubbleAvatar state="coding" size={20} />
-                      Autonomous Swarm Fleet & GitHub Copilot Workspace
-                    </h3>
-                    <p className="text-[#7D8590]">
-                      6 specialized developer agents autonomously reviewing PRs, managing
-                      migrations, and testing code.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setModalState('deploy-agent')}
-                    className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold transition-colors"
-                  >
-                    + Deploy Agent
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {agents.map((ag) => (
-                    <div
-                      key={ag.id}
-                      className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs text-black"
-                            style={{ backgroundColor: ag.color }}
-                          >
-                            {ag.initial}
+                        <div className="flex items-center gap-3 text-[11px] text-[#7D8590]">
+                          <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#3FB950] font-semibold">
+                            build: passing
                           </span>
-                          <div>
-                            <h4 className="font-bold text-white">{ag.name}</h4>
-                            <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
-                          </div>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
-                          {ag.status}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
-                      <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
-                      <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
-                        <p className="font-bold text-white">Thought Chain:</p>
-                        <p className="text-[#7D8590] italic">{ag.thoughts}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 5: 💬 DISCUSSIONS                                               */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'discussions' && (
-              <div className="space-y-4 text-xs">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {['all', 'Announcements', 'Ideas', 'Q&A'].map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setDiscussionCategory(cat)}
-                        className={`px-3 py-1 rounded-md border text-xs font-semibold ${
-                          discussionCategory === cat
-                            ? 'bg-[#21262D] border-[#FF8C42] text-white'
-                            : 'bg-[#161B22] border-[#30363D] text-[#7D8590]'
-                        }`}
-                      >
-                        {cat === 'all' ? 'All Categories' : cat}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => showToast('New discussion dialog')}
-                    className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors"
-                  >
-                    New discussion
-                  </button>
-                </div>
-
-                <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
-                  {discussions.map((d) => (
-                    <div
-                      key={d.id}
-                      className="p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#1F242C] text-[#58A6FF]">
-                            {d.category}
+                          <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-semibold">
+                            license: MIT
                           </span>
-                          <h4 className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
-                            {d.title}
-                          </h4>
                         </div>
-                        <p className="text-[11px] text-[#7D8590] line-clamp-1">{d.body}</p>
-                        <p className="text-[10px] text-[#7D8590]">
-                          Started {d.createdAt} by {d.author}
+                      </div>
+
+                      <div className="p-6 space-y-4 text-xs leading-relaxed text-[#E6EDF3]">
+                        <h2 className="text-xl font-bold text-white border-b border-[#21262D] pb-2">
+                          Quant Ecosystem — The Next NVIDIA of Software
+                        </h2>
+                        <p className="text-[#7D8590]">
+                          A unified sovereign operating ecosystem built for high-performance
+                          computing, intelligent mail triage, autonomous agentic development, and
+                          real git collaboration.
                         </p>
-                      </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleUpvoteDiscussion(d.id)}
-                        className="flex flex-col items-center px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:border-[#58A6FF] transition-colors"
-                      >
-                        <span className="text-[10px]">▲</span>
-                        <span className="font-bold text-xs">{d.upvotes}</span>
-                      </button>
+                        <div className="bg-[#161B22] border border-[#30363D] rounded-md p-3 font-mono text-[11px] text-[#58A6FF] space-y-1">
+                          <p className="text-[#7D8590]"># Clone the unified monorepo</p>
+                          <p>git clone {selectedRepo.cloneUrl}</p>
+                          <p className="text-[#7D8590] pt-1">
+                            # Install dependencies and start development
+                          </p>
+                          <p>pnpm install && pnpm dev</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                          <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D]">
+                            <h4 className="font-bold text-[#FF8C42] mb-1">⚡ Flagship QuantMail</h4>
+                            <p className="text-[11px] text-[#7D8590]">
+                              Inline triage lenses, Bayesian spam protection, and local ONNX
+                              embeddings.
+                            </p>
+                          </div>
+                          <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D]">
+                            <h4 className="font-bold text-[#58A6FF] mb-1">
+                              📱 Sovereign Android Client
+                            </h4>
+                            <p className="text-[11px] text-[#7D8590]">
+                              Jetpack Compose + hardware-accelerated WebView client in apk testing/.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 6: ▶ ACTIONS                                                   */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'actions' && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
-                <div className="space-y-1">
-                  <h4 className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px] px-2 mb-2">
-                    Workflows
-                  </h4>
-                  {[
-                    'All workflows',
-                    'CI',
-                    'Deploy staging (OIDC)',
-                    'CodeQL Advanced',
-                    'Action pin policy',
-                  ].map((wf, idx) => (
-                    <button
-                      key={wf}
-                      type="button"
-                      className={`w-full text-left px-3 py-1.5 rounded-md font-semibold ${
-                        idx === 0
-                          ? 'bg-[#21262D] text-white font-bold'
-                          : 'text-[#7D8590] hover:bg-[#161B22]'
-                      }`}
-                    >
-                      {wf}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="md:col-span-3 space-y-3">
-                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
-                    {actions.map((act) => (
-                      <div
-                        key={act.id}
-                        className="p-3.5 hover:bg-[#161B22] transition-colors cursor-pointer flex items-center justify-between gap-4"
-                        onClick={() => {
-                          setSelectedActionRun(act);
-                          setModalState('action-detail');
-                        }}
+                  {/* Right / Sidebar Column (25%) */}
+                  <div className="space-y-6 text-xs">
+                    {/* About Card */}
+                    <div className="space-y-3 pb-6 border-b border-[#30363D]">
+                      <h3 className="font-bold text-sm text-white">About</h3>
+                      <p className="text-[#7D8590] leading-relaxed">{selectedRepo.description}</p>
+                      <a
+                        href={selectedRepo.website}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#58A6FF] hover:underline font-semibold flex items-center gap-1"
                       >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2 font-bold text-white">
-                            <span className="text-[#3FB950]">✓</span>
-                            <span>{act.name}</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-[#7D8590]">
-                            <span className="font-semibold text-[#E6EDF3]">{act.workflow}</span>
-                            <span>{act.branch}</span>
-                            <span className="font-mono text-[#58A6FF]">{act.commitSha}</span>
-                            <span>{act.timeAgo}</span>
-                          </div>
+                        🔗 {selectedRepo.website.replace('https://', '')}
+                      </a>
+
+                      {/* Topics Pills */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {selectedRepo.topics.map((t) => (
+                          <span
+                            key={t}
+                            className="px-2 py-0.5 rounded-full bg-[#1F242C] text-[#58A6FF] hover:bg-[#28313E] text-[10px] font-semibold cursor-pointer"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2 pt-2 text-[#7D8590]">
+                        <div className="flex items-center gap-2">
+                          <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                            <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Z" />
+                          </svg>
+                          <span>Readme</span>
                         </div>
-                        <div className="text-right text-[#7D8590] font-mono text-[11px] shrink-0">
-                          {act.duration}
+                        <div className="flex items-center gap-2">
+                          <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
+                          </svg>
+                          <span>Activity</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>★</span>
+                          <span className="text-white font-semibold">
+                            {selectedRepo.stars}
+                          </span>{' '}
+                          stars
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>👁</span>
+                          <span className="text-white font-semibold">
+                            {selectedRepo.watching}
+                          </span>{' '}
+                          watching
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>⑂</span>
+                          <span className="text-white font-semibold">
+                            {selectedRepo.forks}
+                          </span>{' '}
+                          forks
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
+                    </div>
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 7: 📊 PROJECTS (KANBAN BOARD)                                  */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'projects' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                {(['todo', 'in_progress', 'done'] as const).map((col) => {
-                  const colCards = projects.filter((c) => c.column === col);
-                  const title =
-                    col === 'todo' ? 'To do' : col === 'in_progress' ? 'In progress' : 'Done';
-                  return (
-                    <div
-                      key={col}
-                      className="bg-[#161B22] border border-[#30363D] rounded-md p-3 space-y-3"
-                    >
-                      <div className="flex items-center justify-between font-bold text-white border-b border-[#21262D] pb-2">
-                        <span>{title}</span>
-                        <span className="px-2 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
-                          {colCards.length}
+                    {/* Releases Card (With Download Links for APK!) */}
+                    <div className="space-y-3 pb-6 border-b border-[#30363D]">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-white">Releases</h3>
+                        <span className="px-1.5 py-0.2 rounded-full bg-[#238636] text-white text-[10px] font-bold">
+                          Latest
                         </span>
                       </div>
-                      <div className="space-y-2">
-                        {colCards.map((card) => (
-                          <div
-                            key={card.id}
-                            className="p-3 rounded bg-[#0D1117] border border-[#30363D] space-y-2 shadow-sm"
+
+                      <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D] space-y-2">
+                        <div className="font-bold text-[#58A6FF]">Quant v1.0 Universal APK</div>
+                        <p className="text-[11px] text-[#7D8590]">
+                          Native Android release with targetSdk 36 & Compose.
+                        </p>
+                        <div className="space-y-1 pt-1">
+                          <a
+                            href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/Quant-v1.0-debug.apk"
+                            className="block text-[11px] text-[#FF8C42] hover:underline font-semibold"
                           >
-                            <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] text-[10px] font-bold">
-                              {card.tag}
-                            </span>
-                            <h5 className="font-bold text-white">{card.title}</h5>
-                            <div className="flex items-center justify-between text-[10px] text-[#7D8590] pt-1">
-                              <span>👤 {card.assignee}</span>
-                              {col !== 'done' && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleMoveKanban(
-                                      card.id,
-                                      col === 'todo' ? 'in_progress' : 'done',
-                                    )
-                                  }
-                                  className="text-[#FF8C42] hover:underline font-bold"
-                                >
-                                  Move →
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                            📥 Quant-v1.0-debug.apk (11.39 MB)
+                          </a>
+                          <a
+                            href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/quant-app.apk"
+                            className="block text-[11px] text-[#7D8590] hover:underline font-mono"
+                          >
+                            📦 quant-app.apk (Mirror)
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Packages Card */}
+                    <div className="space-y-2 pb-6 border-b border-[#30363D]">
+                      <h3 className="font-bold text-sm text-white">Packages</h3>
+                      <p className="text-[11px] text-[#7D8590]">
+                        No published packages yet in registry.
+                      </p>
+                    </div>
+
+                    {/* Contributors Card */}
+                    <div className="space-y-3 pb-6 border-b border-[#30363D]">
+                      <h3 className="font-bold text-sm text-white">
+                        Contributors{' '}
+                        <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
+                          8
+                        </span>
+                      </h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['K', 'A', 'S', 'F', 'R', 'P', 'L', 'D'].map((init, idx) => (
+                          <span
+                            key={idx}
+                            className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] text-[#E6EDF3] font-bold flex items-center justify-center text-[10px]"
+                          >
+                            {init}
+                          </span>
                         ))}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 8: 🛡️ SECURITY                                                  */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'security' && (
-              <div className="space-y-4 text-xs">
-                <div className="p-4 rounded-md bg-[#161B22] border border-[#30363D] flex items-center justify-between">
-                  <div>
-                    <h3 className="font-bold text-white text-sm">Security Overview</h3>
-                    <p className="text-[#7D8590] mt-0.5">
-                      Dependabot alerts, CodeQL static analysis & secret scanning.
-                    </p>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full bg-[#E3B341]/20 text-[#E3B341] font-bold">
-                    4 Open Alerts
-                  </span>
-                </div>
-
-                <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
-                  {securityAlerts.map((sec) => (
-                    <div
-                      key={sec.id}
-                      className="p-4 hover:bg-[#161B22] transition-colors flex items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 font-bold text-white">
-                          <span
-                            className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
-                              sec.severity === 'moderate'
-                                ? 'bg-[#D29922]/20 text-[#D29922]'
-                                : 'bg-[#7D8590]/20 text-[#7D8590]'
-                            }`}
-                          >
-                            {sec.severity}
-                          </span>
-                          <span>{sec.package}</span>
-                          <span className="font-mono text-[#58A6FF]">{sec.cve}</span>
-                        </div>
-                        <p className="text-[11px] text-[#7D8590]">{sec.title}</p>
+                    {/* Languages Card */}
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-sm text-white">Languages</h3>
+                      <div className="h-2 rounded-full overflow-hidden flex">
+                        <div className="bg-[#3178C6] w-[84%]" title="TypeScript 84.2%" />
+                        <div className="bg-[#A97BFF] w-[8%]" title="Kotlin 8.1%" />
+                        <div className="bg-[#3572A5] w-[4%]" title="Python 4.3%" />
+                        <div className="bg-[#89E051] w-[2%]" title="Shell 2.1%" />
+                        <div className="bg-[#F1E05A] w-[2%]" title="Other 1.3%" />
                       </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7D8590] pt-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#3178C6]" /> TypeScript 84.2%
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#A97BFF]" /> Kotlin 8.1%
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#3572A5]" /> Python 4.3%
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#89E051]" /> Shell 2.1%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 2: ⨀ ISSUES                                                    */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'issues' && (
+                <div className="space-y-4 text-xs">
+                  {/* Issues Filter & New Issue Button */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex-1 min-w-[240px] relative">
+                      <input
+                        type="text"
+                        value={issueSearchQuery}
+                        onChange={(e) => setIssueSearchQuery(e.target.value)}
+                        placeholder="Search all issues..."
+                        className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => showToast(`Remediation dispatched for ${sec.cve}`)}
-                        className="px-3 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#58A6FF] font-semibold hover:bg-[#30363D]"
+                        onClick={() => setModalState('new-issue')}
+                        className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm transition-colors"
                       >
-                        Create fix PR
+                        New issue
                       </button>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                  </div>
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 9: 📈 INSIGHTS                                                  */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'insights' && (
-              <div className="space-y-6 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
-                    <h4 className="font-bold text-white text-sm">48 Commits</h4>
-                    <p className="text-[#7D8590] text-[11px]">Pushed to main in the last week</p>
-                  </div>
-                  <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
-                    <h4 className="font-bold text-white text-sm">2 Pull Requests</h4>
-                    <p className="text-[#7D8590] text-[11px]">Merged without regression</p>
-                  </div>
-                  <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
-                    <h4 className="font-bold text-white text-sm">100% CI Health</h4>
-                    <p className="text-[#7D8590] text-[11px]">11 GitHub Actions workflows green</p>
-                  </div>
-                </div>
+                  {/* Issues List Container */}
+                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden">
+                    <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+                      <div className="flex items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setIssueSearchQuery('is:issue state:open')}
+                          className={`flex items-center gap-1.5 ${!issueSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
+                        >
+                          ⨀ {openIssuesCount} Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIssueSearchQuery('is:issue state:closed')}
+                          className={`flex items-center gap-1.5 ${issueSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
+                        >
+                          ✓ 182 Closed
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-3">
-                  <h4 className="font-bold text-white">Commit Frequency & Activity</h4>
-                  <div className="h-32 flex items-end gap-2 border-b border-[#30363D] pb-2">
-                    {[12, 18, 24, 45, 60, 32, 48].map((val, idx) => (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="divide-y divide-[#21262D]">
+                      {filteredIssues.map((issue) => (
                         <div
-                          className="w-full rounded-t bg-[#3FB950] hover:bg-[#2EA043] transition-all"
-                          style={{ height: `${val * 1.8}px` }}
-                        />
-                        <span className="text-[10px] text-[#7D8590]">Day {idx + 1}</span>
+                          key={issue.id}
+                          className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[#3FB950] font-bold">⨀</span>
+                              <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                                {issue.title}
+                              </span>
+                              {issue.labels.map((lbl) => (
+                                <span
+                                  key={lbl.name}
+                                  className="px-2 py-0.2 rounded-full text-[10px] font-bold text-white"
+                                  style={{ backgroundColor: lbl.color }}
+                                >
+                                  {lbl.name}
+                                </span>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-[#7D8590]">
+                              #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
+                              {issue.assignee}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 text-[#7D8590]">
+                            <span>💬</span>
+                            <span>{issue.commentsCount}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 3: ⑂ PULL REQUESTS                                             */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'pulls' && (
+                <div className="space-y-4 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex-1 min-w-[240px]">
+                      <input
+                        type="text"
+                        value={pullSearchQuery}
+                        onChange={(e) => setPullSearchQuery(e.target.value)}
+                        placeholder="Search all pull requests..."
+                        className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalState('new-pr')}
+                      className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm transition-colors"
+                    >
+                      New pull request
+                    </button>
+                  </div>
+
+                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] overflow-hidden">
+                    <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between font-semibold">
+                      <div className="flex items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setPullSearchQuery('is:pr state:open')}
+                          className={`flex items-center gap-1.5 ${!pullSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
+                        >
+                          ⑂ {openPullsCount} Open
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPullSearchQuery('is:pr state:closed')}
+                          className={`flex items-center gap-1.5 ${pullSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
+                        >
+                          ✓ 246 Closed
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-[#21262D]">
+                      {filteredPulls.map((pr) => (
+                        <div
+                          key={pr.id}
+                          className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={
+                                  pr.state === 'merged' ? 'text-[#A371F7]' : 'text-[#3FB950]'
+                                }
+                              >
+                                ⑂
+                              </span>
+                              <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                                {pr.title}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
+                                {pr.branchSource}
+                              </span>
+                              <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold">
+                                ✓ checks passed
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#7D8590]">
+                              #{pr.id} by {pr.author} was {pr.state} {pr.createdAt} · +
+                              {pr.additions} -{pr.deletions}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 text-[#7D8590]">
+                            <span>💬</span>
+                            <span>{pr.commentsCount}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 4: ✨ AGENTS (COPILOT & AUTONOMOUS SWARM)                       */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'agents' && (
+                <div className="space-y-6 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <BubbleAvatar state="coding" size={20} />
+                        Autonomous Swarm Fleet & GitHub Copilot Workspace
+                      </h3>
+                      <p className="text-[#7D8590]">
+                        6 specialized developer agents autonomously reviewing PRs, managing
+                        migrations, and testing code.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModalState('deploy-agent')}
+                      className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold transition-colors"
+                    >
+                      + Deploy Agent
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {agents.map((ag) => (
+                      <div
+                        key={ag.id}
+                        className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs text-black"
+                              style={{ backgroundColor: ag.color }}
+                            >
+                              {ag.initial}
+                            </span>
+                            <div>
+                              <h4 className="font-bold text-white">{ag.name}</h4>
+                              <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
+                            {ag.status}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
+                        <p className="text-[11px] text-[#7D8590] leading-relaxed">
+                          {ag.currentTask}
+                        </p>
+                        <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
+                          <p className="font-bold text-white">Thought Chain:</p>
+                          <p className="text-[#7D8590] italic">{ag.thoughts}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ------------------------------------------------------------------- */}
-            {/* TAB 10: ⚙️ SETTINGS                                                 */}
-            {/* ------------------------------------------------------------------- */}
-            {activeGitHubTab === 'settings' && (
-              <div className="max-w-2xl space-y-6 text-xs">
-                <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-4">
-                  <h4 className="font-bold text-white text-sm">General Repository Settings</h4>
-                  <div className="space-y-1.5">
-                    <label className="text-[#7D8590] font-semibold">Repository name</label>
-                    <input
-                      type="text"
-                      defaultValue={selectedRepo.name}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
-                    />
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 5: 💬 DISCUSSIONS                                               */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'discussions' && (
+                <div className="space-y-4 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      {['all', 'Announcements', 'Ideas', 'Q&A'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setDiscussionCategory(cat)}
+                          className={`px-3 py-1 rounded-md border text-xs font-semibold ${
+                            discussionCategory === cat
+                              ? 'bg-[#21262D] border-[#FF8C42] text-white'
+                              : 'bg-[#161B22] border-[#30363D] text-[#7D8590]'
+                          }`}
+                        >
+                          {cat === 'all' ? 'All Categories' : cat}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => showToast('New discussion dialog')}
+                      className="px-3.5 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors"
+                    >
+                      New discussion
+                    </button>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[#7D8590] font-semibold">Default branch</label>
-                    <input
-                      type="text"
-                      defaultValue={selectedRepo.defaultBranch}
-                      className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => showToast('Settings saved successfully')}
-                    className="px-3.5 py-1.5 rounded bg-[#21262D] border border-[#30363D] font-bold text-white hover:bg-[#30363D]"
-                  >
-                    Save changes
-                  </button>
-                </div>
 
-                <div className="p-4 rounded bg-[#161B22] border border-[#DA3633] space-y-3">
-                  <h4 className="font-bold text-[#F85149] text-sm">Danger Zone</h4>
-                  <p className="text-[#7D8590]">
-                    Change repository visibility or delete this repository.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => showToast('Repository soft-delete tombstone recorded')}
-                    className="px-3.5 py-1.5 rounded border border-[#DA3633] text-[#F85149] font-bold hover:bg-[#DA3633] hover:text-white transition-colors"
-                  >
-                    Delete this repository
-                  </button>
+                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
+                    {discussions.map((d) => (
+                      <div
+                        key={d.id}
+                        className="p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#1F242C] text-[#58A6FF]">
+                              {d.category}
+                            </span>
+                            <h4 className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                              {d.title}
+                            </h4>
+                          </div>
+                          <p className="text-[11px] text-[#7D8590] line-clamp-1">{d.body}</p>
+                          <p className="text-[10px] text-[#7D8590]">
+                            Started {d.createdAt} by {d.author}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleUpvoteDiscussion(d.id)}
+                          className="flex flex-col items-center px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:border-[#58A6FF] transition-colors"
+                        >
+                          <span className="text-[10px]">▲</span>
+                          <span className="font-bold text-xs">{d.upvotes}</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 6: ▶ ACTIONS                                                   */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'actions' && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 text-xs">
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px] px-2 mb-2">
+                      Workflows
+                    </h4>
+                    {[
+                      'All workflows',
+                      'CI',
+                      'Deploy staging (OIDC)',
+                      'CodeQL Advanced',
+                      'Action pin policy',
+                    ].map((wf, idx) => (
+                      <button
+                        key={wf}
+                        type="button"
+                        className={`w-full text-left px-3 py-1.5 rounded-md font-semibold ${
+                          idx === 0
+                            ? 'bg-[#21262D] text-white font-bold'
+                            : 'text-[#7D8590] hover:bg-[#161B22]'
+                        }`}
+                      >
+                        {wf}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="md:col-span-3 space-y-3">
+                    <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
+                      {actions.map((act) => (
+                        <div
+                          key={act.id}
+                          className="p-3.5 hover:bg-[#161B22] transition-colors cursor-pointer flex items-center justify-between gap-4"
+                          onClick={() => {
+                            setSelectedActionRun(act);
+                            setModalState('action-detail');
+                          }}
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 font-bold text-white">
+                              <span className="text-[#3FB950]">✓</span>
+                              <span>{act.name}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-[#7D8590]">
+                              <span className="font-semibold text-[#E6EDF3]">{act.workflow}</span>
+                              <span>{act.branch}</span>
+                              <span className="font-mono text-[#58A6FF]">{act.commitSha}</span>
+                              <span>{act.timeAgo}</span>
+                            </div>
+                          </div>
+                          <div className="text-right text-[#7D8590] font-mono text-[11px] shrink-0">
+                            {act.duration}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 7: 📊 PROJECTS (KANBAN BOARD)                                  */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'projects' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  {(['todo', 'in_progress', 'done'] as const).map((col) => {
+                    const colCards = projects.filter((c) => c.column === col);
+                    const title =
+                      col === 'todo' ? 'To do' : col === 'in_progress' ? 'In progress' : 'Done';
+                    return (
+                      <div
+                        key={col}
+                        className="bg-[#161B22] border border-[#30363D] rounded-md p-3 space-y-3"
+                      >
+                        <div className="flex items-center justify-between font-bold text-white border-b border-[#21262D] pb-2">
+                          <span>{title}</span>
+                          <span className="px-2 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
+                            {colCards.length}
+                          </span>
+                        </div>
+                        <div className="space-y-2">
+                          {colCards.map((card) => (
+                            <div
+                              key={card.id}
+                              className="p-3 rounded bg-[#0D1117] border border-[#30363D] space-y-2 shadow-sm"
+                            >
+                              <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] text-[10px] font-bold">
+                                {card.tag}
+                              </span>
+                              <h5 className="font-bold text-white">{card.title}</h5>
+                              <div className="flex items-center justify-between text-[10px] text-[#7D8590] pt-1">
+                                <span>👤 {card.assignee}</span>
+                                {col !== 'done' && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleMoveKanban(
+                                        card.id,
+                                        col === 'todo' ? 'in_progress' : 'done',
+                                      )
+                                    }
+                                    className="text-[#FF8C42] hover:underline font-bold"
+                                  >
+                                    Move →
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 8: 🛡️ SECURITY                                                  */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'security' && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-4 rounded-md bg-[#161B22] border border-[#30363D] flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">Security Overview</h3>
+                      <p className="text-[#7D8590] mt-0.5">
+                        Dependabot alerts, CodeQL static analysis & secret scanning.
+                      </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full bg-[#E3B341]/20 text-[#E3B341] font-bold">
+                      4 Open Alerts
+                    </span>
+                  </div>
+
+                  <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
+                    {securityAlerts.map((sec) => (
+                      <div
+                        key={sec.id}
+                        className="p-4 hover:bg-[#161B22] transition-colors flex items-center justify-between gap-4"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 font-bold text-white">
+                            <span
+                              className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                                sec.severity === 'moderate'
+                                  ? 'bg-[#D29922]/20 text-[#D29922]'
+                                  : 'bg-[#7D8590]/20 text-[#7D8590]'
+                              }`}
+                            >
+                              {sec.severity}
+                            </span>
+                            <span>{sec.package}</span>
+                            <span className="font-mono text-[#58A6FF]">{sec.cve}</span>
+                          </div>
+                          <p className="text-[11px] text-[#7D8590]">{sec.title}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => showToast(`Remediation dispatched for ${sec.cve}`)}
+                          className="px-3 py-1 rounded bg-[#21262D] border border-[#30363D] text-[#58A6FF] font-semibold hover:bg-[#30363D]"
+                        >
+                          Create fix PR
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 9: 📈 INSIGHTS                                                  */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'insights' && (
+                <div className="space-y-6 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
+                      <h4 className="font-bold text-white text-sm">48 Commits</h4>
+                      <p className="text-[#7D8590] text-[11px]">Pushed to main in the last week</p>
+                    </div>
+                    <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
+                      <h4 className="font-bold text-white text-sm">2 Pull Requests</h4>
+                      <p className="text-[#7D8590] text-[11px]">Merged without regression</p>
+                    </div>
+                    <div className="p-4 rounded bg-[#161B22] border border-[#30363D]">
+                      <h4 className="font-bold text-white text-sm">100% CI Health</h4>
+                      <p className="text-[#7D8590] text-[11px]">
+                        11 GitHub Actions workflows green
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-3">
+                    <h4 className="font-bold text-white">Commit Frequency & Activity</h4>
+                    <div className="h-32 flex items-end gap-2 border-b border-[#30363D] pb-2">
+                      {[12, 18, 24, 45, 60, 32, 48].map((val, idx) => (
+                        <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                          <div
+                            className="w-full rounded-t bg-[#3FB950] hover:bg-[#2EA043] transition-all"
+                            style={{ height: `${val * 1.8}px` }}
+                          />
+                          <span className="text-[10px] text-[#7D8590]">Day {idx + 1}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ------------------------------------------------------------------- */}
+              {/* TAB 10: ⚙️ SETTINGS                                                 */}
+              {/* ------------------------------------------------------------------- */}
+              {activeGitHubTab === 'settings' && (
+                <div className="max-w-2xl space-y-6 text-xs">
+                  <div className="p-4 rounded bg-[#161B22] border border-[#30363D] space-y-4">
+                    <h4 className="font-bold text-white text-sm">General Repository Settings</h4>
+                    <div className="space-y-1.5">
+                      <label className="text-[#7D8590] font-semibold">Repository name</label>
+                      <input
+                        type="text"
+                        defaultValue={selectedRepo.name}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#7D8590] font-semibold">Default branch</label>
+                      <input
+                        type="text"
+                        defaultValue={selectedRepo.defaultBranch}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => showToast('Settings saved successfully')}
+                      className="px-3.5 py-1.5 rounded bg-[#21262D] border border-[#30363D] font-bold text-white hover:bg-[#30363D]"
+                    >
+                      Save changes
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded bg-[#161B22] border border-[#DA3633] space-y-3">
+                    <h4 className="font-bold text-[#F85149] text-sm">Danger Zone</h4>
+                    <p className="text-[#7D8590]">
+                      Change repository visibility or delete this repository.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => showToast('Repository soft-delete tombstone recorded')}
+                      className="px-3.5 py-1.5 rounded border border-[#DA3633] text-[#F85149] font-bold hover:bg-[#DA3633] hover:text-white transition-colors"
+                    >
+                      Delete this repository
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -2515,60 +2579,12 @@ export default function QuantGitPage() {
         {/* VIEW C: QUANTY AI AUTONOMOUS COPILOT STUDIO                             */}
         {/* ======================================================================= */}
         {activeDeckTab === 'quanty' && (
-          <div className="max-w-4xl mx-auto space-y-4 min-h-[calc(100vh-180px)] flex flex-col justify-between pt-2 pb-24">
-            <div>
-              {/* Collapsible Chat History Drawer */}
-              {isHistoryOpen && (
-                <div className="mb-4 p-3 rounded-xl bg-[#161B22] border border-[#30363D] animate-in fade-in slide-in-from-top-2">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#21262D] text-xs">
-                    <span className="font-bold text-[#7D8590] uppercase tracking-wider text-[10px]">
-                      Recent Chat Sessions
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newId = `sess-${Date.now()}`;
-                        setChatSessions([
-                          { id: newId, title: 'New Conversation', date: 'Just now', count: 0 },
-                          ...chatSessions,
-                        ]);
-                        setActiveSessionId(newId);
-                        setChatMessages([]);
-                        setIsHistoryOpen(false);
-                      }}
-                      className="text-[11px] text-[#58A6FF] hover:underline font-semibold"
-                    >
-                      + New chat
-                    </button>
-                  </div>
-                  <div className="divide-y divide-[#21262D] max-h-48 overflow-y-auto">
-                    {chatSessions.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          setActiveSessionId(s.id);
-                          setIsHistoryOpen(false);
-                          showToast(`Switched to: ${s.title}`);
-                        }}
-                        className={`w-full py-2 px-2 flex items-center justify-between text-xs rounded-md text-left transition-colors ${
-                          activeSessionId === s.id
-                            ? 'bg-[#21262D] text-white font-semibold'
-                            : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
-                        }`}
-                      >
-                        <span className="truncate max-w-[280px]">{s.title}</span>
-                        <span className="text-[10px] text-[#7D8590] shrink-0">{s.date}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
+          <div className="flex-1 w-full min-h-0 flex flex-col max-w-4xl mx-auto px-4 pt-2 pb-16 justify-between">
+            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Welcome Screen (when no messages) */}
               {chatMessages.length === 0 ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center space-y-5">
-                  <BubbleAvatar state="coding" size={64} />
+                <div className="flex-1 overflow-y-auto py-10 flex flex-col items-center justify-center text-center space-y-5">
+                  <BubbleAvatar state="coding" size={72} />
                   <div className="space-y-1 max-w-lg">
                     <h2 className="text-xl font-bold text-white tracking-tight">
                       How can I help you build, analyze, or automate today?
@@ -2623,7 +2639,7 @@ export default function QuantGitPage() {
                 </div>
               ) : (
                 /* Chat Stream (when messages exist) */
-                <div className="space-y-4 overflow-y-auto pr-1 pb-4">
+                <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-4">
                   {chatMessages.map((msg) => (
                     <div key={msg.id}>
                       {msg.role === 'user' ? (
@@ -2650,7 +2666,7 @@ export default function QuantGitPage() {
                           {/* Bot Message Header */}
                           <div className="flex items-center justify-between border-b border-[#21262D] pb-2">
                             <div className="flex items-center gap-2">
-                              <BubbleAvatar state="coding" size={22} />
+                              <BubbleAvatar state="coding" size={28} />
                               <span className="font-bold text-white">Quanty AI</span>
                               <span className="px-1.5 py-0.2 rounded bg-[#FF8C42]/20 text-[#FF8C42] text-[10px] font-mono font-bold">
                                 {msg.model || 'Opus 5'}
@@ -2772,7 +2788,7 @@ export default function QuantGitPage() {
             </div>
 
             {/* Notion AI Bottom Floating Composer */}
-            <div className="sticky bottom-20 z-20 pt-2 pb-2 bg-gradient-to-t from-[#0D1117] via-[#0D1117]/95 to-transparent">
+            <div className="shrink-0 pt-2 pb-2 bg-[#0D1117] z-20">
               <div className="relative">
                 {/* Popup Menu for Give Context (+) */}
                 {isContextOpen && (
@@ -3396,54 +3412,56 @@ export default function QuantGitPage() {
         {/* VIEW D: AGENT LAB (SWARM FLEET COMMAND)                                 */}
         {/* ======================================================================= */}
         {activeDeckTab === 'lab' && (
-          <div className="space-y-6 text-xs">
-            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
-              <div>
-                <h3 className="text-base font-bold text-white">Autonomous Swarm Fleet Command</h3>
-                <p className="text-[#7D8590]">
-                  Executive Orchestrator and 7 specialized agents operating in parallel.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalState('deploy-agent')}
-                className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
-              >
-                + Deploy Agent
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {agents.map((ag) => (
-                <div
-                  key={ag.id}
-                  className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs text-black"
-                        style={{ backgroundColor: ag.color }}
-                      >
-                        {ag.initial}
-                      </span>
-                      <div>
-                        <h4 className="font-bold text-white">{ag.name}</h4>
-                        <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
-                      {ag.status}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
-                  <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
-                  <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
-                    <p className="font-bold text-white">Thought Chain:</p>
-                    <p className="text-[#7D8590] italic">{ag.thoughts}</p>
-                  </div>
+          <div className="flex-1 w-full min-h-0 overflow-y-auto">
+            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 pb-20 space-y-6 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
+                <div>
+                  <h3 className="text-base font-bold text-white">Autonomous Swarm Fleet Command</h3>
+                  <p className="text-[#7D8590]">
+                    Executive Orchestrator and 7 specialized agents operating in parallel.
+                  </p>
                 </div>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setModalState('deploy-agent')}
+                  className="px-3.5 py-1.5 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
+                >
+                  + Deploy Agent
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {agents.map((ag) => (
+                  <div
+                    key={ag.id}
+                    className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs text-black"
+                          style={{ backgroundColor: ag.color }}
+                        >
+                          {ag.initial}
+                        </span>
+                        <div>
+                          <h4 className="font-bold text-white">{ag.name}</h4>
+                          <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
+                        </div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
+                        {ag.status}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
+                    <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
+                    <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
+                      <p className="font-bold text-white">Thought Chain:</p>
+                      <p className="text-[#7D8590] italic">{ag.thoughts}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -4119,12 +4137,12 @@ export default function QuantGitPage() {
       {/* ========================================================================= */}
       <nav
         aria-label="QuantGit bottom deck"
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 p-1.5 rounded-2xl bg-[#010409] border border-[#30363D] shadow-2xl backdrop-blur-md"
+        className="fixed bottom-0 inset-x-0 z-40 h-14 border-t border-[#30363D] bg-[#0D1117]/95 backdrop-blur-md flex items-center justify-around px-4 sm:px-8 select-none shadow-2xl"
       >
         <button
           type="button"
           onClick={() => setActiveDeckTab('quanty')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'quanty'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
@@ -4137,7 +4155,7 @@ export default function QuantGitPage() {
         <button
           type="button"
           onClick={() => setActiveDeckTab('repos')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'repos'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
@@ -4150,7 +4168,7 @@ export default function QuantGitPage() {
         <button
           type="button"
           onClick={() => setActiveDeckTab('lab')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'lab'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
@@ -4163,7 +4181,7 @@ export default function QuantGitPage() {
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-[#7D8590] hover:text-white hover:bg-[#161B22] transition-all"
+          className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-[#7D8590] hover:text-white hover:bg-[#161B22] transition-all"
         >
           <span>↗</span>
           <span>Exit</span>
@@ -4172,7 +4190,7 @@ export default function QuantGitPage() {
 
       {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3">
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3">
           {toastMessage}
         </div>
       )}
