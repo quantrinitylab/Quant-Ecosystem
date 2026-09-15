@@ -8,7 +8,7 @@
 // Insights, Releases APK Downloads, and 4-Button Docked Bottom Deck.
 // ============================================================================
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { BubbleAvatar } from '@quant/shared-ui';
@@ -929,6 +929,115 @@ export default function QuantGitPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Fetch real repositories from backend
+  const fetchRepos = useCallback(async () => {
+    try {
+      const res = await fetch('/api/repos', { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const mappedRepos: Repo[] = json.data.map((r: any) => ({
+            id: r.id || r.name,
+            name: r.name,
+            fullName: `${currentUsername}/${r.name}`,
+            description: r.description || 'Repository in QuantGit.',
+            visibility: (r.visibility?.toLowerCase() === 'public' ? 'public' : 'private') as
+              | 'public'
+              | 'private',
+            language: r.language || 'TypeScript',
+            stars: typeof r.stars === 'number' ? r.stars : 0,
+            forks: typeof r.forks === 'number' ? r.forks : 0,
+            watching: 1,
+            cloneUrl: `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
+            sshUrl: `git@quantmail.in:${currentUsername}/${r.name}.git`,
+            defaultBranch: r.defaultBranch || 'main',
+            latestCommit: r.latestCommit || 'Initial commit',
+            latestCommitSha: r.latestCommitSha || '948e3612',
+            latestCommitTime: r.latestCommitTime || 'recently',
+            checksStatus: 'passing',
+            license: 'MIT License',
+            website: 'https://quantmail.in',
+            topics: r.topics || ['quant', 'workspace'],
+          }));
+          setBaseRepos(mappedRepos);
+        }
+      }
+    } catch {
+      // Retain baseRepos fallback
+    }
+  }, [currentUsername]);
+
+  useEffect(() => {
+    fetchRepos();
+  }, [fetchRepos]);
+
+  // Fetch real issues and PRs when a repository is selected
+  const fetchRepoIssues = useCallback(async (repoIdOrName: string) => {
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/issues`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const mappedIssues: IssueItem[] = json.data.map((item: any) => ({
+            id: item.number || item.id,
+            title: item.title,
+            state: item.status === 'closed' || item.state === 'closed' ? 'closed' : 'open',
+            author: item.author || 'user',
+            labels: Array.isArray(item.labels) ? item.labels : [{ name: 'bug', color: '#D73A4A' }],
+            commentsCount: item.commentsCount || 0,
+            createdAt: item.createdAt || 'recently',
+            body: item.body || '',
+            assignee: item.assignee || 'Developer 6',
+          }));
+          setIssues(mappedIssues);
+        }
+      }
+    } catch {
+      // Retain existing issues
+    }
+  }, []);
+
+  const fetchRepoPulls = useCallback(async (repoIdOrName: string) => {
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/pulls`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const mappedPulls: PRItem[] = json.data.map((item: any) => ({
+            id: item.number || item.id,
+            title: item.title,
+            state:
+              item.status === 'merged' ? 'merged' : item.status === 'closed' ? 'closed' : 'open',
+            author: item.author || 'user',
+            branchSource: item.branchSource || 'main',
+            branchTarget: item.branchTarget || 'main',
+            checksStatus: 'passing',
+            commentsCount: item.commentsCount || 0,
+            createdAt: item.createdAt || 'recently',
+            body: item.body || '',
+            additions: item.additions || 12,
+            deletions: item.deletions || 2,
+            changedFiles: item.changedFiles || 1,
+          }));
+          setPulls(mappedPulls);
+        }
+      }
+    } catch {
+      // Retain existing pulls
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedRepo) {
+      fetchRepoIssues(selectedRepo.id || selectedRepo.name);
+      fetchRepoPulls(selectedRepo.id || selectedRepo.name);
+    }
+  }, [selectedRepo, fetchRepoIssues, fetchRepoPulls]);
+
   // Keyboard shortcut listener ('t' for file finder, '/' for search)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -959,7 +1068,12 @@ export default function QuantGitPage() {
 
   // Derived Values
   const openIssuesCount = useMemo(() => issues.filter((i) => i.state === 'open').length, [issues]);
+  const closedIssuesCount = useMemo(
+    () => issues.filter((i) => i.state === 'closed').length,
+    [issues],
+  );
   const openPullsCount = useMemo(() => pulls.filter((p) => p.state === 'open').length, [pulls]);
+  const closedPullsCount = useMemo(() => pulls.filter((p) => p.state !== 'open').length, [pulls]);
 
   const filteredRepos = useMemo(() => {
     return repos.filter((r) => {
@@ -1015,39 +1129,146 @@ export default function QuantGitPage() {
   }, [files, fileSearchQuery]);
 
   // Handlers
-  const handleCreateIssue = (e: FormEvent) => {
+  const handleCreateIssue = async (e: FormEvent) => {
     e.preventDefault();
     if (!newIssueTitle.trim()) return;
+    const title = newIssueTitle.trim();
+    const body = newIssueBody.trim() || 'No description provided.';
+    const label = newIssueLabel;
+    const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
+
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title,
+          body,
+          labels: [label],
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const item = json.data;
+        const created: IssueItem = {
+          id: item.number || item.id,
+          title: item.title,
+          body: item.body || body,
+          state: 'open',
+          author: currentUsername,
+          labels: Array.isArray(item.labels)
+            ? item.labels
+            : [{ name: label, color: label === 'bug' ? '#D73A4A' : '#1D76DB' }],
+          commentsCount: 0,
+          createdAt: 'just now',
+          assignee: 'Developer 6',
+        };
+        setIssues((prev) => [created, ...prev]);
+        setNewIssueTitle('');
+        setNewIssueBody('');
+        setModalState('none');
+        showToast(`Issue #${created.id} created in PostgreSQL!`);
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+
     const nextId = Math.max(...issues.map((i) => i.id), 260) + 1;
     const created: IssueItem = {
       id: nextId,
-      title: newIssueTitle.trim(),
-      body: newIssueBody.trim() || 'No description provided.',
+      title,
+      body,
       state: 'open',
-      author: 'kundan',
-      labels: [{ name: newIssueLabel, color: newIssueLabel === 'bug' ? '#D73A4A' : '#1D76DB' }],
+      author: currentUsername,
+      labels: [{ name: label, color: label === 'bug' ? '#D73A4A' : '#1D76DB' }],
       commentsCount: 0,
       createdAt: 'just now',
       assignee: 'Developer 6',
     };
-    setIssues([created, ...issues]);
+    setIssues((prev) => [created, ...prev]);
     setNewIssueTitle('');
     setNewIssueBody('');
     setModalState('none');
     showToast(`Issue #${nextId} created successfully!`);
   };
 
-  const handleCreatePR = (e: FormEvent) => {
+  const handleToggleIssue = async (issueNumber: number) => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    const target = issues.find((i) => i.id === issueNumber);
+    if (!target) return;
+    const nextState = target.state === 'open' ? 'closed' : 'open';
+    setIssues((prev) => prev.map((i) => (i.id === issueNumber ? { ...i, state: nextState } : i)));
+    showToast(`Issue #${issueNumber} marked as ${nextState}!`);
+    try {
+      await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Soft ignore
+    }
+  };
+
+  const handleCreatePR = async (e: FormEvent) => {
     e.preventDefault();
     if (!newPrTitle.trim()) return;
+    const title = newPrTitle.trim();
+    const body = newPrBody.trim() || 'No description provided.';
+    const branchSource = newPrBranch;
+    const repoTarget = selectedRepo?.id || selectedRepo?.name || 'Quant-Ecosystem';
+
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/pulls`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          title,
+          body,
+          sourceBranch: branchSource,
+          targetBranch: currentBranch || 'main',
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const item = json.data;
+        const created: PRItem = {
+          id: item.number || item.id,
+          title: item.title,
+          body: item.body || body,
+          state: 'open',
+          author: currentUsername,
+          branchSource,
+          branchTarget: currentBranch || 'main',
+          checksStatus: 'passing',
+          commentsCount: 0,
+          createdAt: 'just now',
+          additions: item.additions || 12,
+          deletions: item.deletions || 2,
+          changedFiles: item.changedFiles || 1,
+        };
+        setPulls((prev) => [created, ...prev]);
+        setNewPrTitle('');
+        setNewPrBody('');
+        setModalState('none');
+        showToast(`Pull Request #${created.id} opened in PostgreSQL!`);
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+
     const nextId = Math.max(...pulls.map((p) => p.id), 261) + 1;
     const created: PRItem = {
       id: nextId,
-      title: newPrTitle.trim(),
-      body: newPrBody.trim() || 'No description provided.',
+      title,
+      body,
       state: 'open',
-      author: 'kundan',
-      branchSource: newPrBranch,
+      author: currentUsername,
+      branchSource,
       branchTarget: currentBranch,
       checksStatus: 'passing',
       commentsCount: 0,
@@ -1056,26 +1277,74 @@ export default function QuantGitPage() {
       deletions: 14,
       changedFiles: 5,
     };
-    setPulls([created, ...pulls]);
+    setPulls((prev) => [created, ...prev]);
     setNewPrTitle('');
     setNewPrBody('');
     setModalState('none');
     showToast(`Pull Request #${nextId} opened successfully!`);
   };
 
-  const handleCreateRepo = (e: FormEvent) => {
+  const handleCreateRepo = async (e: FormEvent) => {
     e.preventDefault();
     if (!newRepoName.trim()) return;
-    const slug = `${currentUsername}/${newRepoName.trim()}`;
+    const name = newRepoName.trim();
+    const desc = newRepoDesc.trim() || 'Sovereign repository created in QuantGit.';
+    const visibility = newRepoVisibility;
+    const slug = `${currentUsername}/${name}`;
+
+    try {
+      const res = await fetch('/api/repos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          description: desc,
+          visibility,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        const r = json.data;
+        const newRepo: Repo = {
+          id: r.id || name,
+          name: r.name,
+          fullName: slug,
+          description: r.description || desc,
+          visibility,
+          language: r.language || 'TypeScript',
+          stars: typeof r.stars === 'number' ? r.stars : 1,
+          forks: typeof r.forks === 'number' ? r.forks : 0,
+          watching: 1,
+          cloneUrl: `https://quantmail.in/quantgit/${slug}.git`,
+          sshUrl: `git@quantmail.in:${slug}.git`,
+          defaultBranch: r.defaultBranch || 'main',
+          latestCommit: 'Initial commit with README.md',
+          latestCommitSha: '948e3612',
+          latestCommitTime: 'just now',
+          checksStatus: 'passing',
+          license: 'MIT License',
+          website: 'https://quantmail.in',
+          topics: ['quant', 'workspace'],
+        };
+        setBaseRepos((prev) => [newRepo, ...prev.filter((p) => p.name !== name)]);
+        setSelectedRepo(newRepo);
+        setNewRepoName('');
+        setNewRepoDesc('');
+        setModalState('none');
+        showToast(`Repository ${slug} created in database!`);
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+
     const newRepo: Repo = {
-      id: newRepoName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9-]/g, '-'),
-      name: newRepoName.trim(),
+      id: name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      name,
       fullName: slug,
-      description: newRepoDesc.trim() || 'Sovereign repository created in QuantGit.',
-      visibility: newRepoVisibility,
+      description: desc,
+      visibility,
       language: 'TypeScript',
       stars: 1,
       forks: 0,
@@ -1091,12 +1360,72 @@ export default function QuantGitPage() {
       website: 'https://quantmail.in',
       topics: ['quant', 'workspace'],
     };
-    setBaseRepos([newRepo, ...baseRepos]);
+    setBaseRepos((prev) => [newRepo, ...prev]);
     setSelectedRepo(newRepo);
     setNewRepoName('');
     setNewRepoDesc('');
     setModalState('none');
     showToast(`Repository ${slug} created!`);
+  };
+
+  const handleStarRepo = async () => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    const updatedStars = selectedRepo.stars + 1;
+    setSelectedRepo({ ...selectedRepo, stars: updatedStars });
+    setBaseRepos((prev) =>
+      prev.map((r) =>
+        r.id === selectedRepo.id || r.name === selectedRepo.name
+          ? { ...r, stars: updatedStars }
+          : r,
+      ),
+    );
+    showToast('Starred repository!');
+
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/star`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data?.stars) {
+          setSelectedRepo((curr) => (curr ? { ...curr, stars: json.data.stars } : null));
+          setBaseRepos((prev) =>
+            prev.map((r) =>
+              r.id === selectedRepo.id || r.name === selectedRepo.name
+                ? { ...r, stars: json.data.stars }
+                : r,
+            ),
+          );
+        }
+      }
+    } catch {
+      // Keep optimistic increment
+    }
+  };
+
+  const handleDeleteRepo = async () => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    const repoName = selectedRepo.name;
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        showToast(`Repository ${repoName} archived and deleted.`);
+      }
+    } catch {
+      // Soft ignore
+    }
+    setBaseRepos((prev) =>
+      prev.filter((r) => r.id !== selectedRepo.id && r.name !== selectedRepo.name),
+    );
+    setSelectedRepo(null);
+    setViewingFile(null);
+    setActiveGitHubTab('code');
   };
 
   const handleDeployAgent = (e: FormEvent) => {
@@ -1722,10 +2051,7 @@ export default function QuantGitPage() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedRepo({ ...selectedRepo, stars: selectedRepo.stars + 1 });
-                  showToast('Starred repository!');
-                }}
+                onClick={handleStarRepo}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
               >
                 ★ Star{' '}
@@ -2313,7 +2639,7 @@ export default function QuantGitPage() {
                           onClick={() => setIssueSearchQuery('is:issue state:closed')}
                           className={`flex items-center gap-1.5 ${issueSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
                         >
-                          ✓ 182 Closed
+                          ✓ {closedIssuesCount} Closed
                         </button>
                       </div>
                     </div>
@@ -2326,8 +2652,28 @@ export default function QuantGitPage() {
                         >
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[#3FB950] font-bold">⨀</span>
-                              <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleIssue(issue.id)}
+                                title={
+                                  issue.state === 'open'
+                                    ? 'Click to close issue'
+                                    : 'Click to reopen issue'
+                                }
+                                className={`font-bold transition-transform hover:scale-110 ${
+                                  issue.state === 'open' ? 'text-[#3FB950]' : 'text-[#8957E5]'
+                                }`}
+                              >
+                                {issue.state === 'open' ? '⨀' : '✓'}
+                              </button>
+                              <span
+                                onClick={() => handleToggleIssue(issue.id)}
+                                className={`font-bold hover:text-[#58A6FF] cursor-pointer ${
+                                  issue.state === 'closed'
+                                    ? 'line-through text-[#7D8590]'
+                                    : 'text-white'
+                                }`}
+                              >
                                 {issue.title}
                               </span>
                               {issue.labels.map((lbl) => (
@@ -2395,7 +2741,7 @@ export default function QuantGitPage() {
                           onClick={() => setPullSearchQuery('is:pr state:closed')}
                           className={`flex items-center gap-1.5 ${pullSearchQuery.includes('state:closed') ? 'text-white font-bold' : 'text-[#7D8590]'}`}
                         >
-                          ✓ 246 Closed
+                          ✓ {closedPullsCount} Closed
                         </button>
                       </div>
                     </div>
@@ -2818,7 +3164,7 @@ export default function QuantGitPage() {
                     </p>
                     <button
                       type="button"
-                      onClick={() => showToast('Repository soft-delete tombstone recorded')}
+                      onClick={handleDeleteRepo}
                       className="px-3.5 py-1.5 rounded border border-[#DA3633] text-[#F85149] font-bold hover:bg-[#DA3633] hover:text-white transition-colors"
                     >
                       Delete this repository
