@@ -143,8 +143,17 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
     - [x] **PR #243 MERGED TO MAIN (`4e74b101`)**: Workspace RBAC, transactional invite acceptance, and ownership transfer merged with all 10/10 CI checks green.
     - [x] **PR Closures & Supersessions**: PR #240 (superseded by PR #247/252), PR #241 (superseded by PR #247/251), PR #242 (superseded by PR #247), PR #245 (superseded by PR #247/258), PR #235 (superseded by PR #247).
     - [x] **PR #239 CONSOLIDATED**: Team memory and handoff kit merged into PR #260 (commit `96fb7e5a`, 32/32 tests passing) and closed.
-    - [x] **PR #260 (READY FOR REVIEW)**: Master consolidation PR open with all Sprints 2-5, Wave F deletions, and Astra remediations. Open PR queue reduced from 14 to 1 (+ Dependabot).
     - [ ] `MC-18` (Swarm Review Authority): Satisfy Gate 18 review approval for PR #260 merge to `main`.
+- **`ADR-CH-004` (QuantGit Real Database Persistence, Fastify Routes & Issue/PR Lifecycle - VERIFIED & PASSING)**:
+  - Context: QuantGit previously operated on in-memory mock arrays (`INITIAL_REPOS`, `INITIAL_ISSUES`, `INITIAL_PRS`). Modifications did not persist across page reloads or tab switches, and Next.js API proxy blocked non-GET requests to `/repos`.
+  - Architecture & Decision:
+    - Wired real PostgreSQL persistence via Prisma models `Repository`, `Issue`, `PullRequest`, `Branch`.
+    - Added real Fastify routes in `apps/quantmail/backend/routes/repos.ts`: `GET /repos` (own + public with auto-seeding of 4 core ecosystem repos), `POST /repos`, `POST /repos/:id/star`, `POST /repos/:id/issues`, `GET /repos/:id/issues`, `POST /repos/:id/issues/:number/toggle`, `POST /repos/:id/pulls`, `GET /repos/:id/pulls`.
+    - Unlocked Next.js API proxy with `{ pattern: /^repos(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] }`.
+    - Wired live data fetching (`fetchRepos()`, `fetchRepoIssues()`, `fetchRepoPulls()`) and mutation handlers in `apps/quantmail/src/app/quantgit/page.tsx`.
+    - Authored 7-case Vitest suite (`repos.routes.test.ts`, 100% passing).
+    - Deployed to staging via workflow run `34965154213` on commit `ea67d137`.
+    - Verified live click-by-click in Chrome: created `sovereign-db-engine`, starred to 2 stars, closed issue #259, filtered closed issues, opened issue #261, verified open issues list, switched to PRs, navigated back to directory with 0 console errors.
 
 ---
 
