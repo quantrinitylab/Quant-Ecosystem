@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Sovereign Identity, Living Cloud Avatar & Flush Dock Navigation (`afe89b02`, deployed to production in run `34939527873`)**:
+  - [x] **Quanty Default Landing & Clean Welcome Hero**: Set default landing tab to `✨ Quanty` with zero preloaded fake messages; verified pristine Welcome hero with 4 prompt cards.
+  - [x] **Sovereign QuantGit Logo**: Replaced GitHub Octocat SVG with proprietary `QuantGitLogo` (obsidian plate, iridescent chrome bezel, ember commit graph).
+  - [x] **Dynamic User Identity & Breadcrumbs**: Fully removed hardcoded `quantrinitylab` and `Organization Hub`; dynamically resolved `currentUsername` from session (`kundan` / `kundansinghrajput31980`). Breadcrumbs, repo headers, and clone URLs all reflect `https://quantmail.in/quantgit/${currentUsername}/${repo.name}.git`.
+  - [x] **Full-Width Viewport & Fixed Top/Bottom**: Replaced floating pill island with full-width solid bottom dock (`fixed bottom-0 inset-x-0 h-14 bg-[#0D1117]/95 border-t border-[#30363D]`). Header and sub-navigation stay fixed; only inner view content scrolls.
+  - [x] **Left Sliding History Drawer**: Built real left sliding sidebar drawer with backdrop overlay for chat history, eliminating intrusive inline content shifting.
+  - [x] **Living Neural Cloud Mascot**: Upgraded `BubbleAvatar.tsx` to render internal 3-layer living aurora nebula gradients and scaled header/message mascots up to 32px/72px.
+  - [x] **Production Deployment & Verification**: CI Gate passed in 3m40s; staging OIDC build succeeded in 3m47s (`34939527873`). Verified live click-by-click in Chrome on `https://quantmail.in/quantgit` with active chat submit, drawer toggle, and 0 console errors.
 - [x] **QuantGit UI/UX Overhaul & QuantMail Brand Integrity (`996be741`, deployed to production in run `34849397552`)**:
   - [x] **QuantMail Brand Integrity**: Reverted `QuantMailLogo.tsx` 100% to original state with eye/wink/blush animations; permanently locked against modifications.
   - [x] **Quanty Notion AI Transformation**: Transformed `✨ Quanty` into a 1:1 Notion AI workspace with Bubble mascot, dedicated Notion AI header (no GitHub Octocat/breadcrumbs), history drawer, collapsible `Thought` accordions, and rich floating composer (`+` Give Context popup with Skills search & file pills, `⊶` Settings popup with Computer Workers Beta, My sources toggles, MCP servers, Mode switch, Model selector, and Personalize modal with 10 accessories), elevated above docked bottom bar.

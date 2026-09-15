@@ -1131,3 +1131,26 @@ graph TD
   - The 10-tab GitHub workspace header (`<> Code`, `Issues`, `Pull requests`, `Agents`, `Discussions`, `Actions`, `Projects`, `Security`, `Insights`, `Settings`) ONLY renders when an individual repository is explicitly opened.
   - Prominent `← All Repositories` breadcrumb to return cleanly to the directory.
   - The repository header is completely isolated and never leaks into `Quanty` or `Agent Lab`.
+
+### 15. QuantGit: Sovereign Identity, Living Cloud Avatar & Flush Dock Navigation (Commit `afe89b02`):
+
+- **1. Primary Landing Invariant**:
+  - Direct visits to `/quantgit` land on **`✨ Quanty`** (Autonomous AI Copilot Studio) by default, not Repositories.
+  - Zero pre-loaded mock chat messages (`chatMessages: []`), presenting a pristine Welcome hero with 4 prompt cards.
+- **2. Sovereign QuantGit Logo (`QuantGitLogo.tsx`)**:
+  - Eliminated GitHub Octocat icon in favor of proprietary sovereign branding: obsidian plate, iridescent chrome bezel, and glowing ember commit diamond.
+- **3. Dynamic User Identity & Path Resolution**:
+  - Permanently removed hardcoded `quantrinitylab` and `Organization Hub`.
+  - Dynamically extracts username from logged-in session (`user?.username` / `user?.email.split('@')[0]` with fallback `kundansinghrajput31980`).
+  - Breadcrumbs (`/ kundan / Quant-Ecosystem`), clone URLs (`https://quantmail.in/quantgit/kundan/Quant-Ecosystem.git`), and repository creation slugs automatically reflect the active user session.
+- **4. Full-Width Viewport & Flush Bottom Navigation Dock**:
+  - Eliminated the floating pill island (`fixed bottom-4 left-1/2 rounded-full`).
+  - Implemented full-width solid bottom dock (`fixed bottom-0 inset-x-0 h-14 bg-[#0D1117]/95 border-t border-[#30363D] z-40`).
+  - Headers and sub-navigation stay fixed; only inner view content scrolls (`overflow-y-auto`). Quanty composer is cleanly pinned above the bottom dock.
+- **5. Left Sliding History Drawer**:
+  - Converted the inline history box into a full-height sliding left drawer (`fixed top-0 left-0 bottom-0 w-80 bg-[#161B22] border-r border-[#30363D] z-50`) with backdrop overlay.
+- **6. Living AI Neural Cloud Droplet (`BubbleAvatar.tsx`)**:
+  - Implemented 3-layer internal orbital harmonic math in `paintBody()`: Layer 1 warm luminous core cloud, Layer 2 swirling pearl/aurora current, Layer 3 energetic harmonic pulse.
+  - Scaled mascots across headers and message streams up to 32px/72px.
+- **7. Production Staging Deployment & Live Verification**:
+  - Landed in commit `afe89b02`, validated via CI Gate (3m40s), deployed via workflow `34939527873` (3m47s). Verified live in Chrome on `https://quantmail.in/quantgit` with 0 console errors.
