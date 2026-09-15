@@ -814,7 +814,9 @@ export default function QuantGitPage() {
   const [activeSettingsSubmenu, setActiveSettingsSubmenu] = useState<
     'none' | 'computer' | 'sources' | 'mcp' | 'mode'
   >('none');
-  const [activeContextSubmenu, setActiveContextSubmenu] = useState<'none' | 'skills'>('none');
+  const [activeContextSubmenu, setActiveContextSubmenu] = useState<
+    'none' | 'repos-files' | 'mention' | 'skills'
+  >('none');
   const [isPersonalizeOpen, setIsPersonalizeOpen] = useState(false);
   const [quantyName, setQuantyName] = useState('Quanty');
   const [quantyInstructions, setQuantyInstructions] = useState('');
@@ -840,7 +842,20 @@ export default function QuantGitPage() {
   const [mcpServers, setMcpServers] = useState<string[]>(['Cloudflare', 'GitHub']);
   const [notionMode, setNotionMode] = useState<'default' | 'ask'>('default');
   const [skillsSearch, setSkillsSearch] = useState('');
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [repoFileSearch, setRepoFileSearch] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
+  const [pinnedSessionIds, setPinnedSessionIds] = useState<string[]>(['sess-1']);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [activeSkills, setActiveSkills] = useState<Record<string, boolean>>({
+    'Git Smart HTTP Engine': true,
+    'Monorepo AST Parser': true,
+    'Vitest QA Sentinel': true,
+    'LiveKit WebRTC Gateway': true,
+    'Redis 3-Layer Memory': true,
+    'Prisma Schema Auditor': true,
+  });
 
   // Data Collections
   const [baseRepos, setBaseRepos] = useState<Repo[]>(INITIAL_REPOS);
@@ -1203,33 +1218,21 @@ export default function QuantGitPage() {
             <button
               type="button"
               onClick={() => {
+                const newId = `sess-${Date.now()}`;
+                setChatSessions([
+                  { id: newId, title: 'New Conversation', date: 'Just now', count: 0 },
+                  ...chatSessions,
+                ]);
+                setActiveSessionId(newId);
                 setChatMessages([]);
-                showToast('Started new chat session');
+                showToast('Started new chat');
               }}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-medium border border-[#30363D] transition-colors"
-              title="Start new chat"
-            >
-              <span className="font-bold">+</span>
-              <span className="hidden sm:inline">New chat</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => showToast('Share link copied to clipboard')}
               className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-              title="Share"
+              title="New Chat"
             >
-              <svg height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
-                <path d="M7.75 1.5a.75.75 0 0 0-1.5 0v7.69L4.03 6.97a.75.75 0 0 0-1.06 1.06l3.5 3.5a.75.75 0 0 0 1.06 0l3.5-3.5a.75.75 0 0 0-1.06-1.06L8.25 9.19V1.5Z" />
-                <path d="M2.5 12a.75.75 0 0 0 0 1.5h11a.75.75 0 0 0 0-1.5h-11Z" />
+              <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+                <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
               </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => showToast('Chat pinned')}
-              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
-              title="Pin chat"
-            >
-              📌
             </button>
             <button
               type="button"
@@ -1250,6 +1253,7 @@ export default function QuantGitPage() {
               onClick={() => {
                 setActiveDeckTab('repos');
                 setSelectedRepo(null);
+                setViewingFile(null);
               }}
               className="flex items-center gap-2 text-white hover:text-[#FF8C42] transition-colors p-1 rounded-md"
               title="QuantGit Home"
@@ -1270,33 +1274,53 @@ export default function QuantGitPage() {
                 </span>
               </div>
             ) : selectedRepo ? (
-              <div className="flex items-center gap-1.5 text-sm min-w-0">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
                 <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedRepo(null);
+                    setViewingFile(null);
                   }}
-                  className="text-[#58A6FF] hover:underline font-medium truncate max-w-[120px] sm:max-w-none"
+                  className="text-[#58A6FF] hover:underline font-medium truncate max-w-[70px] sm:max-w-[120px] md:max-w-none"
+                  title={currentUsername}
                 >
                   {currentUsername}
                 </button>
                 <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
-                  onClick={() => setActiveGitHubTab('code')}
-                  className="text-[#58A6FF] hover:underline font-bold text-white truncate max-w-[140px] sm:max-w-none"
+                  onClick={() => {
+                    setViewingFile(null);
+                    setActiveGitHubTab('code');
+                  }}
+                  className="text-[#58A6FF] hover:underline font-bold text-white truncate max-w-[80px] sm:max-w-[140px] md:max-w-none"
+                  title={selectedRepo.name}
                 >
                   {selectedRepo.name}
                 </button>
-                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
+                {viewingFile && (
+                  <>
+                    <span className="text-[#7D8590]">/</span>
+                    <span
+                      className="text-[#7D8590] font-mono text-xs truncate max-w-[90px] sm:max-w-[160px] md:max-w-none"
+                      title={viewingFile.path}
+                    >
+                      {viewingFile.path}
+                    </span>
+                  </>
+                )}
+                <span className="ml-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider border border-[#30363D] text-[#7D8590] shrink-0">
                   {selectedRepo.visibility}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-sm min-w-0">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
                 <span className="text-[#7D8590]">/</span>
-                <span className="text-white font-bold truncate max-w-[140px] sm:max-w-none">
+                <span
+                  className="text-white font-bold truncate max-w-[100px] sm:max-w-[160px] md:max-w-none"
+                  title={currentUsername}
+                >
                   {currentUsername}
                 </span>
                 <span className="text-[#7D8590] text-xs shrink-0">· Repositories</span>
@@ -1389,26 +1413,256 @@ export default function QuantGitPage() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto divide-y divide-[#21262D] mt-2">
-              {chatSessions.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveSessionId(s.id);
-                    setIsHistoryOpen(false);
-                    showToast(`Switched to: ${s.title}`);
-                  }}
-                  className={`w-full py-3 px-2 flex items-center justify-between text-xs rounded-lg text-left transition-colors ${
-                    activeSessionId === s.id
-                      ? 'bg-[#21262D] text-white font-semibold'
-                      : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
-                  }`}
-                >
-                  <span className="truncate max-w-[200px]">{s.title}</span>
-                  <span className="text-[10px] text-[#7D8590] shrink-0">{s.date}</span>
-                </button>
-              ))}
+            <div className="flex-1 overflow-y-auto mt-2 space-y-4 pr-1">
+              {/* Pinned Chats Section */}
+              {chatSessions.filter((s) => pinnedSessionIds.includes(s.id)).length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42] px-2 flex items-center gap-1.5">
+                    <span>📌</span>
+                    <span>Pinned</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {chatSessions
+                      .filter((s) => pinnedSessionIds.includes(s.id))
+                      .map((s) => {
+                        const isActive = activeSessionId === s.id;
+                        const isEditing = editingSessionId === s.id;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`group relative flex items-center justify-between py-2 px-2.5 rounded-lg text-xs transition-colors ${
+                              isActive
+                                ? 'bg-[#21262D] text-white font-semibold'
+                                : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                            }`}
+                          >
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editingTitle}
+                                onChange={(e) => setEditingTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    if (editingTitle.trim()) {
+                                      setChatSessions((prev) =>
+                                        prev.map((cs) =>
+                                          cs.id === s.id
+                                            ? { ...cs, title: editingTitle.trim() }
+                                            : cs,
+                                        ),
+                                      );
+                                      showToast('Chat renamed');
+                                    }
+                                    setEditingSessionId(null);
+                                  } else if (e.key === 'Escape') {
+                                    setEditingSessionId(null);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  if (editingTitle.trim()) {
+                                    setChatSessions((prev) =>
+                                      prev.map((cs) =>
+                                        cs.id === s.id ? { ...cs, title: editingTitle.trim() } : cs,
+                                      ),
+                                    );
+                                  }
+                                  setEditingSessionId(null);
+                                }}
+                                autoFocus
+                                className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                              />
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSessionId(s.id);
+                                    setIsHistoryOpen(false);
+                                    showToast(`Switched to: ${s.title}`);
+                                  }}
+                                  className="flex-1 text-left truncate mr-2"
+                                  title={s.title}
+                                >
+                                  <span className="truncate block max-w-[150px]">{s.title}</span>
+                                  <span className="text-[10px] text-[#7D8590] block">{s.date}</span>
+                                </button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPinnedSessionIds((prev) =>
+                                        prev.filter((id) => id !== s.id),
+                                      );
+                                      showToast('Chat unpinned');
+                                    }}
+                                    className="p-1 rounded hover:bg-[#30363D] text-[#FF8C42] hover:text-white"
+                                    title="Unpin chat"
+                                  >
+                                    📌
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingSessionId(s.id);
+                                      setEditingTitle(s.title);
+                                    }}
+                                    className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                    title="Rename chat"
+                                  >
+                                    ✎
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setChatSessions((prev) =>
+                                        prev.filter((cs) => cs.id !== s.id),
+                                      );
+                                      setPinnedSessionIds((prev) =>
+                                        prev.filter((id) => id !== s.id),
+                                      );
+                                      if (activeSessionId === s.id) {
+                                        const remaining = chatSessions.filter(
+                                          (cs) => cs.id !== s.id,
+                                        );
+                                        setActiveSessionId(remaining[0]?.id || '');
+                                      }
+                                      showToast('Chat deleted');
+                                    }}
+                                    className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
+                                    title="Delete chat"
+                                  >
+                                    🗑
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
+              {/* Recent Chats Section */}
+              <div className="space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] px-2">
+                  Recent
+                </div>
+                <div className="space-y-0.5">
+                  {chatSessions
+                    .filter((s) => !pinnedSessionIds.includes(s.id))
+                    .map((s) => {
+                      const isActive = activeSessionId === s.id;
+                      const isEditing = editingSessionId === s.id;
+                      return (
+                        <div
+                          key={s.id}
+                          className={`group relative flex items-center justify-between py-2 px-2.5 rounded-lg text-xs transition-colors ${
+                            isActive
+                              ? 'bg-[#21262D] text-white font-semibold'
+                              : 'text-[#7D8590] hover:text-white hover:bg-[#1F242C]'
+                          }`}
+                        >
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  if (editingTitle.trim()) {
+                                    setChatSessions((prev) =>
+                                      prev.map((cs) =>
+                                        cs.id === s.id ? { ...cs, title: editingTitle.trim() } : cs,
+                                      ),
+                                    );
+                                    showToast('Chat renamed');
+                                  }
+                                  setEditingSessionId(null);
+                                } else if (e.key === 'Escape') {
+                                  setEditingSessionId(null);
+                                }
+                              }}
+                              onBlur={() => {
+                                if (editingTitle.trim()) {
+                                  setChatSessions((prev) =>
+                                    prev.map((cs) =>
+                                      cs.id === s.id ? { ...cs, title: editingTitle.trim() } : cs,
+                                    ),
+                                  );
+                                }
+                                setEditingSessionId(null);
+                              }}
+                              autoFocus
+                              className="w-full bg-[#0D1117] border border-[#58A6FF] rounded px-2 py-0.5 text-xs text-white focus:outline-none"
+                            />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveSessionId(s.id);
+                                  setIsHistoryOpen(false);
+                                  showToast(`Switched to: ${s.title}`);
+                                }}
+                                className="flex-1 text-left truncate mr-2"
+                                title={s.title}
+                              >
+                                <span className="truncate block max-w-[150px]">{s.title}</span>
+                                <span className="text-[10px] text-[#7D8590] block">{s.date}</span>
+                              </button>
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPinnedSessionIds((prev) => [...prev, s.id]);
+                                    showToast('Chat pinned');
+                                  }}
+                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  title="Pin chat"
+                                >
+                                  📌
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingSessionId(s.id);
+                                    setEditingTitle(s.title);
+                                  }}
+                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  title="Rename chat"
+                                >
+                                  ✎
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setChatSessions((prev) => prev.filter((cs) => cs.id !== s.id));
+                                    if (activeSessionId === s.id) {
+                                      const remaining = chatSessions.filter((cs) => cs.id !== s.id);
+                                      setActiveSessionId(remaining[0]?.id || '');
+                                    }
+                                    showToast('Chat deleted');
+                                  }}
+                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
+                                  title="Delete chat"
+                                >
+                                  🗑
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
             </div>
           </aside>
         </>
@@ -1427,6 +1681,7 @@ export default function QuantGitPage() {
                 onClick={() => {
                   setActiveDeckTab('repos');
                   setSelectedRepo(null);
+                  setViewingFile(null);
                 }}
                 className="text-xs text-[#58A6FF] hover:underline font-medium flex items-center gap-1 mr-2"
               >
@@ -2797,39 +3052,35 @@ export default function QuantGitPage() {
                       <div className="space-y-1">
                         <button
                           type="button"
-                          onClick={() => {
-                            setAttachedFiles((prev) => [...prev, 'monorepo-spec.md']);
-                            showToast('Attached: monorepo-spec.md');
-                            setIsContextOpen(false);
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                          onClick={() => setActiveContextSubmenu('repos-files')}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
                         >
-                          <span className="text-base">📎</span>
-                          <div>
-                            <div className="font-semibold text-white">Add photos and files</div>
-                            <div className="text-[10px] text-[#7D8590]">
-                              Attach workspace files, PDFs, or diagrams
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base">📁</span>
+                            <div>
+                              <div className="font-semibold text-white">Attach Repos & Files</div>
+                              <div className="text-[10px] text-[#7D8590]">
+                                Attach workspace repos, source files, or docs
+                              </div>
                             </div>
                           </div>
+                          <span className="text-[#7D8590] text-sm">›</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setPromptInput((prev) => prev + ' @Quant-Ecosystem ');
-                            showToast('Mentioned @Quant-Ecosystem');
-                            setIsContextOpen(false);
-                          }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
+                          onClick={() => setActiveContextSubmenu('mention')}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-[#21262D] text-[#E6EDF3] text-left transition-colors"
                         >
-                          <span className="text-base font-mono font-bold text-[#58A6FF]">@</span>
-                          <div>
-                            <div className="font-semibold text-white">
-                              Mention pages, repos or files
-                            </div>
-                            <div className="text-[10px] text-[#7D8590]">
-                              Link context from repositories and docs
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-base font-mono font-bold text-[#58A6FF]">@</span>
+                            <div>
+                              <div className="font-semibold text-white">Mention repo or file</div>
+                              <div className="text-[10px] text-[#7D8590]">
+                                Insert @reference into prompt input
+                              </div>
                             </div>
                           </div>
+                          <span className="text-[#7D8590] text-sm">›</span>
                         </button>
                         <button
                           type="button"
@@ -2841,7 +3092,7 @@ export default function QuantGitPage() {
                             <div>
                               <div className="font-semibold text-white">Skills & Tools</div>
                               <div className="text-[10px] text-[#7D8590]">
-                                Autonomous coding and search skills
+                                Autonomous coding, QA & memory skills
                               </div>
                             </div>
                           </div>
@@ -2873,6 +3124,177 @@ export default function QuantGitPage() {
                           </div>
                         </button>
                       </div>
+                    ) : activeContextSubmenu === 'repos-files' ? (
+                      /* Repos & Files Submenu */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveContextSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">Attach Repos & Files</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={repoFileSearch}
+                          onChange={(e) => setRepoFileSearch(e.target.value)}
+                          placeholder="Search repo or file…"
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                        />
+                        <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto space-y-1 pt-1">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] pt-1">
+                            Repositories
+                          </div>
+                          {[
+                            { name: 'Quant-Ecosystem', desc: 'Root Monorepo · TypeScript' },
+                            { name: 'quantmail-core', desc: 'Mail, Drive & Calendar · Fastify' },
+                            { name: 'quantchat-meet', desc: 'LiveKit SFU & WebRTC Gateway' },
+                            { name: 'quant-mobile-android', desc: 'Android APK · Jetpack Compose' },
+                          ]
+                            .filter((r) =>
+                              r.name.toLowerCase().includes(repoFileSearch.toLowerCase()),
+                            )
+                            .map((r) => (
+                              <button
+                                key={r.name}
+                                type="button"
+                                onClick={() => {
+                                  if (!attachedFiles.includes(r.name)) {
+                                    setAttachedFiles((prev) => [...prev, r.name]);
+                                    showToast(`Attached: ${r.name}`);
+                                  } else {
+                                    showToast('Already attached');
+                                  }
+                                  setIsContextOpen(false);
+                                  setActiveContextSubmenu('none');
+                                }}
+                                className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                              >
+                                <div>
+                                  <div className="font-medium text-white text-xs flex items-center gap-1.5">
+                                    <span>📁</span>
+                                    <span>{r.name}</span>
+                                  </div>
+                                  <div className="text-[10px] text-[#7D8590]">{r.desc}</div>
+                                </div>
+                                <span className="text-[#58A6FF] text-xs font-semibold">
+                                  + Attach
+                                </span>
+                              </button>
+                            ))}
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-[#7D8590] pt-2">
+                            Architecture Files
+                          </div>
+                          {[
+                            { name: 'AGENT_MEMORY.md', desc: 'Swarm Memory & Architecture Ledger' },
+                            { name: 'TASK_PLANNER.md', desc: 'Sprint Tasks & Roadmap Tracker' },
+                            {
+                              name: 'apps/quantmail/src/app/quantgit/page.tsx',
+                              desc: 'QuantGit Sovereign UI',
+                            },
+                            {
+                              name: 'packages/shared-ui/src/components/QuantSidekick/BubbleAvatar.tsx',
+                              desc: 'Living Aurora Mascot',
+                            },
+                            { name: 'server/src/routes/git.ts', desc: 'Git Smart HTTP Daemon' },
+                          ]
+                            .filter((f) =>
+                              f.name.toLowerCase().includes(repoFileSearch.toLowerCase()),
+                            )
+                            .map((f) => (
+                              <button
+                                key={f.name}
+                                type="button"
+                                onClick={() => {
+                                  if (!attachedFiles.includes(f.name)) {
+                                    setAttachedFiles((prev) => [...prev, f.name]);
+                                    showToast(`Attached: ${f.name}`);
+                                  } else {
+                                    showToast('Already attached');
+                                  }
+                                  setIsContextOpen(false);
+                                  setActiveContextSubmenu('none');
+                                }}
+                                className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                              >
+                                <div>
+                                  <div className="font-mono text-white text-[11px] flex items-center gap-1.5 truncate max-w-[180px]">
+                                    <span>📄</span>
+                                    <span className="truncate">{f.name}</span>
+                                  </div>
+                                  <div className="text-[10px] text-[#7D8590]">{f.desc}</div>
+                                </div>
+                                <span className="text-[#58A6FF] text-xs font-semibold shrink-0">
+                                  + Attach
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    ) : activeContextSubmenu === 'mention' ? (
+                      /* Mention Submenu */
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between pb-2 border-b border-[#21262D]">
+                          <button
+                            type="button"
+                            onClick={() => setActiveContextSubmenu('none')}
+                            className="flex items-center gap-1 text-[#58A6FF] font-semibold hover:underline"
+                          >
+                            <span>‹</span> Back
+                          </button>
+                          <span className="font-bold text-white text-xs">
+                            @ Mention Repo or File
+                          </span>
+                        </div>
+                        <input
+                          type="text"
+                          value={mentionSearch}
+                          onChange={(e) => setMentionSearch(e.target.value)}
+                          placeholder="Search mention…"
+                          className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
+                        />
+                        <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto pt-1">
+                          {[
+                            { token: '@Quant-Ecosystem', desc: 'Root repository' },
+                            { token: '@quantmail-core', desc: 'Mail, drive & calendar engine' },
+                            { token: '@quantchat-meet', desc: 'LiveKit WebRTC meet gateway' },
+                            { token: '@quant-mobile-android', desc: 'Native Android project' },
+                            { token: '@AGENT_MEMORY.md', desc: 'Ecosystem memory ledger' },
+                            { token: '@TASK_PLANNER.md', desc: 'Sprint tasks planner' },
+                            { token: '@BubbleAvatar.tsx', desc: 'Living aurora mascot' },
+                            { token: '@git.ts', desc: 'Git wire protocol server' },
+                          ]
+                            .filter((m) =>
+                              m.token.toLowerCase().includes(mentionSearch.toLowerCase()),
+                            )
+                            .map((m) => (
+                              <button
+                                key={m.token}
+                                type="button"
+                                onClick={() => {
+                                  setPromptInput(
+                                    (prev) => (prev ? prev + ' ' : '') + m.token + ' ',
+                                  );
+                                  showToast(`Mentioned ${m.token}`);
+                                  setIsContextOpen(false);
+                                  setActiveContextSubmenu('none');
+                                }}
+                                className="w-full py-1.5 px-2 flex items-center justify-between text-left hover:bg-[#21262D] rounded transition-colors"
+                              >
+                                <div>
+                                  <div className="font-mono text-[#58A6FF] text-xs font-semibold">
+                                    {m.token}
+                                  </div>
+                                  <div className="text-[10px] text-[#7D8590]">{m.desc}</div>
+                                </div>
+                                <span className="text-[#7D8590] text-xs">↵</span>
+                              </button>
+                            ))}
+                        </div>
+                      </div>
                     ) : (
                       /* Skills Submenu */
                       <div className="space-y-2">
@@ -2903,47 +3325,97 @@ export default function QuantGitPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => showToast('Add skill modal')}
+                            onClick={() => showToast('Add custom skill modal')}
                             className="text-[#3FB950] hover:underline font-semibold"
                           >
                             + Add skill
                           </button>
                         </div>
-                        <div className="divide-y divide-[#21262D] max-h-48 overflow-y-auto pt-1">
+                        <div className="divide-y divide-[#21262D] max-h-52 overflow-y-auto pt-1">
                           {[
                             {
                               name: 'Git Smart HTTP Engine',
+                              cat: 'GIT',
+                              catColor: 'bg-[#FF8C42]/20 text-[#FF8C42]',
                               desc: 'Wire protocol & push/clone validation',
                             },
                             {
                               name: 'Monorepo AST Parser',
+                              cat: 'CODE',
+                              catColor: 'bg-[#58A6FF]/20 text-[#58A6FF]',
                               desc: 'Deep TypeScript symbol & import inspection',
                             },
-                            { name: 'Vitest QA Sentinel', desc: 'Automated regression test runs' },
                             {
-                              name: 'LiveKit WebRTC Gateway',
-                              desc: 'Realtime audio/video streaming tools',
+                              name: 'Vitest QA Sentinel',
+                              cat: 'QA',
+                              catColor: 'bg-[#3FB950]/20 text-[#3FB950]',
+                              desc: 'Automated regression test runs & zero-mock gates',
                             },
                             {
-                              name: 'Redis Vector Memory',
-                              desc: 'Hierarchical 3-layer persistence',
+                              name: 'LiveKit WebRTC Gateway',
+                              cat: 'VOICE',
+                              catColor: 'bg-[#A371F7]/20 text-[#A371F7]',
+                              desc: 'Realtime audio/video streaming & room controls',
+                            },
+                            {
+                              name: 'Redis 3-Layer Memory',
+                              cat: 'MEMORY',
+                              catColor: 'bg-[#F0883E]/20 text-[#F0883E]',
+                              desc: 'Hierarchical cache, Prisma & vector persistence',
+                            },
+                            {
+                              name: 'Prisma Schema Auditor',
+                              cat: 'DB',
+                              catColor: 'bg-[#79C0FF]/20 text-[#79C0FF]',
+                              desc: 'Schema migrations, quota sum & index verification',
                             },
                           ]
                             .filter((s) =>
                               s.name.toLowerCase().includes(skillsSearch.toLowerCase()),
                             )
-                            .map((sk) => (
-                              <div
-                                key={sk.name}
-                                className="py-1.5 flex items-center justify-between text-xs"
-                              >
-                                <div>
-                                  <div className="font-medium text-white">{sk.name}</div>
-                                  <div className="text-[10px] text-[#7D8590]">{sk.desc}</div>
+                            .map((sk) => {
+                              const isEnabled = activeSkills[sk.name] ?? false;
+                              return (
+                                <div
+                                  key={sk.name}
+                                  className="py-2 px-1 flex items-center justify-between text-xs hover:bg-[#21262D]/50 rounded"
+                                >
+                                  <div className="pr-2 min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span
+                                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${sk.catColor}`}
+                                      >
+                                        {sk.cat}
+                                      </span>
+                                      <span className="font-medium text-white truncate">
+                                        {sk.name}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-[#7D8590] leading-snug mt-0.5">
+                                      {sk.desc}
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = !isEnabled;
+                                      setActiveSkills((prev) => ({
+                                        ...prev,
+                                        [sk.name]: next,
+                                      }));
+                                      showToast(`${sk.name} ${next ? 'Enabled' : 'Disabled'}`);
+                                    }}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold shrink-0 transition-colors ${
+                                      isEnabled
+                                        ? 'bg-[#238636] text-white hover:bg-[#2ea043]'
+                                        : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                                    }`}
+                                  >
+                                    {isEnabled ? 'ON' : 'OFF'}
+                                  </button>
                                 </div>
-                                <span className="text-[#3FB950] font-bold text-sm">✓</span>
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
                       </div>
                     )}
@@ -4154,7 +4626,12 @@ export default function QuantGitPage() {
 
         <button
           type="button"
-          onClick={() => setActiveDeckTab('repos')}
+          onClick={() => {
+            setActiveDeckTab('repos');
+            setSelectedRepo(null);
+            setViewingFile(null);
+            setActiveGitHubTab('code');
+          }}
           className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'repos'
               ? 'bg-[#FF8C42] text-black shadow-lg'
