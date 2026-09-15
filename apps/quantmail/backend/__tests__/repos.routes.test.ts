@@ -83,6 +83,14 @@ function fakePrisma() {
       findMany: vi
         .fn()
         .mockResolvedValue([{ name: 'main', commitSha: '948e3612', isProtected: false }]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: 'branch-1',
+        repoId: data.repoId,
+        name: data.name,
+        commitSha: data.commitSha,
+        isProtected: false,
+      })),
     },
     issue: {
       findMany: vi.fn().mockResolvedValue([MOCK_ISSUE]),
@@ -100,6 +108,25 @@ function fakePrisma() {
       update: vi.fn().mockImplementation(async ({ data }: any) => ({
         ...MOCK_PR,
         ...data,
+      })),
+    },
+    ciRun: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: 'run-1',
+        repoId: data.repoId,
+        branch: data.branch,
+        commitSha: data.commitSha,
+        status: data.status,
+        triggeredBy: data.triggeredBy,
+        jobs: (data.jobs?.create || []).map((j: any, idx: number) => ({
+          id: `job-${idx + 1}`,
+          runId: 'run-1',
+          name: j.name,
+          status: j.status,
+          startedAt: j.startedAt,
+          completedAt: j.completedAt,
+        })),
       })),
     },
   };
@@ -243,5 +270,93 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         data: { starCount: { increment: 1 } },
       }),
     );
+  });
+
+  it('PATCH /repos/:id updates repository settings when authorized', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1',
+      payload: {
+        name: 'Quant-Ecosystem-Renamed',
+        description: 'Updated description',
+        visibility: 'private',
+        defaultBranch: 'develop',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(prisma.repository.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Quant-Ecosystem-Renamed',
+          description: 'Updated description',
+          visibility: 'PRIVATE',
+          defaultBranch: 'develop',
+        }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/branches creates a real branch in database', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/sprint-8-persistence',
+        sha: '948e3612',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.name).toBe('feat/sprint-8-persistence');
+    expect(prisma.branch.create).toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/pulls/:number/merge marks pull request as merged', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/pulls/1/merge',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.state).toBe('merged');
+    expect(prisma.pullRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'MERGED',
+        }),
+      }),
+    );
+  });
+
+  it('GET /repos/:id/actions returns CI runs', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/actions',
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
+  });
+
+  it('POST /repos/:id/actions/trigger triggers a new CI run', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/actions/trigger',
+    });
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.status).toBe('in_progress');
+    expect(prisma.ciRun.create).toHaveBeenCalled();
   });
 });

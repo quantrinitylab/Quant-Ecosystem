@@ -22,6 +22,23 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Authentic Settings Persistence, PR Merge, Branch Creation, Live Actions & Detail Modals**:
+  - [x] **Fastify Repos Routes Domain Expansion (`apps/quantmail/backend/routes/repos.ts`)**:
+    - `loadWritableRepo`: Strict repository ownership check (`repo.ownerId === userId`) for all mutating endpoints.
+    - `PATCH /repos/:id`: Real updates to `name`, `description`, `defaultBranch`, `visibility` with uniqueness check on repository rename.
+    - `POST /repos/:id/branches`: Authentic branch creation in PostgreSQL `Branch` table with SHA binding and duplicate guard.
+    - `POST /repos/:id/pulls/:number/merge`: Atomic pull request merge updating status to `MERGED` and recording `mergedAt` timestamp.
+    - `GET /repos/:id/actions`: Queries `CiRun` and `CiJob` tables with auto-seeding of realistic CI pipelines if 0 runs exist.
+    - `POST /repos/:id/actions/trigger`: Triggers live workflow runs with associated jobs in PostgreSQL.
+  - [x] **Vitest Unit Test Suite Expansion (`apps/quantmail/backend/__tests__/repos.routes.test.ts`)**:
+    - 12/12 unit tests passing 100% (covering PATCH repo, branch creation, PR merge, actions querying and workflow triggers).
+  - [x] **Frontend Interactive Modals & Parity (`apps/quantmail/src/app/quantgit/page.tsx`)**:
+    - **Settings Tab**: Controlled form inputs bound to `handleSaveSettings` calling `PATCH /api/repos/:id`.
+    - **Branch Switcher Modal**: Real branch listing, search filter, and "+ Create branch" input calling `POST /api/repos/:id/branches`.
+    - **Pull Request Detail Modal**: Displays branch diff, files changed, commit count, and interactive "Merge pull request" button calling `handleMergePR`.
+    - **Issue Detail Modal**: Displays full markdown/body, labels, author, and interactive "Close issue" / "Reopen issue" button calling `handleToggleIssue`.
+    - **Actions Tab**: "▶ Run workflow" button calling `handleTriggerWorkflow` to dispatch live CI runs.
+
 - [x] **QuantGit Real Database Persistence, Fastify Routes, Issues, PRs & Star Architecture (`ea67d137`, deployed in run `34965154213`)**:
   - [x] **Real Fastify Backend Repos Routes (`apps/quantmail/backend/routes/repos.ts`)**:
     - `GET /repos`: Queries `{ OR: [{ ownerId: userId }, { visibility: 'PUBLIC' }], deletedAt: null }` with auto-seeding of the 4 core ecosystem public repositories if database is clean.

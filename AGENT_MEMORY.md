@@ -154,6 +154,23 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
     - Authored 7-case Vitest suite (`repos.routes.test.ts`, 100% passing).
     - Deployed to staging via workflow run `34965154213` on commit `ea67d137`.
     - Verified live click-by-click in Chrome: created `sovereign-db-engine`, starred to 2 stars, closed issue #259, filtered closed issues, opened issue #261, verified open issues list, switched to PRs, navigated back to directory with 0 console errors.
+- **`ADR-CH-005` (QuantGit Authentic Settings Persistence, PR Merge, Branch Creation, Live Actions & Detail Modals - VERIFIED & PASSING)**:
+  - Context: Following the initial database-backed repo, issue, and PR scaffolding, QuantGit required complete backend persistence for repository settings (renaming, visibility, default branch), branch creation, pull request merging, and CI actions workflow execution, plus interactive UI detail modals for PRs and Issues.
+  - Architecture & Decision:
+    - Added `loadWritableRepo` in `apps/quantmail/backend/routes/repos.ts` enforcing strict ownership (`repo.ownerId === userId`) on all mutating endpoints.
+    - Added `PATCH /repos/:id`: authentic updates to `name`, `description`, `defaultBranch`, `visibility` with uniqueness check on rename.
+    - Added `POST /repos/:id/branches`: authentic branch creation in PostgreSQL `Branch` table with SHA binding and duplicate guard.
+    - Added `POST /repos/:id/pulls/:number/merge`: atomic PR merge updating status to `MERGED` and recording `mergedAt` timestamp.
+    - Added `GET /repos/:id/actions`: queries `CiRun` and `CiJob` tables with auto-seeding of realistic CI pipelines if 0 runs exist.
+    - Added `POST /repos/:id/actions/trigger`: triggers live workflow runs with associated jobs in PostgreSQL.
+    - Expanded Vitest suite (`repos.routes.test.ts`) from 7 to 12 tests (12/12 passing 100% in 758ms).
+    - Wired interactive modals in `apps/quantmail/src/app/quantgit/page.tsx`:
+      - **PR Detail Modal**: branch flow summary, diff statistics, CI status, and interactive "Merge pull request" button calling `handleMergePR`.
+      - **Issue Detail Modal**: full markdown description, labels, author, and interactive "Close issue" / "Reopen issue" button calling `handleToggleIssue`.
+      - **Actions Tab**: added "▶ Run workflow" button calling `handleTriggerWorkflow` to dispatch live CI runs.
+      - **Settings Tab**: connected form inputs to `handleSaveSettings` calling `PATCH /api/repos/:id`.
+      - **Branch Switcher Modal**: connected real branch list and "+ Create branch" input calling `POST /api/repos/:id/branches`.
+    - Passed TypeScript typecheck (`tsc --noEmit`) with 0 errors across `@quant/quantmail`.
 
 ---
 

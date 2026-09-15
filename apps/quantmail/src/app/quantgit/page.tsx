@@ -887,9 +887,25 @@ export default function QuantGitPage() {
     | 'new-repo'
     | 'deploy-agent'
     | 'action-detail'
+    | 'pr-detail'
+    | 'issue-detail'
   >('none');
   const [cloneProtocol, setCloneProtocol] = useState<CloneProtocol>('https');
   const [selectedActionRun, setSelectedActionRun] = useState<WorkflowRunItem | null>(null);
+  const [selectedPr, setSelectedPr] = useState<PRItem | null>(null);
+  const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
+  const [repoBranches, setRepoBranches] = useState<string[]>([
+    'main',
+    'feat/sprint-7-github-parity',
+    'fix/core-astra-audit',
+    'release/v1.0.0-apk',
+  ]);
+  const [newBranchInput, setNewBranchInput] = useState('');
+  const [settingsName, setSettingsName] = useState('');
+  const [settingsDesc, setSettingsDesc] = useState('');
+  const [settingsBranch, setSettingsBranch] = useState('');
+  const [settingsVisibility, setSettingsVisibility] = useState<'public' | 'private'>('public');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Form States
   const [newIssueTitle, setNewIssueTitle] = useState('');
@@ -1031,12 +1047,50 @@ export default function QuantGitPage() {
     }
   }, []);
 
+  const fetchRepoBranches = useCallback(async (repoIdOrName: string) => {
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/branches`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setRepoBranches(json.data.map((b: any) => b.name));
+        }
+      }
+    } catch {
+      // Retain existing branches
+    }
+  }, []);
+
+  const fetchRepoActions = useCallback(async (repoIdOrName: string) => {
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoIdOrName)}/actions`, {
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setActions(json.data);
+        }
+      }
+    } catch {
+      // Retain existing actions
+    }
+  }, []);
+
   useEffect(() => {
     if (selectedRepo) {
       fetchRepoIssues(selectedRepo.id || selectedRepo.name);
       fetchRepoPulls(selectedRepo.id || selectedRepo.name);
+      fetchRepoBranches(selectedRepo.id || selectedRepo.name);
+      fetchRepoActions(selectedRepo.id || selectedRepo.name);
+      setSettingsName(selectedRepo.name);
+      setSettingsDesc(selectedRepo.description || '');
+      setSettingsBranch(selectedRepo.defaultBranch || 'main');
+      setSettingsVisibility(selectedRepo.visibility || 'public');
     }
-  }, [selectedRepo, fetchRepoIssues, fetchRepoPulls]);
+  }, [selectedRepo, fetchRepoIssues, fetchRepoPulls, fetchRepoBranches, fetchRepoActions]);
 
   // Keyboard shortcut listener ('t' for file finder, '/' for search)
   useEffect(() => {
@@ -1201,6 +1255,9 @@ export default function QuantGitPage() {
     if (!target) return;
     const nextState = target.state === 'open' ? 'closed' : 'open';
     setIssues((prev) => prev.map((i) => (i.id === issueNumber ? { ...i, state: nextState } : i)));
+    if (selectedIssue && selectedIssue.id === issueNumber) {
+      setSelectedIssue((curr) => (curr ? { ...curr, state: nextState } : null));
+    }
     showToast(`Issue #${issueNumber} marked as ${nextState}!`);
     try {
       await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`, {
@@ -1426,6 +1483,126 @@ export default function QuantGitPage() {
     setSelectedRepo(null);
     setViewingFile(null);
     setActiveGitHubTab('code');
+  };
+
+  const handleSaveSettings = async () => {
+    if (!selectedRepo) return;
+    setIsSavingSettings(true);
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name: settingsName.trim() || selectedRepo.name,
+          description: settingsDesc.trim(),
+          defaultBranch: settingsBranch.trim() || 'main',
+          visibility: settingsVisibility,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          const updated = {
+            ...selectedRepo,
+            name: json.data.name,
+            description: json.data.description,
+            defaultBranch: json.data.defaultBranch,
+            visibility: json.data.visibility,
+          };
+          setSelectedRepo(updated);
+          setBaseRepos((prev) =>
+            prev.map((r) =>
+              r.id === selectedRepo.id || r.name === selectedRepo.name ? { ...r, ...updated } : r,
+            ),
+          );
+          showToast('Settings saved successfully to PostgreSQL!');
+        }
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        showToast(errJson.error?.message || 'Failed to save settings');
+      }
+    } catch {
+      showToast('Network error while saving settings');
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleMergePR = async (prNumber: number) => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    try {
+      const res = await fetch(
+        `/api/repos/${encodeURIComponent(repoTarget)}/pulls/${prNumber}/merge`,
+        {
+          method: 'POST',
+          credentials: 'include',
+        },
+      );
+      if (res.ok) {
+        setPulls((prev) => prev.map((p) => (p.id === prNumber ? { ...p, state: 'merged' } : p)));
+        if (selectedPr && selectedPr.id === prNumber) {
+          setSelectedPr((prev) => (prev ? { ...prev, state: 'merged' } : null));
+        }
+        showToast(`Pull request #${prNumber} merged into ${selectedRepo.defaultBranch}!`);
+      } else {
+        showToast('Failed to merge pull request');
+      }
+    } catch {
+      showToast('Network error while merging pull request');
+    }
+  };
+
+  const handleCreateBranch = async () => {
+    if (!selectedRepo || !newBranchInput.trim()) return;
+    const branchName = newBranchInput.trim();
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/branches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: branchName, sha: selectedRepo.latestCommitSha || '948e3612' }),
+      });
+      if (res.ok) {
+        if (!repoBranches.includes(branchName)) {
+          setRepoBranches((prev) => [...prev, branchName]);
+        }
+        setCurrentBranch(branchName);
+        setNewBranchInput('');
+        setModalState('none');
+        showToast(`Branch ${branchName} created and checked out!`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error?.message || 'Failed to create branch');
+      }
+    } catch {
+      showToast('Network error while creating branch');
+    }
+  };
+
+  const handleTriggerWorkflow = async () => {
+    if (!selectedRepo) return;
+    const repoTarget = selectedRepo.id || selectedRepo.name;
+    try {
+      const res = await fetch(`/api/repos/${encodeURIComponent(repoTarget)}/actions/trigger`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setActions((prev) => [json.data, ...prev]);
+          showToast(`Workflow dispatched on ${selectedRepo.defaultBranch}!`);
+        }
+      } else {
+        showToast('Failed to trigger workflow');
+      }
+    } catch {
+      showToast('Network error while triggering workflow');
+    }
   };
 
   const handleDeployAgent = (e: FormEvent) => {
@@ -2654,7 +2831,10 @@ export default function QuantGitPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => handleToggleIssue(issue.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleIssue(issue.id);
+                                }}
                                 title={
                                   issue.state === 'open'
                                     ? 'Click to close issue'
@@ -2667,7 +2847,10 @@ export default function QuantGitPage() {
                                 {issue.state === 'open' ? '⨀' : '✓'}
                               </button>
                               <span
-                                onClick={() => handleToggleIssue(issue.id)}
+                                onClick={() => {
+                                  setSelectedIssue(issue);
+                                  setModalState('issue-detail');
+                                }}
                                 className={`font-bold hover:text-[#58A6FF] cursor-pointer ${
                                   issue.state === 'closed'
                                     ? 'line-through text-[#7D8590]'
@@ -2761,7 +2944,13 @@ export default function QuantGitPage() {
                               >
                                 ⑂
                               </span>
-                              <span className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">
+                              <span
+                                onClick={() => {
+                                  setSelectedPr(pr);
+                                  setModalState('pr-detail');
+                                }}
+                                className="font-bold text-white hover:text-[#58A6FF] cursor-pointer"
+                              >
                                 {pr.title}
                               </span>
                               <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
@@ -2946,6 +3135,18 @@ export default function QuantGitPage() {
                   </div>
 
                   <div className="md:col-span-3 space-y-3">
+                    <div className="flex items-center justify-between bg-[#161B22] p-2.5 px-3 rounded-md border border-[#30363D]">
+                      <span className="font-semibold text-[#E6EDF3] text-xs">
+                        All workflow runs
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleTriggerWorkflow}
+                        className="px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm transition-colors flex items-center gap-1.5"
+                      >
+                        <span>▶</span> Run workflow
+                      </button>
+                    </div>
                     <div className="border border-[#30363D] rounded-md bg-[#0D1117] divide-y divide-[#21262D]">
                       {actions.map((act) => (
                         <div
@@ -3136,31 +3337,61 @@ export default function QuantGitPage() {
                       <label className="text-[#7D8590] font-semibold">Repository name</label>
                       <input
                         type="text"
-                        defaultValue={selectedRepo.name}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
+                        value={settingsName}
+                        onChange={(e) => setSettingsName(e.target.value)}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#7D8590] font-semibold">Description</label>
+                      <textarea
+                        value={settingsDesc}
+                        onChange={(e) => setSettingsDesc(e.target.value)}
+                        rows={2}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+                        placeholder="Short description of this repository..."
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[#7D8590] font-semibold">Default branch</label>
                       <input
                         type="text"
-                        defaultValue={selectedRepo.defaultBranch}
-                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white"
+                        value={settingsBranch}
+                        onChange={(e) => setSettingsBranch(e.target.value)}
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[#7D8590] font-semibold">Visibility</label>
+                      <select
+                        value={settingsVisibility}
+                        onChange={(e) =>
+                          setSettingsVisibility(e.target.value as 'public' | 'private')
+                        }
+                        className="w-full bg-[#0D1117] border border-[#30363D] rounded px-2.5 py-1.5 text-white focus:outline-none focus:border-[#58A6FF]"
+                      >
+                        <option value="public">
+                          Public (Anyone on the internet can see this repository)
+                        </option>
+                        <option value="private">
+                          Private (You choose who can see and commit to this repository)
+                        </option>
+                      </select>
                     </div>
                     <button
                       type="button"
-                      onClick={() => showToast('Settings saved successfully')}
-                      className="px-3.5 py-1.5 rounded bg-[#21262D] border border-[#30363D] font-bold text-white hover:bg-[#30363D]"
+                      disabled={isSavingSettings}
+                      onClick={handleSaveSettings}
+                      className="px-4 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] font-bold text-white transition-colors shadow-sm disabled:opacity-50"
                     >
-                      Save changes
+                      {isSavingSettings ? 'Saving changes...' : 'Save changes'}
                     </button>
                   </div>
 
                   <div className="p-4 rounded bg-[#161B22] border border-[#DA3633] space-y-3">
                     <h4 className="font-bold text-[#F85149] text-sm">Danger Zone</h4>
                     <p className="text-[#7D8590]">
-                      Change repository visibility or delete this repository.
+                      Once deleted, this repository will be archived with a tombstone timestamp.
                     </p>
                     <button
                       type="button"
@@ -4297,7 +4528,10 @@ export default function QuantGitPage() {
               <h3 className="font-bold text-white text-sm">Switch branches or tags</h3>
               <button
                 type="button"
-                onClick={() => setModalState('none')}
+                onClick={() => {
+                  setModalState('none');
+                  setNewBranchInput('');
+                }}
                 className="text-[#7D8590] hover:text-white"
               >
                 ✕
@@ -4305,34 +4539,52 @@ export default function QuantGitPage() {
             </div>
             <input
               type="text"
+              value={newBranchInput}
+              onChange={(e) => setNewBranchInput(e.target.value)}
               placeholder="Find or create a branch..."
-              className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-xs text-white"
+              className="w-full bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-xs text-white placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF]"
             />
-            <div className="divide-y divide-[#21262D] max-h-60 overflow-y-auto">
-              {[
-                'main',
-                'feat/sprint-7-github-parity',
-                'fix/core-astra-audit',
-                'release/v1.0.0-apk',
-              ].map((b) => (
+            {newBranchInput.trim() &&
+              !repoBranches.some(
+                (b) => b.toLowerCase() === newBranchInput.trim().toLowerCase(),
+              ) && (
                 <button
-                  key={b}
                   type="button"
-                  onClick={() => {
-                    setCurrentBranch(b);
-                    setModalState('none');
-                    showToast(`Switched to branch ${b}`);
-                  }}
-                  className="w-full text-left py-2 px-2 hover:bg-[#21262D] flex items-center justify-between text-xs"
+                  onClick={handleCreateBranch}
+                  className="w-full text-left py-2 px-3 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] font-semibold flex items-center gap-2 border border-[#30363D]"
                 >
-                  <span
-                    className={currentBranch === b ? 'text-[#FF8C42] font-bold' : 'text-[#E6EDF3]'}
-                  >
-                    {b}
+                  <span className="text-[#3FB950] font-bold">+</span>
+                  <span>
+                    Create branch: <span className="text-white">{newBranchInput.trim()}</span> from{' '}
+                    <span className="text-[#7D8590]">{currentBranch}</span>
                   </span>
-                  {currentBranch === b && <span className="text-[#FF8C42]">✓</span>}
                 </button>
-              ))}
+              )}
+            <div className="divide-y divide-[#21262D] max-h-60 overflow-y-auto">
+              {repoBranches
+                .filter((b) => b.toLowerCase().includes(newBranchInput.toLowerCase()))
+                .map((b) => (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => {
+                      setCurrentBranch(b);
+                      setModalState('none');
+                      setNewBranchInput('');
+                      showToast(`Switched to branch ${b}`);
+                    }}
+                    className="w-full text-left py-2 px-2 hover:bg-[#21262D] flex items-center justify-between text-xs"
+                  >
+                    <span
+                      className={
+                        currentBranch === b ? 'text-[#FF8C42] font-bold' : 'text-[#E6EDF3]'
+                      }
+                    >
+                      {b}
+                    </span>
+                    {currentBranch === b && <span className="text-[#FF8C42]">✓</span>}
+                  </button>
+                ))}
             </div>
           </div>
         </div>
@@ -4812,6 +5064,206 @@ export default function QuantGitPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pull Request Detail Modal with Live Merge */}
+      {modalState === 'pr-detail' && selectedPr && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl p-5 text-xs space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-start justify-between border-b border-[#21262D] pb-3 gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-white text-base leading-tight">
+                    {selectedPr.title}
+                  </h3>
+                  <span className="text-[#7D8590] text-sm">#{selectedPr.id}</span>
+                </div>
+                <div className="flex items-center gap-2 pt-0.5">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                      selectedPr.state === 'merged'
+                        ? 'bg-[#8957E5]/20 text-[#A371F7] border border-[#8957E5]/40'
+                        : selectedPr.state === 'closed'
+                          ? 'bg-[#DA3633]/20 text-[#F85149] border border-[#DA3633]/40'
+                          : 'bg-[#238636]/20 text-[#3FB950] border border-[#238636]/40'
+                    }`}
+                  >
+                    <span>⑂</span>
+                    <span className="capitalize">{selectedPr.state}</span>
+                  </span>
+                  <span className="text-[11px] text-[#7D8590]">
+                    <span className="text-white font-semibold">{selectedPr.author}</span> wants to
+                    merge into{' '}
+                    <span className="px-1.5 py-0.5 rounded bg-[#161B22] text-[#58A6FF] font-mono">
+                      {selectedPr.branchTarget || selectedRepo?.defaultBranch || 'main'}
+                    </span>{' '}
+                    from{' '}
+                    <span className="px-1.5 py-0.5 rounded bg-[#161B22] text-[#58A6FF] font-mono">
+                      {selectedPr.branchSource}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalState('none')}
+                className="text-[#7D8590] hover:text-white text-base font-bold shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* PR Meta / Diff Stats */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[#161B22] p-3 rounded-md border border-[#30363D]">
+              <div>
+                <span className="text-[10px] text-[#7D8590]">Changes</span>
+                <p className="font-bold text-white">
+                  <span className="text-[#3FB950]">+{selectedPr.additions ?? 24}</span>{' '}
+                  <span className="text-[#F85149]">-{selectedPr.deletions ?? 5}</span>
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#7D8590]">Files Changed</span>
+                <p className="font-bold text-white">{selectedPr.changedFiles ?? 3} files</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#7D8590]">Created</span>
+                <p className="font-bold text-white">{selectedPr.createdAt}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-[#7D8590]">CI Checks</span>
+                <p className="font-bold text-[#3FB950]">✓ Passed</p>
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <h4 className="font-bold text-[#7D8590] text-[11px] uppercase tracking-wider">
+                Description
+              </h4>
+              <div className="p-3.5 rounded-md bg-[#161B22] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
+                {selectedPr.body || 'No description provided.'}
+              </div>
+            </div>
+
+            {/* Merge Action Box */}
+            <div className="pt-2">
+              {selectedPr.state === 'open' ? (
+                <div className="bg-[#161B22] border border-[#238636]/50 rounded-lg p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-inner">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5 text-[#3FB950] font-bold">
+                      <span>✓</span>
+                      <span>This branch has no conflicts with the base branch</span>
+                    </div>
+                    <p className="text-[11px] text-[#7D8590]">
+                      Merging will record status to database and close this pull request.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleMergePR(selectedPr.id)}
+                    className="px-4 py-2 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs flex items-center gap-2 shadow transition-colors"
+                  >
+                    <span>⑂</span> Merge pull request
+                  </button>
+                </div>
+              ) : selectedPr.state === 'merged' ? (
+                <div className="bg-[#8957E5]/10 border border-[#8957E5]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#A371F7]">
+                  <span className="font-bold text-base">✓</span>
+                  <span className="font-semibold text-xs">
+                    Pull request #{selectedPr.id} was successfully merged and closed.
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-[#DA3633]/10 border border-[#DA3633]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#F85149]">
+                  <span className="font-bold text-base">✕</span>
+                  <span className="font-semibold text-xs">This pull request is closed.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Detail Modal with Live Toggle */}
+      {modalState === 'issue-detail' && selectedIssue && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl p-5 text-xs space-y-4 shadow-2xl animate-in fade-in">
+            <div className="flex items-start justify-between border-b border-[#21262D] pb-3 gap-3">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-bold text-white text-base leading-tight">
+                    {selectedIssue.title}
+                  </h3>
+                  <span className="text-[#7D8590] text-sm">#{selectedIssue.id}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                      selectedIssue.state === 'open'
+                        ? 'bg-[#238636]/20 text-[#3FB950] border border-[#238636]/40'
+                        : 'bg-[#8957E5]/20 text-[#A371F7] border border-[#8957E5]/40'
+                    }`}
+                  >
+                    <span>{selectedIssue.state === 'open' ? '⨀' : '✓'}</span>
+                    <span className="capitalize">{selectedIssue.state}</span>
+                  </span>
+                  <span className="text-[11px] text-[#7D8590]">
+                    Opened by{' '}
+                    <span className="text-white font-semibold">{selectedIssue.author}</span> ·{' '}
+                    {selectedIssue.createdAt}
+                  </span>
+                  {selectedIssue.labels?.map((lbl) => (
+                    <span
+                      key={lbl.name}
+                      className="px-2 py-0.5 rounded-full text-[10px] font-bold text-white"
+                      style={{ backgroundColor: lbl.color }}
+                    >
+                      {lbl.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalState('none')}
+                className="text-[#7D8590] hover:text-white text-base font-bold shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <h4 className="font-bold text-[#7D8590] text-[11px] uppercase tracking-wider">
+                Issue Description
+              </h4>
+              <div className="p-3.5 rounded-md bg-[#161B22] border border-[#30363D] text-[#E6EDF3] leading-relaxed whitespace-pre-wrap">
+                {selectedIssue.body || 'No description provided.'}
+              </div>
+            </div>
+
+            {/* Issue Actions Bar */}
+            <div className="pt-2 flex items-center justify-between border-t border-[#21262D]">
+              <span className="text-[11px] text-[#7D8590]">
+                Assignee:{' '}
+                <span className="text-white font-medium">{selectedIssue.assignee || 'None'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleToggleIssue(selectedIssue.id)}
+                className={`px-4 py-2 rounded-md font-bold text-xs flex items-center gap-1.5 shadow transition-colors ${
+                  selectedIssue.state === 'open'
+                    ? 'bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] border border-[#30363D]'
+                    : 'bg-[#238636] hover:bg-[#2EA043] text-white'
+                }`}
+              >
+                <span>{selectedIssue.state === 'open' ? '✓' : '⨀'}</span>
+                <span>{selectedIssue.state === 'open' ? 'Close issue' : 'Reopen issue'}</span>
+              </button>
             </div>
           </div>
         </div>
