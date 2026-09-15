@@ -1154,3 +1154,28 @@ graph TD
   - Scaled mascots across headers and message streams up to 32px/72px.
 - **7. Production Staging Deployment & Live Verification**:
   - Landed in commit `afe89b02`, validated via CI Gate (3m40s), deployed via workflow `34939527873` (3m47s). Verified live in Chrome on `https://quantmail.in/quantgit` with 0 console errors.
+
+### 16. QuantGit: Repos Directory Reset, History Drawer Pinned/Rename/Delete & Composer Context Picker (Commit `3257a540`):
+
+- **1. Repos Directory Reset Invariant**:
+  - Clicking `📁 Repos` from the bottom navigation dock explicitly resets `selectedRepo` to `null`, `viewingFile` to `null`, and `activeGitHubTab` to `'code'`.
+  - Users are never trapped in a single repository or forced into a previously visited repo.
+  - The default landing view for the Repos deck is always the **All Repositories Directory**, complete with live search, visibility filters, language filters, and repository cards. Only clicking "Open Repo →" or a repo title enters repository detail.
+  - Clicking `← All Repositories` or `{currentUsername}` in the top breadcrumbs also cleanly clears `selectedRepo` and `viewingFile`.
+- **2. Left Sliding History Drawer Pinned, Rename & Delete**:
+  - Pinned sessions section (`📌 Pinned`) rendered at the top of the history drawer based on `pinnedSessionIds`.
+  - Recent sessions section rendered underneath.
+  - Hover action toolbar on every session item:
+    - `📌` Pin / Unpin toggle.
+    - `✎` Inline rename with Enter save and Escape cancel.
+    - `🗑` Delete session with active session fallback.
+- **3. Top Header Decluttering & Responsive Ellipsis Breadcrumbs**:
+  - Decluttered the top Quanty header: removed redundant `+ New chat`, `Share`, and `📌 Pin chat` text buttons; preserved sleek `☰` drawer toggle, `BubbleAvatar` (32px), `+` new chat icon button, and `🎨` personalize button.
+  - Responsive breadcrumb truncation (`truncate max-w-[70px] sm:max-w-[120px] md:max-w-none`) with ellipsis prevents two-line header wrapping on mobile and small viewport displays.
+- **4. Rich Composer Context Submenu Picker**:
+  - Replaced static placeholder strings with 3 interactive submenus in the `+` Give Context popup:
+    - `📁 Attach Repos & Files`: Searchable list of Monorepo repositories (`Quant-Ecosystem`, `quantmail-core`, `quantchat-meet`, `quant-mobile-android`) and architecture files (`AGENT_MEMORY.md`, `TASK_PLANNER.md`, `page.tsx`, `BubbleAvatar.tsx`, `git.ts`). Selected items attach as removable `📎 file` pills above the composer.
+    - `@ Mention Repo or File`: Searchable dropdown that appends `@repository` or `@file` to the prompt input.
+    - `⚡ Skills & Tools`: Searchable panel of 6 core Swarm skills with category badges (`[GIT]`, `[CODE]`, `[QA]`, `[VOICE]`, `[MEMORY]`, `[DB]`) and interactive `ON/OFF` toggle switches.
+- **5. Verification & Testing**:
+  - Validated with `@quant/quantmail` TypeScript typecheck (0 errors) and `@quant/shared-ui` test suite (36 test files, 519 tests passed 100%).

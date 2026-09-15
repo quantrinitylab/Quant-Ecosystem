@@ -22,6 +22,16 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Repos Directory Reset, History Drawer Pin/Rename/Delete & Composer Context Picker (`3257a540`)**:
+  - [x] **Repos Directory Reset Invariant**: Clicking `📁 Repos` from bottom dock explicitly resets `selectedRepo` to `null`, `viewingFile` to `null`, and `activeGitHubTab` to `'code'`, guaranteeing the Repositories Directory is always the landing view and users are never trapped in a single repo.
+  - [x] **Top Breadcrumb Navigation & Ellipsis Truncation**: Clicking `{currentUsername}` or `QuantGit` navigates back to Repositories directory; responsive truncation (`truncate max-w-[70px] sm:max-w-[120px] md:max-w-none`) prevents header squishing and wrapping on small viewports.
+  - [x] **Left Sliding History Drawer Pinning, Renaming & Deleting**: Added dedicated `📌 Pinned` section at the top of the history drawer based on `pinnedSessionIds`. Every session item includes hover action buttons for Pin/Unpin (`📌`), Rename (`✎` with inline editing and Enter save), and Delete (`🗑`).
+  - [x] **Top Header Decluttering**: Removed cluttered `+ New chat`, `Share`, and `📌 Pin chat` buttons from Quanty top bar; kept clean `+` new chat icon button, `BubbleAvatar` 32px, and `🎨` personalize button.
+  - [x] **Rich Composer Context Submenus**: Replaced placeholder items in `+` Give Context popup with 3 functional submenus:
+    - `📁 Attach Repos & Files`: Searchable list of Monorepo repos & core architecture files with click-to-attach context pills.
+    - `@ Mention Repo or File`: Searchable list of @references inserted directly into the prompt cursor.
+    - `⚡ Skills & Tools`: Searchable panel of 6 core Swarm skills with category badges (`[GIT]`, `[CODE]`, `[QA]`, `[VOICE]`, `[MEMORY]`, `[DB]`) and interactive `ON/OFF` toggle switches.
+  - [x] **Verification & Unit Tests**: Verified TypeScript typecheck (0 errors) on `@quant/quantmail` and passed all 36 test files (519 tests) on `@quant/shared-ui`.
 - [x] **QuantGit Sovereign Identity, Living Cloud Avatar & Flush Dock Navigation (`afe89b02`, deployed to production in run `34939527873`)**:
   - [x] **Quanty Default Landing & Clean Welcome Hero**: Set default landing tab to `✨ Quanty` with zero preloaded fake messages; verified pristine Welcome hero with 4 prompt cards.
   - [x] **Sovereign QuantGit Logo**: Replaced GitHub Octocat SVG with proprietary `QuantGitLogo` (obsidian plate, iridescent chrome bezel, ember commit graph).
