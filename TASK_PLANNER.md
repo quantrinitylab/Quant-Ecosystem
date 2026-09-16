@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Fail-Closed Tool Gate, Strict CAS & HTTP Route Parity (`130e66b2` on `main`, Astra Re-Audit V15 & B2/B5)**:
+  - [x] **Fail-Closed Tool Gate**: Defaulted `tools.enabled` to `false` and hardened gate to `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'`, preventing accidental tool execution for standard mail copilot callers.
+  - [x] **Strict CAS parentSha Enforcement (V9)**: Required `parentSha` in `commit_file` tool call and forwarded `expectedHeadSha: args.parentSha` directly to `commitFile` with zero head-fallback, preventing silent force-writes.
+  - [x] **Prose vs Execution Truthfulness (V11/V15)**: Omitted `deploy_agent` from `Supported tools` inventory in prompt; prepends `[Action Notice: <tool>: <error>]` to user prose when tool execution fails/holds so model cannot hallucinate success.
+  - [x] **HTTP Repos Route Cleanups (B2/B5)**: Defaulted `visibility` to `'private'`, removed fake `948e3612` branch row creation, wired authentic initial commit for `initReadme` via `repositoryMutation`, and prioritized `ownerId: userId` in repo name lookups.
+  - [x] **Vitest QA Regression Suite**: 23/23 tests passing in `ai-chat.routes.test.ts`, 20/20 in `repos.routes.test.ts`, 0 TypeScript compilation errors (`tsc --noEmit`).
+  - [x] **GitHub CI Gate Check**: Passed green in 5m6s on commit `130e66b2` (Run `35124604617`, Job `104890440279`).
+
 - [x] **QuantGit Autonomous Dispatcher Security & Integrity Remediations (`046f2549` on `main`, Astra Re-Audit V1-V14)**:
   - [x] **Tenant-Scoped Repository Resolution (V1)**: Eliminated unscoped fallback queries across `commit_file`, `read_file_blob`, and `deploy_agent`. All repository lookups require `{ ownerId: userId, deletedAt: null }`.
   - [x] **Zero-Fabrication on Missing Write Port (V2)**: Removed fake 40-char SHA fallback; throws 503 `STORAGE_UNAVAILABLE` when `repositoryMutation` is undecorated.

@@ -1337,3 +1337,37 @@ graph TD
   - `apps/quantmail/backend/__tests__/ai-chat.routes.test.ts`: 21/21 unit tests passing 100% (covering create repo with private default, held deploy_agent, authenticated CAS commit, 503 STORAGE_UNAVAILABLE, and cross-tenant rejection).
   - `apps/quantmail/backend/__tests__/repos.routes.test.ts`: 20/20 unit tests passing 100%.
   - Frontend & backend TypeScript typecheck verified 0 errors (`tsc --noEmit`).
+
+### 20. QuantGit Fail-Closed Tool Gating, Strict CAS Enforcement & HTTP Repo Parity (Commit `130e66b2`, Astra Re-Audit V15 & B2/B5):
+
+- **1. Astra's Official Follow-Up Audit Findings (Opus 5 Direct Review)**:
+  - Astra verified all 7 claims against shipped commit `a26c45ff` via GitHub MCP, formally withdrew the "disable today" instruction, but highlighted 4 critical follow-up hardening points:
+    - **Fail-Closed Tool Gating**: `tools.enabled` had an opt-out default (`default(true)`), so an absent `tools` object evaluated as active. Must be strictly opt-in (`default(false)`) and require `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'`.
+    - **Strict CAS Enforcement without Force-Write (V9)**: `commit_file` fell back to `args.parentSha ?? currentHead`, creating a self-satisfying precondition where any omitted `parentSha` silently overwrote whatever head existed. Must require `parentSha` and pass it directly to `repositoryMutation.commitFile` without fallback.
+    - **Anti-Fabrication & Prose Notice (V11/V15)**: Omit held `deploy_agent` from `Supported tools` in `SYSTEM_PROMPT` to prevent the LLM from volunteering it. If any tool execution fails or is held, prepend `[Action Notice: <tool>: <error>]` to `cleanMessage` so the model prose cannot falsely claim success over a failed execution.
+    - **HTTP Repo Parity (`routes/repos.ts` - B2/B5)**: Default `POST /repos` visibility to `'private'`, eliminate fake `948e3612` branch row creation, implement real initial README commit via `fastify.repositoryMutation`, and scope name-based repository resolution in `loadReadableRepo` to `ownerId: userId` first.
+- **2. Fail-Closed Tool Gate Implementation (`routes/ai-chat.ts`)**:
+  - `chatSchema`: `tools.enabled` set to `z.boolean().default(false)`.
+  - Gate logic: `const isToolCallingEnabled = tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';`. If neither is true, tool parsing is completely bypassed and regular conversation is preserved.
+- **3. Strict CAS parentSha Enforcement (`routes/ai-chat.ts`)**:
+  - `commit_file` requires `args.parentSha` (`undefined` throws: `"parentSha is required: provide 40-char SHA of current branch head or null for root commit"`).
+  - Eliminates the `currentHead` fallback. Passes `expectedHeadSha: args.parentSha` directly to `fastify.repositoryMutation.commitFile`.
+- **4. Anti-Fabrication Failure Notice & Grammar Cleanup (`routes/ai-chat.ts`)**:
+  - Removed `deploy_agent` from the system prompt `Supported tools` inventory.
+  - Formatted `cleanMessage`: If any tool returned `status === 'failed'`, prepends `[Action Notice: <toolName>: <error>]` to the user-visible message.
+- **5. HTTP Repos Route Hardening (`routes/repos.ts`)**:
+  - `POST /repos` defaults `visibility` to `'private'` instead of `'public'`.
+  - Removed fake initial branch `{ name: 'main', commitSha: '948e3612' }`.
+  - When `initReadme: true`, performs an authoritative root commit via `fastify.repositoryMutation.commitFile` with `expectedHeadSha: null` and creates the `main` branch with the authentic SHA.
+  - Scoped name resolution in `loadReadableRepo`: checks `{ name: idOrName, ownerId: userId, deletedAt: null }` first before checking public/internal visibility.
+- **6. Vitest Regression Test Suite & Verification**:
+  - `apps/quantmail/backend/__tests__/ai-chat.routes.test.ts`: Expanded to 23 tests (100% passing) verifying:
+    - Tool calling is skipped when `tools` is absent or `enabled: false`.
+    - `commit_file` rejects when `parentSha` is omitted.
+    - `parentSha` is forwarded strictly to `commitFile` without fallback.
+    - Prepending `[Action Notice: ...]` when tool executions fail.
+  - `apps/quantmail/backend/__tests__/repos.routes.test.ts`: 20/20 unit tests passing 100%.
+  - TypeScript typechecks verified 100% clean with 0 errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
+- **7. GitHub CI Gate Sign-Off**:
+  - Pushed to `main` at `130e66b2`.
+  - GitHub CI gate check passed green in 5m6s (Run `35124604617`, Job `104890440279`).
