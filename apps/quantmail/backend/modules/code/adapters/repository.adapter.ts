@@ -1,5 +1,13 @@
-import type { RepositoryInspectionPort, RepositoryProvisioningPort } from '@quant/server-core';
-import { GitInspectService, RepoStorageService } from '../services/git-transport';
+import type {
+  RepositoryInspectionPort,
+  RepositoryMutationPort,
+  RepositoryProvisioningPort,
+} from '@quant/server-core';
+import {
+  GitFileMutationService,
+  GitInspectService,
+  RepoStorageService,
+} from '../services/git-transport';
 
 export class GitInspectAdapter implements RepositoryInspectionPort {
   private readonly inspect: GitInspectService;
@@ -36,5 +44,21 @@ export class GitProvisioningAdapter implements RepositoryProvisioningPort {
   }
   destroy(input: Parameters<RepositoryProvisioningPort['destroy']>[0]) {
     return this.storage.deleteRepo(input.owner, input.name);
+  }
+}
+
+export class GitMutationAdapter implements RepositoryMutationPort {
+  constructor(private readonly mutation: RepositoryMutationPort = new GitFileMutationService()) {}
+
+  getBranchHead(input: Parameters<RepositoryMutationPort['getBranchHead']>[0]) {
+    return this.mutation.getBranchHead(input);
+  }
+
+  commitFile(input: Parameters<RepositoryMutationPort['commitFile']>[0]) {
+    return this.mutation.commitFile(input);
+  }
+
+  rollbackCommit(input: Parameters<RepositoryMutationPort['rollbackCommit']>[0]) {
+    return this.mutation.rollbackCommit(input);
   }
 }

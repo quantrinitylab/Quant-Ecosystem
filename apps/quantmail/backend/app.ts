@@ -14,7 +14,12 @@ import emailTemplatesRoutes from './routes/email-templates';
 import emailSignaturesRoutes from './routes/email-signatures';
 import notificationRoutes from './routes/notifications';
 import searchRoutes from './routes/search';
-import { registerQuantCodeModule, GitInspectAdapter, GitProvisioningAdapter } from './modules/code';
+import {
+  registerQuantCodeModule,
+  GitInspectAdapter,
+  GitProvisioningAdapter,
+  GitMutationAdapter,
+} from './modules/code';
 import aiDevtoolsRoutes from './routes/ai-devtools';
 import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
@@ -114,6 +119,7 @@ export async function buildApp(config?: AppConfig) {
 
   app.decorate('repositoryInspection', new GitInspectAdapter());
   app.decorate('repositoryProvisioning', new GitProvisioningAdapter());
+  app.decorate('repositoryMutation', new GitMutationAdapter());
 
   await app.register(authRoutes);
   await app.register(twoFactorRoutes);

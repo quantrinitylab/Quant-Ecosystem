@@ -3,7 +3,7 @@
 // ============================================================================
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
 
 const repoNameSchema = z
   .string()
@@ -67,6 +67,60 @@ const createBranchSchema = z.object({
     .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid branch name'),
   sha: z.string().min(4).max(64).optional(),
 });
+
+const MAX_AUTHORED_FILE_BYTES = 2 * 1024 * 1024;
+
+const repositoryFilePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(1024)
+  .refine((value) => !value.startsWith('/') && !value.includes('\\') && !value.includes('\0'), {
+    message: 'Path must be repository-relative',
+  })
+  .refine(
+    (value) =>
+      value.split('/').every((segment) => segment !== '' && segment !== '..' && segment !== '.git'),
+    {
+      message: 'Path contains a forbidden segment',
+    },
+  );
+
+const repositoryBranchSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9._/-]+$/, 'Invalid branch name')
+  .refine(
+    (value) =>
+      !value.startsWith('/') &&
+      !value.endsWith('/') &&
+      !value.includes('..') &&
+      !value.includes('//') &&
+      !value.includes('@{') &&
+      !value.endsWith('.lock'),
+    {
+      message: 'Invalid branch name',
+    },
+  );
+
+const commitFileSchema = z
+  .object({
+    path: repositoryFilePathSchema,
+    branch: repositoryBranchSchema,
+    content: z
+      .string()
+      .refine((value) => Buffer.byteLength(value, 'utf8') <= MAX_AUTHORED_FILE_BYTES, {
+        message: 'File exceeds the 2 MiB authoring limit',
+      }),
+    message: z.string().trim().min(1).max(500),
+    parentSha: z
+      .string()
+      .regex(/^[0-9a-f]{40}$/i)
+      .optional(),
+  })
+  .strict();
 
 type RepoRow = {
   id: string;
@@ -141,6 +195,18 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       throw createAppError('Repository storage is unavailable', 503, 'STORAGE_UNAVAILABLE');
     }
     return fastify.repositoryProvisioning;
+  }
+
+  function mutationPort() {
+    if (!fastify.repositoryMutation) {
+      throw createAppError(
+        'Repository mutation storage is unavailable',
+        503,
+        'REPOSITORY_MUTATION_UNAVAILABLE',
+      );
+    }
+
+    return fastify.repositoryMutation;
   }
   fastify.get('/', async (request, reply) => {
     const parsed = paginationSchema.safeParse(request.query);
@@ -313,6 +379,198 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     }
     return repo;
   }
+
+  /*
+   * PATCH is canonical. POST is a compatibility alias for autonomous clients
+   * that expose only create-style tool calls.
+   */
+  fastify.route<{
+    Params: { id: string };
+    Body: z.infer<typeof commitFileSchema>;
+  }>({
+    method: ['PATCH', 'POST'],
+    url: '/:id/file',
+    handler: async (request, reply) => {
+      /*
+       * Authorize before parsing or touching repository storage. This keeps
+       * missing/private repositories indistinguishable to unauthorized users.
+       */
+      const repo = await loadWritableRepo(request, request.params.id);
+      const userId = requireUserId(request);
+
+      const parsed = commitFileSchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw parsed.error;
+      }
+
+      const prisma = getPrisma(fastify);
+      const targetBranch = parsed.data.branch;
+
+      /*
+       * Non-default branches must be represented in the Branch table.
+       * The default branch is allowed to be absent because a newly provisioned
+       * bare repository may not have received its first commit yet.
+       */
+      const branchRecord = await prisma.branch.findUnique({
+        where: {
+          repoId_name: {
+            repoId: repo.id,
+            name: targetBranch,
+          },
+        },
+      });
+
+      if (!branchRecord && targetBranch !== repo.defaultBranch) {
+        throw createAppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      }
+
+      /*
+       * The actual bare-repository ref is authoritative. Branch.commitSha is a
+       * query/index projection that is updated after the Git CAS succeeds.
+       */
+      const currentHeadSha = await mutationPort().getBranchHead({
+        owner: repo.ownerId,
+        name: repo.name,
+        branch: targetBranch,
+      });
+
+      if (parsed.data.parentSha && parsed.data.parentSha !== currentHeadSha) {
+        return reply.status(409).send({
+          success: false,
+          error: {
+            code: 'STALE_PARENT_SHA',
+            message: 'The branch head changed. Reload the file before committing.',
+          },
+          currentHeadSha,
+        });
+      }
+
+      const author = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          username: true,
+          displayName: true,
+          email: true,
+        },
+      });
+
+      if (!author) {
+        throw createAppError('Authenticated user not found', 401, 'UNAUTHORIZED');
+      }
+
+      let committed: {
+        commitSha: string;
+        blobSha: string;
+        previousHeadSha: string | null;
+        path: string;
+        branch: string;
+      };
+
+      try {
+        committed = await mutationPort().commitFile({
+          owner: repo.ownerId,
+          name: repo.name,
+          branch: targetBranch,
+          path: parsed.data.path,
+          content: parsed.data.content,
+          message: parsed.data.message,
+          expectedHeadSha: currentHeadSha,
+          author: {
+            name: author.displayName || author.username,
+            email: author.email,
+          },
+        });
+      } catch (error) {
+        /*
+         * Covers the race where the branch changes after getBranchHead but
+         * before update-ref. The mutation service performs the final atomic CAS.
+         */
+        if (error instanceof RepositoryHeadConflictError) {
+          return reply.status(409).send({
+            success: false,
+            error: {
+              code: 'STALE_PARENT_SHA',
+              message: 'The branch head changed. Reload the file before committing.',
+            },
+            currentHeadSha: error.currentHeadSha,
+          });
+        }
+
+        throw error;
+      }
+
+      try {
+        await prisma.$transaction(async (transaction: any) => {
+          await transaction.branch.upsert({
+            where: {
+              repoId_name: {
+                repoId: repo.id,
+                name: targetBranch,
+              },
+            },
+            update: {
+              commitSha: committed.commitSha,
+            },
+            create: {
+              repoId: repo.id,
+              name: targetBranch,
+              commitSha: committed.commitSha,
+            },
+          });
+
+          /*
+           * The current schema has no dedicated Commit model. CiRun is the
+           * existing durable commit event and CI dispatch record.
+           */
+          await transaction.ciRun.create({
+            data: {
+              repoId: repo.id,
+              branch: targetBranch,
+              commitSha: committed.commitSha,
+              status: 'PENDING',
+              triggeredBy: author.username,
+            },
+          });
+        });
+      } catch (databaseError) {
+        /*
+         * Git and PostgreSQL cannot share a transaction. Compensate the ref
+         * update if branch metadata / CI event persistence fails.
+         */
+        try {
+          await mutationPort().rollbackCommit({
+            owner: repo.ownerId,
+            name: repo.name,
+            branch: targetBranch,
+            expectedCurrentSha: committed.commitSha,
+            restoreHeadSha: committed.previousHeadSha,
+          });
+        } catch (rollbackError) {
+          request.log.error(
+            {
+              err: rollbackError,
+              repoId: repo.id,
+              commitSha: committed.commitSha,
+            },
+            'failed to compensate Git ref after database transaction failure',
+          );
+        }
+
+        throw databaseError;
+      }
+
+      return reply.status(200).send({
+        success: true,
+        data: {
+          commitSha: committed.commitSha,
+          blobSha: committed.blobSha,
+          path: committed.path,
+          branch: targetBranch,
+          message: parsed.data.message,
+        },
+      });
+    },
+  });
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);

@@ -45,12 +45,18 @@ vi.mock('../services/ai-provider.service', async (importOriginal) => {
 
 const ONE_TURN = [{ role: 'user', content: 'What is on my calendar today?' }];
 
-async function buildApp(userId: string | null = 'user-1') {
+async function buildApp(
+  userId: string | null = 'user-1',
+  extraDecorators: Record<string, any> = {},
+) {
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   app.addHook('onRequest', async (request) => {
     if (userId) (request as unknown as { auth: { userId: string } }).auth = { userId };
   });
+  for (const [key, val] of Object.entries(extraDecorators)) {
+    app.decorate(key, val);
+  }
   await app.register(aiChatRoutes, { prefix: '/ai' });
   await app.ready();
   return app;
@@ -321,5 +327,152 @@ describe('GET /ai/chat/health', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().data.status).toBe('ready');
+  });
+});
+
+describe('POST /ai/chat — autonomous tool calling', () => {
+  it('detects and executes a create_repository tool call emitted by the model', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: 'repo-101',
+          name: 'autonomous-swarm-engine',
+          description: 'Created by Quanty',
+          visibility: 'PUBLIC',
+          defaultBranch: 'main',
+        }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'astra-ceo',
+          displayName: 'Astra CEO',
+          email: 'astra@quantmail.in',
+        }),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      'I will create the repository for you now.\n\n```tool_call\n{\n  "name": "create_repository",\n  "arguments": {\n    "name": "autonomous-swarm-engine",\n    "description": "Created by Quanty"\n  }\n}\n```\n\nRepository has been created successfully!',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Create autonomous-swarm-engine repo' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.message).toContain('Repository has been created successfully!');
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      status: 'succeeded',
+      result: {
+        id: 'repo-101',
+        name: 'autonomous-swarm-engine',
+      },
+    });
+    expect(prismaMock.repository.create).toHaveBeenCalled();
+  });
+
+  it('detects and executes a deploy_agent tool call emitted by the model', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo' }),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      'Deploying agent now.\n\n```tool_call\n{\n  "name": "deploy_agent",\n  "arguments": {\n    "repoId": "demo",\n    "agentName": "Forge",\n    "role": "Autonomous Coder",\n    "workstationIndex": 2\n  }\n}\n```\n\nAgent deployed to Desk #2.',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Deploy Forge to desk 2' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'deploy_agent',
+      status: 'succeeded',
+      result: {
+        agentName: 'Forge',
+        role: 'Autonomous Coder',
+        workstationIndex: 2,
+        deskNumber: 2,
+      },
+    });
+  });
+
+  it('detects and executes a commit_file tool call via repositoryMutation port', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'astra-ceo',
+          displayName: 'Astra CEO',
+          email: 'astra@quantmail.in',
+        }),
+      },
+      branch: {
+        upsert: vi.fn().mockResolvedValue({}),
+      },
+      ciRun: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const repositoryMutationMock = {
+      getBranchHead: vi.fn().mockResolvedValue('1111222233334444555566667777888899990000'),
+      commitFile: vi.fn().mockResolvedValue({
+        commitSha: '2222333344445555666677778888999900001111',
+        blobSha: '3333444455556666777788889999000011112222',
+        path: 'src/index.ts',
+        branch: 'main',
+      }),
+    };
+
+    aiChatMock.mockResolvedValue(
+      'Committing changes.\n\n```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: hello world"\n  }\n}\n```\n\nCommitted file to repo.',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Commit index.ts' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'succeeded',
+      result: {
+        commitSha: '2222333344445555666677778888999900001111',
+        path: 'src/index.ts',
+        branch: 'main',
+      },
+    });
+    expect(repositoryMutationMock.commitFile).toHaveBeenCalled();
   });
 });

@@ -175,6 +175,16 @@ export type DeployedAgent = {
   thoughts?: string;
 };
 
+export type ToolExecutionCard = {
+  toolName: string;
+  callId: string;
+  status: 'succeeded' | 'failed';
+  input: Record<string, any>;
+  result?: any;
+  error?: string;
+  durationMs?: number;
+};
+
 export type ChatMessage = {
   id: string;
   role: 'assistant' | 'user';
@@ -186,6 +196,7 @@ export type ChatMessage = {
   steps?: string[];
   thoughts?: string;
   thoughtDuration?: string;
+  toolExecutions?: ToolExecutionCard[];
 };
 
 // Initial Mock Repositories
@@ -2093,15 +2104,55 @@ export default function QuantGitPage() {
         throw new Error('The AI provider returned an empty response.');
       }
 
+      const toolExecutions: ToolExecutionCard[] = Array.isArray(payload.data?.toolExecutions)
+        ? payload.data.toolExecutions
+        : [];
+
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
         model: payload.data.routed || payload.data.tier || activeModel,
         text: payload.data.message.trim(),
         timestamp: 'just now',
+        toolExecutions: toolExecutions.length > 0 ? toolExecutions : undefined,
       };
 
       setChatMessages((previous) => [...previous, assistantMessage]);
+
+      if (toolExecutions.length > 0) {
+        const hasRepoCreation = toolExecutions.some(
+          (t) => t.toolName === 'create_repository' && t.status === 'succeeded',
+        );
+        if (hasRepoCreation) {
+          await fetchRepos();
+        }
+
+        const deployed = toolExecutions.filter(
+          (t) => t.toolName === 'deploy_agent' && t.status === 'succeeded',
+        );
+        if (deployed.length > 0) {
+          for (const item of deployed) {
+            if (item.result) {
+              const res = item.result;
+              setAgents((current) => [
+                ...current,
+                {
+                  id: res.id || `agent-${Date.now()}`,
+                  name: res.name || 'Swarm Worker',
+                  role: res.role || 'Autonomous Developer',
+                  pod: 'SWARM',
+                  status: 'idle',
+                  currentTask: `Stationed at Desk #${res.deskNumber || 1}`,
+                  initial: String(res.name || 'S')
+                    .charAt(0)
+                    .toUpperCase(),
+                  color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40',
+                },
+              ]);
+            }
+          }
+        }
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'The AI service is currently unavailable.';
@@ -2129,7 +2180,13 @@ export default function QuantGitPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          path: input.path,
+          branch: input.branch,
+          content: input.content,
+          message: input.message,
+          parentSha: input.expectedBlobSha,
+        }),
       });
       const payload = await response.json().catch(() => null);
 
@@ -4030,6 +4087,160 @@ export default function QuantGitPage() {
                           <div className="space-y-2 leading-relaxed text-[#E6EDF3] whitespace-pre-wrap">
                             {msg.text}
                           </div>
+
+                          {/* Autonomous Tool Call Executions */}
+                          {msg.toolExecutions && msg.toolExecutions.length > 0 && (
+                            <div className="space-y-2 pt-2 border-t border-[#21262D]">
+                              <div className="text-[10px] font-mono uppercase tracking-wider text-[#7D8590] flex items-center gap-1.5">
+                                <span className="inline-block w-2 h-2 rounded-full bg-[#58A6FF] animate-pulse" />
+                                <span>
+                                  Autonomous Swarm Execution ({msg.toolExecutions.length})
+                                </span>
+                              </div>
+                              <div className="grid gap-2">
+                                {msg.toolExecutions.map((exec, idx) => (
+                                  <div
+                                    key={exec.callId || idx}
+                                    className={`p-3 rounded-xl border text-xs font-mono transition-all ${
+                                      exec.status === 'succeeded'
+                                        ? 'bg-[#0D1117] border-[#238636]/40 text-[#E6EDF3]'
+                                        : 'bg-[#0D1117] border-[#DA3633]/40 text-[#F85149]'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                            exec.status === 'succeeded'
+                                              ? 'bg-[#238636]/20 text-[#3FB950]'
+                                              : 'bg-[#DA3633]/20 text-[#F85149]'
+                                          }`}
+                                        >
+                                          {exec.status === 'succeeded' ? '✓ EXECUTED' : '✕ FAILED'}
+                                        </span>
+                                        <span className="font-semibold text-white">
+                                          {exec.toolName === 'create_repository' &&
+                                            `📦 Repository: ${exec.result?.name || exec.input?.name}`}
+                                          {exec.toolName === 'commit_file' &&
+                                            `⚡ Commit: ${exec.input?.path || exec.result?.path}`}
+                                          {exec.toolName === 'read_file_blob' &&
+                                            `📄 Read: ${exec.input?.path}`}
+                                          {exec.toolName === 'deploy_agent' &&
+                                            `🤖 Swarm Agent: ${exec.result?.name || exec.input?.name}`}
+                                          {![
+                                            'create_repository',
+                                            'commit_file',
+                                            'read_file_blob',
+                                            'deploy_agent',
+                                          ].includes(exec.toolName) && exec.toolName}
+                                        </span>
+                                      </div>
+                                      {exec.durationMs && (
+                                        <span className="text-[10px] text-[#7D8590]">
+                                          {exec.durationMs}ms
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Details & Quick Action Buttons */}
+                                    <div className="mt-2 pt-2 border-t border-[#21262D]/60 text-[11px] text-[#8B949E] flex flex-wrap items-center justify-between gap-2">
+                                      <div>
+                                        {exec.toolName === 'create_repository' && (
+                                          <span>
+                                            Branch:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              {exec.result?.defaultBranch || 'main'}
+                                            </code>{' '}
+                                            · Visibility:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              {exec.result?.visibility || 'public'}
+                                            </code>
+                                          </span>
+                                        )}
+                                        {exec.toolName === 'commit_file' && (
+                                          <span>
+                                            SHA:{' '}
+                                            <code className="text-[#3FB950]">
+                                              {String(exec.result?.commitSha || '').slice(0, 8)}
+                                            </code>{' '}
+                                            · Branch:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              {exec.result?.branch || 'main'}
+                                            </code>
+                                          </span>
+                                        )}
+                                        {exec.toolName === 'deploy_agent' && (
+                                          <span>
+                                            Role:{' '}
+                                            <code className="text-[#FF8C42]">
+                                              {exec.result?.role || exec.input?.role}
+                                            </code>{' '}
+                                            · Desk:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              #{exec.result?.deskNumber || exec.input?.deskNumber}
+                                            </code>
+                                          </span>
+                                        )}
+                                        {exec.toolName === 'read_file_blob' && (
+                                          <span>
+                                            Bytes:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              {exec.result?.size ?? 'N/A'}
+                                            </code>{' '}
+                                            · SHA:{' '}
+                                            <code className="text-[#58A6FF]">
+                                              {String(exec.result?.blobSha || '').slice(0, 8)}
+                                            </code>
+                                          </span>
+                                        )}
+                                        {exec.error && (
+                                          <span className="text-[#F85149]">{exec.error}</span>
+                                        )}
+                                      </div>
+
+                                      {exec.status === 'succeeded' && (
+                                        <div className="flex items-center gap-2">
+                                          {exec.toolName === 'create_repository' && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const targetName =
+                                                  exec.result?.name || exec.input?.name;
+                                                const found = baseRepos.find(
+                                                  (r) => r.name === targetName,
+                                                );
+                                                if (found) {
+                                                  openRepository(found);
+                                                } else {
+                                                  void fetchRepos();
+                                                  showToast(`Switching to ${targetName}`);
+                                                }
+                                              }}
+                                              className="px-2 py-0.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#58A6FF] text-[10px] font-medium transition-colors"
+                                            >
+                                              Open Repo →
+                                            </button>
+                                          )}
+                                          {exec.toolName === 'deploy_agent' && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActiveDeckTab('lab');
+                                                showToast('Navigated to Agent Lab floor');
+                                              }}
+                                              className="px-2 py-0.5 rounded bg-[#21262D] hover:bg-[#30363D] text-[#FF8C42] text-[10px] font-medium transition-colors"
+                                            >
+                                              View in Agent Lab →
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {/* Action Suggestions */}
                           {msg.suggestions && (

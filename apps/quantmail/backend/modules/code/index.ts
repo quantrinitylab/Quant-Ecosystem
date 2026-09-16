@@ -97,7 +97,13 @@ export type {
   GitServiceOptions,
 } from './services/git.service';
 
-export { GitInspectAdapter, GitProvisioningAdapter } from './adapters/repository.adapter';
+export {
+  GitInspectAdapter,
+  GitProvisioningAdapter,
+  GitMutationAdapter,
+} from './adapters/repository.adapter';
+
+export { GitFileMutationService } from './services/git-transport/git-file-mutation.service';
 
 /**
  * The QuantCode route surface as a single encapsulated Fastify plugin.

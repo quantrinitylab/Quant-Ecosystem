@@ -95,6 +95,15 @@ function fakePrisma() {
       delete: vi.fn().mockResolvedValue(MOCK_REPO),
     },
     branch: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'branch-1',
+        repoId: 'repo-1',
+        name: 'main',
+        commitSha: '1111111111111111111111111111111111111111',
+        isProtected: false,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+      }),
       findMany: vi
         .fn()
         .mockResolvedValue([{ name: 'main', commitSha: '948e3612', isProtected: false }]),
@@ -106,6 +115,19 @@ function fakePrisma() {
         commitSha: data.commitSha,
         isProtected: false,
       })),
+      upsert: vi.fn().mockImplementation(async ({ create, update }: any) => ({
+        id: 'branch-1',
+        ...create,
+        ...update,
+        isProtected: false,
+      })),
+    },
+    user: {
+      findUnique: vi.fn().mockResolvedValue({
+        username: 'kundan',
+        displayName: 'Kundan Singh',
+        email: 'kundan@example.test',
+      }),
     },
     issue: {
       findMany: vi.fn().mockResolvedValue([MOCK_ISSUE]),
@@ -149,10 +171,18 @@ function fakePrisma() {
         })),
       })),
     },
+    $transaction: vi
+      .fn()
+      .mockImplementation(async (callback: (tx: any) => unknown) => callback(prisma)),
   };
 }
 
 let prisma: ReturnType<typeof fakePrisma>;
+let repositoryMutation: {
+  getBranchHead: ReturnType<typeof vi.fn>;
+  commitFile: ReturnType<typeof vi.fn>;
+  rollbackCommit: ReturnType<typeof vi.fn>;
+};
 
 async function buildApp(userId: string | null = 'user-1') {
   prisma = fakePrisma();
@@ -164,6 +194,18 @@ async function buildApp(userId: string | null = 'user-1') {
     archive: vi.fn().mockResolvedValue({ storagePath: '/var/repos/test.git.bak' }),
     destroy: vi.fn().mockResolvedValue(undefined),
   });
+  repositoryMutation = {
+    getBranchHead: vi.fn().mockResolvedValue('1111111111111111111111111111111111111111'),
+    commitFile: vi.fn().mockResolvedValue({
+      commitSha: '2222222222222222222222222222222222222222',
+      blobSha: '3333333333333333333333333333333333333333',
+      previousHeadSha: '1111111111111111111111111111111111111111',
+      path: 'src/index.ts',
+      branch: 'main',
+    }),
+    rollbackCommit: vi.fn().mockResolvedValue(undefined),
+  };
+  app.decorate('repositoryMutation', repositoryMutation as never);
   app.addHook('onRequest', async (request) => {
     if (userId) (request as unknown as { auth: { userId: string } }).auth = { userId };
   });
@@ -173,6 +215,169 @@ async function buildApp(userId: string | null = 'user-1') {
 }
 
 describe('QuantGit Database-Backed Repos Routes', () => {
+  it('PATCH /repos/:id/file commits a file on main and queues CI', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'export const answer = 42;\n',
+        message: 'feat: add answer module',
+        parentSha: '1111111111111111111111111111111111111111',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      success: true,
+      data: {
+        commitSha: '2222222222222222222222222222222222222222',
+        blobSha: '3333333333333333333333333333333333333333',
+        path: 'src/index.ts',
+        branch: 'main',
+        message: 'feat: add answer module',
+      },
+    });
+
+    expect(repositoryMutation.getBranchHead).toHaveBeenCalledWith({
+      owner: 'user-1',
+      name: 'Quant-Ecosystem',
+      branch: 'main',
+    });
+
+    expect(repositoryMutation.commitFile).toHaveBeenCalledWith({
+      owner: 'user-1',
+      name: 'Quant-Ecosystem',
+      branch: 'main',
+      path: 'src/index.ts',
+      content: 'export const answer = 42;\n',
+      message: 'feat: add answer module',
+      expectedHeadSha: '1111111111111111111111111111111111111111',
+      author: {
+        name: 'Kundan Singh',
+        email: 'kundan@example.test',
+      },
+    });
+
+    expect(prisma.branch.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          repoId_name: {
+            repoId: 'repo-1',
+            name: 'main',
+          },
+        },
+        update: {
+          commitSha: '2222222222222222222222222222222222222222',
+        },
+      }),
+    );
+
+    expect(prisma.ciRun.create).toHaveBeenCalledWith({
+      data: {
+        repoId: 'repo-1',
+        branch: 'main',
+        commitSha: '2222222222222222222222222222222222222222',
+        status: 'PENDING',
+        triggeredBy: 'kundan',
+      },
+    });
+
+    expect(repositoryMutation.rollbackCommit).not.toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/file returns 409 and currentHeadSha for stale parentSha', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'new content',
+        message: 'Update file',
+        parentSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      success: false,
+      error: {
+        code: 'STALE_PARENT_SHA',
+        message: 'The branch head changed. Reload the file before committing.',
+      },
+      currentHeadSha: '1111111111111111111111111111111111111111',
+    });
+
+    expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
+    expect(prisma.branch.upsert).not.toHaveBeenCalled();
+    expect(prisma.ciRun.create).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /repos/:id/file rejects unauthenticated callers', async () => {
+    const app = await buildApp(null);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'content',
+        message: 'Update file',
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'UNAUTHORIZED',
+        }),
+      }),
+    );
+
+    expect(repositoryMutation.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /repos/:id/file returns 404 for a missing repository', async () => {
+    const app = await buildApp();
+
+    prisma.repository.findUnique.mockResolvedValueOnce(null as never);
+    prisma.repository.findFirst.mockResolvedValueOnce(null as never);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/missing/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'content',
+        message: 'Update file',
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'REPO_NOT_FOUND',
+        }),
+      }),
+    );
+
+    expect(repositoryMutation.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
+  });
+
   it('GET /repos returns public and owned repositories', async () => {
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/repos' });

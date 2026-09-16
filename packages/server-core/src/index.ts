@@ -23,10 +23,12 @@ export { default as identityPermissionsPlugin } from './plugins/identity-permiss
 export { default as teamsPlugin } from './plugins/teams';
 export { ScopeEvaluator } from './permissions/scope-evaluator';
 export type { ScopeEvaluatorFn } from './permissions/scope-evaluator';
+export { RepositoryHeadConflictError } from './ports/repository.port';
 export type {
   RepositoryBlobContent,
   RepositoryCommitSummary,
   RepositoryInspectionPort,
+  RepositoryMutationPort,
   RepositoryProvisioningPort,
   RepositoryTreeEntry,
 } from './ports/repository.port';
