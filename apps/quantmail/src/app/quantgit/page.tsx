@@ -2067,23 +2067,14 @@ export default function QuantGitPage() {
         },
         body: JSON.stringify({
           messages: requestMessages,
-          intent: buildMode,
+          intent: effort === 'deep' ? 'deep' : 'auto',
           context: {
-            surface: 'quantgit',
-            mode: buildMode,
-            effort,
-            requestedModel: activeModel,
+            app: 'quantgit',
             route: window.location.pathname,
-            repository: selectedRepo
-              ? {
-                  id: selectedRepo.id,
-                  owner: repositoryOwner(selectedRepo),
-                  name: selectedRepo.name,
-                  branch: currentBranch,
-                  tab: activeGitHubTab,
-                  path: currentPath || undefined,
-                }
-              : undefined,
+            view: selectedRepo
+              ? `${repositoryOwner(selectedRepo)}/${selectedRepo.name} (${activeGitHubTab})`
+              : 'quanty-copilot',
+            screenText: `Model: ${activeModel}, Mode: ${buildMode}, Effort: ${effort}`,
           },
         }),
       });
