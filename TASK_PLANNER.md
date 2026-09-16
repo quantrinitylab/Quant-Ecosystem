@@ -42,6 +42,20 @@
     - Added reactive `useEffect` on `modalState === 'issue-detail'` to fetch issue comments automatically.
     - Upgraded `IssueDetailModal` with ARIA dialog semantics, scrollable max-height (`max-h-[90vh] overflow-y-auto`), formatted timestamps, avatar/initials badges, comment count header, empty state, and responsive comment submission form.
     - Verified 100% clean TypeScript typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
+  - [x] **Staging Deployment & Production RDS Database Migration**:
+    - CI Gate passed green in 4m48s on commit `619ccfb0` (Job `104777907700`).
+    - `quantmail-backend` built and deployed to EKS staging in 4m29s (Workflow `35091756139`).
+    - `quantmail` frontend built and deployed to EKS staging in 4m52s (Workflow `35091766143`).
+    - Applied migration `0062_add_issue_comments` to RDS PostgreSQL database (`quant_staging`), creating `issue_comments` table with composite indexes and cascade foreign keys, and recorded in `_prisma_migrations`.
+  - [x] **Live Chrome Browser End-to-End Click-by-Click Verification (`https://quantmail.in/quantgit`)**:
+    - Created authentic test account `quantgit_qa_test@quantmail.in` via live registration flow and authenticated session via `/auth/refresh`.
+    - Navigated to `Quant-Ecosystem` repository -> switched to `⨀ Issues` tab -> verified `✓ 1 Closed` filter.
+    - Opened Issue #1 ("feat: real PostgreSQL persistence validation"), verified `COMMENTS (1)` timeline rendered with initials `Q`, author `quantgit_qa_test`, and timestamp.
+    - Typed `"Second comment posted live via UI form into PostgreSQL!"` into the comment composer form (verified character counter `55 / 10,000` and button state transition).
+    - Clicked "Comment", verified API returned 201 Created and comment card immediately appended to timeline (`COMMENTS (2)`).
+    - Verified issue list in background automatically synchronized comment badge from `💬 1` to `💬 2`.
+    - Captured visual proof screenshot: [`quantgit_issue_comments_verified_e2e.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/quantgit_issue_comments_verified_e2e.png).
+    - Verified zero unhandled console errors in Chrome DevTools.
 
 - [x] **QuantGit Authentic Settings Persistence, PR Merge, Branch Creation, Live Actions & Detail Modals**:
   - [x] **Fastify Repos Routes Domain Expansion (`apps/quantmail/backend/routes/repos.ts`)**:

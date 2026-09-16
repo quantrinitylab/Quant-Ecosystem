@@ -1242,3 +1242,14 @@ graph TD
   - Wired reactive `useEffect` to fetch comments automatically upon opening `modalState === 'issue-detail'`.
   - Enhanced `IssueDetailModal`: ARIA dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-labelledby="issue-detail-title"`), max height clamping (`max-h-[90vh] overflow-y-auto`), chronological comment list with avatar/initials badge, author name, formatted timestamp, body text, empty state, and 10,000-character comment composer with character counter and button state transitions.
   - Verified 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
+- **6. Staging Deployment & RDS PostgreSQL Migration**:
+  - CI Gate passed green in 4m48s on commit `619ccfb0` (Job `104777907700`).
+  - Staging images compiled and deployed via OIDC to EKS: backend in 4m29s (`35091756139`), frontend in 4m52s (`35091766143`).
+  - Executed migration `0062_add_issue_comments` on AWS RDS PostgreSQL (`quant_staging`), applied double-quoted camelCase column constraints (`"issueId"`, `"authorId"`, `"createdAt"`, `"updatedAt"`), created cascade foreign keys, and recorded entry in `_prisma_migrations`.
+- **7. Live Chrome Browser Verification (`https://quantmail.in/quantgit`)**:
+  - Registered real test account `quantgit_qa_test@quantmail.in` via `/register` and verified authenticated session.
+  - Navigated to `Quant-Ecosystem` repository -> Issues tab -> verified closed issue filter `✓ 1 Closed`.
+  - Opened Issue #1, verified live comments timeline rendered with author avatar and timestamp.
+  - Submitted new comment `"Second comment posted live via UI form into PostgreSQL!"` via the interactive comment form; verified 201 Created and immediate append to timeline (`COMMENTS (2)`).
+  - Background repository issues list synchronized comment counter dynamically (`💬 2`).
+  - Captured visual proof screenshot [`quantgit_issue_comments_verified_e2e.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/quantgit_issue_comments_verified_e2e.png). Verified zero unhandled console errors.
