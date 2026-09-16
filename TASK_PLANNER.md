@@ -22,6 +22,38 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Enterprise Parity: Deep Routes, Living 2D Canvas Agent Lab, BlobEditor & Authentic AI Chat (`e50a2604` & `a91a4b57`, deployed in runs `35098239519` / `35100484553`)**:
+  - [x] **Dynamic URL Subpaths & Bidirectional Deep-Linking**:
+    - Eliminated flat single-page state machine with canonical bidirectional routing:
+      - `/codehub` & `/quantgit` -> Quanty AI Copilot Workspace.
+      - `/quantgit/repositories` -> Repositories Directory with search, filters, and star counts.
+      - `/quantgit/agentlab` -> Living 2D HTML5 Canvas Virtual Office Floor.
+      - `/quantgit/:owner/:repo` -> Repository Workspace (`<> Code` tab).
+      - `/quantgit/:owner/:repo/:tab` (`issues`, `pulls`, `agents`, `discussions`, `actions`, `projects`, `security`, `insights`, `settings`).
+      - `/quantgit/:owner/:repo/issues/:number` -> Directly opens Issue detail modal with comment timeline.
+      - `/quantgit/:owner/:repo/pulls/:number` -> Directly opens PR detail modal.
+      - `/quantgit/:owner/:repo/blob/:branch/:path` -> Opens interactive code editor.
+    - Created Next.js subpath routes: `apps/quantmail/src/app/codehub/page.tsx`, `apps/quantmail/src/app/quantgit/repositories/page.tsx`, `apps/quantmail/src/app/quantgit/agentlab/page.tsx`, and `apps/quantmail/src/app/quantgit/[owner]/[repo]/[[...rest]]/page.tsx`.
+    - Realized in `apps/quantmail/src/lib/quantgit-route.ts` with browser URL sync and backwards compatibility.
+  - [x] **Living 2D Virtual Office Floor (HTML5 Canvas — `AgentOfficeCanvas.tsx`)**:
+    - Native Canvas 2D virtual office with 8 desks (Astra, Forge, Scout, Sentinel, Pixel, Ledger, Dev 7, Dev 8).
+    - Real-time animated agent sprites walking on floor, thought speech bubbles, click hit-testing, and interactive Agent Dossier modal with task assignment.
+  - [x] **Interactive Code Editor for File Blobs (`BlobEditor.tsx`)**:
+    - Line-numbered syntax editor with dirty check, preview/edit toggle, and commit form with branch selection and stale-write SHA conflict protection.
+  - [x] **Fixed Viewport & Anti-Overscroll (Zero Shift Layout)**:
+    - Pinned layout (`h-dvh max-h-dvh overflow-hidden flex flex-col`, `overscroll-contain`, bottom dock `h-[72px]`, composer `pb-[72px]`).
+    - Scrolling the chat message stream never drags or moves the floating composer or bottom dock.
+  - [x] **Authentic AI Execution (Fastify `POST /api/ai/chat`)**:
+    - Wired Quanty chat to real Fastify endpoint `POST /api/ai/chat` via `authenticatedFetch`, eliminating mock canned responses.
+    - Aligned Zod schema (`intent: 'auto'|'deep'`, context `{ app, route, view, screenText }`).
+  - [x] **Live Chrome Browser End-to-End Verification (`https://quantmail.in/quantgit`)**:
+    - Submitted prompt: `"Explain the architecture of QuantGit deep routes and how the 2D canvas agent lab is rendered."`.
+    - API returned 200 OK (`cf-ray: a3c0356629833861-LHR`, response body with real routed model response).
+    - Verified message rendered in UI with copy, reaction buttons, and composer reset.
+    - Evaluated bottom dock geometry via script: `{"navFound":true,"rect":{"top":456,"bottom":528,"height":72},"windowHeight":528,"isDockAtBottom":true}`.
+    - Verified direct deep-links: `/quantgit/repositories`, `/quantgit/agentlab`, `/quantgit/quantgit_qa_test/Quant-Ecosystem`.
+    - Visual proofs: [`quanty_chat_verified_e2e.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/quanty_chat_verified_e2e.png).
+
 - [x] **QuantGit Persisted Issue Comments & Timeline Modal (Migration 0062, Fastify Routes, Vitest 16/16, Developer 6 Notion Swarm Implementation)**:
   - [x] **Prisma Database Schema & Migration 0062 (`packages/database`)**:
     - Added `model IssueComment` with foreign keys to `Issue` and `User` with `onDelete: Cascade`.

@@ -180,6 +180,29 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
       - **Pull Requests**: Created PR #1 via `POST /api/repos/:id/pulls` (201 Created), opened PR Detail Modal, merged PR via `POST /api/repos/:id/pulls/1/merge` (status updated to MERGED, purple badge rendered, closed count updated).
       - **Actions**: Triggered workflow via `POST /api/repos/:id/actions/trigger` (201 Created), run `"Manual run on main"` added to live runs list in progress, total actions count incremented to 4.
       - **Navigation**: Clicked `📁 Repos` dock button to return to directory, verified all changes intact with zero console exceptions.
+- **`ADR-CH-006` (QuantGit Persisted Issue Comments & Timeline Modal - VERIFIED & PASSING)**:
+  - Added Prisma model `IssueComment` with foreign keys to `Issue` and `User` with `onDelete: Cascade`.
+  - Authored and ran migration `0062_add_issue_comments/migration.sql` on RDS PostgreSQL staging database (`quant_staging`).
+  - Added Fastify routes in `apps/quantmail/backend/routes/repos.ts`: `GET /repos/:id/issues/:number/comments`, `POST /repos/:id/issues/:number/comments`, and dynamic comment count via `_count: { select: { comments: true } }`.
+  - 16/16 Vitest backend unit tests passing in 9.53s.
+  - Interactive comment timeline modal in `apps/quantmail/src/app/quantgit/page.tsx` directly authored from Developer 6 (Notion Swarm / Opus 5) verified patch bundle.
+  - Verified live click-by-click in Chrome DevTools MCP: posted comment live, verified 201 response, instant timeline append, and dynamic comment count increment from 1 to 2.
+- **`ADR-CH-007` (QuantGit Enterprise Parity: Deep Routes, Living 2D Canvas Agent Lab, BlobEditor & Authentic AI Chat - VERIFIED & PASSING)**:
+  - **Dynamic URL Subpaths & Bidirectional Deep-Linking**:
+    - Eliminated flat single-page state machine with canonical bidirectional routing across `/codehub`, `/quantgit`, `/quantgit/repositories`, `/quantgit/agentlab`, `/quantgit/:owner/:repo`, `/quantgit/:owner/:repo/:tab`, `/quantgit/:owner/:repo/issues/:number`, `/quantgit/:owner/:repo/pulls/:number`, `/quantgit/:owner/:repo/blob/:branch/:path`.
+    - Created Next.js subpath routes: `apps/quantmail/src/app/codehub/page.tsx`, `apps/quantmail/src/app/quantgit/repositories/page.tsx`, `apps/quantmail/src/app/quantgit/agentlab/page.tsx`, and `apps/quantmail/src/app/quantgit/[owner]/[repo]/[[...rest]]/page.tsx`.
+    - Implemented in `apps/quantmail/src/lib/quantgit-route.ts`.
+  - **Living 2D Virtual Office Floor (HTML5 Canvas — `AgentOfficeCanvas.tsx`)**:
+    - Native Canvas 2D virtual office with 8 desks (Astra, Forge, Scout, Sentinel, Pixel, Ledger, Dev 7, Dev 8), animated agent sprites walking on floor, thought speech bubbles, click hit-testing, and interactive Agent Dossier modal.
+  - **Interactive Code Editor for File Blobs (`BlobEditor.tsx`)**:
+    - Line-numbered syntax editor with dirty check, preview/edit toggle, and commit form with branch selection and stale-write SHA conflict protection.
+  - **Fixed Viewport & Anti-Overscroll (Zero Shift Layout)**:
+    - Pinned layout (`h-dvh max-h-dvh overflow-hidden flex flex-col`, `overscroll-contain`, bottom dock `h-[72px]`, composer `pb-[72px]`).
+    - Verified bottom dock fixed at window height 528 with zero drift during message stream scrolling.
+  - **Authentic AI Execution (Fastify `POST /api/ai/chat`)**:
+    - Wired Quanty chat to real Fastify endpoint `POST /api/ai/chat` via `authenticatedFetch`, eliminating mock canned responses.
+    - Aligned Zod schema (`intent: 'auto'|'deep'`, context `{ app, route, view, screenText }`).
+    - Verified live in Chrome DevTools MCP with 200 OK round-trip, response rendering, and visual proof screenshot `quanty_chat_verified_e2e.png`.
 
 ---
 
