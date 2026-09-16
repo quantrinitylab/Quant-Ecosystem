@@ -1276,3 +1276,37 @@ graph TD
   - Submitted new comment `"Second comment posted live via UI form into PostgreSQL!"` via the interactive comment form; verified 201 Created and immediate append to timeline (`COMMENTS (2)`).
   - Background repository issues list synchronized comment counter dynamically (`💬 2`).
   - Captured visual proof screenshot [`quantgit_issue_comments_verified_e2e.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/quantgit_issue_comments_verified_e2e.png). Verified zero unhandled console errors.
+
+### 18. QuantGit Sovereign Autonomous Agentic Engine & Real Git Mutation (ADR-CH-008, Commit `3710c4a7`):
+
+- **1. Architectural Ratification & Swarm Orchestration (CEO Astra & Developer 6)**:
+  - Dispatched architectural audit to CEO Astra (Notion AI Swarm Page 3) for sovereign autonomous agentic capabilities.
+  - CEO Astra signed off with mandatory invariants:
+    - Write path requires `RepositoryMutationPort` with git plumbing CAS and atomic `update-ref` (handling unborn HEAD).
+    - Tool lifecycle: `proposed` -> `executing` -> `succeeded` | `failed`.
+    - `trigger_ci_action` held to prevent fake runs; only real commit events / CI pipeline tracking via `CiRun`.
+    - Tenant-scoped name resolution for repositories.
+  - Dispatched deep code implementation to Developer 6 (Notion AI Swarm / Opus 5, Page 2), who authored the production-ready plumbing and adapter files.
+- **2. Git Mutation Port & Service (`GitFileMutationService`)**:
+  - `packages/server-core/src/ports/repository.port.ts`: Added `RepositoryMutationPort` interface with `commitFile`, `getBranchHead`, `rollbackCommit` and `RepositoryHeadConflictError`.
+  - `apps/quantmail/backend/modules/code/services/git-transport/git-file-mutation.service.ts`:
+    - Implemented bare repository mutation via low-level Git plumbing commands.
+    - Uses `git hash-object -w` to create object blobs in object storage.
+    - Reads existing commit tree into temporary index (`GIT_INDEX_FILE`), updates tree with `git update-index --add --cacheinfo`, and writes new commit with `git commit-tree`.
+    - Performs atomic reference compare-and-swap using 3-argument `git update-ref refs/heads/<branch> <newSha> <observedHead>`.
+    - Raises `RepositoryHeadConflictError` on stale write collisions, caught by routes to return `409 STALE_PARENT_SHA`.
+  - Mounted via `GitMutationAdapter` and registered on Fastify app instance (`app.decorate('repositoryMutation', ...)`).
+- **3. Fastify Repos Mutation Routes (`PATCH /repos/:id/file` & `POST /repos/:id/file`)**:
+  - Validated by `commitFileSchema`, `repositoryFilePathSchema`, and `repositoryBranchSchema`.
+  - Validates caller authentication, verifies write permissions, checks parent SHA against branch head, creates commit, updates branch record in PostgreSQL Prisma, and registers a pending `CiRun`.
+  - 20/20 Vitest unit tests passing 100% in `apps/quantmail/backend/__tests__/repos.routes.test.ts`.
+- **4. Autonomous AI Swarm Tool Calling Engine (`POST /api/ai/chat`)**:
+  - Implemented tool execution grammar in system prompt (`create_repository`, `commit_file`, `read_file_blob`, `deploy_agent`).
+  - Implemented `executeAutonomousTool` executing authenticated repository operations under the caller's verified session identity.
+  - Emits structured `toolExecutions` with status, duration, inputs, and results.
+  - 19/19 Vitest unit tests passing 100% in `apps/quantmail/backend/__tests__/ai-chat.routes.test.ts`.
+- **5. Frontend Interactive Execution Badges & Auto-Sync (`apps/quantmail/src/app/quantgit/page.tsx`)**:
+  - Mapped `ToolExecutionCard` into `ChatMessage`.
+  - Renders interactive tool execution cards inside chat bubbles with execution status (`✓ EXECUTED` / `✕ FAILED`), millisecond duration, commit SHA / branch badges, and quick-action navigation buttons (`Open Repo →`, `View in Agent Lab →`).
+  - Automatically updates repository directory (`fetchRepos()`) upon repo creation and deploys agent sprites to the living 2D Canvas floor.
+  - 100% clean TypeScript typecheck across frontend and backend (`tsc --noEmit` 0 errors).
