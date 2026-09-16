@@ -1310,3 +1310,30 @@ graph TD
   - Renders interactive tool execution cards inside chat bubbles with execution status (`✓ EXECUTED` / `✕ FAILED`), millisecond duration, commit SHA / branch badges, and quick-action navigation buttons (`Open Repo →`, `View in Agent Lab →`).
   - Automatically updates repository directory (`fetchRepos()`) upon repo creation and deploys agent sprites to the living 2D Canvas floor.
   - 100% clean TypeScript typecheck across frontend and backend (`tsc --noEmit` 0 errors).
+
+### 19. QuantGit Autonomous Dispatcher Security & Integrity Remediations (Commit `046f2549`, Astra Re-Audit V1-V14):
+
+- **1. Astra's Official Re-Audit Verdict (Main = `79451f92`)**:
+  - `GitFileMutationService` plumbing layer evaluated as genuine production quality: atomic three-arg `git update-ref`, unborn-HEAD CAS against `ZERO_SHA`, conflict re-reading, isolated `GIT_INDEX_FILE`, and CRLF/angle-bracket injection guards.
+  - Sign-off withheld on dispatcher layer (`routes/ai-chat.ts`) due to live-severity findings V1-V14.
+- **2. Tenant-Scoped Repository Resolution (V1)**:
+  - Eliminated the unscoped fallback queries in `commit_file`, `read_file_blob`, and `deploy_agent`.
+  - Every repository query strictly asserts `{ ownerId: userId, deletedAt: null }`, preventing cross-tenant reads or writes.
+- **3. Zero-Fabrication on Missing Write Port (V2)**:
+  - Deleted the pseudo-random 40-hex SHA generator fallback in `commit_file`.
+  - Throws `createAppError('Repository mutation engine is not available on this instance', 503, 'STORAGE_UNAVAILABLE')` fail-closed when `fastify.repositoryMutation` is undecorated.
+- **4. deploy_agent Gating & Durable Record Contract (V3)**:
+  - Reverted `deploy_agent` to `status: 'failed'` with code `HELD_PENDING_PERSISTENCE` until S2-04 lands durable `AgentSession` persistence and runtime task handoff.
+- **5. Clean Repo Creation Defaults (V10)**:
+  - Defaults `visibility` to `'private'`.
+  - Validates repository name against regex `^[a-zA-Z0-9_.-]+$` and rejects `.git` extensions.
+  - Does not seed fabricated branch rows pointing to non-existent commit `948e3612`.
+- **6. Anti-Fabrication Instruction (V11) & CI Decoupling (V12)**:
+  - Restored strict anti-fabrication directive in `SYSTEM_PROMPT`: "Never claim to have performed an action or created a resource that the tool did not explicitly return, and never claim a write succeeded before the dispatcher reports succeeded."
+  - Removed `prisma.ciRun.create` side effect on autonomous commit until the CI executor is live.
+- **7. Tool Execution Gating (V5)**:
+  - Added `tools.enabled` (default `true`) and `process.env.ENABLE_AUTONOMOUS_TOOLS` kill switch.
+- **8. Vitest Full Regression Verification**:
+  - `apps/quantmail/backend/__tests__/ai-chat.routes.test.ts`: 21/21 unit tests passing 100% (covering create repo with private default, held deploy_agent, authenticated CAS commit, 503 STORAGE_UNAVAILABLE, and cross-tenant rejection).
+  - `apps/quantmail/backend/__tests__/repos.routes.test.ts`: 20/20 unit tests passing 100%.
+  - Frontend & backend TypeScript typecheck verified 0 errors (`tsc --noEmit`).

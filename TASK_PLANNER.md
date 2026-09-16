@@ -22,6 +22,15 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Autonomous Dispatcher Security & Integrity Remediations (`046f2549` on `main`, Astra Re-Audit V1-V14)**:
+  - [x] **Tenant-Scoped Repository Resolution (V1)**: Eliminated unscoped fallback queries across `commit_file`, `read_file_blob`, and `deploy_agent`. All repository lookups require `{ ownerId: userId, deletedAt: null }`.
+  - [x] **Zero-Fabrication on Missing Write Port (V2)**: Removed fake 40-char SHA fallback; throws 503 `STORAGE_UNAVAILABLE` when `repositoryMutation` is undecorated.
+  - [x] **deploy_agent Gating (V3)**: Reverted `deploy_agent` to status `'failed'` with code `HELD_PENDING_PERSISTENCE` pending durable `AgentSession` persistence.
+  - [x] **Clean Repo Creation Defaults (V10)**: Defaults `visibility` to `'private'`, validates name with regex, and does not seed fake `948e3612` branch rows.
+  - [x] **Anti-Fabrication Clause (V11) & CI Decoupling (V12)**: Restored strict anti-fabrication directive in `SYSTEM_PROMPT` and removed `ciRun.create` side effect.
+  - [x] **Tool Execution Gating (V5)**: Added `tools.enabled` (default `true`) and `process.env.ENABLE_AUTONOMOUS_TOOLS` kill switch.
+  - [x] **Vitest QA Regression Suite**: 21/21 tests passing in `ai-chat.routes.test.ts`, 20/20 in `repos.routes.test.ts`, 0 TypeScript compilation errors.
+
 - [x] **QuantGit Sovereign Autonomous Agentic Engine (`3710c4a7` on `main`, CEO Astra & Developer 6 Swarm Sign-Off)**:
   - [x] **Architectural Ratification by CEO Astra (Notion AI Swarm Page 3)**:
     - Formal sign-off on 4 core autonomous capabilities (`create_repository`, `commit_file`, `read_file_blob`, `deploy_agent`) and held `trigger_ci_action`.
