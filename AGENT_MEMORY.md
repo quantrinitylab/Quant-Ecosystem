@@ -171,6 +171,15 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
       - **Settings Tab**: connected form inputs to `handleSaveSettings` calling `PATCH /api/repos/:id`.
       - **Branch Switcher Modal**: connected real branch list and "+ Create branch" input calling `POST /api/repos/:id/branches`.
     - Passed TypeScript typecheck (`tsc --noEmit`) with 0 errors across `@quant/quantmail`.
+    - Deployed to staging via workflow run `34984769710` (frontend) and `34988660209` (Fastify ECS backend on commit `2d6426fc`).
+    - Verified live click-by-click in Chrome DevTools on `https://quantmail.in/quantgit`:
+      - **Starring**: Incremented stars on `Quant-Ecosystem` from 342 to 343 with instant DB persistence.
+      - **Branch Switcher**: Created branch `feat/real-parity` via `POST /api/repos/:id/branches`, UI switched active branch.
+      - **Settings**: Updated repo description via `PATCH /api/repos/:id`, verified persistence in All Repositories list and repo header.
+      - **Issues**: Created issue #1 via `POST /api/repos/:id/issues` (201 Created), opened Issue Detail Modal, toggled to closed via `POST /api/repos/:id/issues/1/toggle`, filtered closed issues.
+      - **Pull Requests**: Created PR #1 via `POST /api/repos/:id/pulls` (201 Created), opened PR Detail Modal, merged PR via `POST /api/repos/:id/pulls/1/merge` (status updated to MERGED, purple badge rendered, closed count updated).
+      - **Actions**: Triggered workflow via `POST /api/repos/:id/actions/trigger` (201 Created), run `"Manual run on main"` added to live runs list in progress, total actions count incremented to 4.
+      - **Navigation**: Clicked `📁 Repos` dock button to return to directory, verified all changes intact with zero console exceptions.
 
 ---
 

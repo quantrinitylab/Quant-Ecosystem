@@ -37,7 +37,14 @@
     - **Branch Switcher Modal**: Real branch listing, search filter, and "+ Create branch" input calling `POST /api/repos/:id/branches`.
     - **Pull Request Detail Modal**: Displays branch diff, files changed, commit count, and interactive "Merge pull request" button calling `handleMergePR`.
     - **Issue Detail Modal**: Displays full markdown/body, labels, author, and interactive "Close issue" / "Reopen issue" button calling `handleToggleIssue`.
-    - **Actions Tab**: "▶ Run workflow" button calling `handleTriggerWorkflow` to dispatch live CI runs.
+  - [x] **Live Chrome Browser End-to-End Verification (Quant-Ecosystem Repository at `https://quantmail.in/quantgit`)**:
+    - **Star Count Increment**: Clicked `★ Star 342`, request `POST /api/repos/:id/star` returned 200, count incremented to `★ Star 343`, persisted to PostgreSQL.
+    - **Branch Creation**: Opened branch switcher modal, entered `feat/real-parity`, clicked "+ Create branch", request `POST /api/repos/:id/branches` returned 201, active branch switched to `feat/real-parity ▼`.
+    - **Settings Persistence**: In `⚙️ Settings`, updated description to `"The Next NVIDIA of Software: Sovereign OS with 10 apps, unified Quant identity & local ONNX AI."`, clicked "Save changes", request `PATCH /api/repos/:id` returned 200 and updated repository record in PostgreSQL.
+    - **Issue Creation & State Toggle**: Clicked "New issue", filled title `"feat: real PostgreSQL persistence validation"`, submitted to `POST /api/repos/:id/issues` (201 Created), opened Issue Detail Modal, clicked "✓ Close issue" (toggled to CLOSED via `POST /api/repos/:id/issues/1/toggle`), verified closed count incremented and filterable via `✓ 1 Closed`.
+    - **Pull Request Creation & Merge**: Clicked "New pull request", entered title `"feat: real-parity verification and merge"`, submitted to `POST /api/repos/:id/pulls` (201 Created), opened PR Detail Modal, clicked "⑂ Merge pull request", atomic merge executed via `POST /api/repos/:id/pulls/1/merge` (status updated to MERGED with purple badge, closed count incremented to 1).
+    - **Actions Workflow Trigger**: Switched to Actions tab, clicked "▶ Run workflow", request `POST /api/repos/:id/actions/trigger` returned 201, workflow run `"Manual run on main"` added to live runs list with status "in progress" and total counter incremented from 3 to 4.
+    - **Directory Reset & Multi-Repo Navigation**: Returned to Repositories directory via bottom dock `📁 Repos`, verified `Quant-Ecosystem` reflects updated 343 stars and updated description, reopened repository with zero console errors.
 
 - [x] **QuantGit Real Database Persistence, Fastify Routes, Issues, PRs & Star Architecture (`ea67d137`, deployed in run `34965154213`)**:
   - [x] **Real Fastify Backend Repos Routes (`apps/quantmail/backend/routes/repos.ts`)**:
