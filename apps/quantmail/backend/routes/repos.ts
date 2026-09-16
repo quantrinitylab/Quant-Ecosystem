@@ -317,10 +317,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         ownerId: userId,
         name: parsed.data.name,
         description: parsed.data.description ?? null,
-        visibility: (parsed.data.visibility ?? 'public').toUpperCase() as any,
+        visibility: (parsed.data.visibility ?? 'private').toUpperCase() as any,
         defaultBranch: 'main',
         storagePathUrl: null,
-        branches: { create: { name: 'main', commitSha: '948e3612' } },
       },
     })) as RepoRow;
 
@@ -340,6 +339,33 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }
     }
 
+    if (parsed.data.initReadme && fastify.repositoryMutation) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { username: true, displayName: true, email: true },
+        });
+        const commit = await fastify.repositoryMutation.commitFile({
+          owner: userId,
+          name: created.name,
+          branch: 'main',
+          path: 'README.md',
+          content: `# ${created.name}\n\n${created.description || 'Repository created on QuantGit.'}\n`,
+          message: 'Initial commit: README.md',
+          expectedHeadSha: null,
+          author: {
+            name: user?.displayName || user?.username || 'Quanty',
+            email: user?.email || `${userId}@quantmail.in`,
+          },
+        });
+        await prisma.branch.create({
+          data: { repoId: created.id, name: 'main', commitSha: commit.commitSha },
+        });
+      } catch (readmeErr) {
+        request.log.warn({ err: readmeErr }, 'repository initial README commit notice');
+      }
+    }
+
     const provisioned = (await prisma.repository.update({
       where: { id: created.id },
       data: { storagePathUrl: storagePath },
@@ -356,7 +382,16 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       | null;
     if (!repo) {
       repo = (await prisma.repository.findFirst({
-        where: { name: idOrName, deletedAt: null },
+        where: { name: idOrName, ownerId: userId, deletedAt: null },
+      })) as (RepoRow & { deletedAt?: Date | null }) | null;
+    }
+    if (!repo) {
+      repo = (await prisma.repository.findFirst({
+        where: {
+          name: idOrName,
+          visibility: { in: ['PUBLIC', 'INTERNAL'] },
+          deletedAt: null,
+        },
       })) as (RepoRow & { deletedAt?: Date | null }) | null;
     }
     if (!repo || repo.deletedAt)

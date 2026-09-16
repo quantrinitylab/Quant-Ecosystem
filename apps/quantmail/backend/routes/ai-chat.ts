@@ -52,7 +52,7 @@ const chatSchema = z.object({
     .optional(),
   tools: z
     .object({
-      enabled: z.boolean().default(true),
+      enabled: z.boolean().default(false),
       allow: z.array(z.string()).optional(),
       maxSteps: z.number().int().min(1).max(3).default(2),
     })
@@ -76,13 +76,12 @@ export interface ToolExecutionCard {
 const SYSTEM_PROMPT = [
   'You are QuantAI (Quanty), the sovereign agentic operating AI built into the Quantrinity workspace (QuantMail: mail, calendar, contacts, drive, and QuantGit developer hub).',
   'You have tools that perform real, authenticated actions in this workspace.',
-  'When the user instructs you to create a repo, write code, commit a file, or deploy an agent, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
+  'When the user instructs you to build, create a repo, write code, or commit a file, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
   '```tool_call\n{\n  "name": "<tool_name>",\n  "arguments": { ... }\n}\n```',
   'Supported tools:',
   '1. create_repository: { "name": string, "description"?: string, "visibility"?: "public"|"private"|"internal", "initReadme"?: boolean }',
-  '2. commit_file: { "repoId": string, "path": string, "content": string, "message": string, "branch"?: string, "parentSha"?: string }',
+  '2. commit_file: { "repoId": string, "path": string, "content": string, "message": string, "branch"?: string, "parentSha": string | null }',
   '3. read_file_blob: { "repoId": string, "path": string, "ref"?: string }',
-  '4. deploy_agent: { "repoId": string, "agentName": string, "role": string, "workstationIndex": number, "prompt"?: string }',
   'You can emit multiple tool calls sequentially for multi-step tasks.',
   'Never claim to have performed an action or created a resource that the tool did not explicitly return, and never claim a write succeeded before the dispatcher reports succeeded.',
   'Always include a concise, empowering summary in your response explaining what was created or executed.',
@@ -220,11 +219,11 @@ async function executeAutonomousTool(
         );
       }
 
-      const currentHead = await fastify.repositoryMutation.getBranchHead({
-        owner: repo.ownerId,
-        name: repo.name,
-        branch: targetBranch,
-      });
+      if (args.parentSha === undefined) {
+        throw new Error(
+          'parentSha is required: provide 40-char SHA of current branch head or null for root commit',
+        );
+      }
 
       const commitResult = await fastify.repositoryMutation.commitFile({
         owner: repo.ownerId,
@@ -233,7 +232,7 @@ async function executeAutonomousTool(
         path: filePath,
         content,
         message,
-        expectedHeadSha: args.parentSha ?? currentHead,
+        expectedHeadSha: args.parentSha,
         author: {
           name: user?.displayName || user?.username || 'Quanty',
           email: user?.email || `${userId}@quantmail.in`,
@@ -414,7 +413,7 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       // Scan for ```tool_call blocks emitted by the model
       const toolExecutions: ToolExecutionCard[] = [];
       const isToolCallingEnabled =
-        tools?.enabled !== false && process.env.ENABLE_AUTONOMOUS_TOOLS !== 'false';
+        tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';
 
       const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
 
@@ -442,11 +441,19 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       }
 
       // Clean tool call code blocks from user-visible response text
-      const cleanMessage =
-        rawMessage.replace(toolCallRegex, '').trim() ||
-        (toolExecutions.length > 0
-          ? `Executed ${toolExecutions.length} autonomous action(s) successfully.`
-          : rawMessage);
+      const failedTools = toolExecutions.filter((t) => t.status === 'failed');
+      let cleanMessage = rawMessage.replace(toolCallRegex, '').trim();
+
+      if (failedTools.length > 0) {
+        const failureNotices = failedTools
+          .map((t) => `${t.toolName}: ${t.error?.message || 'Execution failed'}`)
+          .join('; ');
+        cleanMessage = cleanMessage
+          ? `[Action Notice: ${failureNotices}]\n\n${cleanMessage}`
+          : `[Action Notice: ${failureNotices}]`;
+      } else if (!cleanMessage && toolExecutions.length > 0) {
+        cleanMessage = `Executed ${toolExecutions.length} autonomous action(s) successfully.`;
+      }
 
       return reply.send({
         success: true,

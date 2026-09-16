@@ -331,7 +331,32 @@ describe('GET /ai/chat/health', () => {
 });
 
 describe('POST /ai/chat — autonomous tool calling', () => {
-  it('detects and executes a create_repository tool call emitted by the model', async () => {
+  it('skips tool execution when tools is not explicitly enabled (fail-closed default)', async () => {
+    const prismaMock = {
+      repository: {
+        create: vi.fn(),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "rogue-repo" }\n}\n```\n\nI suggested creating a repo.',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Suggest a repo' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(0);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+    expect(body.data.message).toBe('I suggested creating a repo.');
+  });
+
+  it('detects and executes a create_repository tool call when tools are enabled', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -361,7 +386,10 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/ai/chat',
-      payload: { messages: [{ role: 'user', content: 'Create autonomous-swarm-engine repo' }] },
+      payload: {
+        messages: [{ role: 'user', content: 'Create autonomous-swarm-engine repo' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -389,7 +417,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     });
   });
 
-  it('holds deploy_agent tool call as failed pending durable AgentSession persistence', async () => {
+  it('holds deploy_agent tool call as failed and prepends action notice to prose', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
@@ -404,7 +432,10 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/ai/chat',
-      payload: { messages: [{ role: 'user', content: 'Deploy Forge to desk 2' }] },
+      payload: {
+        messages: [{ role: 'user', content: 'Deploy Forge to desk 2' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -418,9 +449,14 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         code: 'HELD_PENDING_PERSISTENCE',
       },
     });
+    // V15: Prose reflects the failure rather than lying about success
+    expect(body.data.message).toContain(
+      '[Action Notice: deploy_agent: deploy_agent is held pending durable AgentSession persistence and runtime task handoff]',
+    );
+    expect(body.data.message).toContain('Agent deployed to Desk #2.');
   });
 
-  it('detects and executes a commit_file tool call via repositoryMutation port', async () => {
+  it('detects and executes a commit_file tool call via strict CAS repositoryMutation port', async () => {
     const prismaMock = {
       repository: {
         findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
@@ -449,7 +485,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     };
 
     aiChatMock.mockResolvedValue(
-      'Committing changes.\n\n```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: hello world"\n  }\n}\n```\n\nCommitted file to repo.',
+      'Committing changes.\n\n```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: hello world",\n    "branch": "main",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```\n\nCommitted file to repo.',
     );
 
     const app = await buildApp('user-1', {
@@ -460,7 +496,10 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/ai/chat',
-      payload: { messages: [{ role: 'user', content: 'Commit index.ts' }] },
+      payload: {
+        messages: [{ role: 'user', content: 'Commit index.ts' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -476,7 +515,59 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         branch: 'main',
       },
     });
-    expect(repositoryMutationMock.commitFile).toHaveBeenCalled();
+    expect(repositoryMutationMock.commitFile).toHaveBeenCalledWith({
+      owner: 'user-1',
+      name: 'demo',
+      branch: 'main',
+      path: 'src/index.ts',
+      content: 'console.log(42);',
+      message: 'feat: hello world',
+      expectedHeadSha: '1111222233334444555566667777888899990000',
+      author: expect.any(Object),
+    });
+  });
+
+  it('fails commit_file when parentSha is missing (no force-write, strict CAS)', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'user-1', username: 'astra' }),
+      },
+    };
+    const repositoryMutationMock = {
+      commitFile: vi.fn(),
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: force-write"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Force commit' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        message:
+          'parentSha is required: provide 40-char SHA of current branch head or null for root commit',
+      },
+    });
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
   });
 
   it('fails commit_file with STORAGE_UNAVAILABLE if repositoryMutation port is absent', async () => {
@@ -493,14 +584,17 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     };
 
     aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: test"\n  }\n}\n```',
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: test",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
     );
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
       method: 'POST',
       url: '/ai/chat',
-      payload: { messages: [{ role: 'user', content: 'Commit index.ts' }] },
+      payload: {
+        messages: [{ role: 'user', content: 'Commit index.ts' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
@@ -522,14 +616,17 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     };
 
     aiChatMock.mockResolvedValue(
-      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "other-tenant-repo",\n    "path": "secret.txt",\n    "content": "payload",\n    "message": "malicious write"\n  }\n}\n```',
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "other-tenant-repo",\n    "path": "secret.txt",\n    "content": "payload",\n    "message": "malicious write",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
     );
 
     const app = await buildApp('user-1', { prisma: prismaMock });
     const res = await app.inject({
       method: 'POST',
       url: '/ai/chat',
-      payload: { messages: [{ role: 'user', content: 'Commit to other repo' }] },
+      payload: {
+        messages: [{ role: 'user', content: 'Commit to other repo' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
