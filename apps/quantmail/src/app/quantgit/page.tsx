@@ -79,6 +79,19 @@ export type IssueItem = {
   assignee?: string;
 };
 
+export type IssueCommentItem = {
+  id: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 export type PRItem = {
   id: number;
   title: string;
@@ -895,6 +908,11 @@ export default function QuantGitPage() {
   const [selectedActionRun, setSelectedActionRun] = useState<WorkflowRunItem | null>(null);
   const [selectedPr, setSelectedPr] = useState<PRItem | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
+  const [issueComments, setIssueComments] = useState<IssueCommentItem[]>([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [repoBranches, setRepoBranches] = useState<string[]>([
     'main',
     'feat/sprint-7-github-parity',
@@ -1025,6 +1043,29 @@ export default function QuantGitPage() {
     [apiFetch],
   );
 
+  const fetchIssueComments = useCallback(
+    async (repoIdOrName: string, issueNumber: number) => {
+      setIsLoadingComments(true);
+      setCommentError(null);
+      try {
+        const res = await apiFetch(
+          `/api/repos/${encodeURIComponent(repoIdOrName)}/issues/${issueNumber}/comments`,
+        );
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error?.message || 'Failed to load comments');
+        }
+        setIssueComments(Array.isArray(json.data) ? json.data : []);
+      } catch (error) {
+        setIssueComments([]);
+        setCommentError(error instanceof Error ? error.message : 'Failed to load comments');
+      } finally {
+        setIsLoadingComments(false);
+      }
+    },
+    [apiFetch],
+  );
+
   const fetchRepoPulls = useCallback(
     async (repoIdOrName: string) => {
       try {
@@ -1104,6 +1145,11 @@ export default function QuantGitPage() {
       setSettingsVisibility(selectedRepo.visibility || 'public');
     }
   }, [selectedRepo, fetchRepoIssues, fetchRepoPulls, fetchRepoBranches, fetchRepoActions]);
+
+  useEffect(() => {
+    if (modalState !== 'issue-detail' || !selectedRepo || !selectedIssue) return;
+    void fetchIssueComments(selectedRepo.id || selectedRepo.name, selectedIssue.id);
+  }, [modalState, selectedRepo, selectedIssue?.id, fetchIssueComments]);
 
   // Keyboard shortcut listener ('t' for file finder, '/' for search)
   useEffect(() => {
@@ -1277,6 +1323,49 @@ export default function QuantGitPage() {
       });
     } catch {
       // Soft ignore
+    }
+  };
+
+  const handleSubmitIssueComment = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!selectedRepo || !selectedIssue || isSubmittingComment) return;
+    const body = commentDraft.trim();
+    if (!body) return;
+
+    setIsSubmittingComment(true);
+    setCommentError(null);
+    try {
+      const repoTarget = selectedRepo.id || selectedRepo.name;
+      const res = await apiFetch(
+        `/api/repos/${encodeURIComponent(repoTarget)}/issues/${selectedIssue.id}/comments`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error?.message || 'Failed to post comment');
+      }
+      const created = json.data as IssueCommentItem;
+      setIssueComments((current) => [...current, created]);
+      setCommentDraft('');
+      setIssues((current) =>
+        current.map((issue) =>
+          issue.id === selectedIssue.id
+            ? { ...issue, commentsCount: issue.commentsCount + 1 }
+            : issue,
+        ),
+      );
+      setSelectedIssue((current) =>
+        current ? { ...current, commentsCount: current.commentsCount + 1 } : current,
+      );
+      showToast('Comment posted');
+    } catch (error) {
+      setCommentError(error instanceof Error ? error.message : 'Failed to post comment');
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -5194,11 +5283,19 @@ export default function QuantGitPage() {
       {/* Issue Detail Modal with Live Toggle */}
       {modalState === 'issue-detail' && selectedIssue && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl p-5 text-xs space-y-4 shadow-2xl animate-in fade-in">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="issue-detail-title"
+            className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5 text-xs space-y-4 shadow-2xl animate-in fade-in"
+          >
             <div className="flex items-start justify-between border-b border-[#21262D] pb-3 gap-3">
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="font-bold text-white text-base leading-tight">
+                  <h3
+                    id="issue-detail-title"
+                    className="font-bold text-white text-base leading-tight"
+                  >
                     {selectedIssue.title}
                   </h3>
                   <span className="text-[#7D8590] text-sm">#{selectedIssue.id}</span>
@@ -5248,6 +5345,117 @@ export default function QuantGitPage() {
                 {selectedIssue.body || 'No description provided.'}
               </div>
             </div>
+
+            {/* Persisted comments timeline */}
+            <section aria-labelledby="issue-comments-heading" className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4
+                  id="issue-comments-heading"
+                  className="font-bold text-[#7D8590] text-[11px] uppercase tracking-wider"
+                >
+                  Comments ({issueComments.length})
+                </h4>
+                {isLoadingComments && <span className="text-[#7D8590]">Loading…</span>}
+              </div>
+
+              {!isLoadingComments && issueComments.length === 0 && !commentError && (
+                <div className="rounded-md border border-[#30363D] bg-[#161B22] p-4 text-center text-[#7D8590]">
+                  No comments yet. Start the conversation.
+                </div>
+              )}
+
+              <ol className="space-y-3">
+                {issueComments.map((comment) => {
+                  const authorName = comment.author.displayName || comment.author.username;
+                  const initials = authorName
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase())
+                    .join('');
+                  const timestamp = new Date(comment.createdAt);
+                  const formattedTimestamp = Number.isNaN(timestamp.getTime())
+                    ? comment.createdAt
+                    : new Intl.DateTimeFormat(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      }).format(timestamp);
+
+                  return (
+                    <li key={comment.id} className="flex items-start gap-3">
+                      {comment.author.avatarUrl ? (
+                        <img
+                          src={comment.author.avatarUrl}
+                          alt=""
+                          width={32}
+                          height={32}
+                          className="size-8 rounded-full border border-[#30363D] object-cover shrink-0"
+                        />
+                      ) : (
+                        <div
+                          aria-hidden="true"
+                          className="size-8 rounded-full border border-[#30363D] bg-[#21262D] grid place-items-center text-[10px] font-bold text-[#E6EDF3] shrink-0"
+                        >
+                          {initials || '?'}
+                        </div>
+                      )}
+                      <article className="min-w-0 flex-1 overflow-hidden rounded-md border border-[#30363D] bg-[#161B22]">
+                        <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#30363D] bg-[#161B22] px-3 py-2">
+                          <span className="font-semibold text-[#E6EDF3]">{authorName}</span>
+                          <time dateTime={comment.createdAt} className="text-[10px] text-[#7D8590]">
+                            {formattedTimestamp}
+                          </time>
+                        </header>
+                        <p className="whitespace-pre-wrap break-words px-3 py-3 text-[#E6EDF3] leading-relaxed">
+                          {comment.body}
+                        </p>
+                      </article>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              <form onSubmit={handleSubmitIssueComment} className="flex items-start gap-3">
+                <div
+                  aria-hidden="true"
+                  className="size-8 rounded-full border border-[#30363D] bg-[#21262D] grid place-items-center text-[10px] font-bold text-[#E6EDF3] shrink-0"
+                >
+                  {currentUsername.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <label htmlFor="issue-comment-body" className="sr-only">
+                    Add a comment
+                  </label>
+                  <textarea
+                    id="issue-comment-body"
+                    rows={4}
+                    maxLength={10000}
+                    required
+                    value={commentDraft}
+                    onChange={(event) => setCommentDraft(event.target.value)}
+                    placeholder="Leave a comment"
+                    className="w-full resize-y rounded-md border border-[#30363D] bg-[#0D1117] p-3 text-xs text-[#E6EDF3] placeholder-[#7D8590] outline-none focus:border-[#58A6FF] focus:ring-1 focus:ring-[#58A6FF]"
+                  />
+                  {commentError && (
+                    <p role="alert" className="text-[11px] text-[#F85149]">
+                      {commentError}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-[#7D8590]">
+                      {commentDraft.length.toLocaleString()} / 10,000
+                    </span>
+                    <button
+                      type="submit"
+                      disabled={isSubmittingComment || !commentDraft.trim()}
+                      className="rounded-md bg-[#238636] px-4 py-2 font-bold text-white transition-colors hover:bg-[#2EA043] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isSubmittingComment ? 'Commenting…' : 'Comment'}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </section>
 
             {/* Issue Actions Bar */}
             <div className="pt-2 flex items-center justify-between border-t border-[#21262D]">

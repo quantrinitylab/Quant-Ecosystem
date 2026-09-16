@@ -34,6 +34,17 @@ const createIssueSchema = z.object({
   assignees: z.array(z.string()).optional(),
 });
 
+const createIssueCommentSchema = z
+  .object({
+    body: z.string().trim().min(1, 'Comment body is required').max(10_000),
+  })
+  .strict();
+
+const issueCommentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).optional(),
+});
+
 const createPrSchema = z.object({
   title: z.string().min(1).max(255),
   body: z.string().max(10000).optional(),
@@ -564,7 +575,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       if (request.query.status) where.status = request.query.status.toUpperCase();
       const rows = (await prisma.issue.findMany({
         where,
-        include: { author: { select: { username: true, displayName: true } } },
+        include: {
+          author: { select: { username: true, displayName: true } },
+          _count: { select: { comments: true } },
+        },
         orderBy: { number: 'desc' },
       })) as Array<{
         id: string;
@@ -575,6 +589,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         labels: unknown;
         createdAt: Date;
         author?: { username: string; displayName: string | null } | null;
+        _count?: { comments: number };
       }>;
       return reply.send({
         success: true,
@@ -602,7 +617,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 ? { name: lbl, color: lbl === 'bug' ? '#D73A4A' : '#1D76DB' }
                 : lbl,
             ),
-            commentsCount: 0,
+            commentsCount: issue._count?.comments ?? 0,
             createdAt: issue.createdAt.toISOString(),
             assignee: 'Developer 6',
           };
@@ -695,6 +710,123 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
     },
   );
+
+  fastify.get<{
+    Params: { id: string; number: string };
+    Querystring: { page?: string; pageSize?: string };
+  }>('/:id/issues/:number/comments', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const number = Number.parseInt(request.params.number, 10);
+    if (!Number.isSafeInteger(number) || number < 1) {
+      throw createAppError('Invalid issue number', 400, 'INVALID_NUMBER');
+    }
+
+    const parsedQuery = issueCommentsQuerySchema.safeParse(request.query);
+    if (!parsedQuery.success) throw parsedQuery.error;
+
+    const prisma = getPrisma(fastify);
+    const issue = await prisma.issue.findFirst({
+      where: { repoId: repo.id, number },
+      select: { id: true },
+    });
+    if (!issue) {
+      throw createAppError('Issue not found', 404, 'ISSUE_NOT_FOUND');
+    }
+
+    const page = parsedQuery.data.page ?? 1;
+    const pageSize = parsedQuery.data.pageSize ?? 30;
+    const where = { issueId: issue.id };
+    const [comments, total] = await Promise.all([
+      prisma.issueComment.findMany({
+        where,
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.issueComment.count({ where }),
+    ]);
+
+    return reply.send({
+      success: true,
+      data: comments.map((comment: any) => ({
+        id: comment.id,
+        issueNumber: number,
+        body: comment.body,
+        author: comment.author,
+        createdAt: comment.createdAt.toISOString(),
+        updatedAt: comment.updatedAt.toISOString(),
+      })),
+      metadata: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; number: string };
+  }>('/:id/issues/:number/comments', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const number = Number.parseInt(request.params.number, 10);
+    if (!Number.isSafeInteger(number) || number < 1) {
+      throw createAppError('Invalid issue number', 400, 'INVALID_NUMBER');
+    }
+
+    const parsedBody = createIssueCommentSchema.safeParse(request.body);
+    if (!parsedBody.success) throw parsedBody.error;
+
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const issue = await prisma.issue.findFirst({
+      where: { repoId: repo.id, number },
+      select: { id: true },
+    });
+    if (!issue) {
+      throw createAppError('Issue not found', 404, 'ISSUE_NOT_FOUND');
+    }
+
+    const comment = await prisma.issueComment.create({
+      data: {
+        issueId: issue.id,
+        authorId: userId,
+        body: parsedBody.data.body,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        id: comment.id,
+        issueNumber: number,
+        body: comment.body,
+        author: comment.author,
+        createdAt: comment.createdAt.toISOString(),
+        updatedAt: comment.updatedAt.toISOString(),
+      },
+    });
+  });
 
   fastify.get<{
     Params: { id: string };

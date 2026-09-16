@@ -43,6 +43,21 @@ const MOCK_ISSUE = {
   },
 };
 
+const MOCK_ISSUE_COMMENT = {
+  id: 'issue-comment-1',
+  issueId: 'issue-1',
+  authorId: 'user-1',
+  body: 'Persisted issue comment',
+  createdAt: new Date('2026-09-16T10:00:00.000Z'),
+  updatedAt: new Date('2026-09-16T10:00:00.000Z'),
+  author: {
+    id: 'user-1',
+    username: 'kundan',
+    displayName: 'Kundan Singh',
+    avatarUrl: 'https://example.test/avatar.png',
+  },
+};
+
 const MOCK_PR = {
   id: 'pr-1',
   repoId: 'repo-1',
@@ -100,6 +115,11 @@ function fakePrisma() {
         ...MOCK_ISSUE,
         ...data,
       })),
+    },
+    issueComment: {
+      findMany: vi.fn().mockResolvedValue([MOCK_ISSUE_COMMENT]),
+      count: vi.fn().mockResolvedValue(1),
+      create: vi.fn().mockResolvedValue(MOCK_ISSUE_COMMENT),
     },
     pullRequest: {
       findMany: vi.fn().mockResolvedValue([MOCK_PR]),
@@ -358,5 +378,94 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(body.success).toBe(true);
     expect(body.data.status).toBe('in_progress');
     expect(prisma.ciRun.create).toHaveBeenCalled();
+  });
+
+  it('GET /repos/:id/issues/:number/comments lists persisted comments', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/issues/1/comments',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: [
+          expect.objectContaining({
+            id: 'issue-comment-1',
+            issueNumber: 1,
+            body: 'Persisted issue comment',
+            author: expect.objectContaining({ username: 'kundan' }),
+          }),
+        ],
+      }),
+    );
+    expect(prisma.issueComment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { issueId: 'issue-1' } }),
+    );
+  });
+
+  it('POST /repos/:id/issues/:number/comments persists an authenticated comment', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/issues/1/comments',
+      payload: { body: '  Persisted issue comment  ' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          id: 'issue-comment-1',
+          body: 'Persisted issue comment',
+        }),
+      }),
+    );
+    expect(prisma.issueComment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          issueId: 'issue-1',
+          authorId: 'user-1',
+          body: 'Persisted issue comment',
+        },
+      }),
+    );
+  });
+
+  it('GET /repos/:id/issues/:number/comments rejects unauthenticated callers', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/issues/1/comments',
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'UNAUTHORIZED' }),
+      }),
+    );
+  });
+
+  it('GET /repos/:id/issues/:number/comments returns 404 for a missing issue', async () => {
+    const app = await buildApp();
+    prisma.issue.findFirst.mockResolvedValueOnce(null as never);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/issues/999/comments',
+    });
+
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'ISSUE_NOT_FOUND' }),
+      }),
+    );
+    expect(prisma.issueComment.findMany).not.toHaveBeenCalled();
   });
 });

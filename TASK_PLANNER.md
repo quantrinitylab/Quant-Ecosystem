@@ -22,6 +22,27 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Persisted Issue Comments & Timeline Modal (Migration 0062, Fastify Routes, Vitest 16/16, Developer 6 Notion Swarm Implementation)**:
+  - [x] **Prisma Database Schema & Migration 0062 (`packages/database`)**:
+    - Added `model IssueComment` with foreign keys to `Issue` and `User` with `onDelete: Cascade`.
+    - Added relations `issueComments IssueComment[]` to `User` and `comments IssueComment[]` to `Issue`.
+    - Authored declarative migration `0062_add_issue_comments/migration.sql` with composite indexes on `(issueId, createdAt)` and `authorId`.
+    - Generated Prisma Client and verified clean TypeScript compilation (`pnpm --filter @quant/database run build`).
+  - [x] **Fastify Repos Routes (`apps/quantmail/backend/routes/repos.ts`)**:
+    - Added `GET /repos/:id/issues/:number/comments` with pagination, author details, and 404 handling.
+    - Added `POST /repos/:id/issues/:number/comments` with authenticated `userId`, validation schema, and 201 response.
+    - Updated `GET /repos/:id/issues` with Prisma `_count: { select: { comments: true } }` for dynamic comment counts.
+  - [x] **Vitest Backend Test Suite (`apps/quantmail/backend/__tests__/repos.routes.test.ts`)**:
+    - 16/16 unit tests passing 100% (covering listing comments, posting authenticated comments, 401 unauthenticated guard, 404 missing issue guard, along with all existing repo, issue, and PR tests).
+    - Entire `@quant/quantmail` suite verified green: 170 test files, 1,949 tests passing 100% in 727.49s.
+  - [x] **Frontend Interactive Timeline & Composer (`apps/quantmail/src/app/quantgit/page.tsx`)**:
+    - Directly authored from Developer 6's (Notion AI Swarm / Opus 5) verified patch bundle.
+    - Added `IssueCommentItem` type, comments state (`issueComments`, `commentDraft`, `isLoadingComments`, `isSubmittingComment`, `commentError`).
+    - Added `fetchIssueComments` and `handleSubmitIssueComment` handlers.
+    - Added reactive `useEffect` on `modalState === 'issue-detail'` to fetch issue comments automatically.
+    - Upgraded `IssueDetailModal` with ARIA dialog semantics, scrollable max-height (`max-h-[90vh] overflow-y-auto`), formatted timestamps, avatar/initials badges, comment count header, empty state, and responsive comment submission form.
+    - Verified 100% clean TypeScript typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
+
 - [x] **QuantGit Authentic Settings Persistence, PR Merge, Branch Creation, Live Actions & Detail Modals**:
   - [x] **Fastify Repos Routes Domain Expansion (`apps/quantmail/backend/routes/repos.ts`)**:
     - `loadWritableRepo`: Strict repository ownership check (`repo.ownerId === userId`) for all mutating endpoints.

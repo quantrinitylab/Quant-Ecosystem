@@ -1214,3 +1214,31 @@ graph TD
     - `⚡ Skills & Tools`: Searchable panel of 6 core Swarm skills with category badges (`[GIT]`, `[CODE]`, `[QA]`, `[VOICE]`, `[MEMORY]`, `[DB]`) and interactive `ON/OFF` toggle switches.
 - **5. Verification & Testing**:
   - Validated with `@quant/quantmail` TypeScript typecheck (0 errors) and `@quant/shared-ui` test suite (36 test files, 519 tests passed 100%).
+
+### 17. QuantGit: Persisted Issue Comments & Timeline Modal (Migration 0062, Developer 6 Notion Swarm):
+
+- **1. Autonomous Swarm Role Execution (Developer 6 - Git Specialist)**:
+  - Dispatched architectural audit and implementation task to Developer 6 (Notion AI Swarm / Opus 5) in Notion workspace (`https://app.notion.com/chat?t=3db56f382581804c92a400a909358579`).
+  - Developer 6 generated and packaged production implementation bundle `quantgit-issue-comments-implementation.zip` (12.1 KB) with complete schema migration, Fastify routes, Vitest unit tests, and React timeline modal.
+- **2. Database Schema & Migration 0062 (`packages/database`)**:
+  - Authored declarative migration `0062_add_issue_comments/migration.sql` introducing `model IssueComment`:
+    - Foreign keys to `Issue` and `User` with `onDelete: Cascade`.
+    - Composite index on `(issueId, createdAt)` for chronological timeline rendering.
+    - Foreign key index on `authorId`.
+    - `issueComments IssueComment[]` relation added to `User`.
+    - `comments IssueComment[]` relation added to `Issue`.
+  - Generated Prisma Client and compiled TypeScript bindings (`pnpm --filter @quant/database run build`) with zero errors.
+- **3. Fastify Backend Routes (`apps/quantmail/backend/routes/repos.ts`)**:
+  - `GET /repos/:id/issues/:number/comments`: Authenticated pagination endpoint querying issue comments in ascending chronological order with author details (`id`, `username`, `displayName`, `avatarUrl`). Returns 404 if parent issue does not exist.
+  - `POST /repos/:id/issues/:number/comments`: Authenticated endpoint validating body (`min(1)`, `max(10000)`), binding `authorId: userId`, creating record in Prisma, and returning 201 Created.
+  - `GET /repos/:id/issues`: Enhanced with Prisma `_count: { select: { comments: true } }` so all issue cards reflect real dynamic comment counts.
+- **4. Backend Vitest Suite Expansion (`apps/quantmail/backend/__tests__/repos.routes.test.ts`)**:
+  - 16/16 unit tests passing 100% covering comment listing, authenticated comment creation, unauthenticated rejection, 404 guards, and issue/PR persistence.
+  - Monorepo test suite passed 100%: 170 test files, 1,949 tests green in 727.49s.
+- **5. Frontend Timeline Modal & Composer (`apps/quantmail/src/app/quantgit/page.tsx`)**:
+  - Added `IssueCommentItem` type export.
+  - Added state hooks: `issueComments`, `commentDraft`, `isLoadingComments`, `isSubmittingComment`, `commentError`.
+  - Added `fetchIssueComments` and `handleSubmitIssueComment` handlers.
+  - Wired reactive `useEffect` to fetch comments automatically upon opening `modalState === 'issue-detail'`.
+  - Enhanced `IssueDetailModal`: ARIA dialog semantics (`role="dialog"`, `aria-modal="true"`, `aria-labelledby="issue-detail-title"`), max height clamping (`max-h-[90vh] overflow-y-auto`), chronological comment list with avatar/initials badge, author name, formatted timestamp, body text, empty state, and 10,000-character comment composer with character counter and button state transitions.
+  - Verified 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).

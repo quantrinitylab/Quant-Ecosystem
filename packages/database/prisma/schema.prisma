@@ -84,6 +84,7 @@ model User {
   reviews        Review[]
   reviewComments ReviewComment[]
   issues         Issue[]
+  issueComments  IssueComment[]
   agentSessions  AgentSession[]
   agentOrgs      AgentOrg[]
 
@@ -1615,14 +1616,31 @@ model Issue {
   updatedAt DateTime    @updatedAt
   closedAt  DateTime?
 
-  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
-  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  repository Repository     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments   IssueComment[]
 
   @@unique([repoId, number])
   @@index([repoId])
   @@index([authorId])
   @@index([status])
   @@map("issues")
+}
+
+model IssueComment {
+  id        String   @id @default(cuid())
+  issueId   String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  issue  Issue @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([issueId, createdAt])
+  @@index([authorId])
+  @@map("issue_comments")
 }
 
 model BranchProtection {
