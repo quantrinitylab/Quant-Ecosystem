@@ -16,6 +16,15 @@ import type { BubbleState } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { QuantGitLogo } from '../../components/QuantGitLogo';
+import { AgentOfficeCanvas, type OfficeAgent } from '../../components/AgentOfficeCanvas';
+import { BlobEditor, type CommitBlobInput } from '../../components/BlobEditor';
+import {
+  navigateQuantGit,
+  parseQuantGitRoute,
+  quantGitPath,
+  subscribeToQuantGitRoute,
+  type QuantGitRoute,
+} from '../../lib/quantgit-route';
 
 export type MainDeckTab = 'quanty' | 'repos' | 'lab';
 
@@ -786,6 +795,10 @@ export default function QuantGitPage() {
   const [currentBranch, setCurrentBranch] = useState<string>('main');
   const [currentPath, setCurrentPath] = useState<string>('');
   const [viewingFile, setViewingFile] = useState<FileNode | null>(null);
+  const [viewingBlobSha, setViewingBlobSha] = useState('');
+  const [pendingRoute, setPendingRoute] = useState<QuantGitRoute | null>(null);
+  const [routeHydrated, setRouteHydrated] = useState(false);
+  const [selectedOfficeAgent, setSelectedOfficeAgent] = useState<DeployedAgent | null>(null);
 
   // Notion AI & Quanty Studio State
   const [activeModel, setActiveModel] = useState<'opus-5' | 'sonnet-35' | 'quant-slm'>('opus-5');
@@ -958,6 +971,8 @@ export default function QuantGitPage() {
   const [promptInput, setPromptInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isChatSubmitting, setIsChatSubmitting] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -969,6 +984,199 @@ export default function QuantGitPage() {
       browserAuthSession.authenticatedFetch(input, init),
     [],
   );
+
+  const repositoryOwner = useCallback(
+    (repo: Repo) => {
+      const fullNameParts = repo.fullName?.split('/').filter(Boolean);
+      return fullNameParts?.length > 1 ? fullNameParts[0] : currentUsername;
+    },
+    [currentUsername],
+  );
+
+  const openRepository = useCallback(
+    (repo: Repo, tab: GitHubTab = 'code') => {
+      setActiveDeckTab('repos');
+      setSelectedRepo(repo);
+      setActiveGitHubTab(tab);
+      setViewingFile(null);
+      setModalState('none');
+
+      navigateQuantGit({
+        kind: 'repo',
+        owner: repositoryOwner(repo),
+        repo: repo.name,
+        tab,
+      });
+    },
+    [repositoryOwner],
+  );
+
+  const openRepositoryTab = useCallback(
+    (tab: GitHubTab) => {
+      if (!selectedRepo) return;
+
+      setActiveDeckTab('repos');
+      setActiveGitHubTab(tab);
+      setViewingFile(null);
+      setModalState('none');
+
+      navigateQuantGit({
+        kind: 'repo',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        tab,
+      });
+    },
+    [repositoryOwner, selectedRepo],
+  );
+
+  const openIssueDetail = useCallback(
+    (issue: IssueItem) => {
+      if (!selectedRepo) return;
+
+      setActiveDeckTab('repos');
+      setActiveGitHubTab('issues');
+      setSelectedIssue(issue);
+      setModalState('issue-detail');
+
+      navigateQuantGit({
+        kind: 'issue',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        number: issue.id,
+      });
+    },
+    [repositoryOwner, selectedRepo],
+  );
+
+  const closeIssueDetail = useCallback(() => {
+    setModalState('none');
+    setSelectedIssue(null);
+
+    if (selectedRepo) {
+      navigateQuantGit({
+        kind: 'repo',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        tab: 'issues',
+      });
+    }
+  }, [repositoryOwner, selectedRepo]);
+
+  const openPullDetail = useCallback(
+    (pullRequest: PRItem) => {
+      if (!selectedRepo) return;
+
+      setActiveDeckTab('repos');
+      setActiveGitHubTab('pulls');
+      setSelectedPr(pullRequest);
+      setModalState('pr-detail');
+
+      navigateQuantGit({
+        kind: 'pull',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        number: pullRequest.id,
+      });
+    },
+    [repositoryOwner, selectedRepo],
+  );
+
+  const closePullDetail = useCallback(() => {
+    setModalState('none');
+    setSelectedPr(null);
+
+    if (selectedRepo) {
+      navigateQuantGit({
+        kind: 'repo',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        tab: 'pulls',
+      });
+    }
+  }, [repositoryOwner, selectedRepo]);
+
+  const closeBlobEditor = useCallback(() => {
+    setViewingFile(null);
+    setViewingBlobSha('');
+
+    if (selectedRepo) {
+      navigateQuantGit({
+        kind: 'repo',
+        owner: repositoryOwner(selectedRepo),
+        repo: selectedRepo.name,
+        tab: 'code',
+      });
+    }
+  }, [repositoryOwner, selectedRepo]);
+
+  const openBlobEditor = useCallback(
+    async (file: FileNode, repo = selectedRepo, branch = currentBranch) => {
+      if (!repo || file.type === 'dir') return;
+
+      setActiveDeckTab('repos');
+      setSelectedRepo(repo);
+      setActiveGitHubTab('code');
+      setCurrentBranch(branch);
+      setCurrentPath(file.path);
+      setChatError(null);
+
+      navigateQuantGit({
+        kind: 'blob',
+        owner: repositoryOwner(repo),
+        repo: repo.name,
+        branch,
+        path: file.path,
+      });
+
+      try {
+        const repoTarget = repo.id || repo.name;
+        const query = new URLSearchParams({
+          branch,
+          path: file.path,
+        });
+        const response = await apiFetch(
+          `/api/repos/${encodeURIComponent(repoTarget)}/file?${query.toString()}`,
+        );
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload?.success) {
+          throw new Error(
+            payload?.error?.message || payload?.message || 'Failed to load file content.',
+          );
+        }
+
+        setViewingFile({
+          ...file,
+          content: payload.data.content ?? '',
+        });
+        setViewingBlobSha(payload.data.sha ?? payload.data.blobSha ?? '');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load file.';
+        showToast(message);
+
+        setViewingFile(
+          file.content !== undefined
+            ? file
+            : {
+                ...file,
+                content: '',
+              },
+        );
+      }
+    },
+    [apiFetch, currentBranch, repositoryOwner, selectedRepo],
+  );
+
+  useEffect(() => {
+    const applyLocation = (route: QuantGitRoute) => {
+      setPendingRoute(route);
+      setRouteHydrated(true);
+    };
+
+    applyLocation(parseQuantGitRoute(window.location.pathname));
+    return subscribeToQuantGitRoute(applyLocation);
+  }, []);
 
   // Fetch real repositories from backend
   const fetchRepos = useCallback(async () => {
@@ -1011,6 +1219,102 @@ export default function QuantGitPage() {
   useEffect(() => {
     fetchRepos();
   }, [fetchRepos]);
+
+  useEffect(() => {
+    if (!routeHydrated || !pendingRoute) return;
+
+    if (pendingRoute.kind === 'quanty') {
+      setActiveDeckTab('quanty');
+      setSelectedRepo(null);
+      setViewingFile(null);
+      setModalState('none');
+      return;
+    }
+
+    if (pendingRoute.kind === 'agentlab') {
+      setActiveDeckTab('lab');
+      setSelectedRepo(null);
+      setViewingFile(null);
+      setModalState('none');
+      return;
+    }
+
+    if (pendingRoute.kind === 'repositories') {
+      setActiveDeckTab('repos');
+      setSelectedRepo(null);
+      setViewingFile(null);
+      setModalState('none');
+      return;
+    }
+
+    if (repos.length === 0) return;
+
+    const matchedRepo =
+      repos.find(
+        (candidate) =>
+          candidate.name.toLowerCase() === pendingRoute.repo.toLowerCase() &&
+          repositoryOwner(candidate).toLowerCase() === pendingRoute.owner.toLowerCase(),
+      ) ||
+      repos.find((candidate) => candidate.name.toLowerCase() === pendingRoute.repo.toLowerCase());
+
+    if (!matchedRepo) return;
+
+    setActiveDeckTab('repos');
+    setSelectedRepo(matchedRepo);
+
+    if (pendingRoute.kind === 'repo') {
+      setActiveGitHubTab(pendingRoute.tab);
+      setViewingFile(null);
+      setModalState('none');
+      return;
+    }
+
+    if (pendingRoute.kind === 'issue') {
+      setActiveGitHubTab('issues');
+      const targetIssue = issues.find((candidate) => candidate.id === pendingRoute.number);
+
+      if (targetIssue) {
+        setSelectedIssue(targetIssue);
+        setModalState('issue-detail');
+      }
+      return;
+    }
+
+    if (pendingRoute.kind === 'pull') {
+      setActiveGitHubTab('pulls');
+      const targetPull = pulls.find((candidate) => candidate.id === pendingRoute.number);
+
+      if (targetPull) {
+        setSelectedPr(targetPull);
+        setModalState('pr-detail');
+      }
+      return;
+    }
+
+    if (pendingRoute.kind === 'blob') {
+      setActiveGitHubTab('code');
+      setCurrentBranch(pendingRoute.branch);
+      setCurrentPath(pendingRoute.path);
+
+      if (!viewingFile || viewingFile.path !== pendingRoute.path) {
+        const fileNode: FileNode = {
+          name: pendingRoute.path.split('/').pop() || pendingRoute.path,
+          type: 'file',
+          path: pendingRoute.path,
+        };
+        void openBlobEditor(fileNode, matchedRepo, pendingRoute.branch);
+      }
+    }
+  }, [
+    openBlobEditor,
+    pendingRoute,
+    issues,
+    pulls,
+    repos,
+    repositoryOwner,
+    routeHydrated,
+    viewingFile,
+  ]);
 
   // Fetch real issues and PRs when a repository is selected
   const fetchRepoIssues = useCallback(
@@ -1730,53 +2034,142 @@ export default function QuantGitPage() {
     );
   };
 
-  const handleChatSubmit = (e?: FormEvent) => {
+  const handleChatSubmit = async (e?: FormEvent) => {
     if (e) e.preventDefault();
-    if (!promptInput.trim()) return;
+    if (!promptInput.trim() || isChatSubmitting) return;
+
     const userText = promptInput.trim();
     const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
+      id: crypto.randomUUID(),
       role: 'user',
       text: userText,
       mode: buildMode,
       timestamp: 'just now',
     };
-    const botMsgId = `bot-${Date.now() + 1}`;
-    const modelName =
-      activeModel === 'opus-5'
-        ? 'Opus 5'
-        : activeModel === 'sonnet-35'
-          ? 'Sonnet 3.5'
-          : 'Quant SLM';
-    const botReply: ChatMessage = {
-      id: botMsgId,
-      role: 'assistant',
-      model: modelName,
-      text: `Understood. Executing ${buildMode.toUpperCase()} mode with ${effort.toUpperCase()} effort via ${modelName}.\n\nI have analyzed your request: "${userText}". The monorepo dependency graph, AST parse trees, and active service routes have been verified. All architectural changes and tool operations are prepared for execution.`,
-      timestamp: 'just now',
-      thoughts: `1. Analyzed user intent: "${userText}"\n2. Target workspace: Quant-Ecosystem monorepo\n3. Model selected: ${modelName} (Reasoning effort: ${effort}, Mode: ${buildMode})\n4. Inspected files and dependencies for regression risks\n5. Generated validated solution plan with step-by-step verification`,
-      thoughtDuration: '2.8s',
-      steps: [
-        'Checked repository status and verified main branch',
-        'Parsed AST structure across active workspace packages',
-        'Validated zero-mock invariants and typecheck cleanliness',
-        'Verified tool output with Swarm Fleet orchestrator',
-      ],
-      suggestions: [
-        'Run automated verification tests →',
-        'Inspect proposed git diff →',
-        'Deploy changes to staging cluster →',
-      ],
-    };
-    setChatMessages((prev) => [...prev, userMsg, botReply]);
-    setExpandedThoughts((prev) => ({ ...prev, [botMsgId]: true }));
+
+    const requestMessages = [...chatMessages, userMsg].map((message) => ({
+      role: message.role,
+      content: message.text,
+    }));
+
+    setChatMessages((previous) => [...previous, userMsg]);
     setPromptInput('');
+    setChatError(null);
+    setIsChatSubmitting(true);
     setIsContextOpen(false);
     setIsSettingsOpen(false);
+
+    try {
+      const response = await apiFetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: requestMessages,
+          intent: buildMode,
+          context: {
+            surface: 'quantgit',
+            mode: buildMode,
+            effort,
+            requestedModel: activeModel,
+            route: window.location.pathname,
+            repository: selectedRepo
+              ? {
+                  id: selectedRepo.id,
+                  owner: repositoryOwner(selectedRepo),
+                  name: selectedRepo.name,
+                  branch: currentBranch,
+                  tab: activeGitHubTab,
+                  path: currentPath || undefined,
+                }
+              : undefined,
+          },
+        }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        throw new Error(
+          payload?.error?.message ||
+            payload?.message ||
+            `AI request failed with status ${response.status}.`,
+        );
+      }
+
+      if (typeof payload.data?.message !== 'string' || !payload.data.message.trim()) {
+        throw new Error('The AI provider returned an empty response.');
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        model: payload.data.routed || payload.data.tier || activeModel,
+        text: payload.data.message.trim(),
+        timestamp: 'just now',
+      };
+
+      setChatMessages((previous) => [...previous, assistantMessage]);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'The AI service is currently unavailable.';
+
+      setPromptInput(userText);
+      setChatError(message);
+    } finally {
+      setIsChatSubmitting(false);
+    }
   };
 
+  const handleCommitBlob = useCallback(
+    async (input: CommitBlobInput) => {
+      if (!selectedRepo) {
+        throw new Error('No repository is selected.');
+      }
+
+      if (!input.expectedBlobSha) {
+        throw new Error('The file has no blob SHA. Reload it before committing.');
+      }
+
+      const repoTarget = selectedRepo.id || selectedRepo.name;
+      const response = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/file`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(input),
+      });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok || !payload?.success) {
+        if (response.status === 409 || payload?.error?.code === 'STALE_BLOB') {
+          throw new Error('This file changed on the server. Reload it before committing.');
+        }
+
+        throw new Error(
+          payload?.error?.message || payload?.message || 'Failed to commit file changes.',
+        );
+      }
+
+      setViewingFile((current) =>
+        current
+          ? {
+              ...current,
+              content: input.content,
+            }
+          : current,
+      );
+      setViewingBlobSha(payload.data?.blobSha || payload.data?.sha || '');
+      showToast(`Committed ${input.path} at ${String(payload.data?.commitSha || '').slice(0, 8)}`);
+      closeBlobEditor();
+      await fetchRepos();
+    },
+    [apiFetch, closeBlobEditor, fetchRepos, selectedRepo],
+  );
+
   return (
-    <main className="h-screen w-full flex flex-col bg-[#0D1117] text-[#E6EDF3] font-sans antialiased overflow-hidden">
+    <main className="h-dvh max-h-dvh w-full overflow-hidden flex flex-col bg-[#0D1117] text-[#E6EDF3] font-sans antialiased">
       {/* ========================================================================= */}
       {/* 1. GLOBAL NAVIGATION BAR (NOTION AI FOR QUANTY / GITHUB FOR REPOS & LAB)  */}
       {/* ========================================================================= */}
@@ -2350,7 +2743,7 @@ export default function QuantGitPage() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setActiveGitHubTab(t.id as GitHubTab)}
+                  onClick={() => openRepositoryTab(t.id as GitHubTab)}
                   className={`flex items-center gap-1.5 px-3.5 py-2.5 border-b-2 transition-all shrink-0 ${
                     active
                       ? 'border-[#FF8C42] text-white font-bold'
@@ -2439,8 +2832,7 @@ export default function QuantGitPage() {
                         <button
                           type="button"
                           onClick={() => {
-                            setSelectedRepo(r);
-                            setActiveGitHubTab('code');
+                            openRepository(r);
                           }}
                           className="text-base font-bold text-[#58A6FF] hover:underline"
                         >
@@ -2478,8 +2870,7 @@ export default function QuantGitPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setSelectedRepo(r);
-                          setActiveGitHubTab('code');
+                          openRepository(r);
                         }}
                         className="px-3.5 py-1 rounded-md bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs transition-colors"
                       >
@@ -2612,7 +3003,7 @@ export default function QuantGitPage() {
                             if (file.type === 'dir') {
                               showToast(`Opening folder ${file.name}`);
                             } else {
-                              setViewingFile(file);
+                              void openBlobEditor(file);
                             }
                           }}
                         >
@@ -2940,8 +3331,7 @@ export default function QuantGitPage() {
                               </button>
                               <span
                                 onClick={() => {
-                                  setSelectedIssue(issue);
-                                  setModalState('issue-detail');
+                                  openIssueDetail(issue);
                                 }}
                                 className={`font-bold hover:text-[#58A6FF] cursor-pointer ${
                                   issue.state === 'closed'
@@ -3038,8 +3428,7 @@ export default function QuantGitPage() {
                               </span>
                               <span
                                 onClick={() => {
-                                  setSelectedPr(pr);
-                                  setModalState('pr-detail');
+                                  openPullDetail(pr);
                                 }}
                                 className="font-bold text-white hover:text-[#58A6FF] cursor-pointer"
                               >
@@ -3503,11 +3892,11 @@ export default function QuantGitPage() {
         {/* VIEW C: QUANTY AI AUTONOMOUS COPILOT STUDIO                             */}
         {/* ======================================================================= */}
         {activeDeckTab === 'quanty' && (
-          <div className="flex-1 w-full min-h-0 flex flex-col max-w-4xl mx-auto px-4 pt-2 pb-16 justify-between">
+          <div className="flex-1 w-full min-h-0 flex flex-col max-w-4xl mx-auto px-4 pt-2 pb-[72px] justify-between overflow-hidden">
             <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
               {/* Welcome Screen (when no messages) */}
               {chatMessages.length === 0 ? (
-                <div className="flex-1 overflow-y-auto py-10 flex flex-col items-center justify-center text-center space-y-5">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-10 flex flex-col items-center justify-center text-center space-y-5">
                   <BubbleAvatar state="coding" size={72} />
                   <div className="space-y-1 max-w-lg">
                     <h2 className="text-xl font-bold text-white tracking-tight">
@@ -3563,7 +3952,7 @@ export default function QuantGitPage() {
                 </div>
               ) : (
                 /* Chat Stream (when messages exist) */
-                <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 pb-4">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-4 pr-1 pb-4">
                   {chatMessages.map((msg) => (
                     <div key={msg.id}>
                       {msg.role === 'user' ? (
@@ -3707,12 +4096,28 @@ export default function QuantGitPage() {
                       )}
                     </div>
                   ))}
+
+                  {isChatSubmitting && (
+                    <div className="rounded-xl border border-[#30363D] bg-[#161B22] p-4 text-xs text-[#7D8590] animate-pulse">
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#FF8C42] animate-ping" />
+                        <span className="font-semibold text-white">
+                          Quanty Copilot is generating a verified response...
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
             {/* Notion AI Bottom Floating Composer */}
             <div className="shrink-0 pt-2 pb-2 bg-[#0D1117] z-20">
+              {chatError && (
+                <div className="mb-2 rounded-lg border border-[#F85149]/40 bg-[#DA3633]/15 px-3 py-2 text-xs text-[#F85149]">
+                  {chatError}
+                </div>
+              )}
               <div className="relative">
                 {/* Popup Menu for Give Context (+) */}
                 {isContextOpen && (
@@ -4441,6 +4846,7 @@ export default function QuantGitPage() {
                   <textarea
                     rows={2}
                     value={promptInput}
+                    disabled={isChatSubmitting}
                     onChange={(e) => setPromptInput(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
@@ -4448,8 +4854,10 @@ export default function QuantGitPage() {
                         handleChatSubmit();
                       }
                     }}
-                    placeholder="Do anything with AI..."
-                    className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed"
+                    placeholder={
+                      isChatSubmitting ? 'Quanty is thinking...' : 'Do anything with AI...'
+                    }
+                    className="w-full bg-transparent border-0 resize-none text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none leading-relaxed disabled:opacity-60"
                   />
 
                   {/* Bottom Action Bar inside Textarea container */}
@@ -4530,16 +4938,16 @@ export default function QuantGitPage() {
                       {/* Submit button */}
                       <button
                         type="button"
-                        disabled={!promptInput.trim()}
+                        disabled={!promptInput.trim() || isChatSubmitting}
                         onClick={() => handleChatSubmit()}
                         className={`w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all ${
-                          promptInput.trim()
+                          promptInput.trim() && !isChatSubmitting
                             ? 'bg-[#FF8C42] text-black shadow-lg hover:scale-105 cursor-pointer'
                             : 'bg-[#21262D] text-[#7D8590] cursor-not-allowed opacity-50'
                         }`}
                         title="Submit AI message"
                       >
-                        ↑
+                        {isChatSubmitting ? '…' : '↑'}
                       </button>
                     </div>
                   </div>
@@ -4553,13 +4961,13 @@ export default function QuantGitPage() {
         {/* VIEW D: AGENT LAB (SWARM FLEET COMMAND)                                 */}
         {/* ======================================================================= */}
         {activeDeckTab === 'lab' && (
-          <div className="flex-1 w-full min-h-0 overflow-y-auto">
-            <div className="max-w-7xl mx-auto px-4 sm:px-8 py-6 pb-20 space-y-6 text-xs">
+          <div className="flex-1 min-h-0 w-full overflow-y-auto overscroll-contain">
+            <div className="mx-auto flex min-h-full max-w-7xl flex-col gap-4 px-4 py-5 pb-20 text-xs sm:px-8">
               <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-lg bg-[#161B22] border border-[#30363D]">
                 <div>
                   <h3 className="text-base font-bold text-white">Autonomous Swarm Fleet Command</h3>
                   <p className="text-[#7D8590]">
-                    Executive Orchestrator and 7 specialized agents operating in parallel.
+                    Select a live agent on the operations floor to inspect its dossier.
                   </p>
                 </div>
                 <button
@@ -4571,37 +4979,18 @@ export default function QuantGitPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {agents.map((ag) => (
-                  <div
-                    key={ag.id}
-                    className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="w-7 h-7 rounded-full font-bold flex items-center justify-center text-xs text-black"
-                          style={{ backgroundColor: ag.color }}
-                        >
-                          {ag.initial}
-                        </span>
-                        <div>
-                          <h4 className="font-bold text-white">{ag.name}</h4>
-                          <span className="text-[10px] font-mono text-[#7D8590]">{ag.pod}</span>
-                        </div>
-                      </div>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#3FB950]/20 text-[#3FB950]">
-                        {ag.status}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#FF8C42] font-semibold">{ag.role}</p>
-                    <p className="text-[11px] text-[#7D8590] leading-relaxed">{ag.currentTask}</p>
-                    <div className="bg-[#0D1117] p-2.5 rounded border border-[#21262D] space-y-1 text-[10px]">
-                      <p className="font-bold text-white">Thought Chain:</p>
-                      <p className="text-[#7D8590] italic">{ag.thoughts}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="min-h-[500px] flex-1">
+                <AgentOfficeCanvas
+                  agents={agents.slice(0, 8) as OfficeAgent[]}
+                  onInspect={(agent) => {
+                    const source = agents.find((candidate) => candidate.id === agent.id);
+
+                    if (source) {
+                      setSelectedOfficeAgent(source);
+                    }
+                  }}
+                  className="h-[clamp(500px,68dvh,760px)]"
+                />
               </div>
             </div>
           </div>
@@ -4808,50 +5197,108 @@ export default function QuantGitPage() {
         </div>
       )}
 
-      {/* Line-Numbered File Blob Viewer Modal */}
-      {viewingFile && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-in fade-in">
-            {/* Header */}
-            <div className="bg-[#161B22] border-b border-[#30363D] px-4 py-3 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 font-mono">
-                <span className="text-[#7D8590]">{selectedRepo?.name} /</span>
-                <span className="font-bold text-white">{viewingFile.path}</span>
-                <span className="text-[11px] text-[#7D8590]">({viewingFile.size ?? '12 KB'})</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(viewingFile.content ?? '');
-                    showToast('Raw content copied!');
-                  }}
-                  className="px-2.5 py-1 rounded bg-[#21262D] hover:bg-[#30363D] text-white border border-[#30363D] font-semibold"
-                >
-                  Copy raw file
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewingFile(null)}
-                  className="p-1 rounded text-[#7D8590] hover:text-white"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
+      {viewingFile && selectedRepo && (
+        <BlobEditor
+          path={viewingFile.path}
+          branch={currentBranch}
+          availableBranches={repoBranches}
+          initialContent={viewingFile.content ?? ''}
+          expectedBlobSha={viewingBlobSha}
+          onClose={closeBlobEditor}
+          onCommit={handleCommitBlob}
+        />
+      )}
 
-            {/* Code Body with Line Numbers */}
-            <div className="flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed flex gap-4">
-              <div className="text-right text-[#7D8590] select-none pr-3 border-r border-[#21262D] space-y-1">
-                {(viewingFile.content ?? 'No content available').split('\n').map((_, idx) => (
-                  <div key={idx}>{idx + 1}</div>
-                ))}
+      {selectedOfficeAgent && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="agent-dossier-title"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4"
+        >
+          <section className="w-full max-w-lg overflow-hidden rounded-xl border border-[#30363D] bg-[#161B22] shadow-2xl">
+            <header className="flex items-center justify-between border-b border-[#30363D] px-5 py-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className="grid h-10 w-10 place-items-center rounded-full font-black text-black"
+                  style={{
+                    backgroundColor: selectedOfficeAgent.color,
+                  }}
+                >
+                  {selectedOfficeAgent.initial}
+                </span>
+                <div>
+                  <h2 id="agent-dossier-title" className="font-bold text-white">
+                    {selectedOfficeAgent.name}
+                  </h2>
+                  <p className="text-xs text-[#7D8590]">{selectedOfficeAgent.role}</p>
+                </div>
               </div>
-              <pre className="text-[#E6EDF3] flex-1 overflow-x-auto whitespace-pre space-y-1">
-                {viewingFile.content ?? '// Binary or empty file'}
-              </pre>
+
+              <button
+                type="button"
+                onClick={() => setSelectedOfficeAgent(null)}
+                aria-label="Close agent dossier"
+                className="text-[#7D8590] hover:text-white"
+              >
+                ✕
+              </button>
+            </header>
+
+            <div className="space-y-4 p-5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
+                  <p className="text-[#7D8590]">Pod</p>
+                  <p className="mt-1 font-mono font-bold text-white">{selectedOfficeAgent.pod}</p>
+                </div>
+                <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
+                  <p className="text-[#7D8590]">Status</p>
+                  <p className="mt-1 font-bold capitalize text-[#3FB950]">
+                    {selectedOfficeAgent.status}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
+                <p className="font-bold text-[#FF8C42]">Current assignment</p>
+                <p className="mt-2 leading-relaxed text-[#E6EDF3]">
+                  {selectedOfficeAgent.currentTask}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-[#30363D] bg-[#0D1117] p-3">
+                <p className="font-bold text-white">Live thought stream</p>
+                <p className="mt-2 leading-relaxed text-[#7D8590]">
+                  {selectedOfficeAgent.thoughts || 'Awaiting the next orchestrator instruction.'}
+                </p>
+              </div>
+
+              {selectedOfficeAgent.steps && selectedOfficeAgent.steps.length > 0 && (
+                <div>
+                  <p className="mb-2 font-bold text-white">Recent execution</p>
+                  <ul className="space-y-1.5 text-[#7D8590]">
+                    {selectedOfficeAgent.steps.map((step) => (
+                      <li key={step} className="flex gap-2">
+                        <span className="text-[#3FB950]">✓</span>
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedOfficeAgent(null);
+                  setModalState('deploy-agent');
+                }}
+                className="w-full rounded-md bg-[#FF8C42] px-4 py-2 font-bold text-black hover:bg-[#ff9b5a]"
+              >
+                Assign a task
+              </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
 
@@ -5201,7 +5648,7 @@ export default function QuantGitPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setModalState('none')}
+                onClick={closePullDetail}
                 className="text-[#7D8590] hover:text-white text-base font-bold shrink-0"
               >
                 ✕
@@ -5329,7 +5776,7 @@ export default function QuantGitPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setModalState('none')}
+                onClick={closeIssueDetail}
                 className="text-[#7D8590] hover:text-white text-base font-bold shrink-0"
               >
                 ✕
@@ -5618,12 +6065,18 @@ export default function QuantGitPage() {
       {/* ========================================================================= */}
       <nav
         aria-label="QuantGit bottom deck"
-        className="fixed bottom-0 inset-x-0 z-40 h-14 border-t border-[#30363D] bg-[#0D1117]/95 backdrop-blur-md flex items-center justify-around px-4 sm:px-8 select-none shadow-2xl"
+        className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-[#30363D] bg-[#0D1117]/95 backdrop-blur-md flex items-center justify-around px-4 sm:px-8 select-none shadow-2xl"
       >
         <button
           type="button"
-          onClick={() => setActiveDeckTab('quanty')}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+          onClick={() => {
+            setActiveDeckTab('quanty');
+            setSelectedRepo(null);
+            setViewingFile(null);
+            setModalState('none');
+            navigateQuantGit({ kind: 'quanty' });
+          }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'quanty'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
@@ -5639,9 +6092,10 @@ export default function QuantGitPage() {
             setActiveDeckTab('repos');
             setSelectedRepo(null);
             setViewingFile(null);
-            setActiveGitHubTab('code');
+            setModalState('none');
+            navigateQuantGit({ kind: 'repositories' });
           }}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'repos'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
@@ -5653,8 +6107,14 @@ export default function QuantGitPage() {
 
         <button
           type="button"
-          onClick={() => setActiveDeckTab('lab')}
-          className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+          onClick={() => {
+            setActiveDeckTab('lab');
+            setSelectedRepo(null);
+            setViewingFile(null);
+            setModalState('none');
+            navigateQuantGit({ kind: 'agentlab' });
+          }}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'lab'
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
