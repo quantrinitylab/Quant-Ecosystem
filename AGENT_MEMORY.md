@@ -1371,3 +1371,17 @@ graph TD
 - **7. GitHub CI Gate Sign-Off**:
   - Pushed to `main` at `130e66b2`.
   - GitHub CI gate check passed green in 5m6s (Run `35124604617`, Job `104890440279`).
+
+### 21. CEO Astra Re-Audit 3 Sign-Off & Staging Clearance (Opus 5 Direct Review):
+
+- **1. Astra's Official Verdict (Status: 16 Sep 2026, 22:40 IST)**:
+  - **Scoped sign-off granted for staging and gated internal use**: Both S2-01's write path (`GitFileMutationService` + `PATCH /:id/file`) and S2-03's dispatcher approved as they stand at `130e66b2`.
+  - Confirmed: The gate is fail-closed, the tool path will not force-write, failures are honest, and cross-tenant access is closed on the dispatcher.
+- **2. Formal Spec Page Correction (V7 Struck)**:
+  - Astra formally struck her earlier finding V7: `POST / PATCH /api/repos/:id/file` exists and was live before this commit, with `.strict()` schema, path and branch hardening, 2 MiB ceiling, 404 `BRANCH_NOT_FOUND`, 409 `STALE_PARENT_SHA`, transactional commit events, and compensating `rollbackCommit`. Condition 4 was substantially met.
+- **3. Production Gate Checklist (Next Sprint Items)**:
+  - **Dev 7 (V16)**: Change `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'` to `&&` so `ENABLE_AUTONOMOUS_TOOLS` acts as the environment kill switch rather than an override, plus a test verifying `tools: { enabled: false }` with the env flag set still executes no tools.
+  - **Dev 6 (Condition 3 & Stubs)**: Remove fabricated fields from `toDto` in `repos.ts` (don't hardcode `latestCommitSha: '948e3612'`, `checksStatus: 'passing'`), stop defaulting `POST /:id/branches` to `948e3612`, and gate auto-seeders behind dev-only flags.
+  - **Dev 6 (V9 on HTTP route)**: Require `parentSha` in `commitFileSchema` on `PATCH /repos/:id/file` (`400 PARENT_SHA_REQUIRED`), and enforce `Branch.isProtected` (`403 BRANCH_PROTECTED`).
+  - **Dev 1 (S2-02)**: Scopes (`repos:read`, `repos:write`, `agents:execute`), B4 fix (change `loadReadableRepo` to `loadWritableRepo` for `/issues`, `/pulls`, `/star`, `/issues/:number/toggle`), and `ai_tool_calls` migration with idempotency.
+  - **Dev 7 (V15 structural)**: The `'tool'` role and two-pass generation so summary prose is derived directly from tool execution results.
