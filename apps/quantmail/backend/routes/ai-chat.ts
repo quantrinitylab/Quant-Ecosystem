@@ -50,6 +50,13 @@ const chatSchema = z.object({
       screenText: z.string().max(8000).optional(),
     })
     .optional(),
+  tools: z
+    .object({
+      enabled: z.boolean().default(true),
+      allow: z.array(z.string()).optional(),
+      maxSteps: z.number().int().min(1).max(3).default(2),
+    })
+    .optional(),
 });
 
 function getPrisma(fastify: FastifyInstance): any {
@@ -68,7 +75,7 @@ export interface ToolExecutionCard {
 
 const SYSTEM_PROMPT = [
   'You are QuantAI (Quanty), the sovereign agentic operating AI built into the Quantrinity workspace (QuantMail: mail, calendar, contacts, drive, and QuantGit developer hub).',
-  'You have full capabilities to autonomously build software, create repositories, write code and commit file blobs, and deploy agents on the 2D Agent Lab floor.',
+  'You have tools that perform real, authenticated actions in this workspace.',
   'When the user instructs you to create a repo, write code, commit a file, or deploy an agent, you MUST execute the appropriate tool by emitting a JSON block formatted exactly as:',
   '```tool_call\n{\n  "name": "<tool_name>",\n  "arguments": { ... }\n}\n```',
   'Supported tools:',
@@ -77,6 +84,7 @@ const SYSTEM_PROMPT = [
   '3. read_file_blob: { "repoId": string, "path": string, "ref"?: string }',
   '4. deploy_agent: { "repoId": string, "agentName": string, "role": string, "workstationIndex": number, "prompt"?: string }',
   'You can emit multiple tool calls sequentially for multi-step tasks.',
+  'Never claim to have performed an action or created a resource that the tool did not explicitly return, and never claim a write succeeded before the dispatcher reports succeeded.',
   'Always include a concise, empowering summary in your response explaining what was created or executed.',
 ].join(' ');
 
@@ -93,10 +101,10 @@ async function executeAutonomousTool(
 
   try {
     if (toolName === 'create_repository') {
-      const name = String(args.name || '')
-        .trim()
-        .replace(/[^a-zA-Z0-9_.-]/g, '');
-      if (!name) throw new Error('Repository name is required');
+      const name = String(args.name || '').trim();
+      if (!name || !/^[a-zA-Z0-9_.-]+$/.test(name) || name.toLowerCase().endsWith('.git')) {
+        throw new Error('Valid repository name is required (alphanumeric, dot, dash, underscore)');
+      }
 
       let repo = await prisma.repository.findFirst({
         where: { ownerId: userId, name, deletedAt: null },
@@ -108,9 +116,8 @@ async function executeAutonomousTool(
             ownerId: userId,
             name,
             description: args.description || null,
-            visibility: (args.visibility || 'public').toUpperCase(),
+            visibility: (args.visibility || 'private').toUpperCase(),
             defaultBranch: 'main',
-            branches: { create: { name: 'main', commitSha: '948e3612' } },
           },
         });
 
@@ -188,22 +195,13 @@ async function executeAutonomousTool(
         throw new Error('Repository identifier and file path are required');
       }
 
-      let repo = await prisma.repository.findFirst({
+      const repo = await prisma.repository.findFirst({
         where: {
           OR: [{ id: repoIdentifier }, { name: repoIdentifier }],
           ownerId: userId,
           deletedAt: null,
         },
       });
-
-      if (!repo) {
-        repo = await prisma.repository.findFirst({
-          where: {
-            OR: [{ id: repoIdentifier }, { name: repoIdentifier }],
-            deletedAt: null,
-          },
-        });
-      }
 
       if (!repo) {
         throw new Error(`Repository "${repoIdentifier}" not found`);
@@ -214,55 +212,39 @@ async function executeAutonomousTool(
         select: { username: true, displayName: true, email: true },
       });
 
-      let commitResult: { commitSha: string; blobSha: string; path: string; branch: string };
-
-      if (fastify.repositoryMutation) {
-        const currentHead = await fastify.repositoryMutation.getBranchHead({
-          owner: repo.ownerId,
-          name: repo.name,
-          branch: targetBranch,
-        });
-
-        commitResult = await fastify.repositoryMutation.commitFile({
-          owner: repo.ownerId,
-          name: repo.name,
-          branch: targetBranch,
-          path: filePath,
-          content,
-          message,
-          expectedHeadSha: args.parentSha ?? currentHead,
-          author: {
-            name: user?.displayName || user?.username || 'Quanty',
-            email: user?.email || `${userId}@quantmail.in`,
-          },
-        });
-
-        await prisma.branch.upsert({
-          where: { repoId_name: { repoId: repo.id, name: targetBranch } },
-          update: { commitSha: commitResult.commitSha },
-          create: { repoId: repo.id, name: targetBranch, commitSha: commitResult.commitSha },
-        });
-
-        await prisma.ciRun.create({
-          data: {
-            repoId: repo.id,
-            branch: targetBranch,
-            commitSha: commitResult.commitSha,
-            status: 'PENDING',
-            triggeredBy: user?.username || 'quanty',
-          },
-        });
-      } else {
-        const fakeSha = Array.from({ length: 40 }, () =>
-          Math.floor(Math.random() * 16).toString(16),
-        ).join('');
-        commitResult = {
-          commitSha: fakeSha,
-          blobSha: fakeSha.slice(0, 20),
-          path: filePath,
-          branch: targetBranch,
-        };
+      if (!fastify.repositoryMutation) {
+        throw createAppError(
+          'Repository mutation engine is not available on this instance',
+          503,
+          'STORAGE_UNAVAILABLE',
+        );
       }
+
+      const currentHead = await fastify.repositoryMutation.getBranchHead({
+        owner: repo.ownerId,
+        name: repo.name,
+        branch: targetBranch,
+      });
+
+      const commitResult = await fastify.repositoryMutation.commitFile({
+        owner: repo.ownerId,
+        name: repo.name,
+        branch: targetBranch,
+        path: filePath,
+        content,
+        message,
+        expectedHeadSha: args.parentSha ?? currentHead,
+        author: {
+          name: user?.displayName || user?.username || 'Quanty',
+          email: user?.email || `${userId}@quantmail.in`,
+        },
+      });
+
+      await prisma.branch.upsert({
+        where: { repoId_name: { repoId: repo.id, name: targetBranch } },
+        update: { commitSha: commitResult.commitSha },
+        create: { repoId: repo.id, name: targetBranch, commitSha: commitResult.commitSha },
+      });
 
       return {
         toolName,
@@ -290,6 +272,7 @@ async function executeAutonomousTool(
       const repo = await prisma.repository.findFirst({
         where: {
           OR: [{ id: repoIdentifier }, { name: repoIdentifier }],
+          ownerId: userId,
           deletedAt: null,
         },
       });
@@ -325,32 +308,26 @@ async function executeAutonomousTool(
 
     if (toolName === 'deploy_agent') {
       const repoIdentifier = String(args.repoId || '').trim();
-      const agentName = String(args.agentName || 'Forge').trim();
-      const role = String(args.role || 'Software Engineer').trim();
-      const workstationIndex = Number(args.workstationIndex ?? 1);
 
       const repo = await prisma.repository.findFirst({
         where: {
           OR: [{ id: repoIdentifier }, { name: repoIdentifier }],
+          ownerId: userId,
           deletedAt: null,
         },
       });
 
+      if (!repo) throw new Error(`Repository "${repoIdentifier}" not found`);
+
       return {
         toolName,
         callId,
-        status: 'succeeded',
+        status: 'failed',
         input: args,
-        result: {
-          agentId: `agent-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          agentName,
-          name: agentName,
-          role,
-          workstationIndex,
-          deskNumber: workstationIndex,
-          repoId: repo?.id || repoIdentifier,
-          repoName: repo?.name || repoIdentifier,
-          status: 'deployed',
+        error: {
+          code: 'HELD_PENDING_PERSISTENCE',
+          message:
+            'deploy_agent is held pending durable AgentSession persistence and runtime task handoff',
         },
         durationMs: Date.now() - startTime,
       };
@@ -406,7 +383,7 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
-    const { messages, context, intent } = parsed.data;
+    const { messages, context, intent, tools } = parsed.data;
     const contextBlock = buildContextBlock(context);
 
     // `auto` decides from the size and depth of what actually arrived, not from
@@ -436,25 +413,31 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       // Autonomous Tool Calling Dispatcher:
       // Scan for ```tool_call blocks emitted by the model
       const toolExecutions: ToolExecutionCard[] = [];
-      const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
-      let match: RegExpExecArray | null;
+      const isToolCallingEnabled =
+        tools?.enabled !== false && process.env.ENABLE_AUTONOMOUS_TOOLS !== 'false';
 
-      while ((match = toolCallRegex.exec(rawMessage)) !== null) {
-        try {
-          const parsedCall = JSON.parse(match[1].trim());
-          if (parsedCall?.name && parsedCall?.arguments) {
-            const card = await executeAutonomousTool(
-              fastify,
-              userId,
-              parsedCall.name,
-              `call_${Date.now()}_${toolExecutions.length}`,
-              parsedCall.arguments,
-              request,
-            );
-            toolExecutions.push(card);
+      const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
+
+      if (isToolCallingEnabled) {
+        let match: RegExpExecArray | null;
+
+        while ((match = toolCallRegex.exec(rawMessage)) !== null) {
+          try {
+            const parsedCall = JSON.parse(match[1].trim());
+            if (parsedCall?.name && parsedCall?.arguments) {
+              const card = await executeAutonomousTool(
+                fastify,
+                userId,
+                parsedCall.name,
+                `call_${Date.now()}_${toolExecutions.length}`,
+                parsedCall.arguments,
+                request,
+              );
+              toolExecutions.push(card);
+            }
+          } catch (callParseErr) {
+            request.log.warn({ err: callParseErr }, 'Failed to parse model tool call block');
           }
-        } catch (callParseErr) {
-          request.log.warn({ err: callParseErr }, 'Failed to parse model tool call block');
         }
       }
 

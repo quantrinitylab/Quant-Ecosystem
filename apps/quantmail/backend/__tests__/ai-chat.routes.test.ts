@@ -339,7 +339,7 @@ describe('POST /ai/chat — autonomous tool calling', () => {
           id: 'repo-101',
           name: 'autonomous-swarm-engine',
           description: 'Created by Quanty',
-          visibility: 'PUBLIC',
+          visibility: 'PRIVATE',
           defaultBranch: 'main',
         }),
       },
@@ -375,15 +375,24 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       result: {
         id: 'repo-101',
         name: 'autonomous-swarm-engine',
+        visibility: 'private',
       },
     });
-    expect(prismaMock.repository.create).toHaveBeenCalled();
+    expect(prismaMock.repository.create).toHaveBeenCalledWith({
+      data: {
+        ownerId: 'user-1',
+        name: 'autonomous-swarm-engine',
+        description: 'Created by Quanty',
+        visibility: 'PRIVATE',
+        defaultBranch: 'main',
+      },
+    });
   });
 
-  it('detects and executes a deploy_agent tool call emitted by the model', async () => {
+  it('holds deploy_agent tool call as failed pending durable AgentSession persistence', async () => {
     const prismaMock = {
       repository: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo' }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
       },
     };
 
@@ -404,12 +413,9 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(body.data.toolExecutions).toHaveLength(1);
     expect(body.data.toolExecutions[0]).toMatchObject({
       toolName: 'deploy_agent',
-      status: 'succeeded',
-      result: {
-        agentName: 'Forge',
-        role: 'Autonomous Coder',
-        workstationIndex: 2,
-        deskNumber: 2,
+      status: 'failed',
+      error: {
+        code: 'HELD_PENDING_PERSISTENCE',
       },
     });
   });
@@ -429,9 +435,6 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
       branch: {
         upsert: vi.fn().mockResolvedValue({}),
-      },
-      ciRun: {
-        create: vi.fn().mockResolvedValue({}),
       },
     };
 
@@ -474,5 +477,76 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       },
     });
     expect(repositoryMutationMock.commitFile).toHaveBeenCalled();
+  });
+
+  it('fails commit_file with STORAGE_UNAVAILABLE if repositoryMutation port is absent', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'repo-101', name: 'demo', ownerId: 'user-1' }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'astra-ceo',
+        }),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: test"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Commit index.ts' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        code: 'STORAGE_UNAVAILABLE',
+      },
+    });
+  });
+
+  it('enforces tenant scoping: rejects commit_file to another user repository', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "other-tenant-repo",\n    "path": "secret.txt",\n    "content": "payload",\n    "message": "malicious write"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Commit to other repo' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        message: 'Repository "other-tenant-repo" not found',
+      },
+    });
+    expect(prismaMock.repository.findFirst).toHaveBeenCalledWith({
+      where: {
+        OR: [{ id: 'other-tenant-repo' }, { name: 'other-tenant-repo' }],
+        ownerId: 'user-1',
+        deletedAt: null,
+      },
+    });
   });
 });
