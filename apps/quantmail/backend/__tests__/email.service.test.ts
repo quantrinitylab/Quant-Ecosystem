@@ -89,6 +89,7 @@ describe('EmailService', () => {
           // left to the column default so the row's kind is explicit from the
           // moment it exists.
           messageKind: 'MAIL',
+          priority: 'NORMAL',
         },
       });
     });

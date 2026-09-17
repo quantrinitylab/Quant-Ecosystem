@@ -1052,6 +1052,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string; number: string } }>(
     '/:id/issues/:number/toggle',
     async (request, reply) => {
+      const userId = requireUserId(request);
       const repo = await loadReadableRepo(request, request.params.id);
       const num = parseInt(request.params.number, 10);
       if (isNaN(num)) throw createAppError('Invalid issue number', 400, 'INVALID_NUMBER');
@@ -1060,6 +1061,9 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         where: { repoId: repo.id, number: num },
       });
       if (!issue) throw createAppError('Issue not found', 404, 'ISSUE_NOT_FOUND');
+      if (repo.ownerId !== userId && issue.authorId !== userId) {
+        throw createAppError('You do not have permission to modify this issue', 403, 'FORBIDDEN');
+      }
       const nextStatus = issue.status === 'OPEN' ? 'CLOSED' : 'OPEN';
       const updated = await prisma.issue.update({
         where: { id: issue.id },

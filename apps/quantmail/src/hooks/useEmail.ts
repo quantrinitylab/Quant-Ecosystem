@@ -108,7 +108,7 @@ export function useEmail(options: UseEmailOptions = {}): UseEmailReturn {
       const response = await apiRequest(`/api/emails?${params}`);
       if (!response.ok) throw new Error(`Failed to fetch emails: ${response.statusText}`);
       const data = await response.json();
-      setEmails(data.emails || []);
+      setEmails(data.data || data.emails || []);
       setTotalPages(data.totalPages || 1);
       setTotalCount(data.total || 0);
       setUnreadCount(data.unreadCount || 0);

@@ -467,12 +467,32 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
 
       if (isToolCallingEnabled) {
+        const maxSteps = tools?.maxSteps ?? 2;
+        const allowedTools = tools?.allow ? new Set(tools.allow) : null;
         let match: RegExpExecArray | null;
 
         while ((match = toolCallRegex.exec(rawMessage)) !== null) {
+          if (toolExecutions.length >= maxSteps) {
+            break;
+          }
           try {
             const parsedCall = JSON.parse(match[1].trim());
             if (parsedCall?.name && parsedCall?.arguments) {
+              if (allowedTools && !allowedTools.has(parsedCall.name)) {
+                toolExecutions.push({
+                  toolName: parsedCall.name,
+                  callId: `call_${Date.now()}_${toolExecutions.length}`,
+                  status: 'failed',
+                  input: parsedCall.arguments,
+                  error: {
+                    code: 'TOOL_NOT_ALLOWED',
+                    message: `Tool '${parsedCall.name}' is not in the allowed tools list`,
+                  },
+                  durationMs: 0,
+                });
+                continue;
+              }
+
               const card = await executeAutonomousTool(
                 fastify,
                 userId,

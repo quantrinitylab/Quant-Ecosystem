@@ -896,4 +896,90 @@ describe('POST /ai/chat — autonomous tool calling', () => {
     expect(repositoryMutationMock.getBranchHead).not.toHaveBeenCalled();
     expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
   });
+
+  it('rejects disallowed tools with TOOL_NOT_ALLOWED when tools.allow is specified (V27)', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn(),
+      },
+    };
+    const repositoryMutationMock = {
+      commitFile: vi.fn(),
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": { "repoId": "demo", "path": "test.ts", "content": "1", "message": "msg", "parentSha": "1111222233334444555566667777888899990000" }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Commit file' }],
+        tools: { enabled: true, allow: ['create_repository'] }, // commit_file is NOT in allowlist
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        code: 'TOOL_NOT_ALLOWED',
+        message: "Tool 'commit_file' is not in the allowed tools list",
+      },
+    });
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
+  });
+
+  it('stops tool execution when maxSteps is reached (V27)', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi
+          .fn()
+          .mockResolvedValueOnce({ id: 'repo-1', name: 'repo-1', ownerId: 'user-1' })
+          .mockResolvedValueOnce({ id: 'repo-2', name: 'repo-2', ownerId: 'user-1' }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'user-1', username: 'kundan' }),
+      },
+    };
+
+    // Model emits 3 tool calls, but maxSteps is set to 1
+    aiChatMock.mockResolvedValue(
+      [
+        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-1" }\n}\n```',
+        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-2" }\n}\n```',
+        '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "repo-3" }\n}\n```',
+      ].join('\n\n'),
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Create 3 repos' }],
+        tools: { enabled: true, maxSteps: 1 },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    // Exactly 1 tool execution, stopping at maxSteps
+    expect(body.data.toolExecutions).toHaveLength(1);
+    expect(body.data.toolExecutions[0]).toMatchObject({
+      toolName: 'create_repository',
+      status: 'succeeded',
+      result: { id: 'repo-1' },
+    });
+    expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+  });
 });

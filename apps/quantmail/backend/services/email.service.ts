@@ -36,6 +36,11 @@ export interface ComposeEmailInput {
    * and the behaviour of every caller that predates the chat composer.
    */
   messageKind?: MessageKind;
+  /**
+   * Message priority level. Mirrors `EmailPriority` in schema.prisma.
+   * Case-insensitive, defaults to `NORMAL`.
+   */
+  priority?: EmailPriority | string;
 }
 
 /**
@@ -48,6 +53,21 @@ export type MessageKind = 'MAIL' | 'CHAT';
 /** Normalize whatever a caller passed into a storable kind, defaulting to a letter. */
 export function toMessageKind(value: unknown): MessageKind {
   return String(value ?? '').toUpperCase() === 'CHAT' ? 'CHAT' : 'MAIL';
+}
+
+/**
+ * The priority of an email message. Mirrors the `EmailPriority` enum in
+ * `packages/database/prisma/schema.prisma`.
+ */
+export type EmailPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+/** Normalize whatever a caller passed into a storable priority, defaulting to NORMAL. */
+export function toPriority(value: unknown): EmailPriority {
+  const upper = String(value ?? '').toUpperCase();
+  if (upper === 'LOW') return 'LOW';
+  if (upper === 'HIGH') return 'HIGH';
+  if (upper === 'URGENT') return 'URGENT';
+  return 'NORMAL';
 }
 
 export interface ReceiveEmailInput {
@@ -128,6 +148,7 @@ export class EmailService {
         hasAttachments,
         attachments: input.attachments ?? [],
         messageKind: toMessageKind(input.messageKind),
+        priority: toPriority(input.priority),
       } as never,
     });
 

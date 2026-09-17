@@ -609,5 +609,162 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
 
       await app.close();
     });
+
+    it('M-F09: returns 404 EMAIL_NOT_FOUND (not 403) when email belongs to another user (tenancy oracle elimination)', async () => {
+      // Stored email belongs to 'other-tenant-user'
+      prisma.email.findUnique.mockResolvedValue({
+        ...prisma.storedDraft,
+        id: 'foreign-email-1',
+        userId: 'other-tenant-user',
+      });
+
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // 1. PUT /emails/:id
+      const putRes = await app.inject({
+        method: 'PUT',
+        url: '/emails/foreign-email-1',
+        payload: { to: [{ email: 'target@test.com' }], subject: 'Probe' },
+      });
+      expect(putRes.statusCode).toBe(404);
+      expect(putRes.json().error.code).toBe('EMAIL_NOT_FOUND');
+
+      // 2. POST /emails/:id/send
+      const sendRes = await app.inject({
+        method: 'POST',
+        url: '/emails/foreign-email-1/send',
+      });
+      expect(sendRes.statusCode).toBe(404);
+      expect(sendRes.json().error.code).toBe('EMAIL_NOT_FOUND');
+
+      // 3. POST /emails/:id/archive
+      const archiveRes = await app.inject({
+        method: 'POST',
+        url: '/emails/foreign-email-1/archive',
+      });
+      expect(archiveRes.statusCode).toBe(404);
+      expect(archiveRes.json().error.code).toBe('EMAIL_NOT_FOUND');
+
+      // 4. DELETE /emails/:id
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: '/emails/foreign-email-1',
+      });
+      expect(deleteRes.statusCode).toBe(404);
+      expect(deleteRes.json().error.code).toBe('EMAIL_NOT_FOUND');
+
+      await app.close();
+    });
+
+    it('M06: rejects invalid priority with 400 VALIDATION_ERROR on compose and edit', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // PUT with invalid priority 'critical'
+      const putRes = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload: {
+          to: [{ email: 'initial@test.com' }],
+          subject: 'Invalid Priority',
+          priority: 'critical',
+        },
+      });
+      expect(putRes.statusCode).toBe(400);
+
+      // POST /emails with invalid priority 'super_urgent'
+      const postRes = await app.inject({
+        method: 'POST',
+        url: '/emails',
+        payload: {
+          toAddresses: ['initial@test.com'],
+          subject: 'Invalid Priority',
+          priority: 'super_urgent',
+        },
+      });
+      expect(postRes.statusCode).toBe(400);
+
+      await app.close();
+    });
+
+    it('M06: accepts case-insensitive priority and persists uppercase EmailPriority enum', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // PUT with case-insensitive 'urgent'
+      const putRes = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload: {
+          to: [{ email: 'initial@test.com' }],
+          subject: 'Urgent Draft',
+          priority: 'urgent',
+        },
+      });
+      expect(putRes.statusCode).toBe(200);
+      expect(prisma.email.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            priority: 'URGENT',
+          }),
+        }),
+      );
+
+      // POST /emails with 'high'
+      prisma.email.create.mockResolvedValueOnce({
+        ...prisma.storedDraft,
+        id: 'new-email-1',
+        priority: 'HIGH',
+      });
+      const postRes = await app.inject({
+        method: 'POST',
+        url: '/emails',
+        payload: {
+          toAddresses: ['initial@test.com'],
+          subject: 'High Priority Email',
+          priority: 'high',
+        },
+      });
+      expect(postRes.statusCode).toBe(201);
+      expect(prisma.email.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            priority: 'HIGH',
+          }),
+        }),
+      );
+
+      await app.close();
+    });
+
+    it('M08: GET /emails and GET /search omit redundant emails key from response envelope', async () => {
+      prisma.email.findMany.mockResolvedValueOnce([prisma.storedDraft]);
+      prisma.email.count.mockResolvedValue(1);
+
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // 1. GET /emails
+      const getRes = await app.inject({
+        method: 'GET',
+        url: '/emails',
+      });
+      expect(getRes.statusCode).toBe(200);
+      const getBody = getRes.json();
+      expect(getBody.success).toBe(true);
+      expect(Array.isArray(getBody.data)).toBe(true);
+      expect(getBody).not.toHaveProperty('emails');
+
+      // 2. GET /emails/search
+      prisma.email.findMany.mockResolvedValueOnce([prisma.storedDraft]);
+      const searchRes = await app.inject({
+        method: 'GET',
+        url: '/emails/search?q=Initial',
+      });
+      expect(searchRes.statusCode).toBe(200);
+      const searchBody = searchRes.json();
+      expect(searchBody.success).toBe(true);
+      expect(Array.isArray(searchBody.data)).toBe(true);
+      expect(searchBody).not.toHaveProperty('emails');
+
+      await app.close();
+    });
   });
 });

@@ -1033,4 +1033,80 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     );
     expect(prisma.issueComment.findMany).not.toHaveBeenCalled();
   });
+
+  it('POST /repos/:id/issues/:number/toggle rejects unauthenticated callers with 401', async () => {
+    const app = await buildApp(null);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/issues/1/toggle',
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'UNAUTHORIZED' }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/issues/:number/toggle rejects non-owner, non-author callers with 403 FORBIDDEN (V23)', async () => {
+    const app = await buildApp('foreign-user');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/issues/1/toggle',
+    });
+
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'FORBIDDEN' }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/issues/:number/toggle allows repo owner to toggle issue', async () => {
+    const app = await buildApp('user-1'); // owner of repo-1
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/issues/1/toggle',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          id: 1,
+          state: 'closed',
+        }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/issues/:number/toggle allows issue author to toggle issue on another user repo (V23)', async () => {
+    const app = await buildApp('author-2');
+    // Repo owned by user-1, but issue author is author-2
+    prisma.issue.findFirst.mockResolvedValueOnce({
+      ...MOCK_ISSUE,
+      authorId: 'author-2',
+    } as never);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/issues/1/toggle',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual(
+      expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          id: 1,
+          state: 'closed',
+        }),
+      }),
+    );
+  });
 });
