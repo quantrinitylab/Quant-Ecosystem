@@ -7,7 +7,7 @@ import { AppSidebar } from '../../components/AppSidebar';
 import { AIMemoryPanel } from '../../components/AIMemoryPanel';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
-import { useDrive } from '../../hooks/useDrive';
+import { useDrive, type ReceivedShare } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
 import {
@@ -31,9 +31,10 @@ type DriveItem = {
   thumbnailUrl?: string;
   isStarred?: boolean;
   sharedWith?: { email: string; permission: string }[];
+  deletedAt?: string;
 };
 
-type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred';
+type DriveFilter = 'all' | 'folders' | 'documents' | 'images' | 'starred' | 'trash' | 'shared';
 
 /** Shared dedupe key so an upload's progress line is replaced by its outcome. */
 const UPLOAD_TOAST = 'drive-upload';
@@ -236,6 +237,7 @@ export default function DrivePage() {
     fetchFiles,
     uploadFiles,
     downloadFile,
+    getDownloadUrl,
     createFolder,
     deleteFiles,
     renameFile,
@@ -244,6 +246,12 @@ export default function DrivePage() {
     navigateToFolder,
     navigateToBreadcrumb,
     searchFiles,
+    acceptShare,
+    declineShare,
+    fetchReceivedShares,
+    fetchTrashFiles,
+    restoreFile,
+    purgeFile,
   } = useDrive();
 
   const { confirm, dialog } = useConfirm();
@@ -258,6 +266,9 @@ export default function DrivePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [renameTarget, setRenameTarget] = useState<DriveItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
+  const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
+  const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -275,6 +286,38 @@ export default function DrivePage() {
     // Intentionally keyed on searchQuery alone: re-running on folder id or on the
     // fetcher identities would restart the debounce mid-keystroke.
   }, [searchQuery]);
+
+  const loadTrash = useCallback(async () => {
+    setLoadingSpecial(true);
+    try {
+      const list = await fetchTrashFiles();
+      setTrashItems((list ?? []) as unknown as DriveItem[]);
+    } catch {
+      showToast({ text: 'Failed to load trash', type: 'error', subject: 'drive-trash' });
+    } finally {
+      setLoadingSpecial(false);
+    }
+  }, [fetchTrashFiles]);
+
+  const loadShares = useCallback(async () => {
+    setLoadingSpecial(true);
+    try {
+      const list = await fetchReceivedShares();
+      setReceivedShares(list ?? []);
+    } catch {
+      showToast({ text: 'Failed to load shared items', type: 'error', subject: 'drive-shares' });
+    } finally {
+      setLoadingSpecial(false);
+    }
+  }, [fetchReceivedShares]);
+
+  useEffect(() => {
+    if (activeFilter === 'trash') {
+      loadTrash();
+    } else if (activeFilter === 'shared') {
+      loadShares();
+    }
+  }, [activeFilter, loadTrash, loadShares]);
 
   const items = (files ?? []) as unknown as DriveItem[];
 
@@ -404,24 +447,23 @@ export default function DrivePage() {
   const handleDeleteItem = async (id: string, name: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const ok = await confirm({
-      title: `Delete "${name}" permanently?`,
-      message:
-        'The file leaves your Drive for good. There is no undo and no trash to recover it from.',
-      confirmLabel: 'Delete permanently',
+      title: `Move "${name}" to Trash?`,
+      message: 'This item will be moved to Trash. You can restore it anytime from the Trash tab.',
+      confirmLabel: 'Move to Trash',
       variant: 'destructive',
     });
     if (ok) {
       const subject = `drive-delete-${id}`;
       try {
         await deleteFiles([id]);
-        showToast({ text: `Deleted "${name}"`, type: 'info', subject });
+        showToast({ text: `Moved "${name}" to Trash`, type: 'info', subject });
         setSelectedIds((prev) => {
           const next = new Set(prev);
           next.delete(id);
           return next;
         });
       } catch {
-        showToast({ text: `Failed to delete "${name}"`, type: 'error', subject });
+        showToast({ text: `Failed to move "${name}" to Trash`, type: 'error', subject });
       }
     }
   };
@@ -431,25 +473,96 @@ export default function DrivePage() {
     if (count === 0) return;
     const label = `${count} item${count > 1 ? 's' : ''}`;
     const ok = await confirm({
-      title: `Delete ${label} permanently?`,
+      title: `Move ${label} to Trash?`,
       message:
-        'They leave your Drive for good. There is no undo and no trash to recover them from.',
-      confirmLabel: 'Delete permanently',
+        'These items will be moved to Trash. You can restore them anytime from the Trash tab.',
+      confirmLabel: 'Move to Trash',
       variant: 'destructive',
     });
     if (ok) {
       try {
         await deleteFiles(Array.from(selectedIds));
-        // Was `Deleted ${count} items`, which said "Deleted 1 items".
-        showToast({ text: `Deleted ${label}`, type: 'info', subject: 'drive-delete-batch' });
+        showToast({ text: `Moved ${label} to Trash`, type: 'info', subject: 'drive-delete-batch' });
         setSelectedIds(new Set());
       } catch {
         showToast({
-          text: `Failed to delete ${label}`,
+          text: `Failed to move ${label} to Trash`,
           type: 'error',
           subject: 'drive-delete-batch',
         });
       }
+    }
+  };
+
+  const handleRestoreItem = async (id: string, name: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await restoreFile(id);
+      showToast({ text: `Restored "${name}"`, type: 'success', subject: `drive-restore-${id}` });
+      await loadTrash();
+    } catch {
+      showToast({
+        text: `Failed to restore "${name}"`,
+        type: 'error',
+        subject: `drive-restore-${id}`,
+      });
+    }
+  };
+
+  const handlePurgeItem = async (id: string, name: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const ok = await confirm({
+      title: `Delete "${name}" permanently?`,
+      message: 'This cannot be undone. The item will be permanently removed from your Drive.',
+      confirmLabel: 'Delete permanently',
+      variant: 'destructive',
+    });
+    if (ok) {
+      try {
+        await purgeFile(id);
+        showToast({
+          text: `Permanently deleted "${name}"`,
+          type: 'info',
+          subject: `drive-purge-${id}`,
+        });
+        await loadTrash();
+      } catch {
+        showToast({
+          text: `Failed to delete "${name}" permanently`,
+          type: 'error',
+          subject: `drive-purge-${id}`,
+        });
+      }
+    }
+  };
+
+  const handleAcceptShare = async (shareId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await acceptShare(shareId);
+      showToast({ text: 'Share accepted', type: 'success', subject: `drive-share-${shareId}` });
+      await loadShares();
+    } catch {
+      showToast({
+        text: 'Failed to accept share',
+        type: 'error',
+        subject: `drive-share-${shareId}`,
+      });
+    }
+  };
+
+  const handleDeclineShare = async (shareId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    try {
+      await declineShare(shareId);
+      showToast({ text: 'Share declined', type: 'info', subject: `drive-share-${shareId}` });
+      await loadShares();
+    } catch {
+      showToast({
+        text: 'Failed to decline share',
+        type: 'error',
+        subject: `drive-share-${shareId}`,
+      });
     }
   };
 
@@ -580,6 +693,8 @@ export default function DrivePage() {
                 { key: 'documents', label: 'Documents' },
                 { key: 'images', label: 'Images' },
                 { key: 'starred', label: 'Starred' },
+                { key: 'shared', label: '👥 Shared with me' },
+                { key: 'trash', label: '🗑️ Trash' },
               ] as const
             ).map((filter) => (
               <button
@@ -746,216 +861,342 @@ export default function DrivePage() {
           */}
           <AIMemoryPanel query={searchQuery} />
 
-          {loading && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Skeleton key={i} variant="rect" width="100%" height="130px" />
-              ))}
-            </div>
-          )}
-
-          {error && <ErrorState message={error} onRetry={() => void fetchFiles(currentFolderId)} />}
-
-          {!loading && !error && filteredItems.length === 0 && (
-            <div className="text-center py-16 space-y-4">
-              <div className="flex justify-center">
-                <QuantDriveLogo size={104} title="Drive" />
-              </div>
-              <h3 className="text-xl font-extrabold text-[#F5F5F5]">
-                {searchQuery ? 'No matching files found' : 'This folder is empty'}
-              </h3>
-              <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
-                Drag and drop files anywhere on the screen, or click Upload to store files securely.
-              </p>
-              <div className="pt-2 flex items-center justify-center gap-2">
-                {/* Named for the moment rather than the action. The floating
-                 * button already reads "Upload files" and the toolbar already
-                 * reads "New folder", so repeating those verbatim put two
-                 * identically-named buttons on one screen — a screen reader
-                 * hears the same label twice with no way to tell them apart. */}
-                <Button variant="primary" onClick={handleUploadTrigger}>
-                  Upload your first file
-                </Button>
-                <Button variant="secondary" onClick={() => setShowNewFolderModal(true)}>
-                  Create a folder
+          {activeFilter === 'trash' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
+                <div>
+                  <h3 className="text-sm font-bold text-[#F5F5F5]">Trash</h3>
+                  <p className="text-xs text-[#A1A4AC]">
+                    Items in trash can be restored or deleted permanently.
+                  </p>
+                </div>
+                <Button variant="secondary" onClick={loadTrash} className="text-xs">
+                  Refresh Trash
                 </Button>
               </div>
-            </div>
-          )}
 
-          {!loading && !error && filteredItems.length > 0 && (
-            <>
-              {/* Folders Group */}
-              {folders.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
-                      Folders ({folders.length})
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-                    {folders.map((folder) => {
-                      const isSelected = selectedIds.has(folder.id);
-                      return (
-                        <div
-                          key={folder.id}
-                          onClick={() => navigateToFolder(folder.id, folder.name)}
-                          className={`group relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                            isSelected
-                              ? 'border-[#FF8C42] bg-[#FF8C42]/10'
-                              : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={(e) => handleToggleSelect(folder.id, e as never)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="accent-[#FF8C42] rounded cursor-pointer"
-                              aria-label={`Select folder ${folder.name}`}
-                            />
-                            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#2B1A11] border border-[#5C3016] shrink-0 group-hover:scale-105 transition-transform">
-                              <svg
-                                className="w-4 h-4 text-[#FF8C42]"
-                                fill="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="M4 4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8L10 4H4z" />
-                              </svg>
-                            </div>
-                            <span className="text-xs font-semibold text-[#F5F5F5] truncate min-w-0 flex-1">
-                              {folder.name}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              onClick={(e) => handleToggleStar(folder, e)}
-                              className={`p-1.5 rounded-lg transition-colors ${
-                                folder.isStarred
-                                  ? 'text-[#FF8C42] bg-[#2B1A11]'
-                                  : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
-                              }`}
-                              title={folder.isStarred ? 'Unstar' : 'Star'}
-                            >
-                              <svg
-                                className="w-3.5 h-3.5"
-                                fill={folder.isStarred ? 'currentColor' : 'none'}
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <polygon
-                                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                                  strokeWidth={1.8}
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenRename(folder, e)}
-                              className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
-                              title="Rename"
-                            >
-                              <svg
-                                className="w-3.5 h-3.5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.8}
-                                  d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.8}
-                                  d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-                                />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteItem(folder.id, folder.name, e)}
-                              className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
-                              title="Delete"
-                            >
-                              <svg
-                                className="w-3.5 h-3.5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <polyline
-                                  points="3 6 5 6 21 6"
-                                  strokeWidth={1.8}
-                                  strokeLinecap="round"
-                                />
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={1.8}
-                                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
+              {loadingSpecial && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} variant="rect" width="100%" height="80px" />
+                  ))}
+                </div>
               )}
 
-              {/* Files Group */}
-              {regularFiles.length > 0 && (
-                <section>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] mb-3">
-                    Files ({regularFiles.length})
-                  </h3>
+              {!loadingSpecial && trashItems.length === 0 && (
+                <div className="text-center py-16 space-y-4">
+                  <div className="flex justify-center text-[#A1A4AC]">
+                    <svg
+                      className="w-16 h-16 text-[#A1A4AC]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">Trash is empty</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                    Items moved to trash will appear here. You can restore them anytime or delete
+                    them permanently.
+                  </p>
+                </div>
+              )}
 
-                  {viewMode === 'grid' ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                      {regularFiles.map((file) => {
-                        const isSelected = selectedIds.has(file.id);
-                        return (
-                          <div
-                            key={file.id}
-                            className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all shadow-sm ${
-                              isSelected
-                                ? 'border-[#FF8C42] bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]'
-                                : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60'
-                            }`}
-                          >
-                            {/* Card Selection and Actions Header */}
-                            <div className="flex items-center justify-between mb-2">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => handleToggleSelect(file.id, e as never)}
-                                className="accent-[#FF8C42] rounded cursor-pointer"
-                                aria-label={`Select file ${file.name}`}
-                              />
-                              <div className="flex items-center gap-1">
+              {!loadingSpecial && trashItems.length > 0 && (
+                <div className="space-y-2">
+                  {trashItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#16181D] border border-[#282C35] shrink-0">
+                          {getFileIcon(item.mimeType, item.type, 'w-4 h-4')}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                            {item.name}
+                          </p>
+                          <p className="text-[11px] text-[#A1A4AC]">
+                            {item.type === 'folder' ? 'Folder' : formatBytes(item.size)}
+                            {item.deletedAt &&
+                              ` · Deleted ${new Date(item.deletedAt).toLocaleDateString()}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => handleRestoreItem(item.id, item.name, e)}
+                          className="px-3 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                        >
+                          Restore
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handlePurgeItem(item.id, item.name, e)}
+                          className="px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs font-medium text-rose-300 hover:bg-rose-500/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        >
+                          Delete Permanently
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeFilter === 'shared' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
+                <div>
+                  <h3 className="text-sm font-bold text-[#F5F5F5]">Shared with me</h3>
+                  <p className="text-xs text-[#A1A4AC]">
+                    Files and folders shared with you by other users.
+                  </p>
+                </div>
+                <Button variant="secondary" onClick={loadShares} className="text-xs">
+                  Refresh Shares
+                </Button>
+              </div>
+
+              {loadingSpecial && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} variant="rect" width="100%" height="80px" />
+                  ))}
+                </div>
+              )}
+
+              {!loadingSpecial && receivedShares.length === 0 && (
+                <div className="text-center py-16 space-y-4">
+                  <div className="flex justify-center text-[#A1A4AC]">
+                    <svg
+                      className="w-16 h-16 text-[#A1A4AC]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">No shared items</h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                    Files and folders shared with you will appear here with accept or decline
+                    options.
+                  </p>
+                </div>
+              )}
+
+              {!loadingSpecial && receivedShares.length > 0 && (
+                <div className="space-y-2">
+                  {receivedShares.map((share) => {
+                    const itemName = share.file?.name ?? share.folder?.name ?? 'Shared item';
+                    const isFolder = !!share.folder;
+                    const mimeType = share.file?.mimeType ?? '';
+                    const size = share.file?.size ?? 0;
+                    return (
+                      <div
+                        key={share.id}
+                        className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#16181D] border border-[#282C35] shrink-0">
+                            {getFileIcon(mimeType, isFolder ? 'folder' : 'file', 'w-4 h-4')}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                                {itemName}
+                              </p>
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold ${
+                                  share.status === 'accepted'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                                    : share.status === 'declined'
+                                      ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                                }`}
+                              >
+                                {share.status}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#A1A4AC] mt-0.5">
+                              Shared by {share.owner.name || share.owner.email} · {share.permission}{' '}
+                              permission
+                              {size > 0 && ` · ${formatBytes(size)}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {share.status === 'pending' && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => handleAcceptShare(share.id, e)}
+                                className="px-3 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeclineShare(share.id, e)}
+                                className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          )}
+                          {share.status === 'accepted' && share.file && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviewItem({
+                                    id: share.file!.id,
+                                    name: share.file!.name,
+                                    type: 'file',
+                                    mimeType: share.file!.mimeType,
+                                    size: share.file!.size,
+                                    modifiedAt: share.file!.updatedAt,
+                                  })
+                                }
+                                className="px-2.5 py-1.5 rounded-lg bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#F5F5F5] hover:bg-[#1F222A] transition-colors"
+                              >
+                                Preview
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadFile(share.file!.id, share.file!.name)}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors"
+                              >
+                                Download
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeFilter !== 'trash' && activeFilter !== 'shared' && (
+            <>
+              {loading && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-4">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <Skeleton key={i} variant="rect" width="100%" height="130px" />
+                  ))}
+                </div>
+              )}
+
+              {error && (
+                <ErrorState message={error} onRetry={() => void fetchFiles(currentFolderId)} />
+              )}
+
+              {!loading && !error && filteredItems.length === 0 && (
+                <div className="text-center py-16 space-y-4">
+                  <div className="flex justify-center">
+                    <QuantDriveLogo size={104} title="Drive" />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">
+                    {searchQuery ? 'No matching files found' : 'This folder is empty'}
+                  </h3>
+                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                    Drag and drop files anywhere on the screen, or click Upload to store files
+                    securely.
+                  </p>
+                  <div className="pt-2 flex items-center justify-center gap-2">
+                    {/* Named for the moment rather than the action. The floating
+                     * button already reads "Upload files" and the toolbar already
+                     * reads "New folder", so repeating those verbatim put two
+                     * identically-named buttons on one screen — a screen reader
+                     * hears the same label twice with no way to tell them apart. */}
+                    <Button variant="primary" onClick={handleUploadTrigger}>
+                      Upload your first file
+                    </Button>
+                    <Button variant="secondary" onClick={() => setShowNewFolderModal(true)}>
+                      Create a folder
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!loading && !error && filteredItems.length > 0 && (
+                <>
+                  {/* Folders Group */}
+                  {folders.length > 0 && (
+                    <section>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
+                          Folders ({folders.length})
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                        {folders.map((folder) => {
+                          const isSelected = selectedIds.has(folder.id);
+                          return (
+                            <div
+                              key={folder.id}
+                              onClick={() => navigateToFolder(folder.id, folder.name)}
+                              className={`group relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
+                                isSelected
+                                  ? 'border-[#FF8C42] bg-[#FF8C42]/10'
+                                  : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => handleToggleSelect(folder.id, e as never)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="accent-[#FF8C42] rounded cursor-pointer"
+                                  aria-label={`Select folder ${folder.name}`}
+                                />
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#2B1A11] border border-[#5C3016] shrink-0 group-hover:scale-105 transition-transform">
+                                  <svg
+                                    className="w-4 h-4 text-[#FF8C42]"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path d="M4 4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8L10 4H4z" />
+                                  </svg>
+                                </div>
+                                <span className="text-xs font-semibold text-[#F5F5F5] truncate min-w-0 flex-1">
+                                  {folder.name}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
                                 <button
                                   type="button"
-                                  onClick={(e) => handleToggleStar(file, e)}
+                                  onClick={(e) => handleToggleStar(folder, e)}
                                   className={`p-1.5 rounded-lg transition-colors ${
-                                    file.isStarred
+                                    folder.isStarred
                                       ? 'text-[#FF8C42] bg-[#2B1A11]'
                                       : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
                                   }`}
-                                  title={file.isStarred ? 'Unstar' : 'Star'}
+                                  title={folder.isStarred ? 'Unstar' : 'Star'}
                                 >
                                   <svg
                                     className="w-3.5 h-3.5"
-                                    fill={file.isStarred ? 'currentColor' : 'none'}
+                                    fill={folder.isStarred ? 'currentColor' : 'none'}
                                     stroke="currentColor"
                                     viewBox="0 0 24 24"
                                   >
@@ -969,7 +1210,7 @@ export default function DrivePage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={(e) => handleOpenRename(file, e)}
+                                  onClick={(e) => handleOpenRename(folder, e)}
                                   className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
                                   title="Rename"
                                 >
@@ -995,7 +1236,7 @@ export default function DrivePage() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={(e) => handleDeleteItem(file.id, file.name, e)}
+                                  onClick={(e) => handleDeleteItem(folder.id, folder.name, e)}
                                   className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
                                   title="Delete"
                                 >
@@ -1020,92 +1261,34 @@ export default function DrivePage() {
                                 </button>
                               </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
 
-                            {/*
-                             * Card body — the thumbnail well.
-                             *
-                             * This used to be a bordered box holding a *second*
-                             * bordered box for the icon, inside the already-bordered
-                             * file card: three frames stacked around one 24px glyph.
-                             * The well is now a plain darker surface and the icon
-                             * sits on it unframed.
-                             */}
-                            <div
-                              onClick={() => setPreviewItem(file)}
-                              className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
-                            >
-                              <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
-                                {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
-                              </div>
-                              <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
-                                {file.mimeType.split('/')[1] || 'FILE'}
-                              </span>
-                            </div>
+                  {/* Files Group */}
+                  {regularFiles.length > 0 && (
+                    <section>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] mb-3">
+                        Files ({regularFiles.length})
+                      </h3>
 
-                            <div className="mt-3">
-                              <h4
-                                onClick={() => setPreviewItem(file)}
-                                className="cursor-pointer truncate text-xs font-bold text-[#F5F5F5] hover:text-[#FF8C42]"
-                                title={file.name}
-                              >
-                                {file.name}
-                              </h4>
-                              <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
-                                <span>{formatBytes(file.size)}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => downloadFile(file.id, file.name)}
-                                  className="inline-flex items-center gap-1 rounded font-semibold text-[#FF8C42] hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                                >
-                                  <IconDownload size={12} />
-                                  <span>Download</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-[var(--quant-border)] overflow-hidden bg-[var(--quant-surface)]">
-                      <table className="w-full text-left text-xs">
-                        <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-[#A1A4AC] uppercase">
-                          <tr>
-                            <th className="py-3 px-4 w-8">
-                              <input
-                                type="checkbox"
-                                checked={
-                                  regularFiles.length > 0 &&
-                                  regularFiles.every((f) => selectedIds.has(f.id))
-                                }
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedIds(new Set(regularFiles.map((f) => f.id)));
-                                  } else {
-                                    setSelectedIds(new Set());
-                                  }
-                                }}
-                                className="accent-[#FF8C42] rounded"
-                                aria-label="Select all files"
-                              />
-                            </th>
-                            <th className="py-3 px-4">Name</th>
-                            <th className="py-3 px-4 hidden sm:table-cell">Type</th>
-                            <th className="py-3 px-4">Size</th>
-                            <th className="py-3 px-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#282C35]">
+                      {viewMode === 'grid' ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {regularFiles.map((file) => {
                             const isSelected = selectedIds.has(file.id);
                             return (
-                              <tr
+                              <div
                                 key={file.id}
-                                className={`transition-colors ${
-                                  isSelected ? 'bg-[#FF8C42]/10' : 'hover:bg-[#282C35]/50'
+                                className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all shadow-sm ${
+                                  isSelected
+                                    ? 'border-[#FF8C42] bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]'
+                                    : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60'
                                 }`}
                               >
-                                <td className="py-3 px-4">
+                                {/* Card Selection and Actions Header */}
+                                <div className="flex items-center justify-between mb-2">
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
@@ -1113,70 +1296,243 @@ export default function DrivePage() {
                                     className="accent-[#FF8C42] rounded cursor-pointer"
                                     aria-label={`Select file ${file.name}`}
                                   />
-                                </td>
-                                <td className="py-3 px-4 font-semibold text-white flex items-center gap-2">
-                                  <span>{getFileIcon(file.mimeType, file.type)}</span>
-                                  <span
-                                    onClick={() => setPreviewItem(file)}
-                                    className="cursor-pointer hover:text-[#FF8C42] truncate max-w-xs"
-                                  >
-                                    {file.name}
-                                  </span>
-                                  {file.isStarred && (
-                                    <span className="text-[#FF8C42]" title="Starred">
-                                      <IconStarFilled size={12} />
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-[#A1A4AC] hidden sm:table-cell">
-                                  {file.mimeType}
-                                </td>
-                                <td className="py-3 px-4 text-[#A1A4AC]">
-                                  {formatBytes(file.size)}
-                                </td>
-                                <td className="py-3 px-4 text-right">
-                                  <div className="flex items-center justify-end gap-2">
+                                  <div className="flex items-center gap-1">
                                     <button
                                       type="button"
-                                      onClick={() => handleToggleStar(file)}
-                                      aria-pressed={Boolean(file.isStarred)}
-                                      aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
-                                      className={`grid size-8 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                                      onClick={(e) => handleToggleStar(file, e)}
+                                      className={`p-1.5 rounded-lg transition-colors ${
                                         file.isStarred
-                                          ? 'text-[#FF8C42]'
-                                          : 'text-[#6B6E76] hover:text-[#F5F5F5]'
+                                          ? 'text-[#FF8C42] bg-[#2B1A11]'
+                                          : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
                                       }`}
+                                      title={file.isStarred ? 'Unstar' : 'Star'}
                                     >
-                                      {file.isStarred ? (
-                                        <IconStarFilled size={14} />
-                                      ) : (
-                                        <IconStar size={14} />
-                                      )}
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill={file.isStarred ? 'currentColor' : 'none'}
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <polygon
+                                          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                                          strokeWidth={1.8}
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                        />
+                                      </svg>
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => downloadFile(file.id, file.name)}
-                                      className="text-xs text-[#FF8C42] hover:underline font-semibold"
+                                      onClick={(e) => handleOpenRename(file, e)}
+                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
+                                      title="Rename"
                                     >
-                                      Download
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.8}
+                                          d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                                        />
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.8}
+                                          d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                                        />
+                                      </svg>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                      className="text-xs text-[#A1A4AC] hover:text-rose-400 font-semibold"
+                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
+                                      title="Delete"
                                     >
-                                      Delete
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <polyline
+                                          points="3 6 5 6 21 6"
+                                          strokeWidth={1.8}
+                                          strokeLinecap="round"
+                                        />
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.8}
+                                          d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                                        />
+                                      </svg>
                                     </button>
                                   </div>
-                                </td>
-                              </tr>
+                                </div>
+
+                                {/*
+                                 * Card body — the thumbnail well.
+                                 *
+                                 * This used to be a bordered box holding a *second*
+                                 * bordered box for the icon, inside the already-bordered
+                                 * file card: three frames stacked around one 24px glyph.
+                                 * The well is now a plain darker surface and the icon
+                                 * sits on it unframed.
+                                 */}
+                                <div
+                                  onClick={() => setPreviewItem(file)}
+                                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
+                                >
+                                  <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
+                                    {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
+                                  </div>
+                                  <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
+                                    {file.mimeType.split('/')[1] || 'FILE'}
+                                  </span>
+                                </div>
+
+                                <div className="mt-3">
+                                  <h4
+                                    onClick={() => setPreviewItem(file)}
+                                    className="cursor-pointer truncate text-xs font-bold text-[#F5F5F5] hover:text-[#FF8C42]"
+                                    title={file.name}
+                                  >
+                                    {file.name}
+                                  </h4>
+                                  <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
+                                    <span>{formatBytes(file.size)}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => downloadFile(file.id, file.name)}
+                                      className="inline-flex items-center gap-1 rounded font-semibold text-[#FF8C42] hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                    >
+                                      <IconDownload size={12} />
+                                      <span>Download</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
                             );
                           })}
-                        </tbody>
-                      </table>
-                    </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-2xl border border-[var(--quant-border)] overflow-hidden bg-[var(--quant-surface)]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-[#A1A4AC] uppercase">
+                              <tr>
+                                <th className="py-3 px-4 w-8">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      regularFiles.length > 0 &&
+                                      regularFiles.every((f) => selectedIds.has(f.id))
+                                    }
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedIds(new Set(regularFiles.map((f) => f.id)));
+                                      } else {
+                                        setSelectedIds(new Set());
+                                      }
+                                    }}
+                                    className="accent-[#FF8C42] rounded"
+                                    aria-label="Select all files"
+                                  />
+                                </th>
+                                <th className="py-3 px-4">Name</th>
+                                <th className="py-3 px-4 hidden sm:table-cell">Type</th>
+                                <th className="py-3 px-4">Size</th>
+                                <th className="py-3 px-4 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#282C35]">
+                              {regularFiles.map((file) => {
+                                const isSelected = selectedIds.has(file.id);
+                                return (
+                                  <tr
+                                    key={file.id}
+                                    className={`transition-colors ${
+                                      isSelected ? 'bg-[#FF8C42]/10' : 'hover:bg-[#282C35]/50'
+                                    }`}
+                                  >
+                                    <td className="py-3 px-4">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => handleToggleSelect(file.id, e as never)}
+                                        className="accent-[#FF8C42] rounded cursor-pointer"
+                                        aria-label={`Select file ${file.name}`}
+                                      />
+                                    </td>
+                                    <td className="py-3 px-4 font-semibold text-white flex items-center gap-2">
+                                      <span>{getFileIcon(file.mimeType, file.type)}</span>
+                                      <span
+                                        onClick={() => setPreviewItem(file)}
+                                        className="cursor-pointer hover:text-[#FF8C42] truncate max-w-xs"
+                                      >
+                                        {file.name}
+                                      </span>
+                                      {file.isStarred && (
+                                        <span className="text-[#FF8C42]" title="Starred">
+                                          <IconStarFilled size={12} />
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-3 px-4 text-[#A1A4AC] hidden sm:table-cell">
+                                      {file.mimeType}
+                                    </td>
+                                    <td className="py-3 px-4 text-[#A1A4AC]">
+                                      {formatBytes(file.size)}
+                                    </td>
+                                    <td className="py-3 px-4 text-right">
+                                      <div className="flex items-center justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleStar(file)}
+                                          aria-pressed={Boolean(file.isStarred)}
+                                          aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+                                          className={`grid size-8 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                                            file.isStarred
+                                              ? 'text-[#FF8C42]'
+                                              : 'text-[#6B6E76] hover:text-[#F5F5F5]'
+                                          }`}
+                                        >
+                                          {file.isStarred ? (
+                                            <IconStarFilled size={14} />
+                                          ) : (
+                                            <IconStar size={14} />
+                                          )}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => downloadFile(file.id, file.name)}
+                                          className="text-xs text-[#FF8C42] hover:underline font-semibold"
+                                        >
+                                          Download
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleDeleteItem(file.id, file.name, e)}
+                                          className="text-xs text-[#A1A4AC] hover:text-rose-400 font-semibold"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </section>
                   )}
-                </section>
+                </>
               )}
             </>
           )}
@@ -1189,19 +1545,68 @@ export default function DrivePage() {
           title={previewItem?.name || 'File Preview'}
         >
           <div className="p-4 space-y-4 text-center">
-            <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
-              <span className="mb-3 text-[#A1A4AC]">
-                {previewItem ? (
-                  getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')
-                ) : (
-                  <IconFile size={56} />
-                )}
-              </span>
-              <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
-              <p className="text-xs text-[#A1A4AC] mt-1">
-                {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
-              </p>
-            </div>
+            {previewItem && previewItem.mimeType.startsWith('image/') ? (
+              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+                <img
+                  src={getDownloadUrl(previewItem.id)}
+                  alt={previewItem.name}
+                  className="max-h-96 mx-auto rounded-lg object-contain"
+                />
+                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
+                <p className="text-xs text-[#A1A4AC] mt-1">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                </p>
+              </div>
+            ) : previewItem && previewItem.mimeType === 'application/pdf' ? (
+              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+                <iframe
+                  src={getDownloadUrl(previewItem.id)}
+                  className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
+                  title={previewItem.name}
+                />
+                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
+                <p className="text-xs text-[#A1A4AC] mt-1">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                </p>
+              </div>
+            ) : previewItem && previewItem.mimeType.startsWith('audio/') ? (
+              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
+                <span className="mb-3 text-[#A1A4AC]">
+                  {getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')}
+                </span>
+                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem.name}</h4>
+                <p className="text-xs text-[#A1A4AC] mt-1 mb-4">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                </p>
+                <audio controls src={getDownloadUrl(previewItem.id)} className="w-full max-w-md" />
+              </div>
+            ) : previewItem && previewItem.mimeType.startsWith('video/') ? (
+              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+                <video
+                  controls
+                  src={getDownloadUrl(previewItem.id)}
+                  className="max-h-96 w-full rounded-lg mx-auto"
+                />
+                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
+                <p className="text-xs text-[#A1A4AC] mt-1">
+                  {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
+                <span className="mb-3 text-[#A1A4AC]">
+                  {previewItem ? (
+                    getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')
+                  ) : (
+                    <IconFile size={56} />
+                  )}
+                </span>
+                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
+                <p className="text-xs text-[#A1A4AC] mt-1">
+                  {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
+                </p>
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2">
               <Button variant="secondary" onClick={() => setPreviewItem(null)}>
                 Close

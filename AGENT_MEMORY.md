@@ -1939,3 +1939,60 @@ graph TD
   - 0 TypeScript compiler errors across `@quant/quantmail` (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`) and `@quant/ml-pipeline`.
   - 0 ESLint errors across the entire repository.
   - Landed on `main` at commit `b570daf6` and pushed to `origin/main`.
+
+### 34. Master 7-Domain Forensic Audit vs Incumbents (Notion, Google Play, Calendar, Drive, Contacts, Git, Mail):
+
+- **1. Executive Ground Truth Verdict**:
+  - **Is the system 100% complete or ready? NO. Absolutely not.**
+  - An exhaustive, zero-flattery forensic audit conducted across all seven pillars revealed an **average ecosystem maturity of only ~23.5%**.
+  - Approximately 76% of advertised features consist of broken endpoints, unrouted services, missing tables, database-only flag toggles, in-memory volatile mocks, and monolithic UI facades with hardcoded mock arrays.
+
+- **2. Subsystem Forensic Scorecard (All 7 Domains)**:
+  | Domain | Quant Architecture | Incumbent Target | True Parity % | Critical Gap / Fatal Architectural Flaw |
+  | :--- | :--- | :--- | :--- | :--- |
+  | **QuantDocs & Notes** | Flat `Document` table + unmounted Yjs | **Notion** | **4.00%** | 0 Block model; 0 nested page tree hierarchy; 0 slash command blocks (`/table`, `/code`); 0 Notion-like databases; Yjs server is unmounted in Fastify with 0 UI. |
+  | **Quant Mobile & Android**| Jetpack Compose WebView + Capacitor | **Google Play Store** | **12.00%** | Only raw debug APKs; 0 `.aab` bundle; 0 keystore/signing; package name mismatch (`com.example.quant` vs `com.quant.app`); fatal `usesCleartextTraffic="true"` Play policy violation. |
+  | **QuantCalendar** | Fastify `/events` + `schema.prisma` | **Google Calendar & Calendly** | **14.29%** | Throws `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE`; 0 `EventException` schema; UTC-only recurrence drift; in-memory process timers for reminders. |
+  | **QuantDrive** | Fastify `/drive` + S3 Storage | **Google Drive & Dropbox** | **14.50%** | Share accept route missing (`pending` forever); 0 "Shared with me" view; UI says "no undo/trash" while backend soft-deletes; folder rename corrupts paths. |
+  | **QuantGit** | Stack A (`modules/code`) vs Stack B (`routes/repos`) | **GitHub** | **22.25%** | PR merge only updates Prisma status (0 git commit); diff is hardcoded 3-line mock string; CI runner unconditionally throws error; 6 of 10 UI tabs are static mocks. |
+  | **QuantMail** | Fastify `/emails` + BullMQ + SES | **Gmail & Superhuman** | **48.00%** | Proxy blocks `mail-filters`; search is offset-paginated; `/emails/:id/undo-send` returns 404; scheduled send missing; attachment URLs unauthenticated. |
+  | **QuantContacts**| Fastify `/contacts` + vCard/CSV | **Google Contacts** | **50.00%** | Proxy missing allowlist; 0 CSV import UI; 0 deduplication UI; A-Z scrubber only navigates currently loaded DOM page. |
+  | **OVERALL SYSTEM PARITY**| **Unified Sovereign Operating System** | **Big-Tech Enterprise Suite** | **~23.57%** | **~76% of ecosystem functionality remains to be built/wired.** |
+
+- **3. Master Sprint Wave Roadmap**:
+  - **Wave 5: Phase D (QuantDrive Integrity & Sharing — Tasks D01–D17)**: Build `POST /drive/shares/:id/accept`, "Shared with me" view, wire Trash UI & fix confirm copy, fix folder rename descendant paths, add cycle detection, build image/PDF lightbox.
+  - **Wave 6: Phase C (QuantCalendar Series, Timezones & Exceptions — Tasks C05–C28)**: Add `EventException` schema, enable single-occurrence edits/deletions, add timezone per event/user, make `/events/today` timezone-aware, normalize attendees & reminders, ICS import/export.
+  - **Wave 7: Phase G (QuantGit Real Git Merge, Diffs & Runner — Tasks G01–G16)**: Unify Stack A & B into single route, execute real 3-way `git merge-tree` commits, wire real Git diffs, replace throw-only CI runner with BullMQ runner, enforce branch protection.
+  - **Wave 8: Phase M & Contacts (Undo-Send, Filters & Contacts Dedupe — Tasks M15–M30 & X03)**: Unblock mail filters in proxy with R-SEC, implement durable BullMQ delayed send & cancel-send, add search query chips, build contact dedupe UI & bulk CSV import.
+  - **Wave 9: Phase N (Notion Parity & Block Collaboration — Wave C & Tasks N01–N12)**: Mount Yjs WebSocket server in Fastify at `/collab/:id`, integrate BlockSuite / TipTap block editor with slash commands, add nested document tree hierarchy.
+  - **Wave 10: Phase P (Play Store Production Pipeline — Tasks P01–P08)**: Unify mobile package ID to `com.quant.app`, generate production release signing keystore, configure `.aab` bundle build, eliminate `usesCleartextTraffic`, integrate Google Play In-App Billing.
+  - **Wave 11: Phase K & X (Hook Consolidation & God File Modularization — Tasks K06–K17 & X11–X17)**: Consolidate 6 mail hooks into `useMail`, 4 contact hooks into `useContacts`, split `calendar/page.tsx` (186 KB) and `quantgit/page.tsx` (290 KB).
+
+### 35. Wave 5: Phase D Completion (QuantDrive Integrity & Sharing Parity — Developer 4):
+
+- **1. Fastify Backend Drive Routes (`apps/quantmail/backend/routes/drive.ts`)**:
+  - **Share Accept & Decline (Tasks D01, D05)**: Implemented `POST /drive/shares/:id/accept` and `POST /drive/shares/:id/decline`. Both verify authenticated user is the designated recipient (`sharedWithUserId === userId`), updating status to `'accepted'` and `'declined'` respectively. Authorization check in file download and access checks verified for accepted shares.
+  - **Received Shares Discovery (Task D03)**: Implemented `GET /drive/shares/received` to list active shares where `sharedWithUserId === userId` and `status !== 'revoked'`, joining file details and owner identity (`displayName`, `email`).
+  - **Folder Rename Descendant Path Recalculation (Task D11)**: Recalculates paths for all descendant files and subfolders when a folder is renamed (`newPath + desc.path.slice(oldPath.length)`), preventing broken path references.
+  - **Depth Capping & Cycle Detection (Task D13)**: Hardened `folderTree()` with `MAX_DEPTH = 30` and a visited-set cycle guard, preventing server crashes and infinite loops on cyclic parent-child references.
+  - **Canonical Move Endpoint (Task D10 / DRV-04)**: Unified `/drive/move` and `/drive/files/move` behind a single canonical `handleMove` function with recursive descendant path updates and cycle checks.
+
+- **2. Next.js Proxy Allowlist (`apps/quantmail/backend/lib/routes-config.ts`)**:
+  - Registered pattern `{ pattern: /^drive(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] }` in `ALLOWED_BACKEND_ROUTES`, ensuring all Drive endpoints are reachable via the proxy.
+
+- **3. Client Hook (`apps/quantmail/src/hooks/useDrive.ts`)**:
+  - Canonicalized move endpoint to `/api/drive/move`.
+  - Added exported interfaces `DriveFile` (with `deletedAt?: string`) and `ReceivedShare`.
+  - Implemented hook operations: `acceptShare`, `declineShare`, `fetchReceivedShares`, `fetchTrashFiles`, `restoreFile`, `purgeFile`.
+
+- **4. Frontend UI (`apps/quantmail/src/app/drive/page.tsx`)**:
+  - **Copy & Trash Semantics (Tasks D06, D08)**: Replaced deceptive delete dialog copy with safe Trash semantics ("This item will be moved to Trash. You can restore it anytime from the Trash tab." and button "Move to Trash").
+  - **Views & Filter Buttons (Tasks D03, D07)**: Extended `DriveFilter` with `'trash'` and `'shared'`. Added `👥 Shared with me` and `🗑️ Trash` filter navigation pills.
+  - **Dedicated Trash Tab (Task D07)**: Built interactive Trash view with restored/purged feedback, file size, deleted date, and action buttons (`Restore`, `Delete permanently`).
+  - **Dedicated Shared Tab (Task D03)**: Built interactive Shared view with owner badges, permission tags, Accept / Decline action buttons, and direct download/preview.
+  - **Real Lightbox Preview (Task D16)**: Built rich modal lightbox preview rendering images (`<img>`), PDFs (`<iframe>`), audio (`<audio>`), and video (`<video>`).
+
+- **5. Verification & Test Gate**:
+  - **8/8 unit tests passing 100%** in `apps/quantmail/backend/__tests__/drive-parity.routes.test.ts`.
+  - **45/45 unit tests passing 100%** across all 6 backend Drive test suites (`drive-parity`, `drive-memory`, `drive-quota`, `drive-ai-advanced`, `drive-ai-extract`, `drive-ai-summarize`).
+  - **0 TypeScript compiler errors** across `@quant/quantmail` (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).

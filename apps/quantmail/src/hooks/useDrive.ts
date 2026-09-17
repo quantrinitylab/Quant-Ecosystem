@@ -9,7 +9,7 @@ import { browserApiRequest as apiRequest } from '../services/browser-api-request
 import { browserAuthSession } from '../services/browser-auth-session';
 import { getUploadBatchError } from '../lib/drive-upload-results';
 
-interface DriveFile {
+export interface DriveFile {
   id: string;
   name: string;
   type: 'file' | 'folder';
@@ -23,6 +23,19 @@ interface DriveFile {
   isStarred: boolean;
   versions: { id: string; version: number; size: number; date: string }[];
   thumbnailUrl?: string;
+  deletedAt?: string;
+}
+
+export interface ReceivedShare {
+  id: string;
+  fileId: string | null;
+  folderId: string | null;
+  permission: 'view' | 'edit' | 'admin';
+  status: string;
+  createdAt: string;
+  owner: { name: string; email: string };
+  file: { id: string; name: string; mimeType: string; size: number; updatedAt: string } | null;
+  folder: { id: string; name: string; path: string; updatedAt: string } | null;
 }
 
 interface UploadProgress {
@@ -44,7 +57,7 @@ interface ShareParams {
   permission: 'view' | 'edit' | 'admin';
 }
 
-interface UseDriveReturn {
+export interface UseDriveReturn {
   files: DriveFile[];
   loading: boolean;
   error: string | null;
@@ -71,6 +84,12 @@ interface UseDriveReturn {
   getDownloadUrl: (fileId: string) => string;
   downloadFile: (fileId: string, fileName?: string) => Promise<void>;
   cancelUpload: (uploadId: string) => void;
+  acceptShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
+  declineShare: (shareId: string) => Promise<{ success: boolean; share: any }>;
+  fetchReceivedShares: () => Promise<ReceivedShare[]>;
+  fetchTrashFiles: () => Promise<DriveFile[]>;
+  restoreFile: (fileId: string) => Promise<void>;
+  purgeFile: (fileId: string) => Promise<void>;
 }
 
 const getDriveErrorMessage = (err: unknown, fallback: string): string => {
@@ -125,7 +144,9 @@ export function useDrive(): UseDriveReturn {
         }
       } catch (err) {
         if (seq === fetchSeqRef.current) {
-          setError(getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'));
+          setError(
+            getDriveErrorMessage(err, 'Drive is temporarily unavailable. Retry in a moment.'),
+          );
         }
       } finally {
         if (seq === fetchSeqRef.current) {
@@ -336,7 +357,7 @@ export function useDrive(): UseDriveReturn {
       const prevFiles = [...files];
       setFiles((prev) => prev.filter((f) => !fileIds.includes(f.id)));
       try {
-        const response = await apiRequest('/api/drive/files/move', {
+        const response = await apiRequest('/api/drive/move', {
           method: 'POST',
           body: JSON.stringify({ fileIds, targetFolderId }),
         });
@@ -450,9 +471,12 @@ export function useDrive(): UseDriveReturn {
   const restoreVersion = useCallback(
     async (fileId: string, versionId: string) => {
       try {
-        const response = await apiRequest(`/api/drive/files/${fileId}/versions/${versionId}/restore`, {
-          method: 'POST',
-        });
+        const response = await apiRequest(
+          `/api/drive/files/${fileId}/versions/${versionId}/restore`,
+          {
+            method: 'POST',
+          },
+        );
         if (!response.ok) throw new Error('Restore failed');
         await fetchFiles();
       } catch (err) {
@@ -539,6 +563,96 @@ export function useDrive(): UseDriveReturn {
     setUploads((prev) => prev.filter((u) => u.fileId !== uploadId));
   }, []);
 
+  const acceptShare = useCallback(async (shareId: string) => {
+    setError(null);
+    try {
+      const response = await apiRequest(`/api/drive/shares/${shareId}/accept`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to accept share');
+      return await response.json();
+    } catch (err) {
+      const msg = getDriveErrorMessage(err, 'Failed to accept share');
+      setError(msg);
+      throw err;
+    }
+  }, []);
+
+  const declineShare = useCallback(async (shareId: string) => {
+    setError(null);
+    try {
+      const response = await apiRequest(`/api/drive/shares/${shareId}/decline`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to decline share');
+      return await response.json();
+    } catch (err) {
+      const msg = getDriveErrorMessage(err, 'Failed to decline share');
+      setError(msg);
+      throw err;
+    }
+  }, []);
+
+  const fetchReceivedShares = useCallback(async (): Promise<ReceivedShare[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiRequest('/api/drive/shares/received');
+      if (!response.ok) throw new Error('Failed to fetch received shares');
+      const data = await response.json();
+      return data.shares || [];
+    } catch (err) {
+      setError(getDriveErrorMessage(err, 'Failed to load received shares'));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchTrashFiles = useCallback(async (): Promise<DriveFile[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await apiRequest('/api/drive/trash');
+      if (!response.ok) throw new Error('Failed to fetch trash');
+      const data = await response.json();
+      return data.files || [];
+    } catch (err) {
+      setError(getDriveErrorMessage(err, 'Failed to load trash'));
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const restoreFile = useCallback(async (fileId: string) => {
+    setError(null);
+    try {
+      const response = await apiRequest(`/api/drive/files/${fileId}/restore`, {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to restore file');
+    } catch (err) {
+      const msg = getDriveErrorMessage(err, 'Failed to restore file');
+      setError(msg);
+      throw err;
+    }
+  }, []);
+
+  const purgeFile = useCallback(async (fileId: string) => {
+    setError(null);
+    try {
+      const response = await apiRequest(`/api/drive/files/${fileId}/purge`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete file permanently');
+    } catch (err) {
+      const msg = getDriveErrorMessage(err, 'Failed to delete file permanently');
+      setError(msg);
+      throw err;
+    }
+  }, []);
+
   return {
     files,
     loading,
@@ -566,6 +680,12 @@ export function useDrive(): UseDriveReturn {
     getDownloadUrl,
     downloadFile,
     cancelUpload,
+    acceptShare,
+    declineShare,
+    fetchReceivedShares,
+    fetchTrashFiles,
+    restoreFile,
+    purgeFile,
   };
 }
 

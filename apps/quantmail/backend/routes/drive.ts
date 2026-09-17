@@ -253,17 +253,26 @@ async function nextVersion(prisma: any, fileId: string): Promise<number> {
   return (latest?.versionNumber ?? 0) + 1;
 }
 async function folderTree(prisma: any, userId: string, rootId: string): Promise<string[]> {
-  const ids = [rootId];
+  const visited = new Set<string>([rootId]);
+  const MAX_DEPTH = 30;
+  let depth = 0;
   let frontier = [rootId];
-  while (frontier.length) {
+  while (frontier.length && depth < MAX_DEPTH) {
+    depth++;
     const children = await prisma.folder.findMany({
       where: { userId, parentId: { in: frontier } },
       select: { id: true },
     });
-    frontier = children.map((child: any) => child.id);
-    ids.push(...frontier);
+    const nextFrontier: string[] = [];
+    for (const child of children) {
+      if (!visited.has(child.id)) {
+        visited.add(child.id);
+        nextFrontier.push(child.id);
+      }
+    }
+    frontier = nextFrontier;
   }
-  return [...new Set(ids)];
+  return Array.from(visited);
 }
 async function purgeRows(
   fastify: FastifyInstance,
@@ -533,9 +542,34 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const name = request.body?.name?.trim();
       if (!name) throw createAppError('Name required', 400, 'VALIDATION_ERROR');
       const item = await ownedItem(prisma, request.params.id, userId);
-      if (item.type === 'file')
+      if (item.type === 'file') {
         await prisma.file.update({ where: { id: item.row.id }, data: { name } });
-      else await prisma.folder.update({ where: { id: item.row.id }, data: { name } });
+      } else {
+        const oldPath = item.row.path;
+        let newPath = `/${name}`;
+        if (item.row.parentId) {
+          const parent = await prisma.folder.findFirst({
+            where: { id: item.row.parentId, userId, isDeleted: false },
+          });
+          if (parent) {
+            newPath = `${parent.path}/${name}`;
+          }
+        }
+        await prisma.folder.update({
+          where: { id: item.row.id },
+          data: { name, path: newPath },
+        });
+        const descendants = await prisma.folder.findMany({
+          where: { userId, path: { startsWith: `${oldPath}/` } },
+        });
+        for (const desc of descendants) {
+          const updatedDescPath = newPath + desc.path.slice(oldPath.length);
+          await prisma.folder.update({
+            where: { id: desc.id },
+            data: { path: updatedDescPath },
+          });
+        }
+      }
       return reply.send({ ok: true });
     },
   );
@@ -638,6 +672,101 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true });
     },
   );
+  fastify.get('/drive/shares/received', async (request, reply) => {
+    const userId = requireUserId(request);
+    const shares = await prisma.share.findMany({
+      where: { sharedWithUserId: userId, status: { not: 'revoked' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const ownerIds = [...new Set<string>(shares.map((s: any) => s.ownerUserId))];
+    const owners = ownerIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: ownerIds } },
+          select: { id: true, email: true, displayName: true },
+        })
+      : [];
+    const ownerMap = new Map<string, { name: string; email: string }>(
+      owners.map((u: any) => [
+        u.id,
+        { name: u.displayName || u.email.split('@')[0], email: u.email },
+      ]),
+    );
+    const fileIds = [...new Set<string>(shares.map((s: any) => s.fileId).filter(Boolean))];
+    const files = fileIds.length
+      ? await prisma.file.findMany({
+          where: { id: { in: fileIds }, isDeleted: false },
+          select: { id: true, name: true, mimeType: true, size: true, updatedAt: true },
+        })
+      : [];
+    const fileMap = new Map(files.map((f: any) => [f.id, f]));
+    const folderIds = [...new Set<string>(shares.map((s: any) => s.folderId).filter(Boolean))];
+    const folders = folderIds.length
+      ? await prisma.folder.findMany({
+          where: { id: { in: folderIds }, isDeleted: false },
+          select: { id: true, name: true, path: true, updatedAt: true },
+        })
+      : [];
+    const folderMap = new Map(folders.map((f: any) => [f.id, f]));
+
+    return reply.send({
+      shares: shares.map((share: any) => {
+        const owner = ownerMap.get(share.ownerUserId) ?? { name: 'Unknown', email: '' };
+        return {
+          id: share.id,
+          fileId: share.fileId,
+          folderId: share.folderId,
+          permission: frontendPermission(share.permission),
+          status: share.status,
+          createdAt: share.createdAt,
+          owner,
+          file: share.fileId ? (fileMap.get(share.fileId) ?? null) : null,
+          folder: share.folderId ? (folderMap.get(share.folderId) ?? null) : null,
+        };
+      }),
+    });
+  });
+  fastify.post<{ Params: { id: string } }>('/drive/shares/:id/accept', async (request, reply) => {
+    const userId = requireUserId(request);
+    const share = await prisma.share.findFirst({
+      where: { id: request.params.id },
+    });
+    if (!share) throw createAppError('Share not found', 404, 'SHARE_NOT_FOUND');
+    if (share.sharedWithUserId !== userId) throw createAppError('Forbidden', 403, 'FORBIDDEN');
+
+    const updated = await prisma.share.update({
+      where: { id: share.id },
+      data: { status: 'accepted' },
+    });
+    return reply.send({
+      success: true,
+      share: {
+        id: updated.id,
+        status: 'accepted',
+        fileId: updated.fileId,
+        permission: updated.permission,
+      },
+    });
+  });
+  fastify.post<{ Params: { id: string } }>('/drive/shares/:id/decline', async (request, reply) => {
+    const userId = requireUserId(request);
+    const share = await prisma.share.findFirst({
+      where: { id: request.params.id },
+    });
+    if (!share) throw createAppError('Share not found', 404, 'SHARE_NOT_FOUND');
+    if (share.sharedWithUserId !== userId) throw createAppError('Forbidden', 403, 'FORBIDDEN');
+
+    const updated = await prisma.share.update({
+      where: { id: share.id },
+      data: { status: 'declined' },
+    });
+    return reply.send({
+      success: true,
+      share: {
+        id: updated.id,
+        status: 'declined',
+      },
+    });
+  });
   fastify.get<{ Params: { id: string } }>('/drive/files/:id/versions', async (request, reply) => {
     const file = await fileAccess(prisma, request.params.id, requireUserId(request));
     const versions = await prisma.fileVersion.findMany({
@@ -949,15 +1078,13 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       .send(plaintext);
   });
 
-  // Task QD-03: Folder drag-and-drop tree re-organization with cycle detection and path recalculation
-  fastify.post<{
-    Body: { fileIds?: string[]; folderIds?: string[]; targetFolderId?: string | null };
-  }>('/drive/move', async (request, reply) => {
-    const userId = requireUserId(request);
-    const fileIds = request.body?.fileIds ?? [];
-    const folderIds = request.body?.folderIds ?? [];
-    const targetFolderId = request.body?.targetFolderId ?? null;
-
+  // Task QD-03 & D10: Folder drag-and-drop tree re-organization with cycle detection and path recalculation
+  const handleMove = async (
+    userId: string,
+    fileIds: string[],
+    folderIds: string[],
+    targetFolderId: string | null,
+  ) => {
     let targetPath = '';
     if (targetFolderId) {
       const targetFolder = await prisma.folder.findFirst({
@@ -1013,7 +1140,18 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return reply.send({ ok: true, movedFiles: fileIds.length, movedFolders: folderIds.length });
+    return { ok: true, movedFiles: fileIds.length, movedFolders: folderIds.length };
+  };
+
+  fastify.post<{
+    Body: { fileIds?: string[]; folderIds?: string[]; targetFolderId?: string | null };
+  }>('/drive/move', async (request, reply) => {
+    const userId = requireUserId(request);
+    const fileIds = request.body?.fileIds ?? [];
+    const folderIds = request.body?.folderIds ?? [];
+    const targetFolderId = request.body?.targetFolderId ?? null;
+    const result = await handleMove(userId, fileIds, folderIds, targetFolderId);
+    return reply.send(result);
   });
 
   fastify.post<{
@@ -1023,37 +1161,8 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     const fileIds = request.body?.fileIds ?? [];
     const folderIds = request.body?.folderIds ?? [];
     const targetFolderId = request.body?.targetFolderId ?? null;
-
-    if (
-      targetFolderId &&
-      !(await prisma.folder.findFirst({ where: { id: targetFolderId, userId, isDeleted: false } }))
-    ) {
-      throw createAppError('Target folder not found', 404, 'NOT_FOUND');
-    }
-
-    if (fileIds.length > 0) {
-      await prisma.file.updateMany({
-        where: { id: { in: fileIds }, userId, isDeleted: false },
-        data: { folderId: targetFolderId },
-      });
-    }
-
-    for (const folderId of folderIds) {
-      if (folderId === targetFolderId)
-        throw createAppError('Cannot move a folder into itself', 400, 'CIRCULAR_REFERENCE');
-      if (targetFolderId) {
-        const subtreeIds = await folderTree(prisma, userId, folderId);
-        if (subtreeIds.includes(targetFolderId))
-          throw createAppError(
-            'Cannot move a folder into one of its subfolders',
-            400,
-            'CIRCULAR_REFERENCE',
-          );
-      }
-      await prisma.folder.update({ where: { id: folderId }, data: { parentId: targetFolderId } });
-    }
-
-    return reply.send({ ok: true });
+    const result = await handleMove(userId, fileIds, folderIds, targetFolderId);
+    return reply.send(result);
   });
   fastify.post<{ Params: { id: string }; Body: { targetFolderId?: string | null } }>(
     '/drive/files/:id/copy',

@@ -18,6 +18,31 @@
 | **Developer 7**  | QuantAI Swarm & Shared Memory | Layered memory (Redis+Prisma+Vector), dispatcher   | **Phase 3**: Cross-App Orchestrator & Memory    |
 | **Developer 8+** | Voice & WebRTC Scale          | LiveKit SFU, TTS/STT pipelines, call triggers      | **Wave D / Phase 4**: Voice Bot & Call Alarms   |
 
+## 🔍 7-DOMAIN MASTER FORENSIC AUDIT & SWARM PARITY SCORECARD
+
+> **EXECUTIVE AUDIT SUMMARY (2026-09-17)**: Deep forensic inspection across Fastify routes, Prisma schemas, Next.js proxies, and frontend components reveals that **the ecosystem is NOT 100% complete**. Total functional parity against incumbents stands at **~23.57%**. The remaining ~76% consists of broken endpoints, unrouted services, missing tables, database-only flag toggles, in-memory volatile mocks, and monolithic UI facades with hardcoded mock arrays.
+
+| Subsystem                  | Quant Implementation                                 | Benchmark Incumbents           | True Parity | Major Architectural Failure / Blocker                                                                                                                                                |
+| :------------------------- | :--------------------------------------------------- | :----------------------------- | :---------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **QuantDocs & Notes**      | Flat `Document` table + unmounted Yjs                | **Notion**                     | **4.00%**   | 0 Block model; 0 nested page tree hierarchy; 0 slash command blocks (`/table`, `/code`); 0 Notion-like databases; Yjs server is unmounted in Fastify with 0 UI.                      |
+| **Quant Mobile & Android** | Jetpack Compose WebView + Capacitor                  | **Google Play Store**          | **12.00%**  | Only raw debug APKs; 0 `.aab` bundle; 0 keystore/signing; package name mismatch (`com.example.quant` vs `com.quant.app`); fatal `usesCleartextTraffic="true"` Play policy violation. |
+| **QuantCalendar**          | Fastify `/events` + `schema.prisma`                  | **Google Calendar & Calendly** | **14.29%**  | Throws `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE`; 0 `EventException` schema; UTC-only recurrence; in-memory process timers for reminders.                                                 |
+| **QuantDrive**             | Fastify `/drive` + S3 Storage                        | **Google Drive & Dropbox**     | **14.50%**  | Share accept route missing (`pending` forever); 0 "Shared with me" view; UI says "no undo/trash" while backend soft-deletes; folder rename corrupts paths.                           |
+| **QuantGit**               | Stack A (`modules/code`) vs Stack B (`routes/repos`) | **GitHub**                     | **22.25%**  | PR merge only updates Prisma status (0 git commit); diff is hardcoded 3-line mock string; CI runner unconditionally throws error; 6 of 10 UI tabs are static mocks.                  |
+| **QuantMail**              | Fastify `/emails` + BullMQ + SES                     | **Gmail & Superhuman**         | **48.00%**  | Proxy blocks `mail-filters`; search is offset-paginated; `/emails/:id/undo-send` returns 404; scheduled send missing; attachment URLs unauthenticated.                               |
+| **QuantContacts**          | Fastify `/contacts` + vCard/CSV                      | **Google Contacts**            | **50.00%**  | Proxy missing allowlist; 0 CSV import UI; 0 deduplication UI; A-Z scrubber only navigates currently loaded DOM page.                                                                 |
+| **OVERALL SYSTEM PARITY**  | **Unified Sovereign Operating System**               | **Big-Tech Enterprise Suite**  | **~23.57%** | **~76% of ecosystem functionality remains to be built/wired.**                                                                                                                       |
+
+### 🎯 Master Sprint Wave Execution Order:
+
+1. **Wave 5: Phase D (QuantDrive Integrity & Sharing — Tasks D01–D17)**: Fix share accept/decline, "Shared with me" view, trash recovery UI & confirm copy, folder rename descendant paths, cycle detection, file previews lightbox.
+2. **Wave 6: Phase C (QuantCalendar Series, Timezones & Exceptions — Tasks C05–C28)**: Add `EventException` schema, single-occurrence edits/deletions, timezone support per event/user, make `/events/today` timezone-aware, normalize attendees & reminders, ICS import/export.
+3. **Wave 7: Phase G (QuantGit Real Git Merge, Diffs & Runner — Tasks G01–G16)**: Unify Stack A & B into single route, execute real 3-way `git merge-tree` commits, wire real Git diffs, replace throw-only CI runner with BullMQ runner, enforce branch protection.
+4. **Wave 8: Phase M & Contacts (Undo-Send, Filters & Contacts Dedupe — Tasks M15–M30 & X03)**: Unblock mail filters in proxy with R-SEC, implement durable BullMQ delayed send & cancel-send, add search query chips, build contact dedupe UI & bulk CSV import.
+5. **Wave 9: Phase N (Notion Parity & Block Collaboration — Wave C & Tasks N01–N12)**: Mount Yjs WebSocket server in Fastify at `/collab/:id`, integrate BlockSuite / TipTap block editor with slash commands, add nested document tree hierarchy.
+6. **Wave 10: Phase P (Play Store Production Pipeline — Tasks P01–P08)**: Unify mobile package ID to `com.quant.app`, generate production release signing keystore, configure `.aab` bundle build, eliminate `usesCleartextTraffic`, integrate Google Play In-App Billing.
+7. **Wave 11: Phase K & X (Hook Consolidation & God File Modularization — Tasks K06–K17 & X11–X17)**: Consolidate 6 mail hooks into `useMail`, 4 contact hooks into `useContacts`, split `calendar/page.tsx` (186 KB) and `quantgit/page.tsx` (290 KB).
+
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
@@ -933,9 +958,9 @@
 ### 📁 Track 3: QuantDrive Sharing & Trash Fixes (Phase D)
 
 - **Assigned to**: Developer 4 (Storage & Drive)
-- [ ] **Task DRV-02**: Implement missing Drive Share Accept endpoint (`POST /drive/shares/:id/accept`) so shared files are actually accessible.
-- [ ] **Task DRV-03**: Wire frontend UI delete to backend Trash & Restore, replacing accidental immediate permanent deletion with safe trash semantics.
-- [ ] **Task DRV-04**: Unify move endpoints into a single canonical path recalculator with cycle detection depth caps.
+- [x] **Task DRV-02**: Implement missing Drive Share Accept endpoint (`POST /drive/shares/:id/accept`) so shared files are actually accessible.
+- [x] **Task DRV-03**: Wire frontend UI delete to backend Trash & Restore, replacing accidental immediate permanent deletion with safe trash semantics.
+- [x] **Task DRV-04**: Unify move endpoints into a single canonical path recalculator with cycle detection depth caps.
 
 ### 🧩 Track 4: Monolithic Component Modularization (Phase H)
 
@@ -1045,22 +1070,22 @@
 ### 💾 Phase D — Drive to Google Drive Parity (24 Tasks)
 
 - **Assigned to**: Developer 4 (QuantDrive Lead)
-- [ ] **Task D01**: Build share accept/decline endpoint (`POST /drive/shares/:id/accept`).
+- [x] **Task D01**: Build share accept/decline endpoint (`POST /drive/shares/:id/accept`).
 - [ ] **Task D02**: Send share notification email with accept link.
-- [ ] **Task D03**: Build "Shared with me" UI view.
+- [x] **Task D03**: Build "Shared with me" UI view.
 - [ ] **Task D04**: Add link sharing with role and expiration.
-- [ ] **Task D05**: Test full share lifecycle (`pending` → `accepted` → `revoked`).
-- [ ] **Task D06**: Point frontend UI delete button to `/drive/files/trash`.
-- [ ] **Task D07**: Build Trash UI on existing backend (list, restore, purge).
-- [ ] **Task D08**: Fix delete confirmation copy (remove "no undo and no trash").
+- [x] **Task D05**: Test full share lifecycle (`pending` → `accepted` → `revoked`).
+- [x] **Task D06**: Point frontend UI delete button to `/drive/files/trash`.
+- [x] **Task D07**: Build Trash UI on existing backend (list, restore, purge).
+- [x] **Task D08**: Fix delete confirmation copy (remove "no undo and no trash").
 - [ ] **Task D09**: Add trash retention auto-purge sweeper (N days).
-- [ ] **Task D10**: Delete `POST /drive/files/move`, keep single path-aware route.
-- [ ] **Task D11**: Recalculate descendant paths on folder rename.
+- [x] **Task D10**: Delete `POST /drive/files/move`, keep single path-aware route.
+- [x] **Task D11**: Recalculate descendant paths on folder rename.
 - [ ] **Task D12**: Add repair background job for corrupted paths.
-- [ ] **Task D13**: Add depth and cycle caps to `folderTree()`.
+- [x] **Task D13**: Add depth and cycle caps to `folderTree()`.
 - [ ] **Task D14**: Fix N+1 queries in `/drive/files/trash`.
 - [ ] **Task D15**: Apply `requireStorage()` to `GET /drive/files`.
-- [ ] **Task D16**: Build real file previews (image lightbox, PDF viewer, text, video).
+- [x] **Task D16**: Build real file previews (image lightbox, PDF viewer, text, video).
 - [ ] **Task D17**: Generate and display `thumbnailUrl` in file grid.
 - [ ] **Task D18**: Add server-side pagination to `GET /drive/files`.
 - [ ] **Task D19**: Virtualize file grid with `src/lib/virtual/` for 10k files.
@@ -1068,7 +1093,7 @@
 - [ ] **Task D21**: Add search-mode indicator and breadcrumbs.
 - [ ] **Task D22**: Persist grid/list view preference across reloads.
 - [ ] **Task D23**: Read upload limit from `DRIVE_MAX_FILE_BYTES`.
-- [ ] **Task D24**: Remove ghost apps `quantdocs`/`quantmeet`/`quantcalendar` from `MEMORY_APP_LABELS`.
+- [x] **Task D24**: Remove ghost apps `quantdocs`/`quantmeet`/`quantcalendar` from `MEMORY_APP_LABELS`.
 
 ### 🐙 Phase G — Git to GitHub Parity (16 Tasks)
 

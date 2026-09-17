@@ -35,6 +35,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },
   { pattern: /^repos(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^drive(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   // The Pipelines page. `backend/routes/ci.ts` implements six routes and its
   // header comment says it exists because the page "showed Failed to load" —
   // but three of its GETs were never allow-listed here, so this proxy answered
