@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 4 — Phase K Deduplication (K01–K05, K09, K18) & CI Gate Hardening (`b570daf6` on `main`)**:
+  - [x] **K01–K04 Browser Mocks Deletion**: Eliminated 4 client-side fake in-memory services (`undo-send.service.ts`, `email-templates.service.ts`, `email-snooze.service.ts`, `signature-builder.service.ts`) and their mock unit test files from `apps/quantmail/src/`. All features route exclusively through authentic backend Fastify routes backed by PostgreSQL Prisma and BullMQ.
+  - [x] **K05 Server-Side Smart Inbox Migration**: Ported rule-based categorization logic from browser into canonical backend service `apps/quantmail/backend/services/smart-inbox.service.ts`. Authored 13 backend unit tests in `apps/quantmail/backend/__tests__/smart-inbox.service.test.ts` (13/13 passing 100%) and removed browser mock and tests.
+  - [x] **K09 2-Key Event DTO Unification**: Eliminated duplicate `start` and `end` keys from `toEventDto` in `apps/quantmail/backend/routes/calendar.ts`, standardizing on canonical `startTime` and `endTime` matching Prisma schema and frontend `CalendarEvent` types. Updated sort accessor in `calendar.ts` and test assertions in `calendar.routes.test.ts`.
+  - [x] **K18 Callerless Client Stub Deletion**: Removed `apiClient.deploy` from `apps/quantmail/src/services/api-client.ts` which targeted non-existent `POST /ci/deployments`.
+  - [x] **Full-Sweep Gate Hardening**: Added defensive optional chaining `if (prisma.emailFolder?.createMany)` in `apps/quantmail/backend/routes/auth.ts`, fixing `browser-refresh-cookie.test.ts` and `quantmail-oauth-e2ee-federation.preservation.bug2.seam.test.ts`. Added test `include` and `exclude` in `packages/ml-pipeline/vitest.config.ts` to prevent vitest from re-running compiled `.js` files in `dist/` with extensionless ESM specifiers.
+  - [x] **Verification**: 253/253 backend tests passing 100%, 249/249 frontend tests passing 100%, 144/144 ml-pipeline tests passing 100%; 0 TypeScript compiler errors across all packages; 0 ESLint errors.
+
 - [x] **Wave 3 — Phase R Completion (R11, R12) & Phase C Calendar Parity (C01–C04) (`4b9ac88c` on `main`)**:
   - [x] **R11 Proxy Route Allowlist**: Opened Fastify proxy allowlist for `folders` (`GET /folders`, `POST /folders`, `PUT /folders/:id`, `DELETE /folders/:id`), `attachments` (`POST /attachments/upload-url`, `GET /attachments/:id`, `DELETE /attachments/:id`), and `settings-tokens` (`GET /settings/tokens`, `POST /settings/tokens`, `DELETE /settings/tokens/:id`) in `routes-config.ts`.
   - [x] **R12 Next.js Shadow Route Deletion**: Deleted duplicate Next.js App Router handlers `apps/quantmail/src/app/api/calendar/events/route.ts` and `apps/quantmail/src/app/api/calendar/events/[id]/route.ts`. All calendar requests now route canonical and authorized through `src/app/api/[...path]/route.ts` -> Fastify `/events`.
@@ -1085,15 +1093,15 @@
 ### 🧹 Phase K — Kill Duplicates & Mocks (18 Tasks)
 
 - **Assigned to**: Developer 5 (Frontend Architecture) + Developer 1 (Security)
-- [ ] **Task K01**: Delete browser mock `undo-send.service.ts` (D22, F13).
-- [ ] **Task K02**: Delete browser `email-templates.service.ts`, use backend API.
-- [ ] **Task K03**: Delete browser `email-snooze.service.ts`, use backend API.
-- [ ] **Task K04**: Delete browser `signature-builder.service.ts`, use backend API.
-- [ ] **Task K05**: Move `smart-inbox.service.ts` logic server-side.
+- [x] **Task K01**: Delete browser mock `undo-send.service.ts` (D22, F13).
+- [x] **Task K02**: Delete browser `email-templates.service.ts`, use backend API.
+- [x] **Task K03**: Delete browser `email-snooze.service.ts`, use backend API.
+- [x] **Task K04**: Delete browser `signature-builder.service.ts`, use backend API.
+- [x] **Task K05**: Move `smart-inbox.service.ts` logic server-side.
 - [ ] **Task K06**: Merge 6 mail hooks into single `useMail` (D19).
 - [ ] **Task K07**: Merge 4 contact hooks into single `useContacts` (D20).
 - [ ] **Task K08**: Merge `useRepos` and `useGit` into single hook (D21).
-- [ ] **Task K09**: Fix 4-key event DTO (unify `start`/`end`/`startTime`/`endTime` to 2 keys).
+- [x] **Task K09**: Fix 4-key event DTO (unify `start`/`end`/`startTime`/`endTime` to 2 keys).
 - [ ] **Task K10**: Standardize on single component directory (`src/components/`).
 - [ ] **Task K11**: Write shared-code boundary rules ADR.
 - [ ] **Task K12**: Consolidate 18 AI components + 24 AI services into single surface.
@@ -1102,7 +1110,7 @@
 - [ ] **Task K15**: Audit ~100 packages; delete shell packages like `voice-first-os`.
 - [ ] **Task K16**: Merge 6 overlapping package clusters.
 - [ ] **Task K17**: Delete `apps/quantmail/src/mobile/` or `apps/quant-mobile/` (single mobile codebase).
-- [ ] **Task K18**: Remove `apiClient.deploy` and callerless client stubs.
+- [x] **Task K18**: Remove `apiClient.deploy` and callerless client stubs.
 
 ### 🌐 Phase X — Platform to Compete (24 Tasks)
 

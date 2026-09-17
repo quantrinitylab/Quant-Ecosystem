@@ -1894,3 +1894,48 @@ graph TD
   - 0 TypeScript compiler errors across both compilers (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
   - 0 ESLint errors across the entire codebase (`pnpm --filter @quant/quantmail run lint`).
   - Landed on `main` at commit `4b9ac88c` and pushed to `origin/main`.
+
+### 33. Wave 4 — Phase K Deduplication (K01–K05, K09, K18) & CI Gate Hardening (Commit `b570daf6` on `main`):
+
+- **1. Scope & Executive Directive (CEO Astra Verified Specification)**:
+  - Execute Phase K deduplication: Eliminate 5 browser mock services and test files (D22, D23, F13).
+  - Port smart inbox categorization logic server-side into `backend/services/smart-inbox.service.ts` with 13 backend unit tests (K05).
+  - Unify the 4-key event DTO down to 2 canonical keys (`startTime`, `endTime`) in `toEventDto` and backend route tests (D18, K09).
+  - Eliminate callerless `apiClient.deploy` client stub calling non-existent endpoint (F18, K18).
+  - Resolve GitHub Actions full-sweep CI failures: defensively guard `prisma.emailFolder?.createMany` in `routes/auth.ts` and restrict test files in `packages/ml-pipeline/vitest.config.ts`.
+
+- **2. Browser Mock Deletions (Tasks K01–K04 & K18)**:
+  - **Task K01**: Deleted `apps/quantmail/src/services/undo-send.service.ts` and `apps/quantmail/src/__tests__/undo-send.test.ts`. Outbound undo send is backed by BullMQ and `backend/services/undo-send.service.ts`.
+  - **Task K02**: Deleted `apps/quantmail/src/services/email-templates.service.ts` and `apps/quantmail/src/__tests__/email-templates.test.ts`. Templates are persisted in PostgreSQL via backend Fastify `/email-templates` route.
+  - **Task K03**: Deleted `apps/quantmail/src/services/email-snooze.service.ts` and `apps/quantmail/src/__tests__/email-snooze.test.ts`. Email snooze operates via backend `POST /emails/:id/snooze` and `POST /emails/:id/unsnooze`.
+  - **Task K04**: Deleted `apps/quantmail/src/services/signature-builder.service.ts` and `apps/quantmail/src/__tests__/signature-builder.test.ts`. Signatures operate via backend `/signatures` route.
+  - **Task K18**: Removed callerless `deploy()` method from `apps/quantmail/src/services/api-client.ts`.
+
+- **3. Server-Side Smart Inbox Engine (Task K05)**:
+  - Created `apps/quantmail/backend/services/smart-inbox.service.ts`:
+    - Ported rule-based categorization engine into server-side TypeScript service.
+    - Classifies emails across 5 canonical categories: `primary`, `social`, `promotions`, `updates`, and `forums`.
+    - Supports dynamic rule addition, deletion, user feedback training (`trainFromUserAction`), and category counts.
+  - Created `apps/quantmail/backend/__tests__/smart-inbox.service.test.ts`:
+    - 13 comprehensive unit tests covering category rules, case insensitivity, priority overrides, rule mutations, and user feedback training (13/13 passing 100%).
+  - Deleted browser mock `apps/quantmail/src/services/smart-inbox.service.ts` and `apps/quantmail/src/__tests__/smart-inbox.test.ts`.
+
+- **4. 2-Key Event DTO Unification (Task K09 / Finding D18)**:
+  - In `apps/quantmail/backend/routes/calendar.ts`:
+    - Removed redundant `start: event.startTime` and `end: event.endTime` from `toEventDto`.
+    - Standardized strictly on canonical `startTime: event.startTime` and `endTime: event.endTime` matching Prisma `Event` schema and frontend `CalendarEvent` interfaces.
+    - Updated event array sort comparator in `GET /events` to use `left.startTime` and `right.startTime`.
+  - In `apps/quantmail/backend/__tests__/calendar.routes.test.ts`:
+    - Updated assertions to verify `startTime` and `endTime` are defined strings while `start` and `end` are undefined (53/53 calendar tests passing).
+
+- **5. CI Full-Sweep Gate Hardening**:
+  - In `apps/quantmail/backend/routes/auth.ts`: Added defensive optional chaining check `if (prisma.emailFolder?.createMany)` around signup folder provisioning, eliminating `TypeError: Cannot read properties of undefined (reading 'createMany')` in test harnesses without emailFolder mocks (`browser-refresh-cookie.test.ts` and `quantmail-oauth-e2ee-federation.preservation.bug2.seam.test.ts`).
+  - In `packages/ml-pipeline/vitest.config.ts`: Added `include: ['src/**/*.test.ts']` and `exclude: ['dist/**', 'node_modules/**']`, preventing vitest from running compiled test files in `dist/` with extensionless ESM imports under Node.
+
+- **6. Verification & Gate Sign-Off**:
+  - **253/253 backend tests passing 100%** across 9 test suites.
+  - **249/249 frontend tests passing 100%** across 16 test suites.
+  - **144/144 ml-pipeline tests passing 100%** across 10 test suites.
+  - 0 TypeScript compiler errors across `@quant/quantmail` (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`) and `@quant/ml-pipeline`.
+  - 0 ESLint errors across the entire repository.
+  - Landed on `main` at commit `b570daf6` and pushed to `origin/main`.
