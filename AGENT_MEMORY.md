@@ -1630,3 +1630,44 @@ graph TD
   - **Phase S (10 tasks)**: Security, quota, and tenancy hardening.
   - **Phase P (20 tasks)**: Enterprise platform gaps (admin console, IMAP import, mobile shell, dark/light mode).
   - **Phase V (19 tasks)**: Zero-mock automated Vitest regression suites and CI gate checks.
+
+### 27. CEO Astra Re-Audit 5: Verification of aa406418 (V17–V19 TRUE), Phase R & Phase M Verified Architecture Specification & New Findings V20–V28 (Notion Page `8c0c9710`):
+
+- **1. Verification of Commit `aa406418` on `main` (`965e1103`)**:
+  - **V17 (Action Trigger Gated, 503 Outside Dev)**: **VERIFIED TRUE**. `POST /:id/actions/trigger` throws `CI_TRIGGER_UNAVAILABLE` (503) unless `NODE_ENV === 'development'` and `ENABLE_DEV_REPO_SEEDING === 'true'`. Gate executes after authorization and before any write.
+  - **V18 (Dispatcher Unified with HTTP Route Checks)**: **VERIFIED TRUE**. `commit_file` autonomously enforces: `PARENT_SHA_REQUIRED` (400) on undefined, `INVALID_PARENT_SHA` (400) on non-hex, `prisma.branch.findUnique` via `repoId_name`, `BRANCH_NOT_FOUND` (404) on non-default missing branch, `BRANCH_PROTECTED` (403), bare-ref `getBranchHead` strict CAS comparison against normalized lowercase parent SHA (`STALE_PARENT_SHA` 409). _"The cleanest remediation of this whole programme. The dispatcher and the HTTP route now fail for the same reasons with the same error codes."_
+  - **V19 (Hex Regex + Lowercase CAS + toDto Cleanup)**: **VERIFIED TRUE**. `createBranchSchema.sha` strictly validates `/^[0-9a-f]{40}$/i` with `.transform(lowercase)`. `commitFileSchema.parentSha` uses identical validation inside `.strict()`. `toDto` dynamically resolves `latestCommitSha` from `branches` relation.
+- **2. Phase R (Opening the Doors) — Four Blocking Defects Corrected**:
+  - **R-D1 (Mount Prefix)**: Fastify registers `mailFiltersRoutes` under `prefix: '/mail-filters'` (`app.ts:145`), NOT `/filters`. Allow-list must target `^mail-filters(?:|(?:\/[^/]+)*)$`.
+  - **R-D2 (HTTP Method Mismatch)**: `calendar.ts` registers `PUT` and `DELETE` on `/calendars/:id`. There is NO `PATCH`. Allow-list must permit `PUT` and `DELETE`.
+  - **R-D3 (Event RSVP Pattern Segmentation)**: `POST /events/:id/rsvp` cannot match `^events\/[^/]+$` (single-segment). Requires dedicated pattern `^events\/[^/]+\/rsvp$`.
+  - **R-D4 (Public Booking Path Isolation)**: `publicPaths` in `app.ts` contains `/calendar/booking` and `/api/calendar/booking` (the public endpoints for logged-out visitors), NOT `/booking/links`. The `/calendar/booking/*` endpoints serve public invitees without 401 errors, while `POST /booking/links` remains authenticated for link creation.
+  - **R-SEC (Security Gate on Mail Filters)**: `mail-filters.ts` action `forwardTo` accepts any arbitrary address without verified ownership. Opening the route before adding address verification grants an automated mail exfiltration primitive. Must require confirmed address handshake before allow-listing `mail-filters`.
+- **3. Phase M (Email Delivery & Draft Integrity)**:
+  - **M01-GATE (Double Send vs Only Send Invariant)**: In `routes/emails.ts`, `POST /emails` (compose-and-send) enqueues to BullMQ and never invokes SES inline, proving the queue path is intended as authoritative. However, if `REDIS_URL` is unset or the delivery worker is offline, deleting inline `transmitExternalViaSes` from `/:id/send` and `/:id/reply` would cause a total external mail outage. Gate M01 behind verifying `REDIS_URL` and worker health.
+  - **M01 Patch (Four Deletions)**:
+    1. Remove inline `transmitExternalViaSes` from `POST /:id/send`.
+    2. Remove inline `transmitExternalViaSes` from `POST /:id/reply`.
+    3. Delete helper function `async function transmitExternalViaSes(...)`.
+    4. Remove unused imports.
+  - **M02 Patch (Six-Field Draft Preservation)**:
+    - The draft body wipe bug affects SIX fields, not two: `bodyHtml`, `bodyPlain`, `ccAddresses`, `bccAddresses`, `inReplyTo`, and `threadId`.
+    - Omitting these on autosave erased CCs, erased BCCs, and detached drafts from threads (`threadId: null`).
+    - Fix: distinguish omitted (untouched) from explicitly empty (cleared) based on raw request body key presence (`'bodyHtml' in rawBody ? ... : existing.bodyHtml`).
+- **4. New Forensic Findings Catalog (V20–V28 & M-F01–M-F09)**:
+  - `V20`: `GET /:id/actions` wraps in try/catch returning fake empty 200 on DB failure, masking infrastructure incidents.
+  - `V21`: `toDto` hardcodes `language: 'TypeScript'`, `website`, `watching: 1`, `openIssues: 0`, `size: 0`.
+  - `V22`: PR additions/deletions (`45/8/3`) and issue assignee (`'Developer 6'`) hardcoded in production outside dev gate.
+  - `V23`: `POST /:id/issues/:number/toggle` authorizes via `loadReadableRepo`, allowing any authenticated reader of a public repo to close/reopen issues!
+  - `V24`: `POST /:id/star` increments counter with no backing join table or unstar route.
+  - `V25`: `POST /:id/pulls/:number/merge` executes simulated DB status flip rather than real `modules/code/` Git merge commit.
+  - `V26`: Dispatcher `commit_file` commits to Git and updates branch outside `$transaction`, lacking rollback on DB failure and omitting `CiRun` creation.
+  - `V27`: `chatSchema` parses `tools.allow` and `tools.maxSteps` but never enforces them, allowing unrestricted tool execution.
+  - `V28`: `create_repository` swallows provisioning and README commit failures into `log.warn` while returning `status: 'succeeded'`.
+  - `M-F01–M-F09`: `POST /emails` silently creates unsent draft if `sentFolderId` missing; raw Prisma returns on read/star/move; reply defaults `messageKind: 'chat'`; reply 201 vs send 202; reply leaves orphan draft on send failure; no single unstar route; restore sets `folderId: null`; duplicate `data` and `emails` keys; 403 tenancy disclosure oracle.
+- **5. Swarm Roster Delegation & 25-Test Merge Gate**:
+  - **Developer 4 (Storage)**: `M01-GATE` worker & Redis verification.
+  - **Developer 1 (Auth & Security)**: `R-SEC` forwardTo verification handshake, `R-V2` auth-header forwarding, `V23` `loadWritableRepo` on issue toggle, `V27` `tools.allow` & `maxSteps` enforcement, `M-F09` 403->404.
+  - **Developer 6 (Git & Routing)**: Phase R §3.2 proxy allow-list, M01 4 deletions, M02 6-field patch, V20-V22, V24.
+  - **Developer 7 (QuantAI / Worker)**: V26 `$transaction` & rollback on autonomous commit, V28 error handling.
+  - **Developer 2 (QA Sentinel)**: 25 Vitest QA regression tests covering Phase R, M01, and M02.
