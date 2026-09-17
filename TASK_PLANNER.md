@@ -47,6 +47,13 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 13 — God-File Modularization & Data Hook Consolidation (Tasks X11, X12, K06, K07, M09) (Verified with Vitest 104/104)**:
+  - [x] **Task X11 Calendar God-File Modularization**: Deconstructed `apps/quantmail/src/app/calendar/page.tsx` from 186 KB (3,945 lines) down to 34.4 KB coordinator across 7 dedicated modules adhering strictly to CEO Astra's architectural contract: `types.ts`, `lib/calendar-geometry.ts`, `lib/recurrence.ts`, `components/CalendarModals.tsx`, `components/CalendarHeader.tsx`, `components/CalendarViews.tsx`, and `components/CalendarEventForm.tsx`. Full byte accounting preserved (total code volume strictly accounted for without loss of functionality).
+  - [x] **Task X12 QuantGit God-File Modularization & Canonical Routing**: Deconstructed `apps/quantmail/src/app/quantgit/page.tsx` from 290.8 KB (6,348 lines) down to 70.6 KB coordinator. Ratified Section 5.0 in `QUANTGIT_ARCHITECTURE.md` establishing `/quantgit` as the canonical UI surface with permanent redirects from `/codehub` and `/repos` (`apps/quantmail/next.config.js`). Extracted 14 decoupled subcomponents and modules: `types.ts`, `constants.ts`, `QuantGitHeader.tsx`, `ReposDirectoryView.tsx`, `QuantyCopilotView.tsx`, `QuantGitModals.tsx`, and all 10 tab modules (`CodeTab.tsx`, `IssuesTab.tsx`, `PullRequestsTab.tsx`, `AgentsTab.tsx`, `DiscussionsTab.tsx`, `ActionsTab.tsx`, `ProjectsTab.tsx`, `SecurityTab.tsx`, `InsightsTab.tsx`, `SettingsTab.tsx`). Authentic status preserved (Actions tab renders explicit "no runner attached" banner).
+  - [x] **Task K06 / M09 Mail Hooks Consolidation**: Architected unified canonical `apps/quantmail/src/hooks/useMail.ts` data layer incorporating `useMailMutations`, `useInbox`, `useInfiniteInbox`, `useThread`, and `useEmail`. Implemented single structured `mailQueryKeys` factory (`all`, `inbox`, `thread`, `search`). Preserved badge semantics in `AppSidebar.tsx` (Drafts = total count, received folders = unread count). Provided backward-compatible forwarder shims for existing callers.
+  - [x] **Task K07 Contacts Hook Consolidation**: Folded `useContactsPage` cleanly into `apps/quantmail/src/hooks/useContacts.ts` while keeping `useContactGroups` and `useContactSuggestions` safely isolated as separate domain hooks. Updated callers in `apps/quantmail/src/app/contacts/page.tsx` and created forwarder shim.
+  - [x] **Verification & Quality Gates**: 104/104 tests passing across 5 core Vitest suites (`codebase-hygiene.test.ts` 3/3, `ai-chat.routes.test.ts` 30/30, `repos.routes.test.ts` 40/40, `calendar-recurring.test.ts` 13/13, `route-reachability.test.ts` 18/18); 0 TypeScript compiler errors (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+
 - [x] **Wave 4 — Phase K Deduplication (K01–K05, K09, K18) & CI Gate Hardening (`b570daf6` on `main`)**:
   - [x] **K01–K04 Browser Mocks Deletion**: Eliminated 4 client-side fake in-memory services (`undo-send.service.ts`, `email-templates.service.ts`, `email-snooze.service.ts`, `signature-builder.service.ts`) and their mock unit test files from `apps/quantmail/src/`. All features route exclusively through authentic backend Fastify routes backed by PostgreSQL Prisma and BullMQ.
   - [x] **K05 Server-Side Smart Inbox Migration**: Ported rule-based categorization logic from browser into canonical backend service `apps/quantmail/backend/services/smart-inbox.service.ts`. Authored 13 backend unit tests in `apps/quantmail/backend/__tests__/smart-inbox.service.test.ts` (13/13 passing 100%) and removed browser mock and tests.
@@ -1012,7 +1019,7 @@
 - [x] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
 - [x] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
 - [x] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).
-- [ ] **Task M09**: Merge 6 mail hooks into one `useMail` data layer (delete 5 files).
+- [x] **Task M09**: Merge 6 mail hooks into one `useMail` data layer (unified queryKey schema, forwarder shims, Drafts-total badge preservation). _(Completed in Wave 13)_
 - [x] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
 - [x] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
 - [x] **Task M12**: Type Fastify Prisma decoration (ban `as any`/`as never` in `emails.ts`).
@@ -1123,8 +1130,8 @@
 - [x] **Task K03**: Delete browser `email-snooze.service.ts`, use backend API.
 - [x] **Task K04**: Delete browser `signature-builder.service.ts`, use backend API.
 - [x] **Task K05**: Move `smart-inbox.service.ts` logic server-side.
-- [ ] **Task K06**: Merge mail hooks into single `useMail` data layer (re-scoped to include `useMailMutations`, exclude `useInboxKeyboard`, with unified queryKey schema and Drafts-total badge preservation).
-- [ ] **Task K07**: Merge contact hooks into `useContacts` (partially approved: fold `useContactsPage` shim into `useContacts`, keeping `useContactGroups` and `useContactSuggestions` separate).
+- [x] **Task K06**: Merge mail hooks into single `useMail` data layer (re-scoped to include `useMailMutations`, exclude `useInboxKeyboard`, with unified queryKey schema and Drafts-total badge preservation). _(Completed in Wave 13)_
+- [x] **Task K07**: Merge contact hooks into `useContacts` (partially approved: fold `useContactsPage` shim into `useContacts`, keeping `useContactGroups` and `useContactSuggestions` separate). _(Completed in Wave 13)_
 - [ ] **Task K08**: Merge `useRepos` and `useGit` into single hook (D21).
 - [x] **Task K09**: Fix 4-key event DTO (unify `start`/`end`/`startTime`/`endTime` to 2 keys).
 - [ ] **Task K10**: Standardize on single component directory (`src/components/`).
@@ -1150,8 +1157,8 @@
 - [ ] **Task X08**: Add DMARC aggregate report ingestion and charts.
 - [ ] **Task X09**: Add deliverability dashboard (bounce and complaint rates).
 - [ ] **Task X10**: Add bounce/complaint feedback loop suppression list.
-- [ ] **Task X11**: Split god file `calendar/page.tsx` (186 KB) to under 1,000 lines (Astra 7-file contract: types.ts, lib/recurrence.ts, lib/calendar-geometry.ts, CalendarModals, CalendarHeader, CalendarViews, CalendarEventForm with byte accounting).
-- [ ] **Task X12**: Split god file `quantgit/page.tsx` (290 KB) to canonical `/quantgit` with redirects from `/codehub` and `/repos`, and decouple tabs (IssuesTab, PullRequestsTab, ActionsTab, etc.).
+- [x] **Task X11**: Split god file `calendar/page.tsx` (186 KB) to under 1,000 lines (Astra 7-file contract: types.ts, lib/recurrence.ts, lib/calendar-geometry.ts, CalendarModals, CalendarHeader, CalendarViews, CalendarEventForm with byte accounting). _(Completed in Wave 13: 186 KB -> 34.4 KB coordinator across 7 modules)_
+- [x] **Task X12**: Split god file `quantgit/page.tsx` (290 KB) to canonical `/quantgit` with redirects from `/codehub` and `/repos`, and decouple tabs (IssuesTab, PullRequestsTab, ActionsTab, etc.). _(Completed in Wave 13: 290 KB -> 70.6 KB coordinator across 14 modules)_
 - [ ] **Task X13**: Split god file `src/app/page.tsx` (150 KB).
 - [ ] **Task X14**: Split `settings/page.tsx` (48 KB).
 - [ ] **Task X15**: Split `AppShell.tsx` (43 KB).

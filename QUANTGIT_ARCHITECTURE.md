@@ -320,6 +320,10 @@ targets, `focus-visible:ring-2 focus-visible:ring-[#FF8C42]`, and
 The floor art is built in the **praised medium — 3D / WebGL / Canvas** — to the same bar as the
 existing Quant-Ecosystem logo. That logo itself stays untouched.
 
+### 5.0 Canonical Surface & Route Collapsing (CEO Astra Ratified)
+
+As formally ratified by CEO Astra in the Wave 13 Sovereign Architecture Decision Record, the canonical application surface is strictly `/quantgit`. Parallel legacy surfaces `/codehub` and `/repos` collapse completely into Next.js redirects (`permanent: false`) pointing to `/quantgit`. All repository inspection, branching, git Smart HTTP operations, PR workflows, and agent lab capabilities route through `/quantgit`.
+
 ### 5.1 Two modes, one data source
 
 | Mode      | Purpose                                                                             | Notes                                          |

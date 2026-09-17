@@ -7,9 +7,13 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { ContactsLetterIndex } from '../../components/ContactsLetterIndex';
 import { ContactsPagination } from '../../components/ContactsPagination';
-import { useContactsPage } from '../../hooks/useContactsPage';
 import { getContactPageCorrection } from '../../lib/contacts-pagination';
-import { useCreateContact, useUpdateContact, useDeleteContact } from '../../hooks/useContacts';
+import {
+  useContactsPage,
+  useCreateContact,
+  useUpdateContact,
+  useDeleteContact,
+} from '../../hooks/useContacts';
 import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';

@@ -2124,3 +2124,47 @@ graph TD
   - **Both Official Master Ledgers Published Live on Notion**:
     1. **Wave 13 — Architectural Sign-Off: Modularization, Hook Consolidation & Phase N Gates**: Nested under parent `QuantMail v2 — Production Staging Readiness Checklist` (`https://app.notion.com/p/1d3ec1e59ede414582907769172c226a`). Records full verification records, byte-accounting rules, item-by-item sign-offs, and developer assignments.
     2. **QuantGit — CEO Architecture Decision Record**: Published at top-level under `Team HQ` (`teamspace://3b4dc63e-f758-81fe-85de-00428f5d8fb5`). Ratifies the canonical `/quantgit` surface ruling, collapses `/codehub` and `/repos` to redirects, establishes the 10-tab manifest requirement, and binds the sandbox/theatre ledger.
+
+### 41. Wave 13 Completion: God-File Modularization & Data Hook Consolidation (Tasks X11, X12, K06, K07, M09):
+
+- **1. Task X11 Calendar God-File Modularization (186 KB -> 34.4 KB Coordinator)**:
+  - Deconstructed monolithic god-file `apps/quantmail/src/app/calendar/page.tsx` (186,003 bytes, 3,945 lines) down to a lightweight 34,449-byte coordinator.
+  - Extracted 7 dedicated modules adhering strictly to CEO Astra's architectural contract:
+    1. `types.ts`: Shared interfaces (`EntryType`, `CalendarEventLike`, `FormState`, `ViewMode`, recurring rules, constants).
+    2. `lib/recurrence.ts`: RFC 5545 recurrence calculation and occurrence expansion engine.
+    3. `lib/calendar-geometry.ts`: Month/week/day grid geometries, column offsets, and multi-day bar layouts.
+    4. `components/CalendarModals.tsx`: `PeriodCustomizeModal`, `TimezoneModal`, `RecurrenceModal`, `NotificationSliderModal`, and `EventDetailModal`.
+    5. `components/CalendarHeader.tsx`: Month/week/day view selectors, mini-calendar navigator, and header action controls.
+    6. `components/CalendarViews.tsx`: Month grid, week, 3-day, day, and agenda stream renderers.
+    7. `components/CalendarEventForm.tsx`: Sliding creation and edit drawer.
+  - Preserved full byte accounting: all functionality, types, and geometries preserved with 0 loss of capability.
+
+- **2. Task X12 QuantGit God-File Modularization & Canonical Surface (290.8 KB -> 70.6 KB Coordinator)**:
+  - Deconstructed monolithic god-file `apps/quantmail/src/app/quantgit/page.tsx` (290,846 bytes, 6,348 lines) down to a 70,628-byte coordinator.
+  - Ratified Section 5.0 in `QUANTGIT_ARCHITECTURE.md` establishing `/quantgit` as the canonical UI surface.
+  - Added Next.js permanent redirects (`apps/quantmail/next.config.js`) routing `/codehub` and `/repos` to `/quantgit`.
+  - Extracted 14 decoupled subcomponents and modules:
+    1. `types.ts` & `constants.ts`: Complete domain models, branch/commit/PR schemas, and visual constants.
+    2. `components/QuantGitHeader.tsx`: Repository selector, branch switcher, clone URL popup, star action.
+    3. `components/ReposDirectoryView.tsx`: Full repository directory explorer with search and filter chips.
+    4. `components/QuantyCopilotView.tsx`: Authentic Quanty AI Chat & autonomous tool execution card interface.
+    5. `components/QuantGitModals.tsx`: New branch, new issue, new pull request, and settings modals.
+    6. 10 Dedicated Tab Modules: `CodeTab.tsx`, `IssuesTab.tsx`, `PullRequestsTab.tsx`, `AgentsTab.tsx`, `DiscussionsTab.tsx`, `ActionsTab.tsx`, `ProjectsTab.tsx`, `SecurityTab.tsx`, `InsightsTab.tsx`, `SettingsTab.tsx`.
+  - Preserved authentic status invariant: Actions tab renders explicit "no runner attached" notice until live WebSocket runner is connected.
+
+- **3. Task K06 / M09 Mail Hooks Consolidation (`useMail.ts`)**:
+  - Consolidated 6 fragmented mail hooks into single canonical data layer `apps/quantmail/src/hooks/useMail.ts` (32,371 bytes).
+  - Built unified `mailQueryKeys` factory (`all`, `inbox`, `thread`, `search`) with documented cache invalidation semantics.
+  - Folded `useMailMutations`, `useInbox`, `useInfiniteInbox`, `useThread`, and `useEmail` into `useMail.ts`.
+  - Preserved badge semantics in `AppSidebar.tsx`: Drafts folder reflects total item count, while received mail folders reflect unread counts.
+  - Re-exported backward-compatible forwarder shims from `useInbox.ts`, `useMailMutations.ts`, `useThread.ts`, `useInfiniteInbox.ts`, and `useEmail.ts`.
+
+- **4. Task K07 Contacts Hook Consolidation (`useContacts.ts`)**:
+  - Folded `useContactsPage` cleanly into `apps/quantmail/src/hooks/useContacts.ts`.
+  - Kept `useContactGroups.ts` and `useContactSuggestions.ts` cleanly isolated as separate domain hooks per Astra's partial approval ruling.
+  - Updated `apps/quantmail/src/app/contacts/page.tsx` and created backward-compatible forwarder shim.
+
+- **5. Verification & Quality Gates**:
+  - **104/104 unit tests passing 100%** across 5 core Vitest test suites (`codebase-hygiene.test.ts` 3/3, `ai-chat.routes.test.ts` 30/30, `repos.routes.test.ts` 40/40, `calendar-recurring.test.ts` 13/13, `route-reachability.test.ts` 18/18).
+  - **0 TypeScript compiler errors** (`tsc --noEmit` exit code 0).
+  - **Clean backend build** (`pnpm --filter @quant/quantmail run build:backend` exit code 0).

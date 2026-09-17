@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
+import { createContactsPageQuery, type ContactsPageOptions } from '../lib/contacts-pagination';
 import type { Contact } from '../types';
 
 export function useContacts(options?: {
@@ -90,3 +91,10 @@ export function useDeleteContact() {
     },
   });
 }
+
+/** Paginated list for the contacts screen; folded from useContactsPage (Task K07). */
+export function useContactsPage(options?: ContactsPageOptions) {
+  return useQuery(createContactsPageQuery((request) => apiClient.getContacts(request), options));
+}
+
+export type { ContactsPageOptions };

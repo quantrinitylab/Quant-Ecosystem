@@ -59,9 +59,7 @@ describe('RecurringService RRULE parsing and serialization', () => {
     };
 
     const serialized = service.serializeRRule(rule);
-    expect(serialized).toBe(
-      'FREQ=WEEKLY;INTERVAL=2;COUNT=8;UNTIL=20261231T000000Z;BYDAY=MO,WE,FR',
-    );
+    expect(serialized).toBe('FREQ=WEEKLY;INTERVAL=2;COUNT=8;UNTIL=20261231T000000Z;BYDAY=MO,WE,FR');
     expect(service.parseRRule(serialized)).toEqual(rule);
   });
 
@@ -202,12 +200,12 @@ describe('GET /events recurring expansion', () => {
     await app.close();
 
     expect(response.statusCode).toBe(200);
-    const results = response.json().data as Array<{ id: string; start: string }>;
-    const starts = results.map((item) => item.start);
+    const results = response.json().data as Array<{ id: string; startTime: string }>;
+    const starts = results.map((item) => item.startTime);
     expect(starts).toEqual([...starts].sort());
     expect(new Set(results.map((item) => item.id)).size).toBe(results.length);
     expect(results.filter((item) => item.id.startsWith('recurring-1_'))).toHaveLength(3);
-    expect(results.some((item) => item.start === '2026-01-03T09:00:00.000Z')).toBe(true);
+    expect(results.some((item) => item.startTime === '2026-01-03T09:00:00.000Z')).toBe(true);
     expect(prisma.event.findMany).toHaveBeenCalledTimes(2);
   });
 });

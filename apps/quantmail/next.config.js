@@ -51,6 +51,11 @@ const nextConfig = {
         destination: '/quantgit',
         permanent: false,
       },
+      {
+        source: '/repos',
+        destination: '/quantgit',
+        permanent: false,
+      },
     ];
   },
 
