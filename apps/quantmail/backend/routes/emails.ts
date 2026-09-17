@@ -8,55 +8,8 @@ import { ContactService } from '../services/contact.service';
 import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
-import { sendViaSes, isSesConfigured } from '../lib/ses-sender';
 
 const notifier = new CrossAppDispatcher('quantmail');
-
-async function transmitExternalViaSes(params: {
-  fromEmail: string;
-  fromName?: string;
-  toAddresses: string[];
-  ccAddresses?: string[];
-  bccAddresses?: string[];
-  subject: string;
-  bodyPlain?: string;
-  bodyHtml?: string;
-  logger?: any;
-}) {
-  if (!isSesConfigured()) return;
-  const isExternal = (addr: string) => {
-    if (!addr || typeof addr !== 'string') return false;
-    const domain = addr.split('@')[1]?.toLowerCase();
-    return domain && !['quantmail.in', 'quantrinity.in', 'quantchat.online'].includes(domain);
-  };
-
-  const externalTo = params.toAddresses.filter(isExternal);
-  const externalCc = params.ccAddresses?.filter(isExternal) ?? [];
-  const externalBcc = params.bccAddresses?.filter(isExternal) ?? [];
-
-  if (externalTo.length === 0 && externalCc.length === 0 && externalBcc.length === 0) {
-    return;
-  }
-
-  try {
-    const fromStr = params.fromName ? `${params.fromName} <${params.fromEmail}>` : params.fromEmail;
-    await sendViaSes({
-      from: fromStr,
-      to: externalTo.length > 0 ? externalTo : externalCc,
-      cc: externalTo.length > 0 ? externalCc : [],
-      bcc: externalBcc,
-      subject: params.subject,
-      bodyText: params.bodyPlain,
-      bodyHtml: params.bodyHtml,
-    });
-    params.logger?.info(
-      { to: externalTo, subject: params.subject },
-      'external SES transmission succeeded',
-    );
-  } catch (error) {
-    params.logger?.error({ err: error, to: externalTo }, 'external SES transmission failed');
-  }
-}
 
 // Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" are
 // normalised to a real address before validation, so the composer no longer
@@ -291,18 +244,30 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     const d = parsed.data;
+
+    /*
+     * Absent key means "not edited, keep what is stored". Present key means
+     * "this is the new value, including empty". The schema marks these optional,
+     * so without the distinction every autosave rewrote them to '' / [] / null —
+     * which is how saving a draft erased its body, its CC and BCC lists, and its
+     * link to the thread it was written in.
+     */
+    const raw = (request.body ?? {}) as Record<string, unknown>;
+    const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
+
     const email = await prisma.email.update({
       where: { id: request.params.id },
       data: {
+        // Required by the schema (min 1), so always present.
         toAddresses: d.to.map((recipient) => recipient.email),
-        ccAddresses: d.cc?.map((recipient) => recipient.email) ?? [],
-        bccAddresses: d.bcc?.map((recipient) => recipient.email) ?? [],
         subject: d.subject,
-        bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '',
-        bodyPlain: d.bodyText ?? '',
-        priority: d.priority?.toUpperCase(),
-        inReplyTo: d.inReplyTo ?? null,
-        threadId: d.threadId ?? null,
+        ...(provided('cc') ? { ccAddresses: d.cc?.map((r) => r.email) ?? [] } : {}),
+        ...(provided('bcc') ? { bccAddresses: d.bcc?.map((r) => r.email) ?? [] } : {}),
+        ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
+        ...(provided('bodyText') ? { bodyPlain: d.bodyText ?? '' } : {}),
+        ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
+        ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
+        ...(d.priority ? { priority: d.priority.toUpperCase() } : {}),
         // Only rewrite the kind when the caller states one, so saving a draft from
         // a composer that does not know about kinds cannot silently reclassify it.
         ...(d.messageKind ? { messageKind: toMessageKind(d.messageKind) } : {}),
@@ -338,9 +303,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
     const sendService = createSendService(prisma);
 
-    // Queue creation/add failures propagate through the standard JSON error
-    // envelope. The draft remains unsent instead of reporting false success.
-    await sendService.send(userId, email.id, sentFolder.id);
+    const sent = await sendService.send(userId, email.id, sentFolder.id);
 
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -399,32 +362,12 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
     }
 
-    try {
-      const me = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, username: true },
-      });
-      await transmitExternalViaSes({
-        fromEmail: email.fromAddress || me?.email || `${userId}@quantmail.in`,
-        fromName: me?.username || undefined,
-        toAddresses: asArray(email.toAddresses),
-        ccAddresses: asArray(email.ccAddresses),
-        bccAddresses: asArray(email.bccAddresses),
-        subject: email.subject,
-        bodyPlain: email.bodyPlain ?? undefined,
-        bodyHtml: email.bodyHtml ?? undefined,
-        logger: request.log,
-      });
-    } catch (err) {
-      request.log.warn({ err }, 'direct SES send attempt in /:id/send failed');
-    }
-
     return reply.status(202).send({
       success: true,
       data: {
         message: 'Email queued for delivery',
         emailId: email.id,
-        deliveryStatus: 'queued',
+        deliveryStatus: (sent as { deliveryStatus?: string | null }).deliveryStatus ?? 'queued',
       },
     });
   });
@@ -558,19 +501,6 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
-    }
-
-    try {
-      await transmitExternalViaSes({
-        fromEmail: myEmail || `${userId}@quantmail.in`,
-        toAddresses: to,
-        ccAddresses: cc,
-        subject,
-        bodyPlain: parsed.data.body,
-        logger: request.log,
-      });
-    } catch (err) {
-      request.log.warn({ err }, 'direct SES send attempt in /:id/reply failed');
     }
 
     return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });

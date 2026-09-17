@@ -410,12 +410,15 @@ export class EmailService {
           // MAIL-06: Support plain text fallback when HTML is empty.
           await sendViaSes({
             from,
-            to:
-              externalTo.length > 0
-                ? externalTo
-                : externalBcc.length > 0
-                  ? ['undisclosed-recipients:;']
-                  : external,
+            /*
+             * SESv2 SendEmail takes real addresses in Destination.ToAddresses.
+             * `undisclosed-recipients:;` is RFC 5322 header-group syntax, not an
+             * address, and the API rejects the whole call when it appears here —
+             * which is why a Bcc-only external send failed on this path while the
+             * route-level helper (removed in M01) got it right. An empty To with a
+             * populated Bcc is valid and is exactly what a Bcc-only send needs.
+             */
+            to: externalTo,
             cc: externalCc.length > 0 ? externalCc : undefined,
             bcc: externalBcc.length > 0 ? externalBcc : undefined,
             subject: email.subject,
@@ -429,9 +432,10 @@ export class EmailService {
           deliveryError = error instanceof Error ? error.message : String(error);
           deliveryStatus = 'failed';
         }
-      } else if (!enqueued && !this.pipeline) {
+      } else if (!enqueued) {
         deliveryStatus = 'failed';
-        deliveryError = 'No outbound transport configured (SES env vars missing)';
+        deliveryError =
+          deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';
       }
     }
 

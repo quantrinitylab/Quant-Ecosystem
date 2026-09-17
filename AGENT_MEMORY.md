@@ -1671,3 +1671,32 @@ graph TD
   - **Developer 6 (Git & Routing)**: Phase R §3.2 proxy allow-list, M01 4 deletions, M02 6-field patch, V20-V22, V24.
   - **Developer 7 (QuantAI / Worker)**: V26 `$transaction` & rollback on autonomous commit, V28 error handling.
   - **Developer 2 (QA Sentinel)**: 25 Vitest QA regression tests covering Phase R, M01, and M02.
+
+### 28. Phase R, Phase M02, and Phase M01 + SESv2 Amendment Verification & Merge Gate Pass:
+
+- **1. Phase R §3.2 Proxy Allow-List Unification (`apps/quantmail/backend/lib/routes-config.ts` & `src/app/api/[...path]/route.ts`)**:
+  - Implemented and opened verified backend routes:
+    - `/calendars` (`['GET', 'POST']`), `/calendars/:id` (`['PUT', 'DELETE']`), `/calendars/:id/primary` (`['POST']`).
+    - `/events` (`['GET', 'POST']`), `/events/today`, `/events/upcoming`, `/events/alarms/due`, `/events/alerts/scheduled`.
+    - `/events/:id` (`['GET', 'PUT', 'PATCH', 'DELETE']`), `/events/:id/rsvp` (`['POST']`).
+    - Authenticated booking link creation (`POST /booking/links`).
+    - Public booking endpoints (`GET /calendar/booking/:slug`, `GET /calendar/booking/:slug/slots`, `POST /calendar/booking/:slug/book`).
+    - Operator search endpoints (`GET /search/emails`, `GET /search/parse`).
+  - Held `mail-filters` allow-list rows pending R-SEC verified address handshake.
+  - Verified R-V1 (GET query string searchParams forwarding) and R-V2 (Authorization header forwarding with absent-token tolerance).
+  - Extracted `ALLOWED_BACKEND_ROUTES` to `backend/lib/routes-config.ts` to strictly comply with Next.js App Router route module export constraint while preserving 100% type safety and test importability.
+
+- **2. Phase M02 Six-Field Draft Preservation (`apps/quantmail/backend/routes/emails.ts`)**:
+  - Replaced naive property coercion with `provided(key)` presence checks on raw request body (`Object.prototype.hasOwnProperty.call(raw, key)`).
+  - Distinguishes omitted keys (preserve existing value in database) from explicitly provided empty keys (`bodyHtml`, `bodyText`, `cc`, `bcc`, `inReplyTo`, `threadId`).
+  - Conclusively eliminates draft body wipe, BCC drop, and thread detachment bugs on autosave.
+
+- **3. Phase M01 Authoritative External Send & SESv2 Amendment (`routes/emails.ts` & `services/email.service.ts`)**:
+  - Eliminated redundant double-send: removed inline `transmitExternalViaSes` from `POST /:id/send` and `POST /:id/reply`, deleted helper function, and removed unused `ses-sender` imports.
+  - Resolved Astra's critical SESv2 discovery: replaced `to: ['undisclosed-recipients:;']` with `to: externalTo`. AWS SESv2 rejects RFC 5322 header-group syntax with `InvalidParameterValueException`; setting `to: []` with populated `bcc` is RFC/SESv2 compliant.
+  - Widened fallback guard to `else if (!enqueued)` so enqueue rejections transition to `failed` rather than stalling in `queued`.
+
+- **4. Vitest QA Regression Suite & Typecheck (146 Passing Tests, 0 TS Errors)**:
+  - Authored `apps/quantmail/backend/__tests__/phase-r-m.routes.test.ts` with 12 targeted unit tests (12/12 passing in 15ms).
+  - Verified full test suites: `phase-r-m.routes.test.ts` (12/12), `email.service.test.ts` (32/32), `repos.routes.test.ts` (31/31), `ai-chat.routes.test.ts` (28/28), `calendar.routes.test.ts` (43/43). Total: 146 tests passing 100%.
+  - Verified `pnpm --filter @quant/quantmail run typecheck` passes with 0 errors across frontend Next.js App Router and backend Fastify TypeScript compilers.

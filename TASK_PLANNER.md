@@ -902,67 +902,206 @@
 
 ---
 
-## 🚀 SPRINT 9: THE 166-TASK COMPETITIVE GAP & INCUMBENT PARITY SPRINT (GMAIL, GCAL, GDRIVE, GITHUB)
+## 🚀 SPRINT 9: THE 166-TASK INCUMBENT PARITY MASTER SPRINT (GMAIL, GCAL, GDRIVE, GITHUB)
 
-> **Source of Truth**: Notion Master Spec `2acaea6d73f741d1b3af04b4d9cca222` authored by CEO Astra (Opus 5).
-> **Executive Thesis**: The Fastify backend is significantly richer than the exposed browser surface. High-leverage Phase R opens proxy allow-lists, unlocks built features immediately, and prevents duplicate implementation.
+> **Source of Truth**: Notion Master Spec `2acaea6d` & Verified Spec `8c0c9710` authored by CEO Astra (Opus 5).
+> **Executive Sequencing**: `Phase R` → `M01–M08 & C01–C04` → `Phase K` → `Phase D` → `Phase C (rest)` → `Phase X` → `Phase G` → `Phase Q`.
 
-### 🚪 Phase R: Routing Table & Proxy Allow-List Unification (Tasks R01–R12) — Top Leverage Gate
+### 🚪 Phase R — Routing Table Unification (12 Tasks)
 
-- **Assigned to**: Developer 5 (Frontend Architecture) + Developer 1 (Security) + Antigravity Orchestrator
-- [ ] **Task R01**: Inventory every Fastify route against every Next.js allow-list pattern in `src/app/api/_lib/proxy.ts`.
-- [ ] **Task R02**: Write automated test failing CI if a Fastify route lacks a reachable proxy path.
-- [ ] **Task R03**: Write automated test failing CI if an allow-list pattern lists an HTTP method without a corresponding export.
-- [ ] **Task R04**: Generate allow-list definitions from Fastify route declarations dynamically, eliminating hand-maintained drift.
-- [ ] **Task R05**: Open mail-filters CRUD (`/filters`) and test route (`/:id/test`) in proxy allow-list.
-- [ ] **Task R06**: Open operator search endpoints (`/search/emails` and `/search/parse` chips) in proxy allow-list.
-- [ ] **Task R07**: Open calendar write methods (`POST /calendars`, `PATCH /calendars/:id`, `DELETE /calendars/:id`, `/calendars/:id/primary`).
-- [ ] **Task R08**: Open event RSVP (`POST /events/:id/rsvp`) and partial edit (`PATCH /events/:id`).
-- [ ] **Task R09**: Open reminders endpoints (`/events/alarms/due` and `/events/alerts/scheduled`).
-- [ ] **Task R10**: Open Calendly-style booking flow (`/booking/links`, `/:slug/slots`, `/:slug/book`).
-- [ ] **Task R11**: Open folders (`/folders`), attachment upload URLs (`/attachments`), and API settings tokens (`/settings-tokens`).
-- [ ] **Task R12**: Delete duplicate `api/calendar/events/` path, maintaining one canonical URL per resource.
+- **Assigned to**: Developer 6 (Git & Routing) + Developer 1 (Auth & Proxy) + Developer 2 (QA Sentinel)
+- [x] **Task R01**: Inventory every Fastify route vs every allow-list pattern. (Done when: generated table lists route, pattern, method exports, status).
+- [x] **Task R02**: Write test that fails when Fastify route has no reachable proxy path. (Done when: CI fails on unlisted route).
+- [x] **Task R03**: Write test that fails when pattern lists method with no export. (Done when: CI fails on advertise-only methods).
+- [x] **Task R04**: Replace hand-written allow-list with generation from Fastify route table. (Done when: allow-list is build artefact / routes-config).
+- [ ] **Task R05**: Open `mail-filters` CRUD + `/:id/test` (R-SEC verified forwardTo address required before merge).
+- [x] **Task R06**: Open `search/emails` and `search/parse` (operator search & query chips work in UI).
+- [x] **Task R07**: Open calendar write methods (`POST /calendars`, `PUT /calendars/:id`, `DELETE /calendars/:id`, `/calendars/:id/primary`).
+- [x] **Task R08**: Open `events/:id/rsvp` (own pattern) and `PATCH /events/:id`.
+- [x] **Task R09**: Open `events/alarms/due` and `events/alerts/scheduled`.
+- [x] **Task R10**: Open `booking/links` (authenticated create) and `/calendar/booking/:slug/*` (public read/slots/book).
+- [ ] **Task R11**: Open folders, attachments, settings-tokens (after verifying paths in backend route files).
+- [ ] **Task R12**: Delete duplicate `api/calendar/events/` path, keep one canonical URL per resource.
 
-### ✉️ Phase M: Mail to Gmail & Superhuman Parity (Tasks M01–M30)
+### ✉️ Phase M — Mail to Gmail Parity (30 Tasks)
 
-- **Assigned to**: Developer 1 (Email Core) + Developer 7 (AI / Queue)
-- [ ] **Task M01**: Eliminate double external send in `POST /:id/send` and `POST /:id/reply` (remove inline SES invocation; queue worker exclusive).
-- [ ] **Task M02**: Fix draft body wipe in `PUT /emails/:id` (preserve `bodyHtml` and `bodyPlain` when omitted).
-- [ ] **Task M03**: Wire built operator search parser (`/search/parse`) to UI search bar with visual chips (`from:`, `to:`, `has:attachment`, `is:starred`).
-- [ ] **Task M04**: Wire built filter engine to incoming mail pipeline and provide UI management table.
-- [ ] **Task M05**: Remove mock in-memory `src/services/undo-send.service.ts` and unify with backend queue delay.
-- [ ] **Task M06**: Support scheduled send (`sendAt` timestamp with BullMQ delayed job).
-- [ ] **Task M07**: Implement IMAP / MBOX mailbox import engine allowing migration from Gmail/Outlook.
-- [ ] **Task M08**: Implement List-Unsubscribe header parsing with one-click unsubscribe action.
-- [ ] **Task M09**: Wire offline service worker cache (`src/lib/offline/`) to read cached inboxes offline.
+- **Assigned to**: Developer 4 (M01-GATE) + Developer 6 (Deletions & Patches) + Developer 1 (Auth/M-F09)
+- [x] **Task M01-GATE**: Verify BullMQ outbound delivery worker calls `sendViaSes` and confirm `REDIS_URL` in staging/production before deleting inline SES.
+- [x] **Task M01**: Remove direct `transmitExternalViaSes` from `/:id/send`, `/:id/reply`, delete helper and unused imports (4 deletions).
+- [x] **Task M02**: SESv2 BCC-only amendment in `email.service.ts` (`to: externalTo`) + `!enqueued` fallback guard.
+- [x] **Task M03**: Regression test: one external recipient receives exactly one message (verified in `phase-r-m.routes.test.ts`).
+- [x] **Task M04**: Make `PUT /emails/:id` a true patch preserving all 6 fields (`bodyHtml`, `bodyPlain`, `cc`, `bcc`, `inReplyTo`, `threadId`).
+- [x] **Task M05**: Test: patching subject leaves body, CC, BCC, and thread linkage intact (verified in `phase-r-m.routes.test.ts`).
+- [ ] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
+- [ ] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
+- [ ] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).
+- [ ] **Task M09**: Merge 6 mail hooks into one `useMail` data layer (delete 5 files).
+- [ ] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
+- [ ] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
+- [ ] **Task M12**: Type Fastify Prisma decoration (ban `as any`/`as never` in `emails.ts`).
+- [ ] **Task M13**: Move domain list to shared config constant.
+- [ ] **Task M14**: Remove `${userId}@quantmail.in` fallback sender (fail loudly on missing identity).
+- [ ] **Task M15**: Wire `MailFilterService` into inbound ingest pipeline.
+- [ ] **Task M16**: Add "apply filter to existing messages" background job with progress.
+- [ ] **Task M17**: Require verified ownership handshake for filter `forwardTo` (R-SEC).
+- [ ] **Task M18**: Build filter management UI in settings (create, reorder, test, disable).
+- [ ] **Task M19**: Build search UI on `/search/parse` chips.
+- [ ] **Task M20**: Switch search to cursor pagination.
+- [ ] **Task M21**: Delete browser mock `src/services/undo-send.service.ts` (F13).
+- [ ] **Task M22**: Make undo-send durable on outbound BullMQ queue.
+- [ ] **Task M23**: Add scheduled send (`sendAt` timestamp with delayed job).
+- [ ] **Task M24**: Enforce attachment size server-side (S1).
+- [ ] **Task M25**: Serve attachments with `Content-Disposition: attachment` + CSP; sandbox SVG (S2).
+- [ ] **Task M26**: Extend allowed attachment types to audio/video.
+- [ ] **Task M27**: Add virus scanning on attachment upload path.
+- [ ] **Task M28**: Add mute-thread and List-Unsubscribe handling.
+- [ ] **Task M29**: Add ARC evaluation for forwarded mail.
+- [ ] **Task M30**: Make `INBOUND_SNS_TOPIC_ARNS` a hard requirement in production (S5).
 
-### 📅 Phase C: Calendar to Google Calendar & Calendly Parity (Tasks C01–C35)
+### 📅 Phase C — Calendar to Google Calendar Parity (28 Tasks)
 
-- **Assigned to**: Developer 3 (Calendar & Scheduling Lead)
-- [ ] **Task C01**: Fix `calendarId` persistence: persist `calendarId` in `prisma.calendarEvent.create` and filter by `calendarId` in `GET /events`.
-- [ ] **Task C02**: Recurrence series single occurrence exception model: allow editing "only this instance" without 400 error.
-- [ ] **Task C03**: Timezone support: add `timezone` field to events, user profile, and respect caller timezone in `/events/today`.
-- [ ] **Task C04**: External guest invites: generate ICS files with `METHOD:REQUEST` and send email invites with accept/decline links.
-- [ ] **Task C05**: Preserve attendee RSVP status in `toEventDto` so organisers see who accepted, declined, or tentatively accepted.
-- [ ] **Task C06**: Deduplicate booking endpoints: collapse `/booking/links/:slug` and `/calendar/booking/:slug` into one canonical handler.
-- [ ] **Task C07**: Split monolithic 186 KB `apps/quantmail/src/app/calendar/page.tsx` into modular month/week/day/agenda components.
+- **Assigned to**: Developer 3 (Calendar Lead)
+- [ ] **Task C01**: Persist `calendarId` in `event.create` and `event.update`.
+- [ ] **Task C02**: Filter `GET /events` by `calendarId`.
+- [ ] **Task C03**: Backfill existing events onto each user's primary calendar.
+- [ ] **Task C04**: Migration test for C01–C03.
+- [ ] **Task C05**: Add `EventException` schema model.
+- [ ] **Task C06**: Implement single-occurrence edit ("only this event").
+- [ ] **Task C07**: Implement "this and following" series split.
+- [ ] **Task C08**: Implement single-occurrence delete.
+- [ ] **Task C09**: Remove `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE` error code.
+- [ ] **Task C10**: Add `timeZone` field to events and user profile.
+- [ ] **Task C11**: Make `/events/today` evaluate against caller's timezone.
+- [ ] **Task C12**: Add timezone picker to event creation modal.
+- [ ] **Task C13**: Reject unparseable RRULE with 400 (never silently non-recurring).
+- [ ] **Task C14**: Normalize attendees into dedicated queryable table.
+- [ ] **Task C15**: Normalize reminders into dedicated queryable table.
+- [ ] **Task C16**: Return attendee name and RSVP status from `toEventDto` (F17).
+- [ ] **Task C17**: Generate valid downloadable ICS for every event.
+- [ ] **Task C18**: Send invite email with `METHOD:REQUEST` (Google/Outlook show Accept/Decline).
+- [ ] **Task C19**: Handle inbound `METHOD:REPLY` from external calendar clients.
+- [ ] **Task C20**: Send update and cancellation notices to guests.
+- [ ] **Task C21**: Move calendar reminders to durable queue (F15).
+- [ ] **Task C22**: Replace reminder scheduling `.catch(() => {})` with typed logging.
+- [ ] **Task C23**: Add free/busy lookup blocks.
+- [ ] **Task C24**: Add conflict warning before save on overlapping events.
+- [ ] **Task C25**: Add working hours and conflict-aware booking validation.
+- [ ] **Task C26**: Deduplicate 3 booking route pairs (D16).
+- [ ] **Task C27**: Error 400 instead of clamping on >365-day query window.
+- [ ] **Task C28**: Add cursor pagination to `GET /events`.
 
-### 💾 Phase D: Drive to Google Drive & Dropbox Parity (Tasks D01–D25)
+### 💾 Phase D — Drive to Google Drive Parity (24 Tasks)
 
-- **Assigned to**: Developer 4 (Storage & Drive Lead)
-- [ ] **Task D01**: Implement Drive Share Accept endpoint (`POST /drive/shares/:id/accept`) to unlock pending shares.
-- [ ] **Task D02**: Wire frontend UI delete button to backend Trash & Restore (`/drive/trash`), removing accidental permanent deletion.
-- [ ] **Task D03**: Unify move endpoints into single canonical path recalculator with cycle detection depth cap.
-- [ ] **Task D04**: Recursive descendant path recalculation on folder rename.
-- [ ] **Task D05**: Rich file preview lightbox: wire real PDF viewer, image lightbox, text viewer, and markdown renderer.
-- [ ] **Task D06**: Wire 5 QuantDrive AI services (`ai-duplicate`, `ai-extract-data`, `ai-organize`, `ai-search-content`, `ai-summarize-file`).
+- **Assigned to**: Developer 4 (QuantDrive Lead)
+- [ ] **Task D01**: Build share accept/decline endpoint (`POST /drive/shares/:id/accept`).
+- [ ] **Task D02**: Send share notification email with accept link.
+- [ ] **Task D03**: Build "Shared with me" UI view.
+- [ ] **Task D04**: Add link sharing with role and expiration.
+- [ ] **Task D05**: Test full share lifecycle (`pending` → `accepted` → `revoked`).
+- [ ] **Task D06**: Point frontend UI delete button to `/drive/files/trash`.
+- [ ] **Task D07**: Build Trash UI on existing backend (list, restore, purge).
+- [ ] **Task D08**: Fix delete confirmation copy (remove "no undo and no trash").
+- [ ] **Task D09**: Add trash retention auto-purge sweeper (N days).
+- [ ] **Task D10**: Delete `POST /drive/files/move`, keep single path-aware route.
+- [ ] **Task D11**: Recalculate descendant paths on folder rename.
+- [ ] **Task D12**: Add repair background job for corrupted paths.
+- [ ] **Task D13**: Add depth and cycle caps to `folderTree()`.
+- [ ] **Task D14**: Fix N+1 queries in `/drive/files/trash`.
+- [ ] **Task D15**: Apply `requireStorage()` to `GET /drive/files`.
+- [ ] **Task D16**: Build real file previews (image lightbox, PDF viewer, text, video).
+- [ ] **Task D17**: Generate and display `thumbnailUrl` in file grid.
+- [ ] **Task D18**: Add server-side pagination to `GET /drive/files`.
+- [ ] **Task D19**: Virtualize file grid with `src/lib/virtual/` for 10k files.
+- [ ] **Task D20**: Move filter pills server-side.
+- [ ] **Task D21**: Add search-mode indicator and breadcrumbs.
+- [ ] **Task D22**: Persist grid/list view preference across reloads.
+- [ ] **Task D23**: Read upload limit from `DRIVE_MAX_FILE_BYTES`.
+- [ ] **Task D24**: Remove ghost apps `quantdocs`/`quantmeet`/`quantcalendar` from `MEMORY_APP_LABELS`.
 
-### 🔒 Phase S: Security, Quota & Tenancy Hardening (Tasks S01–S10)
+### 🐙 Phase G — Git to GitHub Parity (16 Tasks)
 
-- **Assigned to**: Developer 1 (Security & Auth Lead)
-- [ ] **Task S01**: Server-side file size validation on `POST /attachments/upload-url` to prevent quota bypass.
-- [ ] **Task S02**: Sanitize `image/svg+xml` attachments with forced `Content-Disposition: attachment` and strict CSP.
-- [ ] **Task S03**: Authorize `forwardTo` email address in mail filters to prevent auto-exfiltration.
-- [ ] **Task S04**: Scope `POST /events/:id/rsvp` with tenant check before query to eliminate existence oracle.
-- [ ] **Task S05**: Enforce strict `INBOUND_SNS_TOPIC_ARNS` verification fail-closed.
-- [ ] **Task S06**: Extract hardcoded domains into single centralized environment configuration.
+- **Assigned to**: Developer 6 (CodeHub & Git Infrastructure Lead)
+- [ ] **Task G01**: Close QuantGit criticals (V20–V28).
+- [ ] **Task G02**: Implement real merge commit with two parents (`git merge-tree`).
+- [ ] **Task G03**: Compute real diffs from Git using `GitInspectService`.
+- [ ] **Task G04**: Replace `noopCiRunner` with real BullMQ runner.
+- [ ] **Task G05**: Fix branch protection to read real `BranchProtection` record (eliminate dead boolean check).
+- [ ] **Task G06**: Collapse 3 repo APIs into 1 canonical route module.
+- [ ] **Task G07**: Collapse 3 repo UIs into single `/quantgit` workspace.
+- [ ] **Task G08**: Enforce single canonical repo URL scheme with redirects.
+- [ ] **Task G09**: Add collaborators and granular roles (`ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`).
+- [ ] **Task G10**: Add teams and organization permissions.
+- [ ] **Task G11**: Add review approvals that gate merge.
+- [ ] **Task G12**: Add required status checks gating merge.
+- [ ] **Task G13**: Add forks and cross-repo PRs.
+- [ ] **Task G14**: Add releases and tags management UI.
+- [ ] **Task G15**: Add repository search and code search.
+- [ ] **Task G16**: Add external webhook dispatching.
+
+### 🧹 Phase K — Kill Duplicates & Mocks (18 Tasks)
+
+- **Assigned to**: Developer 5 (Frontend Architecture) + Developer 1 (Security)
+- [ ] **Task K01**: Delete browser mock `undo-send.service.ts` (D22, F13).
+- [ ] **Task K02**: Delete browser `email-templates.service.ts`, use backend API.
+- [ ] **Task K03**: Delete browser `email-snooze.service.ts`, use backend API.
+- [ ] **Task K04**: Delete browser `signature-builder.service.ts`, use backend API.
+- [ ] **Task K05**: Move `smart-inbox.service.ts` logic server-side.
+- [ ] **Task K06**: Merge 6 mail hooks into single `useMail` (D19).
+- [ ] **Task K07**: Merge 4 contact hooks into single `useContacts` (D20).
+- [ ] **Task K08**: Merge `useRepos` and `useGit` into single hook (D21).
+- [ ] **Task K09**: Fix 4-key event DTO (unify `start`/`end`/`startTime`/`endTime` to 2 keys).
+- [ ] **Task K10**: Standardize on single component directory (`src/components/`).
+- [ ] **Task K11**: Write shared-code boundary rules ADR.
+- [ ] **Task K12**: Consolidate 18 AI components + 24 AI services into single surface.
+- [ ] **Task K13**: Delete second AI code reviewer.
+- [ ] **Task K14**: Unify 3 AI memory surfaces into single API.
+- [ ] **Task K15**: Audit ~100 packages; delete shell packages like `voice-first-os`.
+- [ ] **Task K16**: Merge 6 overlapping package clusters.
+- [ ] **Task K17**: Delete `apps/quantmail/src/mobile/` or `apps/quant-mobile/` (single mobile codebase).
+- [ ] **Task K18**: Remove `apiClient.deploy` and callerless client stubs.
+
+### 🌐 Phase X — Platform to Compete (24 Tasks)
+
+- **Assigned to**: Developer 5 (UI) + Developer 1 (Security) + Developer 7 (AI)
+- [ ] **Task X01**: Build IMAP import engine (import Gmail mailbox with threads).
+- [ ] **Task X02**: Build MBOX / Google Takeout import parser.
+- [ ] **Task X03**: Build contacts import (vCard / CSV).
+- [ ] **Task X04**: Build calendar import (ICS with recurrence).
+- [ ] **Task X05**: Build multi-tenant admin console (users, roles, quotas).
+- [ ] **Task X06**: Add immutable audit log for administrative actions.
+- [ ] **Task X07**: Add retention policies and legal hold enforcement.
+- [ ] **Task X08**: Add DMARC aggregate report ingestion and charts.
+- [ ] **Task X09**: Add deliverability dashboard (bounce and complaint rates).
+- [ ] **Task X10**: Add bounce/complaint feedback loop suppression list.
+- [ ] **Task X11**: Split god file `calendar/page.tsx` (186 KB) to under 1,000 lines.
+- [ ] **Task X12**: Split god file `quantgit/page.tsx` (290 KB).
+- [ ] **Task X13**: Split god file `src/app/page.tsx` (150 KB).
+- [ ] **Task X14**: Split `settings/page.tsx` (48 KB).
+- [ ] **Task X15**: Split `AppShell.tsx` (43 KB).
+- [ ] **Task X16**: Split `api-client.ts` (30 KB) by resource module.
+- [ ] **Task X17**: Split `schema.prisma` (128 KB) into multi-file domain schemas.
+- [ ] **Task X18**: Build design system tokens; delete `overrides.css`.
+- [ ] **Task X19**: Replace hardcoded hex codes with semantic tokens.
+- [ ] **Task X20**: Add light mode; remove hardcoded `theme="dark"` on AppShell.
+- [ ] **Task X21**: Cut total CSS bundle from 295 KB to under 50 KB.
+- [ ] **Task X22**: Execute systematic WCAG accessibility audit (keyboard & screen-reader pass).
+- [ ] **Task X23**: Add i18n localization layer (English + Hindi minimum).
+- [ ] **Task X24**: Wire error monitoring package and define production SLO alerts.
+
+### 🛡️ Phase Q — Quality Gates (14 Tasks)
+
+- **Assigned to**: Developer 2 (QA Sentinel Lead) + CEO Astra
+- [ ] **Task Q01**: Protect `main` branch against unreviewed direct pushes.
+- [ ] **Task Q02**: Require at least one non-author review approval.
+- [ ] **Task Q03**: Require green CI gate to merge PRs.
+- [ ] **Task Q04**: Enforce ESLint ban on `as any`, `as never`, `as unknown as` in new code.
+- [ ] **Task Q05**: Enforce ESLint ban on empty catch blocks (`catch {}`).
+- [ ] **Task Q06**: Require typed Fastify Prisma decoration (no per-handler casts).
+- [ ] **Task Q07**: Add route-reachability tests from R02/R03 to CI PR gate.
+- [ ] **Task Q08**: Set per-file size ceiling rule blocking new god files.
+- [ ] **Task Q09**: Add duplicate-symbol check across `backend/services` and `src/services`.
+- [ ] **Task Q10**: Add unused-package check failing CI on shell packages.
+- [ ] **Task Q11**: Set and enforce coverage thresholds per surface.
+- [ ] **Task Q12**: Add integration tests for send, receive, share, and invite against real test DB.
+- [ ] **Task Q13**: Add p95 latency load tests on inbox, drive list, and calendar ranges.
+- [ ] **Task Q14**: Enforce "is this already built?" pre-flight checklist in PR template.
