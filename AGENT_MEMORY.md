@@ -1475,3 +1475,158 @@ graph TD
   - Eliminate duplicate SES delivery from Fastify route, delegating delivery strictly to the authoritative queue worker.
   - Modularize `quantgit/page.tsx` into decoupled subcomponents.
   - Prune dead workspace shells and collapse 6 overlapping agent packages.
+
+### 26. CEO Astra Competitive Gap Audit & 166-Task Roadmap vs Incumbents (Gmail, G-Calendar, G-Drive & GitHub):
+
+- **1. Incumbent Parity Benchmarking Scores**:
+  - **Mail vs Gmail**: ~45% feature parity. Lacks filter UI, scheduled send, server-enforced attachment limits, ARC eval, durable undo-send, and suffers duplicate SES + queue sends.
+  - **Calendar vs Google Calendar**: ~20% feature parity. `calendarId` discarded on save; synthetic recurring events un-editable; reminders in-memory only; no RSVP display; no timezone picker; dual booking route paths.
+  - **Drive vs Google Drive**: ~35% feature parity. Drive shares pending with no accept endpoint; UI delete claims "no trash" while backend has full trash/restore; move endpoints duplicate with broken hierarchy path recalculation.
+  - **Git vs GitHub**: ~35-40% feature parity. Parallel Git stacks (bare Git in `modules/code/` vs Prisma-only in `routes/repos.ts`); fake PR merge without merge commits; synthetic hardcoded diffs; noop CI runner.
+
+- **2. The Three-Gate Proxy Registration Bottleneck (D15 / F19)**:
+  - An endpoint requires THREE independent registrations to be reachable from browser:
+    1. Fastify route registration.
+    2. Next.js API proxy allow-list pattern (`src/app/api/[...path]/route.ts`).
+    3. Next.js route HTTP method export (GET, POST, PUT, PATCH, DELETE).
+  - Multiple completed Fastify backend engines were completely blocked behind the Next.js catch-all proxy: Mail Filters CRUD + test, search operator parser (`/search/parse`), calendar management, RSVP endpoints, and booking links.
+
+- **3. New Duplication Findings (D15–D25)**:
+  - `D15`: Three routing tables per endpoint (Fastify + allow-list pattern + method export).
+  - `D16`: Booking endpoints registered twice: `/booking/links/*` and `/calendar/booking/*` with copy-pasted bodies.
+  - `D17`: `api/calendar/events/` route file and events allow-list pattern — two URLs, one endpoint.
+  - `D18`: `toEventDto` returns `start`, `end`, `startTime`, `endTime` — two values, four keys.
+  - `D19`: 6 mail data hooks (`useEmail`, `useInbox`, `useInfiniteInbox`, `useSearchEmails`, `useMailMutations`, `useThread`).
+  - `D20`: 4 contact hooks (`useContacts`, `useContactsPage`, `useContactSuggestions`, `useContactGroups`).
+  - `D21`: 2 repo hooks (`useRepos`, `useGit`).
+  - `D22`: `undo-send.service.ts` duplicated in both `backend/services/` and `src/services/`.
+  - `D23`: 5 browser services duplicate backend features: undo-send, email-templates, email-snooze, signature-builder, smart-inbox.
+  - `D24`: 2 `SearchQueryService` construction modes (with and without Prisma).
+  - `D25`: `src/features/` contains only encryption and federation (abandoned architectural pattern).
+
+- **4. New Fake, Mock & Dead Findings (F13–F19)**:
+  - `F13`: `src/services/undo-send.service.ts` is pure mock: in-memory Map, fake `send-1` counter IDs, single `to` string, no persistence, `checkAndSend()` unpolled.
+  - `F14`: Multi-calendar is cosmetic: `calendarId` validated in Zod then discarded before database insert.
+  - `F15`: Calendar reminders are per-process in-memory; lost on server restart or across multiple cluster instances.
+  - `F16`: Unparseable RRULE silently saved as non-recurring event.
+  - `F17`: RSVP status stored in DB then discarded by client DTO (`toEventDto`), unreadable by UI.
+  - `F18`: `apiClient.deploy` has no callers and no backend route.
+  - `F19`: Mail filters and operator search: fully written in backend, zero reachable surface.
+
+- **5. Security & Correctness Vulnerabilities (S1–S6)**:
+  - `S1`: `POST /attachments/upload-url` trusts client-declared size header (attachment quota bypass).
+  - `S2`: `image/svg+xml` accepted as attachment without sandbox CSP headers (stored XSS primitive).
+  - `S3`: Mail filter `forwardTo` action accepts any address with zero ownership verification (auto-exfiltration primitive).
+  - `S4`: `POST /events/:id/rsvp` reads event before tenancy check (404-vs-403 existence oracle).
+  - `S5`: `INBOUND_SNS_TOPIC_ARNS` soft-fail accepts any signed SNS topic in production if unset.
+  - `S6`: Hardcoded domain list `['quantmail.in','quantrinity.in','quantchat.online']` duplicated across `emails.ts` and `inbound-webhook.ts`.
+
+- **6. Updated God Files Inventory**:
+  - `src/app/quantgit/page.tsx`: 290,846 B (monolithic UI)
+  - `src/app/calendar/page.tsx`: 186,003 B (monolithic UI & calendar data layer)
+  - `src/app/page.tsx`: 149,975 B (inbox & mail UI)
+  - `src/app/globals.css`: 249,669 B (+ `overrides.css` 32,974 B + `shell.css` 12,287 B)
+  - `packages/database/prisma/schema.prisma`: 128,526 B
+  - `src/app/settings/page.tsx`: 48,279 B
+  - `src/components/AppShell.tsx`: 42,971 B
+  - `src/services/api-client.ts`: 29,968 B
+
+- **7. The 166-Task 9-Phase Master Execution Plan**:
+  - **Phase R (Routing Table Unification - 12 tasks, R01–R12)**:
+    - `R01`: Inventory every Fastify route vs allow-list pattern.
+    - `R02`: Write CI test asserting every Fastify route has reachable proxy path.
+    - `R03`: Write CI test asserting every allow-list method has exported handler.
+    - `R04`: Generate allow-list from Fastify route table as build artifact.
+    - `R05`: Open mail-filters CRUD + `/:id/test`.
+    - `R06`: Open `search/emails` and `search/parse`.
+    - `R07`: Open calendar write methods and `/calendars/:id/primary`.
+    - `R08`: Open `events/:id/rsvp` and `PATCH /events/:id`.
+    - `R09`: Open `events/alarms/due` and `events/alerts/scheduled`.
+    - `R10`: Open `booking/links`, `/slots`, `/book`.
+    - `R11`: Open folders, attachments, settings-tokens.
+    - `R12`: Delete duplicate `api/calendar/events/` route file.
+  - **Phase M (Mail Parity vs Gmail - 30 tasks, M01–M30)**:
+    - `M01-M03`: Eliminate duplicate SES send in `/:id/send` & `/:id/reply`; single send via queue.
+    - `M04-M05`: Fix `PUT /emails/:id` partial patch preserving unmentioned fields.
+    - `M06-M08`: Validate priority enum; collapse `/emails` & `/emails/compose`; clean response envelope.
+    - `M09-M14`: Merge 6 mail hooks into single `useMail`; move folder init to signup; typed Fastify Prisma; remove fallback sender.
+    - `M15-M20`: Inbound filter pipeline; retroactive filters; verified forwardTo; filter UI; search chips UI; cursor pagination.
+    - `M21-M23`: Delete client undo-send; durable queue undo-send; scheduled send.
+    - `M24-M30`: Server attachment size check; SVG sandboxing; media types; virus scanning; mute-thread/Unsubscribe; ARC eval; strict SNS ARN.
+  - **Phase C (Calendar Parity vs Google Calendar - 28 tasks, C01–C28)**:
+    - `C01-C04`: Persist `calendarId`; filter `GET /events` by `calendarId`; backfill primary calendar; migration test.
+    - `C05-C09`: `EventException` schema; single-occurrence edit/delete; "this and following"; eliminate `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE`.
+    - `C10-C13`: Stored timezone; `/events/today` in user timezone; UI timezone picker; reject invalid RRULE with 400.
+    - `C14-C16`: Normalize attendees and reminders tables; return RSVP status in DTO.
+    - `C17-C22`: ICS generator; `METHOD:REQUEST` invites; `METHOD:REPLY` inbound handling; cancellation notices; durable reminder queue; typed logging.
+    - `C23-C28`: Free/busy lookup; conflict warnings; working hours; deduplicate booking routes; error on >365d window; cursor pagination.
+  - **Phase D (Drive Parity vs Google Drive - 24 tasks, D01–D24)**:
+    - `D01-D05`: Share accept/decline endpoint; notification with link; "Shared with me" UI; link sharing with expiry; full share lifecycle tests.
+    - `D06-D09`: UI delete wired to backend trash; Trash UI (list/restore/purge); fix copy; background trash retention sweeper.
+    - `D10-D14`: Consolidate move endpoints; folder rename descendant recalculation; repair job; depth/cycle caps; fix N+1 in trash.
+    - `D15-D24`: Storage check on list; real previews; thumbnails; server pagination & virtualization; server-side pills; upload limit sync; remove ghost apps from memory.
+  - **Phase G (Git Parity vs GitHub - 16 tasks, G01–G16)**:
+    - `G01-G05`: Close QuantGit criticals; real merge (`git merge-tree`); real diffs (`GitInspectService`); real CI runner; fix branch protection field.
+    - `G06-G10`: Collapse 3 repo APIs into 1; collapse 3 repo UIs into `/quantgit`; canonical URL scheme; collaborator RBAC; teams & org permissions.
+    - `G11-G16`: Review approval gates; required status checks; forks & cross-repo PRs; releases & tags UI; code search; webhooks.
+  - **Phase K (Kill Duplicates & Mocks - 18 tasks, K01–K18)**:
+    - `K01-K05`: Delete client undo-send, templates, snooze, signature builder; server smart inbox.
+    - `K06-K09`: Merge 6 mail hooks, 4 contact hooks, 2 repo hooks; 2-key event DTO.
+    - `K10-K14`: Standardize `src/components/`; boundary rules; consolidate 18 AI components + 24 services; delete 2nd code reviewer; unify 3 memory surfaces.
+    - `K15-K18`: Audit ~100 packages; merge 6 package clusters; unify mobile codebase; remove callerless clients.
+  - **Phase X (Platform to Compete - 24 tasks, X01–X24)**:
+    - `X01-X04`: IMAP import; MBOX/Takeout import; contacts import (vCard/CSV); calendar import (ICS).
+    - `X05-X10`: Admin console; immutable audit log; retention & legal hold; DMARC ingestion; deliverability dashboard; bounce feedback loop.
+    - `X11-X17`: Split god files: `calendar/page.tsx` (186 KB), `quantgit/page.tsx` (290 KB), `page.tsx` (150 KB), `settings/page.tsx` (48 KB), `AppShell.tsx` (43 KB), `api-client.ts` (30 KB), `schema.prisma` (128 KB).
+    - `X18-X24`: Design system tokens; light mode; CSS cut (<50 KB); a11y audit; i18n (EN+HI); error monitoring & SLOs.
+  - **Phase Q (Quality Gates - 14 tasks, Q01–Q14)**:
+    - `Q01-Q06`: Main protection; non-author approval; CI green to merge; ban `as any`; ban empty catches; typed Prisma decoration.
+    - `Q07-Q14`: Route reachability CI tests; file size ceiling; duplicate symbol check; unused package check; coverage thresholds; integration tests; load tests; PR pre-flight checklist.
+
+- **8. Definition of 100% QuantMail Completion**:
+  1. Every endpoint in Fastify is reachable from browser; verified by CI test.
+  2. No feature is validated-then-discarded (`calendarId` saves, RSVP readable, recurrence persists).
+  3. One external recipient receives exactly one copy of one message.
+  4. Sharing completes: invite, accept, open, revoke.
+  5. Deleting is recoverable with accurate UI copy.
+  6. External Google Calendar / Outlook invites & replies work bidirectionally.
+  7. New user can import existing mail, contacts, and calendar.
+  8. One backend, one routing table, one repo API, one repo UI, one mobile codebase, one design system.
+  9. No file over 1,000 lines; no `overrides.css`; no `as any` in new code; zero empty catch blocks.
+  10. Every remaining package has at least one active consumer.
+  11. `main` is protected; every change is reviewed by non-author; CI must be green.
+  12. Administrator can view audit logs, set retention, and manage legal holds.
+  - **Execution Sequence**: `Phase R` -> `M01–M08` & `C01–C04` -> `Phase K` -> `Phase D` -> `Phase C (rest)` -> `Phase X` -> `Phase G` -> `Phase Q`.
+
+### 26. CEO Astra Competitive Gap Audit: Big Tech Incumbent Benchmark & 166-Task Parity Plan (Notion Page `2acaea6d`):
+
+- **1. Incumbent Benchmark Scoring Matrix (Gmail, Google Calendar, Google Drive, GitHub)**:
+  - **Inbound Mail Pipeline vs Gmail Receiving: ~75%** (Genuinely good; SNS signature verification, TopicArn/S3 allow-lists, SPF/DKIM/DMARC quarantine, Bcc recovery, idempotent on `(userId, messageId)`).
+  - **Mail App vs Gmail & Superhuman: ~45%** (Threading/stitch real, drafts body wipe defect on PUT, double send on external mail, filters built but locked behind proxy allow-list, search parser with chips built but locked behind proxy).
+  - **Calendar vs Google Calendar: ~20% (The Weakest Surface)**:
+    - `calendarId` validated in Zod schema and then **completely dropped from database creation and queries**! Multi-calendar is currently cosmetic.
+    - `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE`: cannot edit single occurrence of recurring event series.
+    - Zero timezone fidelity (`/events/today` uses server local midnight).
+    - Booking endpoints duplicated twice (`/booking/links/:slug` and `/calendar/booking/:slug`).
+    - God file: `calendar/page.tsx` is 186,003 bytes acting as its own data layer.
+  - **Drive vs Google Drive: ~35%** (Real chunked upload and encryption at rest; versions complete; backend trash/restore complete but UI confirms "no undo and no trash" and permanent-deletes; share accept endpoint missing; preview lightbox only displays icon/name; move path recalculation broken).
+  - **Git vs GitHub: ~35–40%** (Real bare Git in `modules/code/`, but PR merge simulated in DB, diffs synthetic, CI noop, branch protection checked against wrong field, 111-task roadmap).
+- **2. The High-Leverage Breakthrough: Phase R — "Open the Doors" (Proxy Allow-List Unification)**:
+  - The Fastify backend has already implemented many features thought to be missing!
+  - `mail-filters` CRUD + `/:id/test`, operator search parser (`/search/parse` with chips), calendar create/rename/delete, RSVP endpoints, and booking links are fully built in Fastify.
+  - They failed with 404/405 in the browser purely because `src/app/api/_lib/proxy.ts` lacked allow-list entries or method exports.
+  - Opening the doors via Phase R (12 tasks) instantly delivers major product capabilities without writing new backend code!
+- **3. Security & Defect Hardening Invariants**:
+  - `S1`: Reject client-declared attachment sizes on `POST /attachments/upload-url`; enforce server-measured limits to prevent quota bypass.
+  - `S2`: Sanitize `image/svg+xml` attachments with forced `Content-Disposition: attachment` and CSP to prevent stored XSS.
+  - `S3`: Authorize `forwardTo` destination addresses in mail filter actions to prevent automated data exfiltration.
+  - `S4`: Eliminate 404-vs-403 existence oracle in `POST /events/:id/rsvp` with pre-query tenant verification.
+- **4. 166-Task, 9-Phase Master Execution Order**:
+  - **Phase R (12 tasks)**: Routing table unification (allow-list generation and opening).
+  - **Phase K (15 tasks)**: Subtraction and duplicate elimination before building further.
+  - **Phase M (30 tasks)**: Mail to Gmail parity (double send fix, draft body fix, operator search chips).
+  - **Phase C (35 tasks)**: Calendar parity (`calendarId` DB binding, timezone, single occurrence exceptions).
+  - **Phase D (25 tasks)**: Drive parity (share accept endpoint, safe trash/restore wiring, 5 AI services).
+  - **Phase S (10 tasks)**: Security, quota, and tenancy hardening.
+  - **Phase P (20 tasks)**: Enterprise platform gaps (admin console, IMAP import, mobile shell, dark/light mode).
+  - **Phase V (19 tasks)**: Zero-mock automated Vitest regression suites and CI gate checks.

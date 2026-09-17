@@ -834,9 +834,9 @@
 - [ ] **Task SEC-03**: Scope `/modules/code/` CI routes (`/actions`, `/actions/trigger`, `/actions/runs/:runId/jobs`) to verify repository access permissions before returning logs.
 - [ ] **Task SEC-04**: Sanitize CI logs on write and read to prevent token leakage (`qcp_`, secrets, session hashes).
 - [ ] **Task SEC-05**: Implement Collaborator Model (`RepositoryCollaborator` Prisma model) allowing multi-user repository access with granular roles (`ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`).
-- [ ] **Task SEC-06**: Fix V17 — gate `POST /:id/actions/trigger` behind dev seeding or throw 503 `CI_EXECUTOR_UNAVAILABLE`.
-- [ ] **Task SEC-07**: Fix V18 — Unify AI dispatcher `commit_file` with HTTP route logic (`isProtected` check, 403 `BRANCH_PROTECTED`).
-- [ ] **Task SEC-08**: Fix V19 — Strict 40-char hex regex on `createBranchSchema.sha`, case-insensitive CAS comparison (`.toLowerCase()`), dynamic `toDto` cleanup.
+- [x] **Task SEC-06**: Fix V17 — gate `POST /:id/actions/trigger` behind dev seeding or throw 503 `CI_EXECUTOR_UNAVAILABLE`. _(Completed in commit aa406418, 31/31 passing tests)_.
+- [x] **Task SEC-07**: Fix V18 — Unify AI dispatcher `commit_file` with HTTP route logic (`isProtected` check, 403 `BRANCH_PROTECTED`). _(Completed in commit aa406418, 28/28 passing tests)_.
+- [x] **Task SEC-08**: Fix V19 — Strict 40-char hex regex on `createBranchSchema.sha`, case-insensitive CAS comparison (`.toLowerCase()`), dynamic `toDto` cleanup. _(Completed in commit aa406418)_.
 - [ ] **Task SEC-09**: Harden PAT scopes (`repo`, `repo:status`, `public_repo`, `read:org`).
 - [ ] **Task SEC-10**: Restrict webhook loopback hooks to validated HMAC signatures with timing safe checks.
 - [ ] **Task SEC-11**: Implement rate limiting per repository on Git Smart HTTP operations.
@@ -899,3 +899,70 @@
   - `ActionsTab.tsx`
   - `BranchSwitcherModal.tsx`
   - `BlobEditor.tsx` (already modular, verify integration)
+
+---
+
+## 🚀 SPRINT 9: THE 166-TASK COMPETITIVE GAP & INCUMBENT PARITY SPRINT (GMAIL, GCAL, GDRIVE, GITHUB)
+
+> **Source of Truth**: Notion Master Spec `2acaea6d73f741d1b3af04b4d9cca222` authored by CEO Astra (Opus 5).
+> **Executive Thesis**: The Fastify backend is significantly richer than the exposed browser surface. High-leverage Phase R opens proxy allow-lists, unlocks built features immediately, and prevents duplicate implementation.
+
+### 🚪 Phase R: Routing Table & Proxy Allow-List Unification (Tasks R01–R12) — Top Leverage Gate
+
+- **Assigned to**: Developer 5 (Frontend Architecture) + Developer 1 (Security) + Antigravity Orchestrator
+- [ ] **Task R01**: Inventory every Fastify route against every Next.js allow-list pattern in `src/app/api/_lib/proxy.ts`.
+- [ ] **Task R02**: Write automated test failing CI if a Fastify route lacks a reachable proxy path.
+- [ ] **Task R03**: Write automated test failing CI if an allow-list pattern lists an HTTP method without a corresponding export.
+- [ ] **Task R04**: Generate allow-list definitions from Fastify route declarations dynamically, eliminating hand-maintained drift.
+- [ ] **Task R05**: Open mail-filters CRUD (`/filters`) and test route (`/:id/test`) in proxy allow-list.
+- [ ] **Task R06**: Open operator search endpoints (`/search/emails` and `/search/parse` chips) in proxy allow-list.
+- [ ] **Task R07**: Open calendar write methods (`POST /calendars`, `PATCH /calendars/:id`, `DELETE /calendars/:id`, `/calendars/:id/primary`).
+- [ ] **Task R08**: Open event RSVP (`POST /events/:id/rsvp`) and partial edit (`PATCH /events/:id`).
+- [ ] **Task R09**: Open reminders endpoints (`/events/alarms/due` and `/events/alerts/scheduled`).
+- [ ] **Task R10**: Open Calendly-style booking flow (`/booking/links`, `/:slug/slots`, `/:slug/book`).
+- [ ] **Task R11**: Open folders (`/folders`), attachment upload URLs (`/attachments`), and API settings tokens (`/settings-tokens`).
+- [ ] **Task R12**: Delete duplicate `api/calendar/events/` path, maintaining one canonical URL per resource.
+
+### ✉️ Phase M: Mail to Gmail & Superhuman Parity (Tasks M01–M30)
+
+- **Assigned to**: Developer 1 (Email Core) + Developer 7 (AI / Queue)
+- [ ] **Task M01**: Eliminate double external send in `POST /:id/send` and `POST /:id/reply` (remove inline SES invocation; queue worker exclusive).
+- [ ] **Task M02**: Fix draft body wipe in `PUT /emails/:id` (preserve `bodyHtml` and `bodyPlain` when omitted).
+- [ ] **Task M03**: Wire built operator search parser (`/search/parse`) to UI search bar with visual chips (`from:`, `to:`, `has:attachment`, `is:starred`).
+- [ ] **Task M04**: Wire built filter engine to incoming mail pipeline and provide UI management table.
+- [ ] **Task M05**: Remove mock in-memory `src/services/undo-send.service.ts` and unify with backend queue delay.
+- [ ] **Task M06**: Support scheduled send (`sendAt` timestamp with BullMQ delayed job).
+- [ ] **Task M07**: Implement IMAP / MBOX mailbox import engine allowing migration from Gmail/Outlook.
+- [ ] **Task M08**: Implement List-Unsubscribe header parsing with one-click unsubscribe action.
+- [ ] **Task M09**: Wire offline service worker cache (`src/lib/offline/`) to read cached inboxes offline.
+
+### 📅 Phase C: Calendar to Google Calendar & Calendly Parity (Tasks C01–C35)
+
+- **Assigned to**: Developer 3 (Calendar & Scheduling Lead)
+- [ ] **Task C01**: Fix `calendarId` persistence: persist `calendarId` in `prisma.calendarEvent.create` and filter by `calendarId` in `GET /events`.
+- [ ] **Task C02**: Recurrence series single occurrence exception model: allow editing "only this instance" without 400 error.
+- [ ] **Task C03**: Timezone support: add `timezone` field to events, user profile, and respect caller timezone in `/events/today`.
+- [ ] **Task C04**: External guest invites: generate ICS files with `METHOD:REQUEST` and send email invites with accept/decline links.
+- [ ] **Task C05**: Preserve attendee RSVP status in `toEventDto` so organisers see who accepted, declined, or tentatively accepted.
+- [ ] **Task C06**: Deduplicate booking endpoints: collapse `/booking/links/:slug` and `/calendar/booking/:slug` into one canonical handler.
+- [ ] **Task C07**: Split monolithic 186 KB `apps/quantmail/src/app/calendar/page.tsx` into modular month/week/day/agenda components.
+
+### 💾 Phase D: Drive to Google Drive & Dropbox Parity (Tasks D01–D25)
+
+- **Assigned to**: Developer 4 (Storage & Drive Lead)
+- [ ] **Task D01**: Implement Drive Share Accept endpoint (`POST /drive/shares/:id/accept`) to unlock pending shares.
+- [ ] **Task D02**: Wire frontend UI delete button to backend Trash & Restore (`/drive/trash`), removing accidental permanent deletion.
+- [ ] **Task D03**: Unify move endpoints into single canonical path recalculator with cycle detection depth cap.
+- [ ] **Task D04**: Recursive descendant path recalculation on folder rename.
+- [ ] **Task D05**: Rich file preview lightbox: wire real PDF viewer, image lightbox, text viewer, and markdown renderer.
+- [ ] **Task D06**: Wire 5 QuantDrive AI services (`ai-duplicate`, `ai-extract-data`, `ai-organize`, `ai-search-content`, `ai-summarize-file`).
+
+### 🔒 Phase S: Security, Quota & Tenancy Hardening (Tasks S01–S10)
+
+- **Assigned to**: Developer 1 (Security & Auth Lead)
+- [ ] **Task S01**: Server-side file size validation on `POST /attachments/upload-url` to prevent quota bypass.
+- [ ] **Task S02**: Sanitize `image/svg+xml` attachments with forced `Content-Disposition: attachment` and strict CSP.
+- [ ] **Task S03**: Authorize `forwardTo` email address in mail filters to prevent auto-exfiltration.
+- [ ] **Task S04**: Scope `POST /events/:id/rsvp` with tenant check before query to eliminate existence oracle.
+- [ ] **Task S05**: Enforce strict `INBOUND_SNS_TOPIC_ARNS` verification fail-closed.
+- [ ] **Task S06**: Extract hardcoded domains into single centralized environment configuration.
