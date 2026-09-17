@@ -1,6 +1,6 @@
-package com.example.quant.ui.main
+package com.quant.app.ui.main
 
-import com.example.quant.data.DataRepository
+import com.quant.app.data.DataRepository
 import junit.framework.TestCase.assertEquals
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first

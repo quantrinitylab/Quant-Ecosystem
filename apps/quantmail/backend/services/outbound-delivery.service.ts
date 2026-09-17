@@ -207,4 +207,23 @@ export class OutboundDeliveryPipeline {
   async getEmail(emailId: string): Promise<Email | null> {
     return this.prisma.email.findUnique({ where: { id: emailId } });
   }
+
+  /** Cancel a previously-enqueued send job if still pending in queue. */
+  async cancelSend(userId: string, emailId: string): Promise<boolean> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized to cancel this email', 403, 'FORBIDDEN');
+    }
+
+    const jobId = `${OUTBOUND_DELIVERY_QUEUE}-${emailId}`;
+    try {
+      await this.queue.remove(jobId);
+    } catch {
+      // Job may not exist or already completed
+    }
+    return true;
+  }
 }

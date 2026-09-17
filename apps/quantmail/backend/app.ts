@@ -38,6 +38,10 @@ import driveRoutes from './routes/drive';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
+import websocketPlugin from '@fastify/websocket';
+import { setupWSConnection } from './services/yjs-server';
+import documentRoutes from './routes/documents';
+import * as jose from 'jose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
 export function getConfig(): AppConfig {
@@ -96,13 +100,16 @@ export function getConfig(): AppConfig {
       // Leaf Smart HTTP transport. It performs PAT verification itself; never
       // mount repository administration, PR, review, or issue routes below it.
       '/api/code/gitd',
+      // Realtime collaboration WebSocket gateway handshake: authenticates via ?token= or quant_access_token cookie
+      '/collab',
     ],
     env,
   };
 }
 
 export async function buildApp(config?: AppConfig) {
-  const app = await createApp(config ?? getConfig());
+  const appConfig = config ?? getConfig();
+  const app = await createApp(appConfig);
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser(
     'application/json',
@@ -115,6 +122,86 @@ export async function buildApp(config?: AppConfig) {
         done(error as Error, undefined);
       }
     },
+  );
+
+  await app.register(websocketPlugin);
+
+  // Fastify WebSocket Collaboration Gateway (Tasks N03, C-01)
+  app.get(
+    '/collab/:docId',
+    {
+      websocket: true,
+      preValidation: async (req, reply) => {
+        let token: string | null = null;
+        const query = req.query as Record<string, string | undefined> | undefined;
+        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
+          token = query['token'].trim();
+        } else if (req.url && req.url.includes('?')) {
+          const queryStart = req.url.indexOf('?');
+          const params = new URLSearchParams(req.url.slice(queryStart));
+          const qToken = params.get('token');
+          if (qToken?.trim()) token = qToken.trim();
+        }
+
+        if (!token) {
+          const cookies = req.cookies as Record<string, string | undefined> | undefined;
+          if (
+            typeof cookies?.['quant_access_token'] === 'string' &&
+            cookies['quant_access_token'].trim()
+          ) {
+            token = cookies['quant_access_token'].trim();
+          } else if (req.headers.cookie) {
+            const match = req.headers.cookie.match(/(?:^|;\s*)quant_access_token=([^;]+)/);
+            if (match?.[1]) {
+              token = decodeURIComponent(match[1].trim());
+            }
+          }
+        }
+
+        if (
+          !token &&
+          typeof req.headers.authorization === 'string' &&
+          req.headers.authorization.startsWith('Bearer ')
+        ) {
+          token = req.headers.authorization.slice(7).trim();
+        }
+
+        if (!token) {
+          return reply.code(401).send({
+            success: false,
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Session token required during collaboration handshake',
+              statusCode: 401,
+            },
+          });
+        }
+
+        try {
+          const secret = new TextEncoder().encode(appConfig.jwtSecret);
+          const { payload } = await jose.jwtVerify(token, secret, {
+            issuer: [
+              appConfig.jwtIssuer,
+              'quantmail',
+              'https://quantrinity.in',
+              'https://quant.app',
+            ],
+            audience: [appConfig.jwtAudience, 'quant-ecosystem'],
+          });
+          (req as any).user = payload;
+        } catch {
+          return reply.code(401).send({
+            success: false,
+            error: {
+              code: 'UNAUTHORIZED',
+              message: 'Invalid or expired session token',
+              statusCode: 401,
+            },
+          });
+        }
+      },
+    },
+    (connection, req) => setupWSConnection(connection as any, req),
   );
 
   app.decorate('repositoryInspection', new GitInspectAdapter());
@@ -161,5 +248,6 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
   await app.register(inboundWebhookRoutes);
+  await app.register(documentRoutes, { prefix: '/documents' });
   return app;
 }

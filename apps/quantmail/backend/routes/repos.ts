@@ -1,9 +1,112 @@
 // ============================================================================
 // QuantMail — Repositories route (GitHub-inside-your-inbox).
 // ============================================================================
+import { execFile } from 'node:child_process';
+import { access } from 'node:fs/promises';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
+
+const execFileAsync = promisify(execFile);
+
+const GIT_CHILD_ENV: NodeJS.ProcessEnv = {
+  ...process.env,
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ASKPASS: '',
+  SSH_ASKPASS: '',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_AUTHOR_NAME: 'QuantGit',
+  GIT_AUTHOR_EMAIL: 'quantgit@quant.local',
+  GIT_COMMITTER_NAME: 'QuantGit',
+  GIT_COMMITTER_EMAIL: 'quantgit@quant.local',
+};
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function branchMatches(branch: string, pattern: string): boolean {
+  if (pattern === '*' || pattern === branch) return true;
+  if (pattern.endsWith('*')) return branch.startsWith(pattern.slice(0, -1));
+  return false;
+}
+
+async function getBranchProtectionRule(
+  prisma: any,
+  repoId: string,
+  branchName: string,
+): Promise<{ id: string; requiredApprovals: number; requireStatusChecks: boolean } | null> {
+  if (!prisma?.branchProtection) return null;
+
+  try {
+    const rules = await prisma.branchProtection.findMany({
+      where: { repoId },
+    });
+    if (Array.isArray(rules) && rules.length > 0) {
+      const match = rules.find((r: any) => branchMatches(branchName, r.branchPattern));
+      if (match) return match;
+    }
+  } catch {
+    // fallback
+  }
+
+  try {
+    const rule = await prisma.branchProtection.findFirst({
+      where: { repositoryId: repoId, branchPattern: branchName },
+    });
+    if (rule) return rule;
+  } catch {
+    // fallback
+  }
+
+  try {
+    const rule = await prisma.branchProtection.findFirst({
+      where: { repoId, branchPattern: branchName },
+    });
+    if (rule) return rule;
+  } catch {
+    // fallback
+  }
+
+  return null;
+}
+
+async function resolveRepoPath(repo: {
+  ownerId: string;
+  name: string;
+  storagePathUrl: string | null;
+}): Promise<string | null> {
+  if (repo.storagePathUrl && (await pathExists(repo.storagePathUrl))) {
+    return repo.storagePathUrl;
+  }
+  const basePath = process.env['GIT_REPOS_PATH'] ?? join(process.cwd(), 'data', 'git-repos');
+  const repoName = repo.name.endsWith('.git') ? repo.name : `${repo.name}.git`;
+  const defaultPath = join(basePath, repo.ownerId, repoName);
+  if (await pathExists(defaultPath)) {
+    return defaultPath;
+  }
+  return null;
+}
+
+async function resolveGitRefSha(repoPath: string, branch: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['rev-parse', '--verify', `refs/heads/${branch}^{commit}`],
+      { cwd: repoPath, env: GIT_CHILD_ENV },
+    );
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 const repoNameSchema = z
   .string()
@@ -426,7 +529,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return repo;
   }
 
-  async function loadWritableRepo(request: unknown, idOrName: string): Promise<RepoRow> {
+  async function loadWritableRepo(
+    request: unknown,
+    idOrName: string,
+    branchName?: string,
+  ): Promise<RepoRow> {
     const userId = requireUserId(request);
     const repo = await loadReadableRepo(request, idOrName);
     if (repo.ownerId !== userId) {
@@ -435,6 +542,13 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         403,
         'FORBIDDEN',
       );
+    }
+    if (branchName) {
+      const prisma = getPrisma(fastify);
+      const protectionRule = await getBranchProtectionRule(prisma, repo.id, branchName);
+      if (protectionRule) {
+        throw createAppError('Cannot commit to protected branch', 403, 'BRANCH_PROTECTED');
+      }
     }
     return repo;
   }
@@ -495,7 +609,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         throw createAppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
       }
 
-      if (branchRecord?.isProtected) {
+      const protectionRule = await getBranchProtectionRule(prisma, repo.id, targetBranch);
+      if (branchRecord?.isProtected || protectionRule) {
         throw createAppError('Cannot commit to protected branch', 403, 'BRANCH_PROTECTED');
       }
 
@@ -901,6 +1016,154 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     });
   });
 
+  fastify.get<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+        include: { author: { select: { username: true, displayName: true } } },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      let additions = 0;
+      let deletions = 0;
+      let changedFiles = 0;
+      let diffText = '';
+
+      const repoPath = await resolveRepoPath(repo);
+      if (repoPath && (await pathExists(repoPath))) {
+        const baseSha =
+          (await resolveGitRefSha(repoPath, pr.targetBranch)) ||
+          (
+            await prisma.branch?.findUnique({
+              where: { repoId_name: { repoId: repo.id, name: pr.targetBranch } },
+            })
+          )?.commitSha;
+
+        const headSha =
+          (await resolveGitRefSha(repoPath, pr.sourceBranch)) ||
+          (
+            await prisma.branch?.findUnique({
+              where: { repoId_name: { repoId: repo.id, name: pr.sourceBranch } },
+            })
+          )?.commitSha;
+
+        if (baseSha && headSha) {
+          try {
+            const range = `${baseSha}..${headSha}`;
+            const [{ stdout: patch }, { stdout: numstat }] = await Promise.all([
+              execFileAsync('git', ['diff', '-p', '--end-of-options', range, '--'], {
+                cwd: repoPath,
+                env: GIT_CHILD_ENV,
+              }),
+              execFileAsync('git', ['diff', '--numstat', '--end-of-options', range, '--'], {
+                cwd: repoPath,
+                env: GIT_CHILD_ENV,
+              }),
+            ]);
+
+            diffText = patch;
+            for (const line of numstat.split('\n')) {
+              if (!line.trim()) continue;
+              const parts = line.split('\t');
+              if (parts.length >= 3) {
+                const add = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10) || 0;
+                const del = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10) || 0;
+                additions += add;
+                deletions += del;
+                changedFiles += 1;
+              }
+            }
+          } catch {
+            // fallback
+          }
+        }
+      }
+
+      return reply.send({
+        success: true,
+        data: {
+          id: pr.number,
+          number: pr.number,
+          title: pr.title,
+          body: pr.body ?? '',
+          state: pr.status.toLowerCase(),
+          status: pr.status.toLowerCase(),
+          author: pr.author?.username ?? 'user',
+          branchSource: pr.sourceBranch,
+          branchTarget: pr.targetBranch,
+          checksStatus: 'none',
+          commentsCount: 0,
+          createdAt: pr.createdAt.toISOString(),
+          mergedAt: pr.mergedAt?.toISOString() ?? null,
+          mergeCommitSha: (pr as any).mergeCommitSha ?? null,
+          diff: diffText,
+          additions,
+          deletions,
+          changedFiles,
+        },
+      });
+    },
+  );
+
+  fastify.get<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/diff',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      let diffText = '';
+      const repoPath = await resolveRepoPath(repo);
+      if (repoPath && (await pathExists(repoPath))) {
+        const baseSha =
+          (await resolveGitRefSha(repoPath, pr.targetBranch)) ||
+          (
+            await prisma.branch?.findUnique({
+              where: { repoId_name: { repoId: repo.id, name: pr.targetBranch } },
+            })
+          )?.commitSha;
+
+        const headSha =
+          (await resolveGitRefSha(repoPath, pr.sourceBranch)) ||
+          (
+            await prisma.branch?.findUnique({
+              where: { repoId_name: { repoId: repo.id, name: pr.sourceBranch } },
+            })
+          )?.commitSha;
+
+        if (baseSha && headSha) {
+          try {
+            const { stdout } = await execFileAsync(
+              'git',
+              ['diff', '-p', '--end-of-options', `${baseSha}..${headSha}`, '--'],
+              { cwd: repoPath, env: GIT_CHILD_ENV },
+            );
+            diffText = stdout;
+          } catch {
+            // fallback
+          }
+        }
+      }
+
+      return reply.send({
+        success: true,
+        data: diffText,
+      });
+    },
+  );
+
   fastify.post<{ Params: { id: string; number: string } }>(
     '/:id/pulls/:number/merge',
     async (request, reply) => {
@@ -914,12 +1177,131 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         include: { author: { select: { username: true, displayName: true } } },
       });
       if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+      if (pr.status === 'MERGED') {
+        throw createAppError('Pull request is already merged', 409, 'PR_ALREADY_MERGED');
+      }
 
+      // Check BranchProtection rules on target branch (Task G05)
+      const protectionRule = await getBranchProtectionRule(prisma, repo.id, pr.targetBranch);
+      if (protectionRule) {
+        if (protectionRule.requiredApprovals > 0) {
+          const approvedCount = prisma.review
+            ? await prisma.review.count({
+                where: {
+                  prId: pr.id,
+                  status: 'APPROVED',
+                },
+              })
+            : 0;
+          if (approvedCount < protectionRule.requiredApprovals) {
+            throw createAppError(
+              `Requires ${protectionRule.requiredApprovals} approval(s), but only has ${approvedCount}`,
+              403,
+              'BRANCH_PROTECTED',
+            );
+          }
+        }
+
+        if (protectionRule.requireStatusChecks) {
+          const latestCi = prisma.ciRun
+            ? await prisma.ciRun.findFirst({
+                where: {
+                  repoId: repo.id,
+                  branch: pr.sourceBranch,
+                },
+                orderBy: { createdAt: 'desc' },
+              })
+            : null;
+          if (!latestCi || latestCi.status !== 'SUCCESS') {
+            throw createAppError('Required status checks have not passed', 403, 'BRANCH_PROTECTED');
+          }
+        }
+      }
+
+      // Resolve commit SHAs
+      const targetBranchRow = await prisma.branch?.findUnique({
+        where: { repoId_name: { repoId: repo.id, name: pr.targetBranch } },
+      });
+      const sourceBranchRow = await prisma.branch?.findUnique({
+        where: { repoId_name: { repoId: repo.id, name: pr.sourceBranch } },
+      });
+
+      const repoPath = await resolveRepoPath(repo);
+      const isBareRepoPresent = repoPath ? await pathExists(repoPath) : false;
+
+      let baseSha = targetBranchRow?.commitSha ?? null;
+      let headSha = sourceBranchRow?.commitSha ?? null;
+
+      if (isBareRepoPresent && repoPath) {
+        const gitBaseSha = await resolveGitRefSha(repoPath, pr.targetBranch);
+        if (gitBaseSha) baseSha = gitBaseSha;
+        const gitHeadSha = await resolveGitRefSha(repoPath, pr.sourceBranch);
+        if (gitHeadSha) headSha = gitHeadSha;
+      }
+
+      let newCommitSha = '2222222222222222222222222222222222222222';
+
+      if (isBareRepoPresent && repoPath && baseSha && headSha) {
+        // 1. git merge-tree <baseSha> <headSha>
+        let mergeTreeStdout = '';
+        try {
+          const res = await execFileAsync('git', ['merge-tree', baseSha, headSha], {
+            cwd: repoPath,
+            env: GIT_CHILD_ENV,
+          });
+          mergeTreeStdout = res.stdout;
+        } catch (mergeErr: any) {
+          throw createAppError('Merge conflict detected', 409, 'MERGE_CONFLICT');
+        }
+
+        if (mergeTreeStdout.includes('CONFLICT') || mergeTreeStdout.includes('<<<<<<<')) {
+          throw createAppError('Merge conflict detected', 409, 'MERGE_CONFLICT');
+        }
+
+        const treeSha = mergeTreeStdout.trim().split('\n')[0].trim();
+        if (!/^[0-9a-f]{40}$/i.test(treeSha)) {
+          throw createAppError('Merge conflict detected', 409, 'MERGE_CONFLICT');
+        }
+
+        // 2. git commit-tree <treeSha> -p <baseSha> -p <headSha> -m "..."
+        const commitMsg = `Merge pull request #${pr.number} from ${pr.sourceBranch} into ${pr.targetBranch}`;
+        const { stdout: commitStdout } = await execFileAsync(
+          'git',
+          ['commit-tree', treeSha, '-p', baseSha, '-p', headSha, '-m', commitMsg],
+          { cwd: repoPath, env: GIT_CHILD_ENV },
+        );
+        newCommitSha = commitStdout.trim();
+
+        // 3. git update-ref refs/heads/${pr.targetBranch} <newCommitSha> <baseSha>
+        await execFileAsync(
+          'git',
+          ['update-ref', `refs/heads/${pr.targetBranch}`, newCommitSha, baseSha],
+          { cwd: repoPath, env: GIT_CHILD_ENV },
+        );
+      }
+
+      // Update branch in Prisma
+      if (targetBranchRow && prisma.branch?.update) {
+        await prisma.branch.update({
+          where: { id: targetBranchRow.id },
+          data: { commitSha: newCommitSha },
+        });
+      } else if (prisma.branch?.upsert) {
+        await prisma.branch.upsert({
+          where: { repoId_name: { repoId: repo.id, name: pr.targetBranch } },
+          update: { commitSha: newCommitSha },
+          create: { repoId: repo.id, name: pr.targetBranch, commitSha: newCommitSha },
+        });
+      }
+
+      // Update PR in Prisma
+      const mergedAt = new Date();
       const merged = await prisma.pullRequest.update({
         where: { id: pr.id },
         data: {
           status: 'MERGED',
-          mergedAt: new Date(),
+          mergedAt,
+          mergeCommitSha: newCommitSha,
         },
         include: { author: { select: { username: true, displayName: true } } },
       });
@@ -932,14 +1314,15 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           title: merged.title,
           body: merged.body ?? '',
           state: 'merged',
-          status: 'merged',
+          status: 'MERGED',
           author: merged.author?.username ?? 'user',
           branchSource: merged.sourceBranch,
           branchTarget: merged.targetBranch,
           checksStatus: 'none',
           commentsCount: 0,
           createdAt: merged.createdAt.toISOString(),
-          mergedAt: merged.mergedAt?.toISOString(),
+          mergedAt: merged.mergedAt?.toISOString() ?? mergedAt.toISOString(),
+          mergeCommitSha: newCommitSha,
           additions: 0,
           deletions: 0,
           changedFiles: 0,

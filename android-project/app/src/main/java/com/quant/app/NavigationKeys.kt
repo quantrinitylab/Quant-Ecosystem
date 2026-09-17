@@ -1,4 +1,4 @@
-package com.example.quant
+package com.quant.app
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable

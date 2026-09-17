@@ -62,6 +62,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import Link from 'next/link';
 import { Button, FormField, Input, TextArea } from '@quant/shared-ui';
 import {
   AI_AUTO_THRESHOLDS,
@@ -929,6 +930,32 @@ export default function SettingsPage() {
               </SettingsSection>
 
               <PhoneVerificationCard />
+
+              <SettingsSection
+                title="Privacy, Data Safety & Account Deletion"
+                description="Review our Google Play Store transparent privacy disclosures, zero-third-party-advertising guarantee, and manage permanent account deletion."
+                action={
+                  <Link
+                    href="/settings/account"
+                    className="rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-[11px] font-semibold text-red-400 hover:bg-red-500/20 transition-colors"
+                  >
+                    Manage Account &amp; Deletion
+                  </Link>
+                }
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-[var(--quant-muted-foreground)]">
+                  <span>
+                    QuantMail never serves ads or sells personal data. Read our verified Google Play
+                    Data Safety disclosure.
+                  </span>
+                  <Link
+                    href="/privacy"
+                    className="shrink-0 text-[var(--brand-primary)] hover:underline font-medium"
+                  >
+                    View Privacy Policy →
+                  </Link>
+                </div>
+              </SettingsSection>
             </>
           )}
 

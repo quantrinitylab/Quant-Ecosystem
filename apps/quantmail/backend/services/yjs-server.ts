@@ -47,6 +47,7 @@ export interface YjsServerOptions {
 
 export interface WebSocketRequestLike {
   url?: string;
+  params?: unknown;
 }
 
 const rooms = new Map<string, DocRoom>();
@@ -82,11 +83,17 @@ function asUint8Array(data: unknown): Uint8Array {
 
 function resolveDocName(request: WebSocketRequestLike, explicit?: string): string {
   if (explicit?.trim()) return explicit.trim();
+  const fromParams = (request.params as { docId?: string } | undefined)?.docId;
+  if (typeof fromParams === 'string' && fromParams.trim()) return fromParams.trim();
   const rawUrl = request.url ?? '';
   const path = rawUrl.split('?')[0]?.replace(/\/+$/, '') ?? '';
   const docName = decodeURIComponent(path.split('/').pop() ?? '').trim();
   if (!docName || docName.length > 256) {
-    throw createAppError('A valid collaboration document id is required', 400, 'INVALID_DOCUMENT_ID');
+    throw createAppError(
+      'A valid collaboration document id is required',
+      400,
+      'INVALID_DOCUMENT_ID',
+    );
   }
   return docName;
 }
@@ -207,7 +214,9 @@ export async function setupWSConnection(
   for (const state of room.awareness.values()) send(socket, awarenessFrame(state));
 
   const onMessage = (data: unknown) => {
-    void handleMessage(room, socket, data, options).catch(() => socket.close(1003, 'Invalid collaboration frame'));
+    void handleMessage(room, socket, data, options).catch(() =>
+      socket.close(1003, 'Invalid collaboration frame'),
+    );
   };
   const onClose = () => {
     room.connections.delete(socket);
@@ -230,7 +239,11 @@ export async function setupWSConnection(
 
 export async function getYDoc(docName: string, options: YjsServerOptions = {}): Promise<Y.Doc> {
   if (!docName.trim()) {
-    throw createAppError('A valid collaboration document id is required', 400, 'INVALID_DOCUMENT_ID');
+    throw createAppError(
+      'A valid collaboration document id is required',
+      400,
+      'INVALID_DOCUMENT_ID',
+    );
   }
   return (await getRoom(docName, options)).doc;
 }

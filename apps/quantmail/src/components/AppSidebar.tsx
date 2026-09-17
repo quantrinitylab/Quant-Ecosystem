@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useInbox } from '../hooks/useInbox';
 import { useStorageQuota } from '../hooks/useStorageQuota';
@@ -414,11 +415,26 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
       </div>
 
       <AccountBadge />
-      <footer className="sidebar-footer">
-        <span>QuantMail by Quantrinity</span>
-        <span className="ml-auto text-[10px] font-mono text-[var(--quant-muted-foreground)]">
-          v1.0
-        </span>
+      <footer className="sidebar-footer flex flex-col gap-1 text-[11px]">
+        <div className="flex items-center justify-between w-full">
+          <span>QuantMail by Quantrinity</span>
+          <span className="text-[10px] font-mono text-[var(--quant-muted-foreground)]">v1.0</span>
+        </div>
+        <div className="flex items-center gap-2 pt-0.5 text-[10px] text-[var(--quant-muted-foreground)]">
+          <Link
+            href="/privacy"
+            className="hover:text-[var(--quant-foreground)] hover:underline transition-colors"
+          >
+            Privacy &amp; Data Safety
+          </Link>
+          <span>·</span>
+          <Link
+            href="/settings"
+            className="hover:text-[var(--quant-foreground)] hover:underline transition-colors"
+          >
+            Settings
+          </Link>
+        </div>
       </footer>
     </nav>
   );

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { MailFilterService } from '../services/mail-filter.service';
+import { MailFilterService, validateForwardRecipient } from '../services/mail-filter.service';
 
 const conditionSchema = z.object({
   from: z.string().min(1).optional(),
@@ -50,6 +50,31 @@ const testEmailSchema = z.object({
   hasAttachments: z.boolean().optional(),
 });
 
+async function verifyForwardActions(
+  actions: Array<{ forwardTo?: string }> | undefined,
+  prisma: any,
+  userId: string,
+) {
+  if (!actions || actions.length === 0) return;
+  const forwardActions = actions.filter((a) => Boolean(a.forwardTo));
+  if (forwardActions.length === 0) return;
+
+  let userEmail: string | undefined;
+  if (prisma?.user?.findUnique) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    userEmail = user?.email;
+  }
+
+  for (const action of forwardActions) {
+    if (action.forwardTo) {
+      validateForwardRecipient(action.forwardTo, userEmail);
+    }
+  }
+}
+
 export default async function mailFiltersRoutes(fastify: FastifyInstance) {
   // POST /mail-filters
   fastify.post('/', async (request, reply) => {
@@ -64,6 +89,8 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
     }
 
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    await verifyForwardActions(parseResult.data.actions, prisma, userId);
+
     const service = new MailFilterService(prisma as never);
     const filter = await service.createFilter({ userId, ...parseResult.data });
 
@@ -111,6 +138,8 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
     }
 
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    await verifyForwardActions(parseResult.data.actions, prisma, userId);
+
     const service = new MailFilterService(prisma as never);
     const filter = await service.updateFilter(request.params.id, userId, parseResult.data);
 

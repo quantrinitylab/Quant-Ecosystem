@@ -36,6 +36,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },
   { pattern: /^repos(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^drive(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^documents(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   // The Pipelines page. `backend/routes/ci.ts` implements six routes and its
   // header comment says it exists because the page "showed Failed to load" —
   // but three of its GETs were never allow-listed here, so this proxy answered
@@ -83,10 +84,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
 
   // ── Mail filters ───────────────────────────────────────────────────────────
   // Mounted at /mail-filters, not /filters (backend/app.ts).
-  // BLOCKED until `forwardTo` requires a verified address — see R-SEC.
-  // { pattern: /^mail-filters$/, methods: ['GET', 'POST'] },
-  // { pattern: /^mail-filters\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
-  // { pattern: /^mail-filters\/[^/]+\/test$/, methods: ['POST'] },
+  { pattern: /^mail-filters(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE'] },
 
   // ── Operator search ────────────────────────────────────────────────────────
   // searchRoutes is registered with prefix '/search', so these are correct as

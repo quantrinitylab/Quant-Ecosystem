@@ -697,6 +697,320 @@ export class ContactService {
 
     return updated;
   }
+
+  async deduplicateContacts(userId: string): Promise<{ mergedCount: number }> {
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    const contacts = await contactModel.findMany({ where: { userId } });
+
+    if (!contacts || contacts.length <= 1) {
+      return { mergedCount: 0 };
+    }
+
+    const normEmail = (email: string) => email.trim().toLowerCase();
+    const normPhone = (phone: string | null | undefined): string => {
+      if (!phone) return '';
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length >= 10) {
+        return digits.slice(-10);
+      }
+      return digits;
+    };
+
+    const n = contacts.length;
+    const parent = Array.from({ length: n }, (_, i) => i);
+    const find = (i: number): number => {
+      if (parent[i] === i) return i;
+      parent[i] = find(parent[i]!);
+      return parent[i]!;
+    };
+    const union = (i: number, j: number) => {
+      const rootI = find(i);
+      const rootJ = find(j);
+      if (rootI !== rootJ) {
+        parent[rootJ] = rootI;
+      }
+    };
+
+    const emailToIdx = new Map<string, number>();
+    const phoneToIdx = new Map<string, number>();
+
+    for (let i = 0; i < n; i++) {
+      const c = contacts[i]!;
+      const emailKey = normEmail(c.email);
+      if (emailKey) {
+        if (emailToIdx.has(emailKey)) {
+          union(i, emailToIdx.get(emailKey)!);
+        } else {
+          emailToIdx.set(emailKey, i);
+        }
+      }
+
+      const phoneKey = normPhone(c.phone);
+      if (phoneKey && phoneKey.length >= 7) {
+        if (phoneToIdx.has(phoneKey)) {
+          union(i, phoneToIdx.get(phoneKey)!);
+        } else {
+          phoneToIdx.set(phoneKey, i);
+        }
+      }
+    }
+
+    const groups = new Map<number, Contact[]>();
+    for (let i = 0; i < n; i++) {
+      const root = find(i);
+      const list = groups.get(root) ?? [];
+      list.push(contacts[i]!);
+      groups.set(root, list);
+    }
+
+    let mergedCount = 0;
+    for (const [, list] of groups) {
+      if (list.length > 1) {
+        list.sort((a, b) => {
+          if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+          if (a.frequency !== b.frequency) return b.frequency - a.frequency;
+          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return timeA - timeB;
+        });
+
+        const primary = list[0]!;
+        const duplicateIds = list.slice(1).map((c) => c.id);
+        await this.mergeContacts(userId, primary.id, duplicateIds);
+        mergedCount += duplicateIds.length;
+      }
+    }
+
+    return { mergedCount };
+  }
+
+  async importBatch(
+    userId: string,
+    content: string,
+    format?: 'csv' | 'vcard',
+  ): Promise<{ importedCount: number; errors: string[] }> {
+    const isVCard = format === 'vcard' || (format !== 'csv' && /BEGIN:VCARD/i.test(content));
+    const errors: string[] = [];
+    const parsed: Array<{
+      name: string;
+      email: string;
+      phone?: string | null;
+      company?: string | null;
+      tags: string[];
+    }> = [];
+
+    if (isVCard) {
+      const blocks = content.split(/BEGIN:VCARD/i).slice(1);
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i]!;
+        let name = '';
+        let email = '';
+        let phone: string | undefined;
+        let company: string | undefined;
+        const tags: string[] = [];
+
+        const lines = block.split(/\r?\n/);
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          const upper = line.toUpperCase();
+          if (upper.startsWith('FN:')) {
+            name = line.slice(3).trim();
+          } else if (upper.startsWith('EMAIL:') || upper.startsWith('EMAIL;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              email = line
+                .slice(colonIdx + 1)
+                .trim()
+                .toLowerCase();
+            }
+          } else if (upper.startsWith('TEL:') || upper.startsWith('TEL;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              phone = line.slice(colonIdx + 1).trim();
+            }
+          } else if (upper.startsWith('ORG:') || upper.startsWith('ORG;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              company = line.slice(colonIdx + 1).trim();
+            }
+          } else if (upper.startsWith('CATEGORIES:') || upper.startsWith('CATEGORIES;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              const cat = line
+                .slice(colonIdx + 1)
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean);
+              tags.push(...cat);
+            }
+          } else if (upper.startsWith('NOTE:') || upper.startsWith('NOTE;')) {
+            const colonIdx = line.indexOf(':');
+            if (colonIdx !== -1) {
+              const note = line.slice(colonIdx + 1).trim();
+              if (note) tags.push(note);
+            }
+          }
+        }
+
+        if (!email || !email.includes('@')) {
+          errors.push(`vCard entry ${i + 1}: Missing or invalid email`);
+          continue;
+        }
+
+        parsed.push({
+          name: name || email.split('@')[0] || 'Unknown',
+          email,
+          phone: phone || null,
+          company: company || null,
+          tags: Array.from(new Set(tags)),
+        });
+      }
+    } else {
+      const lines = content
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      if (lines.length === 0) {
+        return { importedCount: 0, errors: ['CSV content is empty'] };
+      }
+
+      const parseCsvLine = (line: string): string[] => {
+        const fields: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            fields.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        fields.push(current.trim());
+        return fields;
+      };
+
+      const firstRow = parseCsvLine(lines[0]!);
+      const isHeader = firstRow.some((h) =>
+        ['name', 'email', 'phone', 'company', 'notes', 'tags'].includes(h.toLowerCase().trim()),
+      );
+
+      let nameIdx = 0;
+      let emailIdx = 1;
+      let phoneIdx = 2;
+      let companyIdx = 3;
+      let notesIdx = 4;
+      let tagsIdx = 5;
+
+      let dataLines = lines;
+      if (isHeader) {
+        const header = firstRow.map((h) => h.toLowerCase().trim());
+        if (header.indexOf('name') !== -1) nameIdx = header.indexOf('name');
+        if (header.indexOf('email') !== -1) emailIdx = header.indexOf('email');
+        if (header.indexOf('phone') !== -1) phoneIdx = header.indexOf('phone');
+        if (header.indexOf('company') !== -1) companyIdx = header.indexOf('company');
+        if (header.indexOf('notes') !== -1) notesIdx = header.indexOf('notes');
+        if (header.indexOf('tags') !== -1) tagsIdx = header.indexOf('tags');
+        dataLines = lines.slice(1);
+      }
+
+      for (let i = 0; i < dataLines.length; i++) {
+        const row = parseCsvLine(dataLines[i]!);
+        const rawEmail = (row[emailIdx] ?? '').trim().toLowerCase();
+        const rawName = (row[nameIdx] ?? '').trim();
+        const rawPhone = (row[phoneIdx] ?? '').trim();
+        const rawCompany = (row[companyIdx] ?? '').trim();
+        const rawNotes = (row[notesIdx] ?? '').trim();
+        const rawTags = (row[tagsIdx] ?? '').trim();
+
+        if (!rawEmail || !rawEmail.includes('@')) {
+          errors.push(`Row ${i + 1}: Invalid email address "${rawEmail}"`);
+          continue;
+        }
+
+        const tags: string[] = [];
+        if (rawTags) {
+          tags.push(
+            ...rawTags
+              .split(/[;,]/)
+              .map((t) => t.trim())
+              .filter(Boolean),
+          );
+        }
+        if (rawNotes) {
+          tags.push(rawNotes);
+        }
+
+        parsed.push({
+          name: rawName || rawEmail.split('@')[0] || 'Unknown',
+          email: rawEmail,
+          phone: rawPhone || null,
+          company: rawCompany || null,
+          tags: Array.from(new Set(tags)),
+        });
+      }
+    }
+
+    const contactModel = (this.prisma as unknown as { contact: ContactModel }).contact;
+    let importedCount = 0;
+
+    const uniqueByEmail = new Map<string, (typeof parsed)[0]>();
+    for (const item of parsed) {
+      if (!uniqueByEmail.has(item.email)) {
+        uniqueByEmail.set(item.email, item);
+      }
+    }
+
+    const items = Array.from(uniqueByEmail.values());
+
+    for (const item of items) {
+      try {
+        const existing = await contactModel.findFirst({
+          where: { userId, email: item.email },
+        });
+
+        if (existing) {
+          await contactModel.update({
+            where: { id: existing.id },
+            data: {
+              name: existing.name || item.name,
+              phone: existing.phone || item.phone,
+              company: existing.company || item.company,
+              tags: Array.from(new Set([...existing.tags, ...item.tags])),
+            },
+          });
+          importedCount++;
+        } else {
+          await contactModel.create({
+            data: {
+              userId,
+              name: item.name,
+              email: item.email,
+              phone: item.phone,
+              company: item.company,
+              tags: item.tags,
+              isFavorite: false,
+              frequency: 0,
+            },
+          });
+          importedCount++;
+        }
+      } catch (err: any) {
+        errors.push(`Failed to insert contact "${item.email}": ${err.message || String(err)}`);
+      }
+    }
+
+    return { importedCount, errors };
+  }
 }
 
 // Type helper for Prisma contact model operations

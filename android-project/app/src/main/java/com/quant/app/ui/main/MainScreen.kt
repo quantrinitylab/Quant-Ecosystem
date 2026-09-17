@@ -1,7 +1,8 @@
-package com.example.quant.ui.main
+package com.quant.app.ui.main
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.net.Uri
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -36,6 +37,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation3.runtime.NavKey
+import com.quant.app.MainActivity
 
 data class NavigationTab(
   val title: String,
@@ -70,6 +73,8 @@ val NAV_TABS = listOf(
 @Composable
 fun MainScreen(
   onItemClick: (NavKey) -> Unit = {},
+  deepLinkUrl: String? = null,
+  onWebViewAttached: (WebView) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -78,6 +83,13 @@ fun MainScreen(
   var loadProgress by remember { mutableIntStateOf(0) }
   var isError by remember { mutableStateOf(false) }
   var currentUrl by remember { mutableStateOf("https://quantmail.in/") }
+
+  // Handle deep link restoration in active WebView
+  LaunchedEffect(deepLinkUrl) {
+    if (!deepLinkUrl.isNullOrBlank()) {
+      webViewRef?.loadUrl(deepLinkUrl)
+    }
+  }
 
   BackHandler(enabled = webViewRef?.canGoBack() == true) {
     webViewRef?.goBack()
@@ -200,22 +212,24 @@ fun MainScreen(
             icon = {
               Text(
                 text = tab.icon,
-                fontSize = if (isSelected) 18.sp else 16.sp
+                fontSize = 18.sp,
+                color = if (isSelected) Color(0xFFFF, 0x8C, 0x42) else Color(0xFF6B, 0x72, 0x80)
               )
             },
             label = {
               Text(
                 text = tab.title,
-                fontSize = 10.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (isSelected) Color(0xFFFF, 0x8C, 0x42) else Color(0xFF6B, 0x72, 0x80)
               )
             },
             colors = NavigationBarItemDefaults.colors(
               selectedIconColor = Color(0xFFFF, 0x8C, 0x42),
               selectedTextColor = Color(0xFFFF, 0x8C, 0x42),
-              indicatorColor = Color(0xFF2B, 0x1A, 0x11),
-              unselectedIconColor = Color(0xFFA1, 0xA4, 0xAC),
-              unselectedTextColor = Color(0xFFA1, 0xA4, 0xAC)
+              indicatorColor = Color(0x1A, 0xFF, 0x8C, 0x42),
+              unselectedIconColor = Color(0xFF6B, 0x72, 0x80),
+              unselectedTextColor = Color(0xFF6B, 0x72, 0x80)
             )
           )
         }
@@ -232,37 +246,33 @@ fun MainScreen(
         Column(
           modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.Center
+            .padding(32.dp),
+          verticalArrangement = Arrangement.Center,
+          horizontalAlignment = Alignment.CenterHorizontally
         ) {
-          Box(
-            modifier = Modifier
-              .size(64.dp)
-              .clip(CircleShape)
-              .background(Color(0xFF2B, 0x1A, 0x11)),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(text = "⚡", fontSize = 32.sp)
-          }
-          Spacer(modifier = Modifier.height(16.dp))
           Text(
-            text = "Offline Mode",
+            text = "⚡",
+            fontSize = 48.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+          )
+          Text(
+            text = "Connection Offline",
             color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
           )
-          Spacer(modifier = Modifier.height(8.dp))
           Text(
-            text = "Could not reach sovereign gateway. Please check your internet connection.",
-            color = Color(0xFFA1, 0xA4, 0xAC),
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center
+            text = "Unable to connect to Quant sovereign server. Please check your network connection and retry.",
+            color = Color(0xFF9C, 0xA3, 0xAF),
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 24.dp)
           )
-          Spacer(modifier = Modifier.height(20.dp))
           Button(
             onClick = {
               isError = false
+              isLoading = true
               webViewRef?.loadUrl(currentUrl)
             },
             colors = ButtonDefaults.buttonColors(
@@ -283,17 +293,11 @@ fun MainScreen(
                 ViewGroup.LayoutParams.MATCH_PARENT
               )
               setBackgroundColor(android.graphics.Color.parseColor("#0B0C0E"))
-              settings.apply {
-                javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
-                allowFileAccess = true
-                cacheMode = WebSettings.LOAD_DEFAULT
-                useWideViewPort = true
-                loadWithOverviewMode = true
-                mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                userAgentString = "${settings.userAgentString} QuantApp/1.0"
-              }
+
+              // Production WebView hardening:
+              // - Disallow mixed content (never allow unencrypted content)
+              // - Disallow local file and content access
+              MainActivity.configureWebSettings(settings)
 
               webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -315,6 +319,47 @@ fun MainScreen(
                     isLoading = false
                   }
                 }
+
+                override fun shouldOverrideUrlLoading(
+                  view: WebView?,
+                  request: WebResourceRequest?
+                ): Boolean {
+                  val url = request?.url?.toString() ?: return false
+                  return handleNavigation(url)
+                }
+
+                @Deprecated("Deprecated in Java")
+                override fun shouldOverrideUrlLoading(
+                  view: WebView?,
+                  url: String?
+                ): Boolean {
+                  if (url == null) return false
+                  return handleNavigation(url)
+                }
+
+                private fun handleNavigation(url: String): Boolean {
+                  // 1. Intercept Google OAuth and external auth providers:
+                  // Launch them in secure Chrome Custom Tabs to avoid Google's disallowed_useragent error.
+                  if (MainActivity.isExternalAuthUrl(url)) {
+                    MainActivity.launchCustomTab(context, url)
+                    return true
+                  }
+
+                  // 2. Internal app navigation to quantmail.in stays inside WebView
+                  val parsedUri = try { Uri.parse(url) } catch (e: Exception) { null }
+                  val host = parsedUri?.host?.lowercase()
+                  if (host == "quantmail.in" || host == "www.quantmail.in") {
+                    return false
+                  }
+
+                  // 3. Any other external links should be launched via Custom Tabs for security
+                  if (parsedUri?.scheme == "http" || parsedUri?.scheme == "https") {
+                    MainActivity.launchCustomTab(context, url)
+                    return true
+                  }
+
+                  return false
+                }
               }
 
               webChromeClient = object : WebChromeClient() {
@@ -328,6 +373,7 @@ fun MainScreen(
 
               loadUrl(currentUrl)
               webViewRef = this
+              onWebViewAttached(this)
             }
           },
           update = {},

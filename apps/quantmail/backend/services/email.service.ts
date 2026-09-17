@@ -303,7 +303,12 @@ export class EmailService {
     return delivered;
   }
 
-  async send(userId: string, emailId: string, sentFolderId: string): Promise<Email> {
+  async send(
+    userId: string,
+    emailId: string,
+    sentFolderId: string,
+    options?: { delayMs?: number; sendAt?: Date },
+  ): Promise<Email> {
     // Sending has to do three things for the message to actually reach a human:
     //   1. Recipients that are QuantMail users get an internal mailbox copy
     //      (the route calls `deliverInternally` for that).
@@ -397,7 +402,7 @@ export class EmailService {
     let deliveryStatus = 'delivered';
     let deliveryError: string | undefined;
 
-    if (external.length > 0) {
+    if (external.length > 0 || (options?.delayMs && options.delayMs > 0)) {
       deliveryStatus = 'queued';
 
       // MAIL-01: Single authoritative delivery owner. When the durable BullMQ pipeline
@@ -405,15 +410,18 @@ export class EmailService {
       let enqueued = false;
       if (this.pipeline) {
         try {
-          await this.pipeline.enqueueSend(userId, emailId, { sentFolderId });
+          await this.pipeline.enqueueSend(userId, emailId, {
+            sentFolderId,
+            delayMs: options?.delayMs,
+          });
           enqueued = true;
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
         }
       }
 
-      // Direct SES fallback ONLY when no queue pipeline is running
-      if (!enqueued && isSesConfigured()) {
+      // Direct SES fallback ONLY when no queue pipeline is running and NOT delayed
+      if (!enqueued && !options?.delayMs && isSesConfigured()) {
         try {
           const fromDomain = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
           let fromAddress = email.fromAddress;
@@ -468,7 +476,7 @@ export class EmailService {
       }
     }
 
-    const sentAt = new Date();
+    const sentAt = options?.sendAt ?? new Date();
     const updated = await this.prisma.email.update({
       where: { id: emailId },
       data: {
@@ -492,6 +500,48 @@ export class EmailService {
     });
 
     return updated;
+  }
+
+  async undoSend(userId: string, emailId: string): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+    if (!email || email.userId !== userId) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    const isQueuedOrSending =
+      email.deliveryStatus === 'queued' || email.deliveryStatus === 'sending';
+    const isWithinUndoWindow =
+      Boolean(email.sentAt) &&
+      Date.now() - new Date(email.sentAt!).getTime() <= 30_000 &&
+      email.deliveryStatus !== 'delivered' &&
+      email.deliveryStatus !== 'failed';
+
+    if (!isQueuedOrSending && !isWithinUndoWindow) {
+      throw createAppError(
+        'Email cannot be undone (not queued or undo window expired)',
+        400,
+        'CANNOT_UNDO_SEND',
+      );
+    }
+
+    if (this.pipeline) {
+      await this.pipeline.cancelSend(userId, emailId).catch(() => {});
+    }
+
+    const draftsFolder = await (this.prisma as any).emailFolder?.findFirst({
+      where: { userId, OR: [{ name: 'Drafts' }, { type: 'DRAFTS' }] },
+    });
+
+    return this.prisma.email.update({
+      where: { id: emailId },
+      data: {
+        isDraft: true,
+        isSent: false,
+        sentAt: null,
+        deliveryStatus: 'draft',
+        folderId: draftsFolder?.id ?? null,
+      } as never,
+    });
   }
 
   async receive(input: ReceiveEmailInput): Promise<Email> {

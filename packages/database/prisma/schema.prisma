@@ -1550,6 +1550,7 @@ model PullRequest {
   sourceBranch  String
   targetBranch  String
   mergeStrategy MergeStrategy?
+  mergeCommitSha String?
   mergedAt      DateTime?
   closedAt      DateTime?
   createdAt     DateTime       @default(now())
@@ -3972,6 +3973,24 @@ model Share {
   @@index([fileId])
   @@map("drive_shares")
 }
+
+model DriveShare {
+  id          String    @id @default(cuid())
+  fileId      String
+  createdById String
+  token       String    @unique
+  role        String    @default("viewer")
+  password    String?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([token])
+  @@index([fileId])
+  @@index([createdById])
+  @@map("drive_share_links")
+}
+
 
 model FileVersion {
   id                String   @id @default(cuid())

@@ -6,7 +6,10 @@ import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
 import { ThreadService } from '../services/thread.service';
 import { ContactService } from '../services/contact.service';
-import { OutboundDeliveryPipeline } from '../services/outbound-delivery.service';
+import {
+  OutboundDeliveryPipeline,
+  OUTBOUND_DELIVERY_QUEUE,
+} from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
 
@@ -21,7 +24,7 @@ async function getOrCreateFolder(
   userId: string,
   name: string,
   type: 'SENT' | 'ARCHIVE' | 'TRASH' | 'SPAM' | 'INBOX' | 'DRAFTS',
-): Promise<{ id: string }> {
+): Promise<any> {
   const existing = await prisma.emailFolder.findFirst({
     where: { userId, OR: [{ name }, { type }] },
   });
@@ -98,6 +101,7 @@ const composeSchema = z
     sentFolderId: z.string().optional(),
     messageKind: messageKindSchema,
     priority: prioritySchema,
+    sendAt: z.string().optional(),
   })
   .refine(
     (data) => (data.toAddresses && data.toAddresses.length > 0) || (data.to && data.to.length > 0),
@@ -124,6 +128,7 @@ const composeSchema = z
     sentFolderId: d.sentFolderId,
     messageKind: d.messageKind,
     priority: d.priority,
+    sendAt: d.sendAt,
   }));
 
 const moveSchema = z.object({
@@ -216,7 +221,23 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       priority: d.priority,
     });
 
-    if (d.send) {
+    let delayMs: number | undefined;
+    let scheduledSendAt: Date | undefined;
+    if (d.sendAt) {
+      const parsedDate = new Date(d.sendAt);
+      if (isNaN(parsedDate.getTime())) {
+        throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
+      }
+      const now = Date.now();
+      if (parsedDate.getTime() > now) {
+        delayMs = parsedDate.getTime() - now;
+        scheduledSendAt = parsedDate;
+      }
+    }
+
+    const shouldSend = Boolean(d.send) || Boolean(scheduledSendAt);
+
+    if (shouldSend) {
       // M-F01: If send: true is requested without sentFolderId, auto-resolve the user's Sent folder
       let sentFolderId = d.sentFolderId;
       if (!sentFolderId) {
@@ -225,24 +246,29 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       }
 
       const sendService = createSendService(prisma);
-      const sent = await sendService.send(userId, email.id, sentFolderId);
+      const sent = await sendService.send(userId, email.id, sentFolderId!, {
+        delayMs,
+        sendAt: scheduledSendAt,
+      });
 
-      try {
-        await sendService.deliverInternally({
-          fromUserId: userId,
-          subject: d.subject,
-          bodyHtml: sanitizedHtml,
-          bodyPlain: d.bodyPlain,
-          toAddresses: d.toAddresses,
-          ccAddresses: d.ccAddresses,
-          bccAddresses: d.bccAddresses,
-          threadId: d.threadId,
-          inReplyTo: d.inReplyTo,
-          attachments: d.attachments,
-          messageKind: toMessageKind(d.messageKind),
-        });
-      } catch (err) {
-        request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
+      if (!delayMs) {
+        try {
+          await sendService.deliverInternally({
+            fromUserId: userId,
+            subject: d.subject,
+            bodyHtml: sanitizedHtml,
+            bodyPlain: d.bodyPlain,
+            toAddresses: d.toAddresses,
+            ccAddresses: d.ccAddresses,
+            bccAddresses: d.bccAddresses,
+            threadId: d.threadId,
+            inReplyTo: d.inReplyTo,
+            attachments: d.attachments,
+            messageKind: toMessageKind(d.messageKind),
+          });
+        } catch (err) {
+          request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
+        }
       }
 
       await recordRecipientInteractions({
@@ -336,7 +362,25 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
     const sendService = createSendService(prisma);
 
-    const sent = await sendService.send(userId, email.id, sentFolder.id);
+    const body = (request.body ?? {}) as { sendAt?: string; delayMs?: number };
+    let delayMs = body.delayMs;
+    let scheduledSendAt: Date | undefined;
+    if (body.sendAt) {
+      const parsedDate = new Date(body.sendAt);
+      if (isNaN(parsedDate.getTime())) {
+        throw createAppError('Invalid sendAt timestamp', 400, 'VALIDATION_ERROR');
+      }
+      const now = Date.now();
+      if (parsedDate.getTime() > now) {
+        delayMs = parsedDate.getTime() - now;
+        scheduledSendAt = parsedDate;
+      }
+    }
+
+    const sent = await sendService.send(userId, email.id, sentFolder.id, {
+      delayMs,
+      sendAt: scheduledSendAt,
+    });
 
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -377,22 +421,24 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       request.log.warn({ err, emailId: email.id }, 'thread stitching failed');
     }
 
-    try {
-      await sendService.deliverInternally({
-        fromUserId: userId,
-        subject: email.subject,
-        bodyHtml: email.bodyHtml ?? undefined,
-        bodyPlain: email.bodyPlain ?? undefined,
-        toAddresses: asArray(email.toAddresses),
-        ccAddresses: asArray(email.ccAddresses),
-        bccAddresses: asArray(email.bccAddresses),
-        threadId: targetThreadId ?? undefined,
-        inReplyTo: email.inReplyTo ?? undefined,
-        attachments: (email.attachments as any[]) ?? [],
-        messageKind: toMessageKind((email as any).messageKind),
-      });
-    } catch (error) {
-      request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
+    if (!delayMs) {
+      try {
+        await sendService.deliverInternally({
+          fromUserId: userId,
+          subject: email.subject,
+          bodyHtml: email.bodyHtml ?? undefined,
+          bodyPlain: email.bodyPlain ?? undefined,
+          toAddresses: asArray(email.toAddresses),
+          ccAddresses: asArray(email.ccAddresses),
+          bccAddresses: asArray(email.bccAddresses),
+          threadId: targetThreadId ?? undefined,
+          inReplyTo: email.inReplyTo ?? undefined,
+          attachments: (email.attachments as any[]) ?? [],
+          messageKind: toMessageKind((email as any).messageKind),
+        });
+      } catch (error) {
+        request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
+      }
     }
 
     return reply.status(202).send({
@@ -401,6 +447,70 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         message: 'Email queued for delivery',
         emailId: email.id,
         deliveryStatus: (sent as { deliveryStatus?: string | null }).deliveryStatus ?? 'queued',
+      },
+    });
+  });
+
+  // POST /emails/:id/undo-send (Tasks M21, M22, M23)
+  fastify.post<{ Params: { id: string } }>('/:id/undo-send', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.userId !== userId) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    const isQueuedOrSending =
+      email.deliveryStatus === 'queued' || email.deliveryStatus === 'sending';
+    const isWithinUndoWindow =
+      Boolean(email.sentAt) &&
+      Date.now() - new Date(email.sentAt!).getTime() <= 30_000 &&
+      email.deliveryStatus !== 'delivered' &&
+      email.deliveryStatus !== 'failed';
+
+    if (!isQueuedOrSending && !isWithinUndoWindow) {
+      throw createAppError(
+        'Email cannot be undone (not queued or undo window expired)',
+        400,
+        'CANNOT_UNDO_SEND',
+      );
+    }
+
+    try {
+      outboundQueue ??= OutboundDeliveryPipeline.createQueue();
+      await outboundQueue.remove(`${OUTBOUND_DELIVERY_QUEUE}-${email.id}`).catch(() => {});
+      await outboundQueue.remove(email.id).catch(() => {});
+    } catch (err) {
+      request.log.warn({ err, emailId: email.id }, 'failed cancelling queue job during undo-send');
+    }
+
+    let draftsFolder: { id: string } | null = await prisma.emailFolder.findFirst({
+      where: { userId, OR: [{ name: 'Drafts' }, { type: 'DRAFTS' }] },
+    });
+    if (!draftsFolder) {
+      draftsFolder = await getOrCreateFolder(prisma, userId, 'Drafts', 'DRAFTS');
+    }
+
+    await prisma.email.update({
+      where: { id: email.id },
+      data: {
+        isDraft: true,
+        isSent: false,
+        sentAt: null,
+        deliveryStatus: 'draft',
+        folderId: draftsFolder?.id ?? null,
+      } as never,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        message: 'Send cancelled, email returned to Drafts',
+        emailId: email.id,
       },
     });
   });
@@ -1053,7 +1163,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
           targetFolderId = archiveFolder.id;
         }
-        result = await service.batchArchive(emailIds, targetFolderId, userId);
+        result = await service.batchArchive(emailIds, targetFolderId!, userId);
         break;
       }
       case 'delete':

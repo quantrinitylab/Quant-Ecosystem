@@ -124,6 +124,13 @@ function fakePrisma() {
         commitSha: data.commitSha,
         isProtected: false,
       })),
+      update: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: 'branch-1',
+        repoId: 'repo-1',
+        name: 'main',
+        commitSha: data.commitSha,
+        isProtected: false,
+      })),
       upsert: vi.fn().mockImplementation(async ({ create, update }: any) => ({
         id: 'branch-1',
         ...create,

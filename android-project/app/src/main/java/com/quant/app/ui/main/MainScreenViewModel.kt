@@ -1,9 +1,9 @@
-package com.example.quant.ui.main
+package com.quant.app.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.quant.data.DataRepository
-import com.example.quant.ui.main.MainScreenUiState.Success
+import com.quant.app.data.DataRepository
+import com.quant.app.ui.main.MainScreenUiState.Success
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch

@@ -1,4 +1,4 @@
-package com.example.quant.theme
+package com.quant.app.theme
 
 import androidx.compose.ui.graphics.Color
 

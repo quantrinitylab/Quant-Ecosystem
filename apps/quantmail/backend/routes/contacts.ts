@@ -301,6 +301,55 @@ export default async function contactsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: merged });
   });
 
+  // POST /contacts/deduplicate (Tasks X03, D20)
+  fastify.post('/deduplicate', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const result = await service.deduplicateContacts(userId);
+
+    return reply.send({ success: true, mergedCount: result.mergedCount });
+  });
+
+  // POST /contacts/import (Tasks X03, D20)
+  fastify.post('/import', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    let content = '';
+    let format: 'csv' | 'vcard' | undefined;
+
+    if (typeof request.body === 'string') {
+      content = request.body;
+    } else if (request.body && typeof request.body === 'object') {
+      const b = request.body as Record<string, any>;
+      content = b.content || b.data || b.csv || b.vcard || '';
+      if (b.format === 'csv' || b.format === 'vcard') {
+        format = b.format;
+      }
+    }
+
+    if (!content || typeof content !== 'string') {
+      throw createAppError('Invalid CSV or vCard content provided', 400, 'INVALID_INPUT');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new ContactService(prisma as never);
+    const result = await service.importBatch(userId, content, format);
+
+    return reply.send({
+      success: true,
+      importedCount: result.importedCount,
+      errors: result.errors,
+    });
+  });
+
   // GET /contacts/:id
   //
   // Registered after the three static routes it shares a prefix with. Fastify's

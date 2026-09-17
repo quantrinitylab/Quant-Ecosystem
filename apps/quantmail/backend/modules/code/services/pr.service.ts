@@ -1,6 +1,7 @@
 import type { PrismaClient, PullRequest } from '@prisma/client';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { GitInspectService, RepoStorageService } from './git-transport';
 
 export const CreatePRInputSchema = z.object({
   repoId: z.string(),
@@ -120,10 +121,28 @@ export class PullRequestService {
   async getDiff(repoId: string, number: number): Promise<string> {
     const pr = await this.prisma.pullRequest.findUnique({
       where: { repoId_number: { repoId, number } },
+      include: { repository: true },
     });
 
     if (!pr) {
       throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+    }
+
+    try {
+      const storage = new RepoStorageService();
+      const repo = (pr as any).repository;
+      if (repo && (await storage.repoExists(repo.ownerId, repo.name))) {
+        const inspect = new GitInspectService(storage);
+        const diff = await inspect.getDiff(
+          repo.ownerId,
+          repo.name,
+          pr.targetBranch,
+          pr.sourceBranch,
+        );
+        return diff.patch;
+      }
+    } catch {
+      // fallback
     }
 
     return `diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n@@ -1,3 +1,3 @@\n-old line\n+new line`;

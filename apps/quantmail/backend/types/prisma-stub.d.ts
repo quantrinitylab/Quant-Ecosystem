@@ -31,6 +31,7 @@ declare module '@prisma/client' {
     receivedAt: Date;
     sentAt: Date | null;
     deletedAt: Date | null;
+    deliveryStatus?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }

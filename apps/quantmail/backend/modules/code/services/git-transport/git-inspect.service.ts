@@ -164,7 +164,15 @@ export class GitInspectService {
     name: string,
     base: string,
     head: string,
-  ): Promise<{ patch: string; stat: string; base: string; head: string }> {
+  ): Promise<{
+    patch: string;
+    stat: string;
+    base: string;
+    head: string;
+    additions: number;
+    deletions: number;
+    changedFiles: number;
+  }> {
     validateRef(base);
     validateRef(head);
     const repoPath = this.repoStorage.getRepoPath(owner, name);
@@ -175,11 +183,29 @@ export class GitInspectService {
       env: GIT_CHILD_ENV,
     };
 
-    const [{ stdout: patch }, { stdout: stat }] = await Promise.all([
+    const [{ stdout: patch }, { stdout: stat }, { stdout: numstat }] = await Promise.all([
       execFileAsync('git', ['diff', '-p', '--end-of-options', range, '--'], options),
       execFileAsync('git', ['diff', '--stat', '--end-of-options', range, '--'], options),
+      execFileAsync('git', ['diff', '--numstat', '--end-of-options', range, '--'], options),
     ]);
-    return { patch, stat, base, head };
+
+    let additions = 0;
+    let deletions = 0;
+    let changedFiles = 0;
+
+    for (const line of numstat.split('\n')) {
+      if (!line.trim()) continue;
+      const parts = line.split('\t');
+      if (parts.length >= 3) {
+        const add = parts[0] === '-' ? 0 : Number.parseInt(parts[0], 10) || 0;
+        const del = parts[1] === '-' ? 0 : Number.parseInt(parts[1], 10) || 0;
+        additions += add;
+        deletions += del;
+        changedFiles += 1;
+      }
+    }
+
+    return { patch, stat, base, head, additions, deletions, changedFiles };
   }
 
   async checkMerge(

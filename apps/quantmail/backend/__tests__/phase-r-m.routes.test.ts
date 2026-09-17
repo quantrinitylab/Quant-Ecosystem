@@ -159,9 +159,15 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       );
     };
 
-    it('R-D1: mail-filters and mail-filters/abc/test are held pending R-SEC', () => {
-      expect(resolveRoute('mail-filters')).toBeUndefined();
-      expect(resolveRoute('mail-filters/abc/test')).toBeUndefined();
+    it('R-D1: mail-filters and mail-filters/abc/test resolve GET, POST, PUT, DELETE (unblocked by R-SEC)', () => {
+      const rootRoute = resolveRoute('mail-filters');
+      expect(rootRoute).toBeDefined();
+      expect(rootRoute?.methods).toEqual(['GET', 'POST', 'PUT', 'DELETE']);
+
+      const testRoute = resolveRoute('mail-filters/abc/test');
+      expect(testRoute).toBeDefined();
+      expect(testRoute?.methods).toEqual(['GET', 'POST', 'PUT', 'DELETE']);
+
       expect(resolveRoute('filters')).toBeUndefined();
     });
 

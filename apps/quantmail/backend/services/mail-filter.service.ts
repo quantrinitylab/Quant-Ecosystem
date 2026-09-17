@@ -306,13 +306,75 @@ export class MailFilterService {
 
   private assertValidActions(actions: FilterAction[]): void {
     for (const action of actions) {
-      if (action.forwardTo !== undefined && !EMAIL_REGEX.test(action.forwardTo)) {
-        throw createAppError(
-          `Invalid forwardTo email address: "${action.forwardTo}"`,
-          400,
-          'INVALID_FORWARD_ADDRESS',
-        );
+      if (action.forwardTo !== undefined) {
+        validateForwardRecipient(action.forwardTo);
       }
     }
+  }
+}
+
+export const DISALLOWED_FORWARD_DOMAINS = new Set([
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  'test',
+  'invalid',
+  'example.com',
+  'example.org',
+  'example.net',
+  'mailinator.com',
+  'tempmail.com',
+  '10minutemail.com',
+  'guerrillamail.com',
+  'trashmail.com',
+  'yopmail.com',
+  'sharklasers.com',
+  'throwawaymail.com',
+]);
+
+export function validateForwardRecipient(email: string, userEmail?: string): void {
+  const normalized = email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(normalized)) {
+    throw createAppError(
+      `Invalid forwardTo email address: "${email}"`,
+      400,
+      'INVALID_FORWARD_ADDRESS',
+    );
+  }
+
+  const parts = normalized.split('@');
+  const domain = parts[1];
+  if (!domain) {
+    throw createAppError(`Invalid forwarding domain in "${email}"`, 400, 'INVALID_FORWARD_DOMAIN');
+  }
+
+  if (
+    DISALLOWED_FORWARD_DOMAINS.has(domain) ||
+    domain.endsWith('.local') ||
+    domain.endsWith('.internal') ||
+    domain.endsWith('.test') ||
+    domain.endsWith('.invalid')
+  ) {
+    throw createAppError(
+      `Forwarding to domain "${domain}" is disallowed for safety reasons (R-SEC)`,
+      400,
+      'UNSAFE_FORWARD_DOMAIN',
+    );
+  }
+
+  if (!domain.includes('.') || domain.endsWith('.')) {
+    throw createAppError(
+      `Forwarding domain "${domain}" is not a valid fully-qualified domain name`,
+      400,
+      'INVALID_FORWARD_DOMAIN',
+    );
+  }
+
+  if (userEmail && normalized === userEmail.trim().toLowerCase()) {
+    throw createAppError(
+      'Cannot forward emails to your own email address',
+      400,
+      'FORWARD_LOOP_DETECTED',
+    );
   }
 }
