@@ -431,11 +431,17 @@ export class EmailService {
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
           deliveryStatus = 'failed';
+          console.error(
+            `[EmailService.send: SES delivery failed] emailId=${emailId} userId=${userId}: ${deliveryError}`,
+          );
         }
       } else if (!enqueued) {
         deliveryStatus = 'failed';
         deliveryError =
           deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';
+        console.error(
+          `[EmailService.send: No outbound transport] emailId=${emailId} userId=${userId}: ${deliveryError}`,
+        );
       }
     }
 

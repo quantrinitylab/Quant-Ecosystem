@@ -354,11 +354,10 @@ export class DeliveryWorker {
           : `noreply@${this.fallbackDomain}`;
     const fromDomain = senderDomainOf(fromAddress, this.fallbackDomain);
 
-    const recipients = uniqueAddresses(
-      toAddressList((email as { toAddresses: unknown }).toAddresses),
-      toAddressList((email as { ccAddresses: unknown }).ccAddresses),
-      toAddressList((email as { bccAddresses: unknown }).bccAddresses),
-    );
+    const toAddrs = toAddressList((email as { toAddresses: unknown }).toAddresses);
+    const ccAddrs = toAddressList((email as { ccAddresses: unknown }).ccAddresses);
+    const bccAddrs = toAddressList((email as { bccAddresses: unknown }).bccAddresses);
+    const recipients = uniqueAddresses(toAddrs, ccAddrs, bccAddrs);
     if (recipients.length === 0) {
       throw createAppError('Email has no recipients', 400, 'NO_RECIPIENTS');
     }
@@ -372,23 +371,31 @@ export class DeliveryWorker {
 
     // When AWS SES is configured (production EKS with IRSA/IAM), transmit directly
     // through SES for maximum deliverability and automatic DKIM/SPF alignment.
+    // M-F16: Transmit authoritative message preserving To, Cc, Bcc, replyTo, and fromName.
+    // In AWS SESv2, sending to, cc, and bcc together delivers to all recipients while
+    // preserving To/Cc headers for Reply-All and hiding Bcc recipients from To/Cc headers.
     if (isSesConfigured()) {
+      const from = email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress;
       const receipts: RecipientReceipt[] = [];
+      let status: AttemptStatus = 'sent';
+      let response = '250 2.0.0 OK (AWS SES)';
+      try {
+        await sendViaSes({
+          from,
+          to: toAddrs,
+          cc: ccAddrs.length > 0 ? ccAddrs : undefined,
+          bcc: bccAddrs.length > 0 ? bccAddrs : undefined,
+          subject: email.subject ?? '',
+          bodyHtml: email.bodyHtml && email.bodyHtml.trim().length > 0 ? email.bodyHtml : undefined,
+          bodyText:
+            email.bodyPlain && email.bodyPlain.trim().length > 0 ? email.bodyPlain : undefined,
+          replyTo: fromAddress,
+        });
+      } catch (sesErr) {
+        status = 'deferred';
+        response = `451 AWS SES delivery error: ${(sesErr as Error).message}`;
+      }
       for (const recipient of recipients) {
-        let status: AttemptStatus = 'sent';
-        let response = '250 2.0.0 OK (AWS SES)';
-        try {
-          await sendViaSes({
-            from: fromAddress,
-            to: [recipient],
-            subject: email.subject ?? '',
-            bodyHtml: email.bodyHtml ?? undefined,
-            bodyText: email.bodyPlain ?? undefined,
-          });
-        } catch (sesErr) {
-          status = 'deferred';
-          response = `451 AWS SES delivery error: ${(sesErr as Error).message}`;
-        }
         const persisted = await this.recordAttempt(
           email.id,
           recipient,
@@ -411,13 +418,17 @@ export class DeliveryWorker {
 
     // DKIM-sign once: the signed header set (From/To/Subject/Date/Message-ID) is
     // identical for every recipient of this message.
+    // M-F15: To and Cc must only contain visible recipients. Bcc addresses must NEVER appear in headers!
     const headers: Record<string, string> = {
-      from: fromAddress,
-      to: recipients.join(', '),
+      from: email.fromName ? `${email.fromName} <${fromAddress}>` : fromAddress,
+      to: toAddrs.join(', '),
       subject: email.subject ?? '',
       date: this.now().toUTCString(),
       'message-id': messageId,
     };
+    if (ccAddrs.length > 0) {
+      headers.cc = ccAddrs.join(', ');
+    }
     const body = email.bodyHtml ?? email.bodyPlain ?? data.body ?? '';
 
     let signer: DkimSigner;

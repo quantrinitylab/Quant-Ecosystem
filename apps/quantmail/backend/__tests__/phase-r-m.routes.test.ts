@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import Fastify, { type FastifyInstance } from 'fastify';
+import { NextRequest } from 'next/server';
+import { errorHandlerPlugin } from '@quant/server-core';
 import { EmailService } from '../services/email.service';
+import {
+  DeliveryWorker,
+  type DnsMxResolver,
+  type SmtpTransport,
+} from '../services/delivery-worker.service';
+import emailsRoutes from '../routes/emails';
 import * as sesSender from '../lib/ses-sender';
 
 // Mock SES sender module
@@ -8,27 +17,82 @@ vi.mock('../lib/ses-sender', () => ({
   isSesConfigured: vi.fn().mockReturnValue(true),
 }));
 
-import { ALLOWED_BACKEND_ROUTES, SUPPORTED_PROXY_METHODS } from '../lib/routes-config';
+import { ALLOWED_BACKEND_ROUTES } from '../lib/routes-config';
+import { proxyToBackend } from '../../src/app/api/_lib/proxy';
+import * as routeHandlers from '../../src/app/api/[...path]/route';
 
 function createMockPrisma() {
+  const storedDraft = {
+    id: 'draft-1',
+    userId: 'user-1',
+    isDraft: true,
+    isSent: false,
+    toAddresses: ['initial@test.com'],
+    subject: 'Initial Subject',
+    ccAddresses: ['cc1@test.com'],
+    bccAddresses: ['bcc1@test.com'],
+    bodyHtml: '<p>Initial Body</p>',
+    bodyPlain: 'Initial Body',
+    inReplyTo: 'msg-parent-123',
+    threadId: 'thread-999',
+    hasAttachments: false,
+    attachments: [],
+    labels: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
   return {
+    storedDraft,
     email: {
       create: vi.fn(),
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
-      count: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
-      delete: vi.fn(),
+      findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (where.id === 'draft-1') return { ...storedDraft };
+        return null;
+      }),
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(1),
+      update: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        return { ...storedDraft, ...data, id: where.id };
+      }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      delete: vi.fn().mockResolvedValue(storedDraft),
     },
     user: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'user-1@quantmail.in',
+        username: 'user1',
+        displayName: 'User One',
+      }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     label: {
-      findMany: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    emailFolder: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'folder-1' }),
+      upsert: vi.fn().mockResolvedValue({ id: 'folder-1' }),
+    },
+    deliveryAttempt: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockImplementation(async ({ create, update }: any) => ({
+        ...create,
+        ...update,
+      })),
     },
   };
+}
+
+async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | null = 'user-1') {
+  const app = Fastify();
+  await app.register(errorHandlerPlugin);
+  app.decorate('prisma', prisma);
+  app.addHook('onRequest', async (req) => {
+    (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
+  });
+  await app.register(emailsRoutes, { prefix: '/emails' });
+  return app;
 }
 
 describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
@@ -85,7 +149,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(linkCreateRoute?.methods).toEqual(['POST']);
     });
 
-    it('R-V1: search/emails and search/parse resolve GET', () => {
+    it('R-V1 Pattern: search/emails and search/parse resolve GET in route table', () => {
       const searchEmails = resolveRoute('search/emails');
       expect(searchEmails).toBeDefined();
       expect(searchEmails?.methods).toEqual(['GET']);
@@ -95,7 +159,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(searchParse?.methods).toEqual(['GET']);
     });
 
-    it('Phase R Invariant: every declared method in ALLOWED_BACKEND_ROUTES is supported by Next.js proxy handlers', () => {
+    it('T2 / Phase R Invariant: every declared method in ALLOWED_BACKEND_ROUTES is an exported handler on route.ts', () => {
       const allDeclaredMethods = new Set<string>();
 
       for (const route of ALLOWED_BACKEND_ROUTES) {
@@ -104,9 +168,67 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         }
       }
 
+      // Explicitly check that route.ts exports every allowed method as a callable handler function
       for (const method of allDeclaredMethods) {
-        expect(SUPPORTED_PROXY_METHODS).toContain(method);
+        const handler = (routeHandlers as Record<string, unknown>)[method];
+        expect(typeof handler).toBe('function');
       }
+    });
+  });
+
+  describe('Phase R: Next.js Proxy Query & Auth Forwarding Verification (R-V1 & R-V2)', () => {
+    const originalFetch = global.fetch;
+
+    beforeEach(() => {
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true, data: { count: 42 } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    it('R-V1: proxyToBackend forwards searchParams (querystring) on GET requests to the backend URL', async () => {
+      const req = new NextRequest(
+        'http://localhost:3000/api/search/emails?q=urgent&limit=10&page=2',
+      );
+      const res = await proxyToBackend(req, '/search/emails');
+
+      expect(res.status).toBe(200);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+
+      const fetchUrl = vi.mocked(global.fetch).mock.calls[0][0] as string;
+      const parsedUrl = new URL(fetchUrl);
+
+      expect(parsedUrl.pathname).toBe('/search/emails');
+      expect(parsedUrl.searchParams.get('q')).toBe('urgent');
+      expect(parsedUrl.searchParams.get('limit')).toBe('10');
+      expect(parsedUrl.searchParams.get('page')).toBe('2');
+    });
+
+    it('R-V2: proxyToBackend forwards Authorization header when present, and omits it cleanly when absent', async () => {
+      // 1. With Authorization header
+      const authReq = new NextRequest('http://localhost:3000/api/calendars', {
+        headers: { Authorization: 'Bearer test-jwt-token-xyz' },
+      });
+      await proxyToBackend(authReq, '/calendars');
+
+      const firstCallInit = vi.mocked(global.fetch).mock.calls[0][1] as RequestInit;
+      expect((firstCallInit.headers as Record<string, string>)['Authorization']).toBe(
+        'Bearer test-jwt-token-xyz',
+      );
+
+      // 2. Without Authorization header (public or unauthenticated endpoint)
+      vi.mocked(global.fetch).mockClear();
+      const publicReq = new NextRequest('http://localhost:3000/api/calendar/booking/slug');
+      await proxyToBackend(publicReq, '/calendar/booking/slug');
+
+      const secondCallInit = vi.mocked(global.fetch).mock.calls[0][1] as RequestInit;
+      expect((secondCallInit.headers as Record<string, string>)['Authorization']).toBeUndefined();
     });
   });
 
@@ -207,91 +329,184 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         }),
       );
     });
+
+    it('T4 / M-F15: DeliveryWorker SMTP path excludes BCC addresses from DKIM-signed headers', async () => {
+      vi.mocked(sesSender.isSesConfigured).mockReturnValue(false);
+
+      const mockSigner = {
+        signMessage: vi.fn().mockReturnValue('DKIM-SIGNED-RAW-EMAIL-OUTPUT'),
+      };
+      const mockAuth = {
+        getDkimSigner: vi.fn().mockResolvedValue(mockSigner),
+      };
+      const mockSmtpSend = vi
+        .fn()
+        .mockResolvedValue({ outcome: 'accepted' as const, response: '250 OK' });
+      const mockSmtp: SmtpTransport = {
+        send: mockSmtpSend,
+      };
+      const mockMx: DnsMxResolver = {
+        resolveMx: vi.fn().mockResolvedValue([{ exchange: 'mx.example.com', priority: 10 }]),
+      };
+
+      const emailRecord = {
+        id: 'email-smtp-1',
+        userId: 'user-1',
+        fromAddress: 'sender@quantmail.in',
+        fromName: 'Sender User',
+        toAddresses: ['visible-to@example.com'],
+        ccAddresses: ['visible-cc@example.com'],
+        bccAddresses: ['secret-bcc@example.com'],
+        subject: 'Confidential Notice',
+        bodyHtml: '<p>Secret</p>',
+        bodyPlain: 'Secret',
+        isDraft: false,
+        isSent: true,
+      };
+
+      prisma.email.findUnique.mockResolvedValue(emailRecord);
+
+      const worker = new DeliveryWorker(prisma as never, mockAuth as never, {
+        smtp: mockSmtp,
+        mx: mockMx,
+      });
+
+      const receipt = await worker.processDelivery({
+        data: {
+          emailId: 'email-smtp-1',
+          to: 'visible-to@example.com',
+          subject: 'Confidential Notice',
+          body: '<p>Secret</p>',
+        },
+      });
+
+      expect(mockSigner.signMessage).toHaveBeenCalledTimes(1);
+      const [headers] = mockSigner.signMessage.mock.calls[0] as [Record<string, string>, string];
+
+      // M-F15 Invariant: headers must only contain visible recipients (To and Cc)
+      expect(headers.to).toBe('visible-to@example.com');
+      expect(headers.cc).toBe('visible-cc@example.com');
+      expect(headers).not.toHaveProperty('bcc');
+
+      // Zero leakage: BCC address must NOT appear anywhere in the signed headers
+      for (const [key, value] of Object.entries(headers)) {
+        expect(key.toLowerCase()).not.toContain('bcc');
+        expect(value).not.toContain('secret-bcc@example.com');
+      }
+
+      // But the message is still delivered to all recipients over SMTP envelope (RCPT TO)
+      expect(mockSmtpSend).toHaveBeenCalledTimes(3);
+      const deliveredRecipients = mockSmtpSend.mock.calls.map(
+        (call: any[]) => (call[0] as { recipient: string }).recipient,
+      );
+      expect(deliveredRecipients).toContain('visible-to@example.com');
+      expect(deliveredRecipients).toContain('visible-cc@example.com');
+      expect(deliveredRecipients).toContain('secret-bcc@example.com');
+
+      expect(receipt.deliveryStatus).toBe('sent');
+    });
+
+    it('T4 / M-F16: DeliveryWorker SES path transmits single authoritative call preserving To, Cc, Bcc, replyTo, and fromName', async () => {
+      vi.mocked(sesSender.isSesConfigured).mockReturnValue(true);
+
+      const emailRecord = {
+        id: 'email-ses-1',
+        userId: 'user-1',
+        fromAddress: 'user-1@quantmail.in',
+        fromName: 'User One',
+        toAddresses: ['to1@example.com', 'to2@example.com'],
+        ccAddresses: ['cc1@example.com'],
+        bccAddresses: ['bcc1@example.com'],
+        subject: 'SES Worker Preservation',
+        bodyHtml: '<p>SES Body</p>',
+        bodyPlain: 'SES Body',
+        isDraft: false,
+        isSent: true,
+      };
+
+      prisma.email.findUnique.mockResolvedValue(emailRecord);
+
+      const worker = new DeliveryWorker(prisma as never, {} as never, {
+        smtp: {} as never,
+        mx: {} as never,
+      });
+
+      const receipt = await worker.processDelivery({
+        data: {
+          emailId: 'email-ses-1',
+          to: 'to1@example.com',
+          subject: 'SES Worker Preservation',
+          body: '<p>SES Body</p>',
+        },
+      });
+
+      // M-F16 Invariant: sendViaSes is called exactly once with complete recipient metadata
+      expect(sesSender.sendViaSes).toHaveBeenCalledTimes(1);
+      const sesParams = vi.mocked(sesSender.sendViaSes).mock.calls[0][0];
+
+      expect(sesParams.from).toBe('User One <user-1@quantmail.in>');
+      expect(sesParams.to).toEqual(['to1@example.com', 'to2@example.com']);
+      expect(sesParams.cc).toEqual(['cc1@example.com']);
+      expect(sesParams.bcc).toEqual(['bcc1@example.com']);
+      expect(sesParams.replyTo).toBe('user-1@quantmail.in');
+      expect(sesParams.subject).toBe('SES Worker Preservation');
+      expect(sesParams.bodyHtml).toBe('<p>SES Body</p>');
+      expect(sesParams.bodyText).toBe('SES Body');
+
+      expect(receipt.deliveryStatus).toBe('sent');
+      expect(receipt.recipients).toHaveLength(4);
+    });
   });
 
-  describe('Phase M02: Six-Field Draft Preservation (§4.3 & §7)', () => {
-    // Test the exact key-presence preservation logic deployed in PUT /emails/:id
-    const applyDraftUpdate = (
-      existing: Record<string, unknown>,
-      requestBody: Record<string, unknown>,
-      parsedData: {
-        to: Array<{ email: string }>;
-        subject: string;
-        cc?: Array<{ email: string }>;
-        bcc?: Array<{ email: string }>;
-        bodyHtml?: string;
-        bodyText?: string;
-        inReplyTo?: string | null;
-        threadId?: string | null;
-        priority?: string;
-      },
-    ) => {
-      const raw = requestBody;
-      const provided = (key: string) => Object.prototype.hasOwnProperty.call(raw, key);
+  describe('Phase M02: Six-Field Draft Preservation (T1 Route Injection)', () => {
+    let prisma: ReturnType<typeof createMockPrisma>;
 
-      const updateData: Record<string, unknown> = {
-        toAddresses: parsedData.to.map((r) => r.email),
-        subject: parsedData.subject,
-        ...(provided('cc') ? { ccAddresses: parsedData.cc?.map((r) => r.email) ?? [] } : {}),
-        ...(provided('bcc') ? { bccAddresses: parsedData.bcc?.map((r) => r.email) ?? [] } : {}),
-        ...(provided('bodyHtml') ? { bodyHtml: parsedData.bodyHtml ?? '' } : {}),
-        ...(provided('bodyText') ? { bodyPlain: parsedData.bodyText ?? '' } : {}),
-        ...(provided('inReplyTo') ? { inReplyTo: parsedData.inReplyTo ?? null } : {}),
-        ...(provided('threadId') ? { threadId: parsedData.threadId ?? null } : {}),
-        ...(parsedData.priority ? { priority: parsedData.priority.toUpperCase() } : {}),
-      };
-
-      return { ...existing, ...updateData };
-    };
-
-    it('saving a draft omitting all 6 fields preserves stored values', () => {
-      const storedDraft = {
-        id: 'draft-1',
-        toAddresses: ['initial@test.com'],
-        subject: 'Initial Subject',
-        ccAddresses: ['cc1@test.com'],
-        bccAddresses: ['bcc1@test.com'],
-        bodyHtml: '<p>Initial Body</p>',
-        bodyPlain: 'Initial Body',
-        inReplyTo: 'msg-parent-123',
-        threadId: 'thread-999',
-      };
-
-      // Autosave sends only to and subject
-      const autosaveBody = {
-        to: [{ email: 'initial@test.com' }],
-        subject: 'Updated Subject',
-      };
-
-      const updated = applyDraftUpdate(storedDraft, autosaveBody, {
-        to: [{ email: 'initial@test.com' }],
-        subject: 'Updated Subject',
-      });
-
-      expect(updated.subject).toBe('Updated Subject');
-      expect(updated.bodyHtml).toBe('<p>Initial Body</p>');
-      expect(updated.bodyPlain).toBe('Initial Body');
-      expect(updated.ccAddresses).toEqual(['cc1@test.com']);
-      expect(updated.bccAddresses).toEqual(['bcc1@test.com']);
-      expect(updated.inReplyTo).toBe('msg-parent-123');
-      expect(updated.threadId).toBe('thread-999');
+    beforeEach(() => {
+      vi.clearAllMocks();
+      prisma = createMockPrisma();
     });
 
-    it('saving a draft with explicit empty fields clears them', () => {
-      const storedDraft = {
-        id: 'draft-1',
-        toAddresses: ['initial@test.com'],
-        subject: 'Initial Subject',
-        ccAddresses: ['cc1@test.com'],
-        bccAddresses: ['bcc1@test.com'],
-        bodyHtml: '<p>Initial Body</p>',
-        bodyPlain: 'Initial Body',
-        inReplyTo: 'msg-parent-123',
-        threadId: 'thread-999',
+    it('T1-1: PUT /emails/:id preserves omitted fields (6 fields) in database update', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // Autosave sends only 'to' and 'subject', omitting cc, bcc, bodyHtml, bodyText, inReplyTo, threadId
+      const payload = {
+        to: [{ email: 'initial@test.com' }],
+        subject: 'Updated Subject',
       };
 
-      // User deliberately clears CC, BCC, and body
-      const explicitClearBody = {
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+
+      const updateCall = prisma.email.update.mock.calls[0][0];
+      expect(updateCall.where).toEqual({ id: 'draft-1' });
+
+      const data = updateCall.data;
+      expect(data.toAddresses).toEqual(['initial@test.com']);
+      expect(data.subject).toBe('Updated Subject');
+
+      // Six-field preservation invariant: omitted keys are NOT present in update data
+      expect(data).not.toHaveProperty('ccAddresses');
+      expect(data).not.toHaveProperty('bccAddresses');
+      expect(data).not.toHaveProperty('bodyHtml');
+      expect(data).not.toHaveProperty('bodyPlain');
+      expect(data).not.toHaveProperty('inReplyTo');
+      expect(data).not.toHaveProperty('threadId');
+
+      await app.close();
+    });
+
+    it('T1-2: PUT /emails/:id clears explicitly provided empty fields', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // Explicitly clearing cc, bcc, and body, while leaving inReplyTo and threadId omitted
+      const payload = {
         to: [{ email: 'initial@test.com' }],
         subject: 'Initial Subject',
         cc: [],
@@ -300,64 +515,99 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         bodyText: '',
       };
 
-      const updated = applyDraftUpdate(storedDraft, explicitClearBody, {
-        to: [{ email: 'initial@test.com' }],
-        subject: 'Initial Subject',
-        cc: [],
-        bcc: [],
-        bodyHtml: '',
-        bodyText: '',
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload,
       });
 
-      expect(updated.ccAddresses).toEqual([]);
-      expect(updated.bccAddresses).toEqual([]);
-      expect(updated.bodyHtml).toBe('');
-      expect(updated.bodyPlain).toBe('');
-      // inReplyTo & threadId were omitted, so they still survive
-      expect(updated.inReplyTo).toBe('msg-parent-123');
-      expect(updated.threadId).toBe('thread-999');
+      expect(res.statusCode).toBe(200);
+      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+
+      const data = prisma.email.update.mock.calls[0][0].data;
+      expect(data.ccAddresses).toEqual([]);
+      expect(data.bccAddresses).toEqual([]);
+      expect(data.bodyHtml).toBe('');
+      expect(data.bodyPlain).toBe('');
+
+      // inReplyTo & threadId were omitted, so they must NOT be in data
+      expect(data).not.toHaveProperty('inReplyTo');
+      expect(data).not.toHaveProperty('threadId');
+
+      await app.close();
     });
 
-    it('end-to-end simulation: draft created with thread, CC and BCC survives multiple autosaves', () => {
-      let currentDraft: Record<string, unknown> = {
-        id: 'draft-e2e',
-        toAddresses: ['boss@example.com'],
-        subject: 'Project Status',
-        ccAddresses: ['team@example.com'],
-        bccAddresses: ['audit@example.com'],
-        bodyHtml: '<p>Draft in progress...</p>',
-        bodyPlain: 'Draft in progress...',
-        inReplyTo: 'email-parent-456',
-        threadId: 'thread-abc-123',
+    it('T1-3: PUT /emails/:id sanitizes HTML content in bodyHtml', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const payload = {
+        to: [{ email: 'initial@test.com' }],
+        subject: 'HTML Sanitize Test',
+        bodyHtml:
+          '<p>Valid content</p><script>alert("xss")</script><style>body{color:red;}</style>',
       };
 
-      // Autosave 1: User types in subject only
-      currentDraft = applyDraftUpdate(
-        currentDraft,
-        { to: [{ email: 'boss@example.com' }], subject: 'Project Status: Phase R' },
-        { to: [{ email: 'boss@example.com' }], subject: 'Project Status: Phase R' },
-      );
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload,
+      });
 
-      // Autosave 2: User changes recipient
-      currentDraft = applyDraftUpdate(
-        currentDraft,
-        {
-          to: [{ email: 'boss@example.com' }, { email: 'lead@example.com' }],
-          subject: 'Project Status: Phase R',
-        },
-        {
-          to: [{ email: 'boss@example.com' }, { email: 'lead@example.com' }],
-          subject: 'Project Status: Phase R',
-        },
-      );
+      expect(res.statusCode).toBe(200);
+      expect(prisma.email.update).toHaveBeenCalledTimes(1);
 
-      // All 6 fields preserved intact across multiple autosaves!
-      expect(currentDraft.threadId).toBe('thread-abc-123');
-      expect(currentDraft.inReplyTo).toBe('email-parent-456');
-      expect(currentDraft.ccAddresses).toEqual(['team@example.com']);
-      expect(currentDraft.bccAddresses).toEqual(['audit@example.com']);
-      expect(currentDraft.bodyPlain).toBe('Draft in progress...');
-      expect(currentDraft.bodyHtml).toBe('<p>Draft in progress...</p>');
+      const data = prisma.email.update.mock.calls[0][0].data;
+      expect(data.bodyHtml).toContain('<p>Valid content</p>');
+      expect(data.bodyHtml).not.toContain('<script>');
+      expect(data.bodyHtml).not.toContain('alert("xss")');
+
+      await app.close();
+    });
+
+    it('T1-4: PUT /emails/:id rejects unauthenticated callers with 401', async () => {
+      const app = await buildTestFastifyApp(prisma, null); // null userId
+
+      const payload = {
+        to: [{ email: 'initial@test.com' }],
+        subject: 'Unauthenticated Attempt',
+      };
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload,
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(prisma.email.update).not.toHaveBeenCalled();
+
+      await app.close();
+    });
+
+    it('T1-5: PUT /emails/:id rejects already-sent emails with 409 EMAIL_NOT_EDITABLE', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        ...prisma.storedDraft,
+        isDraft: false,
+        isSent: true,
+      });
+
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const payload = {
+        to: [{ email: 'initial@test.com' }],
+        subject: 'Attempting to edit sent email',
+      };
+
+      const res = await app.inject({
+        method: 'PUT',
+        url: '/emails/draft-1',
+        payload,
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(prisma.email.update).not.toHaveBeenCalled();
+
+      await app.close();
     });
   });
 });
