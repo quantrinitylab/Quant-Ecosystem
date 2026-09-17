@@ -189,10 +189,33 @@ async function executeAutonomousTool(
       const content = String(args.content || '');
       const message = String(args.message || `chore: update ${filePath}`).trim();
       const targetBranch = String(args.branch || 'main').trim();
+      const suppliedParentSha = args.parentSha;
 
       if (!repoIdentifier || !filePath) {
         throw new Error('Repository identifier and file path are required');
       }
+
+      if (suppliedParentSha === undefined) {
+        throw createAppError(
+          'parentSha is required: provide 40-char SHA of current branch head or null for root commit',
+          400,
+          'PARENT_SHA_REQUIRED',
+        );
+      }
+
+      if (
+        suppliedParentSha !== null &&
+        (typeof suppliedParentSha !== 'string' || !/^[0-9a-f]{40}$/i.test(suppliedParentSha))
+      ) {
+        throw createAppError(
+          'parentSha must be a 40-character hexadecimal SHA or null',
+          400,
+          'INVALID_PARENT_SHA',
+        );
+      }
+
+      const expectedHeadSha =
+        typeof suppliedParentSha === 'string' ? suppliedParentSha.toLowerCase() : null;
 
       const repo = await prisma.repository.findFirst({
         where: {
@@ -206,10 +229,22 @@ async function executeAutonomousTool(
         throw new Error(`Repository "${repoIdentifier}" not found`);
       }
 
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { username: true, displayName: true, email: true },
+      const branchRecord = await prisma.branch.findUnique({
+        where: {
+          repoId_name: {
+            repoId: repo.id,
+            name: targetBranch,
+          },
+        },
       });
+
+      if (!branchRecord && targetBranch !== repo.defaultBranch) {
+        throw createAppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
+      }
+
+      if (branchRecord?.isProtected) {
+        throw createAppError('Cannot commit to protected branch', 403, 'BRANCH_PROTECTED');
+      }
 
       if (!fastify.repositoryMutation) {
         throw createAppError(
@@ -219,11 +254,25 @@ async function executeAutonomousTool(
         );
       }
 
-      if (args.parentSha === undefined) {
-        throw new Error(
-          'parentSha is required: provide 40-char SHA of current branch head or null for root commit',
+      const currentHeadSha = await fastify.repositoryMutation.getBranchHead({
+        owner: repo.ownerId,
+        name: repo.name,
+        branch: targetBranch,
+      });
+      const normalizedCurrentHeadSha = currentHeadSha?.toLowerCase() ?? null;
+
+      if (expectedHeadSha !== normalizedCurrentHeadSha) {
+        throw createAppError(
+          `The branch head changed. Current head is ${normalizedCurrentHeadSha ?? 'null'}`,
+          409,
+          'STALE_PARENT_SHA',
         );
       }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, displayName: true, email: true },
+      });
 
       const commitResult = await fastify.repositoryMutation.commitFile({
         owner: repo.ownerId,
@@ -232,7 +281,7 @@ async function executeAutonomousTool(
         path: filePath,
         content,
         message,
-        expectedHeadSha: args.parentSha,
+        expectedHeadSha,
         author: {
           name: user?.displayName || user?.username || 'Quanty',
           email: user?.email || `${userId}@quantmail.in`,

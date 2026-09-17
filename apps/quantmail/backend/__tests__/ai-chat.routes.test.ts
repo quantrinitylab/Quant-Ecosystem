@@ -536,6 +536,13 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         }),
       },
       branch: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'branch-1',
+          repoId: 'repo-101',
+          name: 'main',
+          commitSha: '1111222233334444555566667777888899990000',
+          isProtected: false,
+        }),
         upsert: vi.fn().mockResolvedValue({}),
       },
     };
@@ -647,6 +654,15 @@ describe('POST /ai/chat — autonomous tool calling', () => {
           username: 'astra-ceo',
         }),
       },
+      branch: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'branch-1',
+          repoId: 'repo-101',
+          name: 'main',
+          commitSha: '1111222233334444555566667777888899990000',
+          isProtected: false,
+        }),
+      },
     };
 
     aiChatMock.mockResolvedValue(
@@ -711,5 +727,173 @@ describe('POST /ai/chat — autonomous tool calling', () => {
         deletedAt: null,
       },
     });
+  });
+
+  it('normalizes commit_file CAS SHAs to lowercase', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'repo-101',
+          name: 'demo',
+          ownerId: 'user-1',
+          defaultBranch: 'main',
+        }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'user-1',
+          username: 'astra-ceo',
+          displayName: 'Astra CEO',
+          email: 'astra@quantmail.in',
+        }),
+      },
+      branch: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'branch-1',
+          repoId: 'repo-101',
+          name: 'main',
+          commitSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          isProtected: false,
+        }),
+        upsert: vi.fn().mockResolvedValue({}),
+      },
+    };
+
+    const repositoryMutationMock = {
+      getBranchHead: vi.fn().mockResolvedValue('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'),
+      commitFile: vi.fn().mockResolvedValue({
+        commitSha: '2222333344445555666677778888999900001111',
+        blobSha: '3333444455556666777788889999000011112222',
+        path: 'src/index.ts',
+        branch: 'main',
+      }),
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "fix: normalize CAS",\n    "branch": "main",\n    "parentSha": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Commit index.ts' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'succeeded',
+    });
+    expect(repositoryMutationMock.commitFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedHeadSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      }),
+    );
+  });
+
+  it('rejects commit_file on a protected branch before reading or mutating Git', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'repo-101',
+          name: 'demo',
+          ownerId: 'user-1',
+          defaultBranch: 'main',
+        }),
+      },
+      branch: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'branch-1',
+          repoId: 'repo-101',
+          name: 'main',
+          commitSha: '1111222233334444555566667777888899990000',
+          isProtected: true,
+        }),
+        upsert: vi.fn(),
+      },
+    };
+
+    const repositoryMutationMock = {
+      getBranchHead: vi.fn(),
+      commitFile: vi.fn(),
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "console.log(42);",\n    "message": "feat: protected write",\n    "branch": "main",\n    "parentSha": "1111222233334444555566667777888899990000"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Commit to protected main' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        code: 'BRANCH_PROTECTED',
+        message: 'Cannot commit to protected branch',
+      },
+    });
+    expect(repositoryMutationMock.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
+    expect(prismaMock.branch.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects commit_file with a malformed parent SHA', async () => {
+    const prismaMock = {
+      repository: {
+        findFirst: vi.fn(),
+      },
+    };
+    const repositoryMutationMock = {
+      getBranchHead: vi.fn(),
+      commitFile: vi.fn(),
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "commit_file",\n  "arguments": {\n    "repoId": "demo",\n    "path": "src/index.ts",\n    "content": "content",\n    "message": "bad CAS",\n    "branch": "main",\n    "parentSha": "948e3612"\n  }\n}\n```',
+    );
+
+    const app = await buildApp('user-1', {
+      prisma: prismaMock,
+      repositoryMutation: repositoryMutationMock,
+    });
+    const response = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Commit with short SHA' }],
+        tools: { enabled: true },
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.toolExecutions[0]).toMatchObject({
+      toolName: 'commit_file',
+      status: 'failed',
+      error: {
+        code: 'INVALID_PARENT_SHA',
+      },
+    });
+    expect(prismaMock.repository.findFirst).not.toHaveBeenCalled();
+    expect(repositoryMutationMock.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutationMock.commitFile).not.toHaveBeenCalled();
   });
 });

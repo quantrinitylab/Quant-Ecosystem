@@ -298,6 +298,32 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(repositoryMutation.rollbackCommit).not.toHaveBeenCalled();
   });
 
+  it('PATCH /repos/:id/file compares CAS SHAs case-insensitively and forwards lowercase SHA', async () => {
+    const app = await buildApp();
+    repositoryMutation.getBranchHead.mockResolvedValueOnce(
+      'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+    );
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'export const normalized = true;\n',
+        message: 'fix: normalize CAS SHA',
+        parentSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(repositoryMutation.commitFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedHeadSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      }),
+    );
+  });
+
   it('POST /repos/:id/file returns 409 and currentHeadSha for stale parentSha', async () => {
     const app = await buildApp();
 
@@ -660,7 +686,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       url: '/repos/repo-1/branches',
       payload: {
         name: 'feat/sprint-8-persistence',
-        sha: '948e3612',
+        sha: '948e361200000000000000000000000000000000',
       },
     });
     expect(res.statusCode).toBe(201);
@@ -763,6 +789,53 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.branch.create).not.toHaveBeenCalled();
   });
 
+  it('POST /repos/:id/branches rejects abbreviated and non-hex SHAs', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/invalid-parent',
+        sha: '948e3612',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'VALIDATION_ERROR',
+        }),
+      }),
+    );
+    expect(prisma.branch.create).not.toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/branches normalizes a valid parent SHA to lowercase', async () => {
+    const app = await buildApp();
+    const uppercaseSha = 'ABCDEFABCDEFABCDEFABCDEFABCDEFABCDEFABCD';
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/lowercase-parent',
+        sha: uppercaseSha,
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(prisma.branch.create).toHaveBeenCalledWith({
+      data: {
+        repoId: 'repo-1',
+        name: 'feat/lowercase-parent',
+        commitSha: uppercaseSha.toLowerCase(),
+      },
+    });
+  });
+
   it('POST /repos/:id/pulls/:number/merge marks pull request as merged', async () => {
     const app = await buildApp();
     const res = await app.inject({
@@ -794,17 +867,82 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  it('POST /repos/:id/actions/trigger triggers a new CI run', async () => {
-    const app = await buildApp();
-    const res = await app.inject({
-      method: 'POST',
-      url: '/repos/repo-1/actions/trigger',
-    });
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.status).toBe('in_progress');
-    expect(prisma.ciRun.create).toHaveBeenCalled();
+  it('POST /repos/:id/actions/trigger returns 503 outside explicitly enabled development seeding', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;
+
+    process.env.NODE_ENV = 'production';
+    delete process.env.ENABLE_DEV_REPO_SEEDING;
+
+    try {
+      const app = await buildApp();
+      const response = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/actions/trigger',
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({
+            code: 'CI_TRIGGER_UNAVAILABLE',
+          }),
+        }),
+      );
+      expect(prisma.ciRun.create).not.toHaveBeenCalled();
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+
+      if (previousSeeding === undefined) {
+        delete process.env.ENABLE_DEV_REPO_SEEDING;
+      } else {
+        process.env.ENABLE_DEV_REPO_SEEDING = previousSeeding;
+      }
+    }
+  });
+
+  it('POST /repos/:id/actions/trigger creates a synthetic run only when development seeding is enabled', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;
+
+    process.env.NODE_ENV = 'development';
+    process.env.ENABLE_DEV_REPO_SEEDING = 'true';
+
+    try {
+      const app = await buildApp();
+      const response = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/actions/trigger',
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json()).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            status: 'in_progress',
+          }),
+        }),
+      );
+      expect(prisma.ciRun.create).toHaveBeenCalled();
+    } finally {
+      if (previousNodeEnv === undefined) {
+        delete process.env.NODE_ENV;
+      } else {
+        process.env.NODE_ENV = previousNodeEnv;
+      }
+
+      if (previousSeeding === undefined) {
+        delete process.env.ENABLE_DEV_REPO_SEEDING;
+      } else {
+        process.env.ENABLE_DEV_REPO_SEEDING = previousSeeding;
+      }
+    }
   });
 
   it('GET /repos/:id/issues/:number/comments lists persisted comments', async () => {

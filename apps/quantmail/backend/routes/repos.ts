@@ -65,7 +65,11 @@ const createBranchSchema = z.object({
     .min(1)
     .max(100)
     .regex(/^[a-zA-Z0-9/_.-]+$/, 'Invalid branch name'),
-  sha: z.string().min(4).max(64).optional(),
+  sha: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/i, 'sha must be a 40-char SHA')
+    .transform((value) => value.toLowerCase())
+    .optional(),
 });
 
 const MAX_AUTHORED_FILE_BYTES = 2 * 1024 * 1024;
@@ -118,6 +122,7 @@ const commitFileSchema = z
     parentSha: z
       .string()
       .regex(/^[0-9a-f]{40}$/i, 'parentSha must be a 40-char SHA')
+      .transform((value) => value.toLowerCase())
       .nullable(),
   })
   .strict();
@@ -504,14 +509,17 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         branch: targetBranch,
       });
 
-      if (parsed.data.parentSha !== currentHeadSha) {
+      const expectedHeadSha = parsed.data.parentSha?.toLowerCase() ?? null;
+      const normalizedCurrentHeadSha = currentHeadSha?.toLowerCase() ?? null;
+
+      if (expectedHeadSha !== normalizedCurrentHeadSha) {
         return reply.status(409).send({
           success: false,
           error: {
             code: 'STALE_PARENT_SHA',
             message: 'The branch head changed. Reload the file before committing.',
           },
-          currentHeadSha,
+          currentHeadSha: normalizedCurrentHeadSha,
         });
       }
 
@@ -544,7 +552,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           path: parsed.data.path,
           content: parsed.data.content,
           message: parsed.data.message,
-          expectedHeadSha: parsed.data.parentSha,
+          expectedHeadSha,
           author: {
             name: author.displayName || author.username,
             email: author.email,
@@ -759,6 +767,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         'BRANCH_NOT_FOUND',
       );
     }
+
+    parentCommitSha = parentCommitSha.toLowerCase();
 
     const branch = await prisma.branch.create({
       data: {
@@ -1364,6 +1374,15 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
   fastify.post<{ Params: { id: string } }>('/:id/actions/trigger', async (request, reply) => {
     const repo = await loadWritableRepo(request, request.params.id);
+
+    if (process.env.NODE_ENV !== 'development' || process.env.ENABLE_DEV_REPO_SEEDING !== 'true') {
+      throw createAppError(
+        'Synthetic workflow triggering is unavailable in this environment',
+        503,
+        'CI_TRIGGER_UNAVAILABLE',
+      );
+    }
+
     const prisma = getPrisma(fastify);
 
     const newRun = await prisma.ciRun.create({
