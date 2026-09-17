@@ -22,7 +22,16 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
-- [x] **QuantGit Production Gate Hardening: V16 Kill Switch, Strict HTTP CAS & Non-Fabricated DTOs (`3bac4e0e` on `main`, Dev 6 & Dev 7 Implementation)**:
+- [x] **Astra Review §9 Remediations: M-F15 BCC Leak Elimination, M-F16 SES Reply-All & T1-T4 Authentic Tests (`ae3e0219` on `main`)**:
+  - [x] **M-F15 SMTP BCC Leak Elimination**: In `delivery-worker.service.ts`, DKIM headers are constructed using `to: toAddrs.join(', ')` and optional `cc: ccAddrs.join(', ')`. BCC addresses are completely excluded from headers, preventing exposure to external recipients over SMTP.
+  - [x] **M-F16 SES Worker Delivery Unification**: Replaced per-recipient SES loop with a single authoritative `sendViaSes` call preserving `To`, `Cc`, `Bcc`, `replyTo`, and `fromName`, restoring Reply-All and threading while maintaining recipient privacy.
+  - [x] **M-F11 Failure Logging**: Added structured `console.error` logs on send failures in `EmailService.send`.
+  - [x] **T1 Fastify Injection Tests**: Replaced `applyDraftUpdate` simulation with 5 real `app.inject({ method: 'PUT', url: '/emails/draft-1', payload })` tests verifying 6-field preservation, explicit clearing, `sanitizeHtml`, 401 unauthenticated, and 409 already-sent.
+  - [x] **T2 Route Export Invariant**: Verified that every method in `ALLOWED_BACKEND_ROUTES` is an exported handler function on `src/app/api/[...path]/route.ts`.
+  - [x] **T3 Proxy Forwarding**: Added unit tests verifying `proxyToBackend` forwards search parameters on GET requests and forwards `Authorization` header when present while omitting it cleanly when absent.
+  - [x] **T4 Delivery Worker Tests**: Added unit tests verifying SMTP path excludes BCC from headers and SES path transmits full recipient metadata in a single call.
+  - [x] **Verification**: 18/18 tests passing in `phase-r-m.routes.test.ts`, 32/32 in `email.service.test.ts`, 100% clean typecheck (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
+
   - [x] **CEO Astra Re-Audit 4 Official Production Sign-Off**: Astra inspected commit `3bac4e0e` via GitHub MCP tools and granted **OFFICIAL PRODUCTION SIGN-OFF for the HTTP Write Path & Repository Read Surface**. Formally ratified and updated Master Spec page on Notion.
   - [x] **GitHub Actions CI Gate 100% Green**: Workflow `35169463189` passed green across all 4 jobs (`gate` 4m29s, `quantchat-coverage` 59s, `memory-shadow-postgres` 48s, `full-sweep` 17m19s).
   - [x] **V16 Environment Kill Switch Hardening**: Changed `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'` to `&&` in `routes/ai-chat.ts`, ensuring callers must explicitly opt in per-request AND the environment variable must be `'true'`. Added negative unit tests in `ai-chat.routes.test.ts` (25/25 tests passing).
@@ -932,6 +941,10 @@
 - [x] **Task M03**: Regression test: one external recipient receives exactly one message (verified in `phase-r-m.routes.test.ts`).
 - [x] **Task M04**: Make `PUT /emails/:id` a true patch preserving all 6 fields (`bodyHtml`, `bodyPlain`, `cc`, `bcc`, `inReplyTo`, `threadId`).
 - [x] **Task M05**: Test: patching subject leaves body, CC, BCC, and thread linkage intact (verified in `phase-r-m.routes.test.ts`).
+- [x] **Task M-F15**: Eliminate BCC leak in SMTP delivery worker — DKIM headers only include visible recipients (`to` and `cc`), excluding BCC from headers (`delivery-worker.service.ts`).
+- [x] **Task M-F16**: Single authoritative SES send in delivery worker preserving `To`, `Cc`, `Bcc`, `replyTo`, and `fromName` (`delivery-worker.service.ts`).
+- [x] **Task M-F11**: Add structured error logging on delivery failures in `EmailService.send`.
+- [x] **Task T1–T4**: Zero-mock Vitest regression suite covering Fastify route injection, route export invariants, proxy forwarding, and worker delivery (`phase-r-m.routes.test.ts`).
 - [ ] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
 - [ ] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
 - [ ] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).

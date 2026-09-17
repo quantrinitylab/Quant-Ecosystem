@@ -1700,3 +1700,54 @@ graph TD
   - Authored `apps/quantmail/backend/__tests__/phase-r-m.routes.test.ts` with 12 targeted unit tests (12/12 passing in 15ms).
   - Verified full test suites: `phase-r-m.routes.test.ts` (12/12), `email.service.test.ts` (32/32), `repos.routes.test.ts` (31/31), `ai-chat.routes.test.ts` (28/28), `calendar.routes.test.ts` (43/43). Total: 146 tests passing 100%.
   - Verified `pnpm --filter @quant/quantmail run typecheck` passes with 0 errors across frontend Next.js App Router and backend Fastify TypeScript compilers.
+
+### 29. Astra Review §9 Remediations: Delivery Worker BCC Hardening, SES Reply-All & Authentic Fastify Tests (Commit `ae3e0219`):
+
+- **1. Astra's Official Review §9 Findings (Commit `46a1e836`)**:
+  - `M-F15` (Critical Security): The SMTP path in `DeliveryWorker` previously constructed DKIM headers using `headers.to = recipients.join(', ')` where `recipients` contained `to ∪ cc ∪ bcc`. Every recipient receiving the raw signed email over SMTP saw all BCC recipients leaked in the headers.
+  - `M-F16` (High Deliverability): The SES worker path previously sent individual messages with `to: [recipient]`, completely dropping `cc`, `bcc`, `replyTo`, and `fromName`, breaking Reply-All and reply threading.
+  - `T1` (Test Authenticity): M02 tests previously evaluated a synthetic local function `applyDraftUpdate` rather than exercising the real Fastify route `PUT /emails/:id`.
+  - `T2` (Route Module Invariant): Tested against `ALLOWED_BACKEND_ROUTES` rather than asserting against exported handler functions on `src/app/api/[...path]/route.ts`.
+  - `T3` (Proxy Forwarding Tests): Missing authentic unit tests for query string (`searchParams`) and `Authorization` header forwarding in `proxyToBackend`.
+  - `T4` (Delivery Worker Tests): Missing authentic unit tests for BCC header omission and SES worker header preservation.
+  - `M-F11` (Failure Visibility): Error message on delivery failure in `EmailService.send` was swallowed without error logging.
+
+- **2. M-F15 SMTP BCC Header Leak Elimination (`services/delivery-worker.service.ts`)**:
+  - In `delivery-worker.service.ts`, separated recipients into `toAddrs`, `ccAddrs`, and `bccAddrs`.
+  - Constructed DKIM headers with `to: toAddrs.join(', ')` and optional `cc: ccAddrs.join(', ')`.
+  - **Hard privacy invariant**: BCC addresses are strictly omitted from `headers` and DKIM signatures.
+  - SMTP envelope delivery (`RCPT TO: <recipient>`) continues to transmit to all recipients without exposing BCC metadata in the payload.
+
+- **3. M-F16 Authoritative SES Worker Delivery (`services/delivery-worker.service.ts`)**:
+  - Replaced the per-recipient loop (`to: [recipient]`) with a single authoritative `sendViaSes` call passing:
+    - `from: email.fromName ? \`${email.fromName} <\${fromAddress}>\` : fromAddress`
+    - `to: toAddrs`
+    - `cc: ccAddrs.length > 0 ? ccAddrs : undefined`
+    - `bcc: bccAddrs.length > 0 ? bccAddrs : undefined`
+    - `replyTo: fromAddress`
+    - `subject: email.subject ?? ''`
+    - Cleaned `bodyHtml` and `bodyPlain`.
+  - AWS SESv2 transmits to all envelope recipients in one call while preserving `To` and `Cc` for Reply-All and hiding `Bcc` from header blocks.
+  - Persists individual `deliveryAttempt` rows for all recipients.
+
+- **4. M-F11 Structured Send Failure Logging (`services/email.service.ts`)**:
+  - Added structured `console.error` logs on send failures in both SES fallback catch and no-outbound-transport branches (`emailId`, `userId`, `error`).
+
+- **5. Authentic T1–T4 Test Suite (`apps/quantmail/backend/__tests__/phase-r-m.routes.test.ts`)**:
+  - **T1 Fastify Injection Tests**: Replaced `applyDraftUpdate` simulation with 5 real `app.inject({ method: 'PUT', url: '/emails/draft-1', payload })` tests:
+    - `T1-1`: 6-field preservation (`ccAddresses`, `bccAddresses`, `bodyHtml`, `bodyPlain`, `inReplyTo`, `threadId` omitted in update data when absent from request).
+    - `T1-2`: Explicit clearing (`cc: []`, `bcc: []`, `bodyHtml: ''`, `bodyText: ''` written as empty while omitted fields stay preserved).
+    - `T1-3`: HTML sanitization on `bodyHtml` stripping malicious `<script>` tags.
+    - `T1-4`: 401 unauthenticated caller rejection.
+    - `T1-5`: 409 `EMAIL_NOT_EDITABLE` rejection when attempting to edit already-sent emails.
+  - **T2 Route Export Invariant**: Asserts every allowed method in `ALLOWED_BACKEND_ROUTES` is a callable exported function on `routeHandlers` (`route.ts`).
+  - **T3 Proxy Forwarding**: Verifies `proxyToBackend` forwards search params on GET requests and forwards `Authorization` when present while omitting it cleanly when absent.
+  - **T4 Worker Tests**:
+    - `T4 / M-F15`: SMTP path excludes BCC from headers and verifies `mockSigner.signMessage` receives zero BCC strings while `mockSmtp.send` reaches all 3 recipients.
+    - `T4 / M-F16`: SES worker path makes single authoritative `sendViaSes` call preserving all recipient fields and sender metadata.
+
+- **6. Verification & Gate Sign-Off**:
+  - 18/18 tests passing 100% in `phase-r-m.routes.test.ts` (663ms).
+  - 32/32 tests passing 100% in `email.service.test.ts`.
+  - 100% clean TypeScript compiler check (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
+  - Landed on `main` at commit `ae3e0219` and pushed to `origin/main`.
