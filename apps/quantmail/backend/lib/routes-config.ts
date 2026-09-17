@@ -69,6 +69,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // Its own row. The entry above is single-segment and anchored, so it cannot
   // match a nested path no matter which methods are listed on it.
   { pattern: /^events\/[^/]+\/rsvp$/, methods: ['POST'] },
+  { pattern: /^events\/[^/]+\/ics$/, methods: ['GET'] },
 
   // ── Booking links ──────────────────────────────────────────────────────────
   // Creating a link is authenticated. The invitee-facing read and the booking

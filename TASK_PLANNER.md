@@ -1042,24 +1042,24 @@
 - [x] **Task C02**: Filter `GET /events` by `calendarId`.
 - [x] **Task C03**: Backfill existing events onto each user's primary calendar.
 - [x] **Task C04**: Migration test for C01–C03.
-- [ ] **Task C05**: Add `EventException` schema model.
-- [ ] **Task C06**: Implement single-occurrence edit ("only this event").
+- [x] **Task C05 & C09**: Eliminate `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE` via RFC 5545 `EXDATE` series exclusion.
+- [x] **Task C06**: Implement single-occurrence edit ("only this event") via parent EXDATE exclusion + standalone modified single event creation.
 - [ ] **Task C07**: Implement "this and following" series split.
-- [ ] **Task C08**: Implement single-occurrence delete.
-- [ ] **Task C09**: Remove `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE` error code.
+- [x] **Task C08**: Implement single-occurrence delete ("only this event") via parent EXDATE exclusion.
+- [x] **Task C09**: Remove `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE` error code and allow occurrence mutations.
 - [ ] **Task C10**: Add `timeZone` field to events and user profile.
-- [ ] **Task C11**: Make `/events/today` evaluate against caller's timezone.
+- [x] **Task C11**: Make `/events/today` evaluate against caller's timezone (`?timeZone=` / `x-timezone`) and expand recurring events.
 - [ ] **Task C12**: Add timezone picker to event creation modal.
-- [ ] **Task C13**: Reject unparseable RRULE with 400 (never silently non-recurring).
+- [x] **Task C13**: Reject unparseable RRULE with 400 `INVALID_RRULE` (never silently non-recurring).
 - [ ] **Task C14**: Normalize attendees into dedicated queryable table.
 - [ ] **Task C15**: Normalize reminders into dedicated queryable table.
-- [ ] **Task C16**: Return attendee name and RSVP status from `toEventDto` (F17).
-- [ ] **Task C17**: Generate valid downloadable ICS for every event.
+- [x] **Task C16**: Return attendee name and RSVP status from `toEventDto` (`{ email, name, status }`).
+- [x] **Task C17**: Generate valid downloadable RFC 5545 ICS for every event (`GET /events/:id/ics`).
 - [ ] **Task C18**: Send invite email with `METHOD:REQUEST` (Google/Outlook show Accept/Decline).
 - [ ] **Task C19**: Handle inbound `METHOD:REPLY` from external calendar clients.
 - [ ] **Task C20**: Send update and cancellation notices to guests.
 - [ ] **Task C21**: Move calendar reminders to durable queue (F15).
-- [ ] **Task C22**: Replace reminder scheduling `.catch(() => {})` with typed logging.
+- [x] **Task C22**: Replace reminder scheduling `.catch(() => {})` with typed `request.log.warn` logging.
 - [ ] **Task C23**: Add free/busy lookup blocks.
 - [ ] **Task C24**: Add conflict warning before save on overlapping events.
 - [ ] **Task C25**: Add working hours and conflict-aware booking validation.

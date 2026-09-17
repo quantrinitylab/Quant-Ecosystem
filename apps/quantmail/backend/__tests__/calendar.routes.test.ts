@@ -544,14 +544,15 @@ describe('the DTO — stored JSON back out in the shape the page renders', () =>
     recurrenceRule: 'Weekly',
   };
 
-  it('emits attendees as emails and reminders as labels, per CalendarEventLike', async () => {
+  it('emits rich attendees and reminders as labels, per CalendarEventLike', async () => {
     const app = await buildApp();
     prisma.event.findUnique.mockResolvedValue(STORED);
     const res = await app.inject({ method: 'GET', url: '/events/e1' });
 
-    // `calendar/page.tsx` declares `attendees?: string[]` and `reminders?:
-    // string[]`. Handing it objects would render "[object Object]" as a guest.
-    expect(res.json().data.attendees).toEqual(['ada@example.com', 'bob@example.com']);
+    expect(res.json().data.attendees).toEqual([
+      { email: 'ada@example.com', name: 'Ada L.', status: 'accepted' },
+      { email: 'bob@example.com', name: '', status: 'pending' },
+    ]);
     expect(res.json().data.reminders).toEqual(['1 week before at 9 AM']);
     expect(res.json().data.recurrence).toBe('Weekly');
   });
@@ -604,7 +605,9 @@ describe('the rows a legacy writer left behind', () => {
     });
     const res = await app.inject({ method: 'GET', url: '/events/e1' });
 
-    expect(res.json().data.attendees).toEqual(['ada@example.com']);
+    expect(res.json().data.attendees).toEqual([
+      { email: 'ada@example.com', name: '', status: 'pending' },
+    ]);
     expect(res.json().data.reminders).toEqual(['30 minutes before']);
   });
 
@@ -617,7 +620,9 @@ describe('the rows a legacy writer left behind', () => {
     });
     const res = await app.inject({ method: 'GET', url: '/events/e1' });
 
-    expect(res.json().data.attendees).toEqual(['ada@example.com']);
+    expect(res.json().data.attendees).toEqual([
+      { email: 'ada@example.com', name: '', status: 'pending' },
+    ]);
     expect(res.json().data.reminders).toEqual(['1 hour before']);
   });
 });

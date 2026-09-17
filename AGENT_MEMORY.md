@@ -1996,3 +1996,36 @@ graph TD
   - **8/8 unit tests passing 100%** in `apps/quantmail/backend/__tests__/drive-parity.routes.test.ts`.
   - **45/45 unit tests passing 100%** across all 6 backend Drive test suites (`drive-parity`, `drive-memory`, `drive-quota`, `drive-ai-advanced`, `drive-ai-extract`, `drive-ai-summarize`).
   - **0 TypeScript compiler errors** across `@quant/quantmail` (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
+
+### 36. Wave 6: Phase C Completion (QuantCalendar Recurrence Parity, Exceptions, Timezones & ICS — Developer 3):
+
+- **1. Elimination of Synthetic Occurrence Mutations Lock (Tasks C05, C06, C08, C09)**:
+  - Eliminated `CANNOT_MUTATE_SYNTHETIC_OCCURRENCE` 400 error codes across `PUT /events/:id`, `PATCH /events/:id`, and `DELETE /events/:id`.
+  - **Single-Occurrence Delete ("only this event" - C08)**:
+    - Parses synthetic ID `${parentId}_${occurrenceIso}`.
+    - Resolves parent event, verifies caller ownership (`userId`).
+    - Appends occurrence ISO date to `rule.exceptions` via RFC 5545 `EXDATE` serialization.
+    - Updates parent `recurrenceRule` in PostgreSQL Prisma, guaranteeing subsequent expansions cleanly exclude the deleted occurrence.
+  - **Single-Occurrence Edit ("only this event" - C06)**:
+    - Automatically adds occurrence date to parent series `EXDATE`.
+    - Spawns a new standalone single event (`recurrenceRule: null`) in PostgreSQL Prisma containing the modified parameters (`title`, `startTime`, `endTime`, `location`, `allDay`), preserving parent calendar association and returning 200 with the new standalone event DTO.
+- **2. Strict RRULE Validation & Error Reporting (Task C13)**:
+  - In `normalizeRecurrenceRule`: Replaced silent swallow to `null` with fail-loud validation.
+  - Unparseable or malformed recurrence rules (e.g. `"rubbish;invalid"`, `"FREQ=INVALID"`) now strictly throw 400 with code `'INVALID_RRULE'`.
+- **3. Timezone-Aware `/events/today` with Recurring Expansion (Task C11)**:
+  - `GET /events/today`: Accepts `timeZone` query parameter and `x-timezone` header, defaulting cleanly to UTC on invalid inputs.
+  - Computes accurate timezone boundaries (`startOfDay` 00:00:00 to `endOfDay` 23:59:59.999) using `Intl.DateTimeFormat` UTC instant projection.
+  - Expands active recurring series occurring today within the user's localized timezone, merges with standalone single events, and sorts chronologically.
+- **4. Rich Attendee Details in Event DTO (Task C16)**:
+  - `toEventDto`: Enhanced attendee output to return rich `{ email, name, status }` objects, parsing stored JSON while preserving backwards compatibility for string inputs.
+- **5. RFC 5545 `.ics` Export Route (Task C17)**:
+  - Implemented `GET /events/:id/ics` with full RFC 5545 `VCALENDAR` serialization (`DTSTAMP`, `DTSTART`, `DTEND`, `SUMMARY`, `DESCRIPTION`, `LOCATION`, `STATUS`, `RRULE`).
+  - Supports both direct database event IDs and synthetic recurring occurrence IDs.
+  - Sends response with `Content-Type: text/calendar; charset=utf-8` and formatted `attachment; filename="<safeTitle>.ics"`.
+  - Registered pattern `{ pattern: /^events\/[^/]+\/ics$/, methods: ['GET'] }` in Next.js proxy `ALLOWED_BACKEND_ROUTES`.
+- **6. Typed Logging for Call Alert Scheduling (Task C22)**:
+  - Replaced empty `.catch(() => {})` blocks across `POST /events`, `PUT /events/:id`, `PATCH /events/:id`, and `DELETE /events/:id` with structured `request.log.warn({ err }, 'Failed to schedule event call alert')`.
+- **7. Verification & Quality Gates**:
+  - **12/12 unit tests passing 100%** in `apps/quantmail/backend/__tests__/calendar-recurrence-parity.test.ts`.
+  - **65/65 unit tests passing 100%** across all 3 backend Calendar test suites (`calendar-recurrence-parity`, `calendar.routes`, `calendar-parity.routes`).
+  - **0 TypeScript compiler errors** across `@quant/quantmail` (`pnpm --filter @quant/quantmail run build:backend` and `tsc --noEmit`).

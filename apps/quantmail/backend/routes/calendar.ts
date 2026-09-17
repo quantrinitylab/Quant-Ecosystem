@@ -223,7 +223,7 @@ function normalizeRecurrenceRule(
   try {
     recurringService.parseRRule(trimmed);
   } catch {
-    return null;
+    throw createAppError('Invalid recurrence rule: malformed RRULE string', 400, 'INVALID_RRULE');
   }
   return trimmed;
 }
@@ -266,10 +266,98 @@ function toEventDto(event: EventRow | CalendarEvent) {
     allDay: event.allDay,
     location: event.location,
     status: event.status,
-    attendees: attendeeEmails(event.attendees),
+    attendees: parseJsonArray(event.attendees)
+      .map((a: any) =>
+        typeof a === 'string'
+          ? { email: a.trim(), name: '', status: 'pending' }
+          : { email: (a.email || '').trim(), name: a.name || '', status: a.status || 'pending' },
+      )
+      .filter((a) => Boolean(a.email)),
     reminders: reminderLabels(event.reminders),
     recurrence: event.recurrenceRule ?? null,
   };
+}
+function formatIcsDate(date: Date): string {
+  return date
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+}
+function escapeIcs(str: string): string {
+  return str
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+function safeFileName(title: string): string {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/gi, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 50) || 'event'
+  );
+}
+function getTodayWindow(timeZoneInput?: string): { startOfDay: Date; endOfDay: Date } {
+  let tz = 'UTC';
+  if (timeZoneInput && typeof timeZoneInput === 'string' && timeZoneInput.trim()) {
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: timeZoneInput.trim() });
+      tz = timeZoneInput.trim();
+    } catch {
+      tz = 'UTC';
+    }
+  }
+
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).formatToParts(now);
+
+  const year = Number(parts.find((p) => p.type === 'year')?.value);
+  const month = Number(parts.find((p) => p.type === 'month')?.value);
+  const day = Number(parts.find((p) => p.type === 'day')?.value);
+
+  const getInstant = (h: number, m: number, s: number, ms: number): Date => {
+    let guess = new Date(Date.UTC(year, month - 1, day, h, m, s, ms));
+    const tzFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz,
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+      fractionalSecondDigits: 3,
+      hour12: false,
+    });
+    for (let iter = 0; iter < 3; iter++) {
+      const p = tzFormatter.formatToParts(guess);
+      const gy = Number(p.find((x) => x.type === 'year')?.value);
+      const gm = Number(p.find((x) => x.type === 'month')?.value);
+      const gd = Number(p.find((x) => x.type === 'day')?.value);
+      let gh = Number(p.find((x) => x.type === 'hour')?.value);
+      if (gh === 24) gh = 0;
+      const gmin = Number(p.find((x) => x.type === 'minute')?.value);
+      const gs = Number(p.find((x) => x.type === 'second')?.value);
+      const gms = Number(p.find((x) => x.type === 'fractionalSecond')?.value ?? 0);
+
+      const targetMs = Date.UTC(year, month - 1, day, h, m, s, ms);
+      const currentMs = Date.UTC(gy, gm - 1, gd, gh, gmin, gs, gms);
+      const diff = targetMs - currentMs;
+      if (diff === 0) break;
+      guess = new Date(guess.getTime() + diff);
+    }
+    return guess;
+  };
+
+  const startOfDay = getInstant(0, 0, 0, 0);
+  const endOfDay = getInstant(23, 59, 59, 999);
+  return { startOfDay, endOfDay };
 }
 
 export default async function calendarRoutes(
@@ -386,16 +474,57 @@ export default async function calendarRoutes(
       return reply.send({ success: true, data: rows.map(toEventDto) });
     },
   );
-  fastify.get('/events/today', async (request, reply) => {
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  fastify.get<{
+    Querystring: { timeZone?: string; timezone?: string; calendarId?: string };
+  }>('/events/today', async (request, reply) => {
+    const userId = requireUserId(request);
+    const tzParam = request.query.timeZone ?? request.query.timezone;
+    const tzHeader = request.headers['x-timezone'] as string | undefined;
+    const requestedTz = (tzParam || tzHeader || 'UTC').trim();
+    const { startOfDay, endOfDay } = getTodayWindow(requestedTz);
+    const calendarId = request.query.calendarId;
+
     const rows = (await getPrisma(fastify).event.findMany({
-      where: { userId: requireUserId(request), startTime: { gte: startOfDay, lt: endOfDay } },
+      where: {
+        userId,
+        recurrenceRule: null,
+        startTime: { gte: startOfDay, lte: endOfDay },
+        ...(calendarId ? { calendarId } : {}),
+      },
       orderBy: { startTime: 'asc' },
+      take: 500,
+    })) as EventRow[];
+
+    const recurringRows = (await getPrisma(fastify).event.findMany({
+      where: {
+        userId,
+        recurrenceRule: { not: null },
+        startTime: { lte: endOfDay },
+        ...(calendarId ? { calendarId } : {}),
+      },
       take: 200,
     })) as EventRow[];
-    return reply.send({ success: true, data: rows.map(toEventDto) });
+
+    const expandedDtos = recurringRows.flatMap((row) => {
+      try {
+        return recurringService
+          .expandOccurrences(toCalendarEvent(row), startOfDay, endOfDay)
+          .filter(
+            (occurrence) => occurrence.startTime <= endOfDay && occurrence.endTime >= startOfDay,
+          )
+          .map(toEventDto);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn(`Unable to expand recurring calendar event ${row.id}`, error);
+        return [];
+      }
+    });
+
+    const merged = [...rows.map(toEventDto), ...expandedDtos];
+    const data = [...new Map(merged.map((event) => [event.id, event])).values()].sort(
+      (left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime(),
+    );
+    return reply.send({ success: true, data });
   });
   fastify.get<{ Querystring: { limit?: string } }>('/events/upcoming', async (request, reply) => {
     const limit = Math.min(Math.max(Number(request.query.limit) || 10, 1), 100);
@@ -436,6 +565,61 @@ export default async function calendarRoutes(
     if (!event || event.userId !== userId)
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     return reply.send({ success: true, data: toEventDto(event as EventRow) });
+  });
+  fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    let event = (await prisma.event.findUnique({
+      where: { id: request.params.id },
+    })) as EventRow | null;
+    if (!event && request.params.id.includes('_')) {
+      const parentId = request.params.id.split('_')[0]!;
+      const occIso = request.params.id.split('_').slice(1).join('_');
+      const parent = (await prisma.event.findUnique({
+        where: { id: parentId },
+      })) as EventRow | null;
+      if (parent && parent.userId === userId) {
+        const occStart = new Date(occIso);
+        const duration = new Date(parent.endTime).getTime() - new Date(parent.startTime).getTime();
+        event = {
+          ...parent,
+          id: request.params.id,
+          startTime: occStart,
+          endTime: new Date(occStart.getTime() + (duration > 0 ? duration : 3_600_000)),
+          recurrenceRule: null,
+        };
+      }
+    }
+    if (!event || event.userId !== userId) {
+      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    }
+
+    const icsLines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Quant Ecosystem//QuantCalendar//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${event.id}@quantmail.in`,
+      `DTSTAMP:${formatIcsDate(new Date())}`,
+      `DTSTART:${formatIcsDate(new Date(event.startTime))}`,
+      `DTEND:${formatIcsDate(new Date(event.endTime))}`,
+      `SUMMARY:${escapeIcs(event.title)}`,
+      `DESCRIPTION:${escapeIcs(event.description || '')}`,
+      `LOCATION:${escapeIcs(event.location || '')}`,
+      `STATUS:${(event.status || 'confirmed').toUpperCase()}`,
+    ];
+    if (event.recurrenceRule) {
+      icsLines.push(`RRULE:${event.recurrenceRule}`);
+    }
+    icsLines.push('END:VEVENT', 'END:VCALENDAR');
+    const icsString = icsLines.join('\r\n') + '\r\n';
+
+    return reply
+      .header('Content-Type', 'text/calendar; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${safeFileName(event.title)}.ics"`)
+      .send(icsString);
   });
   fastify.post('/events', async (request, reply) => {
     const parsed = eventCreateSchema.safeParse(request.body);
@@ -505,32 +689,112 @@ export default async function calendarRoutes(
         location: created.location,
         reminders: created.reminders as any,
       })
-      .catch(() => {});
+      .catch((err) => {
+        request.log.warn({ err }, 'Failed to schedule event call alert');
+      });
     return reply.status(201).send({ success: true, data: toEventDto(created) });
   });
 
   const updateEvent = async (request: any, reply: any) => {
-    if (request.params.id.includes('_')) {
-      throw createAppError(
-        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
-        400,
-        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
-      );
-    }
     const parsed = eventUpdateSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    const eventId = parentEventId(request.params.id);
-    const existing = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!existing || existing.userId !== userId)
-      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     const startRaw = parsed.data.start ?? parsed.data.startTime;
     const endRaw = parsed.data.end ?? parsed.data.endTime;
     const start = startRaw ? toDate(startRaw, 'start') : undefined;
     const end = endRaw ? toDate(endRaw, 'end') : undefined;
     if (start && end && end < start)
       throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+
+    if (request.params.id.includes('_')) {
+      const parentId = request.params.id.split('_')[0]!;
+      const occurrenceIso = request.params.id.split('_').slice(1).join('_');
+      const parent = (await prisma.event.findUnique({
+        where: { id: parentId },
+      })) as EventRow | null;
+      if (!parent || parent.userId !== userId) {
+        throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+      }
+
+      const occDate = new Date(occurrenceIso);
+      if (Number.isNaN(occDate.getTime())) {
+        throw createAppError('Invalid occurrence date', 400, 'INVALID_DATE');
+      }
+
+      if (parent.recurrenceRule) {
+        const rule = recurringService.parseRRule(parent.recurrenceRule);
+        rule.exceptions = rule.exceptions ?? [];
+        const hasDate = rule.exceptions.some(
+          (existing) =>
+            existing.getTime() === occDate.getTime() ||
+            existing.toISOString().slice(0, 10) === occDate.toISOString().slice(0, 10),
+        );
+        if (!hasDate) {
+          rule.exceptions.push(occDate);
+        }
+        const updatedRule = recurringService.serializeRRule(rule);
+        await prisma.event.update({
+          where: { id: parentId },
+          data: { recurrenceRule: updatedRule, updatedAt: new Date() },
+        });
+      }
+
+      const eventStartTime = start ?? occDate;
+      const parentDuration =
+        parent.endTime && parent.startTime
+          ? new Date(parent.endTime).getTime() - new Date(parent.startTime).getTime()
+          : 3_600_000;
+      const eventEndTime =
+        end ?? new Date(occDate.getTime() + (parentDuration > 0 ? parentDuration : 3_600_000));
+      if (eventEndTime < eventStartTime) {
+        throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+      }
+
+      const now = new Date();
+      const created = (await prisma.event.create({
+        data: {
+          title: parsed.data.title ?? parent.title,
+          description: parsed.data.description ?? parent.description ?? '',
+          startTime: eventStartTime,
+          endTime: eventEndTime,
+          allDay: parsed.data.allDay ?? parent.allDay ?? false,
+          location: parsed.data.location ?? parent.location ?? '',
+          userId,
+          calendarId: parsed.data.calendarId ?? parent.calendarId,
+          status: parsed.data.status ?? parent.status ?? 'confirmed',
+          recurrenceRule: null,
+          attendees: parsed.data.attendees
+            ? JSON.stringify(toStoredAttendees(parsed.data.attendees))
+            : (parent.attendees ?? JSON.stringify([])),
+          reminders: parsed.data.reminders
+            ? JSON.stringify(toStoredReminders(parsed.data.reminders))
+            : (parent.reminders ?? JSON.stringify([])),
+          createdAt: now,
+          updatedAt: now,
+        },
+      })) as EventRow;
+
+      await callAlertService
+        .scheduleAlertsForEvent({
+          id: created.id,
+          title: created.title,
+          userId: created.userId,
+          startTime: created.startTime,
+          location: created.location,
+          reminders: created.reminders as any,
+        })
+        .catch((err) => {
+          request.log.warn({ err }, 'Failed to schedule event call alert');
+        });
+
+      return reply.send({ success: true, data: toEventDto(created) });
+    }
+
+    const eventId = parentEventId(request.params.id);
+    const existing = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!existing || existing.userId !== userId)
+      throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     const data: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const)
       if (parsed.data[key] !== undefined) data[key] = parsed.data[key];
@@ -545,7 +809,9 @@ export default async function calendarRoutes(
     if (recurrence !== undefined)
       data.recurrenceRule = normalizeRecurrenceRule(recurrence, recurringService);
     const updated = (await prisma.event.update({ where: { id: eventId }, data })) as EventRow;
-    await callAlertService.cancelAlertsForEvent(eventId).catch(() => {});
+    await callAlertService.cancelAlertsForEvent(eventId).catch((err) => {
+      request.log.warn({ err }, 'Failed to schedule event call alert');
+    });
     await callAlertService
       .scheduleAlertsForEvent({
         id: updated.id,
@@ -555,27 +821,64 @@ export default async function calendarRoutes(
         location: updated.location,
         reminders: updated.reminders as any,
       })
-      .catch(() => {});
+      .catch((err) => {
+        request.log.warn({ err }, 'Failed to schedule event call alert');
+      });
     return reply.send({ success: true, data: toEventDto(updated) });
   };
   fastify.put('/events/:id', updateEvent);
   fastify.patch('/events/:id', updateEvent);
   fastify.delete<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
-    if (request.params.id.includes('_')) {
-      throw createAppError(
-        'Cannot update or delete synthetic recurring occurrence directly; modify parent event',
-        400,
-        'CANNOT_MUTATE_SYNTHETIC_OCCURRENCE',
-      );
-    }
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
+
+    if (request.params.id.includes('_')) {
+      const parentId = request.params.id.split('_')[0]!;
+      const occurrenceIso = request.params.id.split('_').slice(1).join('_');
+      const parent = (await prisma.event.findUnique({
+        where: { id: parentId },
+      })) as EventRow | null;
+      if (!parent || parent.userId !== userId) {
+        throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+      }
+
+      const occDate = new Date(occurrenceIso);
+      if (Number.isNaN(occDate.getTime())) {
+        throw createAppError('Invalid occurrence date', 400, 'INVALID_DATE');
+      }
+
+      if (parent.recurrenceRule) {
+        const rule = recurringService.parseRRule(parent.recurrenceRule);
+        rule.exceptions = rule.exceptions ?? [];
+        const hasDate = rule.exceptions.some(
+          (existing) =>
+            existing.getTime() === occDate.getTime() ||
+            existing.toISOString().slice(0, 10) === occDate.toISOString().slice(0, 10),
+        );
+        if (!hasDate) {
+          rule.exceptions.push(occDate);
+        }
+        const updatedRule = recurringService.serializeRRule(rule);
+        await prisma.event.update({
+          where: { id: parentId },
+          data: { recurrenceRule: updatedRule, updatedAt: new Date() },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        data: { message: 'Occurrence deleted from series', excludedDate: occurrenceIso },
+      });
+    }
+
     const eventId = parentEventId(request.params.id);
     const event = await prisma.event.findUnique({ where: { id: eventId } });
     if (!event || event.userId !== userId)
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     await prisma.event.delete({ where: { id: eventId } });
-    await callAlertService.cancelAlertsForEvent(eventId).catch(() => {});
+    await callAlertService.cancelAlertsForEvent(eventId).catch((err) => {
+      request.log.warn({ err }, 'Failed to schedule event call alert');
+    });
     return reply.send({ success: true, data: { message: 'Event deleted' } });
   });
   fastify.post<{ Params: { id: string } }>('/events/:id/rsvp', async (request, reply) => {
