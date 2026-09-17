@@ -1123,8 +1123,8 @@
 - [x] **Task K03**: Delete browser `email-snooze.service.ts`, use backend API.
 - [x] **Task K04**: Delete browser `signature-builder.service.ts`, use backend API.
 - [x] **Task K05**: Move `smart-inbox.service.ts` logic server-side.
-- [ ] **Task K06**: Merge 6 mail hooks into single `useMail` (D19).
-- [ ] **Task K07**: Merge 4 contact hooks into single `useContacts` (D20).
+- [ ] **Task K06**: Merge mail hooks into single `useMail` data layer (re-scoped to include `useMailMutations`, exclude `useInboxKeyboard`, with unified queryKey schema and Drafts-total badge preservation).
+- [ ] **Task K07**: Merge contact hooks into `useContacts` (partially approved: fold `useContactsPage` shim into `useContacts`, keeping `useContactGroups` and `useContactSuggestions` separate).
 - [ ] **Task K08**: Merge `useRepos` and `useGit` into single hook (D21).
 - [x] **Task K09**: Fix 4-key event DTO (unify `start`/`end`/`startTime`/`endTime` to 2 keys).
 - [ ] **Task K10**: Standardize on single component directory (`src/components/`).
@@ -1150,8 +1150,8 @@
 - [ ] **Task X08**: Add DMARC aggregate report ingestion and charts.
 - [ ] **Task X09**: Add deliverability dashboard (bounce and complaint rates).
 - [ ] **Task X10**: Add bounce/complaint feedback loop suppression list.
-- [ ] **Task X11**: Split god file `calendar/page.tsx` (186 KB) to under 1,000 lines.
-- [ ] **Task X12**: Split god file `quantgit/page.tsx` (290 KB).
+- [ ] **Task X11**: Split god file `calendar/page.tsx` (186 KB) to under 1,000 lines (Astra 7-file contract: types.ts, lib/recurrence.ts, lib/calendar-geometry.ts, CalendarModals, CalendarHeader, CalendarViews, CalendarEventForm with byte accounting).
+- [ ] **Task X12**: Split god file `quantgit/page.tsx` (290 KB) to canonical `/quantgit` with redirects from `/codehub` and `/repos`, and decouple tabs (IssuesTab, PullRequestsTab, ActionsTab, etc.).
 - [ ] **Task X13**: Split god file `src/app/page.tsx` (150 KB).
 - [ ] **Task X14**: Split `settings/page.tsx` (48 KB).
 - [ ] **Task X15**: Split `AppShell.tsx` (43 KB).

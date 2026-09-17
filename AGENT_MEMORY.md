@@ -2081,3 +2081,46 @@ graph TD
 - **3. Verification & Quality Gates**:
   - **21/21 unit tests passing 100%** across `route-reachability.test.ts` (18/18) and `codebase-hygiene.test.ts` (3/3).
   - Clean TypeScript compilation across monorepo backend (`pnpm --filter @quant/quantmail run build:backend` exit code 0).
+
+### 40. CEO Astra Wave 13 Sovereign Architecture Verdict & Governance Ratification (Notion AI Swarm / Opus 5):
+
+- **1. Formal Production Verification & Refactor Directives**:
+  - **Commit Verification**: CEO Astra verified commit `98c36f9d` at `main` via live GitHub MCP queries.
+  - **God-File Byte-Count Truthfulness**:
+    - `calendar/page.tsx` verified at **186,003 bytes** (3,945 lines).
+    - `quantgit/page.tsx` verified at **290,846 bytes** (6,347 lines).
+  - **Forensic God-File Inventory Expansion**:
+    - Discovered and cataloged unmentioned god-files: `app/globals.css` (249,669 bytes, ~244 KB) and `app/page.tsx` (149,975 bytes, ~150 KB).
+    - Ruled that `globals.css` and `app/page.tsx` must NOT be touched during Wave 13 to avoid conflicting with active cycle-35 UX work.
+- **2. Item-Wise Architecture Decisions**:
+  - **Task X11 (Calendar Modularization) — APPROVED WITH CONDITIONS**:
+    - Mandated 7-file clean extraction under `apps/quantmail/src/app/calendar/`:
+      1. `types.ts`: Shared interfaces (`EntryType`, `CalendarEventLike`, `FormState`, `ViewMode`, constants).
+      2. `lib/recurrence.ts`: Pure RFC 5545 expansion engine (sharing backend logic, zero duplicate math).
+      3. `lib/calendar-geometry.ts`: Grid and layout positioning calculations.
+      4. `components/CalendarModals.tsx`: `PeriodCustomizeModal`, `TimezoneModal`, `RecurrenceModal`, `NotificationSliderModal`, `EventDetailModal`.
+      5. `components/CalendarHeader.tsx`: Navigation, month/week/day view switchers, action controls.
+      6. `components/CalendarViews.tsx`: Month grid, week, 3-day, day, and agenda stream renderers.
+      7. `components/CalendarEventForm.tsx`: Creation and edit drawer.
+    - Strict **Byte Accounting**: Sum of extracted bytes + remaining coordinator must equal original 186 KB (± minimal imports).
+    - Preserves all `'use client'` boundaries and existing behaviors.
+  - **Task X12 (QuantGit Modularization) — CONDITIONALLY APPROVED ON ROUTE CANONICALIZATION**:
+    - **CEO Ruling**: Canonical surface is `/quantgit`. Parallel paths `/codehub` and `/repos` collapse into redirects.
+    - Ratified and amended `QUANTGIT_ARCHITECTURE.md` §5 accordingly.
+    - ActionsTab must render explicit "no runner attached" fallback (no fake green checks without live execution).
+  - **Task K06 (Mail Hooks Consolidation) — APPROVED AS RE-SCOPED**:
+    - Must include `useMailMutations.ts` (14.8 KB) in `useMail` consolidation alongside `useEmail`, `useInbox`, `useInfiniteInbox`, `useThread`.
+    - `useInboxKeyboard.ts` (12 KB) remains separate (interaction hook, not data layer).
+    - Enforced single `queryKey` factory with documented schema and preserved badge semantics in `AppSidebar.tsx` (Drafts = total, received = unread).
+  - **Task K07 (Contact Hooks Consolidation) — PARTIALLY APPROVED**:
+    - `useContactsPage.ts` (460 B) folds cleanly into `useContacts.ts`.
+    - `useContactGroups.ts` and `useContactSuggestions.ts` remain separate to prevent conflating address tags with future conversation entities.
+  - **Phase N (QuantDocs to Notion Block Parity) — HELD ON 3 ARCHITECTURAL GATES**:
+    - Route home must be `app/drive/.../doc/[docId]` under QuantDrive/QuantMail, eliminating retired standalone QuantDocs branding.
+    - Editor stack restricted to ProseMirror/TipTap core (MIT only), rejecting commercial Pro extensions and heavy BlockSuite conflicts.
+    - Single CRDT invariant: Yjs is canonical; Automerge excluded from doc editing path.
+- **3. Master Ledger & Visual Evidence**:
+  - Live visual proof captured and archived at [`astra_wave13_verdict.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/astra_wave13_verdict.png) and [`astra_ledgers_live.png`](file:///C:/Users/Pc/.gemini/antigravity/brain/31b9b531-fd78-4f8a-bcca-268562b5f750/astra_ledgers_live.png).
+  - **Both Official Master Ledgers Published Live on Notion**:
+    1. **Wave 13 — Architectural Sign-Off: Modularization, Hook Consolidation & Phase N Gates**: Nested under parent `QuantMail v2 — Production Staging Readiness Checklist` (`https://app.notion.com/p/1d3ec1e59ede414582907769172c226a`). Records full verification records, byte-accounting rules, item-by-item sign-offs, and developer assignments.
+    2. **QuantGit — CEO Architecture Decision Record**: Published at top-level under `Team HQ` (`teamspace://3b4dc63e-f758-81fe-85de-00428f5d8fb5`). Ratifies the canonical `/quantgit` surface ruling, collapses `/codehub` and `/repos` to redirects, establishes the 10-tab manifest requirement, and binds the sandbox/theatre ledger.
