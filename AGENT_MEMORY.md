@@ -1808,3 +1808,37 @@ graph TD
   - TypeScript typechecks verified 100% clean with 0 errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
   - ESLint checks verified 100% clean with 0 errors (`pnpm --filter @quant/quantmail run lint`).
   - Landed on `main` at commit `d3f122be` and pushed to `origin/main`.
+
+### 31. Wave 2 — QuantGit Integrity & Mail Parity: V20-V24, M-F01-M-F05, M07, M10, M11, M12 (Commit `4ad31e0f` on `main`):
+
+- **1. Scope & Executive Directive (CEO Astra Verified Specification)**:
+  - Addressed CEO Astra's verified specification for Wave 2: QuantGit de-fabrication and error-masking removal (`repos.ts`), Mail reply durability and folder provisioning (`emails.ts` and `auth.ts`), unified compose contract (`M07`), structured logging (`M11`), and typed Prisma decoration (`M12`).
+
+- **2. QuantGit Integrity & De-fabrication (`routes/repos.ts`)**:
+  - **V20 (Incident Masking Elimination)**: Removed outer `try/catch` block from `GET /:id/actions` that caught all database errors and masked them with fake 200 OK empty arrays (`{ runs: [] }`). Database connection failures or schema errors now propagate to Fastify's structured error handler rather than silently masking infrastructure outages.
+  - **V21 (Truthful Repository DTOs)**: Eliminated fabricated static metadata in `toDto(r)`: `language` defaults to truthful `''` instead of `'TypeScript'`, `website` defaults to `''` instead of placeholder URLs, and `watching` defaults to `0` instead of arbitrary constants.
+  - **V22 (De-fabrication of PR Diff Stats & Issue Assignees)**:
+    - In `GET /pulls`, `POST /pulls`, and `POST /pulls/:number/merge`, replaced hardcoded mock diff metrics (`additions: 45`, `deletions: 8`, `changedFiles: 3`) with authentic initial values `additions: 0`, `deletions: 0`, `changedFiles: 0`, and `checksStatus: 'none'`.
+    - In `POST /issues`, `GET /issues`, and `POST /issues/:number/toggle`, replaced hardcoded `assignee: 'Developer 6'` with dynamic assignee resolution or `null`.
+  - **V24 (Repository Unstar Route)**: Added authentic `DELETE /repos/:id/star` unstar endpoint that atomically decrements `starCount` in PostgreSQL clamped at floor 0 (`Math.max(0, repo.starCount - 1)`), returning `{ success: true, data: { id: repo.id, stars: nextStars } }`.
+  - Added 5 unit tests in `repos.routes.test.ts` (40/40 tests passing).
+
+- **3. Mail Contract, Reply Hardening & Signup Provisioning (`routes/emails.ts` & `routes/auth.ts`)**:
+  - **M-F01 (Silent Unsent Draft Bug Elimination)**: In `POST /emails` (and `handleComposeOrSend`), when `send: true` is requested without explicit `sentFolderId`, automatically queries or provisions the user's `SENT` folder via `getOrCreateFolder(prisma, userId, 'Sent', 'SENT')`, preventing sent emails from being stranded in Drafts.
+  - **M-F02 (Canonical Envelope Consistency)**: Wrapped response records for `POST /emails/:id/read`, `POST /emails/:id/star`, `POST /emails/:id/move`, and `DELETE /emails/:id` in canonical `formatEmailRecord(email)`.
+  - **M-F03 (MessageKind Defaulting)**: In `POST /emails/:id/reply`, defaulted `messageKind` to `toMessageKind(parsed.data.messageKind ?? original.messageKind ?? 'mail')`, ensuring standard mail replies are recorded with kind `'mail'` rather than chat messages.
+  - **M-F04 & M-F05 (Reply Durability & Orphan Cleanup)**: Reply endpoint returns HTTP status 202 with unified `{ success: true, data: { message: 'Email queued for delivery', emailId, deliveryStatus, email } }`. Outbound send execution is wrapped in a try/catch block that deletes the newly created draft from Prisma if delivery fails, preventing orphan draft accumulation.
+  - **M07 (Unified Compose Contract)**: Created a single comprehensive Zod `composeSchema` accepting both address formats (`to: [{ email, name }]` and `toAddresses: [...]`) and body formats (`bodyText` and `bodyPlain`). Unified both `POST /emails` and `POST /emails/compose` to execute a single shared `handleComposeOrSend` handler.
+  - **M10 (Folder Provisioning at Signup)**: Moved standard mailbox folder creation (`Inbox`, `Sent`, `Drafts`, `Archive`, `Trash`, `Spam`) into user registration in `routes/auth.ts`. Created `getOrCreateFolder` helper in `emails.ts` reading existing folders with `findFirst` first, eliminating heavy PostgreSQL `upsert` transactions on every send, reply, archive, and delete.
+  - **M11 (Typed Structured Logging)**: Replaced all empty `catch { }` blocks in `routes/emails.ts` with structured `request.log.warn` logging for thread stitching and internal delivery.
+  - **M12 (Strongly Typed Prisma Decoration)**: Defined `getPrisma(fastify): PrismaClient` helper importing from `@quant/database`. Replaced all untyped `(fastify as unknown as { prisma: any }).prisma` and `as never` casts with typed `getPrisma(fastify)`.
+
+- **4. Verification & Gate Sign-Off**:
+  - 129/129 unit tests passing 100% across 4 test suites:
+    - `phase-r-m.routes.test.ts`: 27/27 passing (255ms).
+    - `repos.routes.test.ts`: 40/40 passing (669ms).
+    - `ai-chat.routes.test.ts`: 30/30 passing (464ms).
+    - `email.service.test.ts`: 32/32 passing (75ms).
+  - 0 TypeScript compiler errors across both compilers (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
+  - 0 ESLint errors across the entire `@quant/quantmail` package (`pnpm --filter @quant/quantmail run lint`).
+  - Landed on `main` at commit `4ad31e0f` and pushed to `origin/main`.

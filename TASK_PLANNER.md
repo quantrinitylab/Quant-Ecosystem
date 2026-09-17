@@ -22,6 +22,21 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 2 — QuantGit Integrity (V20, V21, V22, V24) & Mail Parity (M-F01–M-F05, M07, M10, M11, M12) (`4ad31e0f` on `main`)**:
+  - [x] **V20 Incident Masking Elimination**: Removed outer `try/catch` block in `GET /:id/actions` that caught all database errors and masked them with fake 200 OK empty arrays. Real database errors now correctly propagate to error handling.
+  - [x] **V21 Truthful Repository DTOs**: Eliminated fabricated metadata in `toDto(r)`: `language` defaults to truthful `''`, `website` defaults to `''`, and `watching` defaults to `0`.
+  - [x] **V22 De-fabrication of PR Stats & Issue Assignees**: Replaced hardcoded PR diff metrics (`additions: 45`, `deletions: 8`, `changedFiles: 3`) with 0 and `checksStatus: 'none'` across `GET /pulls`, `POST /pulls`, and `POST /pulls/:number/merge`. Replaced hardcoded `assignee: 'Developer 6'` with dynamic assignee or `null` across all issue routes.
+  - [x] **V24 Repository Unstar Route**: Added `DELETE /repos/:id/star` unstar endpoint that decrements `starCount` clamped at 0 (`Math.max(0, repo.starCount - 1)`), returning `{ success: true, data: { id, stars } }`.
+  - [x] **M-F01 Silent Unsent Draft Bug Elimination**: In `POST /emails`, when `send: true` is passed without `sentFolderId`, automatically resolves the user's `SENT` folder via `getOrCreateFolder(prisma, userId, 'Sent', 'SENT')`, preventing emails from being silently left in Drafts.
+  - [x] **M-F02 Envelope Consistency**: Wrapped responses of `POST /emails/:id/read`, `POST /emails/:id/star`, `POST /emails/:id/move`, and `DELETE /emails/:id` in canonical `formatEmailRecord(email)`.
+  - [x] **M-F03 MessageKind Defaulting**: In `POST /emails/:id/reply`, defaulted `messageKind` to `toMessageKind(parsed.data.messageKind ?? original.messageKind ?? 'mail')`, ensuring standard mail replies are recorded with kind `'mail'`, not chat messages.
+  - [x] **M-F04 & M-F05 Reply Durability & Orphan Cleanup**: Reply returns status 202 with unified `{ success: true, data: { message: 'Email queued for delivery', emailId, deliveryStatus, email } }`. Wrapped outbound send in a try/catch block that deletes the newly created draft from Prisma if delivery fails, preventing orphan draft accumulation.
+  - [x] **M07 Unified Compose Contract**: Created a unified Zod `composeSchema` accepting both address formats (`to: [{ email, name }]` and `toAddresses: [...]`) and body formats (`bodyText` and `bodyPlain`). Collapsed both `POST /emails` and `POST /emails/compose` to execute a single shared `handleComposeOrSend` handler.
+  - [x] **M10 Folder Provisioning at Signup**: Moved standard folder creation (`Inbox`, `Sent`, `Drafts`, `Archive`, `Trash`, `Spam`) into user registration in `routes/auth.ts`. Created `getOrCreateFolder` helper reading existing folders with `findFirst` first, eliminating heavy PostgreSQL `upsert` transactions on every send, reply, archive, and delete.
+  - [x] **M11 Typed Structured Logging**: Replaced all empty `catch { }` blocks in `routes/emails.ts` with structured `request.log.warn` logging for thread stitching and internal delivery.
+  - [x] **M12 Strongly Typed Prisma Decoration**: Defined `getPrisma(fastify): PrismaClient` helper importing from `@quant/database`. Replaced all untyped `(fastify as unknown as { prisma: any }).prisma` and `as never` casts with typed `getPrisma(fastify)`.
+  - [x] **Verification**: 129/129 tests passing across `phase-r-m.routes.test.ts` (27/27), `repos.routes.test.ts` (40/40), `ai-chat.routes.test.ts` (30/30), and `email.service.test.ts` (32/32); 0 TypeScript errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`); 0 ESLint errors.
+
 - [x] **Phase R & Phase M Remediations: V23, V27, M-F09, M06, M08 (`d3f122be` on `main`)**:
   - [x] **V23 Issue Toggle Authorization**: Restricted `POST /:id/issues/:number/toggle` in `routes/repos.ts` to repository owner (`repo.ownerId === userId`) or issue author (`issue.authorId === userId`), rejecting unauthenticated callers with 401 and foreign readers with 403 `FORBIDDEN`.
   - [x] **V27 Autonomous Tool Capability Gating**: Hardened `POST /api/ai/chat` in `routes/ai-chat.ts` to enforce `tools.allow` allowlist (rejects disallowed tools with status `'failed'` and error code `TOOL_NOT_ALLOWED`) and enforces `tools.maxSteps` limit, stopping further tool calls once exceeded.
@@ -954,12 +969,12 @@
 - [x] **Task M-F11**: Add structured error logging on delivery failures in `EmailService.send`.
 - [x] **Task T1–T4**: Zero-mock Vitest regression suite covering Fastify route injection, route export invariants, proxy forwarding, and worker delivery (`phase-r-m.routes.test.ts`).
 - [x] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
-- [ ] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
+- [x] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
 - [x] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).
 - [ ] **Task M09**: Merge 6 mail hooks into one `useMail` data layer (delete 5 files).
-- [ ] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
-- [ ] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
-- [ ] **Task M12**: Type Fastify Prisma decoration (ban `as any`/`as never` in `emails.ts`).
+- [x] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
+- [x] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
+- [x] **Task M12**: Type Fastify Prisma decoration (ban `as any`/`as never` in `emails.ts`).
 - [ ] **Task M13**: Move domain list to shared config constant.
 - [ ] **Task M14**: Remove `${userId}@quantmail.in` fallback sender (fail loudly on missing identity).
 - [ ] **Task M15**: Wire `MailFilterService` into inbound ingest pipeline.
