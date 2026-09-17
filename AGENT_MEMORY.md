@@ -1438,3 +1438,40 @@ graph TD
     - `createBranchSchema`: Validate `sha` with 40-char hex regex `^[0-9a-f]{40}$/i` rather than permissive `min(4).max(64)`.
     - CAS comparison: Normalize SHAs with `.toLowerCase()` to prevent uppercase hex inputs from spuriously triggering 409 `STALE_PARENT_SHA`.
     - Cleanup remaining static fields in `toDto` (`language: 'TypeScript'`, `website`, dynamic `openIssuesCount`).
+
+### 24. CEO Astra Forensic Audit: Dual Git Stacks Discovery & 111-Task GitHub Parity Roadmap (Notion Page `077a2455`):
+
+- **1. Discovery of Parallel Git Architectures**:
+  - **Stack A (`modules/code/`)**: The genuine, authoritative Git implementation. On-disk bare repositories, full Git Smart HTTP daemon (`info/refs`, `git-upload-pack`, `git-receive-pack`), Personal Access Token (`qcp_`) authentication with scopes, HMAC-signed loopback pre-receive hook (`git-hook-server.ts`) guarding against force-push and protected-branch deletion using `merge-base --is-ancestor`, and `BranchProtection` Prisma model. Real `git clone` and `git push` work authoritatively.
+  - **Stack B (`routes/repos.ts`)**: Database-only implementation used by the web UI and Quanty AI chat dispatcher.
+  - **The V18 Root Cause**: Branch protection is NOT missing from the ecosystem — it is actively enforced on `git push` via `BranchProtection` in Stack A, while the web route in Stack B was checking a dead boolean column `Branch.isProtected` that no code writes to!
+- **2. Unvarnished Reality Gaps in Stack B**:
+  - **Fake PR Merge**: `mergePR` only updates database column `status: 'MERGED'`. It never creates a merge commit, updates Git refs, or runs `git merge-tree`. Strategy (`MERGE`/`SQUASH`/`REBASE`) is stored but never executed.
+  - **Hardcoded PR Diff**: PR view displays hardcoded placeholder diffs (`-old / +new`). The genuine diff implementation exists 3 files away in `GitInspectService`, utilized by the AI review bot but never wired to the PR UI.
+  - **Inactive CI Runner**: `noopCiRunner` is wired with an empty `dispatch()`. BullMQ queue adapter was authored but not registered at the root.
+  - **Advisory Merge Gates**: `mergePR` never invokes `MergeEligibilityService`. Merges succeed even with failing CI or `CHANGES_REQUESTED`.
+  - **Security & Authorization Holes in `modules/code/`**: Issue, PR, and CI endpoints call `getUserId()` but never compare against repository ownership, visibility, or `deletedAt`. Any authenticated user can mutate PRs, issues, or trigger CI in private repositories across tenants. CI logs leak without permission checks.
+- **3. Master 111-Task, 10-Phase Roadmap Ratified by Astra**:
+  - Phase 0: 12 Critical Security & Authorization Tasks (mandatory before any feature deployment).
+  - Phase 1: Unify Stack A & Stack B into a single authoritative Git foundation.
+  - Phase 2: Authoritative PR Merge (`git merge-tree` commit + ref update) & real diff viewer.
+  - Phase 3: BullMQ CI Runner & Merge Gate integration.
+  - Phase 4–9: Multi-tenant collaborator model, releases, and full GitHub parity.
+
+### 25. CEO Astra Ecosystem Deep Sweep: QuantMail Duplication & Subtraction Roadmap (Notion Page `19bfc344`):
+
+- **1. Triplicate Backends & Next.js Shadow API Duplication**:
+  - `apps/quantmail/src/app/api/` contains a duplicate shadow backend re-implementing `emails`, `drive`, `auth`, `oauth`, `e2ee`, `contacts`, `labels`, `threads`, `calendar`, `repos`, `ci`, `notifications`, `webhook`, `federation` alongside Fastify backend routes and a catch-all proxy `[...path]`.
+  - Duplication of authentication and OAuth routes across Next.js and Fastify creates severe security drift.
+  - 3 disparate repository frontends exist: `codehub/page.tsx` (44 B redirect), `repos/page.tsx` (6.7 KB), and `quantgit/page.tsx` (290 KB single monolithic component).
+- **2. Critical Codebase Findings & Bugs**:
+  - **Double Email Sending**: `POST /:id/send` enqueues mail into BullMQ AND directly invokes AWS SES within the same request. `POST /:id/reply` does the same, delivering duplicate emails to external recipients.
+  - **Draft Body Eradication**: `PUT /emails/:id` replaces body with empty string if `bodyHtml` is not passed (`bodyHtml ? sanitize : ''`), wiping draft contents when used as a patch.
+  - **Dead Drive Sharing**: Drive shares are created with `status: 'pending'`, but file access requires `status: 'accepted'`, and no accept endpoint exists anywhere in the codebase.
+  - **Accidental Permanent File Deletion**: Backend implements full trash, restore, and `trashRootId`, but frontend UI displays "There is no undo and no trash" and triggers permanent deletion immediately.
+  - **Dual Move Endpoints & Broken Hierarchy**: One move endpoint recalculates paths, the other does not. Renaming a folder fails to update child paths, and `folderTree()` lacks depth limits.
+- **3. Subtraction Invariant ("QuantMail ko features nahi, subtraction chahiye")**:
+  - Collapse Next.js shadow routes into pure Fastify API client calls.
+  - Eliminate duplicate SES delivery from Fastify route, delegating delivery strictly to the authoritative queue worker.
+  - Modularize `quantgit/page.tsx` into decoupled subcomponents.
+  - Prune dead workspace shells and collapse 6 overlapping agent packages.

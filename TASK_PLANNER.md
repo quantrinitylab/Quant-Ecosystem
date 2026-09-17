@@ -818,3 +818,84 @@
 - [x] **Task APK-02**: Develop native Android Sovereign Shell in `android-project/` (Jetpack Compose + hardware-accelerated WebView, top status bar with glowing amber Bubble Mascot, bottom 5-tab ecosystem navigation: Mail, QuantGit, Calendar, Drive, Contacts, and offline retry screen). _(Completed)_.
 - [x] **Task APK-03**: Compile universal debug APK (`com.example.quant`, minSdk 24, targetSdk 36, ~11.39 MB) via Gradle 9.1 and output to `apk testing/` folder in monorepo root. Verified badging via `aapt2`. _(Completed)_.
 - [x] **Task APK-04**: Publish and distribute `apk testing/` folder to GitHub remote `origin main` containing `Quant-v1.0-debug.apk`, `quant-app.apk`, and installation/testing guide `README.md`. _(Completed)_.
+
+---
+
+## ⚔️ SPRINT 7: THE 111-TASK QUANTGIT SOVEREIGN ROADMAP (STACK UNIFICATION & FULL GITHUB PARITY)
+
+> **Source of Truth**: Notion Master Spec `077a2455` by CEO Astra (Opus 5).
+> **Strategic Objective**: Unify Stack A (`modules/code/` bare Git) with Stack B (`routes/repos.ts`), eliminate all simulated mock actions, enforce authentic PR merges, real diffs, and secure all endpoints.
+
+### 🛡️ Phase 0: 12 Critical Security & Authorization Tasks (Top Priority - Pre-Ship Gate)
+
+- **Assigned to**: Developer 1 (Auth & Security) + Developer 6 (Git Infrastructure) + CEO Astra
+- [ ] **Task SEC-01**: Scope `/modules/code/` PR routes to repository ownership, membership, or public visibility (prevent cross-tenant PR mutation).
+- [ ] **Task SEC-02**: Scope `/modules/code/` Issue routes to authenticated tenant context and check `deletedAt: null`.
+- [ ] **Task SEC-03**: Scope `/modules/code/` CI routes (`/actions`, `/actions/trigger`, `/actions/runs/:runId/jobs`) to verify repository access permissions before returning logs.
+- [ ] **Task SEC-04**: Sanitize CI logs on write and read to prevent token leakage (`qcp_`, secrets, session hashes).
+- [ ] **Task SEC-05**: Implement Collaborator Model (`RepositoryCollaborator` Prisma model) allowing multi-user repository access with granular roles (`ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`).
+- [ ] **Task SEC-06**: Fix V17 — gate `POST /:id/actions/trigger` behind dev seeding or throw 503 `CI_EXECUTOR_UNAVAILABLE`.
+- [ ] **Task SEC-07**: Fix V18 — Unify AI dispatcher `commit_file` with HTTP route logic (`isProtected` check, 403 `BRANCH_PROTECTED`).
+- [ ] **Task SEC-08**: Fix V19 — Strict 40-char hex regex on `createBranchSchema.sha`, case-insensitive CAS comparison (`.toLowerCase()`), dynamic `toDto` cleanup.
+- [ ] **Task SEC-09**: Harden PAT scopes (`repo`, `repo:status`, `public_repo`, `read:org`).
+- [ ] **Task SEC-10**: Restrict webhook loopback hooks to validated HMAC signatures with timing safe checks.
+- [ ] **Task SEC-11**: Implement rate limiting per repository on Git Smart HTTP operations.
+- [ ] **Task SEC-12**: Audit and eliminate all unscoped database queries across both Stack A and Stack B.
+
+### 🔗 Phase 1: Stack A & Stack B Core Unification
+
+- **Assigned to**: Developer 6 (Git Infrastructure) + Developer 2 (QA Sentinel)
+- [ ] **Task UNIFY-01**: Relocate repository CRUD from `routes/repos.ts` to consume `modules/code/` services directly.
+- [ ] **Task UNIFY-02**: Wire `POST /repos` to provision authentic bare Git repositories using `RepositoryProvisioningPort`.
+- [ ] **Task UNIFY-03**: Sync `BranchProtection` Prisma model with web commit path so UI, AI, and `git push` share identical protection rules.
+
+### 🔀 Phase 2: Authoritative PR Merge & Real Git Diff
+
+- **Assigned to**: Developer 6 (Git Infrastructure) + Developer 5 (Frontend)
+- [ ] **Task PR-01**: Replace simulated `mergePR` DB flip with real Git merge commit execution (`git merge-tree` with `MERGE`, `SQUASH`, `REBASE` strategies).
+- [ ] **Task PR-02**: Wire `GitInspectService.getDiff` to frontend PR modal, eliminating static `-old / +new` mock diffs.
+- [ ] **Task PR-03**: Wire `MergeEligibilityService` as a strict gate: reject PR merge if reviews or CI checks fail.
+
+### ⚙️ Phase 3: Real CI Runner & Queue Execution
+
+- **Assigned to**: Developer 6 (Git Infrastructure) + Developer 7 (Queue / AI)
+- [ ] **Task CI-01**: Replace `noopCiRunner` with real BullMQ queue adapter (`BullMQCiRunner`).
+- [ ] **Task CI-02**: Wire containerized test execution worker to run authentic checks.
+
+---
+
+## 🧹 SPRINT 8: THE 138-TASK QUANTMAIL SUBTRACTION & DEDUPLICATION SPRINT
+
+> **Source of Truth**: Notion Master Spec `19bfc344` by CEO Astra (Opus 5).
+> **Strategic Objective**: Eliminate triplicate backends, eradicate double-sending, fix draft body wipe, fix Drive sharing, and modularize monolithic frontend components.
+
+### ⚡ Track 1: Triplicate Backend Elimination (Phase A)
+
+- **Assigned to**: Developer 5 (Frontend Architecture) + Developer 1 (Security)
+- [ ] **Task SUB-01**: Remove duplicate Next.js shadow routes in `apps/quantmail/src/app/api/` and route all calls directly through the authenticated Fastify proxy.
+- [ ] **Task SUB-02**: Consolidate repo entrypoints: delete 44-byte `codehub/page.tsx` and 6.7 KB `repos/page.tsx`, standardizing exclusively on canonical `/quantgit`.
+- [ ] **Task SUB-03**: Remove duplicate Next.js Auth/OAuth implementations to prevent authentication drift.
+
+### ✉️ Track 2: Core Email Integrity (Phase C)
+
+- **Assigned to**: Developer 1 (Email Core) + Developer 7 (Queue)
+- [ ] **Task MAIL-01**: Eliminate double email send in `POST /:id/send` and `POST /:id/reply` — route all external email dispatch exclusively through the BullMQ queue worker, removing the duplicate inline SES call.
+- [ ] **Task MAIL-02**: Fix draft body wipe in `PUT /emails/:id` — implement partial patch updates so omitting `bodyHtml` preserves existing content.
+
+### 📁 Track 3: QuantDrive Sharing & Trash Fixes (Phase D)
+
+- **Assigned to**: Developer 4 (Storage & Drive)
+- [ ] **Task DRV-02**: Implement missing Drive Share Accept endpoint (`POST /drive/shares/:id/accept`) so shared files are actually accessible.
+- [ ] **Task DRV-03**: Wire frontend UI delete to backend Trash & Restore, replacing accidental immediate permanent deletion with safe trash semantics.
+- [ ] **Task DRV-04**: Unify move endpoints into a single canonical path recalculator with cycle detection depth caps.
+
+### 🧩 Track 4: Monolithic Component Modularization (Phase H)
+
+- **Assigned to**: Developer 5 (Frontend)
+- [ ] **Task MOD-01**: Split monolithic 290 KB `apps/quantmail/src/app/quantgit/page.tsx` into decoupled feature components:
+  - `CodeWorkspace.tsx`
+  - `IssuesTab.tsx`
+  - `PullRequestsTab.tsx`
+  - `ActionsTab.tsx`
+  - `BranchSwitcherModal.tsx`
+  - `BlobEditor.tsx` (already modular, verify integration)
