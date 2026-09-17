@@ -76,32 +76,50 @@ export class CalendarCallAlertService {
     const nowMs = now.getTime();
 
     for (const reminder of reminders) {
-      if (reminder.type !== 'call') continue;
+      const isCall = reminder.type === 'call';
       const minutesBefore = Math.max(0, Number(reminder.minutesBefore) || 0);
       const fireMs = startMs - minutesBefore * 60_000;
       const fireDate = new Date(fireMs);
       const delayMs = Math.max(0, fireMs - nowMs);
-      const jobId = `call-alert-${event.id}-${minutesBefore}`;
+      const jobId = isCall
+        ? `call-alert-${event.id}-${minutesBefore}`
+        : `cal-remind-${event.id}-${reminder.type || 'push'}-${minutesBefore}`;
 
-      const jobData: ProactiveAgentJob = {
-        jobType: 'meeting_call_alert',
-        userId: event.userId,
-        targetApp: 'quantchat',
-        scheduledFor: fireDate.toISOString(),
-        priority: 'urgent',
-        payload: {
-          meetingId: event.id,
-          title: event.title,
-          organizer: event.organizer || 'Meeting Host',
-          startTime: startTime.toISOString(),
-          minutesUntilStart: minutesBefore,
-          location: event.location,
-        },
-      };
+      const jobData: ProactiveAgentJob = isCall
+        ? {
+            jobType: 'meeting_call_alert',
+            userId: event.userId,
+            targetApp: 'quantchat',
+            scheduledFor: fireDate.toISOString(),
+            priority: 'urgent',
+            payload: {
+              meetingId: event.id,
+              title: event.title,
+              organizer: event.organizer || 'Meeting Host',
+              startTime: startTime.toISOString(),
+              minutesUntilStart: minutesBefore,
+              location: event.location,
+            },
+          }
+        : {
+            jobType: 'meeting_reminder',
+            userId: event.userId,
+            targetApp: 'quantmail',
+            scheduledFor: fireDate.toISOString(),
+            priority: 'normal',
+            payload: {
+              eventId: event.id,
+              title: event.title,
+              startTime: startTime.toISOString(),
+              minutesUntilStart: minutesBefore,
+              reminderType: reminder.type || 'push',
+              location: event.location,
+            },
+          };
 
       if (this.queue) {
         try {
-          await this.queue.add('meeting-call-alert', jobData, {
+          await this.queue.add(isCall ? 'meeting-call-alert' : 'meeting-reminder', jobData, {
             delay: delayMs,
             jobId,
           });
@@ -110,18 +128,20 @@ export class CalendarCallAlertService {
         }
       }
 
-      const alertRecord: ScheduledCallAlert = {
-        jobId,
-        eventId: event.id,
-        userId: event.userId,
-        title: event.title,
-        minutesBefore,
-        fireAt: fireDate.toISOString(),
-        status: 'scheduled',
-      };
+      if (isCall) {
+        const alertRecord: ScheduledCallAlert = {
+          jobId,
+          eventId: event.id,
+          userId: event.userId,
+          title: event.title,
+          minutesBefore,
+          fireAt: fireDate.toISOString(),
+          status: 'scheduled',
+        };
 
-      this.memoryAlerts.set(jobId, alertRecord);
-      scheduled.push(alertRecord);
+        this.memoryAlerts.set(jobId, alertRecord);
+        scheduled.push(alertRecord);
+      }
     }
 
     return scheduled;

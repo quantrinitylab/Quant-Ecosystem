@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import { AttachmentService, sanitizeFilename } from '../services/attachment.service';
 import attachmentRoutes, { MAX_ATTACHMENT_SIZE_BYTES } from '../routes/attachments';
+import { EICAR_TEST_SIGNATURE } from '../services/attachment-scanner.service';
 
 describe('AttachmentService & Routes (Wave 15 Track 4: Tasks M24 & M25)', () => {
   let service: AttachmentService;
@@ -361,6 +362,91 @@ describe('AttachmentService & Routes (Wave 15 Track 4: Tasks M24 & M25)', () => 
 
         expect(res.statusCode).toBe(403);
         expect(res.json().error.code).toBe('FORBIDDEN');
+        await app.close();
+      });
+
+      it('Wave 18: permits audio and video mime types for upload url generation', async () => {
+        const app = await buildAttachmentTestApp('user-1');
+
+        // Audio
+        const audioRes = await app.inject({
+          method: 'POST',
+          url: '/attachments/upload-url',
+          payload: {
+            filename: 'voice_memo.mp3',
+            contentType: 'audio/mpeg',
+            size: 1024 * 1024,
+          },
+        });
+        expect(audioRes.statusCode).toBe(200);
+        expect(audioRes.json().success).toBe(true);
+
+        // Video
+        const videoRes = await app.inject({
+          method: 'POST',
+          url: '/attachments/upload-url',
+          payload: {
+            filename: 'presentation.mp4',
+            contentType: 'video/mp4',
+            size: 5 * 1024 * 1024,
+          },
+        });
+        expect(videoRes.statusCode).toBe(200);
+        expect(videoRes.json().success).toBe(true);
+
+        await app.close();
+      });
+
+      it('Wave 18: scans attachment buffer and reports clean file on POST /:id/scan', async () => {
+        const app = await buildAttachmentTestApp('user-1');
+        const upload = await service.generateUploadUrl(
+          'user-1',
+          'clean_document.pdf',
+          'application/pdf',
+          512,
+        );
+
+        const scanRes = await app.inject({
+          method: 'POST',
+          url: `/attachments/${upload.attachmentId}/scan`,
+        });
+
+        expect(scanRes.statusCode).toBe(200);
+        const data = scanRes.json().data;
+        expect(data.isInfected).toBe(false);
+        expect(data.engine).toBe('QuantHeuristicScanner');
+
+        await app.close();
+      });
+
+      it('Wave 18: blocks infected EICAR attachment download and scan reports virus', async () => {
+        const app = await buildAttachmentTestApp('user-1');
+        service.registerAttachment({
+          id: 'att-eicar-malware',
+          userId: 'user-1',
+          filename: 'test_virus.txt',
+          contentType: 'text/plain',
+          size: EICAR_TEST_SIGNATURE.length,
+          content: Buffer.from(EICAR_TEST_SIGNATURE),
+        });
+
+        // Test POST /:id/scan identifies virus
+        const scanRes = await app.inject({
+          method: 'POST',
+          url: '/attachments/att-eicar-malware/scan',
+        });
+        expect(scanRes.statusCode).toBe(200);
+        expect(scanRes.json().data.isInfected).toBe(true);
+        expect(scanRes.json().data.virusName).toBe('EICAR-Test-Signature');
+
+        // Test GET /:id/download blocks download with 422
+        const downloadRes = await app.inject({
+          method: 'GET',
+          url: '/attachments/att-eicar-malware/download',
+        });
+        expect(downloadRes.statusCode).toBe(422);
+        expect(downloadRes.json().error.code).toBe('MALICIOUS_ATTACHMENT_DETECTED');
+
         await app.close();
       });
     });

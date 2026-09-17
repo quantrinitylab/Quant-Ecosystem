@@ -11,6 +11,7 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive, type ReceivedShare } from '../../hooks/useDrive';
 import { formatBytes } from '../../lib/format-bytes';
 import { showToast } from '../../components/InboxToast';
+import { useScrollElement, useVirtualizer } from '../../lib/virtual/useVirtualizer';
 import {
   IconDownload,
   IconFile,
@@ -406,6 +407,17 @@ export default function DrivePage() {
     () => filteredItems.filter((i) => i.type !== 'folder'),
     [filteredItems],
   );
+
+  const { element: scrollContainer, ref: scrollContainerRef } = useScrollElement<HTMLDivElement>();
+
+  const virtualizer = useVirtualizer({
+    count: regularFiles.length,
+    scrollElement: scrollContainer,
+    estimateSize: 48,
+    overscan: 8,
+    getItemKey: (idx) => regularFiles[idx]?.id ?? idx,
+    enabled: viewMode === 'list' && regularFiles.length > 40,
+  });
 
   const handleUploadTrigger = useCallback(() => {
     fileInputRef.current?.click();
@@ -947,6 +959,7 @@ export default function DrivePage() {
 
         {/* Main Drive Files Content */}
         <div
+          ref={scrollContainerRef}
           onDragOver={(e) => {
             e.preventDefault();
             setIsDragOver(true);
@@ -1588,7 +1601,20 @@ export default function DrivePage() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-[#282C35]">
-                              {regularFiles.map((file) => {
+                              {virtualizer.isVirtualized && virtualizer.offsetTop > 0 && (
+                                <tr
+                                  style={{ height: `${virtualizer.offsetTop}px` }}
+                                  aria-hidden="true"
+                                >
+                                  <td colSpan={5} />
+                                </tr>
+                              )}
+                              {(virtualizer.isVirtualized
+                                ? virtualizer.items
+                                    .map((v) => regularFiles[v.index])
+                                    .filter((f): f is DriveItem => Boolean(f))
+                                : regularFiles
+                              ).map((file) => {
                                 const isSelected = selectedIds.has(file.id);
                                 return (
                                   <tr
@@ -1647,8 +1673,15 @@ export default function DrivePage() {
                                         </button>
                                         <button
                                           type="button"
+                                          onClick={(e) => handleOpenRename(file, e)}
+                                          className="text-xs text-[#A1A4AC] hover:text-white font-semibold"
+                                        >
+                                          Rename
+                                        </button>
+                                        <button
+                                          type="button"
                                           onClick={() => downloadFile(file.id, file.name)}
-                                          className="text-xs text-[#FF8C42] hover:underline font-semibold"
+                                          className="text-xs text-[#FF8C42] hover:text-[#FF9B5A] font-semibold"
                                         >
                                           Download
                                         </button>
@@ -1664,6 +1697,20 @@ export default function DrivePage() {
                                   </tr>
                                 );
                               })}
+                              {virtualizer.isVirtualized && (
+                                <tr
+                                  style={{
+                                    height: `${Math.max(
+                                      0,
+                                      virtualizer.totalSize -
+                                        (virtualizer.offsetTop + virtualizer.items.length * 48),
+                                    )}px`,
+                                  }}
+                                  aria-hidden="true"
+                                >
+                                  <td colSpan={5} />
+                                </tr>
+                              )}
                             </tbody>
                           </table>
                         </div>

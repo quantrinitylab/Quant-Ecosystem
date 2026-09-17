@@ -9,6 +9,7 @@ import {
   type SmtpTransport,
 } from '../services/delivery-worker.service';
 import emailsRoutes from '../routes/emails';
+import threadsRoutes from '../routes/threads';
 import attachmentRoutes from '../routes/attachments';
 import { AttachmentService } from '../services/attachment.service';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
@@ -123,10 +124,28 @@ function createMockPrisma() {
       upsert: vi.fn().mockResolvedValue({ id: 'folder-1' }),
     },
     emailThread: {
-      findUnique: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+        return {
+          id: where.id,
+          userId: 'user-1',
+          subject: 'Thread Subject',
+          isMuted: false,
+          snoozedUntil: null,
+          participantAddresses: ['sender@test.com'],
+          lastEmailAt: new Date(),
+        };
+      }),
       findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockResolvedValue({ id: 'thread-1' }),
-      update: vi.fn().mockResolvedValue({ id: 'thread-1' }),
+      update: vi.fn().mockImplementation(async ({ where, data }: any) => {
+        return {
+          id: where.id,
+          userId: 'user-1',
+          subject: 'Thread Subject',
+          isMuted: data.isMuted ?? false,
+          snoozedUntil: data.snoozedUntil ?? null,
+        };
+      }),
     },
     contact: {
       findFirst: vi.fn().mockResolvedValue(null),
@@ -151,6 +170,7 @@ async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | nu
     (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
   });
   await app.register(emailsRoutes, { prefix: '/emails' });
+  await app.register(threadsRoutes, { prefix: '/threads' });
   return app;
 }
 
@@ -1262,6 +1282,152 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       await expect(svc.send('user-invalid', 'draft-1', 'sent-folder')).rejects.toThrow(
         'User has no valid sender identity configured',
       );
+    });
+  });
+
+  describe('Phase M28: Mute Thread & RFC 8058 One-Click List-Unsubscribe', () => {
+    it('M28: POST /emails/:id/unsubscribe executes RFC 8058 one-click unsubscribe and attaches UNSUBSCRIBED label', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedEmails.set('newsletter-1', {
+        id: 'newsletter-1',
+        userId: 'user-1',
+        fromAddress: 'news@weekly.com',
+        subject: 'Weekly Tech Dispatch',
+        isDraft: false,
+        isSent: false,
+        labels: ['news'],
+        authResults: {
+          headers: {
+            'list-unsubscribe': '<https://weekly.com/unsub/token123>, <mailto:unsub@weekly.com>',
+            'list-unsubscribe-post': 'List-Unsubscribe=One-Click',
+          },
+        },
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/newsletter-1/unsubscribe',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.unsubscribed).toBe(true);
+      expect(body.data.method).toBe('POST');
+      expect(body.data.targetUrl).toBe('https://weekly.com/unsub/token123');
+
+      // Verify label was updated
+      const updated = mockPrisma.storedEmails.get('newsletter-1');
+      expect(updated.labels).toContain('UNSUBSCRIBED');
+
+      await app.close();
+    });
+
+    it('M28: POST /emails/:id/unsubscribe handles mailto unsubscribe target', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedEmails.set('newsletter-mailto', {
+        id: 'newsletter-mailto',
+        userId: 'user-1',
+        fromAddress: 'promo@store.com',
+        subject: 'Special Offer',
+        isDraft: false,
+        labels: [],
+        authResults: {
+          headers: {
+            'list-unsubscribe': '<mailto:unsubscribe@store.com?subject=unsubscribe>',
+          },
+        },
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/newsletter-mailto/unsubscribe',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.method).toBe('mailto');
+      expect(res.json().data.targetUrl).toBe('mailto:unsubscribe@store.com?subject=unsubscribe');
+
+      await app.close();
+    });
+
+    it('M28: POST /emails/:id/unsubscribe extracts link from bodyHtml if headers absent', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedEmails.set('newsletter-body', {
+        id: 'newsletter-body',
+        userId: 'user-1',
+        fromAddress: 'digest@example.com',
+        subject: 'Monthly Digest',
+        isDraft: false,
+        bodyHtml:
+          '<p>Click <a href="https://example.com/unsubscribe?id=99">here</a> to stop receiving emails.</p>',
+        labels: [],
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/newsletter-body/unsubscribe',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().data.method).toBe('GET');
+      expect(res.json().data.targetUrl).toBe('https://example.com/unsubscribe?id=99');
+
+      await app.close();
+    });
+
+    it('M28: POST /emails/:id/unsubscribe rejects with 400 when no unsubscribe header or link found', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedEmails.set('regular-mail', {
+        id: 'regular-mail',
+        userId: 'user-1',
+        fromAddress: 'friend@example.com',
+        subject: 'Catching up',
+        isDraft: false,
+        bodyHtml: '<p>Hey, how have you been?</p>',
+        labels: [],
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/regular-mail/unsubscribe',
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('NO_UNSUBSCRIBE_HEADER');
+
+      await app.close();
+    });
+
+    it('M28: POST /threads/:id/mute and POST /threads/:id/unmute successfully toggle thread muted state', async () => {
+      const mockPrisma = createMockPrisma();
+      const app = await buildTestFastifyApp(mockPrisma, 'user-1');
+
+      // Mute thread
+      const muteRes = await app.inject({
+        method: 'POST',
+        url: '/threads/thread-100/mute',
+      });
+
+      expect(muteRes.statusCode).toBe(200);
+      expect(muteRes.json().success).toBe(true);
+      expect(muteRes.json().data.isMuted).toBe(true);
+
+      // Unmute thread
+      const unmuteRes = await app.inject({
+        method: 'POST',
+        url: '/threads/thread-100/unmute',
+      });
+
+      expect(unmuteRes.statusCode).toBe(200);
+      expect(unmuteRes.json().success).toBe(true);
+      expect(unmuteRes.json().data.isMuted).toBe(false);
+
+      await app.close();
     });
   });
 });

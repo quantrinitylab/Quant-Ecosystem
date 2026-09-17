@@ -1,6 +1,7 @@
 // ============================================================================
 // QuantMail — Repositories route (GitHub-inside-your-inbox).
 // ============================================================================
+import { createHmac, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -341,14 +342,67 @@ interface ReleaseRecord {
   publishedAt: string | null;
 }
 
+export interface WebhookRecord {
+  id: string;
+  repoId: string;
+  url: string;
+  contentType: 'json' | 'form';
+  secret?: string;
+  events: string[];
+  active: boolean;
+  createdAt: string;
+}
+
+const createWebhookSchema = z.object({
+  url: z.string().url(),
+  contentType: z.enum(['json', 'form']).default('json'),
+  secret: z.string().max(255).optional(),
+  events: z.array(z.string()).default(['push']),
+  active: z.boolean().default(true),
+});
+
 const memoryCollaboratorsStore = new Map<string, CollaboratorRecord[]>();
 const memoryTagsStore = new Map<string, TagRecord[]>();
 const memoryReleasesStore = new Map<string, ReleaseRecord[]>();
+const memoryWebhooksStore = new Map<string, WebhookRecord[]>();
 
 export function resetRepoStores(): void {
   memoryCollaboratorsStore.clear();
   memoryTagsStore.clear();
   memoryReleasesStore.clear();
+  memoryWebhooksStore.clear();
+}
+
+export async function dispatchWebhook(
+  hook: WebhookRecord,
+  event: string,
+  payload: Record<string, any>,
+): Promise<{ delivered: boolean; status: number }> {
+  const bodyString = JSON.stringify(payload);
+  const headers: Record<string, string> = {
+    'Content-Type':
+      hook.contentType === 'json' ? 'application/json' : 'application/x-www-form-urlencoded',
+    'User-Agent': 'QuantGit-Hookshot',
+    'X-QuantGit-Event': event,
+    'X-QuantGit-Delivery': randomUUID(),
+  };
+
+  if (hook.secret) {
+    const signature = createHmac('sha256', hook.secret).update(bodyString).digest('hex');
+    headers['X-Hub-Signature-256'] = `sha256=${signature}`;
+  }
+
+  try {
+    const res = await fetch(hook.url, {
+      method: 'POST',
+      headers,
+      body: bodyString,
+      signal: AbortSignal.timeout(5000),
+    });
+    return { delivered: res.ok, status: res.status };
+  } catch {
+    return { delivered: false, status: 500 };
+  }
 }
 
 async function getCollaboratorsForRepo(prisma: any, repoId: string): Promise<CollaboratorRecord[]> {
@@ -897,6 +951,39 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         }
 
         throw databaseError;
+      }
+
+      // Dispatch Webhooks for 'push' event
+      const hooks = memoryWebhooksStore.get(repo.id) ?? [];
+      const pushHooks = hooks.filter(
+        (h) => h.active && (h.events.includes('push') || h.events.includes('*')),
+      );
+      if (pushHooks.length > 0) {
+        const pushPayload = {
+          event: 'push',
+          repository: {
+            id: repo.id,
+            name: repo.name,
+            owner: author.username,
+          },
+          ref: `refs/heads/${targetBranch}`,
+          before: committed.previousHeadSha,
+          after: committed.commitSha,
+          commits: [
+            {
+              id: committed.commitSha,
+              message: parsed.data.message,
+              author: {
+                name: author.displayName || author.username,
+                email: author.email,
+              },
+              added: [committed.path],
+            },
+          ],
+        };
+        for (const hook of pushHooks) {
+          dispatchWebhook(hook, 'push', pushPayload).catch(() => {});
+        }
       }
 
       return reply.status(200).send({
@@ -2633,6 +2720,85 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send({ success: true, data: release });
   });
+
+  fastify.get<{ Params: { id: string } }>('/:id/hooks', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const hooks = memoryWebhooksStore.get(repo.id) ?? [];
+    return reply.send({ success: true, data: hooks });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/hooks', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const parsed = createWebhookSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const hook: WebhookRecord = {
+      id: `hook_${Date.now()}_${randomUUID().slice(0, 8)}`,
+      repoId: repo.id,
+      url: parsed.data.url,
+      contentType: parsed.data.contentType,
+      secret: parsed.data.secret,
+      events: parsed.data.events,
+      active: parsed.data.active,
+      createdAt: new Date().toISOString(),
+    };
+
+    const stored = memoryWebhooksStore.get(repo.id) ?? [];
+    stored.push(hook);
+    memoryWebhooksStore.set(repo.id, stored);
+
+    return reply.status(201).send({ success: true, data: hook });
+  });
+
+  fastify.delete<{ Params: { id: string; hookId: string } }>(
+    '/:id/hooks/:hookId',
+    async (request, reply) => {
+      const repo = await loadWritableRepo(request, request.params.id);
+      const stored = memoryWebhooksStore.get(repo.id) ?? [];
+      const hook = stored.find((h) => h.id === request.params.hookId);
+      if (!hook) {
+        throw createAppError('Webhook not found', 404, 'HOOK_NOT_FOUND');
+      }
+      memoryWebhooksStore.set(
+        repo.id,
+        stored.filter((h) => h.id !== request.params.hookId),
+      );
+      return reply.send({ success: true, data: { message: 'Webhook deleted' } });
+    },
+  );
+
+  fastify.post<{ Params: { id: string; hookId: string } }>(
+    '/:id/hooks/:hookId/test',
+    async (request, reply) => {
+      const repo = await loadWritableRepo(request, request.params.id);
+      const userId = requireUserId(request);
+      const stored = memoryWebhooksStore.get(repo.id) ?? [];
+      const hook = stored.find((h) => h.id === request.params.hookId);
+      if (!hook) {
+        throw createAppError('Webhook not found', 404, 'HOOK_NOT_FOUND');
+      }
+
+      const pingPayload = {
+        zen: 'Practicality beats purity.',
+        hook_id: hook.id,
+        repository: {
+          id: repo.id,
+          name: repo.name,
+        },
+        sender: { id: userId },
+      };
+
+      const result = await dispatchWebhook(hook, 'ping', pingPayload);
+      return reply.send({
+        success: true,
+        data: {
+          delivered: result.delivered,
+          status: result.status,
+          event: 'ping',
+        },
+      });
+    },
+  );
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);

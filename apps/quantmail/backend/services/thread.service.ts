@@ -187,6 +187,33 @@ export class ThreadService {
   }
 
   /**
+   * Unmute a thread for the user. Sets EmailThread `isMuted` to false.
+   */
+  async unmuteThread(
+    threadId: string,
+    userId: string,
+  ): Promise<EmailThread & { preferences: ThreadPreferences }> {
+    const thread = await this.prisma.emailThread.findUnique({
+      where: { id: threadId },
+    });
+
+    if (!thread) {
+      throw createAppError('Thread not found', 404, 'THREAD_NOT_FOUND');
+    }
+
+    if (thread.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    const updated = await this.prisma.emailThread.update({
+      where: { id: threadId },
+      data: { isMuted: false },
+    });
+
+    return { ...updated, preferences: ThreadService.toPreferences(updated) };
+  }
+
+  /**
    * Snooze a thread until a specified date. Persisted on the EmailThread
    * `snoozedUntil` column.
    */

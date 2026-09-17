@@ -2333,4 +2333,132 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(resMissing.json().error.message).toBe('Search query q is required');
     });
   });
+
+  describe('Webhooks Suite (Task G16)', () => {
+    beforeEach(() => {
+      resetRepoStores();
+    });
+
+    it('GET /repos/:id/hooks returns empty array initially', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/hooks',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().success).toBe(true);
+      expect(res.json().data).toEqual([]);
+    });
+
+    it('POST /repos/:id/hooks creates a new webhook and GET returns it', async () => {
+      const app = await buildApp('user-1');
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/hooks',
+        payload: {
+          url: 'https://ci.example.com/webhook',
+          secret: 'supersecret',
+          events: ['push', 'pull_request'],
+          active: true,
+        },
+      });
+
+      expect(createRes.statusCode).toBe(201);
+      const hook = createRes.json().data;
+      expect(hook.id).toMatch(/^hook_/);
+      expect(hook.url).toBe('https://ci.example.com/webhook');
+      expect(hook.secret).toBe('supersecret');
+      expect(hook.events).toEqual(['push', 'pull_request']);
+      expect(hook.active).toBe(true);
+
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/hooks',
+      });
+      expect(listRes.statusCode).toBe(200);
+      expect(listRes.json().data).toHaveLength(1);
+      expect(listRes.json().data[0].id).toBe(hook.id);
+    });
+
+    it('POST /repos/:id/hooks validates payload and rejects invalid URL', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/hooks',
+        payload: {
+          url: 'not-a-valid-url',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('POST /repos/:id/hooks/:hookId/test sends ping payload', async () => {
+      const app = await buildApp('user-1');
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/hooks',
+        payload: {
+          url: 'https://example.com/test-endpoint',
+          secret: 'pingsecret',
+        },
+      });
+      const hook = createRes.json().data;
+
+      // Mock global fetch for test dispatch
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+      } as any);
+
+      try {
+        const testRes = await app.inject({
+          method: 'POST',
+          url: `/repos/repo-1/hooks/${hook.id}/test`,
+        });
+
+        expect(testRes.statusCode).toBe(200);
+        expect(testRes.json().success).toBe(true);
+        expect(testRes.json().data.event).toBe('ping');
+        expect(testRes.json().data.status).toBe(200);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it('DELETE /repos/:id/hooks/:hookId deletes webhook and returns 404 on missing', async () => {
+      const app = await buildApp('user-1');
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/hooks',
+        payload: {
+          url: 'https://delete.example.com/hook',
+        },
+      });
+      const hook = createRes.json().data;
+
+      const delRes = await app.inject({
+        method: 'DELETE',
+        url: `/repos/repo-1/hooks/${hook.id}`,
+      });
+      expect(delRes.statusCode).toBe(200);
+
+      // Verify it's gone
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/hooks',
+      });
+      expect(listRes.json().data).toHaveLength(0);
+
+      // Second delete returns 404
+      const secondDel = await app.inject({
+        method: 'DELETE',
+        url: `/repos/repo-1/hooks/${hook.id}`,
+      });
+      expect(secondDel.statusCode).toBe(404);
+      expect(secondDel.json().error.code).toBe('HOOK_NOT_FOUND');
+    });
+  });
 });

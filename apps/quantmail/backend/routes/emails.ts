@@ -836,6 +836,81 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { message: 'Marked as unread' } });
   });
 
+  // POST /emails/:id/unsubscribe - RFC 8058 One-Click List-Unsubscribe
+  fastify.post<{ Params: { id: string } }>('/:id/unsubscribe', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    const prisma = getPrisma(fastify);
+    const email = await prisma.email.findUnique({ where: { id: request.params.id } });
+    if (!email || email.userId !== userId || email.deletedAt) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    const emailRecord = email as any;
+    // Extract headers from authResults or custom header fields if present
+    const authData =
+      typeof emailRecord.authResults === 'object' && emailRecord.authResults !== null
+        ? (emailRecord.authResults as Record<string, any>)
+        : {};
+    const headers = authData.headers || {};
+
+    const rawListUnsub: string = headers['list-unsubscribe'] || headers['List-Unsubscribe'] || '';
+    const listUnsubPost: string =
+      headers['list-unsubscribe-post'] || headers['List-Unsubscribe-Post'] || '';
+
+    let targetUrl: string | null = null;
+    let method: 'POST' | 'GET' | 'mailto' = 'POST';
+
+    if (rawListUnsub) {
+      const match = rawListUnsub.match(/<([^>]+)>/);
+      if (match && match[1]) {
+        targetUrl = match[1];
+        if (targetUrl.startsWith('mailto:')) {
+          method = 'mailto';
+        } else if (listUnsubPost.toLowerCase().includes('one-click')) {
+          method = 'POST';
+        } else {
+          method = 'GET';
+        }
+      }
+    } else if (email.bodyHtml && email.bodyHtml.includes('unsubscribe')) {
+      const match = email.bodyHtml.match(/href=["'](https?:\/\/[^"']*unsubscribe[^"']*)["']/i);
+      if (match && match[1]) {
+        targetUrl = match[1];
+        method = 'GET';
+      }
+    }
+
+    if (!targetUrl) {
+      throw createAppError(
+        'No unsubscribe link or RFC 8058 header found for this email',
+        400,
+        'NO_UNSUBSCRIBE_HEADER',
+      );
+    }
+
+    // Append 'UNSUBSCRIBED' label to email labels
+    const currentLabels = Array.isArray(emailRecord.labels) ? (emailRecord.labels as string[]) : [];
+    if (!currentLabels.includes('UNSUBSCRIBED')) {
+      await prisma.email.update({
+        where: { id: email.id },
+        data: {
+          labels: [...currentLabels, 'UNSUBSCRIBED'],
+        },
+      });
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        unsubscribed: true,
+        method,
+        targetUrl,
+        message: 'Successfully unsubscribed from mailing list',
+      },
+    });
+  });
+
   // POST /emails/mark-all-read - bulk-clear unread state for the current inbox
   // view (optionally scoped to one category tab). Mirrors the GET / inbox
   // filters so it never touches drafts, sent, spam, trash or snoozed threads.

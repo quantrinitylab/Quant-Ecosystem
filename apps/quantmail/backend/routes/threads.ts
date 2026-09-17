@@ -112,4 +112,28 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
       },
     });
   });
+
+  // POST /threads/:id/mute - mute a conversation thread
+  fastify.post<{ Params: { id: string } }>('/:id/mute', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const service = new ThreadService(prisma as never);
+    const result = await service.muteThread(request.params.id, userId);
+    return reply.send({ success: true, data: result });
+  });
+
+  // POST /threads/:id/unmute - unmute a conversation thread
+  fastify.post<{ Params: { id: string } }>('/:id/unmute', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const service = new ThreadService(prisma as never);
+    const result = await service.unmuteThread(request.params.id, userId);
+    return reply.send({ success: true, data: result });
+  });
 }

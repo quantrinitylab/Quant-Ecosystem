@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { AttachmentService, sanitizeFilename } from '../services/attachment.service';
+import {
+  DefaultAttachmentScanner,
+  type AttachmentScannerPort,
+} from '../services/attachment-scanner.service';
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -38,6 +42,24 @@ const ALLOWED_CONTENT_TYPES = new Set([
   'image/gif',
   'image/webp',
   'image/svg+xml',
+  // Audio attachments (Task M26)
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/wav',
+  'audio/x-wav',
+  'audio/ogg',
+  'audio/aac',
+  'audio/mp4',
+  'audio/m4a',
+  'audio/webm',
+  'audio/flac',
+  // Video attachments (Task M26)
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/mpeg',
 ]);
 
 const BLOCKED_EXTENSIONS = new Set([
@@ -67,6 +89,7 @@ function hasBlockedExtension(filename: string): boolean {
 
 export interface AttachmentRoutesOptions {
   service?: AttachmentService;
+  scanner?: AttachmentScannerPort;
 }
 
 export default async function attachmentRoutes(
@@ -74,6 +97,7 @@ export default async function attachmentRoutes(
   options?: AttachmentRoutesOptions,
 ) {
   const service = options?.service ?? new AttachmentService();
+  const scanner = options?.scanner ?? new DefaultAttachmentScanner();
 
   fastify.post('/upload-url', async (request, reply) => {
     const parseResult = uploadUrlSchema.safeParse(request.body);
@@ -122,6 +146,17 @@ export default async function attachmentRoutes(
     }
 
     const safeFilename = sanitizeFilename(attachment.filename);
+    const rawContent = attachment.content ?? Buffer.from('');
+    const contentBuffer = Buffer.isBuffer(rawContent) ? rawContent : Buffer.from(rawContent);
+
+    const scanResult = await scanner.scanBuffer(contentBuffer, safeFilename);
+    if (scanResult.isInfected) {
+      throw createAppError(
+        `Attachment blocked: malware detected (${scanResult.virusName || 'Infected'})`,
+        422,
+        'MALICIOUS_ATTACHMENT_DETECTED',
+      );
+    }
 
     // Enforce Content-Type: application/octet-stream for SVG files to neutralize inline scripts
     const isSvg =
@@ -133,15 +168,26 @@ export default async function attachmentRoutes(
       ? 'application/octet-stream'
       : attachment.contentType || 'application/octet-stream';
 
-    const content = attachment.content ?? Buffer.from('');
-
     return reply
       .header('Content-Type', contentType)
       .header('Content-Disposition', `attachment; filename="${safeFilename}"`)
       .header('Content-Security-Policy', "default-src 'none'; sandbox")
       .header('X-Content-Type-Options', 'nosniff')
       .header('X-Frame-Options', 'DENY')
-      .send(content);
+      .send(contentBuffer);
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/scan', async (request, reply) => {
+    const userId = requireUserId(request);
+    const attachment = await service.getAttachment(request.params.id, userId);
+    if (!attachment || attachment.userId !== userId) {
+      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
+    }
+    const safeFilename = sanitizeFilename(attachment.filename);
+    const rawContent = attachment.content ?? Buffer.from('');
+    const contentBuffer = Buffer.isBuffer(rawContent) ? rawContent : Buffer.from(rawContent);
+    const scanResult = await scanner.scanBuffer(contentBuffer, safeFilename);
+    return reply.status(200).send({ success: true, data: scanResult });
   });
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
