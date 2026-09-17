@@ -36,6 +36,8 @@ const eventCollectionFields = {
   recurrence: z.string().max(200).nullable().optional(),
   recurrenceRule: z.string().max(200).nullable().optional(),
   calendarId: z.string().optional(),
+  timeZone: z.string().max(100).optional(),
+  timezone: z.string().max(100).optional(),
 };
 const eventCreateSchema = z.object({
   title: z.string().min(1).max(300),
@@ -60,6 +62,7 @@ const eventUpdateSchema = z.object({
   status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
   checkConflicts: z.boolean().optional(),
   force: z.boolean().optional(),
+  scope: z.string().optional(),
   ...eventCollectionFields,
 });
 const calendarCreateSchema = z.object({
@@ -106,6 +109,8 @@ type EventRow = {
   attendees?: unknown;
   reminders?: unknown;
   recurrenceRule?: string | null;
+  timeZone?: string | null;
+  timezone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -252,6 +257,7 @@ function toCalendarEvent(row: EventRow): CalendarEvent {
     recurrenceRule: row.recurrenceRule ?? null,
     status: row.status as CalendarEvent['status'],
     reminders: parseJsonArray(row.reminders),
+    timeZone: (row as any).timeZone || (row as any).timezone || 'UTC',
     createdAt: new Date(row.createdAt),
     updatedAt: new Date(row.updatedAt),
   };
@@ -270,6 +276,7 @@ function toEventDto(event: EventRow | CalendarEvent) {
     allDay: event.allDay,
     location: event.location,
     status: event.status,
+    timeZone: (event as any).timeZone || (event as any).timezone || 'UTC',
     attendees: parseJsonArray(event.attendees)
       .map((a: any) =>
         typeof a === 'string'
@@ -953,24 +960,49 @@ export default async function calendarRoutes(
       }
     }
 
-    const created = (await prisma.event.create({
-      data: {
-        title: parsed.data.title,
-        description: parsed.data.description ?? '',
-        startTime: start,
-        endTime: end,
-        allDay: parsed.data.allDay ?? false,
-        location: parsed.data.location ?? '',
-        userId,
-        calendarId: targetCalendarId,
-        status: 'confirmed',
-        attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])),
-        reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
-        recurrenceRule: normalizeRecurrenceRule(recurrence, recurringService),
-        createdAt: now,
-        updatedAt: now,
-      },
-    })) as EventRow;
+    const tzValue = parsed.data.timeZone ?? (parsed.data as any).timezone;
+    const eventCreateData: Record<string, unknown> = {
+      title: parsed.data.title,
+      description: parsed.data.description ?? '',
+      startTime: start,
+      endTime: end,
+      allDay: parsed.data.allDay ?? false,
+      location: parsed.data.location ?? '',
+      userId,
+      calendarId: targetCalendarId,
+      status: 'confirmed',
+      attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])),
+      reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
+      recurrenceRule: normalizeRecurrenceRule(recurrence, recurringService),
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (tzValue) {
+      eventCreateData.timeZone = tzValue;
+    }
+
+    let created: EventRow;
+    try {
+      created = (await prisma.event.create({
+        data: eventCreateData,
+      })) as EventRow;
+    } catch (err: any) {
+      if (
+        tzValue &&
+        (err?.message?.includes('Unknown argument') || err?.message?.includes('timeZone'))
+      ) {
+        delete eventCreateData.timeZone;
+        created = (await prisma.event.create({
+          data: eventCreateData,
+        })) as EventRow;
+        created.timeZone = tzValue;
+      } else {
+        throw err;
+      }
+    }
+    if (tzValue && !created.timeZone) {
+      created.timeZone = tzValue;
+    }
     await callAlertService
       .scheduleAlertsForEvent({
         id: created.id,
@@ -998,6 +1030,9 @@ export default async function calendarRoutes(
     if (start && end && end < start)
       throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
 
+    const scope =
+      parsed.data.scope || (request.query as any)?.scope || (request.body as any)?.scope;
+
     if (request.params.id.includes('_')) {
       const parentId = request.params.id.split('_')[0]!;
       const occurrenceIso = request.params.id.split('_').slice(1).join('_');
@@ -1013,31 +1048,14 @@ export default async function calendarRoutes(
         throw createAppError('Invalid occurrence date', 400, 'INVALID_DATE');
       }
 
-      if (parent.recurrenceRule) {
-        const rule = recurringService.parseRRule(parent.recurrenceRule);
-        rule.exceptions = rule.exceptions ?? [];
-        const hasDate = rule.exceptions.some(
-          (existing) =>
-            existing.getTime() === occDate.getTime() ||
-            existing.toISOString().slice(0, 10) === occDate.toISOString().slice(0, 10),
-        );
-        if (!hasDate) {
-          rule.exceptions.push(occDate);
-        }
-        const updatedRule = recurringService.serializeRRule(rule);
-        await prisma.event.update({
-          where: { id: parentId },
-          data: { recurrenceRule: updatedRule, updatedAt: new Date() },
-        });
-      }
-
       const eventStartTime = start ?? occDate;
       const parentDuration =
         parent.endTime && parent.startTime
           ? new Date(parent.endTime).getTime() - new Date(parent.startTime).getTime()
           : 3_600_000;
       const eventEndTime =
-        end ?? new Date(occDate.getTime() + (parentDuration > 0 ? parentDuration : 3_600_000));
+        end ??
+        new Date(eventStartTime.getTime() + (parentDuration > 0 ? parentDuration : 3_600_000));
       if (eventEndTime < eventStartTime) {
         throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
       }
@@ -1061,9 +1079,40 @@ export default async function calendarRoutes(
         }
       }
 
-      const now = new Date();
-      const created = (await prisma.event.create({
-        data: {
+      if (scope === 'this_and_following') {
+        let newSeriesRecurrence: string | null = null;
+        if (parent.recurrenceRule) {
+          const rule = recurringService.parseRRule(parent.recurrenceRule);
+          const originalUntil = rule.until;
+          const originalExceptions = rule.exceptions;
+
+          rule.until = new Date(occDate.getTime() - 1000);
+          const updatedRule = recurringService.serializeRRule(rule);
+          await prisma.event.update({
+            where: { id: parentId },
+            data: { recurrenceRule: updatedRule, updatedAt: new Date() },
+          });
+
+          const recurrenceInput = pickRecurrence(parsed.data);
+          if (recurrenceInput !== undefined) {
+            newSeriesRecurrence = normalizeRecurrenceRule(recurrenceInput, recurringService);
+          } else {
+            const newRule = {
+              ...rule,
+              until: originalUntil && originalUntil > occDate ? originalUntil : undefined,
+              exceptions: originalExceptions?.filter((ex) => ex >= occDate),
+            };
+            newSeriesRecurrence = recurringService.serializeRRule(newRule);
+          }
+        } else {
+          const recurrenceInput = pickRecurrence(parsed.data);
+          if (recurrenceInput !== undefined) {
+            newSeriesRecurrence = normalizeRecurrenceRule(recurrenceInput, recurringService);
+          }
+        }
+
+        const now = new Date();
+        const createPayload: Record<string, unknown> = {
           title: parsed.data.title ?? parent.title,
           description: parsed.data.description ?? parent.description ?? '',
           startTime: eventStartTime,
@@ -1073,7 +1122,7 @@ export default async function calendarRoutes(
           userId,
           calendarId: parsed.data.calendarId ?? parent.calendarId,
           status: parsed.data.status ?? parent.status ?? 'confirmed',
-          recurrenceRule: null,
+          recurrenceRule: newSeriesRecurrence,
           attendees: parsed.data.attendees
             ? JSON.stringify(toStoredAttendees(parsed.data.attendees))
             : (parent.attendees ?? JSON.stringify([])),
@@ -1082,8 +1131,125 @@ export default async function calendarRoutes(
             : (parent.reminders ?? JSON.stringify([])),
           createdAt: now,
           updatedAt: now,
-        },
-      })) as EventRow;
+        };
+        const targetTz =
+          parsed.data.timeZone ??
+          (parsed.data as any).timezone ??
+          (parent as any).timeZone ??
+          (parent as any).timezone;
+        if (targetTz) {
+          createPayload.timeZone = targetTz;
+        }
+
+        let newSeries: EventRow;
+        try {
+          newSeries = (await prisma.event.create({
+            data: createPayload,
+          })) as EventRow;
+        } catch (err: any) {
+          if (
+            targetTz &&
+            (err?.message?.includes('Unknown argument') || err?.message?.includes('timeZone'))
+          ) {
+            delete createPayload.timeZone;
+            newSeries = (await prisma.event.create({
+              data: createPayload,
+            })) as EventRow;
+            newSeries.timeZone = targetTz;
+          } else {
+            throw err;
+          }
+        }
+        if (targetTz && !newSeries.timeZone) {
+          newSeries.timeZone = targetTz;
+        }
+
+        await callAlertService
+          .scheduleAlertsForEvent({
+            id: newSeries.id,
+            title: newSeries.title,
+            userId: newSeries.userId,
+            startTime: newSeries.startTime,
+            location: newSeries.location,
+            reminders: newSeries.reminders as any,
+          })
+          .catch((err) => {
+            request.log.warn({ err }, 'Failed to schedule event call alert');
+          });
+
+        return reply.status(200).send({ success: true, data: toEventDto(newSeries) });
+      }
+
+      if (parent.recurrenceRule) {
+        const rule = recurringService.parseRRule(parent.recurrenceRule);
+        rule.exceptions = rule.exceptions ?? [];
+        const hasDate = rule.exceptions.some(
+          (existing) =>
+            existing.getTime() === occDate.getTime() ||
+            existing.toISOString().slice(0, 10) === occDate.toISOString().slice(0, 10),
+        );
+        if (!hasDate) {
+          rule.exceptions.push(occDate);
+        }
+        const updatedRule = recurringService.serializeRRule(rule);
+        await prisma.event.update({
+          where: { id: parentId },
+          data: { recurrenceRule: updatedRule, updatedAt: new Date() },
+        });
+      }
+
+      const now = new Date();
+      const createPayload: Record<string, unknown> = {
+        title: parsed.data.title ?? parent.title,
+        description: parsed.data.description ?? parent.description ?? '',
+        startTime: eventStartTime,
+        endTime: eventEndTime,
+        allDay: parsed.data.allDay ?? parent.allDay ?? false,
+        location: parsed.data.location ?? parent.location ?? '',
+        userId,
+        calendarId: parsed.data.calendarId ?? parent.calendarId,
+        status: parsed.data.status ?? parent.status ?? 'confirmed',
+        recurrenceRule: null,
+        attendees: parsed.data.attendees
+          ? JSON.stringify(toStoredAttendees(parsed.data.attendees))
+          : (parent.attendees ?? JSON.stringify([])),
+        reminders: parsed.data.reminders
+          ? JSON.stringify(toStoredReminders(parsed.data.reminders))
+          : (parent.reminders ?? JSON.stringify([])),
+        createdAt: now,
+        updatedAt: now,
+      };
+      const targetTz =
+        parsed.data.timeZone ??
+        (parsed.data as any).timezone ??
+        (parent as any).timeZone ??
+        (parent as any).timezone;
+      if (targetTz) {
+        createPayload.timeZone = targetTz;
+      }
+
+      let created: EventRow;
+      try {
+        created = (await prisma.event.create({
+          data: createPayload,
+        })) as EventRow;
+      } catch (err: any) {
+        if (
+          targetTz &&
+          (err?.message?.includes('Unknown argument') || err?.message?.includes('timeZone'))
+        ) {
+          delete createPayload.timeZone;
+          created = (await prisma.event.create({
+            data: createPayload,
+          })) as EventRow;
+          created.timeZone = targetTz;
+        } else {
+          throw err;
+        }
+      }
+      if (targetTz && !created.timeZone) {
+        created.timeZone = targetTz;
+      }
 
       await callAlertService
         .scheduleAlertsForEvent({
@@ -1131,6 +1297,8 @@ export default async function calendarRoutes(
     for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const)
       if (parsed.data[key] !== undefined) data[key] = parsed.data[key];
     if (parsed.data.calendarId !== undefined) data.calendarId = parsed.data.calendarId;
+    const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
+    if (tzToUpdate !== undefined) data.timeZone = tzToUpdate;
     if (start) data.startTime = start;
     if (end) data.endTime = end;
     if (parsed.data.attendees !== undefined)
@@ -1140,7 +1308,26 @@ export default async function calendarRoutes(
     const recurrence = pickRecurrence(parsed.data);
     if (recurrence !== undefined)
       data.recurrenceRule = normalizeRecurrenceRule(recurrence, recurringService);
-    const updated = (await prisma.event.update({ where: { id: eventId }, data })) as EventRow;
+
+    let updated: EventRow;
+    try {
+      updated = (await prisma.event.update({ where: { id: eventId }, data })) as EventRow;
+    } catch (err: any) {
+      if (
+        tzToUpdate !== undefined &&
+        (err?.message?.includes('Unknown argument') || err?.message?.includes('timeZone'))
+      ) {
+        delete data.timeZone;
+        updated = (await prisma.event.update({ where: { id: eventId }, data })) as EventRow;
+        updated.timeZone = tzToUpdate;
+      } else {
+        throw err;
+      }
+    }
+    if (tzToUpdate && !updated.timeZone) {
+      updated.timeZone = tzToUpdate;
+    }
+
     await callAlertService.cancelAlertsForEvent(eventId).catch((err) => {
       request.log.warn({ err }, 'Failed to schedule event call alert');
     });
@@ -1160,7 +1347,7 @@ export default async function calendarRoutes(
   };
   fastify.put('/events/:id', updateEvent);
   fastify.patch('/events/:id', updateEvent);
-  fastify.delete<{ Params: { id: string } }>('/events/:id', async (request, reply) => {
+  fastify.delete<{ Params: { id: string } }>('/events/:id', async (request: any, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
 
@@ -1177,6 +1364,25 @@ export default async function calendarRoutes(
       const occDate = new Date(occurrenceIso);
       if (Number.isNaN(occDate.getTime())) {
         throw createAppError('Invalid occurrence date', 400, 'INVALID_DATE');
+      }
+
+      const scope = request.query?.scope || request.body?.scope;
+      if (scope === 'this_and_following') {
+        let until: Date = new Date(occDate.getTime() - 1000);
+        if (parent.recurrenceRule) {
+          const rule = recurringService.parseRRule(parent.recurrenceRule);
+          rule.until = new Date(occDate.getTime() - 1000);
+          until = rule.until;
+          const updatedRule = recurringService.serializeRRule(rule);
+          await prisma.event.update({
+            where: { id: parentId },
+            data: { recurrenceRule: updatedRule, updatedAt: new Date() },
+          });
+        }
+        return reply.status(200).send({
+          success: true,
+          data: { message: 'This and following occurrences deleted', until },
+        });
       }
 
       if (parent.recurrenceRule) {

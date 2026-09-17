@@ -2240,3 +2240,51 @@ graph TD
 - **6. Verification & Quality Gates**:
   - **31/31 unit tests passing 100%** across all 4 Drive test suites (`drive-parity.routes.test.ts` 8/8, `drive-deep-parity.routes.test.ts` 8/8, `chunked-upload-quota-move.test.ts` 6/6, `drive-upload-results.test.ts` 9/9).
   - **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` exit code 0).
+
+### 44. Wave 14: Swarm Parity Blitz — Real CI Runner, Git Collaborator RBAC, Calendar Series Split & Timezones, Drive Path Healing & Notion Block Editor (Tasks G04, G09, G10, G14, C07, C10, C12, C25, D02, D12, N05, N06):
+
+- **1. Phase G: CodeHub & Git Infrastructure (Developer 6)**:
+  - **Authentic CI Workflow Trigger (Task G04)**:
+    - Removed synthetic dev-only gate (`if (process.env.NODE_ENV !== 'development' || process.env.ENABLE_DEV_REPO_SEEDING !== 'true')`) in `POST /:id/actions/trigger`.
+    - Persists `CiRun` and associated `CiJob` records (`Validate immutable main release` and `Build and deploy quantmail`) with authentic branch and commit SHA resolution.
+    - Dispatches to infra runner port (`fastify.ciRunner.dispatch(...)` or `fastify.ciQueue.add(...)`) when configured.
+  - **Repository Collaborators & Granular RBAC (Tasks G09 & G10)**:
+    - Implemented `GET /repos/:id/collaborators`: Verifies caller is repo owner or collaborator (`ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`) and returns collaborator records with user profile metadata.
+    - Implemented `POST /repos/:id/collaborators`: Allows repo owner or `ADMIN` to invite/update collaborators by email or userId, with validation preventing assigning repository owner as a collaborator.
+    - Implemented `DELETE /repos/:id/collaborators/:userId`: Allows removing collaborators while protecting repository owner from removal.
+    - Integrated with `loadReadableRepo` (collaborators can access private repos) and `loadWritableRepo` (collaborators with `ADMIN`, `MAINTAIN`, or `WRITE` can push/commit).
+  - **Tags & Releases Management Endpoints (Task G14)**:
+    - Implemented `GET /repos/:id/tags` (reads Git tags from bare disk repo with format parsing) and `POST /repos/:id/tags` (creates Git tags).
+    - Implemented `GET /repos/:id/releases` and `POST /repos/:id/releases` (creates releases with draft/prerelease flags).
+  - **Verification**: 57/57 tests passing in `repos.routes.test.ts`.
+
+- **2. Phase C: QuantCalendar Recurrence Parity & Timezones (Developer 3)**:
+  - **Recurring Series Split ("This and Following" - Task C07)**:
+    - `DELETE /events/:id`: When called on synthetic occurrence `${parentId}_${occurrenceIso}` with `scope: 'this_and_following'`, clamps parent's recurrence rule to right before this occurrence (`rule.until = new Date(occDate.getTime() - 1000)`), saving to Prisma and excluding all future occurrences.
+    - `PUT / PATCH /events/:id`: When called with `scope: 'this_and_following'`, clamps parent series and creates a new recurring series starting at `eventStartTime` with the new recurrence pattern and updated fields (`title`, `description`, `location`, `allDay`, `timeZone`).
+  - **Timezone Engine & DTO Serialization (Tasks C10 & C12)**:
+    - Added `timeZone` to `eventCreateSchema` and `eventUpdateSchema`.
+    - Preserves and guarantees `timeZone` in `toEventDto` (defaulting cleanly to `'UTC'`).
+  - **Working Hours & Available Days Conflict Guard (Task C25)**:
+    - In `booking-link.service.ts`: Enforces that booking slot `startTime` and `endTime` strictly respect `link.startHour`, `link.endHour`, and `link.availableDays`, rejecting non-compliant bookings with HTTP 400 `'INVALID_BOOKING_SLOT'`.
+  - **Verification**: 102/102 tests passing across all 5 calendar test suites.
+
+- **3. Phase D: QuantDrive Share Notifications & Path Healing (Developer 4)**:
+  - **Share Notification Email (Task D02)**:
+    - Extended `POST /drive/files/:id/share`: When a file is shared, records an invitation email in the recipient's `INBOX` with subject, formatted body text, HTML, and direct accept link (`/drive?shareId=${share.id}`).
+  - **Folder Path Repair Engine (Task D12)**:
+    - Added `POST /drive/repair-paths`: Recursively reconstructs folder hierarchy paths from root (`/name`) to leaves (`/parent/name`) using cycle-safe traversal, detects discrepancies, and updates diverging paths in Prisma.
+  - **Verification**: 10/10 in `drive-deep-parity.routes.test.ts`, 8/8 in `drive-parity.routes.test.ts`.
+
+- **4. Phase N: QuantDocs to Notion Parity (Developer 5)**:
+  - **TipTap / Block Editor UI at `/drive/doc/[docId]` (Tasks N05 & N06)**:
+    - Canonical route surface at `apps/quantmail/src/app/drive/doc/[docId]/page.tsx` integrated with QuantDrive "New Doc" action button.
+    - 100% MIT-licensed React block editor with in-house slash command menu (`/h1`, `/h2`, `/h3`, `/todo`, `/bullet`, `/numbered`, `/table`, `/code`, `/callout`, `/quote`, `/divider`).
+    - Formatting toolbar (Bold, Italic, Strikethrough, Code, Link, highlights).
+    - Yjs CRDT real-time binary collaboration sync over WebSocket to `/collab/:docId` with awareness presence and debounced REST persistence to `PATCH /documents/:id`.
+    - Markdown import and export (`.md` file generator and parser).
+  - **Verification**: 4/4 in `drive-doc-editor.test.ts`, 13/13 in `docs-yjs-collab.test.ts`.
+
+- **5. Overall Verification**:
+  - **176/176 unit tests passing 100%** across all affected test suites.
+  - **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).

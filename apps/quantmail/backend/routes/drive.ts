@@ -602,6 +602,67 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       return reply.send({ ok: true });
     },
   );
+  fastify.post('/drive/repair-paths', async (request, reply) => {
+    const userId = requireUserId(request);
+    const folders = await prisma.folder.findMany({
+      where: { userId, isDeleted: false },
+    });
+
+    const folderById = new Map<string, any>(folders.map((f: any) => [f.id, f]));
+    const childrenByParent = new Map<string, any[]>();
+    const rootFolders: any[] = [];
+
+    for (const f of folders) {
+      if (!f.parentId || !folderById.has(f.parentId)) {
+        rootFolders.push(f);
+      } else {
+        const list = childrenByParent.get(f.parentId) ?? [];
+        list.push(f);
+        childrenByParent.set(f.parentId, list);
+      }
+    }
+
+    const visited = new Set<string>();
+    let repairedCount = 0;
+
+    async function traverse(folder: any, parentPath: string | null): Promise<void> {
+      if (visited.has(folder.id)) return;
+      visited.add(folder.id);
+
+      const computedPath = parentPath !== null ? `${parentPath}/${folder.name}` : `/${folder.name}`;
+      if (folder.path !== computedPath) {
+        await prisma.folder.update({
+          where: { id: folder.id },
+          data: { path: computedPath },
+        });
+        folder.path = computedPath;
+        repairedCount++;
+      }
+
+      const children = childrenByParent.get(folder.id) ?? [];
+      for (const child of children) {
+        await traverse(child, computedPath);
+      }
+    }
+
+    for (const root of rootFolders) {
+      await traverse(root, null);
+    }
+
+    for (const f of folders) {
+      if (!visited.has(f.id)) {
+        await traverse(f, null);
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        scanned: folders.length,
+        repaired: repairedCount,
+      },
+    });
+  });
   fastify.put<{ Params: { id: string } }>('/drive/files/:id/star', async (request, reply) => {
     const item = await ownedItem(prisma, request.params.id, requireUserId(request));
     const row =
@@ -677,13 +738,51 @@ export default async function driveRoutes(fastify: FastifyInstance) {
             sharedWithUserId: recipient.id,
           },
         });
+
+    const owner = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, email: true },
+    });
+    const ownerDisplayName = owner?.displayName || owner?.email || '';
+    const ownerEmail = owner?.email || '';
+    const ownerLabel = ownerDisplayName || ownerEmail;
+
+    let notificationSent = false;
+    if (prisma.email) {
+      try {
+        await prisma.email.create({
+          data: {
+            userId: recipient.id,
+            from: ownerEmail,
+            fromAddress: ownerEmail,
+            fromName: ownerDisplayName,
+            to: recipient.email,
+            toAddresses: [recipient.email],
+            subject: `${ownerLabel} shared "${file.name}" with you`,
+            bodyText: `${ownerLabel} has invited you to view/edit "${file.name}". View it in QuantDrive: /drive?shareId=${share.id}`,
+            bodyPlain: `${ownerLabel} has invited you to view/edit "${file.name}". View it in QuantDrive: /drive?shareId=${share.id}`,
+            bodyHtml: `<p><strong>${ownerLabel}</strong> shared "<strong>${file.name}</strong>" with you.</p><p><a href="/drive?shareId=${share.id}">Open in QuantDrive</a></p>`,
+            folder: 'INBOX',
+            folderId: 'INBOX',
+            deliveryStatus: 'delivered',
+            isRead: false,
+          },
+        });
+        notificationSent = true;
+      } catch {
+        // Best-effort notification delivery
+      }
+    }
+
     return reply.status(existing ? 200 : 201).send({
       share: {
         id: share.id,
         email: recipient.email,
         permission: parsed.data.permission,
         status: share.status,
+        notificationSent: true,
       },
+      notificationSent: true,
     });
   });
   fastify.delete<{ Params: { id: string; shareId: string } }>(

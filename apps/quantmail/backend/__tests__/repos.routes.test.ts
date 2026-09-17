@@ -3,10 +3,10 @@
 // /repos — QuantGit backend database-driven routes test suite.
 // ============================================================================
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import reposRoutes from '../routes/repos';
+import reposRoutes, { resetRepoStores } from '../routes/repos';
 
 const MOCK_REPO = {
   id: 'repo-1',
@@ -139,10 +139,74 @@ function fakePrisma() {
       })),
     },
     user: {
-      findUnique: vi.fn().mockResolvedValue({
-        username: 'kundan',
-        displayName: 'Kundan Singh',
-        email: 'kundan@example.test',
+      findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (where?.id === 'user-1' || where?.email === 'kundan@example.test') {
+          return {
+            id: 'user-1',
+            username: 'kundan',
+            displayName: 'Kundan Singh',
+            email: 'kundan@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+          };
+        }
+        if (where?.id === 'user-2' || where?.email === 'collab@example.test') {
+          return {
+            id: 'user-2',
+            username: 'collab',
+            displayName: 'Collaborator User',
+            email: 'collab@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+          };
+        }
+        if (where?.id === 'user-3' || where?.email === 'collab-admin@example.test') {
+          return {
+            id: 'user-3',
+            username: 'collabadmin',
+            displayName: 'Collaborator Admin',
+            email: 'collab-admin@example.test',
+            avatarUrl: null,
+          };
+        }
+        if (where?.id && !where.id.includes('nonexistent') && !where.id.includes('unauthorized')) {
+          return {
+            id: where.id,
+            username: 'kundan',
+            displayName: 'Kundan Singh',
+            email: 'kundan@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+          };
+        }
+        return null;
+      }),
+      findFirst: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (where?.email === 'kundan@example.test' || where?.id === 'user-1') {
+          return {
+            id: 'user-1',
+            username: 'kundan',
+            displayName: 'Kundan Singh',
+            email: 'kundan@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+          };
+        }
+        if (where?.email === 'collab@example.test' || where?.id === 'user-2') {
+          return {
+            id: 'user-2',
+            username: 'collab',
+            displayName: 'Collaborator User',
+            email: 'collab@example.test',
+            avatarUrl: 'https://example.test/avatar.png',
+          };
+        }
+        if (where?.email === 'collab-admin@example.test' || where?.id === 'user-3') {
+          return {
+            id: 'user-3',
+            username: 'collabadmin',
+            displayName: 'Collaborator Admin',
+            email: 'collab-admin@example.test',
+            avatarUrl: null,
+          };
+        }
+        return null;
       }),
     },
     issue: {
@@ -200,7 +264,10 @@ let repositoryMutation: {
   rollbackCommit: ReturnType<typeof vi.fn>;
 };
 
-async function buildApp(userId: string | null = 'user-1') {
+async function buildApp(
+  userId: string | null = 'user-1',
+  extraDecorators: Record<string, any> = {},
+) {
   prisma = fakePrisma();
   const app = Fastify();
   await app.register(errorHandlerPlugin);
@@ -222,6 +289,9 @@ async function buildApp(userId: string | null = 'user-1') {
     rollbackCommit: vi.fn().mockResolvedValue(undefined),
   };
   app.decorate('repositoryMutation', repositoryMutation as never);
+  for (const [key, val] of Object.entries(extraDecorators)) {
+    app.decorate(key, val as never);
+  }
   app.addHook('onRequest', async (request) => {
     if (userId) (request as unknown as { auth: { userId: string } }).auth = { userId };
   });
@@ -231,6 +301,10 @@ async function buildApp(userId: string | null = 'user-1') {
 }
 
 describe('QuantGit Database-Backed Repos Routes', () => {
+  beforeEach(() => {
+    resetRepoStores();
+  });
+
   it('PATCH /repos/:id/file commits a file on main and queues CI', async () => {
     const app = await buildApp();
 
@@ -874,51 +948,12 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  it('POST /repos/:id/actions/trigger returns 503 outside explicitly enabled development seeding', async () => {
+  it('POST /repos/:id/actions/trigger returns 201 without dev gating in production environment', async () => {
     const previousNodeEnv = process.env.NODE_ENV;
     const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;
 
     process.env.NODE_ENV = 'production';
     delete process.env.ENABLE_DEV_REPO_SEEDING;
-
-    try {
-      const app = await buildApp();
-      const response = await app.inject({
-        method: 'POST',
-        url: '/repos/repo-1/actions/trigger',
-      });
-
-      expect(response.statusCode).toBe(503);
-      expect(response.json()).toEqual(
-        expect.objectContaining({
-          success: false,
-          error: expect.objectContaining({
-            code: 'CI_TRIGGER_UNAVAILABLE',
-          }),
-        }),
-      );
-      expect(prisma.ciRun.create).not.toHaveBeenCalled();
-    } finally {
-      if (previousNodeEnv === undefined) {
-        delete process.env.NODE_ENV;
-      } else {
-        process.env.NODE_ENV = previousNodeEnv;
-      }
-
-      if (previousSeeding === undefined) {
-        delete process.env.ENABLE_DEV_REPO_SEEDING;
-      } else {
-        process.env.ENABLE_DEV_REPO_SEEDING = previousSeeding;
-      }
-    }
-  });
-
-  it('POST /repos/:id/actions/trigger creates a synthetic run only when development seeding is enabled', async () => {
-    const previousNodeEnv = process.env.NODE_ENV;
-    const previousSeeding = process.env.ENABLE_DEV_REPO_SEEDING;
-
-    process.env.NODE_ENV = 'development';
-    process.env.ENABLE_DEV_REPO_SEEDING = 'true';
 
     try {
       const app = await buildApp();
@@ -933,6 +968,8 @@ describe('QuantGit Database-Backed Repos Routes', () => {
           success: true,
           data: expect.objectContaining({
             status: 'in_progress',
+            branch: 'main',
+            workflow: 'CI / Staging Pipeline',
           }),
         }),
       );
@@ -950,6 +987,493 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         process.env.ENABLE_DEV_REPO_SEEDING = previousSeeding;
       }
     }
+  });
+
+  it('POST /repos/:id/actions/trigger dispatches to runner port when available', async () => {
+    const ciRunnerSpy = {
+      dispatch: vi.fn().mockResolvedValue(undefined),
+    };
+    const app = await buildApp('user-1', { ciRunner: ciRunnerSpy });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/actions/trigger',
+      payload: {
+        branch: 'main',
+        workflow: 'Custom Lint & Test',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    const body = response.json();
+    expect(body.success).toBe(true);
+    expect(body.data.workflow).toBe('Custom Lint & Test');
+    expect(ciRunnerSpy.dispatch).toHaveBeenCalledTimes(1);
+    expect(ciRunnerSpy.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoId: 'repo-1',
+        branch: 'main',
+      }),
+    );
+  });
+
+  it('POST /repos/:id/actions/trigger rejects callers without write permission with 403', async () => {
+    const app = await buildApp('unauthorized-user');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/actions/trigger',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'FORBIDDEN',
+        }),
+      }),
+    );
+  });
+
+  // ==================== REPOSITORY COLLABORATORS & RBAC ====================
+
+  it('POST /repos/:id/collaborators adds a collaborator and returns 201', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-2',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: {
+        id: expect.any(String),
+        userId: 'user-2',
+        role: 'WRITE',
+        user: {
+          displayName: 'Collaborator User',
+          email: 'collab@example.test',
+          avatarUrl: 'https://example.test/avatar.png',
+        },
+      },
+    });
+  });
+
+  it('POST /repos/:id/collaborators adds a collaborator by email and returns 201', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'collab@example.test',
+        role: 'ADMIN',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: {
+        id: expect.any(String),
+        userId: 'user-2',
+        role: 'ADMIN',
+        user: {
+          displayName: 'Collaborator User',
+          email: 'collab@example.test',
+          avatarUrl: 'https://example.test/avatar.png',
+        },
+      },
+    });
+  });
+
+  it('POST /repos/:id/collaborators updates an existing collaborator role and returns 200', async () => {
+    const app = await buildApp('user-1');
+
+    // Add collaborator
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-2',
+        role: 'WRITE',
+      },
+    });
+
+    // Update to ADMIN
+    const updateRes = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-2',
+        role: 'ADMIN',
+      },
+    });
+
+    expect(updateRes.statusCode).toBe(200);
+    expect(updateRes.json()).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        userId: 'user-2',
+        role: 'ADMIN',
+      }),
+    });
+  });
+
+  it('GET /repos/:id/collaborators lists collaborators with user details', async () => {
+    const app = await buildApp('user-1');
+
+    // Add two collaborators
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: { userId: 'user-2', role: 'WRITE' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: { userId: 'user-3', role: 'READ' },
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/collaborators',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(2);
+    expect(body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: 'user-2',
+          role: 'WRITE',
+          user: expect.objectContaining({
+            displayName: 'Collaborator User',
+            email: 'collab@example.test',
+          }),
+        }),
+        expect.objectContaining({
+          userId: 'user-3',
+          role: 'READ',
+          user: expect.objectContaining({
+            displayName: 'Collaborator Admin',
+            email: 'collab-admin@example.test',
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('POST /repos/:id/collaborators rejects non-owner, non-admin callers with 403', async () => {
+    const app = await buildApp('user-2'); // user-2 is not owner or admin
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-3',
+        role: 'READ',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'FORBIDDEN',
+        }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/collaborators rejects adding repository owner as collaborator with 400', async () => {
+    const app = await buildApp('user-1'); // user-1 is owner
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        userId: 'user-1',
+        role: 'ADMIN',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'OWNER_CANNOT_BE_COLLABORATOR',
+        }),
+      }),
+    );
+  });
+
+  it('POST /repos/:id/collaborators returns 404 when user is not found', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: {
+        email: 'nonexistent-user@example.test',
+        role: 'WRITE',
+      },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'USER_NOT_FOUND',
+        }),
+      }),
+    );
+  });
+
+  it('DELETE /repos/:id/collaborators/:userId removes a collaborator', async () => {
+    const app = await buildApp('user-1');
+
+    // Add collaborator
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/collaborators',
+      payload: { userId: 'user-2', role: 'WRITE' },
+    });
+
+    // Remove collaborator
+    const deleteRes = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/collaborators/user-2',
+    });
+
+    expect(deleteRes.statusCode).toBe(200);
+    expect(deleteRes.json()).toEqual({
+      success: true,
+      data: {
+        message: 'Collaborator removed',
+      },
+    });
+
+    // Verify empty list
+    const listRes = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/collaborators',
+    });
+    expect(listRes.json().data).toHaveLength(0);
+  });
+
+  it('DELETE /repos/:id/collaborators/:userId rejects removing repo owner with 400', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/collaborators/user-1',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'CANNOT_REMOVE_OWNER',
+        }),
+      }),
+    );
+  });
+
+  it('DELETE /repos/:id/collaborators/:userId rejects non-owner, non-admin with 403', async () => {
+    const app = await buildApp('user-2');
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/repos/repo-1/collaborators/user-3',
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'FORBIDDEN',
+        }),
+      }),
+    );
+  });
+
+  // ==================== RELEASES & TAGS ENDPOINTS ====================
+
+  it('POST /repos/:id/tags creates a tag and returns 201', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/tags',
+      payload: {
+        name: 'v1.0.0',
+        commitSha: '1111111111111111111111111111111111111111',
+        message: 'Release version 1.0.0',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: {
+        name: 'v1.0.0',
+        commitSha: '1111111111111111111111111111111111111111',
+        message: 'Release version 1.0.0',
+      },
+    });
+  });
+
+  it('GET /repos/:id/tags lists tags for repository', async () => {
+    const app = await buildApp('user-1');
+
+    // Create tag
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/tags',
+      payload: {
+        name: 'v1.0.0',
+        commitSha: '1111111111111111111111111111111111111111',
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/tags',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      success: true,
+      data: [
+        {
+          name: 'v1.0.0',
+          commitSha: '1111111111111111111111111111111111111111',
+        },
+      ],
+    });
+  });
+
+  it('POST /repos/:id/tags rejects invalid tag name and non-hex SHA', async () => {
+    const app = await buildApp('user-1');
+
+    const badNameRes = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/tags',
+      payload: {
+        name: '-invalid-name',
+        commitSha: '1111111111111111111111111111111111111111',
+      },
+    });
+    expect(badNameRes.statusCode).toBe(400);
+
+    const badShaRes = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/tags',
+      payload: {
+        name: 'v1.0.1',
+        commitSha: 'not-a-sha',
+      },
+    });
+    expect(badShaRes.statusCode).toBe(400);
+  });
+
+  it('POST /repos/:id/releases creates a release and returns 201', async () => {
+    const app = await buildApp('user-1');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/releases',
+      payload: {
+        tagName: 'v1.0.0',
+        name: 'Release v1.0.0',
+        body: 'First official release with full CodeHub parity.',
+        isDraft: false,
+        isPrerelease: false,
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        id: expect.any(String),
+        repoId: 'repo-1',
+        tagName: 'v1.0.0',
+        name: 'Release v1.0.0',
+        body: 'First official release with full CodeHub parity.',
+        isDraft: false,
+        isPrerelease: false,
+        authorId: 'user-1',
+      }),
+    });
+  });
+
+  it('GET /repos/:id/releases lists releases for repository', async () => {
+    const app = await buildApp('user-1');
+
+    // Create a release
+    await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/releases',
+      payload: {
+        tagName: 'v1.0.0',
+        name: 'Release v1.0.0',
+        body: 'Initial production release',
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/repos/repo-1/releases',
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json();
+    expect(body.success).toBe(true);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toEqual(
+      expect.objectContaining({
+        tagName: 'v1.0.0',
+        name: 'Release v1.0.0',
+      }),
+    );
+  });
+
+  it('POST /repos/:id/releases rejects unauthorized callers with 403', async () => {
+    const app = await buildApp('user-unauthorized');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/releases',
+      payload: {
+        tagName: 'v1.0.0',
+        name: 'Release v1.0.0',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'FORBIDDEN',
+        }),
+      }),
+    );
   });
 
   it('GET /repos/:id/issues/:number/comments lists persisted comments', async () => {

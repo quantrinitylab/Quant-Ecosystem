@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
@@ -228,6 +229,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
 }
 
 export default function DrivePage() {
+  const router = useRouter();
   const {
     files,
     loading,
@@ -771,6 +773,19 @@ export default function DrivePage() {
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
+                router.push(`/drive/doc/${docId}`);
+              }}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#FF8C42] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              aria-label="New document"
+            >
+              <IconFile size={14} />
+              <span className="hidden md:inline">New Doc</span>
+            </button>
 
             <button
               type="button"

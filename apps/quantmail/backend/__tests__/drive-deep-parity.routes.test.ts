@@ -87,10 +87,43 @@ interface DriveShareRow {
   updatedAt: Date;
 }
 
+interface ShareRow {
+  id: string;
+  fileId: string | null;
+  folderId: string | null;
+  ownerUserId: string;
+  sharedWithUserId: string;
+  encryptedFileKey: string;
+  permission: string;
+  status: string;
+  createdAt: Date;
+}
+
+interface EmailRow {
+  id: string;
+  userId?: string;
+  from?: string;
+  fromAddress?: string;
+  fromName?: string;
+  to?: string;
+  toAddresses?: any;
+  subject?: string;
+  bodyText?: string;
+  bodyPlain?: string;
+  bodyHtml?: string;
+  folder?: string;
+  folderId?: string;
+  deliveryStatus?: string;
+  isRead?: boolean;
+  createdAt?: Date;
+}
+
 let users: UserRow[] = [];
 let files: FileRow[] = [];
 let folders: FolderRow[] = [];
 let driveShares: DriveShareRow[] = [];
+let shares: ShareRow[] = [];
+let emails: EmailRow[] = [];
 
 function matches(record: any, where: any): boolean {
   if (!where) return true;
@@ -245,11 +278,53 @@ function createFakePrisma() {
         folders = folders.filter((f) => !matches(f, where));
         return { count: initial - folders.length };
       },
+      update: async ({ where, data }: { where: { id: string }; data: any }) => {
+        const item = folders.find((f) => f.id === where.id);
+        if (item) Object.assign(item, data);
+        return item;
+      },
     },
     share: {
-      findFirst: async () => null,
-      findMany: async () => [],
-      deleteMany: async () => ({ count: 0 }),
+      findFirst: async ({ where }: { where?: any }) =>
+        shares.find((s) => matches(s, where)) ?? null,
+      findMany: async ({ where }: { where?: any }) => shares.filter((s) => matches(s, where)),
+      create: async ({ data }: { data: any }) => {
+        const row: ShareRow = {
+          id: `share_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          fileId: data.fileId ?? null,
+          folderId: data.folderId ?? null,
+          ownerUserId: data.ownerUserId,
+          sharedWithUserId: data.sharedWithUserId,
+          encryptedFileKey: data.encryptedFileKey ?? '',
+          permission: data.permission,
+          status: data.status ?? 'pending',
+          createdAt: new Date(),
+        };
+        shares.push(row);
+        return row;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: any }) => {
+        const item = shares.find((s) => s.id === where.id);
+        if (item) Object.assign(item, data);
+        return item;
+      },
+      deleteMany: async ({ where }: { where: any }) => {
+        const initial = shares.length;
+        shares = shares.filter((s) => !matches(s, where));
+        return { count: initial - shares.length };
+      },
+    },
+    email: {
+      findMany: async ({ where }: { where?: any }) => emails.filter((e) => matches(e, where)),
+      create: async ({ data }: { data: any }) => {
+        const row: EmailRow = {
+          id: `email_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          ...data,
+          createdAt: new Date(),
+        };
+        emails.push(row);
+        return row;
+      },
     },
     fileVersion: {
       findMany: async () => [],
@@ -355,6 +430,8 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     ];
     folders = [];
     driveShares = [];
+    shares = [];
+    emails = [];
     app = await buildTestApp();
   });
 
@@ -600,5 +677,150 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     const page2 = JSON.parse(resPage2.body);
     expect(page2.files.length).toBe(3);
     expect(page2.files[0].id).not.toBe(page1.files[0].id);
+  });
+
+  it('Task D02: POST /drive/files/:id/share creates share and sends notification email record', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/files/file_spec_1/share',
+      headers: { 'content-type': 'application/json' },
+      payload: {
+        email: 'bob@quantmail.in',
+        permission: 'view',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = JSON.parse(res.body);
+    expect(body.share).toBeDefined();
+    expect(body.share.email).toBe('bob@quantmail.in');
+    expect(body.share.permission).toBe('view');
+    expect(body.share.status).toBe('pending');
+    expect(body.share.notificationSent).toBe(true);
+    expect(body.notificationSent).toBe(true);
+
+    // Verify share row in database
+    expect(shares.length).toBe(1);
+    expect(shares[0].fileId).toBe('file_spec_1');
+    expect(shares[0].sharedWithUserId).toBe('user_bob');
+    expect(shares[0].ownerUserId).toBe('user_alice');
+
+    // Verify email invitation record in database
+    expect(emails.length).toBe(1);
+    const invite = emails[0];
+    expect(invite.from).toBe('alice@quantmail.in');
+    expect(invite.to).toBe('bob@quantmail.in');
+    expect(invite.subject).toBe('Alice shared "quant-specs.pdf" with you');
+    expect(invite.bodyText).toBe(
+      `Alice has invited you to view/edit "quant-specs.pdf". View it in QuantDrive: /drive?shareId=${shares[0].id}`,
+    );
+    expect(invite.bodyHtml).toBe(
+      `<p><strong>Alice</strong> shared "<strong>quant-specs.pdf</strong>" with you.</p><p><a href="/drive?shareId=${shares[0].id}">Open in QuantDrive</a></p>`,
+    );
+    expect(invite.folder).toBe('INBOX');
+
+    // Updating existing share retains notificationSent
+    const resUpdate = await app.inject({
+      method: 'POST',
+      url: '/drive/files/file_spec_1/share',
+      headers: { 'content-type': 'application/json' },
+      payload: {
+        email: 'bob@quantmail.in',
+        permission: 'edit',
+      },
+    });
+
+    expect(resUpdate.statusCode).toBe(200);
+    const bodyUpdate = JSON.parse(resUpdate.body);
+    expect(bodyUpdate.share.permission).toBe('edit');
+    expect(bodyUpdate.share.notificationSent).toBe(true);
+    expect(emails.length).toBe(2);
+  });
+
+  it('Task D12: POST /drive/repair-paths repairs mismatched folder paths recursively', async () => {
+    folders.push(
+      {
+        id: 'folder_root_docs',
+        name: 'Documents',
+        parentId: null,
+        path: '/corrupted_docs_path',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'folder_child_work',
+        name: 'Work',
+        parentId: 'folder_root_docs',
+        path: '/some_wrong_prefix/Work',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'folder_sub_projects',
+        name: 'Projects',
+        parentId: 'folder_child_work',
+        path: '/Documents/Work/Projects',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'folder_root_photos',
+        name: 'Photos',
+        parentId: null,
+        path: '/Photos',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    );
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/drive/repair-paths',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.success).toBe(true);
+    expect(body.data).toBeDefined();
+    expect(body.data.scanned).toBe(4);
+    expect(body.data.repaired).toBe(2);
+
+    // Verify folder paths were updated in database
+    expect(folders.find((f) => f.id === 'folder_root_docs')?.path).toBe('/Documents');
+    expect(folders.find((f) => f.id === 'folder_child_work')?.path).toBe('/Documents/Work');
+    expect(folders.find((f) => f.id === 'folder_sub_projects')?.path).toBe(
+      '/Documents/Work/Projects',
+    );
+    expect(folders.find((f) => f.id === 'folder_root_photos')?.path).toBe('/Photos');
+
+    // Re-running repair-paths should report 0 repaired (idempotent)
+    const resIdempotent = await app.inject({
+      method: 'POST',
+      url: '/drive/repair-paths',
+    });
+    expect(resIdempotent.statusCode).toBe(200);
+    const bodyIdempotent = JSON.parse(resIdempotent.body);
+    expect(bodyIdempotent.data.scanned).toBe(4);
+    expect(bodyIdempotent.data.repaired).toBe(0);
   });
 });

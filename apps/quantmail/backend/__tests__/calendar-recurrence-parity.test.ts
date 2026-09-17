@@ -23,13 +23,16 @@ interface StoredEvent {
   attendees: string;
   reminders: string;
   recurrenceRule: string | null;
+  timeZone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 function createInMemoryPrisma() {
   const events = new Map<string, StoredEvent>();
+  const bookingLinks = new Map<string, any>();
   let autoId = 100;
+  let autoLinkSeq = 1;
 
   return {
     event: {
@@ -81,6 +84,7 @@ function createInMemoryPrisma() {
           attendees: data.attendees ?? '[]',
           reminders: data.reminders ?? '[]',
           recurrenceRule: data.recurrenceRule ?? null,
+          timeZone: data.timeZone ?? 'UTC',
           createdAt: data.createdAt ?? new Date(),
           updatedAt: data.updatedAt ?? new Date(),
         };
@@ -134,7 +138,25 @@ function createInMemoryPrisma() {
         isPrimary: true,
       }),
     },
+    bookingLink: {
+      findUnique: vi.fn().mockImplementation(async ({ where }: { where: { slug: string } }) => {
+        const found = bookingLinks.get(where.slug);
+        return found ? { ...found } : null;
+      }),
+      findMany: vi.fn().mockImplementation(async ({ where }: { where?: any }) => {
+        return Array.from(bookingLinks.values()).filter(
+          (l) => !where?.userId || l.userId === where.userId,
+        );
+      }),
+      create: vi.fn().mockImplementation(async ({ data }: { data: any }) => {
+        const id = data.id || `link-${autoLinkSeq++}`;
+        const record = { id, ...data };
+        bookingLinks.set(data.slug, record);
+        return { ...record };
+      }),
+    },
     _eventsMap: events,
+    _bookingLinksMap: bookingLinks,
   };
 }
 
@@ -712,6 +734,293 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       expect(res.statusCode).toBe(400);
       const json = res.json();
       expect(json.error.code).toBe('WINDOW_TOO_LARGE');
+    });
+  });
+
+  describe('12. Recurring Series Split: "this_and_following" Scope (Task C07)', () => {
+    it('DELETE /events/:syntheticId?scope=this_and_following clamps parent recurrence until right before occurrence', async () => {
+      await prisma.event.create({
+        data: {
+          id: 'series-split-del',
+          userId: 'user-parity-1',
+          calendarId: 'cal-primary',
+          title: 'Daily All-Hands',
+          description: 'Team standup series',
+          startTime: new Date('2026-09-20T09:00:00.000Z'),
+          endTime: new Date('2026-09-20T09:30:00.000Z'),
+          recurrenceRule: 'FREQ=DAILY;INTERVAL=1',
+        },
+      });
+
+      const occurrenceId = 'series-split-del_2026-09-22T09:00:00.000Z';
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: `/events/${occurrenceId}?scope=this_and_following`,
+      });
+
+      expect(deleteRes.statusCode).toBe(200);
+      const json = deleteRes.json();
+      expect(json.success).toBe(true);
+      expect(json.data.message).toBe('This and following occurrences deleted');
+      expect(new Date(json.data.until).toISOString()).toBe('2026-09-22T08:59:59.000Z');
+
+      const parent = await prisma.event.findUnique({ where: { id: 'series-split-del' } });
+      expect(parent?.recurrenceRule).toContain('UNTIL=20260922T085959Z');
+
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/events?start=2026-09-20T00:00:00.000Z&end=2026-09-25T23:59:59.000Z',
+      });
+      expect(listRes.statusCode).toBe(200);
+      const events = listRes.json().data.filter((e: any) => e.title === 'Daily All-Hands');
+      const dates = events.map((e: any) => e.startTime.slice(0, 10));
+      expect(dates).toContain('2026-09-20');
+      expect(dates).toContain('2026-09-21');
+      expect(dates).not.toContain('2026-09-22');
+      expect(dates).not.toContain('2026-09-23');
+    });
+
+    it('DELETE /events/:syntheticId with scope in body also clamps parent series', async () => {
+      await prisma.event.create({
+        data: {
+          id: 'series-split-del-body',
+          userId: 'user-parity-1',
+          calendarId: 'cal-primary',
+          title: 'Weekly Sync',
+          startTime: new Date('2026-09-21T10:00:00.000Z'),
+          endTime: new Date('2026-09-21T11:00:00.000Z'),
+          recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1',
+        },
+      });
+
+      const occurrenceId = 'series-split-del-body_2026-09-28T10:00:00.000Z';
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: `/events/${occurrenceId}`,
+        payload: { scope: 'this_and_following' },
+      });
+
+      expect(deleteRes.statusCode).toBe(200);
+      expect(deleteRes.json().data.message).toBe('This and following occurrences deleted');
+
+      const parent = await prisma.event.findUnique({ where: { id: 'series-split-del-body' } });
+      expect(parent?.recurrenceRule).toContain('UNTIL=20260928T095959Z');
+    });
+
+    it('PUT /events/:syntheticId with scope: "this_and_following" splits series and creates new recurring series', async () => {
+      await prisma.event.create({
+        data: {
+          id: 'series-split-put',
+          userId: 'user-parity-1',
+          calendarId: 'cal-primary',
+          title: 'Engineering Architecture Review',
+          description: 'Weekly review',
+          location: 'Conference Room 1',
+          startTime: new Date('2026-09-21T10:00:00.000Z'),
+          endTime: new Date('2026-09-21T11:00:00.000Z'),
+          recurrenceRule: 'FREQ=WEEKLY;INTERVAL=1',
+        },
+      });
+
+      const occurrenceId = 'series-split-put_2026-09-28T10:00:00.000Z';
+      const putRes = await app.inject({
+        method: 'PUT',
+        url: `/events/${occurrenceId}`,
+        payload: {
+          scope: 'this_and_following',
+          title: 'Engineering Architecture & AI Sync',
+          location: 'Executive Virtual Room',
+          start: '2026-09-28T14:00:00.000Z',
+          end: '2026-09-28T15:30:00.000Z',
+        },
+      });
+
+      expect(putRes.statusCode).toBe(200);
+      const json = putRes.json();
+      expect(json.success).toBe(true);
+      expect(json.data.title).toBe('Engineering Architecture & AI Sync');
+      expect(json.data.location).toBe('Executive Virtual Room');
+      expect(json.data.startTime).toBe('2026-09-28T14:00:00.000Z');
+      expect(json.data.endTime).toBe('2026-09-28T15:30:00.000Z');
+      expect(json.data.recurrence).toContain('FREQ=WEEKLY');
+
+      const parent = await prisma.event.findUnique({ where: { id: 'series-split-put' } });
+      expect(parent?.recurrenceRule).toContain('UNTIL=20260928T095959Z');
+
+      const newSeriesId = json.data.id;
+      const newSeries = await prisma.event.findUnique({ where: { id: newSeriesId } });
+      expect(newSeries).not.toBeNull();
+      expect(newSeries?.title).toBe('Engineering Architecture & AI Sync');
+      expect(newSeries?.recurrenceRule).toContain('FREQ=WEEKLY');
+      expect(new Date(newSeries!.startTime).toISOString()).toBe('2026-09-28T14:00:00.000Z');
+    });
+  });
+
+  describe('13. TimeZone Field in Events (Task C10 & C12)', () => {
+    it('POST /events accepts timeZone and returns it in toEventDto', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/events',
+        payload: {
+          title: 'Global Tokyo Sync',
+          start: '2026-09-25T01:00:00.000Z',
+          end: '2026-09-25T02:00:00.000Z',
+          timeZone: 'Asia/Tokyo',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const json = res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.timeZone).toBe('Asia/Tokyo');
+
+      const getRes = await app.inject({
+        method: 'GET',
+        url: `/events/${json.data.id}`,
+      });
+      expect(getRes.statusCode).toBe(200);
+      expect(getRes.json().data.timeZone).toBe('Asia/Tokyo');
+    });
+
+    it('defaults timeZone to UTC when not explicitly specified', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/events',
+        payload: {
+          title: 'Default Timezone Event',
+          start: '2026-09-25T10:00:00.000Z',
+          end: '2026-09-25T11:00:00.000Z',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().data.timeZone).toBe('UTC');
+    });
+
+    it('PUT /events/:id updates timeZone', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/events',
+        payload: {
+          title: 'London Sync',
+          start: '2026-09-26T12:00:00.000Z',
+          end: '2026-09-26T13:00:00.000Z',
+          timeZone: 'UTC',
+        },
+      });
+      const id = createRes.json().data.id;
+
+      const updateRes = await app.inject({
+        method: 'PUT',
+        url: `/events/${id}`,
+        payload: {
+          timeZone: 'Europe/London',
+        },
+      });
+
+      expect(updateRes.statusCode).toBe(200);
+      expect(updateRes.json().data.timeZone).toBe('Europe/London');
+    });
+  });
+
+  describe('14. Working Hours Conflict Check on Booking Links (Task C25)', () => {
+    const bookingSlug = 'founder-office-hours';
+    const mondayDate = new Date(2030, 0, 7); // Monday Jan 7, 2030
+
+    beforeEach(async () => {
+      await prisma.bookingLink.create({
+        data: {
+          id: 'link-parity-25',
+          userId: 'user-parity-1',
+          slug: bookingSlug,
+          title: 'Founder Office Hours',
+          description: '1-on-1 discussion',
+          duration: 60,
+          availableDays: JSON.stringify([1, 2, 3, 4, 5]),
+          startHour: 9,
+          endHour: 17,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
+    });
+
+    it('rejects booking requested before link.startHour with 400 INVALID_BOOKING_SLOT', async () => {
+      const earlySlot = new Date(mondayDate);
+      earlySlot.setHours(8, 0, 0, 0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/booking/links/${bookingSlug}/book`,
+        payload: {
+          slot: earlySlot.toISOString(),
+          name: 'Early Bird',
+          email: 'early@example.com',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.error.code).toBe('INVALID_BOOKING_SLOT');
+    });
+
+    it('rejects booking that ends after link.endHour with 400 INVALID_BOOKING_SLOT', async () => {
+      const lateSlot = new Date(mondayDate);
+      lateSlot.setHours(16, 30, 0, 0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/booking/links/${bookingSlug}/book`,
+        payload: {
+          slot: lateSlot.toISOString(),
+          name: 'Late Booker',
+          email: 'late@example.com',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.error.code).toBe('INVALID_BOOKING_SLOT');
+    });
+
+    it('rejects booking on unavailable day (Sunday) with 400 INVALID_BOOKING_SLOT', async () => {
+      const sundaySlot = new Date(2030, 0, 6, 11, 0, 0, 0); // Sunday Jan 6, 2030
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/booking/links/${bookingSlug}/book`,
+        payload: {
+          slot: sundaySlot.toISOString(),
+          name: 'Weekend Booker',
+          email: 'weekend@example.com',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.error.code).toBe('INVALID_BOOKING_SLOT');
+    });
+
+    it('confirms booking when slot is strictly within availableDays and working hours', async () => {
+      const validSlot = new Date(mondayDate);
+      validSlot.setHours(10, 0, 0, 0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: `/booking/links/${bookingSlug}/book`,
+        payload: {
+          slot: validSlot.toISOString(),
+          name: 'Valid Client',
+          email: 'client@example.com',
+          notes: 'Discuss Q4 objectives',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const json = res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.title).toContain('Founder Office Hours');
     });
   });
 });

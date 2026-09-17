@@ -249,6 +249,133 @@ type RepoRow = {
   }>;
 };
 
+const collaboratorRoleSchema = z.enum(['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ']);
+export type CollaboratorRole = z.infer<typeof collaboratorRoleSchema>;
+
+const addCollaboratorSchema = z
+  .object({
+    userId: z.string().optional(),
+    email: z.string().email().optional(),
+    role: collaboratorRoleSchema,
+  })
+  .refine((data) => Boolean(data.userId || data.email), {
+    message: 'Either email or userId must be provided',
+  });
+
+const createTagSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[a-zA-Z0-9._/-]+$/, 'Invalid tag name')
+    .refine((val) => !val.startsWith('-'), {
+      message: 'Tag name cannot start with a hyphen',
+    }),
+  commitSha: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/i, 'commitSha must be a 40-char SHA')
+    .transform((val) => val.toLowerCase()),
+  message: z.string().max(1000).optional(),
+});
+
+const createReleaseSchema = z.object({
+  tagName: z.string().trim().min(1).max(100),
+  name: z.string().trim().min(1).max(255),
+  body: z.string().max(20000).optional().default(''),
+  isDraft: z.boolean().optional().default(false),
+  isPrerelease: z.boolean().optional().default(false),
+});
+
+const triggerActionSchema = z.object({
+  branch: z.string().min(1).max(255).optional(),
+  workflow: z.string().min(1).max(255).optional(),
+  commitSha: z
+    .string()
+    .regex(/^[0-9a-f]{40}$/i)
+    .optional(),
+});
+
+interface CollaboratorRecord {
+  id: string;
+  repoId: string;
+  userId: string;
+  role: CollaboratorRole;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: {
+    displayName: string | null;
+    email: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+interface TagRecord {
+  name: string;
+  commitSha: string;
+  message?: string | null;
+  createdAt?: Date;
+}
+
+interface ReleaseRecord {
+  id: string;
+  repoId: string;
+  tagName: string;
+  name: string;
+  body: string;
+  isDraft: boolean;
+  isPrerelease: boolean;
+  authorId: string;
+  createdAt: string;
+  publishedAt: string | null;
+}
+
+const memoryCollaboratorsStore = new Map<string, CollaboratorRecord[]>();
+const memoryTagsStore = new Map<string, TagRecord[]>();
+const memoryReleasesStore = new Map<string, ReleaseRecord[]>();
+
+export function resetRepoStores(): void {
+  memoryCollaboratorsStore.clear();
+  memoryTagsStore.clear();
+  memoryReleasesStore.clear();
+}
+
+async function getCollaboratorsForRepo(prisma: any, repoId: string): Promise<CollaboratorRecord[]> {
+  if (prisma?.repositoryCollaborator) {
+    try {
+      const records = await prisma.repositoryCollaborator.findMany({
+        where: { repoId },
+        include: {
+          user: {
+            select: {
+              displayName: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      });
+      if (Array.isArray(records) && records.length > 0) {
+        return records;
+      }
+    } catch {
+      // fallback to memory store
+    }
+  }
+  return memoryCollaboratorsStore.get(repoId) ?? [];
+}
+
+async function getRepoPermission(
+  prisma: any,
+  repo: RepoRow,
+  userId: string,
+): Promise<'OWNER' | CollaboratorRole | null> {
+  if (repo.ownerId === userId) return 'OWNER';
+  const collabs = await getCollaboratorsForRepo(prisma, repo.id);
+  const found = collabs.find((c) => c.userId === userId);
+  return found ? found.role : null;
+}
+
 function toDto(r: RepoRow, ownerHandle?: string) {
   const slug = ownerHandle ? `${ownerHandle}/${r.name}` : r.name;
   const appUrl = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '');
@@ -524,7 +651,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     if (!repo || repo.deletedAt)
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     if (repo.ownerId !== userId && String(repo.visibility).toUpperCase() === 'PRIVATE') {
-      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (!perm) {
+        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+      }
     }
     return repo;
   }
@@ -537,11 +667,17 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const repo = await loadReadableRepo(request, idOrName);
     if (repo.ownerId !== userId) {
-      throw createAppError(
-        'You do not have write permission for this repository',
-        403,
-        'FORBIDDEN',
-      );
+      const prisma = getPrisma(fastify);
+      const perm = await getRepoPermission(prisma, repo, userId);
+      const canWrite =
+        perm === 'OWNER' || perm === 'ADMIN' || perm === 'MAINTAIN' || perm === 'WRITE';
+      if (!canWrite) {
+        throw createAppError(
+          'You do not have write permission for this repository',
+          403,
+          'FORBIDDEN',
+        );
+      }
     }
     if (branchName) {
       const prisma = getPrisma(fastify);
@@ -1766,26 +1902,53 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     });
   });
 
-  fastify.post<{ Params: { id: string } }>('/:id/actions/trigger', async (request, reply) => {
+  fastify.post<{
+    Params: { id: string };
+    Body: { branch?: string; workflow?: string; commitSha?: string };
+  }>('/:id/actions/trigger', async (request, reply) => {
     const repo = await loadWritableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
 
-    if (process.env.NODE_ENV !== 'development' || process.env.ENABLE_DEV_REPO_SEEDING !== 'true') {
-      throw createAppError(
-        'Synthetic workflow triggering is unavailable in this environment',
-        503,
-        'CI_TRIGGER_UNAVAILABLE',
-      );
+    const parsed = triggerActionSchema.safeParse(request.body ?? {});
+    const triggerData = parsed.success ? parsed.data : {};
+
+    const targetBranch = triggerData.branch || repo.defaultBranch || 'main';
+    const branchRow = repo.branches?.find((b: any) => b.name === targetBranch);
+
+    let commitSha = triggerData.commitSha || branchRow?.commitSha;
+    if (!commitSha) {
+      const repoPath = await resolveRepoPath(repo);
+      if (repoPath) {
+        commitSha = (await resolveGitRefSha(repoPath, targetBranch)) ?? undefined;
+      }
+    }
+    if (!commitSha) {
+      commitSha = '317ed52d';
     }
 
-    const prisma = getPrisma(fastify);
+    let triggeredByName = userId;
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { displayName: true, username: true },
+      });
+      if (user) {
+        triggeredByName = user.displayName || user.username || userId;
+      }
+    } catch {
+      // fallback to userId
+    }
+
+    const workflowName = triggerData.workflow || 'CI / Staging Pipeline';
 
     const newRun = await prisma.ciRun.create({
       data: {
         repoId: repo.id,
-        branch: repo.defaultBranch || 'main',
-        commitSha: '317ed52d',
+        branch: targetBranch,
+        commitSha,
         status: 'RUNNING',
-        triggeredBy: 'kundan',
+        triggeredBy: triggeredByName,
         jobs: {
           create: [
             {
@@ -1805,20 +1968,44 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       include: { jobs: true },
     });
 
+    const runnerPort = (fastify as any).ciRunner ?? (fastify as any).ciQueue;
+    if (runnerPort) {
+      try {
+        if (typeof runnerPort.dispatch === 'function') {
+          await runnerPort.dispatch({
+            runId: newRun.id,
+            repoId: repo.id,
+            branch: newRun.branch,
+            commitSha: newRun.commitSha,
+            configYaml: '',
+          });
+        } else if (typeof runnerPort.add === 'function') {
+          await runnerPort.add('ci-run', {
+            runId: newRun.id,
+            repoId: repo.id,
+            branch: newRun.branch,
+            commitSha: newRun.commitSha,
+          });
+        }
+      } catch (dispatchErr) {
+        request.log.warn({ err: dispatchErr, runId: newRun.id }, 'failed to dispatch CI run');
+      }
+    }
+
     return reply.status(201).send({
       success: true,
       data: {
         id: newRun.id,
         number: 1,
         name: `Manual run on ${newRun.branch}`,
-        workflow: 'CI / Staging Pipeline',
+        workflow: workflowName,
         status: 'in_progress',
         branch: newRun.branch,
         event: 'workflow_dispatch',
         commitSha: newRun.commitSha,
         duration: 'in progress',
         timeAgo: 'just now',
-        jobs: newRun.jobs.map((j: any) => ({
+        jobs: (newRun.jobs || []).map((j: any) => ({
           id: j.id,
           name: j.name,
           status: String(j.status).toLowerCase(),
@@ -1826,6 +2013,357 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         })),
       },
     });
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id/collaborators', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    const perm = await getRepoPermission(prisma, repo, userId);
+    if (repo.ownerId !== userId && !perm) {
+      throw createAppError(
+        'You do not have permission to view collaborators for this repository',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const collabs = await getCollaboratorsForRepo(prisma, repo.id);
+
+    const formatted = await Promise.all(
+      collabs.map(async (c) => {
+        let user = c.user;
+        if (!user) {
+          try {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: c.userId },
+              select: { displayName: true, email: true, avatarUrl: true },
+            });
+            if (dbUser) {
+              user = {
+                displayName: dbUser.displayName ?? '',
+                email: dbUser.email ?? '',
+                avatarUrl: dbUser.avatarUrl ?? null,
+              };
+            }
+          } catch {
+            // fallback
+          }
+        }
+        return {
+          id: c.id,
+          userId: c.userId,
+          role: c.role,
+          user: {
+            displayName: user?.displayName ?? '',
+            email: user?.email ?? '',
+            avatarUrl: user?.avatarUrl ?? null,
+          },
+        };
+      }),
+    );
+
+    return reply.send({ success: true, data: formatted });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/collaborators', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    const perm = await getRepoPermission(prisma, repo, userId);
+    if (repo.ownerId !== userId && perm !== 'ADMIN') {
+      throw createAppError(
+        'Only repository owner or admin can manage collaborators',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const parsed = addCollaboratorSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    let targetUser: {
+      id: string;
+      displayName?: string | null;
+      email?: string | null;
+      avatarUrl?: string | null;
+    } | null = null;
+
+    if (parsed.data.userId) {
+      targetUser = await prisma.user.findUnique({
+        where: { id: parsed.data.userId },
+        select: { id: true, displayName: true, email: true, avatarUrl: true },
+      });
+    } else if (parsed.data.email) {
+      if (typeof prisma.user?.findFirst === 'function') {
+        targetUser = await prisma.user.findFirst({
+          where: { email: parsed.data.email },
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+        });
+      }
+      if (!targetUser && typeof prisma.user?.findUnique === 'function') {
+        targetUser = await prisma.user.findUnique({
+          where: { email: parsed.data.email },
+          select: { id: true, displayName: true, email: true, avatarUrl: true },
+        });
+      }
+    }
+
+    if (!targetUser) {
+      throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    if (targetUser.id === repo.ownerId) {
+      throw createAppError(
+        'Repository owner cannot be added as collaborator',
+        400,
+        'OWNER_CANNOT_BE_COLLABORATOR',
+      );
+    }
+
+    const collabs = await getCollaboratorsForRepo(prisma, repo.id);
+    const existingIndex = collabs.findIndex((c) => c.userId === targetUser!.id);
+    const isUpdate = existingIndex !== -1;
+
+    let collaboratorRecord: CollaboratorRecord;
+
+    if (isUpdate) {
+      const existing = collabs[existingIndex]!;
+      collaboratorRecord = {
+        ...existing,
+        role: parsed.data.role,
+        updatedAt: new Date(),
+        user: {
+          displayName: targetUser.displayName ?? '',
+          email: targetUser.email ?? '',
+          avatarUrl: targetUser.avatarUrl ?? null,
+        },
+      };
+      collabs[existingIndex] = collaboratorRecord;
+      if (prisma?.repositoryCollaborator?.update) {
+        try {
+          await prisma.repositoryCollaborator.update({
+            where: { id: existing.id },
+            data: { role: parsed.data.role },
+          });
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      collaboratorRecord = {
+        id: `collab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        repoId: repo.id,
+        userId: targetUser.id,
+        role: parsed.data.role,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        user: {
+          displayName: targetUser.displayName ?? '',
+          email: targetUser.email ?? '',
+          avatarUrl: targetUser.avatarUrl ?? null,
+        },
+      };
+      collabs.push(collaboratorRecord);
+      if (prisma?.repositoryCollaborator?.create) {
+        try {
+          const created = await prisma.repositoryCollaborator.create({
+            data: {
+              repoId: repo.id,
+              userId: targetUser.id,
+              role: parsed.data.role,
+            },
+          });
+          if (created?.id) collaboratorRecord.id = created.id;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    memoryCollaboratorsStore.set(repo.id, collabs);
+
+    return reply.status(isUpdate ? 200 : 201).send({
+      success: true,
+      data: {
+        id: collaboratorRecord.id,
+        userId: targetUser.id,
+        role: parsed.data.role,
+        user: {
+          displayName: targetUser.displayName ?? '',
+          email: targetUser.email ?? '',
+          avatarUrl: targetUser.avatarUrl ?? null,
+        },
+      },
+    });
+  });
+
+  fastify.delete<{ Params: { id: string; userId: string } }>(
+    '/:id/collaborators/:userId',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (repo.ownerId !== userId && perm !== 'ADMIN') {
+        throw createAppError(
+          'Only repository owner or admin can manage collaborators',
+          403,
+          'FORBIDDEN',
+        );
+      }
+
+      if (request.params.userId === repo.ownerId) {
+        throw createAppError('Cannot remove repository owner', 400, 'CANNOT_REMOVE_OWNER');
+      }
+
+      const collabs = await getCollaboratorsForRepo(prisma, repo.id);
+      const updated = collabs.filter((c) => c.userId !== request.params.userId);
+      memoryCollaboratorsStore.set(repo.id, updated);
+
+      if (prisma?.repositoryCollaborator?.deleteMany) {
+        try {
+          await prisma.repositoryCollaborator.deleteMany({
+            where: { repoId: repo.id, userId: request.params.userId },
+          });
+        } catch {
+          // ignore
+        }
+      }
+
+      return reply.send({ success: true, data: { message: 'Collaborator removed' } });
+    },
+  );
+
+  fastify.get<{ Params: { id: string } }>('/:id/tags', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const tags: Array<{ name: string; commitSha: string }> = [];
+    const seenNames = new Set<string>();
+
+    const repoPath = await resolveRepoPath(repo);
+    if (repoPath) {
+      try {
+        const { stdout } = await execFileAsync(
+          'git',
+          ['tag', '-l', '--format=%(refname:short)%09%(objectname)%09%(*objectname)'],
+          { cwd: repoPath, env: GIT_CHILD_ENV },
+        );
+        for (const line of stdout.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const [name, objSha, derefSha] = trimmed.split('\t');
+          if (name) {
+            const commitSha = derefSha || objSha || '';
+            tags.push({ name, commitSha });
+            seenNames.add(name);
+          }
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    const storedTags = memoryTagsStore.get(repo.id) ?? [];
+    for (const st of storedTags) {
+      if (!seenNames.has(st.name)) {
+        tags.push({ name: st.name, commitSha: st.commitSha });
+        seenNames.add(st.name);
+      }
+    }
+
+    return reply.send({ success: true, data: tags });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/tags', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const parsed = createTagSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const repoPath = await resolveRepoPath(repo);
+    if (repoPath) {
+      try {
+        if (parsed.data.message) {
+          await execFileAsync(
+            'git',
+            ['tag', '-a', parsed.data.name, '-m', parsed.data.message, parsed.data.commitSha],
+            { cwd: repoPath, env: GIT_CHILD_ENV },
+          );
+        } else {
+          await execFileAsync('git', ['tag', parsed.data.name, parsed.data.commitSha], {
+            cwd: repoPath,
+            env: GIT_CHILD_ENV,
+          });
+        }
+      } catch (gitErr: any) {
+        request.log.warn({ err: gitErr, repoId: repo.id }, 'git tag execution notice');
+      }
+    }
+
+    const stored = memoryTagsStore.get(repo.id) ?? [];
+    const existingIndex = stored.findIndex((t) => t.name === parsed.data.name);
+    const tagRecord: TagRecord = {
+      name: parsed.data.name,
+      commitSha: parsed.data.commitSha,
+      message: parsed.data.message ?? null,
+      createdAt: new Date(),
+    };
+    if (existingIndex >= 0) {
+      stored[existingIndex] = tagRecord;
+    } else {
+      stored.push(tagRecord);
+    }
+    memoryTagsStore.set(repo.id, stored);
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        name: parsed.data.name,
+        commitSha: parsed.data.commitSha,
+        message: parsed.data.message ?? null,
+      },
+    });
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id/releases', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const releases = memoryReleasesStore.get(repo.id) ?? [];
+    return reply.send({ success: true, data: releases });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/releases', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const parsed = createReleaseSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const release: ReleaseRecord = {
+      id: `rel_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      repoId: repo.id,
+      tagName: parsed.data.tagName,
+      name: parsed.data.name,
+      body: parsed.data.body ?? '',
+      isDraft: parsed.data.isDraft ?? false,
+      isPrerelease: parsed.data.isPrerelease ?? false,
+      authorId: userId,
+      createdAt: new Date().toISOString(),
+      publishedAt: parsed.data.isDraft ? null : new Date().toISOString(),
+    };
+
+    const stored = memoryReleasesStore.get(repo.id) ?? [];
+    stored.unshift(release);
+    memoryReleasesStore.set(repo.id, stored);
+
+    const tags = memoryTagsStore.get(repo.id) ?? [];
+    if (!tags.some((t) => t.name === release.tagName)) {
+      const commitSha = repo.branches?.[0]?.commitSha || '317ed52d';
+      tags.push({ name: release.tagName, commitSha, createdAt: new Date() });
+      memoryTagsStore.set(repo.id, tags);
+    }
+
+    return reply.status(201).send({ success: true, data: release });
   });
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {

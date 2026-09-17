@@ -34,6 +34,8 @@ export interface CalendarEvent {
   recurrenceRule: string | null;
   status: 'confirmed' | 'tentative' | 'cancelled';
   reminders: unknown[];
+  timeZone?: string | null;
+  timezone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -446,6 +448,7 @@ export class RecurringService {
       recurrenceRule: (record['recurrenceRule'] as string | null) ?? null,
       status: (record['status'] as CalendarEvent['status']) ?? 'confirmed',
       reminders: this.parseArray(record['reminders']),
+      timeZone: (record['timeZone'] as string) || (record['timezone'] as string) || 'UTC',
       createdAt: new Date(record['createdAt'] as string | Date),
       updatedAt: new Date(record['updatedAt'] as string | Date),
     };
