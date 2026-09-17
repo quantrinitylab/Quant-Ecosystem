@@ -431,6 +431,7 @@ export class EmailService {
         } catch (error) {
           deliveryError = error instanceof Error ? error.message : String(error);
           deliveryStatus = 'failed';
+          // eslint-disable-next-line no-console
           console.error(
             `[EmailService.send: SES delivery failed] emailId=${emailId} userId=${userId}: ${deliveryError}`,
           );
@@ -439,6 +440,7 @@ export class EmailService {
         deliveryStatus = 'failed';
         deliveryError =
           deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';
+        // eslint-disable-next-line no-console
         console.error(
           `[EmailService.send: No outbound transport] emailId=${emailId} userId=${userId}: ${deliveryError}`,
         );
