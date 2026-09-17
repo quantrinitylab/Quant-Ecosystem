@@ -154,6 +154,7 @@ function fileDto(file: FileRow, owner: Owner, decorations?: Decorations) {
     sharedWith: decorations?.shares.get(`file:${file.id}`) ?? [],
     isStarred: file.isStarred,
     versions: decorations?.versions.get(file.id) ?? [],
+    thumbnailUrl: `/api/drive/files/${file.id}/thumbnail`,
   };
 }
 function folderDto(folder: FolderRow, owner: Owner, decorations?: Decorations) {
@@ -1373,6 +1374,183 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       .header('Content-Disposition', `attachment; filename="${safeFileName(file.name)}"`)
       .header('X-Content-Type-Options', 'nosniff')
       .send(plaintext);
+  });
+
+  const THUMBNAIL_IMAGE_MIME_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+  ]);
+
+  function generateThumbnailSvg(fileName: string, mimeType: string): string {
+    const ext = fileName.includes('.') ? fileName.split('.').pop()?.toUpperCase() || '' : '';
+    const m = (mimeType || '').toLowerCase();
+
+    let badgeColor = '#64748B';
+    let badgeText = ext || 'FILE';
+    let iconSvg = '';
+
+    if (m.includes('pdf') || ext === 'PDF') {
+      badgeColor = '#EF4444';
+      badgeText = 'PDF';
+      iconSvg = `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#EF4444" stroke-width="2" fill="none"/>
+      <polyline points="14 2 14 8 20 8" stroke="#EF4444" stroke-width="2" fill="none"/>
+      <path d="M9 13h2a1.5 1.5 0 0 0 0-3H9v6m5-6v6m3-6h-3v6" stroke="#EF4444" stroke-width="2" stroke-linecap="round"/>`;
+    } else if (
+      m.includes('spreadsheet') ||
+      m.includes('excel') ||
+      m.includes('csv') ||
+      ['XLS', 'XLSX', 'CSV'].includes(ext)
+    ) {
+      badgeColor = '#22C55E';
+      badgeText = ext || 'XLS';
+      iconSvg = `<rect x="3" y="3" width="18" height="18" rx="2" stroke="#22C55E" stroke-width="2" fill="none"/>
+      <line x1="3" y1="9" x2="21" y2="9" stroke="#22C55E" stroke-width="1.5"/>
+      <line x1="3" y1="15" x2="21" y2="15" stroke="#22C55E" stroke-width="1.5"/>
+      <line x1="9" y1="3" x2="9" y2="21" stroke="#22C55E" stroke-width="1.5"/>
+      <line x1="15" y1="3" x2="15" y2="21" stroke="#22C55E" stroke-width="1.5"/>`;
+    } else if (
+      m.includes('presentation') ||
+      m.includes('powerpoint') ||
+      ['PPT', 'PPTX', 'KEY'].includes(ext)
+    ) {
+      badgeColor = '#F59E0B';
+      badgeText = ext || 'PPT';
+      iconSvg = `<rect x="2" y="3" width="20" height="14" rx="2" stroke="#F59E0B" stroke-width="2" fill="none"/>
+      <line x1="8" y1="21" x2="16" y2="21" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"/>
+      <line x1="12" y1="17" x2="12" y2="21" stroke="#F59E0B" stroke-width="2"/>`;
+    } else if (
+      m.includes('word') ||
+      m.includes('document') ||
+      ['DOC', 'DOCX', 'RTF'].includes(ext)
+    ) {
+      badgeColor = '#3B82F6';
+      badgeText = ext || 'DOC';
+      iconSvg = `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#3B82F6" stroke-width="2" fill="none"/>
+      <polyline points="14 2 14 8 20 8" stroke="#3B82F6" stroke-width="2" fill="none"/>
+      <line x1="16" y1="13" x2="8" y2="13" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/>
+      <line x1="16" y1="17" x2="8" y2="17" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/>
+      <line x1="10" y1="9" x2="8" y2="9" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"/>`;
+    } else if (m.startsWith('text/') || ['TXT', 'MD', 'LOG'].includes(ext)) {
+      badgeColor = '#38BDF8';
+      badgeText = ext || 'TXT';
+      iconSvg = `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#38BDF8" stroke-width="2" fill="none"/>
+      <polyline points="14 2 14 8 20 8" stroke="#38BDF8" stroke-width="2" fill="none"/>
+      <line x1="16" y1="13" x2="8" y2="13" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>
+      <line x1="16" y1="17" x2="8" y2="17" stroke="#38BDF8" stroke-width="2" stroke-linecap="round"/>`;
+    } else if (m.startsWith('audio/') || ['MP3', 'WAV', 'OGG', 'M4A', 'FLAC'].includes(ext)) {
+      badgeColor = '#A855F7';
+      badgeText = ext || 'AUDIO';
+      iconSvg = `<path d="M9 18V5l12-2v13" stroke="#A855F7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <circle cx="6" cy="18" r="3" stroke="#A855F7" stroke-width="2" fill="none"/>
+      <circle cx="18" cy="16" r="3" stroke="#A855F7" stroke-width="2" fill="none"/>`;
+    } else if (m.startsWith('video/') || ['MP4', 'MKV', 'MOV', 'WEBM'].includes(ext)) {
+      badgeColor = '#EC4899';
+      badgeText = ext || 'VIDEO';
+      iconSvg = `<rect x="2" y="2" width="20" height="20" rx="2.18" stroke="#EC4899" stroke-width="2" fill="none"/>
+      <line x1="7" y1="2" x2="7" y2="22" stroke="#EC4899" stroke-width="2"/>
+      <line x1="17" y1="2" x2="17" y2="22" stroke="#EC4899" stroke-width="2"/>
+      <line x1="2" y1="12" x2="22" y2="12" stroke="#EC4899" stroke-width="2"/>`;
+    } else if (
+      [
+        'JSON',
+        'JS',
+        'TS',
+        'TSX',
+        'JSX',
+        'PY',
+        'RS',
+        'GO',
+        'HTML',
+        'CSS',
+        'SH',
+        'SQL',
+        'YAML',
+        'YML',
+        'XML',
+      ].includes(ext) ||
+      m.includes('json') ||
+      m.includes('javascript') ||
+      m.includes('xml') ||
+      m.includes('yaml')
+    ) {
+      badgeColor = '#06B6D4';
+      badgeText = ext || 'CODE';
+      iconSvg = `<polyline points="16 18 22 12 16 6" stroke="#06B6D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <polyline points="8 6 2 12 8 18" stroke="#06B6D4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
+    } else if (
+      ['ZIP', 'TAR', 'GZ', '7Z', 'RAR'].includes(ext) ||
+      m.includes('zip') ||
+      m.includes('compressed')
+    ) {
+      badgeColor = '#818CF8';
+      badgeText = ext || 'ZIP';
+      iconSvg = `<path d="M21 8v13H3V8" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <path d="M1 3h22v5H1z" stroke="#818CF8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="10" y1="12" x2="14" y2="12" stroke="#818CF8" stroke-width="2" stroke-linecap="round"/>`;
+    } else {
+      iconSvg = `<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#94A3B8" stroke-width="2" fill="none"/>
+      <polyline points="14 2 14 8 20 8" stroke="#94A3B8" stroke-width="2" fill="none"/>`;
+    }
+
+    const escapeXml = (str: string) =>
+      str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+
+    const safeName = escapeXml(fileName.length > 22 ? `${fileName.slice(0, 20)}…` : fileName);
+    const safeBadge = escapeXml(badgeText.slice(0, 6));
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#181B22"/>
+      <stop offset="100%" stop-color="#0E1015"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="${badgeColor}" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <rect width="200" height="200" rx="16" fill="url(#bg)"/>
+  <rect x="0.5" y="0.5" width="199" height="199" rx="15.5" fill="none" stroke="#282C35" stroke-width="1"/>
+  <g transform="translate(76, 50)" filter="url(#glow)">
+    <g transform="scale(2)">
+      ${iconSvg}
+    </g>
+  </g>
+  <rect x="70" y="122" width="60" height="20" rx="5" fill="${badgeColor}" opacity="0.95"/>
+  <text x="100" y="136" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="0.5">${safeBadge}</text>
+  <text x="100" y="172" fill="#E2E8F0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="600" text-anchor="middle">${safeName}</text>
+</svg>`;
+  }
+
+  fastify.get<{ Params: { id: string } }>('/drive/files/:id/thumbnail', async (request, reply) => {
+    const userId = requireUserId(request);
+    const file = await fileAccess(prisma, request.params.id, userId);
+
+    const mime = (file.mimeType || '').split(';', 1)[0].trim().toLowerCase();
+    if (THUMBNAIL_IMAGE_MIME_TYPES.has(mime) && driveStorageReady() && file.encryptedContent) {
+      try {
+        const plaintext = await checkedPlaintext(file);
+        return reply
+          .header('Content-Type', file.mimeType)
+          .header('Cache-Control', 'private, max-age=86400')
+          .header('Content-Length', String(plaintext.length))
+          .send(plaintext);
+      } catch {
+        // Fall back to SVG thumbnail preview if storage retrieval fails
+      }
+    }
+
+    const svg = generateThumbnailSvg(file.name, file.mimeType);
+    return reply
+      .header('Content-Type', 'image/svg+xml')
+      .header('Cache-Control', 'private, max-age=86400')
+      .send(svg);
   });
 
   // Task QD-03 & D10: Folder drag-and-drop tree re-organization with cycle detection and path recalculation

@@ -23,6 +23,7 @@ const createDocumentSchema = z.object({
   content: z.string().optional().default(''),
   metadata: z.record(z.unknown()).optional().default({}),
   isPublic: z.boolean().optional().default(false),
+  parentId: z.string().nullable().optional(),
 });
 
 const updateDocumentSchema = z.object({
@@ -31,6 +32,7 @@ const updateDocumentSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
   tags: z.array(z.string()).optional(),
   isPublic: z.boolean().optional(),
+  parentId: z.string().nullable().optional(),
 });
 
 const listDocumentsQuerySchema = z.object({
@@ -41,6 +43,7 @@ const listDocumentsQuerySchema = z.object({
   sort: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).optional(),
+  parentId: z.string().nullable().optional(),
 });
 
 const documentParamsSchema = z.object({
@@ -48,7 +51,7 @@ const documentParamsSchema = z.object({
 });
 
 export default async function documentRoutes(fastify: FastifyInstance) {
-  // GET /documents — Lists documents owned by user (where: { userId, isDeleted: false }) with sorting and search
+  // GET /documents — Lists documents owned by user (where: { userId, isDeleted: false }) with sorting, search, and parentId filtering
   fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -79,7 +82,7 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const documents = await prisma.document.findMany({
+    let documents = await prisma.document.findMany({
       where,
       orderBy: { [orderByField]: orderByDirection },
       take: query.limit,
@@ -93,6 +96,20 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       },
     });
 
+    if (query.parentId !== undefined) {
+      if (query.parentId === 'root' || query.parentId === 'null' || query.parentId === null) {
+        documents = documents.filter((doc: any) => {
+          const pid = (doc.metadata as Record<string, unknown> | null)?.parentId;
+          return pid === undefined || pid === null || pid === '';
+        });
+      } else {
+        documents = documents.filter((doc: any) => {
+          const pid = (doc.metadata as Record<string, unknown> | null)?.parentId;
+          return pid === query.parentId;
+        });
+      }
+    }
+
     return reply.send({ success: true, data: documents });
   });
 
@@ -102,12 +119,27 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     const prisma = getPrisma(fastify);
     const parsed = createDocumentSchema.parse(request.body ?? {});
 
+    if (parsed.parentId) {
+      const parentDoc = await prisma.document.findFirst({
+        where: { id: parsed.parentId, userId, isDeleted: false },
+      });
+      if (!parentDoc) {
+        throw createAppError('Parent document not found', 404, 'PARENT_DOCUMENT_NOT_FOUND');
+      }
+    }
+
     const document = await prisma.document.create({
       data: {
         title: parsed.title,
         content: parsed.content ?? '',
         userId,
-        metadata: parsed.metadata ?? {},
+        metadata: {
+          ...(parsed.metadata ?? {}),
+          parentId:
+            parsed.parentId !== undefined
+              ? parsed.parentId
+              : ((parsed.metadata as any)?.parentId ?? null),
+        },
         isPublic: parsed.isPublic ?? false,
         isDeleted: false,
       },
@@ -120,7 +152,7 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     return reply.status(201).send({ success: true, data: document });
   });
 
-  // GET /documents/:id — Fetches document metadata, version history, and collaborator permissions
+  // GET /documents/:id — Fetches document metadata, version history, collaborator permissions, subpages, and breadcrumbs
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -149,7 +181,57 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       }
     }
 
-    return reply.send({ success: true, data: document });
+    // Fetch subpages for this document: all user documents whose metadata.parentId === id and isDeleted: false
+    let allUserDocs: any[] = [];
+    try {
+      allUserDocs =
+        (await prisma.document.findMany({
+          where: {
+            userId: document.userId,
+            isDeleted: false,
+          },
+        })) || [];
+    } catch {
+      allUserDocs = [];
+    }
+
+    const subpages = allUserDocs.filter(
+      (d: any) => (d.metadata as Record<string, unknown> | null)?.parentId === id,
+    );
+
+    // Compute breadcrumbs hierarchy: recursively resolve ancestral chain of parent documents up to root: breadcrumbs: [{ id, title }, ...]
+    const docMap = new Map<string, any>(allUserDocs.map((d: any) => [d.id, d]));
+    const breadcrumbs: Array<{ id: string; title: string }> = [];
+    const visited = new Set<string>([document.id]);
+    let currentParentId = (document.metadata as Record<string, unknown> | null)?.parentId as
+      | string
+      | null
+      | undefined;
+
+    while (currentParentId && !visited.has(currentParentId)) {
+      visited.add(currentParentId);
+      let parentDoc = docMap.get(currentParentId);
+      if (!parentDoc && prisma.document?.findFirst) {
+        parentDoc = await prisma.document.findFirst({
+          where: { id: currentParentId, userId: document.userId, isDeleted: false },
+        });
+      }
+      if (!parentDoc || parentDoc.isDeleted) break;
+      breadcrumbs.unshift({ id: parentDoc.id, title: parentDoc.title });
+      currentParentId = (parentDoc.metadata as Record<string, unknown> | null)?.parentId as
+        | string
+        | null
+        | undefined;
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        ...document,
+        subpages,
+        breadcrumbs,
+      },
+    });
   });
 
   // Reusable updater for PATCH and PUT
@@ -194,6 +276,18 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     }
     if (parsed.tags !== undefined) {
       metadataObj = { ...metadataObj, tags: parsed.tags };
+      metadataChanged = true;
+    }
+    if (parsed.parentId !== undefined) {
+      if (parsed.parentId) {
+        const parentDoc = await prisma.document.findFirst({
+          where: { id: parsed.parentId, userId, isDeleted: false },
+        });
+        if (!parentDoc) {
+          throw createAppError('Parent document not found', 404, 'PARENT_DOCUMENT_NOT_FOUND');
+        }
+      }
+      metadataObj = { ...metadataObj, parentId: parsed.parentId };
       metadataChanged = true;
     }
     if (metadataChanged) {

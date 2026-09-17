@@ -87,6 +87,32 @@ const MOCK_PR = {
   },
 };
 
+const MOCK_REVIEW = {
+  id: 'review-1',
+  prId: 'pr-1',
+  reviewerId: 'user-2',
+  status: 'APPROVED',
+  body: 'Looks good to me!',
+  createdAt: new Date('2026-09-04T00:00:00.000Z'),
+  updatedAt: new Date('2026-09-04T00:00:00.000Z'),
+  reviewer: {
+    id: 'user-2',
+    username: 'collab',
+    displayName: 'Collaborator User',
+    avatarUrl: 'https://example.test/avatar.png',
+  },
+};
+
+const MOCK_BRANCH_PROTECTION = {
+  id: 'bp-1',
+  repoId: 'repo-1',
+  branchPattern: 'main',
+  requiredApprovals: 1,
+  requireStatusChecks: false,
+  createdAt: new Date('2026-09-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+};
+
 function fakePrisma() {
   return {
     repository: {
@@ -234,6 +260,7 @@ function fakePrisma() {
     },
     ciRun: {
       findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation(async ({ data }: any) => ({
         id: 'run-1',
         repoId: data.repoId,
@@ -250,6 +277,44 @@ function fakePrisma() {
           completedAt: j.completedAt,
         })),
       })),
+    },
+    review: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: `review-${Date.now()}`,
+        prId: data.prId,
+        reviewerId: data.reviewerId,
+        status: data.status,
+        body: data.body ?? '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+    },
+    branchProtection: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        id: `rule-${Date.now()}`,
+        repoId: data.repoId,
+        branchPattern: data.branchPattern,
+        requiredApprovals: data.requiredApprovals ?? 1,
+        requireStatusChecks: data.requireStatusChecks ?? false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      update: vi.fn().mockImplementation(async ({ where, data }: any) => ({
+        id: where?.id ?? 'rule-1',
+        repoId: 'repo-1',
+        branchPattern: 'main',
+        requiredApprovals: 1,
+        requireStatusChecks: false,
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      delete: vi.fn().mockResolvedValue({ id: 'rule-1' }),
     },
     $transaction: vi
       .fn()
@@ -293,7 +358,9 @@ async function buildApp(
     app.decorate(key, val as never);
   }
   app.addHook('onRequest', async (request) => {
-    if (userId) (request as unknown as { auth: { userId: string } }).auth = { userId };
+    const overrideUser = (request.headers['x-user-id'] as string) || userId;
+    if (overrideUser)
+      (request as unknown as { auth: { userId: string } }).auth = { userId: overrideUser };
   });
   await app.register(reposRoutes, { prefix: '/repos' });
   await app.ready();
@@ -1754,6 +1821,357 @@ describe('QuantGit Database-Backed Repos Routes', () => {
           data: { starCount: 0 },
         }),
       );
+    });
+  });
+
+  // ==================== PR REVIEW APPROVALS & BRANCH PROTECTION (Wave 15) ====================
+
+  describe('PR Review Approvals & Branch Protection (Wave 15)', () => {
+    it('GET /repos/:id/pulls/:number/reviews lists reviews on a pull request', async () => {
+      const app = await buildApp('user-1');
+      prisma.review.findMany.mockResolvedValueOnce([MOCK_REVIEW]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls/1/reviews',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data).toEqual([
+        expect.objectContaining({
+          id: 'review-1',
+          status: 'APPROVED',
+          prId: 'pr-1',
+          reviewerId: 'user-2',
+          body: 'Looks good to me!',
+        }),
+      ]);
+      expect(prisma.review.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { prId: 'pr-1' },
+        }),
+      );
+    });
+
+    it('POST /repos/:id/pulls/:number/reviews submits an approval review by a collaborator', async () => {
+      const app = await buildApp('user-1');
+      // Add user-2 as collaborator
+      await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/collaborators',
+        payload: { userId: 'user-2', role: 'WRITE' },
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/reviews',
+        headers: { 'x-user-id': 'user-2' },
+        payload: {
+          status: 'APPROVED',
+          body: 'Looks great!',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.status).toBe('APPROVED');
+      expect(body.data.reviewerId).toBe('user-2');
+      expect(body.data.body).toBe('Looks great!');
+      expect(prisma.review.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            prId: 'pr-1',
+            reviewerId: 'user-2',
+            status: 'APPROVED',
+            body: 'Looks great!',
+          }),
+        }),
+      );
+    });
+
+    it('POST /repos/:id/pulls/:number/reviews rejects self-approval by the PR author with 400', async () => {
+      const app = await buildApp('user-1'); // user-1 is author of MOCK_PR
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/reviews',
+        payload: {
+          status: 'APPROVED',
+          body: 'Self approval attempt',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('SELF_APPROVAL_NOT_ALLOWED');
+      expect(body.error.message).toBe('Author cannot approve own pull request');
+    });
+
+    it('POST /repos/:id/pulls/:number/reviews rejects review from non-owner non-collaborator with 403', async () => {
+      const app = await buildApp('user-99'); // user-99 is not owner and not collaborator
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/reviews',
+        payload: {
+          status: 'COMMENTED',
+          body: 'Unauthorized review',
+        },
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('FORBIDDEN');
+    });
+
+    it('POST /repos/:id/pulls/:number/merge blocked when requiredApprovals: 1 and 0 approvals exist', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([
+        {
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+        },
+      ]);
+      prisma.review.count.mockResolvedValue(0);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('BRANCH_PROTECTED');
+      expect(body.error.message).toContain('Requires 1 approval(s), but only has 0');
+    });
+
+    it('POST /repos/:id/pulls/:number/merge succeeds once an approval review is submitted', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([
+        {
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+        },
+      ]);
+      prisma.review.count.mockResolvedValue(1);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.state).toBe('merged');
+      expect(prisma.review.count).toHaveBeenCalledWith({
+        where: {
+          prId: 'pr-1',
+          status: 'APPROVED',
+          reviewerId: { not: 'user-1' },
+        },
+      });
+      expect(prisma.pullRequest.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'MERGED',
+          }),
+        }),
+      );
+    });
+
+    it('POST /repos/:id/pulls/:number/merge blocked when requireStatusChecks: true and CI has not passed', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([
+        {
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 0,
+          requireStatusChecks: true,
+        },
+      ]);
+      prisma.ciRun.findFirst.mockResolvedValue(null);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+
+      expect(res.statusCode).toBe(403);
+      const body = res.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('BRANCH_PROTECTED');
+      expect(body.error.message).toBe('Required status checks have not passed');
+    });
+
+    it('POST /repos/:id/pulls/:number/merge succeeds when requireStatusChecks: true and CI has passed', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValue([
+        {
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 0,
+          requireStatusChecks: true,
+        },
+      ]);
+      prisma.ciRun.findFirst.mockResolvedValue({
+        id: 'run-1',
+        repoId: 'repo-1',
+        branch: 'feat/test',
+        commitSha: '1111111111111111111111111111111111111111',
+        status: 'SUCCESS',
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/merge',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.state).toBe('merged');
+    });
+
+    it('GET /repos/:id/branch-protection returns branch protection rules', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findMany.mockResolvedValueOnce([MOCK_BRANCH_PROTECTION]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/branch-protection',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data).toEqual([
+        expect.objectContaining({
+          id: 'bp-1',
+          repoId: 'repo-1',
+          branchPattern: 'main',
+          requiredApprovals: 1,
+          requireStatusChecks: false,
+        }),
+      ]);
+    });
+
+    it('POST /repos/:id/branch-protection creates branch protection rule', async () => {
+      const app = await buildApp('user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/branch-protection',
+        payload: {
+          branchPattern: 'main',
+          requiredApprovals: 2,
+          requireStatusChecks: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.branchPattern).toBe('main');
+      expect(body.data.requiredApprovals).toBe(2);
+      expect(body.data.requireStatusChecks).toBe(true);
+      expect(prisma.branchProtection.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            repoId: 'repo-1',
+            branchPattern: 'main',
+            requiredApprovals: 2,
+            requireStatusChecks: true,
+          }),
+        }),
+      );
+    });
+
+    it('POST /repos/:id/branch-protection updates existing rule when pattern matches', async () => {
+      const app = await buildApp('user-1');
+      prisma.branchProtection.findFirst.mockResolvedValueOnce(MOCK_BRANCH_PROTECTION);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/branch-protection',
+        payload: {
+          branchPattern: 'main',
+          requiredApprovals: 3,
+          requireStatusChecks: false,
+        },
+      });
+
+      expect([200, 201]).toContain(res.statusCode);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(prisma.branchProtection.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'bp-1' },
+          data: expect.objectContaining({
+            requiredApprovals: 3,
+            requireStatusChecks: false,
+          }),
+        }),
+      );
+    });
+
+    it('POST /repos/:id/branch-protection rejects non-owner non-admin with 403', async () => {
+      const app = await buildApp('user-2');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/branch-protection',
+        payload: {
+          branchPattern: 'main',
+          requiredApprovals: 1,
+        },
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.code).toBe('FORBIDDEN');
+    });
+
+    it('DELETE /repos/:id/branch-protection/:ruleId deletes rule by ID', async () => {
+      const app = await buildApp('user-1');
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/repos/repo-1/branch-protection/bp-1',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.message).toBe('Branch protection rule deleted');
+      expect(prisma.branchProtection.delete).toHaveBeenCalledWith({
+        where: { id: 'bp-1' },
+      });
+    });
+
+    it('DELETE /repos/:id/branch-protection/:ruleId rejects non-owner non-admin with 403', async () => {
+      const app = await buildApp('user-2');
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: '/repos/repo-1/branch-protection/bp-1',
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.code).toBe('FORBIDDEN');
     });
   });
 });

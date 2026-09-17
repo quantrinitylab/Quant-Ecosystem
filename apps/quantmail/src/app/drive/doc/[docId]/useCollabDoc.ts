@@ -13,6 +13,8 @@ import type {
   SyncStatus,
   DocumentMetadata,
   DocumentData,
+  DocumentBreadcrumb,
+  DocumentSubpage,
 } from './types';
 import { blocksToMarkdown, markdownToBlocks } from './markdown-serializer';
 
@@ -122,6 +124,8 @@ export function useCollabDoc(docId: string) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [collaborators, setCollaborators] = useState<DocumentCollaborator[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [breadcrumbs, setBreadcrumbs] = useState<DocumentBreadcrumb[]>([]);
+  const [subpages, setSubpages] = useState<DocumentSubpage[]>([]);
 
   const ydocRef = useRef<Y.Doc | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -214,6 +218,12 @@ export function useCollabDoc(docId: string) {
               }
             } else if (doc.content && doc.content.trim()) {
               setBlocksState(markdownToBlocks(doc.content));
+            }
+            if (doc.breadcrumbs && Array.isArray(doc.breadcrumbs)) {
+              setBreadcrumbs(doc.breadcrumbs);
+            }
+            if (doc.subpages && Array.isArray(doc.subpages)) {
+              setSubpages(doc.subpages);
             }
             setSyncStatus('saved');
             setLastSaved(new Date(doc.updatedAt || Date.now()));
@@ -509,5 +519,8 @@ export function useCollabDoc(docId: string) {
     collaborators,
     isLoading,
     broadcastCursor,
+    breadcrumbs,
+    subpages,
+    setSubpages,
   };
 }

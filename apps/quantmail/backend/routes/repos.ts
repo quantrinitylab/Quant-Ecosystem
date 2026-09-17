@@ -155,6 +155,17 @@ const createPrSchema = z.object({
   targetBranch: z.string().min(1).max(100).optional(),
 });
 
+const createReviewSchema = z.object({
+  status: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED']),
+  body: z.string().optional(),
+});
+
+const branchProtectionSchema = z.object({
+  branchPattern: z.string().min(1),
+  requiredApprovals: z.number().int().min(0).default(1),
+  requireStatusChecks: z.boolean().default(false),
+});
+
 const updateRepoSchema = z.object({
   name: repoNameSchema.optional(),
   description: z.string().max(500).optional(),
@@ -1300,6 +1311,87 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.get<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/reviews',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      const reviews = prisma.review?.findMany
+        ? await prisma.review.findMany({
+            where: { prId: pr.id },
+            include: {
+              reviewer: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
+
+      return reply.send({ success: true, data: reviews });
+    },
+  );
+
+  fastify.post<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/reviews',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      const parsed = createReviewSchema.safeParse(request.body);
+      if (!parsed.success) throw parsed.error;
+
+      if (parsed.data.status === 'APPROVED' && pr.authorId === userId) {
+        throw createAppError(
+          'Author cannot approve own pull request',
+          400,
+          'SELF_APPROVAL_NOT_ALLOWED',
+        );
+      }
+
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (!perm) {
+        throw createAppError(
+          'Must be repository owner or collaborator to review pull requests',
+          403,
+          'FORBIDDEN',
+        );
+      }
+
+      const review = await prisma.review.create({
+        data: {
+          prId: pr.id,
+          reviewerId: userId,
+          status: parsed.data.status,
+          body: parsed.data.body ?? '',
+        },
+      });
+
+      return reply.status(201).send({ success: true, data: review });
+    },
+  );
+
   fastify.post<{ Params: { id: string; number: string } }>(
     '/:id/pulls/:number/merge',
     async (request, reply) => {
@@ -1326,6 +1418,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
                 where: {
                   prId: pr.id,
                   status: 'APPROVED',
+                  reviewerId: { not: pr.authorId },
                 },
               })
             : 0;
@@ -1463,6 +1556,98 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           deletions: 0,
           changedFiles: 0,
         },
+      });
+    },
+  );
+
+  fastify.get<{ Params: { id: string } }>('/:id/branch-protection', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const prisma = getPrisma(fastify);
+    const rules = prisma.branchProtection?.findMany
+      ? await prisma.branchProtection.findMany({ where: { repoId: repo.id } })
+      : [];
+    return reply.send({ success: true, data: rules });
+  });
+
+  fastify.post<{ Params: { id: string } }>('/:id/branch-protection', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    const perm = await getRepoPermission(prisma, repo, userId);
+    if (repo.ownerId !== userId && perm !== 'ADMIN') {
+      throw createAppError(
+        'Only repository owner or admin can manage branch protection',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const parsed = branchProtectionSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    let existing: any = null;
+    if (prisma.branchProtection?.findFirst) {
+      existing = await prisma.branchProtection.findFirst({
+        where: { repoId: repo.id, branchPattern: parsed.data.branchPattern },
+      });
+    }
+
+    let rule: any;
+    if (existing && prisma.branchProtection?.update) {
+      rule = await prisma.branchProtection.update({
+        where: { id: existing.id },
+        data: {
+          requiredApprovals: parsed.data.requiredApprovals,
+          requireStatusChecks: parsed.data.requireStatusChecks,
+        },
+      });
+    } else if (prisma.branchProtection?.create) {
+      rule = await prisma.branchProtection.create({
+        data: {
+          repoId: repo.id,
+          branchPattern: parsed.data.branchPattern,
+          requiredApprovals: parsed.data.requiredApprovals,
+          requireStatusChecks: parsed.data.requireStatusChecks,
+        },
+      });
+    }
+
+    return reply.status(existing ? 200 : 201).send({ success: true, data: rule });
+  });
+
+  fastify.delete<{ Params: { id: string; ruleId: string } }>(
+    '/:id/branch-protection/:ruleId',
+    async (request, reply) => {
+      const repo = await loadWritableRepo(request, request.params.id);
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (repo.ownerId !== userId && perm !== 'ADMIN') {
+        throw createAppError(
+          'Only repository owner or admin can manage branch protection',
+          403,
+          'FORBIDDEN',
+        );
+      }
+
+      if (prisma.branchProtection?.delete) {
+        try {
+          await prisma.branchProtection.delete({
+            where: { id: request.params.ruleId },
+          });
+        } catch (err: any) {
+          if (err?.code === 'P2025') {
+            throw createAppError('Branch protection rule not found', 404, 'RULE_NOT_FOUND');
+          }
+          throw err;
+        }
+      }
+
+      return reply.send({
+        success: true,
+        data: { message: 'Branch protection rule deleted' },
       });
     },
   );

@@ -378,6 +378,340 @@ function buildIcsContent(event: EventRow, options: IcsOptions = {}): string {
   return icsLines.join('\r\n') + '\r\n';
 }
 
+function unescapeIcs(value: string): string {
+  return value.replace(/\\([nN;,\\"])/g, (_, match) => {
+    if (match === 'n' || match === 'N') return '\n';
+    return match;
+  });
+}
+
+function zonedTimeToUtc(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number,
+  tz: string,
+): Date {
+  let validTz = 'UTC';
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    validTz = tz;
+  } catch {
+    validTz = 'UTC';
+  }
+
+  let guess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (validTz === 'UTC') return guess;
+
+  const tzFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: validTz,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+
+  for (let iter = 0; iter < 4; iter++) {
+    const parts = tzFormatter.formatToParts(guess);
+    const gy = Number(parts.find((p) => p.type === 'year')?.value);
+    const gm = Number(parts.find((p) => p.type === 'month')?.value);
+    const gd = Number(parts.find((p) => p.type === 'day')?.value);
+    let gh = Number(parts.find((p) => p.type === 'hour')?.value);
+    if (gh === 24) gh = 0;
+    const gmin = Number(parts.find((p) => p.type === 'minute')?.value);
+    const gs = Number(parts.find((p) => p.type === 'second')?.value);
+
+    const targetMs = Date.UTC(year, month - 1, day, hour, minute, second);
+    const currentMs = Date.UTC(gy, gm - 1, gd, gh, gmin, gs);
+    const diff = targetMs - currentMs;
+    if (diff === 0) break;
+    guess = new Date(guess.getTime() + diff);
+  }
+  return guess;
+}
+
+function parseIcsDateTime(
+  rawVal: string,
+  paramsStr = '',
+): { date: Date; allDay: boolean; tz?: string } {
+  const cleanVal = rawVal.trim();
+  let tzid: string | undefined;
+  const tzidMatch = /TZID=([^;:]+)/i.exec(paramsStr);
+  if (tzidMatch) {
+    tzid = tzidMatch[1]!.replace(/^["']|["']$/g, '').trim();
+    if (tzid.startsWith('/')) tzid = tzid.substring(1);
+  }
+
+  const isDateOnly =
+    /VALUE=DATE(?![A-Z])/i.test(paramsStr) ||
+    /^\d{8}$/.test(cleanVal) ||
+    /^\d{4}-\d{2}-\d{2}$/.test(cleanVal);
+
+  if (isDateOnly) {
+    const digits = cleanVal.replace(/-/g, '');
+    const year = Number(digits.substring(0, 4));
+    const month = Number(digits.substring(4, 6));
+    const day = Number(digits.substring(6, 8));
+    return {
+      date: new Date(Date.UTC(year, month - 1, day, 0, 0, 0)),
+      allDay: true,
+      tz: tzid,
+    };
+  }
+
+  if (cleanVal.includes('-') && cleanVal.includes(':')) {
+    const d = new Date(cleanVal);
+    if (!Number.isNaN(d.getTime())) {
+      return { date: d, allDay: false, tz: tzid };
+    }
+  }
+
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z)?$/i.exec(cleanVal);
+  if (match) {
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const min = Number(match[5]);
+    const sec = Number(match[6]);
+    const isUtc = Boolean(match[7]);
+
+    if (isUtc || !tzid) {
+      return {
+        date: new Date(Date.UTC(year, month - 1, day, hour, min, sec)),
+        allDay: false,
+        tz: isUtc ? 'UTC' : undefined,
+      };
+    }
+
+    return {
+      date: zonedTimeToUtc(year, month, day, hour, min, sec, tzid),
+      allDay: false,
+      tz: tzid,
+    };
+  }
+
+  const fallback = new Date(cleanVal);
+  if (!Number.isNaN(fallback.getTime())) {
+    return { date: fallback, allDay: false, tz: tzid };
+  }
+
+  throw new Error(`Invalid ICS date format: ${cleanVal}`);
+}
+
+function parseIcsDuration(durationStr: string): number {
+  const match = /^([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i.exec(
+    durationStr.trim(),
+  );
+  if (!match) return 3_600_000;
+  const sign = match[1] === '-' ? -1 : 1;
+  const weeks = Number(match[2] || 0);
+  const days = Number(match[3] || 0);
+  const hours = Number(match[4] || 0);
+  const minutes = Number(match[5] || 0);
+  const seconds = Number(match[6] || 0);
+
+  const totalMs =
+    weeks * 7 * 86_400_000 +
+    days * 86_400_000 +
+    hours * 3_600_000 +
+    minutes * 60_000 +
+    seconds * 1_000;
+
+  return sign * (totalMs > 0 ? totalMs : 3_600_000);
+}
+
+function normalizeUid(uid?: string): string | undefined {
+  if (!uid) return undefined;
+  const trimmed = uid.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.endsWith('@quantmail.in')) {
+    return trimmed.slice(0, -'@quantmail.in'.length);
+  }
+  return trimmed;
+}
+
+interface ParsedIcsEvent {
+  uid?: string;
+  title: string;
+  description: string;
+  location: string;
+  startTime: Date;
+  endTime: Date;
+  allDay: boolean;
+  recurrenceRule: string | null;
+  status: 'confirmed' | 'tentative' | 'cancelled';
+  timeZone?: string;
+}
+
+function parseIcsContent(icsContent: string, recurringService: RecurringService): ParsedIcsEvent[] {
+  const unfolded = icsContent.replace(/\r?\n[ \t]/g, '');
+  const lines = unfolded.split(/\r?\n/);
+  const veventBlocks: string[][] = [];
+  let currentBlock: string[] | null = null;
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (/^BEGIN:VEVENT$/i.test(trimmed)) {
+      currentBlock = [];
+    } else if (/^END:VEVENT$/i.test(trimmed)) {
+      if (currentBlock) {
+        veventBlocks.push(currentBlock);
+        currentBlock = null;
+      }
+    } else if (currentBlock) {
+      currentBlock.push(rawLine);
+    }
+  }
+
+  if (veventBlocks.length === 0) {
+    throw createAppError('Malformed ICS: No VEVENT blocks found', 400, 'VALIDATION_ERROR');
+  }
+
+  const parsedEvents: ParsedIcsEvent[] = [];
+
+  for (const block of veventBlocks) {
+    let uid: string | undefined;
+    let summary: string | undefined;
+    let description = '';
+    let location = '';
+    let status: 'confirmed' | 'tentative' | 'cancelled' = 'confirmed';
+    let dtStartRaw: string | undefined;
+    let dtStartParams = '';
+    let dtEndRaw: string | undefined;
+    let dtEndParams = '';
+    let durationRaw: string | undefined;
+    let rruleRaw: string | undefined;
+    const exDates: string[] = [];
+
+    for (const line of block) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx === -1) continue;
+      const rawHeader = line.substring(0, colonIdx).trim();
+      const rawValue = line.substring(colonIdx + 1);
+
+      const semiIdx = rawHeader.indexOf(';');
+      const propName = (semiIdx === -1 ? rawHeader : rawHeader.substring(0, semiIdx))
+        .toUpperCase()
+        .trim();
+      const propParams = semiIdx === -1 ? '' : rawHeader.substring(semiIdx + 1).trim();
+
+      switch (propName) {
+        case 'UID':
+          uid = rawValue.trim();
+          break;
+        case 'SUMMARY':
+          summary = unescapeIcs(rawValue.trim());
+          break;
+        case 'DESCRIPTION':
+          description = unescapeIcs(rawValue.trim());
+          break;
+        case 'LOCATION':
+          location = unescapeIcs(rawValue.trim());
+          break;
+        case 'STATUS': {
+          const s = rawValue.trim().toLowerCase();
+          if (s === 'confirmed' || s === 'tentative' || s === 'cancelled') {
+            status = s;
+          }
+          break;
+        }
+        case 'DTSTART':
+          dtStartRaw = rawValue.trim();
+          dtStartParams = propParams;
+          break;
+        case 'DTEND':
+          dtEndRaw = rawValue.trim();
+          dtEndParams = propParams;
+          break;
+        case 'DURATION':
+          durationRaw = rawValue.trim();
+          break;
+        case 'RRULE':
+          rruleRaw = rawValue.trim();
+          break;
+        case 'EXDATE':
+          exDates.push(rawValue.trim());
+          break;
+      }
+    }
+
+    if (!dtStartRaw) {
+      continue;
+    }
+
+    let parsedStart: { date: Date; allDay: boolean; tz?: string };
+    try {
+      parsedStart = parseIcsDateTime(dtStartRaw, dtStartParams);
+    } catch {
+      continue;
+    }
+
+    const startTime = parsedStart.date;
+    const allDay = parsedStart.allDay;
+    const timeZone = parsedStart.tz;
+
+    let endTime: Date;
+    if (dtEndRaw) {
+      try {
+        endTime = parseIcsDateTime(dtEndRaw, dtEndParams).date;
+      } catch {
+        endTime = new Date(startTime.getTime() + (allDay ? 86_400_000 : 3_600_000));
+      }
+    } else if (durationRaw) {
+      const durMs = parseIcsDuration(durationRaw);
+      endTime = new Date(startTime.getTime() + durMs);
+    } else {
+      endTime = new Date(startTime.getTime() + (allDay ? 86_400_000 : 3_600_000));
+    }
+
+    if (endTime <= startTime) {
+      endTime = new Date(startTime.getTime() + (allDay ? 86_400_000 : 3_600_000));
+    }
+
+    let normalizedRRule: string | null = null;
+    if (rruleRaw) {
+      let fullRule = rruleRaw;
+      if (exDates.length > 0 && !fullRule.includes('EXDATE=')) {
+        fullRule += `;EXDATE=${exDates.join(',')}`;
+      }
+      try {
+        normalizedRRule = normalizeRecurrenceRule(fullRule, recurringService);
+      } catch {
+        normalizedRRule = null;
+      }
+    }
+
+    parsedEvents.push({
+      uid,
+      title: summary || 'Untitled Event',
+      description,
+      location,
+      startTime,
+      endTime,
+      allDay,
+      recurrenceRule: normalizedRRule,
+      status,
+      timeZone,
+    });
+  }
+
+  if (parsedEvents.length === 0) {
+    throw createAppError(
+      'Malformed ICS: No valid VEVENT entries could be parsed',
+      400,
+      'VALIDATION_ERROR',
+    );
+  }
+
+  return parsedEvents;
+}
+
 interface ConflictResult {
   id: string;
   title: string;
@@ -518,6 +852,25 @@ export default async function calendarRoutes(
   const bookingService = () => new BookingLinkService(getPrisma(fastify));
   const recurringService = new RecurringService(getPrisma(fastify));
   const callAlertService = options?.callAlertService ?? new CalendarCallAlertService();
+
+  if (!fastify.hasContentTypeParser('text/calendar')) {
+    fastify.addContentTypeParser(
+      'text/calendar',
+      { parseAs: 'string' },
+      (_request, body: string, done) => {
+        done(null, body);
+      },
+    );
+  }
+  if (!fastify.hasContentTypeParser('text/plain')) {
+    fastify.addContentTypeParser(
+      'text/plain',
+      { parseAs: 'string' },
+      (_request, body: string, done) => {
+        done(null, body);
+      },
+    );
+  }
 
   fastify.get('/calendars', async (request, reply) =>
     reply.send({
@@ -1017,6 +1370,180 @@ export default async function calendarRoutes(
       });
     return reply.status(201).send({ success: true, data: toEventDto(created) });
   });
+
+  const handleIcsImport = async (request: any, reply: any) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    let icsData: string | undefined;
+    let calendarId: string | undefined;
+
+    if (typeof request.body === 'string') {
+      icsData = request.body;
+      calendarId = request.query?.calendarId;
+    } else if (request.body && typeof request.body === 'object') {
+      icsData = request.body.icsData;
+      calendarId = request.body.calendarId || request.query?.calendarId;
+    }
+
+    if (typeof icsData !== 'string') {
+      throw createAppError('ICS data must be provided as a string', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!icsData.trim()) {
+      throw createAppError('ICS payload cannot be empty', 400, 'VALIDATION_ERROR');
+    }
+
+    const MAX_ICS_SIZE = 5 * 1024 * 1024; // 5MB
+    if (Buffer.byteLength(icsData, 'utf8') > MAX_ICS_SIZE) {
+      throw createAppError('ICS payload exceeds 5MB size limit', 400, 'VALIDATION_ERROR');
+    }
+
+    const parsedEvents = parseIcsContent(icsData, recurringService);
+
+    // Resolve target calendarId
+    let targetCalendarId = calendarId;
+    if (!targetCalendarId && prisma.calendar) {
+      if (typeof (prisma.calendar as any).findFirst === 'function') {
+        const primaryCalendar = await prisma.calendar.findFirst({
+          where: { userId, isPrimary: true },
+          select: { id: true },
+        });
+        targetCalendarId = primaryCalendar?.id;
+      } else if (typeof (prisma.calendar as any).findMany === 'function') {
+        const calendars = await prisma.calendar.findMany({
+          where: { userId },
+        });
+        targetCalendarId = (calendars.find((c: any) => c.isPrimary) ?? calendars[0])?.id;
+      }
+      if (!targetCalendarId && typeof (prisma.calendar as any).create === 'function') {
+        const defaultCal = await prisma.calendar.create({
+          data: {
+            userId,
+            name: 'Primary',
+            color: '#3B82F6',
+            isPrimary: true,
+          },
+          select: { id: true },
+        });
+        targetCalendarId = defaultCal?.id;
+      }
+    }
+
+    // Query existing events for deduplication
+    const existingEvents: any[] =
+      (await prisma.event.findMany({
+        where: { userId },
+        select: { id: true, title: true, startTime: true },
+      })) ?? [];
+
+    const eventsToCreate: any[] = [];
+    const seenInBatch = new Set<string>();
+
+    for (const event of parsedEvents) {
+      const normUid = normalizeUid(event.uid);
+      const titleKey = `${event.title.trim().toLowerCase()}_${event.startTime.getTime()}`;
+
+      if (normUid && seenInBatch.has(`uid:${normUid}`)) {
+        continue;
+      }
+      if (seenInBatch.has(`title:${titleKey}`)) {
+        continue;
+      }
+
+      const isDuplicate = existingEvents.some((existing: any) => {
+        if (normUid && (existing.id === normUid || existing.id === event.uid)) {
+          return true;
+        }
+        const existingTitle = (existing.title || '').trim().toLowerCase();
+        const newTitle = event.title.trim().toLowerCase();
+        const existingStart = new Date(existing.startTime).getTime();
+        const newStart = event.startTime.getTime();
+        return existingTitle === newTitle && existingStart === newStart;
+      });
+
+      if (isDuplicate) {
+        continue;
+      }
+
+      if (normUid) seenInBatch.add(`uid:${normUid}`);
+      seenInBatch.add(`title:${titleKey}`);
+
+      const now = new Date();
+      const eventCreateData: Record<string, unknown> = {
+        ...(normUid ? { id: normUid } : {}),
+        title: event.title,
+        description: event.description,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        allDay: event.allDay,
+        location: event.location,
+        userId,
+        calendarId: targetCalendarId,
+        status: event.status,
+        attendees: JSON.stringify([]),
+        reminders: JSON.stringify([]),
+        recurrenceRule: event.recurrenceRule,
+        createdAt: now,
+        updatedAt: now,
+      };
+      if (event.timeZone) {
+        eventCreateData.timeZone = event.timeZone;
+      }
+
+      eventsToCreate.push(eventCreateData);
+    }
+
+    const createdIds: string[] = [];
+    const createSingleEvent = async (client: any, data: Record<string, unknown>) => {
+      const tzValue = data.timeZone as string | undefined;
+      let created: any;
+      try {
+        created = await client.event.create({ data });
+      } catch (err: any) {
+        if (
+          tzValue &&
+          (err?.message?.includes('Unknown argument') || err?.message?.includes('timeZone'))
+        ) {
+          const copy = { ...data };
+          delete copy.timeZone;
+          created = await client.event.create({ data: copy });
+          created.timeZone = tzValue;
+        } else {
+          throw err;
+        }
+      }
+      return created;
+    };
+
+    if (eventsToCreate.length > 0) {
+      if (typeof prisma.$transaction === 'function') {
+        await prisma.$transaction(async (tx: any) => {
+          for (const data of eventsToCreate) {
+            const created = await createSingleEvent(tx, data);
+            createdIds.push(created?.id ?? (data.id as string));
+          }
+        });
+      } else {
+        for (const data of eventsToCreate) {
+          const created = await createSingleEvent(prisma, data);
+          createdIds.push(created?.id ?? (data.id as string));
+        }
+      }
+    }
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        importedCount: createdIds.length,
+        eventIds: createdIds,
+      },
+    });
+  };
+
+  const importRouteOptions = { bodyLimit: 5 * 1024 * 1024 };
+  fastify.post('/events/import/ics', importRouteOptions, handleIcsImport);
+  fastify.post('/events/import', importRouteOptions, handleIcsImport);
 
   const updateEvent = async (request: any, reply: any) => {
     const parsed = eventUpdateSchema.safeParse(request.body);

@@ -45,6 +45,21 @@ export interface DocumentMetadata {
   fullWidth?: boolean;
   tags?: string[];
   blocks?: EditorBlock[];
+  parentId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface DocumentBreadcrumb {
+  id: string;
+  title: string;
+}
+
+export interface DocumentSubpage {
+  id: string;
+  title: string;
+  metadata?: DocumentMetadata;
+  createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 }
 
@@ -58,6 +73,8 @@ export interface DocumentData {
   isDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
+  breadcrumbs?: DocumentBreadcrumb[];
+  subpages?: DocumentSubpage[];
   collaborators?: Array<{
     id: string;
     userId: string;

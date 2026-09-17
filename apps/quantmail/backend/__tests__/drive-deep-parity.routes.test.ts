@@ -823,4 +823,107 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(bodyIdempotent.data.scanned).toBe(4);
     expect(bodyIdempotent.data.repaired).toBe(0);
   });
+
+  it('Task D17: fileDto includes thumbnailUrl: /api/drive/files/:id/thumbnail', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files).toBeDefined();
+    const file1 = body.files.find((f: any) => f.id === 'file_spec_1');
+    expect(file1).toBeDefined();
+    expect(file1.thumbnailUrl).toBe('/api/drive/files/file_spec_1/thumbnail');
+
+    const file2 = body.files.find((f: any) => f.id === 'file_spec_2');
+    expect(file2).toBeDefined();
+    expect(file2.thumbnailUrl).toBe('/api/drive/files/file_spec_2/thumbnail');
+  });
+
+  it('Task D17: GET /drive/files/:id/thumbnail returns thumbnail preview with valid headers for non-image file', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files/file_spec_1/thumbnail',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('image/svg+xml');
+    expect(res.headers['cache-control']).toBe('private, max-age=86400');
+    expect(res.body).toContain('<svg');
+    expect(res.body).toContain('PDF');
+    expect(res.body).toContain('quant-specs.pdf');
+  });
+
+  it('Task D17: GET /drive/files/:id/thumbnail returns decrypted thumbnail preview with valid headers for image file', async () => {
+    files.push({
+      id: 'file_img_banner',
+      name: 'banner.png',
+      mimeType: 'image/png',
+      size: 1024,
+      folderId: null,
+      isStarred: false,
+      isDeleted: false,
+      deletedAt: null,
+      trashRootId: null,
+      encryptedContent: 'enc_img_banner',
+      encryptionIV: 'iv_banner',
+      encryptionAuthTag: 'tag_banner',
+      encryptionKey: 'key_banner',
+      contentHash: 'hash_banner',
+      userId: 'user_alice',
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files/file_img_banner/thumbnail',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toBe('image/png');
+    expect(res.headers['cache-control']).toBe('private, max-age=86400');
+    expect(res.body).toBe('quant-public-streamed-file-content');
+  });
+
+  it('Task D17: GET /drive/files/:id/thumbnail requires authentication and enforces access permissions', async () => {
+    // Unauthenticated request
+    const resUnauth = await app.inject({
+      method: 'GET',
+      url: '/drive/files/file_spec_1/thumbnail',
+      headers: { 'x-user-id': '' },
+    });
+    expect(resUnauth.statusCode).toBe(401);
+
+    // Request by unauthorized user
+    const resForbidden = await app.inject({
+      method: 'GET',
+      url: '/drive/files/file_spec_1/thumbnail',
+      headers: { 'x-user-id': 'user_bob' },
+    });
+    expect(resForbidden.statusCode).toBe(403);
+
+    // Request by authorized user with accepted share
+    shares.push({
+      id: 'share_thumb_bob',
+      fileId: 'file_spec_1',
+      folderId: null,
+      ownerUserId: 'user_alice',
+      sharedWithUserId: 'user_bob',
+      encryptedFileKey: 'key1',
+      permission: 'read',
+      status: 'accepted',
+      createdAt: new Date(),
+    });
+
+    const resShared = await app.inject({
+      method: 'GET',
+      url: '/drive/files/file_spec_1/thumbnail',
+      headers: { 'x-user-id': 'user_bob' },
+    });
+    expect(resShared.statusCode).toBe(200);
+    expect(resShared.headers['content-type']).toBe('image/svg+xml');
+  });
 });

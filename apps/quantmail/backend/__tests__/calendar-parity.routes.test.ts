@@ -36,7 +36,7 @@ function createFakePrisma() {
       create: vi.fn().mockImplementation(async ({ data }) => ({
         ...BASE_ROW,
         ...data,
-        id: 'evt-created-1',
+        id: data.id || 'evt-created-1',
       })),
       update: vi.fn().mockImplementation(async ({ data }) => ({
         ...BASE_ROW,
@@ -320,6 +320,291 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
       expect(firstItem).toHaveProperty('recurrence');
       expect((firstItem as any).start).toBeUndefined();
       expect((firstItem as any).end).toBeUndefined();
+    });
+  });
+
+  describe('Tasks X04 & C19: RFC 5545 ICS Bulk Import Engine', () => {
+    it('imports a standard .ics payload with multiple VEVENT blocks (JSON format)', async () => {
+      const icsData = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Test Corp//EN',
+        'BEGIN:VEVENT',
+        'UID:evt-import-1@test.com',
+        'DTSTART:20261010T090000Z',
+        'DTEND:20261010T100000Z',
+        'SUMMARY:Product Kickoff\\, Q4 \\; Planning',
+        'DESCRIPTION:Roadmap discussion\\nDeliverables review',
+        'LOCATION:Conference Room A',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'UID:evt-import-2@test.com',
+        'DTSTART:20261011T140000Z',
+        'DURATION:PT1H30M',
+        'SUMMARY:Design Critique',
+        'DESCRIPTION:Reviewing new UI components',
+        'LOCATION:Design Lab',
+        'STATUS:TENTATIVE',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: {
+          icsData,
+          calendarId: 'cal-work-2',
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(true);
+      expect(body.data.importedCount).toBe(2);
+      expect(body.data.eventIds).toEqual(['evt-import-1@test.com', 'evt-import-2@test.com']);
+
+      expect(prisma.event.create).toHaveBeenCalledTimes(2);
+      const firstCall = prisma.event.create.mock.calls[0]![0];
+      expect(firstCall.data.title).toBe('Product Kickoff, Q4 ; Planning');
+      expect(firstCall.data.description).toBe('Roadmap discussion\nDeliverables review');
+      expect(firstCall.data.location).toBe('Conference Room A');
+      expect(firstCall.data.status).toBe('confirmed');
+      expect(firstCall.data.calendarId).toBe('cal-work-2');
+      expect(new Date(firstCall.data.startTime).toISOString()).toBe('2026-10-10T09:00:00.000Z');
+      expect(new Date(firstCall.data.endTime).toISOString()).toBe('2026-10-10T10:00:00.000Z');
+
+      const secondCall = prisma.event.create.mock.calls[1]![0];
+      expect(secondCall.data.title).toBe('Design Critique');
+      expect(secondCall.data.status).toBe('tentative');
+      expect(new Date(secondCall.data.startTime).toISOString()).toBe('2026-10-11T14:00:00.000Z');
+      expect(new Date(secondCall.data.endTime).toISOString()).toBe('2026-10-11T15:30:00.000Z');
+    });
+
+    it('imports raw text/calendar payload and unfolds continuation lines', async () => {
+      const icsData = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        'UID:evt-folded-1@test.com',
+        'DTSTART:20261012T080000Z',
+        'DTEND:20261012T090000Z',
+        'SUMMARY:Security Syn',
+        ' c and Compliance',
+        'DESCRIPTION:This is a very long folded line th',
+        '\tat continues here with a tab.',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        headers: {
+          'content-type': 'text/calendar',
+        },
+        payload: icsData,
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(true);
+      expect(body.data.importedCount).toBe(1);
+
+      const createArg = prisma.event.create.mock.calls[0]![0];
+      expect(createArg.data.title).toBe('Security Sync and Compliance');
+      expect(createArg.data.description).toBe(
+        'This is a very long folded line that continues here with a tab.',
+      );
+      expect(createArg.data.calendarId).toBe('cal-primary-1');
+    });
+
+    it('imports recurring events with RRULE', async () => {
+      const icsData = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        'UID:evt-recurring-1@test.com',
+        'DTSTART:20261015T110000Z',
+        'DTEND:20261015T120000Z',
+        'SUMMARY:Weekly Sprint Sync',
+        'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: {
+          icsData,
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.success).toBe(true);
+      expect(body.data.importedCount).toBe(1);
+
+      const createArg = prisma.event.create.mock.calls[0]![0];
+      expect(createArg.data.title).toBe('Weekly Sprint Sync');
+      expect(createArg.data.recurrenceRule).toBe('FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10');
+    });
+
+    it('handles deduplication on repeated imports (idempotency)', async () => {
+      const icsData = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        'UID:evt-dedup-1@test.com',
+        'DTSTART:20261020T100000Z',
+        'DTEND:20261020T110000Z',
+        'SUMMARY:Quarterly All Hands',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      // First import - event does not exist yet
+      prisma.event.findMany.mockResolvedValueOnce([BASE_ROW]);
+      const firstRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData },
+      });
+
+      expect(firstRes.statusCode).toBe(201);
+      const firstBody = JSON.parse(firstRes.body);
+      expect(firstBody.data.importedCount).toBe(1);
+      expect(prisma.event.create).toHaveBeenCalledTimes(1);
+
+      // Second import - simulate database now containing the imported event
+      prisma.event.findMany.mockResolvedValueOnce([
+        BASE_ROW,
+        {
+          id: 'evt-dedup-1@test.com',
+          userId: 'user-cal-1',
+          title: 'Quarterly All Hands',
+          startTime: new Date('2026-10-20T10:00:00.000Z'),
+          endTime: new Date('2026-10-20T11:00:00.000Z'),
+          status: 'confirmed',
+        },
+      ]);
+
+      const secondRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData },
+      });
+
+      expect(secondRes.statusCode).toBe(201);
+      const secondBody = JSON.parse(secondRes.body);
+      expect(secondBody.data.importedCount).toBe(0);
+      expect(secondBody.data.eventIds).toEqual([]);
+      expect(prisma.event.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects malformed or empty .ics payloads with 400 VALIDATION_ERROR', async () => {
+      // 1. Empty string
+      const emptyRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData: '' },
+      });
+      expect(emptyRes.statusCode).toBe(400);
+      const emptyBody = JSON.parse(emptyRes.body);
+      expect(emptyBody.success).toBe(false);
+      expect(emptyBody.error.code).toBe('VALIDATION_ERROR');
+
+      // 2. Missing icsData property
+      const missingRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: {},
+      });
+      expect(missingRes.statusCode).toBe(400);
+      const missingBody = JSON.parse(missingRes.body);
+      expect(missingBody.success).toBe(false);
+      expect(missingBody.error.code).toBe('VALIDATION_ERROR');
+
+      // 3. Malformed content without VEVENT blocks
+      const malformedRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData: 'INVALID_NOT_AN_ICS' },
+      });
+      expect(malformedRes.statusCode).toBe(400);
+      const malformedBody = JSON.parse(malformedRes.body);
+      expect(malformedBody.success).toBe(false);
+      expect(malformedBody.error.code).toBe('VALIDATION_ERROR');
+
+      // 4. VCALENDAR without any VEVENT entries
+      const noVeventRes = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData: 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR' },
+      });
+      expect(noVeventRes.statusCode).toBe(400);
+      const noVeventBody = JSON.parse(noVeventRes.body);
+      expect(noVeventBody.success).toBe(false);
+      expect(noVeventBody.error.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('rejects oversized payloads (> 5MB)', async () => {
+      const hugeData = 'A'.repeat(5 * 1024 * 1024 + 10);
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData: hugeData },
+      });
+      expect([400, 413]).toContain(response.statusCode);
+    });
+
+    it('supports TZID timezone and date-only VALUE=DATE formats', async () => {
+      const icsData = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        'UID:evt-tz-1@test.com',
+        'DTSTART;TZID=America/New_York:20261025T090000',
+        'DTEND;TZID=America/New_York:20261025T100000',
+        'SUMMARY:New York Meeting',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'BEGIN:VEVENT',
+        'UID:evt-allday-1@test.com',
+        'DTSTART;VALUE=DATE:20261026',
+        'DTEND;VALUE=DATE:20261027',
+        'SUMMARY:All Day Conference',
+        'STATUS:CONFIRMED',
+        'END:VEVENT',
+        'END:VCALENDAR',
+      ].join('\r\n');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData },
+      });
+
+      expect(response.statusCode).toBe(201);
+      const body = JSON.parse(response.body);
+      expect(body.data.importedCount).toBe(2);
+
+      const nyCall = prisma.event.create.mock.calls[0]![0];
+      expect(nyCall.data.title).toBe('New York Meeting');
+      expect(nyCall.data.timeZone).toBe('America/New_York');
+      expect(new Date(nyCall.data.startTime).toISOString()).toBe('2026-10-25T13:00:00.000Z');
+      expect(new Date(nyCall.data.endTime).toISOString()).toBe('2026-10-25T14:00:00.000Z');
+
+      const allDayCall = prisma.event.create.mock.calls[1]![0];
+      expect(allDayCall.data.title).toBe('All Day Conference');
+      expect(allDayCall.data.allDay).toBe(true);
+      expect(new Date(allDayCall.data.startTime).toISOString()).toBe('2026-10-26T00:00:00.000Z');
+      expect(new Date(allDayCall.data.endTime).toISOString()).toBe('2026-10-27T00:00:00.000Z');
     });
   });
 });

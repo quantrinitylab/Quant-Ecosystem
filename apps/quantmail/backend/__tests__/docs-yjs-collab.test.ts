@@ -1,7 +1,9 @@
 // @vitest-environment node
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import Fastify from 'fastify';
 import * as Y from 'yjs';
+import documentRoutes from '../routes/documents';
 import {
   closeYDoc,
   setupWSConnection,
@@ -99,12 +101,20 @@ function persistenceWith(update: Uint8Array | null = null): PersistenceMock {
   };
 }
 
-async function connect(name: string, socket: MockSocket, persistence: PersistenceMock): Promise<DocRoom> {
+async function connect(
+  name: string,
+  socket: MockSocket,
+  persistence: PersistenceMock,
+): Promise<DocRoom> {
   if (!roomsToClose.some((entry) => entry.name === name)) roomsToClose.push({ name, persistence });
-  return setupWSConnection(socket, { url: `/collab/${name}` }, {
-    persistence: persistence as never,
-    persistDebounceMs: 60_000,
-  });
+  return setupWSConnection(
+    socket,
+    { url: `/collab/${name}` },
+    {
+      persistence: persistence as never,
+      persistDebounceMs: 60_000,
+    },
+  );
 }
 
 afterEach(async () => {
@@ -166,7 +176,11 @@ describe('Yjs realtime sync and awareness protocol', () => {
     socketA.sent = [];
     socketB.sent = [];
     const state: AwarenessState = {
-      clientId: 'client-a', userId: 'user-a', name: 'Ada', color: '#663399', cursor: { anchor: 4, head: 4 },
+      clientId: 'client-a',
+      userId: 'user-a',
+      name: 'Ada',
+      color: '#663399',
+      cursor: { anchor: 4, head: 4 },
     };
     socketA.emitMessage(awarenessFrame(state));
     await settle();
@@ -194,7 +208,10 @@ describe('Yjs realtime sync and awareness protocol', () => {
     expect(room.awareness.has('client-a')).toBe(false);
     expect(room.awarenessClients.has(socketA)).toBe(false);
     expect(socketB.sent).toHaveLength(1);
-    expect(JSON.parse(new TextDecoder().decode(socketB.sent[0]!.subarray(2)))).toEqual({ clientId: 'client-a', removed: true });
+    expect(JSON.parse(new TextDecoder().decode(socketB.sent[0]!.subarray(2)))).toEqual({
+      clientId: 'client-a',
+      removed: true,
+    });
   });
 });
 
@@ -207,7 +224,9 @@ describe('Yjs document persistence', () => {
     const update = Y.encodeStateAsUpdate(source);
     await adapter.saveDoc('doc-1', update);
     expect(updateMock).toHaveBeenCalledWith({
-      where: { id: 'doc-1' }, data: { content: `yjs:v1:${Buffer.from(update).toString('base64')}` }, select: { id: true },
+      where: { id: 'doc-1' },
+      data: { content: `yjs:v1:${Buffer.from(update).toString('base64')}` },
+      select: { id: true },
     });
     source.destroy();
   });
@@ -235,7 +254,11 @@ function branchingHarness() {
   const documentVersion = {
     create: vi.fn(async ({ data }: { data: Omit<BranchRow, 'id' | 'createdAt'> }) => {
       sequence += 1;
-      const row = { ...data, id: `branch-${sequence}`, createdAt: new Date(`2026-09-${String(sequence).padStart(2, '0')}T00:00:00.000Z`) };
+      const row = {
+        ...data,
+        id: `branch-${sequence}`,
+        createdAt: new Date(`2026-09-${String(sequence).padStart(2, '0')}T00:00:00.000Z`),
+      };
       rows.set(row.id, row);
       return { id: row.id, docId: row.docId, createdAt: row.createdAt };
     }),
@@ -243,16 +266,31 @@ function branchingHarness() {
       const row = rows.get(where.id);
       return row ? { docId: row.docId, content: row.content } : null;
     }),
-    findMany: vi.fn(async () => [...rows.values()].map((row) => ({ id: row.id, docId: row.docId, content: row.content, createdAt: row.createdAt }))),
+    findMany: vi.fn(async () =>
+      [...rows.values()].map((row) => ({
+        id: row.id,
+        docId: row.docId,
+        content: row.content,
+        createdAt: row.createdAt,
+      })),
+    ),
     update: vi.fn(async ({ where, data }: { where: { id: string }; data: { content: string } }) => {
       const row = rows.get(where.id)!;
       rows.set(where.id, { ...row, content: data.content });
       return { id: row.id };
     }),
   };
-  const db = { document: { findUnique: vi.fn().mockResolvedValue({ id: 'doc-1' }) }, documentVersion };
+  const db = {
+    document: { findUnique: vi.fn().mockResolvedValue({ id: 'doc-1' }) },
+    documentVersion,
+  };
   const persistence = { saveDoc: vi.fn().mockResolvedValue(undefined) };
-  return { rows, documentVersion, persistence, service: new DocBranchingService(db as never, persistence as never) };
+  return {
+    rows,
+    documentVersion,
+    persistence,
+    service: new DocBranchingService(db as never, persistence as never),
+  };
 }
 
 function readYText(update: Uint8Array): string {
@@ -269,8 +307,18 @@ describe('document branching and three-way CRDT merge', () => {
     const trunk = new Y.Doc();
     trunk.getText('content').insert(0, 'trunk snapshot');
     const branch = await service.createBranch('doc-1', 'feature', 'user-1', trunk);
-    const stored = JSON.parse(rows.get(branch.id)!.content) as { baseState: string; state: string; branchName: string; status: string };
-    expect(branch).toMatchObject({ docId: 'doc-1', branchName: 'feature', userId: 'user-1', status: 'open' });
+    const stored = JSON.parse(rows.get(branch.id)!.content) as {
+      baseState: string;
+      state: string;
+      branchName: string;
+      status: string;
+    };
+    expect(branch).toMatchObject({
+      docId: 'doc-1',
+      branchName: 'feature',
+      userId: 'user-1',
+      status: 'open',
+    });
     expect(readYText(branch.state)).toBe('trunk snapshot');
     expect(stored.baseState).toBe(stored.state);
     expect(stored).toMatchObject({ branchName: 'feature', status: 'open' });
@@ -282,9 +330,23 @@ describe('document branching and three-way CRDT merge', () => {
     const source = new Y.Doc();
     source.getText('content').insert(0, 'state');
     const branch = await service.createBranch('doc-1', 'review', 'user-7', source);
-    rows.set('malformed', { id: 'malformed', docId: 'doc-1', title: '__branch__:broken', content: '{not-json', createdAt: new Date('2026-09-30T00:00:00.000Z') });
+    rows.set('malformed', {
+      id: 'malformed',
+      docId: 'doc-1',
+      title: '__branch__:broken',
+      content: '{not-json',
+      createdAt: new Date('2026-09-30T00:00:00.000Z'),
+    });
     const branches = await service.listBranches('doc-1');
-    expect(branches).toEqual([expect.objectContaining({ id: branch.id, docId: 'doc-1', branchName: 'review', userId: 'user-7', status: 'open' })]);
+    expect(branches).toEqual([
+      expect.objectContaining({
+        id: branch.id,
+        docId: 'doc-1',
+        branchName: 'review',
+        userId: 'user-7',
+        status: 'open',
+      }),
+    ]);
     source.destroy();
   });
 
@@ -306,7 +368,9 @@ describe('document branching and three-way CRDT merge', () => {
     expect(mergedText).toContain('base');
     expect(mergedText).toContain('branch-change');
     expect(mergedText).toContain('trunk-change');
-    expect(result.conflicts).toEqual([expect.objectContaining({ path: 'document', resolution: 'yjs-crdt' })]);
+    expect(result.conflicts).toEqual([
+      expect.objectContaining({ path: 'document', resolution: 'yjs-crdt' }),
+    ]);
     expect(persistence.saveDoc).toHaveBeenCalledWith('doc-1', result.state);
     base.destroy();
     branchDoc.destroy();
@@ -330,7 +394,11 @@ function paragraphHarness() {
       return { id: 'doc-1' };
     }),
   };
-  return { document, metadata: () => metadata, service: new ParagraphPermissionsService({ document } as never) };
+  return {
+    document,
+    metadata: () => metadata,
+    service: new ParagraphPermissionsService({ document } as never),
+  };
 }
 
 const EDITOR_A: PermissionActor = { userId: 'editor-a', roles: ['editor'] };
@@ -343,8 +411,18 @@ describe('paragraph permissions and RBAC locks', () => {
     vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
     const { metadata, service } = paragraphHarness();
     const lock = await service.lockParagraph('doc-1', 'paragraph-1', EDITOR_A, 5_000);
-    expect(lock).toEqual({ docId: 'doc-1', paragraphId: 'paragraph-1', userId: 'editor-a', role: 'editor', expiresAt: '2026-09-11T12:00:05.000Z' });
-    expect(metadata().collaboration.paragraphLocks['paragraph-1']).toMatchObject({ userId: 'editor-a', role: 'editor', expiresAt: lock.expiresAt });
+    expect(lock).toEqual({
+      docId: 'doc-1',
+      paragraphId: 'paragraph-1',
+      userId: 'editor-a',
+      role: 'editor',
+      expiresAt: '2026-09-11T12:00:05.000Z',
+    });
+    expect(metadata().collaboration.paragraphLocks['paragraph-1']).toMatchObject({
+      userId: 'editor-a',
+      role: 'editor',
+      expiresAt: lock.expiresAt,
+    });
   });
 
   it('blocks another editor from acquiring or writing a locked paragraph', async () => {
@@ -352,8 +430,13 @@ describe('paragraph permissions and RBAC locks', () => {
     vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
     const { service } = paragraphHarness();
     await service.lockParagraph('doc-1', 'paragraph-1', EDITOR_A, 30_000);
-    await expect(service.lockParagraph('doc-1', 'paragraph-1', EDITOR_B, 30_000)).rejects.toMatchObject({ statusCode: 423, code: 'PARAGRAPH_LOCKED' });
-    await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_B)).rejects.toMatchObject({ statusCode: 423, code: 'PARAGRAPH_LOCKED' });
+    await expect(
+      service.lockParagraph('doc-1', 'paragraph-1', EDITOR_B, 30_000),
+    ).rejects.toMatchObject({ statusCode: 423, code: 'PARAGRAPH_LOCKED' });
+    await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_B)).rejects.toMatchObject({
+      statusCode: 423,
+      code: 'PARAGRAPH_LOCKED',
+    });
     await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_A)).resolves.toBeUndefined();
   });
 
@@ -374,10 +457,412 @@ describe('paragraph permissions and RBAC locks', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-09-11T12:00:00.000Z'));
     const { service } = paragraphHarness();
-    await expect(service.checkPermission('doc-1', 'paragraph-1', VIEWER, 'write')).resolves.toBe(false);
-    await expect(service.assertCanWrite('doc-1', 'paragraph-1', VIEWER)).rejects.toMatchObject({ statusCode: 403, code: 'PARAGRAPH_FORBIDDEN' });
+    await expect(service.checkPermission('doc-1', 'paragraph-1', VIEWER, 'write')).resolves.toBe(
+      false,
+    );
+    await expect(service.assertCanWrite('doc-1', 'paragraph-1', VIEWER)).rejects.toMatchObject({
+      statusCode: 403,
+      code: 'PARAGRAPH_FORBIDDEN',
+    });
     await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_A)).resolves.toBeUndefined();
     await service.lockParagraph('doc-1', 'paragraph-1', EDITOR_A, 30_000);
-    await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_B)).rejects.toMatchObject({ statusCode: 423, code: 'PARAGRAPH_LOCKED' });
+    await expect(service.assertCanWrite('doc-1', 'paragraph-1', EDITOR_B)).rejects.toMatchObject({
+      statusCode: 423,
+      code: 'PARAGRAPH_LOCKED',
+    });
+  });
+});
+
+interface DocRow {
+  id: string;
+  title: string;
+  content: string;
+  userId: string;
+  metadata: Record<string, unknown>;
+  isPublic: boolean;
+  isDeleted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  versions?: any[];
+  collaborators?: any[];
+}
+
+function createDocumentsHarness(initialDocs: DocRow[] = []) {
+  const docs = new Map<string, DocRow>();
+  for (const doc of initialDocs) {
+    docs.set(doc.id, { ...doc });
+  }
+
+  const prismaMock = {
+    document: {
+      findFirst: vi.fn(async ({ where }: { where: Record<string, any> }) => {
+        for (const doc of docs.values()) {
+          if (where.id !== undefined && doc.id !== where.id) continue;
+          if (where.userId !== undefined && doc.userId !== where.userId) continue;
+          if (where.isDeleted !== undefined && doc.isDeleted !== where.isDeleted) continue;
+          return { ...doc };
+        }
+        return null;
+      }),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+        const doc = docs.get(where.id);
+        if (!doc) return null;
+        return { ...doc, versions: doc.versions || [], collaborators: doc.collaborators || [] };
+      }),
+      findMany: vi.fn(async ({ where, take, skip }: any = {}) => {
+        let results = Array.from(docs.values()).filter((doc) => {
+          if (where?.userId !== undefined && doc.userId !== where.userId) return false;
+          if (where?.isDeleted !== undefined && doc.isDeleted !== where.isDeleted) return false;
+          if (where?.title?.contains) {
+            if (!doc.title.toLowerCase().includes(where.title.contains.toLowerCase())) return false;
+          }
+          return true;
+        });
+        if (skip) results = results.slice(skip);
+        if (take) results = results.slice(0, take);
+        return results.map((d) => ({
+          ...d,
+          versions: d.versions || [],
+          collaborators: d.collaborators || [],
+        }));
+      }),
+      create: vi.fn(async ({ data }: { data: any }) => {
+        const id = data.id || `doc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const row: DocRow = {
+          id,
+          title: data.title,
+          content: data.content ?? '',
+          userId: data.userId,
+          metadata: data.metadata ?? {},
+          isPublic: Boolean(data.isPublic),
+          isDeleted: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          versions: [],
+          collaborators: [],
+        };
+        docs.set(id, row);
+        return { ...row };
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: any }) => {
+        const existing = docs.get(where.id);
+        if (!existing) throw new Error('Not found');
+        const updated = { ...existing, ...data, updatedAt: new Date() };
+        docs.set(where.id, updated);
+        return { ...updated, versions: [], collaborators: [] };
+      }),
+    },
+    documentVersion: {
+      create: vi.fn().mockResolvedValue({ id: 'ver-1' }),
+    },
+  };
+
+  return { docs, prisma: prismaMock };
+}
+
+async function buildDocumentsTestApp(prismaMock: any, userId = 'user-1') {
+  const app = Fastify();
+  app.decorate('prisma', prismaMock);
+  app.addHook('onRequest', async (request) => {
+    (request as any).auth = { userId };
+  });
+  app.setErrorHandler((error: any, request, reply) => {
+    const statusCode = error.statusCode || 500;
+    reply.status(statusCode).send({
+      success: false,
+      error: {
+        code: error.code || 'INTERNAL_ERROR',
+        message: error.message,
+      },
+    });
+  });
+  await app.register(documentRoutes, { prefix: '/documents' });
+  await app.ready();
+  return app;
+}
+
+describe('QuantDocs Nested Subpage Tree Hierarchy (Tasks N07 & N08)', () => {
+  it('creates a subpage with parentId after verifying parent exists and belongs to user', async () => {
+    const parentDoc: DocRow = {
+      id: 'doc-parent-1',
+      title: 'Parent Spec',
+      content: '# Parent Content',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const harness = createDocumentsHarness([parentDoc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    // Valid subpage creation
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      payload: {
+        title: 'Child Page 1',
+        parentId: 'doc-parent-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.title).toBe('Child Page 1');
+    expect(body.data.metadata.parentId).toBe('doc-parent-1');
+
+    // Attempting to create subpage with non-existent parentId returns 404 PARENT_DOCUMENT_NOT_FOUND
+    const failRes = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      payload: {
+        title: 'Orphan Child',
+        parentId: 'doc-nonexistent',
+      },
+    });
+
+    expect(failRes.statusCode).toBe(404);
+    const failBody = failRes.json();
+    expect(failBody.success).toBe(false);
+    expect(failBody.error.code).toBe('PARENT_DOCUMENT_NOT_FOUND');
+
+    await app.close();
+  });
+
+  it('rejects creating a subpage under another user parent document', async () => {
+    const foreignDoc: DocRow = {
+      id: 'doc-foreign-1',
+      title: 'Other User Doc',
+      content: '',
+      userId: 'user-2',
+      metadata: {},
+      isPublic: true,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const harness = createDocumentsHarness([foreignDoc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/documents',
+      payload: {
+        title: 'Hijacked Subpage',
+        parentId: 'doc-foreign-1',
+      },
+    });
+
+    expect(res.statusCode).toBe(404);
+    const body = res.json();
+    expect(body.error.code).toBe('PARENT_DOCUMENT_NOT_FOUND');
+
+    await app.close();
+  });
+
+  it('fetches document by id returning subpages and recursive breadcrumbs hierarchy up to root', async () => {
+    const rootDoc: DocRow = {
+      id: 'doc-root',
+      title: 'Company Wiki',
+      content: 'Root',
+      userId: 'user-1',
+      metadata: { parentId: null },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const middleDoc: DocRow = {
+      id: 'doc-middle',
+      title: 'Engineering',
+      content: 'Middle',
+      userId: 'user-1',
+      metadata: { parentId: 'doc-root' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const currentDoc: DocRow = {
+      id: 'doc-current',
+      title: 'Realtime CRDT',
+      content: 'Current page',
+      userId: 'user-1',
+      metadata: { parentId: 'doc-middle' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const childDocA: DocRow = {
+      id: 'doc-child-a',
+      title: 'Yjs Awareness Spec',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'doc-current' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const childDocB: DocRow = {
+      id: 'doc-child-b',
+      title: 'Postgres Compaction',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'doc-current' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const unrelatedDoc: DocRow = {
+      id: 'doc-other',
+      title: 'Marketing Plan',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'doc-root' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([
+      rootDoc,
+      middleDoc,
+      currentDoc,
+      childDocA,
+      childDocB,
+      unrelatedDoc,
+    ]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-current',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.id).toBe('doc-current');
+    expect(body.data.title).toBe('Realtime CRDT');
+
+    // Breadcrumbs should resolve ancestral chain from root to immediate parent
+    expect(body.data.breadcrumbs).toEqual([
+      { id: 'doc-root', title: 'Company Wiki' },
+      { id: 'doc-middle', title: 'Engineering' },
+    ]);
+
+    // Subpages should only contain direct children of doc-current
+    expect(body.data.subpages).toHaveLength(2);
+    const subpageIds = body.data.subpages.map((s: any) => s.id);
+    expect(subpageIds).toContain('doc-child-a');
+    expect(subpageIds).toContain('doc-child-b');
+    expect(subpageIds).not.toContain('doc-other');
+
+    await app.close();
+  });
+
+  it('queries GET /documents with parentId filter (root, null, and parentId)', async () => {
+    const top1: DocRow = {
+      id: 'top-1',
+      title: 'Top Level Doc 1',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: null },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const top2: DocRow = {
+      id: 'top-2',
+      title: 'Top Level Doc 2',
+      content: '',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const child1A: DocRow = {
+      id: 'child-1a',
+      title: 'Child of Top 1 A',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'top-1' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const child1B: DocRow = {
+      id: 'child-1b',
+      title: 'Child of Top 1 B',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'top-1' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const child2A: DocRow = {
+      id: 'child-2a',
+      title: 'Child of Top 2 A',
+      content: '',
+      userId: 'user-1',
+      metadata: { parentId: 'top-2' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([top1, top2, child1A, child1B, child2A]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    // parentId=root
+    const resRoot = await app.inject({
+      method: 'GET',
+      url: '/documents?parentId=root',
+    });
+    expect(resRoot.statusCode).toBe(200);
+    const bodyRoot = resRoot.json();
+    expect(bodyRoot.data.map((d: any) => d.id)).toEqual(['top-1', 'top-2']);
+
+    // parentId=null
+    const resNull = await app.inject({
+      method: 'GET',
+      url: '/documents?parentId=null',
+    });
+    expect(resNull.statusCode).toBe(200);
+    const bodyNull = resNull.json();
+    expect(bodyNull.data.map((d: any) => d.id)).toEqual(['top-1', 'top-2']);
+
+    // parentId=top-1
+    const resTop1 = await app.inject({
+      method: 'GET',
+      url: '/documents?parentId=top-1',
+    });
+    expect(resTop1.statusCode).toBe(200);
+    const bodyTop1 = resTop1.json();
+    expect(bodyTop1.data.map((d: any) => d.id)).toEqual(['child-1a', 'child-1b']);
+
+    // parentId=top-2
+    const resTop2 = await app.inject({
+      method: 'GET',
+      url: '/documents?parentId=top-2',
+    });
+    expect(resTop2.statusCode).toBe(200);
+    const bodyTop2 = resTop2.json();
+    expect(bodyTop2.data.map((d: any) => d.id)).toEqual(['child-2a']);
+
+    await app.close();
   });
 });

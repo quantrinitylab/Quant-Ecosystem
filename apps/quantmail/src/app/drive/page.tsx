@@ -228,6 +228,24 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   );
 }
 
+function isImageOrDocument(mimeType: string, name: string): boolean {
+  const m = (mimeType || '').toLowerCase();
+  const n = (name || '').toLowerCase();
+  return (
+    m.startsWith('image/') ||
+    m.includes('pdf') ||
+    m.includes('document') ||
+    m.includes('word') ||
+    m.includes('sheet') ||
+    m.includes('excel') ||
+    m.includes('csv') ||
+    m.includes('presentation') ||
+    m.includes('powerpoint') ||
+    m.startsWith('text/') ||
+    /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|png|jpe?g|webp|gif|svg)$/i.test(n)
+  );
+}
+
 export default function DrivePage() {
   const router = useRouter();
   const {
@@ -292,7 +310,17 @@ export default function DrivePage() {
   const [trashItems, setTrashItems] = useState<DriveItem[]>([]);
   const [receivedShares, setReceivedShares] = useState<ReceivedShare[]>([]);
   const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
+  const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleThumbnailError = useCallback((fileId: string) => {
+    setFailedThumbnails((prev) => {
+      if (prev.has(fileId)) return prev;
+      const next = new Set(prev);
+      next.add(fileId);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     fetchFiles(currentFolderId);
@@ -1470,23 +1498,37 @@ export default function DrivePage() {
                                 {/*
                                  * Card body — the thumbnail well.
                                  *
-                                 * This used to be a bordered box holding a *second*
-                                 * bordered box for the icon, inside the already-bordered
-                                 * file card: three frames stacked around one 24px glyph.
-                                 * The well is now a plain darker surface and the icon
-                                 * sits on it unframed.
+                                 * Renders the thumbnail image preview if available and valid,
+                                 * falling back to the file type icon on error or missing thumbnail.
                                  */}
-                                <div
-                                  onClick={() => setPreviewItem(file)}
-                                  className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
-                                >
-                                  <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
-                                    {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
+                                {file.thumbnailUrl &&
+                                isImageOrDocument(file.mimeType, file.name) &&
+                                !failedThumbnails.has(file.id) ? (
+                                  <div
+                                    onClick={() => setPreviewItem(file)}
+                                    className="flex h-28 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[#090A0C] p-2 transition-colors group-hover:bg-[#16181D]"
+                                  >
+                                    <img
+                                      src={file.thumbnailUrl}
+                                      alt={file.name}
+                                      loading="lazy"
+                                      className="max-h-full max-w-full rounded object-contain transition-transform duration-200 group-hover:scale-105"
+                                      onError={() => handleThumbnailError(file.id)}
+                                    />
                                   </div>
-                                  <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
-                                    {file.mimeType.split('/')[1] || 'FILE'}
-                                  </span>
-                                </div>
+                                ) : (
+                                  <div
+                                    onClick={() => setPreviewItem(file)}
+                                    className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
+                                  >
+                                    <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
+                                      {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
+                                    </div>
+                                    <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
+                                      {file.mimeType.split('/')[1] || 'FILE'}
+                                    </span>
+                                  </div>
+                                )}
 
                                 <div className="mt-3">
                                   <h4

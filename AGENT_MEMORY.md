@@ -2288,3 +2288,66 @@ graph TD
 - **5. Overall Verification**:
   - **176/176 unit tests passing 100%** across all affected test suites.
   - **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+
+### 45. Wave 15: Autonomous Swarm Parity Blitz — Git PR Reviews & Merge Gate, Docs Subpage Hierarchy & Breadcrumbs, Calendar RFC 5545 ICS Bulk Import, 25MB Attachment Limits & CSP Sandboxing, Drive Thumbnail Decryption (Tasks G11, G12, N07, N08, X04, C19, M24, M25, D17):
+
+- **1. Phase G: CodeHub & Git PR Approvals & Merge Gates (Developer 6 - Tasks G11, G12)**:
+  - **Pull Request Reviews Endpoint**:
+    - `GET /repos/:id/pulls/:number/reviews`: Reads persisted reviews with reviewer metadata (`id`, `username`, `displayName`, `avatarUrl`) ordered by `createdAt: desc`.
+    - `POST /repos/:id/pulls/:number/reviews`: Allows authenticated users to review PRs with statuses `APPROVED`, `CHANGES_REQUESTED`, `COMMENTED`. Enforces that PR authors cannot approve their own pull requests (throws HTTP 400 `SELF_APPROVAL_NOT_ALLOWED`). Restricts reviewers to repository owner or collaborators with valid RBAC permissions (throws HTTP 403 `FORBIDDEN`).
+  - **Branch Protection CRUD & Merge Gates**:
+    - Implemented `GET /repos/:id/branch-protection`, `POST /repos/:id/branch-protection` (owner/admin only with Zod validation), and `DELETE /repos/:id/branch-protection/:ruleId`.
+    - In `POST /repos/:id/pulls/:number/merge`: Enforces `protectionRule.requiredApprovals` by counting non-author `APPROVED` reviews in Prisma. Blocks merge with HTTP 403 `BRANCH_PROTECTED` if required approvals are missing.
+    - Enforces `protectionRule.requireStatusChecks` by validating latest `CiRun.status === 'SUCCESS'`. Blocks merge with HTTP 403 `BRANCH_PROTECTED` if CI checks are failing or pending.
+  - **Verification**: 71/71 tests passing in `repos.routes.test.ts`.
+
+- **2. Phase N: QuantDocs Hierarchical Subpage Tree & Breadcrumbs (Developer 5 - Tasks N07, N08)**:
+  - **Subpage Tree API**:
+    - Added `parentId` to schemas across `createDocumentSchema`, `updateDocumentSchema`, and `listDocumentsQuerySchema`.
+    - In `POST /documents`: Verifies parent exists, belongs to caller, and is active before linking. Stores `metadata.parentId`.
+    - In `GET /documents`: Supports filtering by `parentId` (`root`, `null`, or explicit document ID).
+    - In `GET /documents/:id`: Resolves direct child subpages and computes ancestral breadcrumb hierarchy chain (`[{ id, title }, ...]`) up to root with cycle protection.
+  - **Frontend Subpages & Breadcrumbs UI**:
+    - `DocumentHeader.tsx` renders clickable breadcrumbs navigating to ancestors.
+    - `drive/doc/[docId]/page.tsx` renders child Subpages grid and `+ Add subpage` button.
+  - **Verification**: 17/17 tests passing in `docs-yjs-collab.test.ts`, 4/4 passing in `drive-doc-editor.test.ts`.
+
+- **3. Phase C: QuantCalendar RFC 5545 ICS Bulk Import Engine (Developer 3 - Tasks X04, C19)**:
+  - **RFC 5545 Bulk Import Endpoints**:
+    - Mounted `POST /events/import/ics` and alias `POST /events/import` with 5MB body limit.
+    - Author RFC 5545 `.ics` parser: unfolds folded continuation lines, extracts `BEGIN:VEVENT ... END:VEVENT`, unescapes escaped delimiters (`\,`, `\;`, `\\`, `\n`), parses date-times across ISO UTC, `TZID` timezones converted to UTC, and `VALUE=DATE` all-day events, calculates end times from `DURATION` or `DTEND`, normalizes `RRULE` preserving `EXDATE`, and extracts external `UID`.
+    - Auto-provisions Primary calendar if missing.
+    - Deduplicates against existing user events by UID or `(title, startTime)` for idempotent repeat imports, executing bulk creation atomically via `prisma.$transaction`.
+  - **Verification**: 18/18 tests passing in `calendar-parity.routes.test.ts`.
+
+- **4. Phase M: QuantMail Attachment Size Limits & CSP Sandboxed Downloads (Developer 1 - Tasks M24, M25)**:
+  - **Server-Side Attachment Size Guard**:
+    - In `POST /attachments/upload-url`: Enforces 25MB upper bound check, rejecting payloads > 25MB with HTTP 413 `ATTACHMENT_TOO_LARGE`.
+  - **Secure Download Endpoint**:
+    - Implemented `GET /attachments/:id/download` with ownership check (HTTP 403 `FORBIDDEN`), `sanitizeFilename` stripping CRLF, quotes, and path traversal sequences (`../`).
+    - Enforces defensive HTTP security headers: `Content-Security-Policy: default-src 'none'; sandbox`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`.
+    - Forces `Content-Type: application/octet-stream` for SVG files to neutralize stored XSS attacks. Registered download route in `routes-config.ts`.
+  - **Verification**: 27/27 tests in `attachment.service.test.ts`, 32/32 tests in `phase-r-m.routes.test.ts`.
+
+- **5. Phase D: QuantDrive Thumbnail Decryption & Badging (Developer 4 - Task D17)**:
+  - **Thumbnail Generation Endpoint**:
+    - Implemented `GET /drive/files/:id/thumbnail` with authentication and file access checks.
+    - Decrypts plaintext image buffer via `checkedPlaintext(file)` for JPEG, PNG, WebP, and GIF files, serving correct content-type.
+    - Generates dynamic inline SVG badges for non-image files.
+  - **Frontend Thumbnail Grid**:
+    - Updated `src/app/drive/page.tsx` grid view to render live image thumbnails with graceful fallback to file type icons.
+  - **Verification**: 14/14 tests passing in `drive-deep-parity.routes.test.ts`.
+
+- **6. Overall System Parity Scorecard Progression (Post-Wave 15)**:
+  - **Baseline Parity (Original Audit)**: 23.57%.
+  - **Post-Wave 14 Parity**: 69.50%.
+  - **Post-Wave 15 Parity (Current Verified State)**: **~75.43%**:
+    - QuantDocs: 4.00% ➔ **68.00%**
+    - Quant Mobile: 12.00% ➔ **62.00%**
+    - QuantCalendar: 14.29% ➔ **78.50%**
+    - QuantDrive: 14.50% ➔ **75.00%**
+    - QuantGit: 22.25% ➔ **82.00%**
+    - QuantMail: 48.00% ➔ **86.50%**
+    - QuantContacts: 50.00% ➔ **76.00%**
+    - **Weighted Average Ecosystem Parity**: $\approx \mathbf{75.43\%}$.
+  - **Quality Gates**: **183/183 tests passing 100% across all 7 test suites in 29.31s**. **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).

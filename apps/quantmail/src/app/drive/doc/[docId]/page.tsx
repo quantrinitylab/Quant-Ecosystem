@@ -8,9 +8,11 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppShell } from '../../../../components/AppShell';
 import { AppSidebar } from '../../../../components/AppSidebar';
 import { showToast } from '../../../../components/InboxToast';
+import { browserApiRequest } from '../../../../services/browser-api-request';
 import { useCollabDoc } from './useCollabDoc';
 import { DocumentHeader } from './DocumentHeader';
 import { BlockEditor } from './BlockEditor';
@@ -37,10 +39,39 @@ export default function DocumentPage() {
     collaborators,
     isLoading,
     broadcastCursor,
+    breadcrumbs,
+    subpages,
   } = useCollabDoc(docId);
 
   const [fullWidth, setFullWidth] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
+  const [isCreatingSubpage, setIsCreatingSubpage] = useState<boolean>(false);
+
+  const handleAddSubpage = useCallback(async () => {
+    setIsCreatingSubpage(true);
+    try {
+      const res = await browserApiRequest('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Untitled',
+          parentId: docId,
+        }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as { success: boolean; data: { id: string } };
+        if (json.data?.id) {
+          showToast({ text: 'Subpage created', type: 'success', subject: 'doc-subpage' });
+          router.push(`/drive/doc/${json.data.id}`);
+          return;
+        }
+      }
+      showToast({ text: 'Failed to create subpage', type: 'error', subject: 'doc-subpage' });
+    } catch {
+      showToast({ text: 'Failed to create subpage', type: 'error', subject: 'doc-subpage' });
+    } finally {
+      setIsCreatingSubpage(false);
+    }
+  }, [docId, router]);
 
   // Compute total word count
   const wordCount = useMemo(() => {
@@ -148,6 +179,7 @@ export default function DocumentPage() {
           fullWidth={fullWidth}
           onToggleFullWidth={() => setFullWidth(!fullWidth)}
           wordCount={wordCount}
+          breadcrumbs={breadcrumbs}
         />
 
         {/* Scrollable Document Workspace */}
@@ -210,6 +242,57 @@ export default function DocumentPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full bg-transparent border-none text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#F0F6FC] placeholder-[#30363D] focus:outline-none focus:ring-0 leading-tight mb-4"
                 />
+
+                {/* Subpages Section */}
+                <div className="mt-2 mb-6 pt-3 border-t border-[#21262D]">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#8B949E] uppercase tracking-wider">
+                      <svg
+                        className="w-3.5 h-3.5 text-[#8B949E]"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span>Subpages ({subpages.length})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddSubpage}
+                      disabled={isCreatingSubpage}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[#161B22] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#FF8C42] border border-[#30363D] transition-colors"
+                    >
+                      <span>+ Add subpage</span>
+                    </button>
+                  </div>
+
+                  {subpages.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      {subpages.map((subpage) => (
+                        <Link
+                          key={subpage.id}
+                          href={`/drive/doc/${subpage.id}`}
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#161B22]/70 border border-[#30363D]/60 hover:border-[#FF8C42]/60 hover:bg-[#161B22] transition-all group"
+                        >
+                          <span className="text-base shrink-0">
+                            {(subpage.metadata as any)?.icon || '📄'}
+                          </span>
+                          <span className="text-xs font-medium text-[#C9D1D9] group-hover:text-[#F0F6FC] truncate">
+                            {subpage.title || 'Untitled'}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-[#6E7681] italic">No subpages.</div>
+                  )}
+                </div>
               </div>
 
               {/* Core Block Editor Workspace */}

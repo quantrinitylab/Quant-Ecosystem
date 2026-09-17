@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import Link from 'next/link';
-import type { SyncStatus, DocumentCollaborator } from './types';
+import type { SyncStatus, DocumentCollaborator, DocumentBreadcrumb } from './types';
 import { ShareModal } from './ShareModal';
 
 interface DocumentHeaderProps {
@@ -24,6 +24,7 @@ interface DocumentHeaderProps {
   fullWidth?: boolean;
   onToggleFullWidth?: () => void;
   wordCount?: number;
+  breadcrumbs?: DocumentBreadcrumb[];
 }
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
@@ -42,6 +43,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   fullWidth,
   onToggleFullWidth,
   wordCount = 0,
+  breadcrumbs = [],
 }) => {
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [showShareModal, setShowShareModal] = useState<boolean>(false);
@@ -61,11 +63,11 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   return (
     <>
       <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between border-b border-[#30363D] bg-[#0D1117]/95 px-4 backdrop-blur-md">
-        {/* Left Cluster: Back to Drive & Breadcrumb */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* Left Cluster: Back to Drive & Breadcrumbs */}
+        <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/drive"
-            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] transition-colors shrink-0"
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] transition-colors shrink-0"
             title="Back to QuantDrive"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,14 +78,31 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 d="M10 19l-7-7m0 0l7-7m-7 7h18"
               />
             </svg>
-            <span className="hidden sm:inline">← Back to Drive</span>
+            <span className="hidden sm:inline">Drive</span>
             <span className="sm:hidden">Drive</span>
           </Link>
 
-          <span className="text-[#30363D] select-none">/</span>
+          <span className="text-[#30363D] select-none text-xs">/</span>
+
+          {breadcrumbs && breadcrumbs.length > 0 && (
+            <>
+              {breadcrumbs.map((crumb) => (
+                <React.Fragment key={crumb.id}>
+                  <Link
+                    href={`/drive/doc/${crumb.id}`}
+                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
+                    title={crumb.title || 'Untitled'}
+                  >
+                    {crumb.title || 'Untitled'}
+                  </Link>
+                  <span className="text-[#30363D] select-none text-xs">/</span>
+                </React.Fragment>
+              ))}
+            </>
+          )}
 
           {/* Editable Document Title */}
-          <div className="min-w-0 max-w-[180px] sm:max-w-xs md:max-w-md">
+          <div className="min-w-0 max-w-[140px] sm:max-w-xs md:max-w-md">
             {isEditingTitle ? (
               <input
                 type="text"

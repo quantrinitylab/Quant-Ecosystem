@@ -1,7 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { AttachmentService } from '../services/attachment.service';
+import { AttachmentService, sanitizeFilename } from '../services/attachment.service';
+
+export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
+
+function requireUserId(request: unknown): string {
+  const userId = (request as { auth?: { userId?: string } }).auth?.userId;
+  if (!userId) {
+    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+  }
+  return userId;
+}
 
 const uploadUrlSchema = z.object({
   filename: z.string().min(1).max(255),
@@ -55,8 +65,15 @@ function hasBlockedExtension(filename: string): boolean {
   return BLOCKED_EXTENSIONS.has(ext);
 }
 
-export default async function attachmentRoutes(fastify: FastifyInstance) {
-  const service = new AttachmentService();
+export interface AttachmentRoutesOptions {
+  service?: AttachmentService;
+}
+
+export default async function attachmentRoutes(
+  fastify: FastifyInstance,
+  options?: AttachmentRoutesOptions,
+) {
+  const service = options?.service ?? new AttachmentService();
 
   fastify.post('/upload-url', async (request, reply) => {
     const parseResult = uploadUrlSchema.safeParse(request.body);
@@ -68,12 +85,16 @@ export default async function attachmentRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) {
-      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    }
-
+    const userId = requireUserId(request);
     const { filename, contentType, size } = parseResult.data;
+
+    if (size > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw createAppError(
+        'Attachment exceeds maximum allowed size of 25MB',
+        413,
+        'ATTACHMENT_TOO_LARGE',
+      );
+    }
 
     if (hasBlockedExtension(filename)) {
       throw createAppError('File type not allowed for security reasons', 400, 'BLOCKED_FILE_TYPE');
@@ -92,22 +113,48 @@ export default async function attachmentRoutes(fastify: FastifyInstance) {
     return reply.status(200).send({ success: true, data: result });
   });
 
-  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) {
-      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+  fastify.get<{ Params: { id: string } }>('/:id/download', async (request, reply) => {
+    const userId = requireUserId(request);
+    const attachment = await service.getAttachment(request.params.id, userId);
+
+    if (!attachment || attachment.userId !== userId) {
+      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
     }
 
+    const safeFilename = sanitizeFilename(attachment.filename);
+
+    // Enforce Content-Type: application/octet-stream for SVG files to neutralize inline scripts
+    const isSvg =
+      attachment.contentType.toLowerCase() === 'image/svg+xml' ||
+      attachment.contentType.toLowerCase().includes('svg') ||
+      safeFilename.toLowerCase().endsWith('.svg');
+
+    const contentType = isSvg
+      ? 'application/octet-stream'
+      : attachment.contentType || 'application/octet-stream';
+
+    const content = attachment.content ?? Buffer.from('');
+
+    return reply
+      .header('Content-Type', contentType)
+      .header('Content-Disposition', `attachment; filename="${safeFilename}"`)
+      .header('Content-Security-Policy', "default-src 'none'; sandbox")
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('X-Frame-Options', 'DENY')
+      .send(content);
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    const userId = requireUserId(request);
     const metadata = await service.getAttachment(request.params.id, userId);
+    if (!metadata || metadata.userId !== userId) {
+      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
+    }
     return reply.send({ success: true, data: metadata });
   });
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) {
-      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    }
-
+    const userId = requireUserId(request);
     const result = await service.deleteAttachment(request.params.id, userId);
     return reply.send({ success: true, data: result });
   });

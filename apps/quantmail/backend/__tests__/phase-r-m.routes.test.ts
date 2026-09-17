@@ -9,6 +9,8 @@ import {
   type SmtpTransport,
 } from '../services/delivery-worker.service';
 import emailsRoutes from '../routes/emails';
+import attachmentRoutes from '../routes/attachments';
+import { AttachmentService } from '../services/attachment.service';
 import * as sesSender from '../lib/ses-sender';
 
 // Mock SES sender module
@@ -239,6 +241,10 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       const attachmentItem = resolveRoute('attachments/att-456');
       expect(attachmentItem).toBeDefined();
       expect(attachmentItem?.methods).toEqual(['GET', 'DELETE']);
+
+      const attachmentDownload = resolveRoute('attachments/att-456/download');
+      expect(attachmentDownload).toBeDefined();
+      expect(attachmentDownload?.methods).toEqual(['GET']);
 
       // Settings Tokens (PATs)
       const settingsTokensRoot = resolveRoute('settings/tokens');
@@ -1024,6 +1030,104 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       // M-F05: Verify that the orphan draft was cleaned up via prisma.email.delete
       expect(prisma.email.delete).toHaveBeenCalled();
 
+      await app.close();
+    });
+  });
+
+  describe('Phase M24 & M25: QuantMail Attachment Size Limits, Strict MIME & CSP Sandboxing', () => {
+    let service: AttachmentService;
+
+    beforeEach(() => {
+      service = new AttachmentService();
+    });
+
+    async function buildAttachmentApp(
+      authenticatedUserId: string | null = 'user-1',
+      svc: AttachmentService = service,
+    ) {
+      const app = Fastify();
+      await app.register(errorHandlerPlugin);
+      app.addHook('onRequest', async (req) => {
+        (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
+      });
+      await app.register(attachmentRoutes, { prefix: '/attachments', service: svc });
+      return app;
+    }
+
+    it('M24: POST /attachments/upload-url rejects files exceeding 25MB with 413 ATTACHMENT_TOO_LARGE', async () => {
+      const app = await buildAttachmentApp('user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/attachments/upload-url',
+        payload: {
+          filename: 'oversized.pdf',
+          contentType: 'application/pdf',
+          size: 25 * 1024 * 1024 + 1, // 25MB + 1 byte
+        },
+      });
+
+      expect(res.statusCode).toBe(413);
+      expect(res.json().error.code).toBe('ATTACHMENT_TOO_LARGE');
+      expect(res.json().error.message).toContain('Attachment exceeds maximum allowed size of 25MB');
+      await app.close();
+    });
+
+    it('M25: GET /attachments/:id/download serves correct CSP sandbox and Content-Disposition headers', async () => {
+      const app = await buildAttachmentApp('user-1');
+      const upload = await service.generateUploadUrl(
+        'user-1',
+        'document.pdf',
+        'application/pdf',
+        1024,
+      );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/attachments/${upload.attachmentId}/download`,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-disposition']).toBe('attachment; filename="document.pdf"');
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['x-frame-options']).toBe('DENY');
+      await app.close();
+    });
+
+    it('M25: GET /attachments/:id/download enforces Content-Type application/octet-stream and CSP sandbox for SVG files', async () => {
+      const app = await buildAttachmentApp('user-1');
+      const upload = await service.generateUploadUrl('user-1', 'logo.svg', 'image/svg+xml', 1024);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/attachments/${upload.attachmentId}/download`,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toBe('application/octet-stream');
+      expect(res.headers['content-disposition']).toBe('attachment; filename="logo.svg"');
+      expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+      expect(res.headers['x-frame-options']).toBe('DENY');
+      await app.close();
+    });
+
+    it('M25: GET /attachments/:id/download validates attachment ownership and rejects unauthorized user with 403', async () => {
+      const app = await buildAttachmentApp('user-attacker');
+      const upload = await service.generateUploadUrl(
+        'user-owner',
+        'confidential.pdf',
+        'application/pdf',
+        1024,
+      );
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/attachments/${upload.attachmentId}/download`,
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.json().error.code).toBe('FORBIDDEN');
       await app.close();
     });
   });

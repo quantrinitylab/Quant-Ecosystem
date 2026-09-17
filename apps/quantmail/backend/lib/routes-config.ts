@@ -112,6 +112,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // attachmentRoutes registered with prefix '/attachments' in backend/app.ts
   { pattern: /^attachments\/upload-url$/, methods: ['POST'] },
   { pattern: /^attachments\/[^/]+$/, methods: ['GET', 'DELETE'] },
+  { pattern: /^attachments\/[^/]+\/download$/, methods: ['GET'] },
 
   // ── Settings Tokens / PATs (Task R11) ──────────────────────────────────────
   // settingsTokenRoutes registered with NO prefix in backend/app.ts
