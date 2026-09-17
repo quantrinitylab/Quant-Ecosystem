@@ -65,7 +65,7 @@ export interface UseDriveReturn {
   quota: StorageQuota;
   currentFolderId: string | null;
   breadcrumbs: { id: string | null; name: string }[];
-  fetchFiles: (folderId?: string | null) => Promise<void>;
+  fetchFiles: (folderId?: string | null, filter?: string | null) => Promise<void>;
   uploadFiles: (files: File[]) => Promise<void>;
   createFolder: (name: string, parentId?: string | null) => Promise<DriveFile>;
   deleteFiles: (fileIds: string[]) => Promise<void>;
@@ -127,7 +127,7 @@ export function useDrive(): UseDriveReturn {
   const fetchSeqRef = useRef<number>(0);
 
   const fetchFiles = useCallback(
-    async (folderId?: string | null) => {
+    async (folderId?: string | null, filter?: string | null) => {
       const seq = ++fetchSeqRef.current;
       setLoading(true);
       setError(null);
@@ -135,6 +135,7 @@ export function useDrive(): UseDriveReturn {
       try {
         const params = new URLSearchParams();
         if (targetFolder) params.set('folderId', targetFolder);
+        if (filter && filter !== 'all') params.set('filter', filter);
         const response = await apiRequest(`/api/drive/files?${params}`);
         if (!response.ok) throw new Error('Failed to fetch files');
         const data = await response.json();

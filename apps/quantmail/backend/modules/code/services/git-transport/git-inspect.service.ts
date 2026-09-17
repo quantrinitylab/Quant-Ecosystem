@@ -224,4 +224,66 @@ export class GitInspectService {
     });
     return { clean: !stdout.includes('<<<<<<<'), output: stdout };
   }
+
+  async searchCode(
+    owner: string,
+    name: string,
+    ref: string,
+    query: string,
+    pathFilter?: string,
+  ): Promise<GitCodeSearchMatch[]> {
+    validateRef(ref);
+    if (!(await this.repoStorage.repoExists(owner, name))) return [];
+
+    const repoPath = this.repoStorage.getRepoPath(owner, name);
+    const args = ['grep', '-n', '-I', '--ignore-case', '-m', '100', '-e', query, ref];
+    if (pathFilter) {
+      args.push('--', pathFilter);
+    }
+
+    try {
+      const { stdout } = await execFileAsync('git', args, {
+        cwd: repoPath,
+        maxBuffer: MAX_GIT_OUTPUT_BUFFER,
+        env: GIT_CHILD_ENV,
+      });
+
+      if (!stdout.trim()) return [];
+      const matches: GitCodeSearchMatch[] = [];
+      const lines = stdout.split('\n');
+      for (const rawLine of lines) {
+        if (!rawLine.trim()) continue;
+        let stripped = rawLine;
+        if (stripped.startsWith(`${ref}:`)) {
+          stripped = stripped.slice(ref.length + 1);
+        }
+        const firstColon = stripped.indexOf(':');
+        if (firstColon === -1) continue;
+        const secondColon = stripped.indexOf(':', firstColon + 1);
+        if (secondColon === -1) continue;
+
+        const filePath = stripped.slice(0, firstColon);
+        const lineNumStr = stripped.slice(firstColon + 1, secondColon);
+        const lineContent = stripped.slice(secondColon + 1);
+        const lineNumber = parseInt(lineNumStr, 10);
+        if (isNaN(lineNumber)) continue;
+
+        matches.push({
+          path: filePath,
+          lineNumber,
+          lineContent,
+        });
+        if (matches.length >= 100) break;
+      }
+      return matches;
+    } catch {
+      return [];
+    }
+  }
+}
+
+export interface GitCodeSearchMatch {
+  path: string;
+  lineNumber: number;
+  lineContent: string;
 }

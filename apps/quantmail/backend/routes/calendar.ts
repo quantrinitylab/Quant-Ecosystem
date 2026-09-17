@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { CalendarService } from '../services/calendar.service';
@@ -911,78 +911,108 @@ export default async function calendarRoutes(
     }),
   );
 
-  fastify.get<{ Querystring: { start?: string; end?: string; calendarId?: string } }>(
-    '/events',
-    async (request, reply) => {
-      const userId = requireUserId(request);
-      const { start, end, calendarId } = request.query;
-      if (start && end) {
-        const startDate = toDate(start, 'start');
-        const requestedEnd = toDate(end, 'end');
-        if (requestedEnd < startDate)
-          throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
-        if (requestedEnd.getTime() - startDate.getTime() > MAX_EVENT_WINDOW_MS) {
-          throw createAppError(
-            'Event query window cannot exceed 365 days',
-            400,
-            'WINDOW_TOO_LARGE',
-          );
-        }
-        const endDate = requestedEnd;
-        const rows = (await getPrisma(fastify).event.findMany({
-          where: {
-            userId,
-            recurrenceRule: null,
-            startTime: { gte: startDate, lte: endDate },
-            ...(calendarId ? { calendarId } : {}),
-          },
-          orderBy: { startTime: 'asc' },
-          take: 1000,
-        })) as EventRow[];
-        const recurringRows = (await getPrisma(fastify).event.findMany({
-          where: {
-            userId,
-            recurrenceRule: { not: null },
-            startTime: { lte: endDate },
-            ...(calendarId ? { calendarId } : {}),
-          },
-          take: 200,
-        })) as EventRow[];
-        const expandedDtos = recurringRows.flatMap((row) => {
-          try {
-            return recurringService
-              .expandOccurrences(toCalendarEvent(row), startDate, endDate)
-              .filter(
-                (occurrence) => occurrence.startTime <= endDate && occurrence.endTime >= startDate,
-              )
-              .map(toEventDto);
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn(`Unable to expand recurring calendar event ${row.id}`, error);
-            return [];
-          }
-        });
-        const merged = [...rows.map(toEventDto), ...expandedDtos];
-        const data = [...new Map(merged.map((event) => [event.id, event])).values()].sort(
-          (left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime(),
-        );
-        return reply.send({ success: true, data });
+  fastify.get<{
+    Querystring: {
+      start?: string;
+      end?: string;
+      calendarId?: string;
+      cursor?: string;
+      limit?: string | number;
+    };
+  }>('/events', async (request, reply) => {
+    const userId = requireUserId(request);
+    const { start, end, calendarId, cursor } = request.query;
+    if (start && end && !cursor && request.query.limit === undefined) {
+      const startDate = toDate(start, 'start');
+      const requestedEnd = toDate(end, 'end');
+      if (requestedEnd < startDate)
+        throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+      if (requestedEnd.getTime() - startDate.getTime() > MAX_EVENT_WINDOW_MS) {
+        throw createAppError('Event query window cannot exceed 365 days', 400, 'WINDOW_TOO_LARGE');
       }
-      const where: Record<string, unknown> = { userId };
-      if (calendarId) where.calendarId = calendarId;
-      if (start || end)
-        where.startTime = {
-          ...(start ? { gte: toDate(start, 'start') } : {}),
-          ...(end ? { lte: toDate(end, 'end') } : {}),
-        };
+      const endDate = requestedEnd;
       const rows = (await getPrisma(fastify).event.findMany({
-        where,
+        where: {
+          userId,
+          recurrenceRule: null,
+          startTime: { gte: startDate, lte: endDate },
+          ...(calendarId ? { calendarId } : {}),
+        },
         orderBy: { startTime: 'asc' },
         take: 1000,
       })) as EventRow[];
-      return reply.send({ success: true, data: rows.map(toEventDto) });
-    },
-  );
+      const recurringRows = (await getPrisma(fastify).event.findMany({
+        where: {
+          userId,
+          recurrenceRule: { not: null },
+          startTime: { lte: endDate },
+          ...(calendarId ? { calendarId } : {}),
+        },
+        take: 200,
+      })) as EventRow[];
+      const expandedDtos = recurringRows.flatMap((row) => {
+        try {
+          return recurringService
+            .expandOccurrences(toCalendarEvent(row), startDate, endDate)
+            .filter(
+              (occurrence) => occurrence.startTime <= endDate && occurrence.endTime >= startDate,
+            )
+            .map(toEventDto);
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn(`Unable to expand recurring calendar event ${row.id}`, error);
+          return [];
+        }
+      });
+      const merged = [...rows.map(toEventDto), ...expandedDtos];
+      const data = [...new Map(merged.map((event) => [event.id, event])).values()].sort(
+        (left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime(),
+      );
+      return reply.send({ success: true, data });
+    }
+
+    const limit = Math.min(250, Math.max(1, Number(request.query.limit) || 50));
+    const prisma = getPrisma(fastify);
+    const where: Record<string, unknown> = { userId };
+    if (calendarId) where.calendarId = calendarId;
+    if (start || end)
+      where.startTime = {
+        ...(start ? { gte: toDate(start, 'start') } : {}),
+        ...(end ? { lte: toDate(end, 'end') } : {}),
+      };
+
+    const queryArgs: Record<string, unknown> = {
+      where,
+      orderBy: { startTime: 'asc' },
+      take: limit + 1,
+    };
+    if (cursor) {
+      queryArgs.cursor = { id: cursor };
+      queryArgs.skip = 1;
+    }
+
+    const rawRows = (await prisma.event.findMany(queryArgs)) as EventRow[];
+    const hasMore = rawRows.length > limit;
+    const items = hasMore ? rawRows.slice(0, limit) : rawRows;
+    const nextCursor = hasMore && items.length > 0 ? items[items.length - 1]!.id : null;
+
+    let totalCount: number;
+    if (typeof prisma.event.count === 'function') {
+      totalCount = await prisma.event.count({
+        where: { userId, ...(calendarId ? { calendarId } : {}) },
+      });
+    } else {
+      totalCount = items.length;
+    }
+
+    return reply.send({
+      success: true,
+      data: items.map(toEventDto),
+      nextCursor,
+      hasMore,
+      totalCount,
+    });
+  });
 
   fastify.get<{
     Querystring: {
@@ -1983,64 +2013,58 @@ export default async function calendarRoutes(
       }),
     });
   });
-  fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', async (request, reply) =>
-    reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) }),
-  );
-  fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', async (request, reply) =>
-    reply.send({ success: true, data: await bookingService().getBookingLink(request.params.slug) }),
-  );
+  const handleGetBookingLink = async (
+    request: FastifyRequest<{ Params: { slug: string } }>,
+    reply: FastifyReply,
+  ) => {
+    return reply.send({
+      success: true,
+      data: await bookingService().getBookingLink(request.params.slug),
+    });
+  };
+
+  const handleGetBookingSlots = async (
+    request: FastifyRequest<{ Params: { slug: string }; Querystring: { date?: string } }>,
+    reply: FastifyReply,
+  ) => {
+    if (!request.query.date) {
+      throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
+    }
+    return reply.send({
+      success: true,
+      data: await bookingService().getAvailableSlots(
+        request.params.slug,
+        toDate(request.query.date, 'date'),
+      ),
+    });
+  };
+
+  const handlePostBooking = async (
+    request: FastifyRequest<{ Params: { slug: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const parsed = confirmBookingSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const data = await bookingService().confirmBooking(
+      request.params.slug,
+      toDate(parsed.data.slot, 'slot'),
+      { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
+    );
+    return reply.status(201).send({ success: true, data });
+  };
+
+  fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', handleGetBookingLink);
+  fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', handleGetBookingLink);
+
   fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
     '/booking/links/:slug/slots',
-    async (request, reply) => {
-      if (!request.query.date)
-        throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
-      return reply.send({
-        success: true,
-        data: await bookingService().getAvailableSlots(
-          request.params.slug,
-          toDate(request.query.date, 'date'),
-        ),
-      });
-    },
+    handleGetBookingSlots,
   );
   fastify.get<{ Params: { slug: string }; Querystring: { date?: string } }>(
     '/calendar/booking/:slug/slots',
-    async (request, reply) => {
-      if (!request.query.date)
-        throw createAppError('Date query parameter is required', 400, 'VALIDATION_FAILED');
-      return reply.send({
-        success: true,
-        data: await bookingService().getAvailableSlots(
-          request.params.slug,
-          toDate(request.query.date, 'date'),
-        ),
-      });
-    },
+    handleGetBookingSlots,
   );
-  fastify.post<{ Params: { slug: string } }>(
-    '/booking/links/:slug/book',
-    async (request, reply) => {
-      const parsed = confirmBookingSchema.safeParse(request.body);
-      if (!parsed.success) throw parsed.error;
-      const data = await bookingService().confirmBooking(
-        request.params.slug,
-        toDate(parsed.data.slot, 'slot'),
-        { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
-      );
-      return reply.status(201).send({ success: true, data });
-    },
-  );
-  fastify.post<{ Params: { slug: string } }>(
-    '/calendar/booking/:slug/book',
-    async (request, reply) => {
-      const parsed = confirmBookingSchema.safeParse(request.body);
-      if (!parsed.success) throw parsed.error;
-      const data = await bookingService().confirmBooking(
-        request.params.slug,
-        toDate(parsed.data.slot, 'slot'),
-        { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
-      );
-      return reply.status(201).send({ success: true, data });
-    },
-  );
+
+  fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/book', handlePostBooking);
+  fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/book', handlePostBooking);
 }

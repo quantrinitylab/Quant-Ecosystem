@@ -46,12 +46,187 @@ const listDocumentsQuerySchema = z.object({
   parentId: z.string().nullable().optional(),
 });
 
+const exportQuerySchema = z.object({
+  format: z.enum(['md', 'markdown', 'html', 'json', 'txt']).default('md'),
+});
+
 const documentParamsSchema = z.object({
   id: z.string().min(1),
 });
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatInline(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
+}
+
+function stripHtml(str: string): string {
+  return str
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+function htmlToMarkdown(html: string): string {
+  return html
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '# $1\n\n')
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '## $1\n\n')
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '### $1\n\n')
+    .replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '#### $1\n\n')
+    .replace(/<h5[^>]*>([\s\S]*?)<\/h5>/gi, '##### $1\n\n')
+    .replace(/<h6[^>]*>([\s\S]*?)<\/h6>/gi, '###### $1\n\n')
+    .replace(/<pre[^>]*><code[^>]*>([\s\S]*?)<\/code><\/pre>/gi, '```\n$1\n```\n\n')
+    .replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`')
+    .replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, '> $1\n\n')
+    .replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**')
+    .replace(/<b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**')
+    .replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*')
+    .replace(/<i[^>]*>([\s\S]*?)<\/i>/gi, '*$1*')
+    .replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n')
+    .replace(/<ul[^>]*>([\s\S]*?)<\/ul>/gi, '$1\n')
+    .replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, '$1\n')
+    .replace(/<p[^>]*>([\s\S]*?)<\/p>/gi, '$1\n\n')
+    .replace(/<hr\s*\/?>/gi, '\n---\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function markdownToHtml(md: string): string {
+  if (/<(p|h[1-6]|ul|ol|li|blockquote|div|table|pre)[^>]*>/i.test(md)) {
+    return md;
+  }
+  const lines = md.split('\n');
+  const htmlLines: string[] = [];
+  let inCodeBlock = false;
+  let inList = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (line.startsWith('```')) {
+      if (!inCodeBlock) {
+        if (inList) {
+          htmlLines.push('</ul>');
+          inList = false;
+        }
+        htmlLines.push('<pre><code>');
+        inCodeBlock = true;
+      } else {
+        htmlLines.push('</code></pre>');
+        inCodeBlock = false;
+      }
+      continue;
+    }
+    if (inCodeBlock) {
+      htmlLines.push(escapeHtml(rawLine));
+      continue;
+    }
+
+    if (line.startsWith('# ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h1>${formatInline(line.slice(2))}</h1>`);
+    } else if (line.startsWith('## ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h2>${formatInline(line.slice(3))}</h2>`);
+    } else if (line.startsWith('### ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<h3>${formatInline(line.slice(4))}</h3>`);
+    } else if (line.startsWith('> ')) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<blockquote>${formatInline(line.slice(2))}</blockquote>`);
+    } else if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (!inList) {
+        htmlLines.push('<ul>');
+        inList = true;
+      }
+      htmlLines.push(`<li>${formatInline(line.slice(2))}</li>`);
+    } else if (line === '---') {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push('<hr />');
+    } else if (line.trim().length === 0) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+    } else {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<p>${formatInline(line)}</p>`);
+    }
+  }
+  if (inList) htmlLines.push('</ul>');
+  if (inCodeBlock) htmlLines.push('</code></pre>');
+
+  return htmlLines.join('\n');
+}
+
+function extractTextFromTipTap(node: any): string {
+  if (!node) return '';
+  if (node.text) return node.text;
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractTextFromTipTap).join('\n');
+  }
+  return '';
+}
+
+function parseContentIfJson(content: string): { isJson: boolean; text?: string; json?: any } {
+  const trimmed = content.trim();
+  if (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed?.type === 'doc' && Array.isArray(parsed?.content)) {
+        const extractedText = extractTextFromTipTap(parsed);
+        return { isJson: true, text: extractedText, json: parsed };
+      }
+      return { isJson: true, json: parsed };
+    } catch {
+      return { isJson: false };
+    }
+  }
+  return { isJson: false };
+}
+
 export default async function documentRoutes(fastify: FastifyInstance) {
-  // GET /documents — Lists documents owned by user (where: { userId, isDeleted: false }) with sorting, search, and parentId filtering
+  // GET /documents — Lists documents owned by user (where: { userId, isDeleted: false }) with sorting, search across title & content, and parentId filtering
   fastify.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
@@ -64,10 +239,10 @@ export default async function documentRoutes(fastify: FastifyInstance) {
     };
 
     if (search && search.trim()) {
-      where.title = {
-        contains: search.trim(),
-        mode: 'insensitive',
-      };
+      where.OR = [
+        { title: { contains: search.trim(), mode: 'insensitive' } },
+        { content: { contains: search.trim(), mode: 'insensitive' } },
+      ];
     }
 
     let orderByField = query.sortBy ?? 'updatedAt';
@@ -108,6 +283,15 @@ export default async function documentRoutes(fastify: FastifyInstance) {
           return pid === query.parentId;
         });
       }
+    }
+
+    if (search && search.trim()) {
+      const term = search.trim().toLowerCase();
+      documents = documents.filter((doc: any) => {
+        const titleMatch = (doc.title || '').toLowerCase().includes(term);
+        const contentMatch = (doc.content || '').toLowerCase().includes(term);
+        return titleMatch || contentMatch;
+      });
     }
 
     return reply.send({ success: true, data: documents });
@@ -232,6 +416,97 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         breadcrumbs,
       },
     });
+  });
+
+  // GET /documents/:id/export — Exports document to specified format (md, html, json, txt)
+  fastify.get<{ Params: { id: string } }>('/:id/export', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+    const { format } = exportQuerySchema.parse(request.query ?? {});
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isCollaborator = document.collaborators?.some(
+        (c: { userId: string; role?: string }) => c.userId === userId,
+      );
+      if (!isCollaborator && !document.isPublic) {
+        throw createAppError('Forbidden: not authorized to access this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    const safeFileName = (document.title || 'Untitled').replace(/[^a-zA-Z0-9_-]/g, '_');
+    let ext = 'md';
+    let contentType = 'text/markdown; charset=utf-8';
+    let exportedContent = '';
+
+    const contentStr = document.content ?? '';
+    const jsonInfo = parseContentIfJson(contentStr);
+
+    switch (format) {
+      case 'json': {
+        ext = 'json';
+        contentType = 'application/json; charset=utf-8';
+        if (jsonInfo.isJson && jsonInfo.json !== undefined) {
+          exportedContent = JSON.stringify(jsonInfo.json, null, 2);
+        } else {
+          exportedContent = JSON.stringify(
+            {
+              id: document.id,
+              title: document.title,
+              content: contentStr,
+              metadata: document.metadata ?? {},
+            },
+            null,
+            2,
+          );
+        }
+        break;
+      }
+      case 'html': {
+        ext = 'html';
+        contentType = 'text/html; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        const bodyHtml = markdownToHtml(bodyContent);
+        exportedContent = `<!DOCTYPE html><html><head><title>${document.title}</title></head><body><h1>${document.title}</h1>${bodyHtml ? `\n${bodyHtml}\n` : ''}</body></html>`;
+        break;
+      }
+      case 'txt': {
+        ext = 'txt';
+        contentType = 'text/plain; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        exportedContent = stripHtml(bodyContent);
+        break;
+      }
+      case 'md':
+      case 'markdown':
+      default: {
+        ext = 'md';
+        contentType = 'text/markdown; charset=utf-8';
+        const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
+        if (/<[a-z][\s\S]*>/i.test(bodyContent)) {
+          exportedContent = htmlToMarkdown(bodyContent);
+        } else {
+          exportedContent = bodyContent;
+        }
+        break;
+      }
+    }
+
+    return reply
+      .header('Content-Type', contentType)
+      .header('Content-Disposition', `attachment; filename="${safeFileName}.${ext}"`)
+      .send(exportedContent);
   });
 
   // Reusable updater for PATCH and PUT

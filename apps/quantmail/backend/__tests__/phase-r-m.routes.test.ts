@@ -11,6 +11,7 @@ import {
 import emailsRoutes from '../routes/emails';
 import attachmentRoutes from '../routes/attachments';
 import { AttachmentService } from '../services/attachment.service';
+import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import * as sesSender from '../lib/ses-sender';
 
 // Mock SES sender module
@@ -1129,6 +1130,138 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(res.statusCode).toBe(403);
       expect(res.json().error.code).toBe('FORBIDDEN');
       await app.close();
+    });
+  });
+
+  describe('Phase M13 & M14: Shared Domain Constants & Strict Sender Identity Enforcement', () => {
+    it('M13: QUANT_INTERNAL_DOMAINS includes all ecosystem domains and helper evaluates correctly', () => {
+      expect(QUANT_INTERNAL_DOMAINS).toContain('quantmail.in');
+      expect(QUANT_INTERNAL_DOMAINS).toContain('quantrinity.in');
+      expect(QUANT_INTERNAL_DOMAINS).toContain('quantchat.online');
+      expect(QUANT_INTERNAL_DOMAINS).toHaveLength(3);
+
+      expect(isInternalDomain('quantmail.in')).toBe(true);
+      expect(isInternalDomain('user@quantrinity.in')).toBe(true);
+      expect(isInternalDomain('team@quantchat.online')).toBe(true);
+      expect(isInternalDomain('attacker@external.com')).toBe(false);
+      expect(isInternalDomain('')).toBe(false);
+
+      expect(getSenderDomain()).toBe('quantmail.in');
+    });
+
+    it('M14: compose rejects with HTTP 400 INVALID_SENDER_IDENTITY when user has no email and no username', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.user.findUnique.mockResolvedValueOnce({
+        id: 'user-no-identity',
+        email: '',
+        username: null,
+        displayName: null,
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-no-identity');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/compose',
+        payload: {
+          to: [{ email: 'recipient@test.com' }],
+          subject: 'Test No Identity',
+          bodyText: 'Hello world',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('INVALID_SENDER_IDENTITY');
+      expect(res.json().error.message).toContain('User has no valid sender identity configured');
+
+      await app.close();
+    });
+
+    it('M14: send rejects with HTTP 400 INVALID_SENDER_IDENTITY when user has no email and no username', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedDraft.userId = 'user-no-identity';
+      mockPrisma.storedEmails.set('draft-1', {
+        ...mockPrisma.storedDraft,
+        userId: 'user-no-identity',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-no-identity',
+        email: null,
+        username: '',
+        displayName: 'Ghost User',
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-no-identity');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/send',
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('INVALID_SENDER_IDENTITY');
+      expect(res.json().error.message).toContain('User has no valid sender identity configured');
+
+      await app.close();
+    });
+
+    it('M14: reply rejects with HTTP 400 INVALID_SENDER_IDENTITY when user has no email and no username', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedDraft.userId = 'user-no-identity';
+      mockPrisma.storedEmails.set('draft-1', {
+        ...mockPrisma.storedDraft,
+        userId: 'user-no-identity',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-no-identity',
+        email: '',
+        username: null,
+        displayName: null,
+      });
+
+      const app = await buildTestFastifyApp(mockPrisma, 'user-no-identity');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/reply',
+        payload: {
+          body: 'Reply with no sender identity',
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('INVALID_SENDER_IDENTITY');
+      expect(res.json().error.message).toContain('User has no valid sender identity configured');
+
+      await app.close();
+    });
+
+    it('M14: EmailService.compose and EmailService.send directly reject with INVALID_SENDER_IDENTITY', async () => {
+      const mockPrisma = createMockPrisma();
+      mockPrisma.storedDraft.userId = 'user-invalid';
+      mockPrisma.storedEmails.set('draft-1', {
+        ...mockPrisma.storedDraft,
+        userId: 'user-invalid',
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-invalid',
+        email: null,
+        username: null,
+        displayName: null,
+      });
+      const svc = new EmailService(mockPrisma as any);
+
+      await expect(
+        svc.compose({
+          userId: 'user-invalid',
+          toAddresses: ['dest@example.com'],
+          subject: 'Test',
+        }),
+      ).rejects.toThrow('User has no valid sender identity configured');
+
+      await expect(svc.send('user-invalid', 'draft-1', 'sent-folder')).rejects.toThrow(
+        'User has no valid sender identity configured',
+      );
     });
   });
 });

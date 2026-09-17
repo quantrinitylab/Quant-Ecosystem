@@ -26,6 +26,9 @@ export class GitInspectAdapter implements RepositoryInspectionPort {
       skip: input.skip,
     });
   }
+  searchCode(input: { owner: string; name: string; ref: string; query: string; path?: string }) {
+    return this.inspect.searchCode(input.owner, input.name, input.ref, input.query, input.path);
+  }
 }
 
 export class GitProvisioningAdapter implements RepositoryProvisioningPort {

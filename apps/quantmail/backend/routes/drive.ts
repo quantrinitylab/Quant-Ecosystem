@@ -54,6 +54,22 @@ const AI_TEXT_MIME_TYPES = new Set([
   'application/sql',
 ]);
 
+const DRIVE_DOCUMENT_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/markdown',
+  'application/json',
+  'application/vnd.google-apps.document',
+];
+
+const DRIVE_SPREADSHEET_MIME_TYPES = [
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+];
+
 type Owner = { name: string; email: string };
 type SharedWith = { email: string; permission: 'view' | 'edit' | 'admin' };
 type VersionDto = { id: string; version: number; size: number; date: Date };
@@ -471,9 +487,19 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       limit?: string | number;
       sortBy?: 'name' | 'updatedAt' | 'size';
       sortDir?: 'asc' | 'desc';
+      filter?:
+        | 'all'
+        | 'folders'
+        | 'documents'
+        | 'images'
+        | 'spreadsheets'
+        | 'media'
+        | 'starred'
+        | 'trash';
     };
   }>('/drive/files', async (request, reply) => {
     const userId = requireUserId(request);
+    const filter = request.query.filter;
     const folderId = request.query.folderId || null;
     const limit = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
     const cursor = request.query.cursor;
@@ -481,20 +507,73 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     const sortDir = request.query.sortDir === 'asc' ? 'asc' : 'desc';
     const owner = await ownerInfo(prisma, userId);
 
+    let folderWhere: any = null;
+    let fileWhere: any = null;
+    let returnFolders = true;
+    let returnFiles = true;
+
+    if (filter === 'folders') {
+      folderWhere = { userId, parentId: folderId, isDeleted: false };
+      returnFiles = false;
+    } else if (filter === 'images') {
+      returnFolders = false;
+      fileWhere = { userId, isDeleted: false, mimeType: { startsWith: 'image/' } };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'media') {
+      returnFolders = false;
+      fileWhere = {
+        userId,
+        isDeleted: false,
+        OR: [{ mimeType: { startsWith: 'video/' } }, { mimeType: { startsWith: 'audio/' } }],
+      };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'documents') {
+      returnFolders = false;
+      fileWhere = {
+        userId,
+        isDeleted: false,
+        mimeType: { in: DRIVE_DOCUMENT_MIME_TYPES },
+      };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'spreadsheets') {
+      returnFolders = false;
+      fileWhere = {
+        userId,
+        isDeleted: false,
+        mimeType: { in: DRIVE_SPREADSHEET_MIME_TYPES },
+      };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'starred') {
+      folderWhere = { userId, isStarred: true, isDeleted: false };
+      if (folderId) folderWhere.parentId = folderId;
+      fileWhere = { userId, isStarred: true, isDeleted: false };
+      if (folderId) fileWhere.folderId = folderId;
+    } else if (filter === 'trash') {
+      folderWhere = { userId, isDeleted: true };
+      if (folderId) folderWhere.parentId = folderId;
+      fileWhere = { userId, isDeleted: true };
+      if (folderId) fileWhere.folderId = folderId;
+    } else {
+      folderWhere = { userId, parentId: folderId, isDeleted: false };
+      fileWhere = { userId, folderId, isDeleted: false };
+    }
+
     const [folders, files, totalCount, quota] = await Promise.all([
-      cursor
-        ? []
-        : prisma.folder.findMany({
-            where: { userId, parentId: folderId, isDeleted: false },
+      returnFolders && !cursor
+        ? prisma.folder.findMany({
+            where: folderWhere,
             orderBy: { [sortBy === 'size' ? 'name' : sortBy]: sortDir },
-          }),
-      prisma.file.findMany({
-        where: { userId, folderId, isDeleted: false },
-        orderBy: [{ [sortBy]: sortDir }, { id: 'asc' }],
-        take: limit + 1,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      }),
-      prisma.file.count({ where: { userId, folderId, isDeleted: false } }),
+          })
+        : Promise.resolve([]),
+      returnFiles
+        ? prisma.file.findMany({
+            where: fileWhere,
+            orderBy: [{ [sortBy]: sortDir }, { id: 'asc' }],
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+          })
+        : Promise.resolve([]),
+      returnFiles ? prisma.file.count({ where: fileWhere }) : Promise.resolve(0),
       quotaService.getQuota(userId),
     ]);
 

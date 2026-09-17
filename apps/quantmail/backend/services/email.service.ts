@@ -2,6 +2,7 @@ import type { PrismaClient, Email } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
+import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 
 export interface PaginationOptions {
   page?: number;
@@ -124,9 +125,18 @@ export class EmailService {
       select: { email: true, displayName: true, username: true },
     });
 
+    const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
+    if (!hasValidSender) {
+      throw createAppError(
+        'User has no valid sender identity configured',
+        400,
+        'INVALID_SENDER_IDENTITY',
+      );
+    }
+
     const senderEmail = sender?.email?.includes('@')
       ? sender.email
-      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+      : `${sender!.username}@${getSenderDomain()}`;
     const senderName =
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
@@ -213,24 +223,18 @@ export class EmailService {
 
     // MAIL-04: Only derive handle matches for explicitly internal domains or bare handles.
     // External domain addresses (@gmail.com, etc.) must NEVER match unrelated internal accounts by local-part.
-    const internalDomains = ['quantmail.in', 'quantrinity.in', 'quantchat.online'];
-    const isInternalAddress = (email: string): boolean => {
-      const parts = email.toLowerCase().split('@');
-      return parts.length === 2 && internalDomains.includes(parts[1]);
-    };
-
-    const internalRecipients = recipients.filter((r) => !r.includes('@') || isInternalAddress(r));
+    const internalRecipients = recipients.filter((r) => !r.includes('@') || isInternalDomain(r));
     const targetHandles = internalRecipients.map((r) => r.split('@')[0].toLowerCase());
 
     const orConditions: any[] = [{ email: { in: recipients, mode: 'insensitive' } }];
     if (targetHandles.length > 0) {
       orConditions.push({ username: { in: targetHandles, mode: 'insensitive' } });
       orConditions.push(
-        ...targetHandles.flatMap((h) => [
-          { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
-          { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
-          { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
-        ]),
+        ...targetHandles.flatMap((h) =>
+          QUANT_INTERNAL_DOMAINS.map((domain) => ({
+            email: { equals: `${h}@${domain}`, mode: 'insensitive' as const },
+          })),
+        ),
       );
     }
 
@@ -240,9 +244,18 @@ export class EmailService {
     });
 
     const snippet = (input.bodyPlain ?? input.bodyHtml ?? '').replace(/<[^>]+>/g, '').slice(0, 140);
+    const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
+    if (!hasValidSender) {
+      throw createAppError(
+        'User has no valid sender identity configured',
+        400,
+        'INVALID_SENDER_IDENTITY',
+      );
+    }
+
     const senderEmail = sender?.email?.includes('@')
       ? sender.email
-      : `${sender?.username || sender?.email || 'user'}@quantmail.in`;
+      : `${sender!.username}@${getSenderDomain()}`;
     const senderName =
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
@@ -327,6 +340,28 @@ export class EmailService {
       throw createAppError('Not authorized to send this email', 403, 'FORBIDDEN');
     }
 
+    const sender = await (
+      this.prisma as unknown as {
+        user: {
+          findUnique(
+            a: unknown,
+          ): Promise<{ email: string; displayName: string | null; username: string | null } | null>;
+        };
+      }
+    ).user.findUnique({
+      where: { id: userId },
+      select: { email: true, displayName: true, username: true },
+    });
+
+    const hasValidSender = Boolean(sender?.email?.includes('@') || sender?.username);
+    if (!hasValidSender) {
+      throw createAppError(
+        'User has no valid sender identity configured',
+        400,
+        'INVALID_SENDER_IDENTITY',
+      );
+    }
+
     const asAddressList = (value: unknown): string[] => {
       if (Array.isArray(value)) {
         return value.filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
@@ -361,11 +396,9 @@ export class EmailService {
               { username: { in: targetHandles, mode: 'insensitive' } },
               ...recipients.flatMap((r) => {
                 const h = r.split('@')[0].toLowerCase();
-                return [
-                  { email: { equals: `${h}@quantmail.in`, mode: 'insensitive' as const } },
-                  { email: { equals: `${h}@quantrinity.in`, mode: 'insensitive' as const } },
-                  { email: { equals: `${h}@quantchat.online`, mode: 'insensitive' as const } },
-                ];
+                return QUANT_INTERNAL_DOMAINS.map((domain) => ({
+                  email: { equals: `${h}@${domain}`, mode: 'insensitive' as const },
+                }));
               }),
             ],
           },
@@ -374,10 +407,7 @@ export class EmailService {
         internal = matches.flatMap((u) => [
           u.email.toLowerCase(),
           ...(u.username
-            ? [
-                `${u.username.toLowerCase()}@quantmail.in`,
-                `${u.username.toLowerCase()}@quantrinity.in`,
-              ]
+            ? QUANT_INTERNAL_DOMAINS.map((domain) => `${u.username!.toLowerCase()}@${domain}`)
             : []),
         ]);
       } catch {

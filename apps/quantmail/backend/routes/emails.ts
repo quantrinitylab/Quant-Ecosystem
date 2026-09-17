@@ -561,6 +561,14 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     );
 
     const me = await prisma.user.findUnique({ where: { id: userId } });
+    const hasValidSender = Boolean(me?.email?.includes('@') || me?.username);
+    if (!hasValidSender) {
+      throw createAppError(
+        'User has no valid sender identity configured',
+        400,
+        'INVALID_SENDER_IDENTITY',
+      );
+    }
     const myEmail = (me?.email ?? '').toLowerCase();
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];

@@ -161,6 +161,15 @@ function matches(record: any, where: any): boolean {
           return false;
         }
       }
+      if ('startsWith' in val && typeof (val as any).startsWith === 'string') {
+        const obj = val as Record<string, unknown>;
+        const prefix = (val as any).startsWith;
+        if (obj.mode === 'insensitive') {
+          if (!String(recVal).toLowerCase().startsWith(prefix.toLowerCase())) return false;
+        } else if (!String(recVal).startsWith(prefix)) {
+          return false;
+        }
+      }
     } else {
       if (recVal !== val) return false;
     }
@@ -925,5 +934,313 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     });
     expect(resShared.statusCode).toBe(200);
     expect(resShared.headers['content-type']).toBe('image/svg+xml');
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=images returns only image files', async () => {
+    files.push(
+      {
+        id: 'file_img_photo',
+        name: 'landscape.jpg',
+        mimeType: 'image/jpeg',
+        size: 2048,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_img_photo',
+        encryptionIV: 'iv_photo',
+        encryptionAuthTag: 'tag_photo',
+        encryptionKey: 'key_photo',
+        contentHash: 'hash_photo',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'file_img_png',
+        name: 'diagram.png',
+        mimeType: 'image/png',
+        size: 1024,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_img_png',
+        encryptionIV: 'iv_png',
+        encryptionAuthTag: 'tag_png',
+        encryptionKey: 'key_png',
+        contentHash: 'hash_png',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    );
+    folders.push({
+      id: 'folder_img_test',
+      name: 'Pictures',
+      parentId: null,
+      path: '/Pictures',
+      userId: 'user_alice',
+      isStarred: false,
+      isDeleted: false,
+      deletedAt: null,
+      trashRootId: null,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=images',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBeGreaterThan(0);
+    expect(body.files.every((f: any) => f.type === 'file' && f.mimeType.startsWith('image/'))).toBe(
+      true,
+    );
+    expect(body.files.some((f: any) => f.id === 'file_img_photo')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_img_png')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'folder_img_test')).toBe(false);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(false);
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=documents returns only document files', async () => {
+    files.push({
+      id: 'file_audio_test',
+      name: 'song.mp3',
+      mimeType: 'audio/mpeg',
+      size: 5000,
+      folderId: null,
+      isStarred: false,
+      isDeleted: false,
+      deletedAt: null,
+      trashRootId: null,
+      encryptedContent: 'enc_song',
+      encryptionIV: 'iv_song',
+      encryptionAuthTag: 'tag_song',
+      encryptionKey: 'key_song',
+      contentHash: 'hash_song',
+      userId: 'user_alice',
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    });
+    folders.push({
+      id: 'folder_docs_test',
+      name: 'DocsFolder',
+      parentId: null,
+      path: '/DocsFolder',
+      userId: 'user_alice',
+      isStarred: false,
+      isDeleted: false,
+      deletedAt: null,
+      trashRootId: null,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=documents',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBe(2);
+    expect(body.files.every((f: any) => f.type === 'file')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_2')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_audio_test')).toBe(false);
+    expect(body.files.some((f: any) => f.id === 'folder_docs_test')).toBe(false);
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=folders returns only folders without files', async () => {
+    folders.push(
+      {
+        id: 'folder_f1',
+        name: 'Folder Alpha',
+        parentId: null,
+        path: '/Folder Alpha',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'folder_f2',
+        name: 'Folder Beta',
+        parentId: null,
+        path: '/Folder Beta',
+        userId: 'user_alice',
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=folders',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBeGreaterThan(0);
+    expect(body.files.every((f: any) => f.type === 'folder')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'folder_f1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'folder_f2')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(false);
+    expect(body.totalCount).toBe(0);
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=starred returns only starred items', async () => {
+    const file1 = files.find((f) => f.id === 'file_spec_1');
+    if (file1) file1.isStarred = true;
+
+    folders.push({
+      id: 'folder_starred_1',
+      name: 'Starred Folder',
+      parentId: null,
+      path: '/Starred Folder',
+      userId: 'user_alice',
+      isStarred: true,
+      isDeleted: false,
+      deletedAt: null,
+      trashRootId: null,
+      updatedAt: new Date(),
+      createdAt: new Date(),
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=starred',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBe(2);
+    expect(body.files.every((f: any) => f.isStarred === true)).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'folder_starred_1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_2')).toBe(false);
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=spreadsheets returns only spreadsheet files', async () => {
+    files.push(
+      {
+        id: 'file_sheet_csv',
+        name: 'budget.csv',
+        mimeType: 'text/csv',
+        size: 512,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_csv',
+        encryptionIV: 'iv_csv',
+        encryptionAuthTag: 'tag_csv',
+        encryptionKey: 'key_csv',
+        contentHash: 'hash_csv',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'file_sheet_xlsx',
+        name: 'financials.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        size: 1024,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_xlsx',
+        encryptionIV: 'iv_xlsx',
+        encryptionAuthTag: 'tag_xlsx',
+        encryptionKey: 'key_xlsx',
+        contentHash: 'hash_xlsx',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=spreadsheets',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBe(2);
+    expect(body.files.some((f: any) => f.id === 'file_sheet_csv')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_sheet_xlsx')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(false);
+  });
+
+  it('Task D15/D20: GET /drive/files?filter=media returns only audio and video files', async () => {
+    files.push(
+      {
+        id: 'file_audio_1',
+        name: 'podcast.mp3',
+        mimeType: 'audio/mpeg',
+        size: 4096,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_aud',
+        encryptionIV: 'iv_aud',
+        encryptionAuthTag: 'tag_aud',
+        encryptionKey: 'key_aud',
+        contentHash: 'hash_aud',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: 'file_video_1',
+        name: 'intro.mp4',
+        mimeType: 'video/mp4',
+        size: 8192,
+        folderId: null,
+        isStarred: false,
+        isDeleted: false,
+        deletedAt: null,
+        trashRootId: null,
+        encryptedContent: 'enc_vid',
+        encryptionIV: 'iv_vid',
+        encryptionAuthTag: 'tag_vid',
+        encryptionKey: 'key_vid',
+        contentHash: 'hash_vid',
+        userId: 'user_alice',
+        updatedAt: new Date(),
+        createdAt: new Date(),
+      },
+    );
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/drive/files?filter=media',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.files.length).toBe(2);
+    expect(body.files.some((f: any) => f.id === 'file_audio_1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_video_1')).toBe(true);
+    expect(body.files.some((f: any) => f.id === 'file_spec_1')).toBe(false);
   });
 });

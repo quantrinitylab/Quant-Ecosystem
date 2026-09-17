@@ -354,8 +354,27 @@ async function buildApp(
     rollbackCommit: vi.fn().mockResolvedValue(undefined),
   };
   app.decorate('repositoryMutation', repositoryMutation as never);
+  app.decorate('repositoryInspection', {
+    listTree: vi.fn().mockResolvedValue([]),
+    readBlob: vi.fn().mockResolvedValue({
+      path: 'src/index.ts',
+      content: 'export const answer = 42;\n',
+      size: 27,
+      sha: '3333333333333333333333333333333333333333',
+    }),
+    listCommits: vi.fn().mockResolvedValue([]),
+    searchCode: vi.fn().mockImplementation(async ({ query }: any) => {
+      if (query.toLowerCase().includes('answer')) {
+        return [{ path: 'src/index.ts', lineNumber: 1, lineContent: 'export const answer = 42;' }];
+      }
+      return [];
+    }),
+    ...(extraDecorators.repositoryInspection || {}),
+  } as never);
   for (const [key, val] of Object.entries(extraDecorators)) {
-    app.decorate(key, val as never);
+    if (key !== 'repositoryInspection') {
+      app.decorate(key, val as never);
+    }
   }
   app.addHook('onRequest', async (request) => {
     const overrideUser = (request.headers['x-user-id'] as string) || userId;
@@ -2172,6 +2191,146 @@ describe('QuantGit Database-Backed Repos Routes', () => {
 
       expect(res.statusCode).toBe(403);
       expect(res.json().error.code).toBe('FORBIDDEN');
+    });
+  });
+
+  // ==================== REPOSITORY & CODE SEARCH (Wave 16) ====================
+
+  describe('Repository & Code Search (Wave 16)', () => {
+    it('GET /repos/search returns matching public repos and caller repos', async () => {
+      const app = await buildApp('user-1');
+
+      const publicRepo = {
+        ...MOCK_REPO,
+        id: 'repo-pub',
+        name: 'quant-public-tool',
+        description: 'Public tools for Quant Ecosystem',
+        visibility: 'PUBLIC',
+        ownerId: 'user-9',
+      };
+
+      const callerPrivateRepo = {
+        ...MOCK_REPO,
+        id: 'repo-priv-mine',
+        name: 'quant-caller-secret',
+        description: 'Caller secret repo',
+        visibility: 'PRIVATE',
+        ownerId: 'user-1',
+      };
+
+      const otherPrivateRepo = {
+        ...MOCK_REPO,
+        id: 'repo-priv-other',
+        name: 'quant-other-secret',
+        description: 'Other user secret repo',
+        visibility: 'PRIVATE',
+        ownerId: 'user-9',
+      };
+
+      prisma.repository.findMany.mockResolvedValueOnce([
+        publicRepo,
+        callerPrivateRepo,
+        otherPrivateRepo,
+      ]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/search?q=quant',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.totalCount).toBe(2);
+      expect(body.data.repos).toHaveLength(2);
+      const ids = body.data.repos.map((r: any) => r.id);
+      expect(ids).toContain('repo-pub');
+      expect(ids).toContain('repo-priv-mine');
+      expect(ids).not.toContain('repo-priv-other');
+    });
+
+    it('GET /repos/search excludes private repos caller does not have access to', async () => {
+      const app = await buildApp('user-2');
+
+      const otherPrivateRepo = {
+        ...MOCK_REPO,
+        id: 'repo-priv-other',
+        name: 'quant-super-secret',
+        description: 'Super secret project',
+        visibility: 'PRIVATE',
+        ownerId: 'user-1',
+      };
+
+      prisma.repository.findMany.mockResolvedValueOnce([otherPrivateRepo]);
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/search?q=secret',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.totalCount).toBe(0);
+      expect(body.data.repos).toHaveLength(0);
+    });
+
+    it('GET /repos/:id/search returns matching code lines from repo commits', async () => {
+      const app = await buildApp('user-1');
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/search?q=answer',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.query).toBe('answer');
+      expect(body.data.branch).toBe('main');
+      expect(body.data.totalMatches).toBe(1);
+      expect(body.data.matches).toEqual([
+        {
+          path: 'src/index.ts',
+          lineNumber: 1,
+          lineContent: 'export const answer = 42;',
+        },
+      ]);
+    });
+
+    it('GET /repos/:id/search rejects 400 when query q is missing', async () => {
+      const app = await buildApp('user-1');
+
+      const resMissing = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/search',
+      });
+
+      expect(resMissing.statusCode).toBe(400);
+      expect(resMissing.json().error.code).toBe('VALIDATION_FAILED');
+      expect(resMissing.json().error.message).toBe('Search query q is required');
+
+      const resEmpty = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/search?q=%20%20',
+      });
+
+      expect(resEmpty.statusCode).toBe(400);
+      expect(resEmpty.json().error.code).toBe('VALIDATION_FAILED');
+      expect(resEmpty.json().error.message).toBe('Search query q is required');
+    });
+
+    it('GET /repos/search rejects 400 when query q is missing', async () => {
+      const app = await buildApp('user-1');
+
+      const resMissing = await app.inject({
+        method: 'GET',
+        url: '/repos/search',
+      });
+
+      expect(resMissing.statusCode).toBe(400);
+      expect(resMissing.json().error.code).toBe('VALIDATION_FAILED');
+      expect(resMissing.json().error.message).toBe('Search query q is required');
     });
   });
 });

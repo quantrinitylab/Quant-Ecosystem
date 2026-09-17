@@ -403,7 +403,7 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     description: r.description ?? '',
     visibility: String(r.visibility).toLowerCase(),
     defaultBranch: r.defaultBranch,
-    language: '',
+    language: (r as any).language ?? '',
     languages: {},
     stars: r.starCount,
     forks: r.forkCount,
@@ -910,6 +910,91 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         },
       });
     },
+  });
+
+  fastify.get<{
+    Querystring: {
+      q?: string;
+      language?: string;
+      page?: string | number;
+      limit?: string | number;
+    };
+  }>('/search', async (request, reply) => {
+    const userId = requireUserId(request);
+    const q = typeof request.query.q === 'string' ? request.query.q.trim() : '';
+    if (!q || q.length > 100) {
+      throw createAppError('Search query q is required', 400, 'VALIDATION_FAILED');
+    }
+
+    const language =
+      typeof request.query.language === 'string' ? request.query.language.trim() : undefined;
+    const page = Math.max(1, parseInt(String(request.query.page || '1'), 10) || 1);
+    const limit = Math.max(
+      1,
+      Math.min(100, parseInt(String(request.query.limit || '20'), 10) || 20),
+    );
+
+    const prisma = getPrisma(fastify);
+    const allRepos = (await prisma.repository.findMany({
+      where: { deletedAt: null },
+      include: { branches: true },
+    })) as Array<RepoRow & { isPrivate?: boolean; language?: string; collaborators?: any[] }>;
+
+    const accessibleRepos: Array<RepoRow & { isPrivate?: boolean; language?: string }> = [];
+
+    for (const repo of allRepos) {
+      const isOwner = repo.ownerId === userId;
+      const isPublic =
+        (repo as any).isPrivate === false ||
+        String(repo.visibility).toUpperCase() === 'PUBLIC' ||
+        String(repo.visibility).toUpperCase() === 'INTERNAL';
+      let isCollaborator = false;
+
+      if (!isOwner && !isPublic) {
+        if (Array.isArray((repo as any).collaborators)) {
+          isCollaborator = (repo as any).collaborators.some(
+            (c: any) => c.userId === userId || c === userId || c.id === userId,
+          );
+        }
+        if (!isCollaborator) {
+          const perm = await getRepoPermission(prisma, repo, userId);
+          isCollaborator = Boolean(perm);
+        }
+      }
+
+      if (isPublic || isOwner || isCollaborator) {
+        accessibleRepos.push(repo);
+      }
+    }
+
+    const queryLower = q.toLowerCase();
+    const matchedRepos = accessibleRepos.filter((repo) => {
+      const nameMatches = repo.name?.toLowerCase().includes(queryLower);
+      const descMatches = repo.description?.toLowerCase().includes(queryLower);
+      if (!nameMatches && !descMatches) return false;
+
+      if (language) {
+        const repoLang = (repo as any).language;
+        if (!repoLang || repoLang.toLowerCase() !== language.toLowerCase()) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const totalCount = matchedRepos.length;
+    const startIndex = (page - 1) * limit;
+    const paginated = matchedRepos.slice(startIndex, startIndex + limit);
+
+    return reply.send({
+      success: true,
+      data: {
+        repos: paginated.map((r) => toDto(r)),
+        totalCount,
+        page,
+        limit,
+      },
+    });
   });
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
@@ -1968,6 +2053,88 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true, data: blob });
     },
   );
+
+  fastify.get<{
+    Params: { id: string };
+    Querystring: { q?: string; branch?: string; path?: string };
+  }>('/:id/search', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+
+    const q = typeof request.query.q === 'string' ? request.query.q.trim() : '';
+    if (!q || q.length > 200) {
+      throw createAppError('Search query q is required', 400, 'VALIDATION_FAILED');
+    }
+
+    const branch = request.query.branch?.trim() || repo.defaultBranch || 'main';
+    const targetPath = request.query.path?.trim();
+
+    let matches: Array<{ path: string; lineNumber: number; lineContent: string }> = [];
+
+    if (fastify.repositoryInspection?.searchCode) {
+      matches = await fastify.repositoryInspection.searchCode({
+        owner: repo.ownerId,
+        name: repo.name,
+        ref: branch,
+        query: q,
+        path: targetPath,
+      });
+    } else {
+      const repoPath = await resolveRepoPath(repo);
+      if (repoPath && (await pathExists(repoPath))) {
+        const args = ['grep', '-n', '-I', '--ignore-case', '-m', '100', '-e', q, branch];
+        if (targetPath) {
+          args.push('--', targetPath);
+        }
+
+        try {
+          const { stdout } = await execFileAsync('git', args, {
+            cwd: repoPath,
+            maxBuffer: 10 * 1024 * 1024,
+            env: GIT_CHILD_ENV,
+          });
+
+          if (stdout && stdout.trim()) {
+            for (const rawLine of stdout.split('\n')) {
+              if (!rawLine.trim()) continue;
+              let stripped = rawLine;
+              if (stripped.startsWith(`${branch}:`)) {
+                stripped = stripped.slice(branch.length + 1);
+              }
+              const firstColon = stripped.indexOf(':');
+              if (firstColon === -1) continue;
+              const secondColon = stripped.indexOf(':', firstColon + 1);
+              if (secondColon === -1) continue;
+
+              const filePath = stripped.slice(0, firstColon);
+              const lineNumStr = stripped.slice(firstColon + 1, secondColon);
+              const lineContent = stripped.slice(secondColon + 1);
+              const lineNumber = parseInt(lineNumStr, 10);
+              if (isNaN(lineNumber)) continue;
+
+              matches.push({
+                path: filePath,
+                lineNumber,
+                lineContent,
+              });
+              if (matches.length >= 100) break;
+            }
+          }
+        } catch {
+          // git grep exits with 1 when no matches found
+        }
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        query: q,
+        branch,
+        matches,
+        totalMatches: matches.length,
+      },
+    });
+  });
 
   fastify.get<{ Params: { id: string } }>('/:id/actions', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);

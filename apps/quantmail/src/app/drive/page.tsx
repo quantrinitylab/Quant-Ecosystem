@@ -323,20 +323,24 @@ export default function DrivePage() {
   }, []);
 
   useEffect(() => {
-    fetchFiles(currentFolderId);
-  }, [fetchFiles, currentFolderId]);
+    if (activeFilter !== 'trash' && activeFilter !== 'shared') {
+      fetchFiles(currentFolderId, activeFilter !== 'all' ? activeFilter : undefined);
+    }
+  }, [fetchFiles, currentFolderId, activeFilter]);
 
   // Debounced search: avoid firing an API request on every keystroke
   useEffect(() => {
     const q = searchQuery.trim();
     const t = setTimeout(() => {
       if (q) searchFiles(q);
-      else fetchFiles(currentFolderId);
+      else if (activeFilter !== 'trash' && activeFilter !== 'shared') {
+        fetchFiles(currentFolderId, activeFilter !== 'all' ? activeFilter : undefined);
+      }
     }, 300);
     return () => clearTimeout(t);
     // Intentionally keyed on searchQuery alone: re-running on folder id or on the
     // fetcher identities would restart the debounce mid-keystroke.
-  }, [searchQuery]);
+  }, [searchQuery, currentFolderId, activeFilter]);
 
   const loadTrash = useCallback(async () => {
     setLoadingSpecial(true);

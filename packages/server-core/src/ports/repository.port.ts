@@ -60,6 +60,14 @@ export interface RepositoryInspectionPort {
     limit?: number;
     skip?: number;
   }): Promise<RepositoryCommitSummary[]>;
+
+  searchCode?(input: {
+    owner: string;
+    name: string;
+    ref: string;
+    query: string;
+    path?: string;
+  }): Promise<Array<{ path: string; lineNumber: number; lineContent: string }>>;
 }
 
 export interface RepositoryProvisioningPort {

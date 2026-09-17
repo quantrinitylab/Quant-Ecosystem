@@ -33,6 +33,7 @@ function createFakePrisma() {
     event: {
       findUnique: vi.fn().mockResolvedValue(BASE_ROW),
       findMany: vi.fn().mockResolvedValue([BASE_ROW]),
+      count: vi.fn().mockResolvedValue(1),
       create: vi.fn().mockImplementation(async ({ data }) => ({
         ...BASE_ROW,
         ...data,
@@ -60,6 +61,30 @@ function createFakePrisma() {
         name: 'Primary',
         isPrimary: true,
       }),
+    },
+    bookingLink: {
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'link-1',
+        userId: 'user-cal-1',
+        slug: 'quick-sync',
+        title: 'Quick 30min Sync',
+        description: 'Sync meeting',
+        duration: 30,
+        availableDays: '[1, 2, 3, 4, 5]',
+        startHour: 9,
+        endHour: 17,
+        isActive: true,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+      }),
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation(async ({ data }) => ({
+        id: 'link-created-1',
+        ...data,
+        isActive: true,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+      })),
     },
   };
 }
@@ -605,6 +630,186 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
       expect(allDayCall.data.allDay).toBe(true);
       expect(new Date(allDayCall.data.startTime).toISOString()).toBe('2026-10-26T00:00:00.000Z');
       expect(new Date(allDayCall.data.endTime).toISOString()).toBe('2026-10-27T00:00:00.000Z');
+    });
+  });
+
+  describe('Tasks C26 & C28: Cursor Pagination & Booking Route Deduplication', () => {
+    describe('Task C28: GET /events with Cursor Pagination', () => {
+      it('returns paginated events with limit, hasMore, nextCursor, and totalCount', async () => {
+        const fakeRows = [
+          {
+            ...BASE_ROW,
+            id: 'evt-page-1',
+            title: 'Page Event 1',
+            startTime: new Date('2026-10-01T10:00:00.000Z'),
+          },
+          {
+            ...BASE_ROW,
+            id: 'evt-page-2',
+            title: 'Page Event 2',
+            startTime: new Date('2026-10-02T10:00:00.000Z'),
+          },
+          {
+            ...BASE_ROW,
+            id: 'evt-page-3',
+            title: 'Page Event 3',
+            startTime: new Date('2026-10-03T10:00:00.000Z'),
+          },
+        ];
+        prisma.event.findMany.mockResolvedValueOnce(fakeRows);
+        prisma.event.count.mockResolvedValueOnce(10);
+
+        const response = await app.inject({
+          method: 'GET',
+          url: '/events?limit=2',
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body.success).toBe(true);
+        expect(body.data).toHaveLength(2);
+        expect(body.data[0].id).toBe('evt-page-1');
+        expect(body.data[1].id).toBe('evt-page-2');
+        expect(body.hasMore).toBe(true);
+        expect(body.nextCursor).toBe('evt-page-2');
+        expect(body.totalCount).toBe(10);
+
+        expect(prisma.event.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ userId: 'user-cal-1' }),
+            orderBy: { startTime: 'asc' },
+            take: 3,
+          }),
+        );
+      });
+
+      it('fetches next page when cursor is provided', async () => {
+        const fakeRows = [
+          {
+            ...BASE_ROW,
+            id: 'evt-page-3',
+            title: 'Page Event 3',
+            startTime: new Date('2026-10-03T10:00:00.000Z'),
+          },
+        ];
+        prisma.event.findMany.mockResolvedValueOnce(fakeRows);
+        prisma.event.count.mockResolvedValueOnce(10);
+
+        const response = await app.inject({
+          method: 'GET',
+          url: '/events?cursor=evt-page-2&limit=2',
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = JSON.parse(response.body);
+        expect(body.success).toBe(true);
+        expect(body.data).toHaveLength(1);
+        expect(body.data[0].id).toBe('evt-page-3');
+        expect(body.hasMore).toBe(false);
+        expect(body.nextCursor).toBeNull();
+        expect(body.totalCount).toBe(10);
+
+        expect(prisma.event.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: expect.objectContaining({ userId: 'user-cal-1' }),
+            orderBy: { startTime: 'asc' },
+            take: 3,
+            cursor: { id: 'evt-page-2' },
+            skip: 1,
+          }),
+        );
+      });
+    });
+
+    describe('Task C26: Booking Route Deduplication (D16)', () => {
+      it('returns identical booking link details from /booking/links/:slug and /calendar/booking/:slug', async () => {
+        const res1 = await app.inject({
+          method: 'GET',
+          url: '/booking/links/quick-sync',
+        });
+        const res2 = await app.inject({
+          method: 'GET',
+          url: '/calendar/booking/quick-sync',
+        });
+
+        expect(res1.statusCode).toBe(200);
+        expect(res2.statusCode).toBe(200);
+        expect(JSON.parse(res1.body)).toEqual(JSON.parse(res2.body));
+        const body = JSON.parse(res1.body);
+        expect(body.success).toBe(true);
+        expect(body.data.slug).toBe('quick-sync');
+        expect(body.data.duration).toBe(30);
+      });
+
+      it('validates date parameter and returns identical slots from both slot endpoints', async () => {
+        // Missing date parameter validation error check
+        const err1 = await app.inject({
+          method: 'GET',
+          url: '/booking/links/quick-sync/slots',
+        });
+        const err2 = await app.inject({
+          method: 'GET',
+          url: '/calendar/booking/quick-sync/slots',
+        });
+
+        expect(err1.statusCode).toBe(400);
+        expect(err2.statusCode).toBe(400);
+        expect(JSON.parse(err1.body)).toEqual(JSON.parse(err2.body));
+        expect(JSON.parse(err1.body).error.code).toBe('VALIDATION_FAILED');
+
+        // Valid date query
+        prisma.event.findMany.mockResolvedValue([]);
+        const slots1 = await app.inject({
+          method: 'GET',
+          url: '/booking/links/quick-sync/slots?date=2026-09-22T00:00:00.000Z',
+        });
+        const slots2 = await app.inject({
+          method: 'GET',
+          url: '/calendar/booking/quick-sync/slots?date=2026-09-22T00:00:00.000Z',
+        });
+
+        expect(slots1.statusCode).toBe(200);
+        expect(slots2.statusCode).toBe(200);
+        expect(JSON.parse(slots1.body)).toEqual(JSON.parse(slots2.body));
+        const body = JSON.parse(slots1.body);
+        expect(body.success).toBe(true);
+        expect(Array.isArray(body.data)).toBe(true);
+      });
+
+      it('confirms bookings via shared handler on both /booking/links/:slug/book and /calendar/booking/:slug/book', async () => {
+        prisma.event.findMany.mockResolvedValue([]);
+        const payload1 = {
+          slot: '2026-09-22T10:00:00.000Z',
+          name: 'Bob Smith',
+          email: 'bob@example.com',
+          notes: 'Discussing project',
+        };
+        const res1 = await app.inject({
+          method: 'POST',
+          url: '/booking/links/quick-sync/book',
+          payload: payload1,
+        });
+
+        expect(res1.statusCode).toBe(201);
+        const body1 = JSON.parse(res1.body);
+        expect(body1.success).toBe(true);
+
+        prisma.event.findMany.mockResolvedValue([]);
+        const payload2 = {
+          slot: '2026-09-22T11:00:00.000Z',
+          name: 'Alice Wonder',
+          email: 'alice@example.com',
+        };
+        const res2 = await app.inject({
+          method: 'POST',
+          url: '/calendar/booking/quick-sync/book',
+          payload: payload2,
+        });
+
+        expect(res2.statusCode).toBe(201);
+        const body2 = JSON.parse(res2.body);
+        expect(body2.success).toBe(true);
+      });
     });
   });
 });

@@ -20,22 +20,23 @@
 
 ## 🔍 7-DOMAIN MASTER FORENSIC AUDIT & SWARM PARITY SCORECARD
 
-> **EXECUTIVE AUDIT SUMMARY (2026-09-17 ➔ Post-Wave 15 Progression)**:
+> **EXECUTIVE AUDIT SUMMARY (2026-09-17 ➔ Post-Wave 16 Progression)**:
 >
 > - **Initial Audit Baseline**: **~23.57%** (heavy in-memory stubs, ghost apps, unrouted services, missing schemas).
 > - **Post-Wave 14 (`acb3220a`)**: **69.50%** (176/176 tests green; block editor, git CI un-gated, collaborators RBAC, calendar series split).
-> - **Post-Wave 15 (Current Verified State)**: **~75.43%** (183/183 tests green across all 7 tracks; PR reviews & self-approval gate, branch protection CRUD & CI status merge gate, nested docs subpage hierarchy & breadcrumbs, RFC 5545 ICS bulk import engine, 25MB attachment limit & CSP sandboxed download, image thumbnail decryption).
+> - **Post-Wave 15 (`652edce7`)**: **75.43%** (183/183 tests green across all 7 tracks; PR reviews & self-approval gate, branch protection CRUD & CI status merge gate, nested docs subpage hierarchy & breadcrumbs, RFC 5545 ICS bulk import engine, 25MB attachment limit & CSP sandboxed download, image thumbnail decryption).
+> - **Post-Wave 16 (Current Verified State)**: **~78.86%** (179/179 tests green across all 5 tracks; multi-repo & in-repo code search engine, server-side drive filter pills & useDrive hook, calendar cursor pagination & booking route deduplication, shared domain constants & strict sender identity enforcement, docs content search & multi-format export md/html/json/txt).
 
-| Subsystem                  | Quant Implementation                               | Benchmark Incumbents           | Initial Audit | Post-Wave 15 Parity | Major Milestone Completed in Wave 15 / Active Surface                                                                                                                              |
+| Subsystem                  | Quant Implementation                               | Benchmark Incumbents           | Initial Audit | Post-Wave 16 Parity | Major Milestone Completed in Wave 16 / Active Surface                                                                                                                              |
 | :------------------------- | :------------------------------------------------- | :----------------------------- | :------------ | :------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **QuantDocs & Notes**      | Nested Subpages + TipTap Slash Blocks + Yjs        | **Notion**                     | **4.00%**     | **68.00%**          | Nested page tree hierarchy (`parentId`), recursive breadcrumbs chain, subpage grid & `+ Add subpage` creation UI, 11 slash commands, Yjs CRDT real-time sync.                      |
+| **QuantDocs & Notes**      | Content Search + Multi-Format Export + Yjs Blocks  | **Notion**                     | **4.00%**     | **74.00%**          | Full-text body + title search (`where.OR`), multi-format export engine (`GET /documents/:id/export?format=md\|html\|json\|txt`), nested subpages, recursive breadcrumbs, Yjs sync. |
 | **Quant Mobile & Android** | Hardened WebSettings + App Links + API 35          | **Google Play Store**          | **12.00%**    | **62.00%**          | Package renamed to `com.quant.app`, API 35, release signing, cleartext traffic banned, Chrome Custom Tabs for OAuth, Play safety disclosures.                                      |
-| **QuantCalendar**          | Recurrence Engine + RFC 5545 Parser + Timezones    | **Google Calendar & Calendly** | **14.29%**    | **78.50%**          | RFC 5545 ICS bulk import engine (`POST /events/import/ics`), unfolding, VEVENT extraction, TZID/VALUE=DATE parsing, series split ("this and following"), timezone-aware DTOs.      |
-| **QuantDrive**             | Decrypted Thumbnails + Path Healing + Share Links  | **Google Drive & Dropbox**     | **14.50%**    | **75.00%**          | Image thumbnail generation (`GET /drive/files/:id/thumbnail`) with auth & AES decrypt, SVG fallback badges, path repair, public link shares, batch soft-delete.                    |
-| **QuantGit**               | Real Git Engine + Reviews Gate + Branch Protection | **GitHub**                     | **22.25%**    | **82.00%**          | PR reviews (`GET/POST /pulls/:number/reviews`), author self-approval rejection (400), branch protection CRUD & requiredApprovals / CI status checks merge gating (403).            |
-| **QuantMail**              | BullMQ Queue + 25MB Guard + CSP Sandboxed Download | **Gmail & Superhuman**         | **48.00%**    | **86.50%**          | Server-side 25MB attachment limit (413), secure download endpoint with sanitized `Content-Disposition`, CSP sandbox (`default-src 'none'; sandbox`), nosniff/DENY, SVG protection. |
+| **QuantCalendar**          | Cursor Pagination + Booking Route Dedupe + RFC5545 | **Google Calendar & Calendly** | **14.29%**    | **83.00%**          | Cursor pagination (`GET /events?cursor=...&limit=...`), deduplicated booking route pairs (links, slots, book), RFC 5545 ICS bulk import, series split ("this and following").      |
+| **QuantDrive**             | Server Filter Pills + Quota Checks + Decrypted     | **Google Drive & Dropbox**     | **14.50%**    | **80.50%**          | Server-side filter pills (`filter=all\|folders\|documents\|images\|spreadsheets\|media\|starred\|trash`) with Prisma query filtering, `useDrive.fetchFiles` integration.           |
+| **QuantGit**               | Global Repo Search + Bare Repo Code Search Engine  | **GitHub**                     | **22.25%**    | **87.50%**          | Multi-repo search (`GET /repos/search`) & in-repo code search (`GET /repos/:id/search`) using git grep on bare repo, PR review approvals gate, branch protection, real merge.      |
+| **QuantMail**              | Shared Domain Config + Strict Identity + BullMQ    | **Gmail & Superhuman**         | **48.00%**    | **89.00%**          | Shared `QUANT_INTERNAL_DOMAINS` constant, strict sender identity enforcement (400 `INVALID_SENDER_IDENTITY`), 25MB attachment limit, CSP sandboxed download, BullMQ undo-send.     |
 | **QuantContacts**          | Fastify Contacts + vCard/CSV Deduplication Engine  | **Google Contacts**            | **50.00%**    | **76.00%**          | Bulk vCard / CSV import engine, deduplication wizard, unified `useContacts` data layer.                                                                                            |
-| **OVERALL SYSTEM PARITY**  | **Unified Sovereign Operating System**             | **Big-Tech Enterprise Suite**  | **~23.57%**   | **~75.43%**         | **~75.43% of ecosystem functionality is now authentic, fully persistent, and verified without mocks.**                                                                             |
+| **OVERALL SYSTEM PARITY**  | **Unified Sovereign Operating System**             | **Big-Tech Enterprise Suite**  | **~23.57%**   | **~78.86%**         | **~78.86% of ecosystem functionality is authentic, fully persistent, and verified without mocks across 179 passing tests.**                                                        |
 
 ### 🎯 Master Sprint Wave Execution Order:
 
@@ -50,6 +51,29 @@
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
+
+- [x] **Wave 16 — Autonomous Swarm Parity Blitz: Git Multi-Repo & Bare Repo Code Search Engine, Drive Server-Side Filter Pills & Storage Validation, Calendar Cursor Pagination & Booking Route Deduplication, Shared Domain Config & Strict Sender Identity, Docs Body Search & Multi-Format Export Engine (Tasks G15, D15, D20, C26, C28, M13, M14, N09, N10) (Verified with Vitest 179/179 Passing, 0 TS Errors)**:
+  - [x] **Track 1: QuantGit Multi-Repo & Bare Repo Code Search Engine (Developer 6 - Task G15)**:
+    - **`GET /repos/search`**: Global multi-repo search across accessible repositories (public, owned, or collaborator), filtering by case-insensitive name/description and optional language, with pagination (`page`, `limit`).
+    - **`GET /repos/:id/search`**: In-repo code search executing safe bare-repo `git grep -n -I --ignore-case -m 100` over committed trees, returning structured `{ path, lineNumber, lineContent }` matches.
+    - **Verification**: 76/76 tests passing in `repos.routes.test.ts`.
+  - [x] **Track 2: QuantDrive Server-Side Filter Pills & Storage Validation (Developer 4 - Tasks D15, D20)**:
+    - **Server-Side Filters**: Extended `GET /drive/files?filter=all|folders|documents|images|spreadsheets|media|starred|trash` with Prisma query filtering for MIME types, star status, and folder exclusion.
+    - **Frontend Integration**: Updated `useDrive.fetchFiles(folderId, filter)` to pass server filter params and wired `DrivePage` filter tabs to server query with client fallback.
+    - **Verification**: 20/20 tests passing in `drive-deep-parity.routes.test.ts`.
+  - [x] **Track 3: QuantCalendar Cursor Pagination & Booking Route Deduplication (Developer 3 - Tasks C26, C28)**:
+    - **Cursor Pagination**: Supported `cursor` and `limit` in `GET /events`, returning `nextCursor`, `hasMore`, and `totalCount`, while preserving backwards compatibility for date range queries.
+    - **Booking Handler Deduplication**: Collapsed duplicated route pairs (`/booking/links/:slug` vs `/calendar/booking/:slug`, `/slots`, `/book`) into shared typed handlers (`handleGetBookingLink`, `handleGetBookingSlots`, `handlePostBooking`).
+    - **Verification**: 23/23 tests passing in `calendar-parity.routes.test.ts`.
+  - [x] **Track 4: QuantMail Shared Domain Constants & Strict Sender Identity Enforcement (Developer 1 - Tasks M13, M14)**:
+    - **Domain Config Module**: Authored `apps/quantmail/backend/lib/domains.ts` exporting `QUANT_INTERNAL_DOMAINS` and `isInternalDomain` helper.
+    - **Strict Identity Guard**: Removed silent `${userId}@quantmail.in` fallback in `EmailService.compose`, `send`, and `reply`, throwing HTTP 400 `INVALID_SENDER_IDENTITY` on missing identity.
+    - **Verification**: 37/37 tests passing in `phase-r-m.routes.test.ts`.
+  - [x] **Track 5: QuantDocs Document Content Search & Multi-Format Export Engine (Developer 5 - Tasks N09, N10)**:
+    - **Full-Text Content Search**: Enhanced `GET /documents?q=...` to query both title and body content (`where.OR = [{ title }, { content }]`).
+    - **Multi-Format Export**: Implemented `GET /documents/:id/export?format=md|markdown|html|json|txt` with sanitized attachment filename and correct MIME types.
+    - **Verification**: 23/23 tests passing in `docs-yjs-collab.test.ts`.
+  - [x] **Full Integrated Verification**: **179/179 tests passing 100% across all 5 test suites in 20.11s**, 0 TypeScript compiler errors (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).
 
 - [x] **Wave 15 — Autonomous Swarm Parity Blitz: PR Review Approvals & CI Merge Gate, Nested Subpage Hierarchy & Breadcrumbs, RFC 5545 ICS Bulk Import Engine, 25MB Attachment Guard & CSP Sandboxing, Drive Image Thumbnail Decryption (Tasks G11, G12, N07, N08, X04, C19, M24, M25, D17) (Verified with Vitest 183/183 Passing, 0 TS Errors)**:
   - [x] **Track 1: QuantGit PR Review Approvals & CI Merge Gate (Developer 6 - Tasks G11, G12)**:
@@ -1082,8 +1106,8 @@
 - [x] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
 - [x] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
 - [x] **Task M12**: Type Fastify Prisma decoration (ban `as any`/`as never` in `emails.ts`).
-- [ ] **Task M13**: Move domain list to shared config constant.
-- [ ] **Task M14**: Remove `${userId}@quantmail.in` fallback sender (fail loudly on missing identity).
+- [x] **Task M13**: Move domain list to shared config constant (`QUANT_INTERNAL_DOMAINS` in `lib/domains.ts`, helper `isInternalDomain`, configurable `getSenderDomain`). _(Completed by Developer 1 in Wave 16 Track 4)_.
+- [x] **Task M14**: Remove `${userId}@quantmail.in` fallback sender (fail loudly on missing identity with 400 `INVALID_SENDER_IDENTITY`). _(Completed by Developer 1 in Wave 16 Track 4)_.
 - [x] **Task M15**: Wire `MailFilterService` / proxy allowlist with domain safety. _(Completed by Developer 1 in commit `5b02aafc`)_.
 - [ ] **Task M16**: Add "apply filter to existing messages" background job with progress.
 - [x] **Task M17**: Require verified ownership handshake and domain safety for filter `forwardTo` (R-SEC). _(Completed by Developer 1 in commit `5b02aafc`)_.
@@ -1129,9 +1153,9 @@
 - [x] **Task C23**: Add free/busy lookup blocks (`GET /events/free-busy`). _(Completed by Developer 3, overlapping blocks merged)_.
 - [x] **Task C24**: Add conflict warning before save on overlapping events (`checkConflicts` in `POST /events` and `PUT/PATCH /events/:id`). _(Completed by Developer 3)_.
 - [x] **Task C25**: Add working hours and conflict-aware booking validation (`link.startHour`, `link.endHour`, `link.availableDays` in `confirmBooking`). _(Completed by Developer 3)_.
-- [ ] **Task C26**: Deduplicate 3 booking route pairs (D16).
+- [x] **Task C26**: Deduplicate 3 booking route pairs (D16). _(Completed by Developer 3 in Wave 16 Track 3, unified shared handlers for booking links, slots, and book endpoints, 23/23 tests passing)_.
 - [x] **Task C27**: Error 400 instead of clamping on >365-day query window (`WINDOW_TOO_LARGE`). _(Completed by Developer 3)_.
-- [ ] **Task C28**: Add cursor pagination to `GET /events`.
+- [x] **Task C28**: Add cursor pagination to `GET /events`. _(Completed by Developer 3 in Wave 16 Track 3, supports `cursor`, `limit`, returning `nextCursor`, `hasMore`, `totalCount`, 23/23 tests passing)_.
 
 ### 💾 Phase D — Drive to Google Drive Parity (24 Tasks)
 
@@ -1150,12 +1174,12 @@
 - [x] **Task D12**: Add repair background job for corrupted paths (`POST /drive/repair-paths` recursive path reconciliation). _(Completed by Developer 4)_.
 - [x] **Task D13**: Add depth and cycle caps to `folderTree()`.
 - [x] **Task D14**: Fix N+1 queries in `/drive/files/trash` by batching folder and file lookups. _(Completed by Developer 4)_.
-- [ ] **Task D15**: Apply `requireStorage()` to `GET /drive/files`.
+- [x] **Task D15**: Apply `requireStorage()` and quota checks to `GET /drive/files`. _(Completed by Developer 4 in Wave 16 Track 2, 20/20 tests passing)_.
 - [x] **Task D16**: Build real file previews (image lightbox, PDF viewer, text, video).
 - [x] **Task D17**: Generate and display `thumbnailUrl` in file grid. _(Completed by Developer 4 in Wave 15 Track 5, authenticated AES decryption in `GET /drive/files/:id/thumbnail`, SVG badge fallback, 14/14 tests passing)_.
 - [x] **Task D18**: Add server-side pagination to `GET /drive/files` (`limit`, `cursor`, `sortBy`, `sortDir`, `nextCursor`, `totalCount`, `hasMore`). _(Completed by Developer 4)_.
 - [ ] **Task D19**: Virtualize file grid with `src/lib/virtual/` for 10k files.
-- [ ] **Task D20**: Move filter pills server-side.
+- [x] **Task D20**: Move filter pills server-side. _(Completed by Developer 4 in Wave 16 Track 2, `GET /drive/files?filter=all|folders|documents|images|spreadsheets|media|starred|trash`, Prisma query filtering, useDrive hook integration, 20/20 tests passing)_.
 - [x] **Task D21**: Add search-mode indicator and breadcrumbs. _(Completed by Developer 4)_.
 - [x] **Task D22**: Persist grid/list view preference across reloads via `localStorage`. _(Completed by Developer 4)_.
 - [x] **Task D23**: Read upload limit dynamically from `DRIVE_MAX_FILE_BYTES`. _(Completed by Developer 4)_.
@@ -1178,7 +1202,7 @@
 - [x] **Task G12**: Add required status checks gating merge. _(Completed by Developer 6 in Wave 15 Track 1, branch protection CRUD, latest `CiRun.status === 'SUCCESS'` gate in PR merge 403, 71/71 tests passing)_.
 - [ ] **Task G13**: Add forks and cross-repo PRs.
 - [x] **Task G14**: Add releases and tags management endpoints (`GET`, `POST /repos/:id/tags` and `GET`, `POST /repos/:id/releases`). _(Completed by Developer 6)_.
-- [ ] **Task G15**: Add repository search and code search.
+- [x] **Task G15**: Add repository search and code search. _(Completed by Developer 6 in Wave 16 Track 1, `GET /repos/search` multi-repo search & `GET /repos/:id/search` bare repo code search using git grep, 76/76 tests passing)_.
 - [ ] **Task G16**: Add external webhook dispatching.
 
 ### 🧹 Phase K — Kill Duplicates & Mocks (18 Tasks)
@@ -1260,6 +1284,8 @@
 - [x] **Task N06**: Add slash commands (`/h1`, `/h2`, `/h3`, `/todo`, `/bullet`, `/numbered`, `/table`, `/code`, `/callout`, `/quote`, `/divider`), formatting toolbar, and Markdown import/export. _(Completed by Developer 5)_.
 - [x] **Task N07**: Add hierarchical document schema and parent-child document tree API (`parentId` in document schema, parent verification in `POST /documents`, `GET /documents?parentId=root|null|<id>`, subpages and recursive breadcrumbs resolution in `GET /documents/:id`). _(Completed by Developer 5 in Wave 15 Track 2, 17/17 tests passing)_.
 - [x] **Task N08**: Implement document breadcrumbs navigation header and subpages grid with `+ Add subpage` button in `apps/quantmail/src/app/drive/doc/[docId]/page.tsx` and `DocumentHeader.tsx`. _(Completed by Developer 5 in Wave 15 Track 2, 4/4 tests passing)_.
+- [x] **Task N09**: Add document content full-text search (`where.OR = [{ title: { contains: q } }, { content: { contains: q } }]` across accessible documents). _(Completed by Developer 5 in Wave 16 Track 5, 23/23 tests passing)_.
+- [x] **Task N10**: Implement multi-format document export engine (`GET /documents/:id/export?format=md|markdown|html|json|txt` with sanitized attachment headers). _(Completed by Developer 5 in Wave 16 Track 5, 23/23 tests passing)_.
 
 ### 📱 Phase P — Google Play Store Production Pipeline (Tasks P01–P08)
 

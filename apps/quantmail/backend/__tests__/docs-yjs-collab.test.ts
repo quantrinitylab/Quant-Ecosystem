@@ -513,7 +513,22 @@ function createDocumentsHarness(initialDocs: DocRow[] = []) {
         let results = Array.from(docs.values()).filter((doc) => {
           if (where?.userId !== undefined && doc.userId !== where.userId) return false;
           if (where?.isDeleted !== undefined && doc.isDeleted !== where.isDeleted) return false;
-          if (where?.title?.contains) {
+          if (where?.OR && Array.isArray(where.OR)) {
+            const matches = where.OR.some((cond: any) => {
+              if (
+                cond.title?.contains &&
+                doc.title.toLowerCase().includes(cond.title.contains.toLowerCase())
+              )
+                return true;
+              if (
+                cond.content?.contains &&
+                doc.content.toLowerCase().includes(cond.content.contains.toLowerCase())
+              )
+                return true;
+              return false;
+            });
+            if (!matches) return false;
+          } else if (where?.title?.contains) {
             if (!doc.title.toLowerCase().includes(where.title.contains.toLowerCase())) return false;
           }
           return true;
@@ -862,6 +877,250 @@ describe('QuantDocs Nested Subpage Tree Hierarchy (Tasks N07 & N08)', () => {
     expect(resTop2.statusCode).toBe(200);
     const bodyTop2 = resTop2.json();
     expect(bodyTop2.data.map((d: any) => d.id)).toEqual(['child-2a']);
+
+    await app.close();
+  });
+});
+
+describe('QuantDocs Document Content Search & Export Engine (Tasks N09 & N10)', () => {
+  it('searches documents matching either title or content with search/q query', async () => {
+    const doc1: DocRow = {
+      id: 'doc-search-1',
+      title: 'Daily Meeting Notes',
+      content: 'We discussed Yjs CRDT synchronization and compact persistence.',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const doc2: DocRow = {
+      id: 'doc-search-2',
+      title: 'Compact Persistence Specification',
+      content: 'High-performance PostgreSQL snapshot engine.',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const doc3: DocRow = {
+      id: 'doc-search-3',
+      title: 'General Guidelines',
+      content: 'Company handbook and team etiquette.',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc1, doc2, doc3]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    // Search term matching content only
+    const resContent = await app.inject({
+      method: 'GET',
+      url: '/documents?search=synchronization',
+    });
+    expect(resContent.statusCode).toBe(200);
+    const bodyContent = resContent.json();
+    expect(bodyContent.data).toHaveLength(1);
+    expect(bodyContent.data[0].id).toBe('doc-search-1');
+
+    // Search term matching title in doc2 and content in doc1
+    const resBoth = await app.inject({
+      method: 'GET',
+      url: '/documents?q=Compact',
+    });
+    expect(resBoth.statusCode).toBe(200);
+    const bodyBoth = resBoth.json();
+    const ids = bodyBoth.data.map((d: any) => d.id);
+    expect(ids).toContain('doc-search-1');
+    expect(ids).toContain('doc-search-2');
+    expect(ids).not.toContain('doc-search-3');
+
+    await app.close();
+  });
+
+  it('GET /documents/:id/export?format=md returns markdown attachment', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-md',
+      title: 'Architecture Review: QuantDocs',
+      content: '# Architecture\n\n- TipTap block editor\n- Yjs CRDT multiplayer',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-md/export?format=md',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/markdown');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="Architecture_Review__QuantDocs.md"',
+    );
+    expect(res.body).toContain('# Architecture');
+    expect(res.body).toContain('- TipTap block editor');
+    expect(res.body).toContain('- Yjs CRDT multiplayer');
+
+    await app.close();
+  });
+
+  it('GET /documents/:id/export?format=html returns HTML document with title', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-html',
+      title: 'Release Announcement',
+      content: '## Production Parity\n\nQuantDocs achieved 100% Notion parity.',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-html/export?format=html',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="Release_Announcement.html"',
+    );
+    expect(res.body).toContain(
+      '<!DOCTYPE html><html><head><title>Release Announcement</title></head><body><h1>Release Announcement</h1>',
+    );
+    expect(res.body).toContain('<h2>Production Parity</h2>');
+    expect(res.body).toContain('QuantDocs achieved 100% Notion parity.');
+    expect(res.body).toContain('</body></html>');
+
+    await app.close();
+  });
+
+  it('GET /documents/:id/export?format=json returns JSON content', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-json',
+      title: 'System Configuration',
+      content: JSON.stringify({
+        schemaVersion: '1.0',
+        syncIntervalMs: 50,
+        features: ['slash-menu', 'breadcrumbs', 'crdt'],
+      }),
+      userId: 'user-1',
+      metadata: { author: 'Developer 5' },
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-json/export?format=json',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="System_Configuration.json"',
+    );
+
+    const parsed = JSON.parse(res.body);
+    expect(parsed.schemaVersion).toBe('1.0');
+    expect(parsed.syncIntervalMs).toBe(50);
+    expect(parsed.features).toEqual(['slash-menu', 'breadcrumbs', 'crdt']);
+
+    await app.close();
+  });
+
+  it('GET /documents/:id/export?format=txt returns plain text without HTML tags', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-txt',
+      title: 'HTML Memo',
+      content:
+        '<p>Welcome to <strong>QuantDocs</strong>! Please visit <a href="/drive">Drive</a>.</p>',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-txt/export?format=txt',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/plain');
+    expect(res.headers['content-disposition']).toBe('attachment; filename="HTML_Memo.txt"');
+    expect(res.body).not.toContain('<p>');
+    expect(res.body).not.toContain('<strong>');
+    expect(res.body).toContain('Welcome to QuantDocs! Please visit Drive.');
+
+    await app.close();
+  });
+
+  it('rejects unauthenticated or unauthorized export attempts', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-private',
+      title: 'Top Secret Strategy',
+      content: 'Classified notes',
+      userId: 'user-other',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    // Trying to export another user's private document
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-private/export?format=md',
+    });
+
+    expect(res.statusCode).toBe(403);
+    const body = res.json();
+    expect(body.error.code).toBe('FORBIDDEN');
+
+    // Trying to export non-existent document
+    const res404 = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-non-existent/export?format=md',
+    });
+
+    expect(res404.statusCode).toBe(404);
+    const body404 = res404.json();
+    expect(body404.error.code).toBe('DOCUMENT_NOT_FOUND');
 
     await app.close();
   });
