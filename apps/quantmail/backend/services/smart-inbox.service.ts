@@ -1,6 +1,6 @@
-// ============================================================================
-// QuantMail - Smart Inbox Service
-// Rules-based email categorization into Primary, Social, Promotions, Updates, Forums
+﻿// ============================================================================
+// QuantMail - Smart Inbox Service (Server-side Categorization Engine)
+// Rules-based email categorization into primary, social, promotions, updates, forums
 // ============================================================================
 
 export type InboxCategory = 'primary' | 'social' | 'promotions' | 'updates' | 'forums';
@@ -14,7 +14,7 @@ export interface CategorizationRule {
 }
 
 export interface CategorizedEmail {
-  emailId: string;
+  emailId?: string;
   category: InboxCategory;
   confidence: number;
   matchedRule?: string;
@@ -22,6 +22,8 @@ export interface CategorizedEmail {
 
 export class SmartInboxService {
   private rules: CategorizationRule[] = [];
+  private userCorrections: Map<string, InboxCategory> = new Map();
+  private ruleCounter = 0;
   private categoryCounts: Record<InboxCategory, number> = {
     primary: 0,
     social: 0,
@@ -29,8 +31,6 @@ export class SmartInboxService {
     updates: 0,
     forums: 0,
   };
-  private userCorrections: Map<string, InboxCategory> = new Map();
-  private ruleCounter = 0;
 
   constructor() {
     this.initBuiltInRules();
@@ -69,26 +69,35 @@ export class SmartInboxService {
     }
   }
 
-  categorize(email: { from: string; subject: string; to: string; body: string }): CategorizedEmail {
-    const emailId = `email-${crypto.randomUUID()}`;
-
-    // Check user corrections first
-    const correction = this.userCorrections.get(emailId);
-    if (correction) {
+  categorize(email: {
+    id?: string;
+    from: string;
+    subject: string;
+    to?: string;
+    body?: string;
+  }): CategorizedEmail {
+    if (email.id && this.userCorrections.has(email.id)) {
+      const correction = this.userCorrections.get(email.id)!;
       this.categoryCounts[correction] += 1;
-      return { emailId, category: correction, confidence: 1.0 };
+      return { emailId: email.id, category: correction, confidence: 1.0 };
     }
 
-    // Sort rules by priority descending
     const sortedRules = [...this.rules].sort((a, b) => b.priority - a.priority);
 
     for (const rule of sortedRules) {
-      const fieldValue = email[rule.field].toLowerCase();
+      const rawValue =
+        rule.field === 'from'
+          ? email.from
+          : rule.field === 'subject'
+            ? email.subject
+            : (email.to ?? '');
+      const fieldValue = rawValue.toLowerCase();
+
       if (fieldValue.includes(rule.pattern.toLowerCase())) {
         const confidence = Math.min(0.5 + rule.priority * 0.05, 1.0);
         this.categoryCounts[rule.category] += 1;
         return {
-          emailId,
+          emailId: email.id,
           category: rule.category,
           confidence,
           matchedRule: rule.id,
@@ -96,9 +105,8 @@ export class SmartInboxService {
       }
     }
 
-    // Default to primary
     this.categoryCounts.primary += 1;
-    return { emailId, category: 'primary', confidence: 0.5 };
+    return { emailId: email.id, category: 'primary', confidence: 0.5 };
   }
 
   addRule(rule: Omit<CategorizationRule, 'id'>): CategorizationRule {

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach } from 'vitest';
 import { SmartInboxService } from '../services/smart-inbox.service';
 
-describe('SmartInboxService', () => {
+describe('SmartInboxService (Backend)', () => {
   let service: SmartInboxService;
 
   beforeEach(() => {
@@ -151,10 +151,16 @@ describe('SmartInboxService', () => {
   });
 
   describe('trainFromUserAction', () => {
-    it('should store user corrections', () => {
+    it('should store user corrections and apply them', () => {
       service.trainFromUserAction('email-123', 'forums');
-      // The correction is stored for future use
-      // This verifies it doesn't throw
+      const res = service.categorize({
+        id: 'email-123',
+        from: 'unknown@test.com',
+        subject: 'test',
+        to: 'me@test.com',
+      });
+      expect(res.category).toBe('forums');
+      expect(res.confidence).toBe(1.0);
     });
   });
 });

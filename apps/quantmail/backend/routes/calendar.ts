@@ -261,8 +261,6 @@ function toEventDto(event: EventRow | CalendarEvent) {
     calendarId: (event as EventRow).calendarId ?? (event as CalendarEvent).calendarId ?? null,
     title: event.title,
     description: event.description,
-    start: event.startTime,
-    end: event.endTime,
     startTime: event.startTime,
     endTime: event.endTime,
     allDay: event.allDay,
@@ -369,7 +367,7 @@ export default async function calendarRoutes(
         });
         const merged = [...rows.map(toEventDto), ...expandedDtos];
         const data = [...new Map(merged.map((event) => [event.id, event])).values()].sort(
-          (left, right) => new Date(left.start).getTime() - new Date(right.start).getTime(),
+          (left, right) => new Date(left.startTime).getTime() - new Date(right.startTime).getTime(),
         );
         return reply.send({ success: true, data });
       }

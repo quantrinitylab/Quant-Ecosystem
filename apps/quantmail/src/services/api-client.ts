@@ -517,15 +517,6 @@ export class QuantMailApiClient {
     return this.get('/ci/deployments', { params: { repo_id: repoId, environment } as any });
   }
 
-  async deploy(data: {
-    buildId: string;
-    repoId: string;
-    environment: string;
-    version: string;
-  }): Promise<ApiResponse<Deployment>> {
-    return this.post('/ci/deployments', data);
-  }
-
   // --------------------------------------------------------------------------
   // Calendar API
   // --------------------------------------------------------------------------

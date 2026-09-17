@@ -96,17 +96,19 @@ export async function authRoutes(fastify: FastifyInstance) {
     });
 
     // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
-    await prisma.emailFolder.createMany({
-      data: [
-        { userId: user.id, name: 'Inbox', type: 'INBOX' },
-        { userId: user.id, name: 'Sent', type: 'SENT' },
-        { userId: user.id, name: 'Drafts', type: 'DRAFTS' },
-        { userId: user.id, name: 'Archive', type: 'ARCHIVE' },
-        { userId: user.id, name: 'Trash', type: 'TRASH' },
-        { userId: user.id, name: 'Spam', type: 'SPAM' },
-      ],
-      skipDuplicates: true,
-    });
+    if (prisma.emailFolder?.createMany) {
+      await prisma.emailFolder.createMany({
+        data: [
+          { userId: user.id, name: 'Inbox', type: 'INBOX' },
+          { userId: user.id, name: 'Sent', type: 'SENT' },
+          { userId: user.id, name: 'Drafts', type: 'DRAFTS' },
+          { userId: user.id, name: 'Archive', type: 'ARCHIVE' },
+          { userId: user.id, name: 'Trash', type: 'TRASH' },
+          { userId: user.id, name: 'Spam', type: 'SPAM' },
+        ],
+        skipDuplicates: true,
+      });
+    }
 
     return reply.send(await issueBrowserSession(tokenService, reply, user));
   });

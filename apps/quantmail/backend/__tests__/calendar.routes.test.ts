@@ -290,11 +290,12 @@ describe('GET /events/:id', () => {
 
     expect(res.statusCode).toBe(200);
     expect(prisma.event.findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
-    // `start`/`end` for the calendar page, `startTime`/`endTime` for api-client's
-    // CalendarEvent type. Dropping either breaks one of the two.
+    // D18/K09: Unified event DTO emits canonical startTime and endTime keys
     const body = res.json().data;
-    expect(body.start).toBe(ROW.startTime.toISOString());
     expect(body.startTime).toBe(ROW.startTime.toISOString());
+    expect(body.endTime).toBe(ROW.endTime.toISOString());
+    expect(body.start).toBeUndefined();
+    expect(body.end).toBeUndefined();
   });
 
   it('404s an event owned by somebody else', async () => {
