@@ -17,14 +17,35 @@ vi.mock('../lib/ses-sender', () => ({
   isSesConfigured: vi.fn().mockReturnValue(true),
 }));
 
+// Mock OutboundDeliveryPipeline to avoid Redis connection during unit tests
+vi.mock('../services/outbound-delivery.service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/outbound-delivery.service')>();
+  return {
+    ...actual,
+    OutboundDeliveryPipeline: class extends actual.OutboundDeliveryPipeline {
+      static override createQueue() {
+        return {
+          add: vi.fn().mockResolvedValue({ id: 'job-1' }),
+          close: vi.fn().mockResolvedValue(undefined),
+        } as any;
+      }
+      override async enqueueSend(userId: string, emailId: string, options?: any) {
+        return { jobId: 'job-1', deliveryStatus: 'queued' };
+      }
+    },
+  };
+});
+
 import { ALLOWED_BACKEND_ROUTES } from '../lib/routes-config';
 import { proxyToBackend } from '../../src/app/api/_lib/proxy';
 import * as routeHandlers from '../../src/app/api/[...path]/route';
 
 function createMockPrisma() {
+  const storedEmails = new Map<string, any>();
   const storedDraft = {
     id: 'draft-1',
     userId: 'user-1',
+    fromAddress: 'sender@test.com',
     isDraft: true,
     isSent: false,
     toAddresses: ['initial@test.com'],
@@ -41,22 +62,41 @@ function createMockPrisma() {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+  storedEmails.set('draft-1', storedDraft);
 
   return {
     storedDraft,
+    storedEmails,
     email: {
-      create: vi.fn(),
+      create: vi.fn().mockImplementation(async ({ data }: any) => {
+        const id = data?.id || `email-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const record = { ...storedDraft, ...data, id };
+        storedEmails.set(id, record);
+        return record;
+      }),
       findUnique: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (storedEmails.has(where.id)) return { ...storedEmails.get(where.id) };
         if (where.id === 'draft-1') return { ...storedDraft };
         return null;
+      }),
+      findFirst: vi.fn().mockImplementation(async ({ where }: any) => {
+        if (where?.id && storedEmails.has(where.id)) return { ...storedEmails.get(where.id) };
+        return { ...storedDraft };
       }),
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(1),
       update: vi.fn().mockImplementation(async ({ where, data }: any) => {
-        return { ...storedDraft, ...data, id: where.id };
+        const existing = storedEmails.get(where.id) || storedDraft;
+        const updated = { ...existing, ...data, id: where.id };
+        storedEmails.set(where.id, updated);
+        return updated;
       }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-      delete: vi.fn().mockResolvedValue(storedDraft),
+      delete: vi.fn().mockImplementation(async ({ where }: any) => {
+        const existing = storedEmails.get(where.id) || storedDraft;
+        storedEmails.delete(where.id);
+        return existing;
+      }),
     },
     user: {
       findUnique: vi.fn().mockResolvedValue({
@@ -71,8 +111,20 @@ function createMockPrisma() {
       findMany: vi.fn().mockResolvedValue([]),
     },
     emailFolder: {
-      findFirst: vi.fn().mockResolvedValue({ id: 'folder-1' }),
+      findFirst: vi.fn().mockResolvedValue({ id: 'folder-1', name: 'Sent', type: 'SENT' }),
+      create: vi.fn().mockResolvedValue({ id: 'folder-1', name: 'Sent', type: 'SENT' }),
       upsert: vi.fn().mockResolvedValue({ id: 'folder-1' }),
+    },
+    emailThread: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'thread-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'thread-1' }),
+    },
+    contact: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'contact-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'contact-1' }),
     },
     deliveryAttempt: {
       findUnique: vi.fn().mockResolvedValue(null),
@@ -763,6 +815,175 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(searchBody.success).toBe(true);
       expect(Array.isArray(searchBody.data)).toBe(true);
       expect(searchBody).not.toHaveProperty('emails');
+
+      await app.close();
+    });
+  });
+
+  describe('Phase M: Mail Parity Remediations (M-F01–M-F05, M07, M10–M12)', () => {
+    let prisma: ReturnType<typeof createMockPrisma>;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      prisma = createMockPrisma();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('M-F01: POST /emails with send: true auto-resolves Sent folder when sentFolderId is omitted', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails',
+        payload: {
+          toAddresses: ['recipient@test.com'],
+          subject: 'Auto Sent Folder',
+          bodyPlain: 'Test body',
+          send: true,
+          // sentFolderId is intentionally omitted
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            subject: 'Auto Sent Folder',
+          }),
+        }),
+      );
+      // Confirmed getOrCreateFolder looked up the Sent folder
+      expect(prisma.emailFolder.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: 'user-1',
+            OR: [{ name: 'Sent' }, { type: 'SENT' }],
+          }),
+        }),
+      );
+
+      await app.close();
+    });
+
+    it('M07: POST /emails/compose supports unified contract accepting to array and bodyText', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/emails/compose',
+        payload: {
+          to: [{ email: 'composer@test.com', name: 'Composer User' }],
+          subject: 'Composer Subject',
+          bodyText: 'Composer plain text',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.subject).toBe('Composer Subject');
+      expect(body.data.to).toEqual([expect.objectContaining({ email: 'composer@test.com' })]);
+
+      await app.close();
+    });
+
+    it('M-F02: /:id/read, /:id/star, and DELETE /:id return formatted email records', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // 1. POST /emails/draft-1/read
+      const readRes = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/read',
+      });
+      expect(readRes.statusCode).toBe(200);
+      const readBody = readRes.json();
+      expect(readBody.success).toBe(true);
+      expect(readBody.data.isRead).toBe(true);
+      expect(Array.isArray(readBody.data.to)).toBe(true);
+
+      // 2. POST /emails/draft-1/star
+      const starRes = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/star',
+      });
+      expect(starRes.statusCode).toBe(200);
+      const starBody = starRes.json();
+      expect(starBody.success).toBe(true);
+      expect(starBody.data.isStarred).toBe(true);
+      expect(Array.isArray(starBody.data.to)).toBe(true);
+
+      // 3. DELETE /emails/draft-1 (trash)
+      const deleteRes = await app.inject({
+        method: 'DELETE',
+        url: '/emails/draft-1',
+      });
+      expect(deleteRes.statusCode).toBe(200);
+      const deleteBody = deleteRes.json();
+      expect(deleteBody.success).toBe(true);
+      expect(deleteBody.data.isTrash).toBe(true);
+      expect(Array.isArray(deleteBody.data.to)).toBe(true);
+
+      await app.close();
+    });
+
+    it('M-F03 & M-F04: POST /:id/reply defaults messageKind to mail and returns 202 with deliveryStatus', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      const replyRes = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/reply',
+        payload: {
+          body: 'This is my reply message',
+        },
+      });
+
+      expect(replyRes.statusCode).toBe(202);
+      const replyBody = replyRes.json();
+      expect(replyBody.success).toBe(true);
+      expect(replyBody.data.message).toBe('Email queued for delivery');
+      expect(replyBody.data.deliveryStatus).toBe('queued');
+      expect(replyBody.data.email).toBeDefined();
+
+      // Verify that the created draft used messageKind 'MAIL'
+      expect(prisma.email.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            messageKind: 'MAIL',
+          }),
+        }),
+      );
+
+      await app.close();
+    });
+
+    it('M-F05: POST /:id/reply deletes orphan draft if outbound send throws', async () => {
+      const app = await buildTestFastifyApp(prisma, 'user-1');
+
+      // Make prisma.email.update throw during send
+      prisma.email.update.mockImplementation(async ({ where, data }: any) => {
+        if (data?.sentAt || data?.isSent) {
+          throw new Error('Database transaction write error');
+        }
+        return { ...prisma.storedDraft, ...data, id: where.id };
+      });
+
+      const replyRes = await app.inject({
+        method: 'POST',
+        url: '/emails/draft-1/reply',
+        payload: {
+          body: 'This reply will fail to send',
+        },
+      });
+
+      // Send failure throws 500
+      expect(replyRes.statusCode).toBe(500);
+
+      // M-F05: Verify that the orphan draft was cleaned up via prisma.email.delete
+      expect(prisma.email.delete).toHaveBeenCalled();
 
       await app.close();
     });

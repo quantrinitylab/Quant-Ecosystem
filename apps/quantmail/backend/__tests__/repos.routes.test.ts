@@ -1109,4 +1109,120 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       }),
     );
   });
+
+  describe('Phase R & Phase M Remediations: V20, V21, V22, V24', () => {
+    it('V20: GET /repos/:id/actions surfaces database errors without incident masking', async () => {
+      const app = await buildApp('user-1');
+      prisma.ciRun.findMany.mockRejectedValueOnce(new Error('Postgres connection failed'));
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/actions',
+      });
+
+      // Does NOT mask error with 200 and empty array
+      expect(res.statusCode).toBe(500);
+      expect(res.json()).toEqual(
+        expect.objectContaining({
+          success: false,
+        }),
+      );
+    });
+
+    it('V21: toDto returns truthful empty language, empty website, and zero watching', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.data.language).toBe('');
+      expect(body.data.website).toBe('');
+      expect(body.data.watching).toBe(0);
+    });
+
+    it('V22: PR endpoints return 0 for additions/deletions/changedFiles and checksStatus none', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const pr = res.json().data[0];
+      expect(pr.additions).toBe(0);
+      expect(pr.deletions).toBe(0);
+      expect(pr.changedFiles).toBe(0);
+      expect(pr.checksStatus).toBe('none');
+    });
+
+    it('V22: Issue endpoints return assignee null instead of hardcoded Developer 6', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/issues',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const issue = res.json().data[0];
+      expect(issue.assignee).toBeNull();
+    });
+
+    it('V24: DELETE /repos/:id/star decrements starCount and clamps at 0', async () => {
+      const app = await buildApp('user-1');
+
+      // 1. Normal decrement: 42 -> 41
+      prisma.repository.findUnique.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        starCount: 42,
+      } as never);
+      prisma.repository.update.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        starCount: 41,
+      } as never);
+
+      const unstarRes = await app.inject({
+        method: 'DELETE',
+        url: '/repos/repo-1/star',
+      });
+
+      expect(unstarRes.statusCode).toBe(200);
+      expect(unstarRes.json()).toEqual(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({ id: 'repo-1', stars: 41 }),
+        }),
+      );
+      expect(prisma.repository.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { starCount: 41 },
+        }),
+      );
+
+      // 2. Clamped at 0: 0 -> 0
+      prisma.repository.findUnique.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        starCount: 0,
+      } as never);
+      prisma.repository.update.mockResolvedValueOnce({
+        ...MOCK_REPO,
+        starCount: 0,
+      } as never);
+
+      const clampRes = await app.inject({
+        method: 'DELETE',
+        url: '/repos/repo-1/star',
+      });
+
+      expect(clampRes.statusCode).toBe(200);
+      expect(clampRes.json().data.stars).toBe(0);
+      expect(prisma.repository.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { starCount: 0 },
+        }),
+      );
+    });
+  });
 });

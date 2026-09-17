@@ -162,11 +162,11 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     description: r.description ?? '',
     visibility: String(r.visibility).toLowerCase(),
     defaultBranch: r.defaultBranch,
-    language: 'TypeScript',
+    language: '',
     languages: {},
     stars: r.starCount,
     forks: r.forkCount,
-    watching: 1,
+    watching: 0,
     openIssues: 0,
     size: 0,
     isTemplate: false,
@@ -177,7 +177,7 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     latestCommitTime: '',
     checksStatus: 'none',
     license: '',
-    website: 'https://quantmail.in',
+    website: '',
     cloneUrl: `${appUrl}/api/code/gitd/repos/${encodeURIComponent(
       r.ownerId,
     )}/${encodeURIComponent(r.name)}.git`,
@@ -704,6 +704,19 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     });
   });
 
+  fastify.delete<{ Params: { id: string } }>('/:id/star', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const prisma = getPrisma(fastify);
+    const updated = await prisma.repository.update({
+      where: { id: repo.id },
+      data: { starCount: Math.max(0, repo.starCount - 1) },
+    });
+    return reply.send({
+      success: true,
+      data: { id: updated.id, stars: updated.starCount },
+    });
+  });
+
   fastify.get<{ Params: { id: string } }>('/:id/branches', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
     const prisma = getPrisma(fastify);
@@ -826,12 +839,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           author: pull.author?.username ?? 'user',
           branchSource: pull.sourceBranch,
           branchTarget: pull.targetBranch,
-          checksStatus: 'passing',
+          checksStatus: 'none',
           commentsCount: 0,
           createdAt: pull.createdAt.toISOString(),
-          additions: 45,
-          deletions: 8,
-          changedFiles: 3,
+          additions: 0,
+          deletions: 0,
+          changedFiles: 0,
         })),
       });
     },
@@ -878,12 +891,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         author: pr.author?.username ?? 'user',
         branchSource: pr.sourceBranch,
         branchTarget: pr.targetBranch,
-        checksStatus: 'passing',
+        checksStatus: 'none',
         commentsCount: 0,
-        createdAt: 'just now',
-        additions: 12,
-        deletions: 2,
-        changedFiles: 1,
+        createdAt: pr.createdAt.toISOString(),
+        additions: 0,
+        deletions: 0,
+        changedFiles: 0,
       },
     });
   });
@@ -923,13 +936,13 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           author: merged.author?.username ?? 'user',
           branchSource: merged.sourceBranch,
           branchTarget: merged.targetBranch,
-          checksStatus: 'passing',
+          checksStatus: 'none',
           commentsCount: 0,
           createdAt: merged.createdAt.toISOString(),
           mergedAt: merged.mergedAt?.toISOString(),
-          additions: 45,
-          deletions: 8,
-          changedFiles: 3,
+          additions: 0,
+          deletions: 0,
+          changedFiles: 0,
         },
       });
     },
@@ -988,7 +1001,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
             ),
             commentsCount: issue._count?.comments ?? 0,
             createdAt: issue.createdAt.toISOString(),
-            assignee: 'Developer 6',
+            assignee: ((issue as any).assignees as string[])?.[0] ?? null,
           };
         }),
       });
@@ -1043,8 +1056,8 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         author: issue.author?.username ?? 'user',
         labels: labelsList,
         commentsCount: 0,
-        createdAt: 'just now',
-        assignee: 'Developer 6',
+        createdAt: issue.createdAt.toISOString(),
+        assignee: ((issue as any).assignees as string[])?.[0] ?? null,
       },
     });
   });
@@ -1256,124 +1269,118 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const repo = await loadReadableRepo(request, request.params.id);
     const prisma = getPrisma(fastify);
 
-    try {
-      let runs = await prisma.ciRun.findMany({
+    let runs = await prisma.ciRun.findMany({
+      where: { repoId: repo.id },
+      include: { jobs: true },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    });
+
+    if (
+      runs.length === 0 &&
+      process.env.NODE_ENV === 'development' &&
+      process.env.ENABLE_DEV_REPO_SEEDING === 'true'
+    ) {
+      // Auto-seed default realistic workflow runs for the repository
+      const seeds = [
+        {
+          branch: repo.defaultBranch || 'main',
+          commitSha: '317ed52d',
+          status: 'SUCCESS' as const,
+          triggeredBy: 'Developer 6',
+          jobs: [
+            {
+              name: 'Validate immutable main release',
+              status: 'SUCCESS' as const,
+              startedAt: new Date(Date.now() - 300000),
+              completedAt: new Date(Date.now() - 296000),
+            },
+            {
+              name: 'Build and deploy quantmail',
+              status: 'SUCCESS' as const,
+              startedAt: new Date(Date.now() - 295000),
+              completedAt: new Date(Date.now() - 4000),
+            },
+          ],
+        },
+        {
+          branch: repo.defaultBranch || 'main',
+          commitSha: 'ea67d137',
+          status: 'SUCCESS' as const,
+          triggeredBy: 'Sentinel',
+          jobs: [
+            {
+              name: 'Vitest Unit & Integration Suites',
+              status: 'SUCCESS' as const,
+              startedAt: new Date(Date.now() - 600000),
+              completedAt: new Date(Date.now() - 350000),
+            },
+            {
+              name: 'TypeScript Strict Typecheck',
+              status: 'SUCCESS' as const,
+              startedAt: new Date(Date.now() - 350000),
+              completedAt: new Date(Date.now() - 200000),
+            },
+          ],
+        },
+        {
+          branch: repo.defaultBranch || 'main',
+          commitSha: '948e3612',
+          status: 'SUCCESS' as const,
+          triggeredBy: 'Astra',
+          jobs: [
+            {
+              name: 'Security Audit & CodeQL Advanced',
+              status: 'SUCCESS' as const,
+              startedAt: new Date(Date.now() - 900000),
+              completedAt: new Date(Date.now() - 700000),
+            },
+          ],
+        },
+      ];
+      for (const s of seeds) {
+        await prisma.ciRun.create({
+          data: {
+            repoId: repo.id,
+            branch: s.branch,
+            commitSha: s.commitSha,
+            status: s.status,
+            triggeredBy: s.triggeredBy,
+            jobs: {
+              create: s.jobs,
+            },
+          },
+        });
+      }
+      runs = await prisma.ciRun.findMany({
         where: { repoId: repo.id },
         include: { jobs: true },
         orderBy: { createdAt: 'desc' },
         take: 30,
       });
-
-      if (
-        runs.length === 0 &&
-        process.env.NODE_ENV === 'development' &&
-        process.env.ENABLE_DEV_REPO_SEEDING === 'true'
-      ) {
-        // Auto-seed default realistic workflow runs for the repository
-        const seeds = [
-          {
-            branch: repo.defaultBranch || 'main',
-            commitSha: '317ed52d',
-            status: 'SUCCESS' as const,
-            triggeredBy: 'Developer 6',
-            jobs: [
-              {
-                name: 'Validate immutable main release',
-                status: 'SUCCESS' as const,
-                startedAt: new Date(Date.now() - 300000),
-                completedAt: new Date(Date.now() - 296000),
-              },
-              {
-                name: 'Build and deploy quantmail',
-                status: 'SUCCESS' as const,
-                startedAt: new Date(Date.now() - 295000),
-                completedAt: new Date(Date.now() - 4000),
-              },
-            ],
-          },
-          {
-            branch: repo.defaultBranch || 'main',
-            commitSha: 'ea67d137',
-            status: 'SUCCESS' as const,
-            triggeredBy: 'Sentinel',
-            jobs: [
-              {
-                name: 'Vitest Unit & Integration Suites',
-                status: 'SUCCESS' as const,
-                startedAt: new Date(Date.now() - 600000),
-                completedAt: new Date(Date.now() - 350000),
-              },
-              {
-                name: 'TypeScript Strict Typecheck',
-                status: 'SUCCESS' as const,
-                startedAt: new Date(Date.now() - 350000),
-                completedAt: new Date(Date.now() - 200000),
-              },
-            ],
-          },
-          {
-            branch: repo.defaultBranch || 'main',
-            commitSha: '948e3612',
-            status: 'SUCCESS' as const,
-            triggeredBy: 'Astra',
-            jobs: [
-              {
-                name: 'Security Audit & CodeQL Advanced',
-                status: 'SUCCESS' as const,
-                startedAt: new Date(Date.now() - 900000),
-                completedAt: new Date(Date.now() - 700000),
-              },
-            ],
-          },
-        ];
-        for (const s of seeds) {
-          await prisma.ciRun
-            .create({
-              data: {
-                repoId: repo.id,
-                branch: s.branch,
-                commitSha: s.commitSha,
-                status: s.status,
-                triggeredBy: s.triggeredBy,
-                jobs: {
-                  create: s.jobs,
-                },
-              },
-            })
-            .catch(() => {});
-        }
-        runs = await prisma.ciRun.findMany({
-          where: { repoId: repo.id },
-          include: { jobs: true },
-          orderBy: { createdAt: 'desc' },
-          take: 30,
-        });
-      }
-
-      return reply.send({
-        success: true,
-        data: runs.map((r: any, idx: number) => ({
-          id: r.id,
-          number: idx + 1,
-          name: r.triggeredBy ? `Build triggered by ${r.triggeredBy}` : `Workflow run #${idx + 1}`,
-          workflow: r.jobs?.[0]?.name ? 'CI / Staging Pipeline' : 'All workflows',
-          status: String(r.status).toLowerCase(),
-          branch: r.branch,
-          event: 'push',
-          commitSha: r.commitSha,
-          duration: '4m 55s',
-          timeAgo: 'recently',
-          jobs: (r.jobs || []).map((j: any) => ({
-            id: j.id,
-            name: j.name,
-            status: String(j.status).toLowerCase(),
-            duration: '2m 10s',
-          })),
-        })),
-      });
-    } catch {
-      return reply.send({ success: true, data: [] });
     }
+
+    return reply.send({
+      success: true,
+      data: runs.map((r: any, idx: number) => ({
+        id: r.id,
+        number: idx + 1,
+        name: r.triggeredBy ? `Build triggered by ${r.triggeredBy}` : `Workflow run #${idx + 1}`,
+        workflow: r.jobs?.[0]?.name ? 'CI / Staging Pipeline' : 'All workflows',
+        status: String(r.status).toLowerCase(),
+        branch: r.branch,
+        event: 'push',
+        commitSha: r.commitSha,
+        duration: '4m 55s',
+        timeAgo: 'recently',
+        jobs: (r.jobs || []).map((j: any) => ({
+          id: j.id,
+          name: j.name,
+          status: String(j.status).toLowerCase(),
+          duration: '2m 10s',
+        })),
+      })),
+    });
   });
 
   fastify.post<{ Params: { id: string } }>('/:id/actions/trigger', async (request, reply) => {

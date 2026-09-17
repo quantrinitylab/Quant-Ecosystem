@@ -1,5 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
+import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
@@ -11,8 +12,27 @@ import { formatEmailRecord } from '../lib/format-email';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
-// Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" are
-// normalised to a real address before validation, so the composer no longer
+function getPrisma(fastify: FastifyInstance): PrismaClient {
+  return (fastify as unknown as { prisma: PrismaClient }).prisma;
+}
+
+async function getOrCreateFolder(
+  prisma: PrismaClient,
+  userId: string,
+  name: string,
+  type: 'SENT' | 'ARCHIVE' | 'TRASH' | 'SPAM' | 'INBOX' | 'DRAFTS',
+): Promise<{ id: string }> {
+  const existing = await prisma.emailFolder.findFirst({
+    where: { userId, OR: [{ name }, { type }] },
+  });
+  if (existing) return existing;
+  return prisma.emailFolder.create({
+    data: { userId, name, type },
+  });
+}
+
+// Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" or { email, name }
+// are normalised to a real address before validation, so the composer no longer
 // rejects what the user actually typed.
 const DEFAULT_MAIL_DOMAIN = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
 
@@ -27,9 +47,16 @@ function normalizeAddress(value: unknown): unknown {
   return raw.includes('@') ? raw : `${raw}@${DEFAULT_MAIL_DOMAIN}`;
 }
 
-const addressArray = (min: number) =>
+function normalizeRecipient(value: unknown): unknown {
+  if (value && typeof value === 'object' && 'email' in value) {
+    return normalizeAddress((value as { email: unknown }).email);
+  }
+  return normalizeAddress(value);
+}
+
+const recipientArray = (min: number) =>
   z.preprocess(
-    (value) => (Array.isArray(value) ? value.map(normalizeAddress) : value),
+    (value) => (Array.isArray(value) ? value.map(normalizeRecipient) : value),
     min > 0 ? z.array(z.string().email()).min(min) : z.array(z.string().email()),
   );
 
@@ -47,21 +74,57 @@ const prioritySchema = z
     val ? (val.toUpperCase() as 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT') : undefined,
   );
 
-const composeSchema = z.object({
-  toAddresses: addressArray(1),
-  ccAddresses: addressArray(0).optional(),
-  bccAddresses: addressArray(0).optional(),
-  subject: z.string().min(1).max(500),
-  bodyHtml: z.string().optional(),
-  bodyPlain: z.string().optional(),
-  threadId: z.string().optional(),
-  inReplyTo: z.string().optional(),
-  attachments: z.array(z.any()).optional(),
-  send: z.boolean().optional(),
-  sentFolderId: z.string().optional(),
-  messageKind: messageKindSchema,
-  priority: prioritySchema,
-});
+/**
+ * Unified Compose Schema (Task M07)
+ * Accepts recipients as string arrays (`toAddresses`) or objects (`to: [{ email, name }]`),
+ * plain body as `bodyPlain` or `bodyText`, and normalizes to a single canonical contract.
+ */
+const composeSchema = z
+  .object({
+    toAddresses: recipientArray(0).optional(),
+    to: recipientArray(0).optional(),
+    ccAddresses: recipientArray(0).optional(),
+    cc: recipientArray(0).optional(),
+    bccAddresses: recipientArray(0).optional(),
+    bcc: recipientArray(0).optional(),
+    subject: z.string().min(1).max(500),
+    bodyHtml: z.string().optional(),
+    bodyPlain: z.string().optional(),
+    bodyText: z.string().optional(),
+    threadId: z.string().optional(),
+    inReplyTo: z.string().optional(),
+    attachments: z.array(z.any()).optional(),
+    send: z.boolean().optional(),
+    sentFolderId: z.string().optional(),
+    messageKind: messageKindSchema,
+    priority: prioritySchema,
+  })
+  .refine(
+    (data) => (data.toAddresses && data.toAddresses.length > 0) || (data.to && data.to.length > 0),
+    {
+      message: 'At least one recipient is required in "to" or "toAddresses"',
+      path: ['toAddresses'],
+    },
+  )
+  .transform((d) => ({
+    toAddresses: (d.toAddresses && d.toAddresses.length > 0 ? d.toAddresses : d.to) as string[],
+    ccAddresses: (d.ccAddresses && d.ccAddresses.length > 0
+      ? d.ccAddresses
+      : (d.cc ?? [])) as string[],
+    bccAddresses: (d.bccAddresses && d.bccAddresses.length > 0
+      ? d.bccAddresses
+      : (d.bcc ?? [])) as string[],
+    subject: d.subject,
+    bodyHtml: d.bodyHtml,
+    bodyPlain: d.bodyPlain ?? d.bodyText,
+    threadId: d.threadId,
+    inReplyTo: d.inReplyTo,
+    attachments: d.attachments ?? [],
+    send: d.send ?? false,
+    sentFolderId: d.sentFolderId,
+    messageKind: d.messageKind,
+    priority: d.priority,
+  }));
 
 const moveSchema = z.object({
   folderId: z.string().min(1),
@@ -92,12 +155,12 @@ const searchSchema = z.object({
  * {@link ContactService.recordRecipients}; this only decides what to log.
  */
 async function recordRecipientInteractions(params: {
-  prisma: unknown;
+  prisma: PrismaClient;
   userId: string;
   addressGroups: Array<readonly (string | undefined)[] | undefined>;
   logger?: { warn: (obj: unknown, msg: string) => void };
 }): Promise<void> {
-  const contacts = new ContactService(params.prisma as never);
+  const contacts = new ContactService(params.prisma);
   const { failed, total } = await contacts.recordRecipients(params.userId, params.addressGroups);
 
   if (failed > 0) {
@@ -107,18 +170,18 @@ async function recordRecipientInteractions(params: {
 
 export default async function emailsRoutes(fastify: FastifyInstance) {
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
-  const createSendService = (prisma: any) => {
+  const createSendService = (prisma: PrismaClient) => {
     outboundQueue ??= OutboundDeliveryPipeline.createQueue();
-    const pipeline = new OutboundDeliveryPipeline(prisma as never, outboundQueue);
-    return new EmailService(prisma as never, pipeline);
+    const pipeline = new OutboundDeliveryPipeline(prisma, outboundQueue);
+    return new EmailService(prisma, pipeline);
   };
 
   fastify.addHook('onClose', async () => {
     await outboundQueue?.close();
   });
 
-  // POST /emails - Compose or send an email
-  fastify.post('/', async (request, reply) => {
+  // Unified compose and send handler (M07: collapses /emails and /emails/compose to one contract)
+  const handleComposeOrSend = async (request: FastifyRequest, reply: FastifyReply) => {
     const parseResult = composeSchema.safeParse(request.body);
     if (!parseResult.success) {
       throw createAppError(
@@ -133,57 +196,59 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const sanitizedHtml = parseResult.data.bodyHtml
-      ? sanitizeHtml(parseResult.data.bodyHtml)
-      : undefined;
-
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const d = parseResult.data;
+    const sanitizedHtml = d.bodyHtml ? sanitizeHtml(d.bodyHtml) : undefined;
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
 
     const email = await service.compose({
       userId,
-      ...parseResult.data,
+      toAddresses: d.toAddresses,
+      ccAddresses: d.ccAddresses,
+      bccAddresses: d.bccAddresses,
+      subject: d.subject,
       bodyHtml: sanitizedHtml,
-      attachments: parseResult.data.attachments ?? [],
-      messageKind: toMessageKind(parseResult.data.messageKind),
+      bodyPlain: d.bodyPlain,
+      threadId: d.threadId,
+      inReplyTo: d.inReplyTo,
+      attachments: d.attachments,
+      messageKind: toMessageKind(d.messageKind),
+      priority: d.priority,
     });
 
-    if (parseResult.data.send && parseResult.data.sentFolderId) {
-      // Durable, queued outbound delivery: enqueue a real BullMQ job and set
-      // the email deliveryStatus to `queued` (Requirements 4.1/4.2).
-      const sendService = createSendService(prisma);
-      const sent = await sendService.send(userId, email.id, parseResult.data.sentFolderId);
+    if (d.send) {
+      // M-F01: If send: true is requested without sentFolderId, auto-resolve the user's Sent folder
+      let sentFolderId = d.sentFolderId;
+      if (!sentFolderId) {
+        const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
+        sentFolderId = sentFolder.id;
+      }
 
-      // Internal delivery: any recipient that is itself a QuantMail user gets a
-      // received copy in their mailbox immediately (mail between @quantchat.online
-      // addresses works with no external SMTP). External recipients continue via
-      // the outbound pipeline enqueued above.
+      const sendService = createSendService(prisma);
+      const sent = await sendService.send(userId, email.id, sentFolderId);
+
       try {
         await sendService.deliverInternally({
           fromUserId: userId,
-          subject: parseResult.data.subject,
+          subject: d.subject,
           bodyHtml: sanitizedHtml,
-          bodyPlain: parseResult.data.bodyPlain,
-          toAddresses: parseResult.data.toAddresses,
-          ccAddresses: parseResult.data.ccAddresses,
-          bccAddresses: parseResult.data.bccAddresses,
-          threadId: parseResult.data.threadId,
-          inReplyTo: parseResult.data.inReplyTo,
-          attachments: parseResult.data.attachments ?? [],
-          messageKind: toMessageKind(parseResult.data.messageKind),
+          bodyPlain: d.bodyPlain,
+          toAddresses: d.toAddresses,
+          ccAddresses: d.ccAddresses,
+          bccAddresses: d.bccAddresses,
+          threadId: d.threadId,
+          inReplyTo: d.inReplyTo,
+          attachments: d.attachments,
+          messageKind: toMessageKind(d.messageKind),
         });
-      } catch {
-        /* internal delivery failure must not block the send response */
+      } catch (err) {
+        request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
       }
 
       await recordRecipientInteractions({
         prisma,
         userId,
-        addressGroups: [
-          parseResult.data.toAddresses,
-          parseResult.data.ccAddresses,
-          parseResult.data.bccAddresses,
-        ],
+        addressGroups: [d.toAddresses, d.ccAddresses, d.bccAddresses],
         logger: request.log,
       });
 
@@ -191,61 +256,22 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
-  });
+  };
 
-  // POST /emails/compose - create a draft (frontend composer contract).
-  // Accepts recipients as {email,name}[] and maps them to address arrays.
-  const addr = z.object({ email: z.string().email(), name: z.string().optional() });
-  const composeRequestSchema = z.object({
-    to: z.array(addr).min(1),
-    cc: z.array(addr).optional(),
-    bcc: z.array(addr).optional(),
-    subject: z.string().min(1).max(500),
-    bodyText: z.string().optional(),
-    bodyHtml: z.string().optional(),
-    priority: prioritySchema,
-    inReplyTo: z.string().optional(),
-    threadId: z.string().optional(),
-    attachments: z.array(z.any()).optional(),
-    messageKind: messageKindSchema,
-  });
+  // POST /emails - Compose or send an email
+  fastify.post('/', handleComposeOrSend);
 
-  fastify.post('/compose', async (request, reply) => {
-    const parsed = composeRequestSchema.safeParse(request.body);
-    if (!parsed.success) throw parsed.error;
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-
-    const d = parsed.data;
-    const sanitized = d.bodyHtml ? sanitizeHtml(d.bodyHtml) : undefined;
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
-
-    const email = await service.compose({
-      userId,
-      toAddresses: d.to.map((r) => r.email),
-      ccAddresses: d.cc?.map((r) => r.email) ?? [],
-      bccAddresses: d.bcc?.map((r) => r.email) ?? [],
-      subject: d.subject,
-      bodyHtml: sanitized,
-      bodyPlain: d.bodyText,
-      inReplyTo: d.inReplyTo,
-      threadId: d.threadId,
-      attachments: d.attachments ?? [],
-      messageKind: toMessageKind(d.messageKind),
-      priority: d.priority,
-    });
-    return reply.status(201).send({ success: true, data: formatEmailRecord(email) });
-  });
+  // POST /emails/compose - Unified composer contract (M07)
+  fastify.post('/compose', handleComposeOrSend);
 
   // PUT /emails/:id - update an owned draft without creating duplicates.
   fastify.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    const parsed = composeRequestSchema.safeParse(request.body);
+    const parsed = composeSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const existing = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!existing || existing.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -269,13 +295,12 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const email = await prisma.email.update({
       where: { id: request.params.id },
       data: {
-        // Required by the schema (min 1), so always present.
-        toAddresses: d.to.map((recipient) => recipient.email),
+        toAddresses: d.toAddresses,
         subject: d.subject,
-        ...(provided('cc') ? { ccAddresses: d.cc?.map((r) => r.email) ?? [] } : {}),
-        ...(provided('bcc') ? { bccAddresses: d.bcc?.map((r) => r.email) ?? [] } : {}),
+        ...(provided('cc') || provided('ccAddresses') ? { ccAddresses: d.ccAddresses } : {}),
+        ...(provided('bcc') || provided('bccAddresses') ? { bccAddresses: d.bccAddresses } : {}),
         ...(provided('bodyHtml') ? { bodyHtml: d.bodyHtml ? sanitizeHtml(d.bodyHtml) : '' } : {}),
-        ...(provided('bodyText') ? { bodyPlain: d.bodyText ?? '' } : {}),
+        ...(provided('bodyText') || provided('bodyPlain') ? { bodyPlain: d.bodyPlain ?? '' } : {}),
         ...(provided('inReplyTo') ? { inReplyTo: d.inReplyTo ?? null } : {}),
         ...(provided('threadId') ? { threadId: d.threadId ?? null } : {}),
         ...(d.priority ? { priority: toPriority(d.priority) } : {}),
@@ -299,7 +324,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -308,11 +333,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Only an unsent draft can be sent', 409, 'EMAIL_NOT_SENDABLE');
     }
 
-    const sentFolder = await prisma.emailFolder.upsert({
-      where: { userId_name: { userId, name: 'Sent' } },
-      update: { type: 'SENT' },
-      create: { userId, name: 'Sent', type: 'SENT' },
-    });
+    const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
     const sendService = createSendService(prisma);
 
     const sent = await sendService.send(userId, email.id, sentFolder.id);
@@ -352,8 +373,8 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           data: { lastEmailAt: new Date(), messageCount: { increment: 1 } },
         });
       }
-    } catch {
-      /* ignore */
+    } catch (err) {
+      request.log.warn({ err, emailId: email.id }, 'thread stitching failed');
     }
 
     try {
@@ -368,7 +389,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         threadId: targetThreadId ?? undefined,
         inReplyTo: email.inReplyTo ?? undefined,
         attachments: (email.attachments as any[]) ?? [],
-        messageKind: toMessageKind(email.messageKind),
+        messageKind: toMessageKind((email as any).messageKind),
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
@@ -402,12 +423,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
-    const messageKind = toMessageKind(parsed.data.messageKind ?? 'chat');
-
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
 
     // Resolve the id as an owned email first, then as an owned thread's latest message.
     let original = await prisma.email.findUnique({ where: { id: request.params.id } });
@@ -427,7 +446,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Message to reply to was not found', 404, 'EMAIL_NOT_FOUND');
     }
 
-    const me = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const messageKind = toMessageKind(
+      parsed.data.messageKind ?? (original as any)?.messageKind ?? 'mail',
+    );
+
+    const me = await prisma.user.findUnique({ where: { id: userId } });
     const myEmail = (me?.email ?? '').toLowerCase();
     const asArray = (value: unknown): string[] =>
       Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
@@ -454,7 +477,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const subject = /^re:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
 
     // Ensure both original and reply are linked under a unified EmailThread
-    let targetThreadId = original.threadId;
+    let targetThreadId: string | null = original.threadId;
     if (!targetThreadId) {
       try {
         const threadService = new ThreadService(prisma);
@@ -468,8 +491,9 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
           where: { id: original.id },
           data: { threadId: targetThreadId },
         });
-      } catch {
-        targetThreadId = undefined;
+      } catch (err) {
+        request.log.warn({ err, emailId: original.id }, 'reply thread stitching failed');
+        targetThreadId = null;
       }
     }
 
@@ -486,12 +510,20 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       messageKind,
     });
 
-    const sentFolder = await prisma.emailFolder.upsert({
-      where: { userId_name: { userId, name: 'Sent' } },
-      update: { type: 'SENT' },
-      create: { userId, name: 'Sent', type: 'SENT' },
-    });
-    const sent = await sendService.send(userId, draft.id, sentFolder.id);
+    let sent: any;
+    try {
+      const sentFolder = await getOrCreateFolder(prisma, userId, 'Sent', 'SENT');
+      sent = await sendService.send(userId, draft.id, sentFolder.id);
+    } catch (sendError) {
+      // M-F05: Clean up orphan draft if sending fails
+      await prisma.email.delete({ where: { id: draft.id } }).catch((delErr) => {
+        request.log.warn(
+          { err: delErr, draftId: draft.id },
+          'failed to delete orphan draft on reply send failure',
+        );
+      });
+      throw sendError;
+    }
 
     await recordRecipientInteractions({
       prisma,
@@ -515,14 +547,22 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
     }
 
-    return reply.status(201).send({ success: true, data: formatEmailRecord(sent) });
+    return reply.status(202).send({
+      success: true,
+      data: {
+        message: 'Email queued for delivery',
+        emailId: sent.id,
+        deliveryStatus: (sent as { deliveryStatus?: string | null }).deliveryStatus ?? 'queued',
+        email: formatEmailRecord(sent),
+      },
+    });
   });
 
   // POST /emails/:id/archive - move to the owner's archive folder without trashing it.
   fastify.post<{ Params: { id: string } }>('/:id/archive', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -531,11 +571,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Restore the email before archiving it', 409, 'EMAIL_IN_TRASH');
     }
 
-    const archiveFolder = await prisma.emailFolder.upsert({
-      where: { userId_name: { userId, name: 'Archive' } },
-      update: { type: 'ARCHIVE' },
-      create: { userId, name: 'Archive', type: 'ARCHIVE' },
-    });
+    const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
     await prisma.email.update({
       where: { id: request.params.id },
       data: { folderId: archiveFolder.id, isTrash: false, deletedAt: null },
@@ -547,7 +583,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/unarchive', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -563,7 +599,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/restore', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -589,7 +625,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -636,7 +672,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/unsnooze', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -657,7 +693,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/not-spam', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -673,7 +709,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Params: { id: string } }>('/:id/unread', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -693,7 +729,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
 
     const where: any = {
       userId,
@@ -740,7 +776,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize || q.limit) || 50));
     const skip = (page - 1) * pageSize;
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const where: any = { userId, deletedAt: null };
     const folderType = q.folderType?.toUpperCase();
     if (q.folderId) {
@@ -829,7 +865,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
      * same list or on none. The composite index added in migration 0052 matches
      * this ordering.
      */
-    const timelineOrder = [{ receivedAt: 'desc' }, { createdAt: 'desc' }];
+    const timelineOrder: Prisma.EmailOrderByWithRelationInput[] = [
+      { receivedAt: 'desc' },
+      { createdAt: 'desc' },
+    ];
     const [data, total, unreadCount] = await Promise.all([
       prisma.email.findMany({ where, skip, take: pageSize, orderBy: timelineOrder }),
       prisma.email.count({ where }),
@@ -863,8 +902,8 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
 
     const result = await service.search(userId, queryResult.data.q, {
       page: queryResult.data.page,
@@ -893,8 +932,8 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
     const email = await service.getEmail(request.params.id, userId);
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
@@ -908,7 +947,7 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const prisma = getPrisma(fastify);
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
@@ -919,19 +958,15 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         where: { id: request.params.id },
         data: { deletedAt: new Date() },
       });
-      return reply.send({ success: true, data: deleted });
+      return reply.send({ success: true, data: formatEmailRecord(deleted) });
     }
 
-    const trashFolder = await prisma.emailFolder.upsert({
-      where: { userId_name: { userId, name: 'Trash' } },
-      update: { type: 'TRASH' },
-      create: { userId, name: 'Trash', type: 'TRASH' },
-    });
+    const trashFolder = await getOrCreateFolder(prisma, userId, 'Trash', 'TRASH');
     const trashed = await prisma.email.update({
       where: { id: request.params.id },
       data: { folderId: trashFolder.id, isTrash: true, deletedAt: null },
     });
-    return reply.send({ success: true, data: trashed });
+    return reply.send({ success: true, data: formatEmailRecord(trashed) });
   });
 
   // POST /emails/:id/read
@@ -941,11 +976,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
     const email = await service.markRead(request.params.id, userId);
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/:id/star
@@ -955,11 +990,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
     const email = await service.markStarred(request.params.id, userId);
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   // POST /emails/:id/move
@@ -974,11 +1009,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
     const email = await service.moveToFolder(request.params.id, parseResult.data.folderId, userId);
 
-    return reply.send({ success: true, data: email });
+    return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
   const batchActionSchema = z.object({
@@ -1000,8 +1035,8 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
-    const prisma = (fastify as unknown as { prisma: any }).prisma;
-    const service = new EmailService(prisma as never);
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
     const { action, emailIds, folderId, hard } = parseResult.data;
 
     let result: { count: number };
@@ -1015,20 +1050,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       case 'archive': {
         let targetFolderId = folderId;
         if (!targetFolderId) {
-          const archiveFolder = await prisma.emailFolder.findFirst({
-            where: { userId, type: 'ARCHIVE' },
-            select: { id: true },
-          });
-          targetFolderId = archiveFolder?.id;
+          const archiveFolder = await getOrCreateFolder(prisma, userId, 'Archive', 'ARCHIVE');
+          targetFolderId = archiveFolder.id;
         }
-        if (!targetFolderId) {
-          const created = await prisma.emailFolder.create({
-            data: { userId, name: 'Archive', type: 'ARCHIVE' },
-            select: { id: true },
-          });
-          targetFolderId = created.id;
-        }
-        result = await service.batchArchive(emailIds, targetFolderId!, userId);
+        result = await service.batchArchive(emailIds, targetFolderId, userId);
         break;
       }
       case 'delete':
