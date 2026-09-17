@@ -4015,22 +4015,25 @@ model UserSubscription {
 // ==================== QuantCalendar (Google Calendar killer) ====================
 
 model Event {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   title          String
-  description    String   @default("")
+  description    String    @default("")
   startTime      DateTime
   endTime        DateTime
-  allDay         Boolean  @default(false)
-  location       String   @default("")
+  allDay         Boolean   @default(false)
+  location       String    @default("")
   userId         String
-  attendees      String   @default("[]")
+  calendarId     String?
+  calendar       Calendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)
+  attendees      String    @default("[]")
   recurrenceRule String?
-  status         String   @default("confirmed")
-  reminders      String   @default("[]")
+  status         String    @default("confirmed")
+  reminders      String    @default("[]")
   createdAt      DateTime
   updatedAt      DateTime
 
   @@index([userId, startTime])
+  @@index([calendarId])
   @@map("calendar_events")
 }
 
@@ -4058,6 +4061,7 @@ model Calendar {
   name      String
   color     String?
   isPrimary Boolean  @default(false)
+  events    Event[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

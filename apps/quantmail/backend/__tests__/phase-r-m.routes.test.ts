@@ -29,8 +29,12 @@ vi.mock('../services/outbound-delivery.service', async (importOriginal) => {
           close: vi.fn().mockResolvedValue(undefined),
         } as any;
       }
-      override async enqueueSend(userId: string, emailId: string, options?: any) {
-        return { jobId: 'job-1', deliveryStatus: 'queued' };
+      override async enqueueSend(
+        _userId: string,
+        _emailId: string,
+        _options?: any,
+      ): Promise<string> {
+        return 'job-1';
       }
     },
   };
@@ -209,6 +213,35 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       const searchParse = resolveRoute('search/parse');
       expect(searchParse).toBeDefined();
       expect(searchParse?.methods).toEqual(['GET']);
+    });
+
+    it('R11: folders, attachments, and settings-tokens routes resolve expected methods', () => {
+      // Folders
+      const foldersRoot = resolveRoute('folders');
+      expect(foldersRoot).toBeDefined();
+      expect(foldersRoot?.methods).toEqual(['GET', 'POST']);
+
+      const folderItem = resolveRoute('folders/folder-123');
+      expect(folderItem).toBeDefined();
+      expect(folderItem?.methods).toEqual(['PUT', 'DELETE']);
+
+      // Attachments
+      const attachmentUpload = resolveRoute('attachments/upload-url');
+      expect(attachmentUpload).toBeDefined();
+      expect(attachmentUpload?.methods).toEqual(['POST']);
+
+      const attachmentItem = resolveRoute('attachments/att-456');
+      expect(attachmentItem).toBeDefined();
+      expect(attachmentItem?.methods).toEqual(['GET', 'DELETE']);
+
+      // Settings Tokens (PATs)
+      const settingsTokensRoot = resolveRoute('settings/tokens');
+      expect(settingsTokensRoot).toBeDefined();
+      expect(settingsTokensRoot?.methods).toEqual(['GET', 'POST']);
+
+      const settingsTokenItem = resolveRoute('settings/tokens/token-789');
+      expect(settingsTokenItem).toBeDefined();
+      expect(settingsTokenItem?.methods).toEqual(['DELETE']);
     });
 
     it('T2 / Phase R Invariant: every declared method in ALLOWED_BACKEND_ROUTES is an exported handler on route.ts', () => {

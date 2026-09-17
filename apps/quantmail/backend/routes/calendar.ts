@@ -90,6 +90,7 @@ type StoredAttendee = { userId: string; email: string; name: string; status: str
 type StoredReminder = { type: string; minutesBefore: number | null; label: string };
 type EventRow = {
   id: string;
+  calendarId?: string | null;
   title: string;
   description: string;
   startTime: Date;
@@ -235,6 +236,7 @@ function pickRecurrence(data: {
 function toCalendarEvent(row: EventRow): CalendarEvent {
   return {
     id: row.id,
+    calendarId: row.calendarId ?? null,
     title: row.title,
     description: row.description ?? '',
     startTime: new Date(row.startTime),
@@ -256,6 +258,7 @@ function toEventDto(event: EventRow | CalendarEvent) {
     parentId:
       (event as CalendarEvent).parentId ??
       (event.id.includes('_') ? event.id.split('_')[0] : event.id),
+    calendarId: (event as EventRow).calendarId ?? (event as CalendarEvent).calendarId ?? null,
     title: event.title,
     description: event.description,
     start: event.startTime,
@@ -323,7 +326,7 @@ export default async function calendarRoutes(
     '/events',
     async (request, reply) => {
       const userId = requireUserId(request);
-      const { start, end } = request.query;
+      const { start, end, calendarId } = request.query;
       if (start && end) {
         const startDate = toDate(start, 'start');
         const requestedEnd = toDate(end, 'end');
@@ -332,12 +335,22 @@ export default async function calendarRoutes(
         const maxEnd = new Date(startDate.getTime() + MAX_EVENT_WINDOW_MS);
         const endDate = requestedEnd > maxEnd ? maxEnd : requestedEnd;
         const rows = (await getPrisma(fastify).event.findMany({
-          where: { userId, recurrenceRule: null, startTime: { gte: startDate, lte: endDate } },
+          where: {
+            userId,
+            recurrenceRule: null,
+            startTime: { gte: startDate, lte: endDate },
+            ...(calendarId ? { calendarId } : {}),
+          },
           orderBy: { startTime: 'asc' },
           take: 1000,
         })) as EventRow[];
         const recurringRows = (await getPrisma(fastify).event.findMany({
-          where: { userId, recurrenceRule: { not: null }, startTime: { lte: endDate } },
+          where: {
+            userId,
+            recurrenceRule: { not: null },
+            startTime: { lte: endDate },
+            ...(calendarId ? { calendarId } : {}),
+          },
           take: 200,
         })) as EventRow[];
         const expandedDtos = recurringRows.flatMap((row) => {
@@ -361,6 +374,7 @@ export default async function calendarRoutes(
         return reply.send({ success: true, data });
       }
       const where: Record<string, unknown> = { userId };
+      if (calendarId) where.calendarId = calendarId;
       if (start || end)
         where.startTime = {
           ...(start ? { gte: toDate(start, 'start') } : {}),
@@ -435,7 +449,38 @@ export default async function calendarRoutes(
     if (end < start) throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
     const now = new Date();
     const recurrence = pickRecurrence(parsed.data);
-    const created = (await getPrisma(fastify).event.create({
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+
+    let targetCalendarId = parsed.data.calendarId;
+    if (!targetCalendarId && prisma.calendar) {
+      if (typeof (prisma.calendar as any).findFirst === 'function') {
+        const primaryCalendar = await prisma.calendar.findFirst({
+          where: { userId, isPrimary: true },
+          select: { id: true },
+        });
+        targetCalendarId = primaryCalendar?.id;
+      } else if (typeof (prisma.calendar as any).findMany === 'function') {
+        const calendars = await prisma.calendar.findMany({
+          where: { userId },
+        });
+        targetCalendarId = (calendars.find((c: any) => c.isPrimary) ?? calendars[0])?.id;
+      }
+      if (!targetCalendarId && typeof (prisma.calendar as any).create === 'function') {
+        const defaultCal = await prisma.calendar.create({
+          data: {
+            userId,
+            name: 'Primary',
+            color: '#3B82F6',
+            isPrimary: true,
+          },
+          select: { id: true },
+        });
+        targetCalendarId = defaultCal?.id;
+      }
+    }
+
+    const created = (await prisma.event.create({
       data: {
         title: parsed.data.title,
         description: parsed.data.description ?? '',
@@ -443,7 +488,8 @@ export default async function calendarRoutes(
         endTime: end,
         allDay: parsed.data.allDay ?? false,
         location: parsed.data.location ?? '',
-        userId: requireUserId(request),
+        userId,
+        calendarId: targetCalendarId,
         status: 'confirmed',
         attendees: JSON.stringify(toStoredAttendees(parsed.data.attendees ?? [])),
         reminders: JSON.stringify(toStoredReminders(parsed.data.reminders ?? [])),
@@ -490,6 +536,7 @@ export default async function calendarRoutes(
     const data: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const)
       if (parsed.data[key] !== undefined) data[key] = parsed.data[key];
+    if (parsed.data.calendarId !== undefined) data.calendarId = parsed.data.calendarId;
     if (start) data.startTime = start;
     if (end) data.endTime = end;
     if (parsed.data.attendees !== undefined)

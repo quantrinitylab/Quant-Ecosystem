@@ -102,6 +102,22 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^public\/invites\/[^/]+$/, methods: ['GET'] },
   { pattern: /^invites\/[^/]+\/accept$/, methods: ['POST'] },
   { pattern: /^webhook\/inbound$/, methods: ['POST'] },
+
+  // ── Folders (Task R11) ─────────────────────────────────────────────────────
+  // foldersRoutes registered with prefix '/folders' in backend/app.ts
+  { pattern: /^folders$/, methods: ['GET', 'POST'] },
+  { pattern: /^folders\/[^/]+$/, methods: ['PUT', 'DELETE'] },
+
+  // ── Attachments (Task R11) ─────────────────────────────────────────────────
+  // attachmentRoutes registered with prefix '/attachments' in backend/app.ts
+  { pattern: /^attachments\/upload-url$/, methods: ['POST'] },
+  { pattern: /^attachments\/[^/]+$/, methods: ['GET', 'DELETE'] },
+
+  // ── Settings Tokens / PATs (Task R11) ──────────────────────────────────────
+  // settingsTokenRoutes registered with NO prefix in backend/app.ts
+  { pattern: /^settings\/tokens$/, methods: ['GET', 'POST'] },
+  { pattern: /^settings\/tokens\/[^/]+$/, methods: ['DELETE'] },
+
   { pattern: /^threads(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^emails(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^labels(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
