@@ -117,8 +117,8 @@ const commitFileSchema = z
     message: z.string().trim().min(1).max(500),
     parentSha: z
       .string()
-      .regex(/^[0-9a-f]{40}$/i)
-      .optional(),
+      .regex(/^[0-9a-f]{40}$/i, 'parentSha must be a 40-char SHA')
+      .nullable(),
   })
   .strict();
 
@@ -134,11 +134,21 @@ type RepoRow = {
   forkCount: number;
   createdAt: Date;
   updatedAt: Date;
+  branches?: Array<{
+    name: string;
+    commitSha: string;
+    isProtected: boolean;
+  }>;
 };
 
 function toDto(r: RepoRow, ownerHandle?: string) {
   const slug = ownerHandle ? `${ownerHandle}/${r.name}` : r.name;
   const appUrl = (process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in').replace(/\/$/, '');
+  const defaultBranchRow = (r as any).branches?.find(
+    (branch: any) => branch.name === r.defaultBranch,
+  );
+  const latestCommitSha = defaultBranchRow?.commitSha ?? '';
+
   return {
     id: r.id,
     ownerId: r.ownerId,
@@ -156,12 +166,12 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     size: 0,
     isTemplate: false,
     isFork: false,
-    topics: ['quant', 'workspace'],
-    latestCommit: 'Initial setup & architecture files',
-    latestCommitSha: '948e3612',
-    latestCommitTime: 'recently',
-    checksStatus: 'passing',
-    license: 'MIT License',
+    topics: [],
+    latestCommit: latestCommitSha ? `Commit ${latestCommitSha.slice(0, 7)}` : '',
+    latestCommitSha,
+    latestCommitTime: '',
+    checksStatus: 'none',
+    license: '',
     website: 'https://quantmail.in',
     cloneUrl: `${appUrl}/api/code/gitd/repos/${encodeURIComponent(
       r.ownerId,
@@ -216,67 +226,71 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const page = parsed.data.page ?? 1;
     const pageSize = parsed.data.pageSize ?? 30;
 
-    // Auto-seed core ecosystem repositories if database is currently empty
-    try {
-      const totalExisting = await prisma.repository.count({ where: { deletedAt: null } });
-      if (totalExisting === 0) {
-        const seedRepos = [
-          {
-            name: 'Quant-Ecosystem',
-            description:
-              'The unified ecosystem monorepo — 10 apps, 1 identity, shared AI operating system.',
-            visibility: 'PUBLIC',
-            defaultBranch: 'main',
-            starCount: 342,
-            forkCount: 48,
-          },
-          {
-            name: 'quantmail-core',
-            description:
-              'High-performance email client with offline sync, Bayesian spam filtering, and SES/SMTP pipeline.',
-            visibility: 'PUBLIC',
-            defaultBranch: 'main',
-            starCount: 128,
-            forkCount: 19,
-          },
-          {
-            name: 'quantchat-meet',
-            description:
-              'Real-time messaging, WebRTC calling via LiveKit, SFU gateway, and voice bot alarms.',
-            visibility: 'PUBLIC',
-            defaultBranch: 'main',
-            starCount: 95,
-            forkCount: 12,
-          },
-          {
-            name: 'quant-mobile-android',
-            description:
-              'Capacitor launcher shell & native Android SDK bridges for the entire Quant platform.',
-            visibility: 'PUBLIC',
-            defaultBranch: 'main',
-            starCount: 76,
-            forkCount: 8,
-          },
-        ];
-        for (const sr of seedRepos) {
-          await prisma.repository
-            .create({
-              data: {
-                ownerId: userId,
-                name: sr.name,
-                description: sr.description,
-                visibility: sr.visibility as any,
-                defaultBranch: sr.defaultBranch,
-                starCount: sr.starCount,
-                forkCount: sr.forkCount,
-                branches: { create: { name: 'main', commitSha: '948e3612' } },
-              },
-            })
-            .catch(() => {});
+    if (process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_REPO_SEEDING === 'true') {
+      try {
+        const totalExisting = await prisma.repository.count({
+          where: { deletedAt: null },
+        });
+
+        if (totalExisting === 0) {
+          const seedRepos = [
+            {
+              name: 'Quant-Ecosystem',
+              description:
+                'The unified ecosystem monorepo — 10 apps, 1 identity, shared AI operating system.',
+              visibility: 'PUBLIC',
+              defaultBranch: 'main',
+              starCount: 342,
+              forkCount: 48,
+            },
+            {
+              name: 'quantmail-core',
+              description:
+                'High-performance email client with offline sync, Bayesian spam filtering, and SES/SMTP pipeline.',
+              visibility: 'PUBLIC',
+              defaultBranch: 'main',
+              starCount: 128,
+              forkCount: 19,
+            },
+            {
+              name: 'quantchat-meet',
+              description:
+                'Real-time messaging, WebRTC calling via LiveKit, SFU gateway, and voice bot alarms.',
+              visibility: 'PUBLIC',
+              defaultBranch: 'main',
+              starCount: 95,
+              forkCount: 12,
+            },
+            {
+              name: 'quant-mobile-android',
+              description:
+                'Capacitor launcher shell & native Android SDK bridges for the entire Quant platform.',
+              visibility: 'PUBLIC',
+              defaultBranch: 'main',
+              starCount: 76,
+              forkCount: 8,
+            },
+          ];
+
+          for (const seedRepo of seedRepos) {
+            await prisma.repository
+              .create({
+                data: {
+                  ownerId: userId,
+                  name: seedRepo.name,
+                  description: seedRepo.description,
+                  visibility: seedRepo.visibility as any,
+                  defaultBranch: seedRepo.defaultBranch,
+                  starCount: seedRepo.starCount,
+                  forkCount: seedRepo.forkCount,
+                },
+              })
+              .catch(() => {});
+          }
         }
+      } catch {
+        // Development-only sample seeding must not prevent repository listing.
       }
-    } catch {
-      // Soft ignore seeding errors
     }
 
     const where: Record<string, unknown> = {
@@ -287,6 +301,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const [rows, total] = await Promise.all([
       prisma.repository.findMany({
         where,
+        include: { branches: true },
         orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -369,6 +384,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const provisioned = (await prisma.repository.update({
       where: { id: created.id },
       data: { storagePathUrl: storagePath },
+      include: { branches: true },
     })) as RepoRow;
 
     return reply.status(201).send({ success: true, data: toDto(provisioned) });
@@ -377,12 +393,14 @@ export default async function reposRoutes(fastify: FastifyInstance) {
   async function loadReadableRepo(request: unknown, idOrName: string): Promise<RepoRow> {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    let repo = (await prisma.repository.findUnique({ where: { id: idOrName } })) as
-      | (RepoRow & { deletedAt?: Date | null })
-      | null;
+    let repo = (await prisma.repository.findUnique({
+      where: { id: idOrName },
+      include: { branches: true },
+    })) as (RepoRow & { deletedAt?: Date | null }) | null;
     if (!repo) {
       repo = (await prisma.repository.findFirst({
         where: { name: idOrName, ownerId: userId, deletedAt: null },
+        include: { branches: true },
       })) as (RepoRow & { deletedAt?: Date | null }) | null;
     }
     if (!repo) {
@@ -392,6 +410,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           visibility: { in: ['PUBLIC', 'INTERNAL'] },
           deletedAt: null,
         },
+        include: { branches: true },
       })) as (RepoRow & { deletedAt?: Date | null }) | null;
     }
     if (!repo || repo.deletedAt)
@@ -433,6 +452,18 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       const repo = await loadWritableRepo(request, request.params.id);
       const userId = requireUserId(request);
 
+      if (
+        !request.body ||
+        typeof request.body !== 'object' ||
+        !Object.prototype.hasOwnProperty.call(request.body, 'parentSha')
+      ) {
+        throw createAppError(
+          'parentSha is required and must be a 40-character SHA or null',
+          400,
+          'PARENT_SHA_REQUIRED',
+        );
+      }
+
       const parsed = commitFileSchema.safeParse(request.body);
       if (!parsed.success) {
         throw parsed.error;
@@ -459,6 +490,10 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         throw createAppError('Branch not found', 404, 'BRANCH_NOT_FOUND');
       }
 
+      if (branchRecord?.isProtected) {
+        throw createAppError('Cannot commit to protected branch', 403, 'BRANCH_PROTECTED');
+      }
+
       /*
        * The actual bare-repository ref is authoritative. Branch.commitSha is a
        * query/index projection that is updated after the Git CAS succeeds.
@@ -469,7 +504,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         branch: targetBranch,
       });
 
-      if (parsed.data.parentSha && parsed.data.parentSha !== currentHeadSha) {
+      if (parsed.data.parentSha !== currentHeadSha) {
         return reply.status(409).send({
           success: false,
           error: {
@@ -509,7 +544,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
           path: parsed.data.path,
           content: parsed.data.content,
           message: parsed.data.message,
-          expectedHeadSha: currentHeadSha,
+          expectedHeadSha: parsed.data.parentSha,
           author: {
             name: author.displayName || author.username,
             email: author.email,
@@ -642,6 +677,7 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const updated = (await prisma.repository.update({
       where: { id: repo.id },
       data: updateData,
+      include: { branches: true },
     })) as RepoRow;
 
     return reply.send({ success: true, data: toDto(updated) });
@@ -694,11 +730,41 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       throw createAppError('Branch already exists', 409, 'BRANCH_EXISTS');
     }
 
+    let parentCommitSha = parsed.data.sha;
+
+    if (!parentCommitSha) {
+      const defaultBranchRow = await prisma.branch.findUnique({
+        where: {
+          repoId_name: {
+            repoId: repo.id,
+            name: repo.defaultBranch,
+          },
+        },
+      });
+
+      parentCommitSha =
+        defaultBranchRow?.commitSha ??
+        (await mutationPort().getBranchHead({
+          owner: repo.ownerId,
+          name: repo.name,
+          branch: repo.defaultBranch,
+        })) ??
+        undefined;
+    }
+
+    if (!parentCommitSha) {
+      throw createAppError(
+        'Cannot create branch: parent commit SHA not found',
+        400,
+        'BRANCH_NOT_FOUND',
+      );
+    }
+
     const branch = await prisma.branch.create({
       data: {
         repoId: repo.id,
         name: parsed.data.name,
-        commitSha: parsed.data.sha ?? '948e3612',
+        commitSha: parentCommitSha,
       },
     });
 
@@ -1184,7 +1250,11 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         take: 30,
       });
 
-      if (runs.length === 0) {
+      if (
+        runs.length === 0 &&
+        process.env.NODE_ENV === 'development' &&
+        process.env.ENABLE_DEV_REPO_SEEDING === 'true'
+      ) {
         // Auto-seed default realistic workflow runs for the repository
         const seeds = [
           {

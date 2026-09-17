@@ -12,6 +12,15 @@ const MOCK_REPO = {
   id: 'repo-1',
   ownerId: 'user-1',
   name: 'Quant-Ecosystem',
+  branches: [
+    {
+      id: 'branch-1',
+      repoId: 'repo-1',
+      name: 'main',
+      commitSha: '1111111111111111111111111111111111111111',
+      isProtected: false,
+    },
+  ],
   description: 'The unified ecosystem monorepo',
   visibility: 'PUBLIC',
   defaultBranch: 'main',
@@ -319,6 +328,77 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.ciRun.create).not.toHaveBeenCalled();
   });
 
+  it('PATCH /repos/:id/file fails closed when parentSha is omitted', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'new content',
+        message: 'Update file without CAS token',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'PARENT_SHA_REQUIRED',
+        }),
+      }),
+    );
+
+    expect(repositoryMutation.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
+    expect(prisma.branch.upsert).not.toHaveBeenCalled();
+    expect(prisma.ciRun.create).not.toHaveBeenCalled();
+  });
+
+  it('PATCH /repos/:id/file rejects a protected branch', async () => {
+    const app = await buildApp();
+
+    prisma.branch.findUnique.mockResolvedValueOnce({
+      id: 'branch-1',
+      repoId: 'repo-1',
+      name: 'main',
+      commitSha: '1111111111111111111111111111111111111111',
+      isProtected: true,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    } as never);
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/repos/repo-1/file',
+      payload: {
+        path: 'src/index.ts',
+        branch: 'main',
+        content: 'new content',
+        message: 'Attempt protected branch commit',
+        parentSha: '1111111111111111111111111111111111111111',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_PROTECTED',
+        }),
+      }),
+    );
+
+    expect(repositoryMutation.getBranchHead).not.toHaveBeenCalled();
+    expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
+    expect(prisma.branch.upsert).not.toHaveBeenCalled();
+    expect(prisma.ciRun.create).not.toHaveBeenCalled();
+  });
+
   it('PATCH /repos/:id/file rejects unauthenticated callers', async () => {
     const app = await buildApp(null);
 
@@ -330,6 +410,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         branch: 'main',
         content: 'content',
         message: 'Update file',
+        parentSha: '1111111111111111111111111111111111111111',
       },
     });
 
@@ -361,6 +442,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
         branch: 'main',
         content: 'content',
         message: 'Update file',
+        parentSha: '1111111111111111111111111111111111111111',
       },
     });
 
@@ -378,6 +460,52 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(repositoryMutation.commitFile).not.toHaveBeenCalled();
   });
 
+  it('GET /repos returns empty non-fabricated commit metadata when no branch row exists', async () => {
+    const app = await buildApp();
+    prisma.repository.findMany.mockResolvedValueOnce([
+      {
+        ...MOCK_REPO,
+        branches: [],
+      },
+    ] as never);
+
+    const response = await app.inject({ method: 'GET', url: '/repos' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data[0]).toEqual(
+      expect.objectContaining({
+        topics: [],
+        latestCommit: '',
+        latestCommitSha: '',
+        latestCommitTime: '',
+        checksStatus: 'none',
+        license: '',
+      }),
+    );
+  });
+
+  it('GET /repos derives latest commit metadata from the real default branch row', async () => {
+    const app = await buildApp();
+
+    const response = await app.inject({ method: 'GET', url: '/repos' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data[0]).toEqual(
+      expect.objectContaining({
+        latestCommit: 'Commit 1111111',
+        latestCommitSha: '1111111111111111111111111111111111111111',
+        checksStatus: 'none',
+        topics: [],
+        license: '',
+      }),
+    );
+    expect(prisma.repository.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { branches: true },
+      }),
+    );
+  });
+
   it('GET /repos returns public and owned repositories', async () => {
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/repos' });
@@ -389,6 +517,7 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(body.data[0].stars).toBe(42);
     expect(prisma.repository.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        include: { branches: true },
         where: expect.objectContaining({
           OR: [{ ownerId: 'user-1' }, { visibility: 'PUBLIC' }],
         }),
@@ -539,6 +668,99 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(body.success).toBe(true);
     expect(body.data.name).toBe('feat/sprint-8-persistence');
     expect(prisma.branch.create).toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/branches inherits the default branch database SHA', async () => {
+    const app = await buildApp();
+
+    prisma.branch.findFirst.mockResolvedValueOnce(null as never);
+    prisma.branch.findUnique.mockResolvedValueOnce({
+      id: 'branch-main',
+      repoId: 'repo-1',
+      name: 'main',
+      commitSha: '1111111111111111111111111111111111111111',
+      isProtected: false,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+    } as never);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/inherit-main',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(prisma.branch.create).toHaveBeenCalledWith({
+      data: {
+        repoId: 'repo-1',
+        name: 'feat/inherit-main',
+        commitSha: '1111111111111111111111111111111111111111',
+      },
+    });
+    expect(repositoryMutation.getBranchHead).not.toHaveBeenCalled();
+  });
+
+  it('POST /repos/:id/branches falls back to the authoritative Git head', async () => {
+    const app = await buildApp();
+
+    prisma.branch.findFirst.mockResolvedValueOnce(null as never);
+    prisma.branch.findUnique.mockResolvedValueOnce(null as never);
+    repositoryMutation.getBranchHead.mockResolvedValueOnce(
+      '4444444444444444444444444444444444444444',
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/from-git-head',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(repositoryMutation.getBranchHead).toHaveBeenCalledWith({
+      owner: 'user-1',
+      name: 'Quant-Ecosystem',
+      branch: 'main',
+    });
+    expect(prisma.branch.create).toHaveBeenCalledWith({
+      data: {
+        repoId: 'repo-1',
+        name: 'feat/from-git-head',
+        commitSha: '4444444444444444444444444444444444444444',
+      },
+    });
+  });
+
+  it('POST /repos/:id/branches rejects creation when no parent SHA exists', async () => {
+    const app = await buildApp();
+
+    prisma.branch.findFirst.mockResolvedValueOnce(null as never);
+    prisma.branch.findUnique.mockResolvedValueOnce(null as never);
+    repositoryMutation.getBranchHead.mockResolvedValueOnce(null);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/repos/repo-1/branches',
+      payload: {
+        name: 'feat/no-parent',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({
+          code: 'BRANCH_NOT_FOUND',
+          message: 'Cannot create branch: parent commit SHA not found',
+        }),
+      }),
+    );
+    expect(prisma.branch.create).not.toHaveBeenCalled();
   });
 
   it('POST /repos/:id/pulls/:number/merge marks pull request as merged', async () => {

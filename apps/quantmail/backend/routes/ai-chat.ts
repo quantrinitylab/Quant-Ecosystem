@@ -413,7 +413,7 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
       // Scan for ```tool_call blocks emitted by the model
       const toolExecutions: ToolExecutionCard[] = [];
       const isToolCallingEnabled =
-        tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';
+        tools?.enabled === true && process.env.ENABLE_AUTONOMOUS_TOOLS === 'true';
 
       const toolCallRegex = /```(?:tool_call|json:tool_call)\s*([\s\S]*?)```/g;
 

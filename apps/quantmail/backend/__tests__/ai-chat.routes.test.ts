@@ -331,6 +331,14 @@ describe('GET /ai/chat/health', () => {
 });
 
 describe('POST /ai/chat — autonomous tool calling', () => {
+  beforeEach(() => {
+    process.env.ENABLE_AUTONOMOUS_TOOLS = 'true';
+  });
+
+  afterEach(() => {
+    delete process.env.ENABLE_AUTONOMOUS_TOOLS;
+  });
+
   it('skips tool execution when tools is not explicitly enabled (fail-closed default)', async () => {
     const prismaMock = {
       repository: {
@@ -347,6 +355,64 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       method: 'POST',
       url: '/ai/chat',
       payload: { messages: [{ role: 'user', content: 'Suggest a repo' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(0);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+    expect(body.data.message).toBe('I suggested creating a repo.');
+  });
+
+  it('skips tool execution when tools.enabled is false even if ENABLE_AUTONOMOUS_TOOLS is true (kill switch)', async () => {
+    const prismaMock = {
+      repository: {
+        create: vi.fn(),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "rogue-repo" }\n}\n```\n\nI suggested creating a repo.',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Suggest a repo' }],
+        tools: { enabled: false },
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.data.toolExecutions).toHaveLength(0);
+    expect(prismaMock.repository.create).not.toHaveBeenCalled();
+    expect(body.data.message).toBe('I suggested creating a repo.');
+  });
+
+  it('skips tool execution when ENABLE_AUTONOMOUS_TOOLS is not true even if tools.enabled is true', async () => {
+    delete process.env.ENABLE_AUTONOMOUS_TOOLS;
+
+    const prismaMock = {
+      repository: {
+        create: vi.fn(),
+      },
+    };
+
+    aiChatMock.mockResolvedValue(
+      '```tool_call\n{\n  "name": "create_repository",\n  "arguments": { "name": "rogue-repo" }\n}\n```\n\nI suggested creating a repo.',
+    );
+
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: {
+        messages: [{ role: 'user', content: 'Suggest a repo' }],
+        tools: { enabled: true },
+      },
     });
 
     expect(res.statusCode).toBe(200);
