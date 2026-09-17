@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 3 — Phase R Completion (R11, R12) & Phase C Calendar Parity (C01–C04) (`4b9ac88c` on `main`)**:
+  - [x] **R11 Proxy Route Allowlist**: Opened Fastify proxy allowlist for `folders` (`GET /folders`, `POST /folders`, `PUT /folders/:id`, `DELETE /folders/:id`), `attachments` (`POST /attachments/upload-url`, `GET /attachments/:id`, `DELETE /attachments/:id`), and `settings-tokens` (`GET /settings/tokens`, `POST /settings/tokens`, `DELETE /settings/tokens/:id`) in `routes-config.ts`.
+  - [x] **R12 Next.js Shadow Route Deletion**: Deleted duplicate Next.js App Router handlers `apps/quantmail/src/app/api/calendar/events/route.ts` and `apps/quantmail/src/app/api/calendar/events/[id]/route.ts`. All calendar requests now route canonical and authorized through `src/app/api/[...path]/route.ts` -> Fastify `/events`.
+  - [x] **C01 & C02 Database Schema & Route Filters**: Added `calendarId` to Prisma `model Event` with foreign key relation to `model Calendar` and `@@index([calendarId])`. Filtered `GET /events` by `calendarId` for both standard and recurring event queries. Auto-associated newly created events (`POST /events`) with the user's primary calendar when `calendarId` is omitted, and maintained `calendarId` across `PUT / PATCH /events/:id`.
+  - [x] **C03 Idempotent Event Backfill Migration**: Authored declarative Prisma migration `0063_add_event_calendar_id/migration.sql` that adds column, index, foreign key, and runs idempotent SQL ensuring a primary calendar exists for every user and points orphaned `calendarId IS NULL` rows to their primary calendar.
+  - [x] **C04 Unit Test Suite**: Authored 10 comprehensive unit tests in `calendar-parity.routes.test.ts` verifying C01–C04 (calendarId persistence, default primary calendar resolution, filtering, recurrence expansion preservation, update handling).
+  - [x] **Verification**: 183/183 unit tests passing across all suites (`phase-r-m.routes.test.ts` 28/28, `calendar-parity.routes.test.ts` 10/10, `calendar.routes.test.ts` 43/43, `repos.routes.test.ts` 40/40, `ai-chat.routes.test.ts` 30/30, `email.service.test.ts` 32/32); 0 TypeScript compiler errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`); 0 ESLint errors.
+
 - [x] **Wave 2 — QuantGit Integrity (V20, V21, V22, V24) & Mail Parity (M-F01–M-F05, M07, M10, M11, M12) (`4ad31e0f` on `main`)**:
   - [x] **V20 Incident Masking Elimination**: Removed outer `try/catch` block in `GET /:id/actions` that caught all database errors and masked them with fake 200 OK empty arrays. Real database errors now correctly propagate to error handling.
   - [x] **V21 Truthful Repository DTOs**: Eliminated fabricated metadata in `toDto(r)`: `language` defaults to truthful `''`, `website` defaults to `''`, and `watching` defaults to `0`.
@@ -952,8 +960,8 @@
 - [x] **Task R08**: Open `events/:id/rsvp` (own pattern) and `PATCH /events/:id`.
 - [x] **Task R09**: Open `events/alarms/due` and `events/alerts/scheduled`.
 - [x] **Task R10**: Open `booking/links` (authenticated create) and `/calendar/booking/:slug/*` (public read/slots/book).
-- [ ] **Task R11**: Open folders, attachments, settings-tokens (after verifying paths in backend route files).
-- [ ] **Task R12**: Delete duplicate `api/calendar/events/` path, keep one canonical URL per resource.
+- [x] **Task R11**: Open folders, attachments, settings-tokens (after verifying paths in backend route files).
+- [x] **Task R12**: Delete duplicate `api/calendar/events/` path, keep one canonical URL per resource.
 
 ### ✉️ Phase M — Mail to Gmail Parity (30 Tasks)
 
@@ -997,10 +1005,10 @@
 ### 📅 Phase C — Calendar to Google Calendar Parity (28 Tasks)
 
 - **Assigned to**: Developer 3 (Calendar Lead)
-- [ ] **Task C01**: Persist `calendarId` in `event.create` and `event.update`.
-- [ ] **Task C02**: Filter `GET /events` by `calendarId`.
-- [ ] **Task C03**: Backfill existing events onto each user's primary calendar.
-- [ ] **Task C04**: Migration test for C01–C03.
+- [x] **Task C01**: Persist `calendarId` in `event.create` and `event.update`.
+- [x] **Task C02**: Filter `GET /events` by `calendarId`.
+- [x] **Task C03**: Backfill existing events onto each user's primary calendar.
+- [x] **Task C04**: Migration test for C01–C03.
 - [ ] **Task C05**: Add `EventException` schema model.
 - [ ] **Task C06**: Implement single-occurrence edit ("only this event").
 - [ ] **Task C07**: Implement "this and following" series split.

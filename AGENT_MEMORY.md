@@ -1842,3 +1842,55 @@ graph TD
   - 0 TypeScript compiler errors across both compilers (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
   - 0 ESLint errors across the entire `@quant/quantmail` package (`pnpm --filter @quant/quantmail run lint`).
   - Landed on `main` at commit `4ad31e0f` and pushed to `origin/main`.
+
+### 32. Wave 3 — Phase R Completion (R11, R12) & Phase C Calendar Parity (C01–C04) (Commit `4b9ac88c` on `main`):
+
+- **1. Scope & Executive Directive (CEO Astra Verified Specification)**:
+  - Phase R Completion: Open Fastify proxy allowlist for folders, attachments, settings-tokens (`Task R11`) and delete duplicate Next.js shadow route `api/calendar/events/` (`Task R12`).
+  - Phase C Calendar to Google Calendar Parity: Persist `calendarId` on event creation/update (`Task C01`), filter `GET /events` by `calendarId` (`Task C02`), backfill existing orphaned events to primary calendar via declarative migration `0063_add_event_calendar_id` (`Task C03`), and author comprehensive unit tests (`Task C04`).
+
+- **2. Phase R Routing Table Unification (`routes-config.ts` & Next.js App Router)**:
+  - **Task R11 (Proxy Allowlist Expansion)**:
+    - Added canonical route configurations in `apps/quantmail/backend/lib/routes-config.ts`:
+      - `folders`: `{ pattern: /^folders$/, methods: ['GET', 'POST'] }`, `{ pattern: /^folders\/[^/]+$/, methods: ['PUT', 'DELETE'] }`.
+      - `attachments`: `{ pattern: /^attachments\/upload-url$/, methods: ['POST'] }`, `{ pattern: /^attachments\/[^/]+$/, methods: ['GET', 'DELETE'] }`.
+      - `settings-tokens`: `{ pattern: /^settings\/tokens$/, methods: ['GET', 'POST'] }`, `{ pattern: /^settings\/tokens\/[^/]+$/, methods: ['DELETE'] }`.
+  - **Task R12 (Duplicate Route Deletion)**:
+    - Deleted redundant Next.js App Router handlers `apps/quantmail/src/app/api/calendar/events/route.ts` and `apps/quantmail/src/app/api/calendar/events/[id]/route.ts`.
+    - All calendar event operations route canonically through Next.js proxy `src/app/api/[...path]/route.ts` directly into Fastify backend `/events` endpoints.
+
+- **3. Phase C Calendar to Google Calendar Parity (`schema.prisma`, `routes/calendar.ts`, `recurring.service.ts`)**:
+  - **Prisma Schema & Declarative Migration 0063 (`Task C01` & `Task C03`)**:
+    - Added `calendarId String?` and `calendar Calendar? @relation(fields: [calendarId], references: [id], onDelete: SetNull)` with `@@index([calendarId])` to `model Event` in `schema.prisma`.
+    - Added `events Event[]` reverse relation to `model Calendar`.
+    - Created declarative SQL migration `packages/database/prisma/migrations/0063_add_event_calendar_id/migration.sql` that:
+      - Adds `calendarId` column with index and foreign key cascade set null.
+      - Executes idempotent backfill provisioning a `"Primary"` calendar for any user owning events without one, and sets `calendarId = primary_calendar.id` for all existing orphaned events where `calendarId IS NULL`.
+    - Generated fresh Prisma client via `pnpm --filter @quant/database run build`.
+  - **Fastify Calendar Routes (`Task C01` & `Task C02`)**:
+    - `POST /events`: Accepts `calendarId`. If omitted, automatically resolves caller's primary calendar (`isPrimary: true`) or provisions default `"Primary"` calendar.
+    - `PUT / PATCH /events/:id`: Persists `calendarId` when provided in update payload.
+    - `GET /events`: Accepts optional `calendarId` query parameter, filtering both standard events and recurring series expansions.
+    - `toCalendarEvent` & `toEventDto`: Preserves and serializes `calendarId`.
+  - **Recurring Event Expansion (`services/recurring.service.ts`)**:
+    - Added `calendarId?: string | null` to `CalendarEvent` interface. Preserved `calendarId` across `expandOccurrences` expansions.
+
+- **4. Verification & Gate Sign-Off (`Task C04`)**:
+  - Authored 10 unit tests in `apps/quantmail/backend/__tests__/calendar-parity.routes.test.ts` verifying C01–C04:
+    - `calendarId` persisted on `POST /events`.
+    - Default primary calendar resolved when `calendarId` omitted.
+    - `PUT /events/:id` preserves/updates `calendarId`.
+    - `GET /events` filters by `calendarId`.
+    - Recurring event expansions inherit `calendarId`.
+    - 401 unauthenticated rejected.
+  - Added unit test in `phase-r-m.routes.test.ts` verifying R11 routes in `ALLOWED_BACKEND_ROUTES`.
+  - **183/183 unit tests passing 100%** across all test suites:
+    - `calendar-parity.routes.test.ts`: 10/10 passing (1151ms).
+    - `phase-r-m.routes.test.ts`: 28/28 passing (1124ms).
+    - `calendar.routes.test.ts`: 43/43 passing (1571ms).
+    - `repos.routes.test.ts`: 40/40 passing (1678ms).
+    - `ai-chat.routes.test.ts`: 30/30 passing (1267ms).
+    - `email.service.test.ts`: 32/32 passing (93ms).
+  - 0 TypeScript compiler errors across both compilers (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
+  - 0 ESLint errors across the entire codebase (`pnpm --filter @quant/quantmail run lint`).
+  - Landed on `main` at commit `4b9ac88c` and pushed to `origin/main`.
