@@ -268,5 +268,58 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
       expect(body.data.id).toBe('evt-1');
       expect(body.data.calendarId).toBe('cal-primary-1');
     });
+
+    it('verifies GET /events and GET /events/:id response envelope contract (startTime/endTime canonical, start/end absent)', async () => {
+      // 1. Single event route GET /events/:id
+      const singleRes = await app.inject({
+        method: 'GET',
+        url: '/events/evt-1',
+      });
+      expect(singleRes.statusCode).toBe(200);
+      const singleBody = JSON.parse(singleRes.body);
+      expect(singleBody.success).toBe(true);
+      const event = singleBody.data;
+
+      // Contract assertions for canonical fields
+      expect(event).toHaveProperty('id', 'evt-1');
+      expect(event).toHaveProperty('title', 'Engineering All-Hands');
+      expect(typeof event.startTime).toBe('string');
+      expect(typeof event.endTime).toBe('string');
+      expect(new Date(event.startTime).toISOString()).toBe('2026-09-20T10:00:00.000Z');
+      expect(new Date(event.endTime).toISOString()).toBe('2026-09-20T11:00:00.000Z');
+      expect(event).toHaveProperty('allDay', false);
+      expect(event).toHaveProperty('status', 'confirmed');
+      expect(Array.isArray(event.attendees)).toBe(true);
+      expect(Array.isArray(event.reminders)).toBe(true);
+      expect(event).toHaveProperty('recurrence', null);
+      expect(event).toHaveProperty('calendarId', 'cal-primary-1');
+
+      // Crucial negative assertions: legacy 4-key DTO keys 'start' and 'end' must be absent
+      expect((event as any).start).toBeUndefined();
+      expect((event as any).end).toBeUndefined();
+
+      // 2. Collection route GET /events
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/events',
+      });
+      expect(listRes.statusCode).toBe(200);
+      const listBody = JSON.parse(listRes.body);
+      expect(listBody.success).toBe(true);
+      expect(Array.isArray(listBody.data)).toBe(true);
+      expect(listBody.data.length).toBeGreaterThan(0);
+
+      const firstItem = listBody.data[0];
+      expect(typeof firstItem.startTime).toBe('string');
+      expect(typeof firstItem.endTime).toBe('string');
+      expect(firstItem).toHaveProperty('title');
+      expect(firstItem).toHaveProperty('status');
+      expect(firstItem).toHaveProperty('allDay');
+      expect(Array.isArray(firstItem.attendees)).toBe(true);
+      expect(Array.isArray(firstItem.reminders)).toBe(true);
+      expect(firstItem).toHaveProperty('recurrence');
+      expect((firstItem as any).start).toBeUndefined();
+      expect((firstItem as any).end).toBeUndefined();
+    });
   });
 });

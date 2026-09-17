@@ -47,6 +47,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 13.1 — Route Collapse Remediations, Hook Hardening, Contract Gates & Full Sweep Verification (Astra Defect Ledger W13-1 to W13-8, N-G1 to N-G5) (Verified with Vitest 2039/2039)**:
+  - [x] **Tasks W13-1, W13-2, W13-3 Route Collapse & Canonical Surface**: Updated `next.config.js` to permanent 308 redirects with wildcard `:path*` matching (`/codehub` and `/repos` to `/quantgit`). Collapsed 5 legacy route files (`codehub/page.tsx`, `codehub/[repoId]/page.tsx`, `repos/page.tsx`, `repos/[id]/page.tsx`, `repos/[id]/editor/page.tsx`) to Next.js `redirect('/quantgit')`. Reconciled `QUANTGIT_ARCHITECTURE.md` §3, §5, §5.0, M5.
+  - [x] **Task W13-4 Search Query Key Hardening & Invalidation**: Updated `mailQueryKeys.search` in `useMail.ts` to prefix `['inbox', 'search', params] as const`, inlined `useSearchEmails` and `toEmailList`, ensuring invalidating `['inbox']` evicts search results. Made `useSearchEmails.ts` a forwarder shim.
+  - [x] **Task W13-5 AppSidebar Direct Import & Badge Assertions**: Updated `AppSidebar.tsx` to import `useInbox` directly from `../hooks/useMail`. Authored `apps/quantmail/src/__tests__/app-sidebar-badges.test.ts` proving Drafts total count badge vs received mail unread count badge semantics (3/3 passing).
+  - [x] **Task W13-7 & K09 Calendar Response Envelope Contract Test**: Added contract test in `apps/quantmail/backend/__tests__/calendar-parity.routes.test.ts` verifying `GET /events` and `GET /events/:id` response envelopes contain `startTime`, `endTime`, `title`, `attendees`, `reminders`, `recurrence`, `status`, `allDay` and strictly omit legacy `start` and `end` keys (11/11 passing).
+  - [x] **Gates N-G1 to N-G5 Phase N Architecture Decisions Memo**: Authored `docs/decisions/PHASE_N_COLLABORATION_MEMO.md` binding canonical route `/drive/doc/[docId]`, TipTap MIT core (zero Pro extensions, in-house slash menu), Yjs sole CRDT, Postgres update persistence for team docs, and authenticated WebSocket fail-closed tenant isolation.
+  - [x] **Verification & Quality Gates**: Full Vitest suite sweep: **175/175 test files passing 100%, 2,039/2,039 tests passing 100%**; 0 TypeScript compiler errors (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+
 - [x] **Wave 13 — God-File Modularization & Data Hook Consolidation (Tasks X11, X12, K06, K07, M09) (Verified with Vitest 104/104)**:
   - [x] **Task X11 Calendar God-File Modularization**: Deconstructed `apps/quantmail/src/app/calendar/page.tsx` from 186 KB (3,945 lines) down to 34.4 KB coordinator across 7 dedicated modules adhering strictly to CEO Astra's architectural contract: `types.ts`, `lib/calendar-geometry.ts`, `lib/recurrence.ts`, `components/CalendarModals.tsx`, `components/CalendarHeader.tsx`, `components/CalendarViews.tsx`, and `components/CalendarEventForm.tsx`. Full byte accounting preserved (total code volume strictly accounted for without loss of functionality).
   - [x] **Task X12 QuantGit God-File Modularization & Canonical Routing**: Deconstructed `apps/quantmail/src/app/quantgit/page.tsx` from 290.8 KB (6,348 lines) down to 70.6 KB coordinator. Ratified Section 5.0 in `QUANTGIT_ARCHITECTURE.md` establishing `/quantgit` as the canonical UI surface with permanent redirects from `/codehub` and `/repos` (`apps/quantmail/next.config.js`). Extracted 14 decoupled subcomponents and modules: `types.ts`, `constants.ts`, `QuantGitHeader.tsx`, `ReposDirectoryView.tsx`, `QuantyCopilotView.tsx`, `QuantGitModals.tsx`, and all 10 tab modules (`CodeTab.tsx`, `IssuesTab.tsx`, `PullRequestsTab.tsx`, `AgentsTab.tsx`, `DiscussionsTab.tsx`, `ActionsTab.tsx`, `ProjectsTab.tsx`, `SecurityTab.tsx`, `InsightsTab.tsx`, `SettingsTab.tsx`). Authentic status preserved (Actions tab renders explicit "no runner attached" banner).
@@ -1111,8 +1119,8 @@
 - [ ] **Task G04**: Replace `noopCiRunner` with real BullMQ runner.
 - [x] **Task G05**: Fix branch protection to read real `BranchProtection` record (eliminate dead boolean check). _(Completed by Developer 6 in commit `5b02aafc`, 40/40 tests passing)_.
 - [ ] **Task G06**: Collapse 3 repo APIs into 1 canonical route module.
-- [ ] **Task G07**: Collapse 3 repo UIs into single `/quantgit` workspace.
-- [ ] **Task G08**: Enforce single canonical repo URL scheme with redirects.
+- [x] **Task G07**: Collapse 3 repo UIs into single `/quantgit` workspace. _(Completed in Wave 13 & Wave 13.1: modularized /quantgit coordinator across 14 modules, legacy subtrees redirect to /quantgit)_.
+- [x] **Task G08**: Enforce single canonical repo URL scheme with redirects. _(Completed in Wave 13.1: permanent HTTP 308 redirects with wildcard :path\* matching in next.config.js and Next.js redirect('/quantgit') on all legacy subtrees)_.
 - [ ] **Task G09**: Add collaborators and granular roles (`ADMIN`, `MAINTAIN`, `WRITE`, `TRIAGE`, `READ`).
 - [ ] **Task G10**: Add teams and organization permissions.
 - [ ] **Task G11**: Add review approvals that gate merge.

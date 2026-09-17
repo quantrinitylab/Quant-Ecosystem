@@ -49,12 +49,22 @@ const nextConfig = {
       {
         source: '/codehub',
         destination: '/quantgit',
-        permanent: false,
+        permanent: true,
+      },
+      {
+        source: '/codehub/:path*',
+        destination: '/quantgit/:path*',
+        permanent: true,
       },
       {
         source: '/repos',
         destination: '/quantgit',
-        permanent: false,
+        permanent: true,
+      },
+      {
+        source: '/repos/:path*',
+        destination: '/quantgit/:path*',
+        permanent: true,
       },
     ];
   },

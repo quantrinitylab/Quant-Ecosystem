@@ -1,1 +1,5 @@
-export { default } from '../quantgit/page';
+import { redirect } from 'next/navigation';
+
+export default function ReposPage() {
+  redirect('/quantgit');
+}

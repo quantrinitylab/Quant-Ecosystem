@@ -176,7 +176,7 @@ the winner lacks. **Nothing is deleted until its importers are migrated and gree
 ## 3. Target architecture
 
 ```
-                    QuantMail  /codehub   ·   the Office Floor UI
+                    QuantMail  /quantgit (Agent Lab)  ·  the Office Floor UI
                     (Next.js · deterministic replay · zero tokens to watch)
                                      │  HTTPS + one JWT (shared issuer)
                                      ▼
@@ -311,18 +311,19 @@ Two rules that are easy to get wrong:
 
 ## 5. The Office Floor UI — spec
 
-Lives at `apps/quantmail/src/app/codehub/` (the shell already exists). Obeys the QuantMail design
-system without exception: `#FF8C42` for primary actions only, `#111318` cards on `#090A0C`,
+Lives canonically at `apps/quantmail/src/app/quantgit/` (specifically `/quantgit/agentlab` for the Canvas virtual office floor and `/quantgit` for the copilot and repository workspaces). Parallel legacy surfaces `/codehub` and `/repos` (and all subtrees `/codehub/:path*`, `/repos/:path*`) are permanently collapsed into HTTP 308 permanent redirects (`permanent: true`) in `next.config.js` and dedicated server-side redirect handlers.
+
+Obeys the QuantMail design system without exception: `#FF8C42` for primary actions only, `#111318` cards on `#090A0C`,
 `#282C35` borders, inline SVG icons only — **no decorative emoji anywhere** — 44px minimum touch
 targets, `focus-visible:ring-2 focus-visible:ring-[#FF8C42]`, and
 `shadow-[0_4px_16px_rgba(0,0,0,0.6)]` instead of coloured glows. No card inside a card.
 
-The floor art is built in the **praised medium — 3D / WebGL / Canvas** — to the same bar as the
+The floor art is built in the **praised medium — 3D / WebGL / Canvas** (`AgentOfficeCanvas.tsx`) — to the same bar as the
 existing Quant-Ecosystem logo. That logo itself stays untouched.
 
 ### 5.0 Canonical Surface & Route Collapsing (CEO Astra Ratified)
 
-As formally ratified by CEO Astra in the Wave 13 Sovereign Architecture Decision Record, the canonical application surface is strictly `/quantgit`. Parallel legacy surfaces `/codehub` and `/repos` collapse completely into Next.js redirects (`permanent: false`) pointing to `/quantgit`. All repository inspection, branching, git Smart HTTP operations, PR workflows, and agent lab capabilities route through `/quantgit`.
+As formally ratified by CEO Astra in the Wave 13 Sovereign Architecture Decision Record, the canonical application surface is strictly `/quantgit`. Parallel legacy surfaces `/codehub` and `/repos` collapse completely into Next.js permanent redirects (`permanent: true`, HTTP 308) pointing to `/quantgit` and `/quantgit/:path*`. All repository inspection, branching, git Smart HTTP operations, PR workflows, and agent lab capabilities route through `/quantgit`.
 
 ### 5.1 Two modes, one data source
 
@@ -487,15 +488,15 @@ can never be imported by production code by accident. `packages/agent-runtime/sr
 Ordered by dependency, not by visibility. The gates are the point: each one is a thing that
 **cannot be faked**, which is how we avoid shipping another green light that cannot go red.
 
-| #      | Milestone                                 | Gate — the thing that proves it                                                                                                                                                              |
-| ------ | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **M1** | Real sandbox behind `ICodeSandbox`        | A task runs `exit 3` and the `Run` records exit code 3. A task tries to reach a non-allowlisted host and is refused. Both asserted in CI.                                                    |
-| **M2** | Real CI execution                         | `services/ci-runner` spawns work in an M1 sandbox, is deployed (T7), and **a deliberately broken commit turns the pipeline red.** Until a pipeline can fail, it is decoration.               |
-| **M3** | LLM planner into `SwarmOrchestrator`      | One sentence of user intent produces a `Goal` with ≥3 `SubGoal`s carrying real `dependsOn` edges, and the orchestrator gates assignment on them.                                             |
-| **M4** | `FloorGovernor`                           | Given a synthetic runaway agent, the governor steers at 80%, constrains at 90%, stops at 100%, and every intervention writes a `GovernorTrip`. **No autonomous agent runs before M4 lands.** |
-| **M5** | QuantMail `/codehub` over the agent plane | Create a goal in QuantMail, watch it execute, approve one action, see real spend. One JWT, one login.                                                                                        |
-| **M6** | Floor replay view                         | A completed run replays from `AuditEvent` alone with the network disabled — proving zero tokens and full determinism.                                                                        |
-| **M7** | BYOK / local harness                      | A user's own key runs a goal end-to-end and our marginal inference cost for that goal is ₹0.                                                                                                 |
+| #      | Milestone                                  | Gate — the thing that proves it                                                                                                                                                              |
+| ------ | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **M1** | Real sandbox behind `ICodeSandbox`         | A task runs `exit 3` and the `Run` records exit code 3. A task tries to reach a non-allowlisted host and is refused. Both asserted in CI.                                                    |
+| **M2** | Real CI execution                          | `services/ci-runner` spawns work in an M1 sandbox, is deployed (T7), and **a deliberately broken commit turns the pipeline red.** Until a pipeline can fail, it is decoration.               |
+| **M3** | LLM planner into `SwarmOrchestrator`       | One sentence of user intent produces a `Goal` with ≥3 `SubGoal`s carrying real `dependsOn` edges, and the orchestrator gates assignment on them.                                             |
+| **M4** | `FloorGovernor`                            | Given a synthetic runaway agent, the governor steers at 80%, constrains at 90%, stops at 100%, and every intervention writes a `GovernorTrip`. **No autonomous agent runs before M4 lands.** |
+| **M5** | QuantMail `/quantgit` over the agent plane | Create a goal in QuantMail, watch it execute, approve one action, see real spend. One JWT, one login.                                                                                        |
+| **M6** | Floor replay view                          | A completed run replays from `AuditEvent` alone with the network disabled — proving zero tokens and full determinism.                                                                        |
+| **M7** | BYOK / local harness                       | A user's own key runs a goal end-to-end and our marginal inference cost for that goal is ₹0.                                                                                                 |
 
 **M4 is a safety gate, not a feature gate.** M1→M2→M3 can be built in parallel with M4's design,
 but the first unattended agent run happens after M4, not before. That ordering is what stops an

@@ -20,7 +20,7 @@ import { mailboxKey, readMailbox, writeMailbox, patchEmail } from '../lib/offlin
 import { enqueue, type MailMutationKind } from '../lib/offline/outbox';
 import { showToast } from '../lib/toast-bus';
 import { apiRequestError, backoffInterval } from '../lib/query-retry';
-import type { Email, EmailCategory, EmailThread } from '../types';
+import type { Email, EmailCategory, EmailThread, SearchEmailRequest } from '../types';
 
 // ============================================================================
 // 1. CANONICAL QUERY KEY FACTORY & DOCUMENTED SCHEMA
@@ -30,7 +30,7 @@ import type { Email, EmailCategory, EmailThread } from '../types';
  * Single source of truth for React Query keys across all mail surfaces.
  * - ['inbox', label, category, folderType, page]: Mailbox lists with folder predicates
  * - ['thread', threadId]: Conversational thread views
- * - ['email-search', query]: Search result lists
+ * - ['inbox', 'search', params]: Search result lists (invalidated with ['inbox'])
  */
 export const mailQueryKeys = {
   all: ['inbox'] as const,
@@ -43,7 +43,8 @@ export const mailQueryKeys = {
       options?.page,
     ] as const,
   thread: (threadId: string) => ['thread', threadId] as const,
-  search: (query?: string) => ['email-search', query] as const,
+  search: (params?: Partial<SearchEmailRequest> | string | null) =>
+    ['inbox', 'search', params] as const,
 };
 
 // ============================================================================
@@ -1039,6 +1040,38 @@ export function useMail(options?: UseInboxOptions & UseMailMutationsOptions) {
     ...inbox,
     mutations,
   };
+}
+
+// ============================================================================
+// 6. SEARCH HOOK: useSearchEmails
+// ============================================================================
+
+/**
+ * Normalizes email list payload from direct array or nested data envelope.
+ */
+function toEmailList(payload: unknown): Email[] {
+  if (Array.isArray(payload)) return payload as Email[];
+  const nested = (payload as { data?: unknown } | null | undefined)?.data;
+  return Array.isArray(nested) ? (nested as Email[]) : [];
+}
+
+/**
+ * Searches emails via canonical API client with query key prefix ['inbox', 'search', ...].
+ * This guarantees cache eviction whenever `mailQueryKeys.all` (['inbox']) is invalidated.
+ */
+export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
+  return useQuery<Email[]>({
+    queryKey: mailQueryKeys.search(params),
+    queryFn: async () => {
+      if (!params) return [];
+      const response = await apiClient.searchEmails(params);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to search emails');
+      }
+      return toEmailList(response.data);
+    },
+    enabled: !!params,
+  });
 }
 
 export default useMail;

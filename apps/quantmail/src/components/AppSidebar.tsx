@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useInbox } from '../hooks/useInbox';
+import { useInbox } from '../hooks/useMail';
 import { useStorageQuota } from '../hooks/useStorageQuota';
 import { formatBytes } from '../lib/format-bytes';
 import { QuantMailLogo } from './QuantMailLogo';
