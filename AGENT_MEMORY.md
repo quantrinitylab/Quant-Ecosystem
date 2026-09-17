@@ -2221,3 +2221,22 @@ graph TD
   - **175/175 test files passing 100%** (`pnpm --filter @quant/quantmail exec vitest run`).
   - **2,039/2,039 tests passing 100%** (zero test failures across the entire application).
   - **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+
+### 43. Wave 5: Phase D Deepening — QuantDrive Performance, Hygiene & UX Hardening (Tasks D14, D21, D22, D23, D24):
+
+- **1. Elimination of N+1 Queries in File Trash Lifecycle (Task D14)**:
+  - In `apps/quantmail/backend/routes/drive.ts`: Replaced per-ID `prisma.folder.findFirst` lookup loop and per-ID `prisma.file.updateMany` loop in `POST /drive/files/trash` with a single batch `prisma.folder.findMany` query.
+  - Subtrees of matched folders are expanded and soft-deleted atomically with `$transaction`.
+  - Non-folder files are matched and updated in a single batched transaction, eliminating linear query bloat.
+- **2. Ghost App Removal from Memory Registry (Task D24)**:
+  - In `apps/quantmail/backend/routes/drive.ts`: Purged deprecated ghost apps `quantdocs`, `quantmeet`, and `quantcalendar` from `MEMORY_APP_LABELS`, keeping strictly the unified 10 Killer Apps (`quantmail`, `quantchat`, `quantube`, `quantai`, `quantdrive`).
+- **3. Search-Mode UX Indicator & Breadcrumbs (Task D21)**:
+  - In `apps/quantmail/src/app/drive/page.tsx`: Added an active search mode indicator bar rendering current search term, result count, and a direct "Clear search" action.
+  - Integrated search state into breadcrumbs navigation (`My Drive / Search: "<query>"`), enabling instant one-click reset back to folder hierarchy.
+- **4. Client View Mode Persistence (Task D22)**:
+  - In `apps/quantmail/src/app/drive/page.tsx`: Bound grid/list view preference to `localStorage.getItem('quant_drive_view_mode')` and saved upon toggle.
+- **5. Dynamic File Size Limits (Task D23)**:
+  - In `apps/quantmail/src/app/drive/page.tsx`: Dynamically computes maximum file upload limit from `DRIVE_MAX_FILE_BYTES` via `formatBytes` rather than hardcoded 50 MB string.
+- **6. Verification & Quality Gates**:
+  - **31/31 unit tests passing 100%** across all 4 Drive test suites (`drive-parity.routes.test.ts` 8/8, `drive-deep-parity.routes.test.ts` 8/8, `chunked-upload-quota-move.test.ts` 6/6, `drive-upload-results.test.ts` 9/9).
+  - **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` exit code 0).

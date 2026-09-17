@@ -30,9 +30,6 @@ const MEMORY_APP_LABELS: Record<string, string> = {
   quantchat: 'QuantChat',
   quantube: 'QuantTube',
   quantai: 'QuantAI',
-  quantdocs: 'QuantDocs',
-  quantmeet: 'QuantMeet',
-  quantcalendar: 'QuantCalendar',
   quantdrive: 'QuantDrive',
 };
 const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
@@ -1005,28 +1002,51 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: { fileIds?: string[] } }>('/drive/files/trash', async (request, reply) => {
     const userId = requireUserId(request);
     const ids = [...new Set(request.body?.fileIds ?? [])];
+    if (ids.length === 0) return reply.send({ ok: true });
+
     const now = new Date();
-    for (const id of ids) {
-      const folder = await prisma.folder.findFirst({ where: { id, userId, isDeleted: false } });
-      if (folder) {
-        const folderIds = await folderTree(prisma, userId, id);
-        await prisma.$transaction([
-          prisma.folder.updateMany({
-            where: { id: { in: folderIds }, userId, isDeleted: false },
-            data: { isDeleted: true, deletedAt: now, trashRootId: id },
-          }),
-          prisma.file.updateMany({
-            where: { folderId: { in: folderIds }, userId, isDeleted: false },
-            data: { isDeleted: true, deletedAt: now, trashRootId: id },
-          }),
-        ]);
+
+    // 1. Batch-query matching folders in a single query to eliminate N+1 findFirst lookups
+    const matchingFolders = await prisma.folder.findMany({
+      where: { id: { in: ids }, userId, isDeleted: false },
+      select: { id: true },
+    });
+    const folderIdSet = new Set(matchingFolders.map((f: any) => f.id));
+
+    // 2. Expand folder subtrees and soft-delete folders & descendant files atomically
+    for (const folder of matchingFolders) {
+      const subtreeFolderIds = await folderTree(prisma, userId, folder.id);
+      await prisma.$transaction([
+        prisma.folder.updateMany({
+          where: { id: { in: subtreeFolderIds }, userId, isDeleted: false },
+          data: { isDeleted: true, deletedAt: now, trashRootId: folder.id },
+        }),
+        prisma.file.updateMany({
+          where: { folderId: { in: subtreeFolderIds }, userId, isDeleted: false },
+          data: { isDeleted: true, deletedAt: now, trashRootId: folder.id },
+        }),
+      ]);
+    }
+
+    // 3. Batch-query and update direct files (excluding folders) in a single transaction
+    const directFileIds = ids.filter((id) => !folderIdSet.has(id));
+    if (directFileIds.length > 0) {
+      const matchingFiles = await prisma.file.findMany({
+        where: { id: { in: directFileIds }, userId, isDeleted: false },
+        select: { id: true },
+      });
+      if (matchingFiles.length > 0) {
+        await prisma.$transaction(
+          matchingFiles.map((f: any) =>
+            prisma.file.update({
+              where: { id: f.id },
+              data: { isDeleted: true, deletedAt: now, trashRootId: f.id },
+            }),
+          ),
+        );
       }
     }
-    for (const id of ids)
-      await prisma.file.updateMany({
-        where: { id, userId, isDeleted: false },
-        data: { isDeleted: true, deletedAt: now, trashRootId: id },
-      });
+
     return reply.send({ ok: true });
   });
   fastify.get('/drive/trash', async (request, reply) => {

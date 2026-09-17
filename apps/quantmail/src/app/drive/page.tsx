@@ -257,7 +257,28 @@ export default function DrivePage() {
   const { confirm, dialog } = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewModeState] = useState<'grid' | 'list'>('grid');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('quant_drive_view_mode');
+      if (saved === 'grid' || saved === 'list') {
+        setViewModeState(saved);
+      }
+    } catch {
+      // Ignore SSR / quota error
+    }
+  }, []);
+
+  const setViewMode = useCallback((mode: 'grid' | 'list') => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem('quant_drive_view_mode', mode);
+    } catch {
+      // Ignore
+    }
+  }, []);
+
   const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [isDragOver, setIsDragOver] = useState(false);
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
@@ -377,7 +398,7 @@ export default function DrivePage() {
           text:
             err instanceof Error && err.message
               ? `Upload failed: ${err.message}`
-              : 'Upload failed — please try again (max 50 MB per file)',
+              : `Upload failed — please try again (max ${formatBytes(Number(process.env.NEXT_PUBLIC_DRIVE_MAX_FILE_BYTES) || 25 * 1024 * 1024)} per file)`,
           type: 'error',
           subject: UPLOAD_TOAST,
         });
@@ -655,20 +676,31 @@ export default function DrivePage() {
           {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
           <nav
             className={`min-w-0 shrink items-center gap-1.5 text-xs text-[#A1A4AC] ${
-              currentFolderId ? 'flex' : 'hidden md:flex'
+              currentFolderId || searchQuery.trim() ? 'flex' : 'hidden md:flex'
             }`}
             aria-label="Breadcrumb"
           >
             <button
               type="button"
-              onClick={() => navigateToFolder(null, 'Home')}
+              onClick={() => {
+                if (searchQuery.trim()) setSearchQuery('');
+                navigateToFolder(null, 'Home');
+              }}
               className={`shrink-0 rounded transition-colors hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                !currentFolderId ? 'font-semibold text-[#F5F5F5]' : ''
+                !currentFolderId && !searchQuery.trim() ? 'font-semibold text-[#F5F5F5]' : ''
               }`}
             >
               My Drive
             </button>
-            {breadcrumbs &&
+            {searchQuery.trim() ? (
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className="shrink-0 text-[#6B6E76]">/</span>
+                <span className="max-w-[200px] truncate font-medium text-[#FF8C42]">
+                  Search: &ldquo;{searchQuery.trim()}&rdquo;
+                </span>
+              </span>
+            ) : (
+              breadcrumbs &&
               breadcrumbs.slice(1).map((b, i) => (
                 <span key={b.id || i} className="flex min-w-0 items-center gap-1.5">
                   <span className="shrink-0 text-[#6B6E76]">/</span>
@@ -680,7 +712,8 @@ export default function DrivePage() {
                     {b.name}
                   </button>
                 </span>
-              ))}
+              ))
+            )}
             <span className="mx-1 hidden h-4 w-px shrink-0 bg-[#282C35] md:block" />
           </nav>
 
@@ -818,6 +851,50 @@ export default function DrivePage() {
                 Deselect
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Search Mode Indicator (Task D21) */}
+        {searchQuery.trim() && (
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[#16181D] border-b border-[#282C35] text-xs">
+            <div className="flex items-center gap-2 text-[#A1A4AC]">
+              <svg
+                className="size-3.5 text-[#FF8C42]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <span>
+                Search results for{' '}
+                <span className="font-semibold text-[#F5F5F5]">
+                  &ldquo;{searchQuery.trim()}&rdquo;
+                </span>
+              </span>
+              <span className="text-[#6B6E76]">
+                ({filteredItems.length} item{filteredItems.length === 1 ? '' : 's'})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-1 text-xs text-[#FF8C42] hover:text-[#FF9B5A] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            >
+              <span>Clear search</span>
+              <svg
+                className="size-3"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
           </div>
         )}
 

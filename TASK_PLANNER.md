@@ -1098,17 +1098,17 @@
 - [x] **Task D11**: Recalculate descendant paths on folder rename.
 - [ ] **Task D12**: Add repair background job for corrupted paths.
 - [x] **Task D13**: Add depth and cycle caps to `folderTree()`.
-- [ ] **Task D14**: Fix N+1 queries in `/drive/files/trash`.
+- [x] **Task D14**: Fix N+1 queries in `/drive/files/trash` by batching folder and file lookups. _(Completed by Developer 4)_.
 - [ ] **Task D15**: Apply `requireStorage()` to `GET /drive/files`.
 - [x] **Task D16**: Build real file previews (image lightbox, PDF viewer, text, video).
 - [ ] **Task D17**: Generate and display `thumbnailUrl` in file grid.
 - [x] **Task D18**: Add server-side pagination to `GET /drive/files` (`limit`, `cursor`, `sortBy`, `sortDir`, `nextCursor`, `totalCount`, `hasMore`). _(Completed by Developer 4)_.
 - [ ] **Task D19**: Virtualize file grid with `src/lib/virtual/` for 10k files.
 - [ ] **Task D20**: Move filter pills server-side.
-- [ ] **Task D21**: Add search-mode indicator and breadcrumbs.
-- [ ] **Task D22**: Persist grid/list view preference across reloads.
-- [ ] **Task D23**: Read upload limit from `DRIVE_MAX_FILE_BYTES`.
-- [x] **Task D24**: Remove ghost apps `quantdocs`/`quantmeet`/`quantcalendar` from `MEMORY_APP_LABELS`.
+- [x] **Task D21**: Add search-mode indicator and breadcrumbs. _(Completed by Developer 4)_.
+- [x] **Task D22**: Persist grid/list view preference across reloads via `localStorage`. _(Completed by Developer 4)_.
+- [x] **Task D23**: Read upload limit dynamically from `DRIVE_MAX_FILE_BYTES`. _(Completed by Developer 4)_.
+- [x] **Task D24**: Remove ghost apps `quantdocs`/`quantmeet`/`quantcalendar` from `MEMORY_APP_LABELS`. _(Completed by Developer 4)_.
 
 ### 🐙 Phase G — Git to GitHub Parity (16 Tasks)
 
