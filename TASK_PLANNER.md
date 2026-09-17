@@ -22,6 +22,16 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **QuantGit Production Gate Hardening: V16 Kill Switch, Strict HTTP CAS & Non-Fabricated DTOs (`3bac4e0e` on `main`, Dev 6 & Dev 7 Implementation)**:
+  - [x] **CEO Astra Re-Audit 4 Official Production Sign-Off**: Astra inspected commit `3bac4e0e` via GitHub MCP tools and granted **OFFICIAL PRODUCTION SIGN-OFF for the HTTP Write Path & Repository Read Surface**. Formally ratified and updated Master Spec page on Notion.
+  - [x] **GitHub Actions CI Gate 100% Green**: Workflow `35169463189` passed green across all 4 jobs (`gate` 4m29s, `quantchat-coverage` 59s, `memory-shadow-postgres` 48s, `full-sweep` 17m19s).
+  - [x] **V16 Environment Kill Switch Hardening**: Changed `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'` to `&&` in `routes/ai-chat.ts`, ensuring callers must explicitly opt in per-request AND the environment variable must be `'true'`. Added negative unit tests in `ai-chat.routes.test.ts` (25/25 tests passing).
+  - [x] **Non-Fabricated Repository DTOs & Queries**: In `toDto(r)`, dynamically resolves `latestCommitSha` from default branch row in PostgreSQL or empty string `''`; sets `checksStatus: 'none'`, empty license `''`, and empty topics `[]`. Updated all repository read queries (`findMany`, `update`, `loadReadableRepo`, `loadWritableRepo`, `PATCH /repos/:id`) to include `{ branches: true }`.
+  - [x] **Development-Only Seeder Containment**: Gated sample repo seeding in `GET /repos` and workflow run seeding in `GET /:id/actions` behind `process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_REPO_SEEDING === 'true'`, eliminating fabricated branch rows and protecting production/staging databases.
+  - [x] **Strict HTTP CAS & Protected Branch Enforcement (V9 on HTTP route)**: Required `parentSha` property check on `PATCH / POST /repos/:id/file` (400 `PARENT_SHA_REQUIRED`), enforced `branchRecord?.isProtected` (403 `BRANCH_PROTECTED`), strict CAS comparison against `currentHeadSha` (409 `STALE_PARENT_SHA`), and forwarded `expectedHeadSha: parsed.data.parentSha` directly to `commitFile`.
+  - [x] **Branch Creation Parent SHA Inheritance**: Replaced static fallback `948e3612` in `POST /repos/:id/branches` with dynamic parent SHA resolution from default branch row or bare Git ref head, returning 400 `BRANCH_NOT_FOUND` if no parent SHA exists.
+  - [x] **Vitest QA Regression Suite**: 27/27 tests passing in `repos.routes.test.ts`, 25/25 in `ai-chat.routes.test.ts` (52/52 passing total), 0 TypeScript errors (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+
 - [x] **QuantGit Fail-Closed Tool Gate, Strict CAS & HTTP Route Parity (`130e66b2` on `main`, Astra Re-Audit V15 & B2/B5)**:
   - [x] **Astra Re-Audit 3 Official Sign-Off (Staging Clearance)**: CEO Astra verified all 4 remediations directly in shipped source via GitHub MCP tools; granted scoped sign-off for staging and gated internal use. Formally corrected earlier audit finding V7 on spec page.
   - [x] **Fail-Closed Tool Gate**: Defaulted `tools.enabled` to `false` and hardened gate to `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'`, preventing accidental tool execution for standard mail copilot callers.

@@ -1380,8 +1380,61 @@ graph TD
 - **2. Formal Spec Page Correction (V7 Struck)**:
   - Astra formally struck her earlier finding V7: `POST / PATCH /api/repos/:id/file` exists and was live before this commit, with `.strict()` schema, path and branch hardening, 2 MiB ceiling, 404 `BRANCH_NOT_FOUND`, 409 `STALE_PARENT_SHA`, transactional commit events, and compensating `rollbackCommit`. Condition 4 was substantially met.
 - **3. Production Gate Checklist (Next Sprint Items)**:
-  - **Dev 7 (V16)**: Change `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'` to `&&` so `ENABLE_AUTONOMOUS_TOOLS` acts as the environment kill switch rather than an override, plus a test verifying `tools: { enabled: false }` with the env flag set still executes no tools.
-  - **Dev 6 (Condition 3 & Stubs)**: Remove fabricated fields from `toDto` in `repos.ts` (don't hardcode `latestCommitSha: '948e3612'`, `checksStatus: 'passing'`), stop defaulting `POST /:id/branches` to `948e3612`, and gate auto-seeders behind dev-only flags.
-  - **Dev 6 (V9 on HTTP route)**: Require `parentSha` in `commitFileSchema` on `PATCH /repos/:id/file` (`400 PARENT_SHA_REQUIRED`), and enforce `Branch.isProtected` (`403 BRANCH_PROTECTED`).
+  - **Dev 7 (V16 - COMPLETED IN `3bac4e0e`)**: Changed `tools?.enabled === true || process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'` to `&&` so `ENABLE_AUTONOMOUS_TOOLS` acts as the environment kill switch rather than an override, plus negative tests verifying `tools: { enabled: false }` with the env flag set still executes no tools, and vice versa.
+  - **Dev 6 (Condition 3 & Stubs - COMPLETED IN `3bac4e0e`)**: Removed fabricated fields from `toDto` in `repos.ts` (derives `latestCommitSha` from default branch row or empty string; `checksStatus: 'none'`, empty license, empty topics), stopped defaulting `POST /:id/branches` to `948e3612` (inherits default branch SHA or git head fallback; 400 `BRANCH_NOT_FOUND` if missing), and gated repo/actions auto-seeders behind `NODE_ENV === 'development' && ENABLE_DEV_REPO_SEEDING === 'true'`.
+  - **Dev 6 (V9 on HTTP route - COMPLETED IN `3bac4e0e`)**: Required `parentSha` in `commitFileSchema` on `PATCH /repos/:id/file` (`400 PARENT_SHA_REQUIRED`), and enforced `Branch.isProtected` (`403 BRANCH_PROTECTED`).
   - **Dev 1 (S2-02)**: Scopes (`repos:read`, `repos:write`, `agents:execute`), B4 fix (change `loadReadableRepo` to `loadWritableRepo` for `/issues`, `/pulls`, `/star`, `/issues/:number/toggle`), and `ai_tool_calls` migration with idempotency.
   - **Dev 7 (V15 structural)**: The `'tool'` role and two-pass generation so summary prose is derived directly from tool execution results.
+
+### 22. Production Gate Hardening: V16 Kill Switch, Strict HTTP CAS & Non-Fabricated DTOs (Commit `3bac4e0e`):
+
+- **1. V16 Environment Kill Switch Hardening (`routes/ai-chat.ts`)**:
+  - Replaced permissive logical-OR with strict logical-AND: `isToolCallingEnabled = tools?.enabled === true && process.env.ENABLE_AUTONOMOUS_TOOLS === 'true'`.
+  - Callers must explicitly opt in per-request (`tools.enabled: true`) AND the environment must permit execution (`ENABLE_AUTONOMOUS_TOOLS: 'true'`).
+  - Added unit test verifying tool calling is skipped when `tools.enabled: false` even with `ENABLE_AUTONOMOUS_TOOLS='true'`.
+  - Added unit test verifying tool calling is skipped when `ENABLE_AUTONOMOUS_TOOLS` is unset even with `tools.enabled: true`.
+- **2. Non-Fabricated Repository DTOs & Queries (`routes/repos.ts`)**:
+  - `toDto(r)`: Dynamically searches `(r as any).branches` for `defaultBranch` to resolve `latestCommitSha` and `latestCommit`. If absent, defaults to empty strings (`''`).
+  - Removed fabricated static values: `checksStatus` defaults to `'none'`, `license` to `''`, and `topics` to `[]`.
+  - Updated all repository queries (`findMany`, `update`, `loadReadableRepo`, `loadWritableRepo`, `PATCH /repos/:id`) to include `{ branches: true }`.
+- **3. Development-Only Seeder Containment (`routes/repos.ts`)**:
+  - Gated auto-seeding of the 4 core ecosystem repositories in `GET /repos` behind `process.env.NODE_ENV === 'development' && process.env.ENABLE_DEV_REPO_SEEDING === 'true'`.
+  - Removed fabricated `branches: { create: { name: 'main', commitSha: '948e3612' } }` from seed data.
+  - Gated auto-seeding of CI workflow runs in `GET /:id/actions` behind the same development flag.
+  - Completely prevents clean production and staging databases from initializing non-existent Git objects.
+- **4. Strict HTTP CAS & Protected Branch Enforcement (`routes/repos.ts`)**:
+  - `commitFileSchema`: Hardened `parentSha` to `z.string().regex(/^[0-9a-f]{40}$/i, 'parentSha must be a 40-char SHA').nullable()`.
+  - `PATCH / POST /repos/:id/file`: Validates `parentSha` property presence before schema parsing; throws 400 `PARENT_SHA_REQUIRED` if omitted.
+  - Enforces `branchRecord?.isProtected`; throws 403 `BRANCH_PROTECTED` before Git mutation.
+  - Strict CAS comparison: `if (parsed.data.parentSha !== currentHeadSha)` returns 409 `STALE_PARENT_SHA`.
+  - Forwards `expectedHeadSha: parsed.data.parentSha` directly to `mutationPort().commitFile`.
+- **5. Branch Creation Parent SHA Inheritance (`routes/repos.ts`)**:
+  - `POST /repos/:id/branches`: Removed fallback to `'948e3612'`.
+  - Dynamically resolves parent SHA from default branch in PostgreSQL or authoritative Git bare ref via `mutationPort().getBranchHead`.
+  - If no parent SHA exists, returns 400 `BRANCH_NOT_FOUND` ("Cannot create branch: parent commit SHA not found").
+- **6. Vitest QA Verification & Typecheck**:
+  - `apps/quantmail/backend/__tests__/ai-chat.routes.test.ts`: 25/25 unit tests passing 100%.
+  - `apps/quantmail/backend/__tests__/repos.routes.test.ts`: 27/27 unit tests passing 100%.
+  - Combined suite: 52/52 tests passing green in 9.30s.
+  - TypeScript compiler checks verified clean with 0 errors (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json`).
+- **7. Remote Deployment & CI Gate**:
+  - Pushed to `main` at `3bac4e0e`.
+  - GitHub Actions CI workflow `35169463189` passed 100% green across all 4 jobs (`gate` 4m29s, `quantchat-coverage` 59s, `memory-shadow-postgres` 48s, `full-sweep` 17m19s).
+
+### 23. CEO Astra Re-Audit 4: Official Production Sign-Off for HTTP Write Path & Repos Read Surface (Opus 5 Direct Review):
+
+- **1. Astra's Official Verdict (Status: 17 Sep 2026, Opus 5 Direct GitHub Verification)**:
+  - **OFFICIAL PRODUCTION SIGN-OFF GRANTED FOR HTTP WRITE PATH & REPOSITORY READ SURFACE**:
+    - _"Inspected 3bac4e0e and the full diff. All three items verify. I'm signing off the HTTP write path and the repository read surface for production. The dispatcher stays staging-only, and the reason is now a single specific thing rather than a list."_
+    - Verified: `||` -> `&&` kill switch is strict; `parentSha` is required (nullable, not optional) with explicit check before parsing; CAS comparison against `currentHeadSha` is unconditional without force-write short-circuit; `expectedHeadSha: parsed.data.parentSha` forwarded strictly; `toDto` dynamically reads `defaultBranchRow?.commitSha ?? ''`; sample repo and actions seeders are development-flag gated.
+  - **QA & Testing Recognition**:
+    - _"The QA is ahead of my asks this round, which is worth saying outright. The two gate tests pin both halves of the && independently — one sets the env var and sends enabled: false, the other sends enabled: true with the var deleted — so that expression can't silently regress in either direction. The PARENT_SHA_REQUIRED and BRANCH_PROTECTED tests each assert four separate negatives (getBranchHead, commitFile, branch.upsert, ciRun.create all never called)... And the GET /repos pair covers the empty-branches case as well as the populated one."_
+- **2. Formal Spec Page Updated by Astra**:
+  - CEO Astra edited and ratified the Master Spec page in Notion (`Sovereign Agent Loop — Architecture Sign-Off & Implementation Spec`), recording the production sign-off for the HTTP write path and repository read surface.
+- **3. Astra's 3 Targeted Follow-Ups for Full Unified Parity**:
+  - **V17 (Action Trigger Containment)**: `POST /:id/actions/trigger` still writes hardcoded commitSha `'317ed52d'` and triggeredBy `'kundan'`. Must be dev-flag gated or return 503 `CI_EXECUTOR_UNAVAILABLE` in production.
+  - **V18 & Architectural Unification**: Route autonomous tool `commit_file` in `ai-chat.ts` through `PATCH /api/repos/:id/file` (or share identical branch lookup, `isProtected` 403, and CAS checks) so autonomous tool execution cannot bypass protected branch checks.
+  - **V19 (Strict Branch SHA Validation & Case-Insensitivity)**:
+    - `createBranchSchema`: Validate `sha` with 40-char hex regex `^[0-9a-f]{40}$/i` rather than permissive `min(4).max(64)`.
+    - CAS comparison: Normalize SHAs with `.toLowerCase()` to prevent uppercase hex inputs from spuriously triggering 409 `STALE_PARENT_SHA`.
+    - Cleanup remaining static fields in `toDto` (`language: 'TypeScript'`, `website`, dynamic `openIssuesCount`).
