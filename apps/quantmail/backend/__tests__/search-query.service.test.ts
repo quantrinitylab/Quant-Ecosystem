@@ -159,6 +159,45 @@ describe('SearchQueryService.search', () => {
     expect(callArg.orderBy).toEqual({ receivedAt: 'desc' });
   });
 
+  it('supports cursor-based pagination with limit and nextCursor', async () => {
+    prisma.email.findMany.mockResolvedValue([
+      { id: 'e2' },
+      { id: 'e3' },
+      { id: 'e4' }, // 3 items returned for limit 2 -> hasMore = true
+    ]);
+    prisma.email.count.mockResolvedValue(10);
+
+    const result = await service.search('user-1', 'from:alice', {
+      cursor: 'e1',
+      limit: 2,
+    });
+
+    expect(result.data).toEqual([{ id: 'e2' }, { id: 'e3' }]);
+    expect(result.hasMore).toBe(true);
+    expect(result.nextCursor).toBe('e3');
+    expect(result.pageSize).toBe(2);
+
+    const callArg = prisma.email.findMany.mock.calls[0]?.[0] as {
+      cursor: { id: string };
+      skip: number;
+      take: number;
+    };
+    expect(callArg.cursor).toEqual({ id: 'e1' });
+    expect(callArg.skip).toBe(1);
+    expect(callArg.take).toBe(3);
+  });
+
+  it('supports initial page with limit and no cursor', async () => {
+    prisma.email.findMany.mockResolvedValue([{ id: 'e1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    const result = await service.search('user-1', 'test', { limit: 5 });
+
+    expect(result.data).toEqual([{ id: 'e1' }]);
+    expect(result.hasMore).toBe(false);
+    expect(result.nextCursor).toBeNull();
+  });
+
   it('throws when no PrismaClient is configured', async () => {
     const bare = new SearchQueryService();
     await expect(bare.search('user-1', 'x')).rejects.toThrow('requires a PrismaClient');

@@ -125,6 +125,9 @@ function fakePrisma() {
         if (data.starCount?.increment) {
           return { ...MOCK_REPO, starCount: MOCK_REPO.starCount + data.starCount.increment };
         }
+        if (data.forkCount?.increment) {
+          return { ...MOCK_REPO, forkCount: MOCK_REPO.forkCount + data.forkCount.increment };
+        }
         return { ...MOCK_REPO, ...data };
       }),
       delete: vi.fn().mockResolvedValue(MOCK_REPO),
@@ -143,6 +146,7 @@ function fakePrisma() {
         .fn()
         .mockResolvedValue([{ name: 'main', commitSha: '948e3612', isProtected: false }]),
       findFirst: vi.fn().mockResolvedValue(null),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
       create: vi.fn().mockImplementation(async ({ data }: any) => ({
         id: 'branch-1',
         repoId: data.repoId,
@@ -2459,6 +2463,85 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       });
       expect(secondDel.statusCode).toBe(404);
       expect(secondDel.json().error.code).toBe('HOOK_NOT_FOUND');
+    });
+  });
+
+  describe('Repository Forks Engine (Task G13)', () => {
+    it('POST /repos/:id/forks creates a fork and increments parent forkCount', async () => {
+      const app = await buildApp('user-2');
+      const mockCreatedFork = {
+        ...MOCK_REPO,
+        id: 'repo-fork-1',
+        ownerId: 'user-2',
+        name: 'Quant-Ecosystem',
+        description: 'The unified ecosystem monorepo [forked from Quant-Ecosystem]',
+        forkCount: 0,
+        starCount: 0,
+        branches: [
+          { id: 'b-1', name: 'main', commitSha: '1111111111111111111111111111111111111111' },
+        ],
+      };
+      prisma.repository.create.mockResolvedValueOnce(mockCreatedFork);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/forks',
+        payload: {},
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.id).toBe('repo-fork-1');
+      expect(body.data.ownerId).toBe('user-2');
+      expect(body.data.isFork).toBe(true);
+
+      expect(prisma.repository.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'repo-1' },
+          data: { forkCount: { increment: 1 } },
+        }),
+      );
+      expect(prisma.branch.create).toHaveBeenCalled();
+    });
+
+    it('GET /repos/:id/forks lists forks of the repository', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/forks',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(Array.isArray(body.data)).toBe(true);
+    });
+
+    it('POST /repos/:id/forks rejects with 409 REPO_NAME_EXISTS when fork name already exists in account', async () => {
+      const app = await buildApp('user-2');
+      prisma.repository.findFirst.mockResolvedValueOnce({ id: 'existing-repo-id' } as never);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/forks',
+        payload: { name: 'Quant-Ecosystem' },
+      });
+
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.code).toBe('REPO_NAME_EXISTS');
+    });
+
+    it('POST /repos/:id/forks rejects unauthenticated requests with 401', async () => {
+      const app = await buildApp(null);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/forks',
+        payload: {},
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error.code).toBe('UNAUTHORIZED');
     });
   });
 });

@@ -188,4 +188,19 @@ export default async function mailFiltersRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true, data: { matches } });
   });
+
+  // POST /mail-filters/:id/apply
+  // Evaluates filter against existing messages and applies actions.
+  fastify.post<{ Params: { id: string } }>('/:id/apply', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MailFilterService(prisma as never);
+    const result = await service.applyFilterToMessages(request.params.id, userId);
+
+    return reply.send({ success: true, data: result });
+  });
 }

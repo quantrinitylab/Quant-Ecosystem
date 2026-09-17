@@ -248,25 +248,85 @@ export class SearchQueryService {
   /**
    * Execute a search against the Email model. Requires a PrismaClient (supplied
    * via the constructor). Returns a paginated result ordered by `receivedAt`.
+   * Supports both offset (page/pageSize) and cursor-based (cursor/limit) pagination.
    */
   async search(
     userId: string,
     query: string,
-    options: { page?: number; pageSize?: number; now?: Date } = {},
+    options: {
+      page?: number;
+      pageSize?: number;
+      cursor?: string;
+      limit?: number;
+      now?: Date;
+    } = {},
   ): Promise<{
     data: unknown[];
     total: number;
     page: number;
     pageSize: number;
     totalPages: number;
+    nextCursor: string | null;
+    hasMore: boolean;
   }> {
     if (!this.prisma) {
       throw new Error('SearchQueryService.search requires a PrismaClient');
     }
+    const where = this.buildEmailWhere(userId, query, options.now);
+    const limit = options.limit ?? options.pageSize ?? 25;
+
+    if (options.cursor) {
+      const [rawItems, total] = await Promise.all([
+        (this.prisma.email as any).findMany({
+          where,
+          take: limit + 1,
+          skip: 1,
+          cursor: { id: options.cursor },
+          orderBy: { receivedAt: 'desc' },
+        }),
+        this.prisma.email.count({ where }),
+      ]);
+      const hasMore = rawItems.length > limit;
+      const data = hasMore ? rawItems.slice(0, limit) : rawItems;
+      const nextCursor =
+        hasMore && data.length > 0 ? (data[data.length - 1] as { id: string }).id : null;
+      return {
+        data,
+        total,
+        page: options.page ?? 1,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit),
+        nextCursor,
+        hasMore,
+      };
+    }
+
+    if (options.limit !== undefined) {
+      const [rawItems, total] = await Promise.all([
+        this.prisma.email.findMany({
+          where,
+          take: limit + 1,
+          orderBy: { receivedAt: 'desc' },
+        }),
+        this.prisma.email.count({ where }),
+      ]);
+      const hasMore = rawItems.length > limit;
+      const data = hasMore ? rawItems.slice(0, limit) : rawItems;
+      const nextCursor =
+        hasMore && data.length > 0 ? (data[data.length - 1] as { id: string }).id : null;
+      return {
+        data,
+        total,
+        page: 1,
+        pageSize: limit,
+        totalPages: Math.ceil(total / limit),
+        nextCursor,
+        hasMore,
+      };
+    }
+
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 25;
-    const where = this.buildEmailWhere(userId, query, options.now);
-
     const [data, total] = await Promise.all([
       this.prisma.email.findMany({
         where,
@@ -277,12 +337,18 @@ export class SearchQueryService {
       this.prisma.email.count({ where }),
     ]);
 
+    const hasMore = page * pageSize < total;
+    const nextCursor =
+      hasMore && data.length > 0 ? (data[data.length - 1] as { id: string }).id : null;
+
     return {
       data,
       total,
       page,
       pageSize,
       totalPages: Math.ceil(total / pageSize),
+      nextCursor,
+      hasMore,
     };
   }
 }

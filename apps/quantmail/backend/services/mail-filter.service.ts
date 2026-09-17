@@ -300,6 +300,85 @@ export class MailFilterService {
     return resolved;
   }
 
+  /**
+   * Evaluates the given filter against existing user emails in the database and applies
+   * all matching actions (adding labels, moving folders, marking read/starred/spam/deleted).
+   */
+  async applyFilterToMessages(
+    filterId: string,
+    userId: string,
+  ): Promise<{ filterId: string; processedCount: number; affectedCount: number }> {
+    const filter = await this.getFilter(filterId, userId);
+    const emails = await this.prisma.email.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { receivedAt: 'desc' },
+      take: 1000,
+    });
+
+    let affectedCount = 0;
+    const actions = toArray<FilterAction>(filter.actions);
+
+    for (const email of emails) {
+      const matches = this.evaluate(filter, {
+        fromAddress: email.fromAddress,
+        toAddresses: (email.toAddresses as string[]) ?? [],
+        subject: email.subject ?? '',
+        bodyPlain: email.bodyPlain,
+        bodyHtml: email.bodyHtml,
+        hasAttachments: email.hasAttachments ?? false,
+      });
+
+      if (!matches) continue;
+
+      const updateData: Record<string, unknown> = {};
+      let modified = false;
+
+      for (const action of actions) {
+        if (action.addLabelId) {
+          const currentLabels = ((email as any).labels as string[]) ?? [];
+          if (!currentLabels.includes(action.addLabelId)) {
+            updateData.labels = [...currentLabels, action.addLabelId];
+            modified = true;
+          }
+        }
+        if (action.moveToFolderId && email.folderId !== action.moveToFolderId) {
+          updateData.folderId = action.moveToFolderId;
+          modified = true;
+        }
+        if (action.markRead === true && !email.isRead) {
+          updateData.isRead = true;
+          modified = true;
+        }
+        if (action.star === true && !email.isStarred) {
+          updateData.isStarred = true;
+          modified = true;
+        }
+        if (action.markSpam === true && !(email as any).isSpam) {
+          updateData.isSpam = true;
+          modified = true;
+        }
+        if (action.delete === true) {
+          updateData.deletedAt = new Date();
+          modified = true;
+        }
+      }
+
+      if (modified) {
+        await this.prisma.email.update({
+          where: { id: email.id },
+          data: updateData,
+        });
+        affectedCount++;
+      }
+    }
+
+    return {
+      filterId,
+      processedCount: emails.length,
+      affectedCount,
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------

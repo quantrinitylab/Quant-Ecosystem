@@ -86,6 +86,9 @@ function createFakePrisma() {
         updatedAt: new Date('2026-09-01T00:00:00.000Z'),
       })),
     },
+    user: {
+      findUnique: vi.fn().mockResolvedValue({ id: 'user-cal-1', email: 'cal-user@quantmail.io' }),
+    },
   };
 }
 
@@ -835,6 +838,122 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
         expect(res2.statusCode).toBe(201);
         const body2 = JSON.parse(res2.body);
         expect(body2.success).toBe(true);
+      });
+    });
+
+    describe('Calendar RSVP Lifecycle (Task C14)', () => {
+      it('allows attendee to accept invitation and updates event attendees status', async () => {
+        const attendeeRow = {
+          ...BASE_ROW,
+          attendees: JSON.stringify([
+            { email: 'cal-user@quantmail.io', name: 'Cal User', status: 'pending' },
+            { email: 'other@example.com', name: 'Other User', status: 'pending' },
+          ]),
+        };
+        prisma.event.findUnique.mockResolvedValue(attendeeRow);
+        prisma.user.findUnique.mockResolvedValue({
+          id: 'user-cal-1',
+          email: 'cal-user@quantmail.io',
+        });
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/events/evt-1/rsvp',
+          payload: { status: 'accepted' },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body);
+        expect(body.success).toBe(true);
+        expect(body.data.attendees).toEqual([
+          {
+            email: 'cal-user@quantmail.io',
+            name: 'Cal User',
+            status: 'accepted',
+            userId: 'user-cal-1',
+          },
+          { email: 'other@example.com', name: 'Other User', status: 'pending', userId: '' },
+        ]);
+        expect(prisma.event.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: 'evt-1' },
+            data: expect.objectContaining({
+              attendees: expect.stringContaining('"status":"accepted"'),
+            }),
+          }),
+        );
+      });
+
+      it('allows attendee to decline or respond tentatively', async () => {
+        const attendeeRow = {
+          ...BASE_ROW,
+          attendees: JSON.stringify([
+            { email: 'cal-user@quantmail.io', name: 'Cal User', status: 'pending' },
+          ]),
+        };
+        prisma.event.findUnique.mockResolvedValue(attendeeRow);
+        prisma.user.findUnique.mockResolvedValue({
+          id: 'user-cal-1',
+          email: 'cal-user@quantmail.io',
+        });
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/events/evt-1/rsvp',
+          payload: { status: 'declined' },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body);
+        expect(body.data.attendees[0].status).toBe('declined');
+      });
+
+      it('rejects with 403 NOT_EVENT_ATTENDEE when caller is not an attendee', async () => {
+        const nonAttendeeRow = {
+          ...BASE_ROW,
+          attendees: JSON.stringify([
+            { email: 'someoneelse@quantmail.io', name: 'Someone', status: 'pending' },
+          ]),
+        };
+        prisma.event.findUnique.mockResolvedValue(nonAttendeeRow);
+        prisma.user.findUnique.mockResolvedValue({
+          id: 'user-cal-1',
+          email: 'cal-user@quantmail.io',
+        });
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/events/evt-1/rsvp',
+          payload: { status: 'accepted' },
+        });
+
+        expect(res.statusCode).toBe(403);
+        const body = JSON.parse(res.body);
+        expect(body.error.code).toBe('NOT_EVENT_ATTENDEE');
+      });
+
+      it('rejects with 404 EVENT_NOT_FOUND when event does not exist', async () => {
+        prisma.event.findUnique.mockResolvedValue(null);
+
+        const res = await app.inject({
+          method: 'POST',
+          url: '/events/evt-missing/rsvp',
+          payload: { status: 'accepted' },
+        });
+
+        expect(res.statusCode).toBe(404);
+        const body = JSON.parse(res.body);
+        expect(body.error.code).toBe('EVENT_NOT_FOUND');
+      });
+
+      it('rejects invalid status values with 400 VALIDATION_ERROR', async () => {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/events/evt-1/rsvp',
+          payload: { status: 'maybe_later' },
+        });
+
+        expect(res.statusCode).toBe(400);
       });
     });
   });

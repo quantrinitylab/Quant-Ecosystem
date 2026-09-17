@@ -365,12 +365,18 @@ const memoryCollaboratorsStore = new Map<string, CollaboratorRecord[]>();
 const memoryTagsStore = new Map<string, TagRecord[]>();
 const memoryReleasesStore = new Map<string, ReleaseRecord[]>();
 const memoryWebhooksStore = new Map<string, WebhookRecord[]>();
+const memoryForksStore = new Map<string, string[]>();
+
+const createForkSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+});
 
 export function resetRepoStores(): void {
   memoryCollaboratorsStore.clear();
   memoryTagsStore.clear();
   memoryReleasesStore.clear();
   memoryWebhooksStore.clear();
+  memoryForksStore.clear();
 }
 
 export async function dispatchWebhook(
@@ -465,7 +471,13 @@ function toDto(r: RepoRow, ownerHandle?: string) {
     openIssues: 0,
     size: 0,
     isTemplate: false,
-    isFork: false,
+    isFork: Boolean(
+      (r as any).isFork ||
+      (r as any).parentRepoId ||
+      (r.description && r.description.includes('[forked from')) ||
+      false,
+    ),
+    parentRepo: (r as any).parentRepoId ? { id: (r as any).parentRepoId } : null,
     topics: [],
     latestCommit: latestCommitSha ? `Commit ${latestCommitSha.slice(0, 7)}` : '',
     latestCommitSha,
@@ -2799,6 +2811,109 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
     },
   );
+
+  fastify.post<{ Params: { id: string } }>('/:id/forks', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const parsed = createForkSchema.safeParse(request.body ?? {});
+    if (!parsed.success) throw parsed.error;
+
+    const targetName =
+      parsed.data.name || (repo.ownerId === userId ? `${repo.name}-fork` : repo.name);
+
+    // Check collision in caller's namespace
+    const existing = await prisma.repository.findFirst({
+      where: { ownerId: userId, name: targetName, deletedAt: null },
+    });
+    if (existing) {
+      throw createAppError(
+        `Repository "${targetName}" already exists in your account`,
+        409,
+        'REPO_NAME_EXISTS',
+      );
+    }
+
+    const description = repo.description
+      ? `${repo.description} [forked from ${repo.name}]`
+      : `[forked from ${repo.name}]`;
+
+    const forkedRepo = await prisma.repository.create({
+      data: {
+        ownerId: userId,
+        name: targetName,
+        description,
+        visibility: repo.visibility,
+        defaultBranch: repo.defaultBranch,
+        starCount: 0,
+        forkCount: 0,
+      },
+      include: { branches: true },
+    });
+
+    // Replicate branches
+    const sourceBranches = await prisma.branch.findMany({ where: { repoId: repo.id } });
+    if (sourceBranches.length > 0) {
+      for (const branch of sourceBranches) {
+        await prisma.branch.create({
+          data: {
+            repoId: forkedRepo.id,
+            name: branch.name,
+            commitSha: branch.commitSha,
+            isProtected: false,
+          },
+        });
+      }
+    } else {
+      await prisma.branch.create({
+        data: {
+          repoId: forkedRepo.id,
+          name: repo.defaultBranch || 'main',
+          commitSha: (repo as any).latestCommitSha || '0000000000000000000000000000000000000000',
+          isProtected: false,
+        },
+      });
+    }
+
+    // Atomically increment parent forkCount
+    await prisma.repository.update({
+      where: { id: repo.id },
+      data: { forkCount: { increment: 1 } },
+    });
+
+    const forks = memoryForksStore.get(repo.id) ?? [];
+    forks.push(forkedRepo.id);
+    memoryForksStore.set(repo.id, forks);
+
+    const appUrl = (request.headers.origin as string) || 'https://quantmail.in';
+    const branches = (await prisma.branch.findMany({ where: { repoId: forkedRepo.id } })) ?? [];
+
+    return reply.status(201).send({
+      success: true,
+      data: toDto({ ...forkedRepo, branches, isFork: true, parentRepoId: repo.id }, appUrl),
+    });
+  });
+
+  fastify.get<{ Params: { id: string } }>('/:id/forks', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const prisma = getPrisma(fastify);
+    const forkIds = memoryForksStore.get(repo.id) ?? [];
+
+    const forks = await prisma.repository.findMany({
+      where: {
+        OR: [{ id: { in: forkIds } }, { description: { contains: `[forked from ${repo.name}]` } }],
+        deletedAt: null,
+      },
+      include: { branches: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const appUrl = (request.headers.origin as string) || 'https://quantmail.in';
+    return reply.send({
+      success: true,
+      data: forks.map((f: any) => toDto({ ...f, isFork: true, parentRepoId: repo.id }, appUrl)),
+    });
+  });
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);

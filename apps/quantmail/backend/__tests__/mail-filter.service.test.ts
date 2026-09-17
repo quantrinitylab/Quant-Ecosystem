@@ -17,6 +17,10 @@ function createMockPrisma() {
       delete: vi.fn(),
       count: vi.fn(),
     },
+    email: {
+      findMany: vi.fn(),
+      update: vi.fn(),
+    },
   };
 }
 
@@ -375,6 +379,122 @@ describe('MailFilterService', () => {
       const result = await service.computeActions('user-1', makeEmail());
 
       expect(result.forwardTo).toEqual(['a@quantmail.io', 'b@quantmail.io']);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // applyFilterToMessages
+  // ---------------------------------------------------------------------------
+
+  describe('applyFilterToMessages', () => {
+    it('evaluates filter against existing user emails and updates matching messages', async () => {
+      const filter = makeFilter({
+        id: 'f-active',
+        userId: 'user-1',
+        conditions: [{ from: 'newsletter@partner.com' }],
+        actions: [
+          { addLabelId: 'lbl-promo', markRead: true, star: true, moveToFolderId: 'fld-archive' },
+        ],
+      });
+
+      prisma.mailFilter.findUnique.mockResolvedValue(filter);
+
+      const email1 = {
+        id: 'em-1',
+        userId: 'user-1',
+        fromAddress: 'newsletter@partner.com',
+        toAddresses: ['me@quantmail.io'],
+        subject: 'Weekly Deals',
+        bodyPlain: 'Discount code inside',
+        bodyHtml: null,
+        hasAttachments: false,
+        labels: ['existing-label'],
+        folderId: 'inbox',
+        isRead: false,
+        isStarred: false,
+        isSpam: false,
+        deletedAt: null,
+      };
+
+      const email2 = {
+        id: 'em-2',
+        userId: 'user-1',
+        fromAddress: 'boss@corp.com',
+        toAddresses: ['me@quantmail.io'],
+        subject: 'Important update',
+        bodyPlain: 'See you tomorrow',
+        bodyHtml: null,
+        hasAttachments: false,
+        labels: [],
+        folderId: 'inbox',
+        isRead: false,
+        isStarred: false,
+        isSpam: false,
+        deletedAt: null,
+      };
+
+      prisma.email.findMany.mockResolvedValue([email1, email2]);
+      prisma.email.update.mockResolvedValue({});
+
+      const stats = await service.applyFilterToMessages('f-active', 'user-1');
+
+      expect(stats.filterId).toBe('f-active');
+      expect(stats.processedCount).toBe(2);
+      expect(stats.affectedCount).toBe(1);
+
+      expect(prisma.email.update).toHaveBeenCalledTimes(1);
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'em-1' },
+        data: {
+          labels: ['existing-label', 'lbl-promo'],
+          isRead: true,
+          isStarred: true,
+          folderId: 'fld-archive',
+        },
+      });
+    });
+
+    it('handles delete action by setting deletedAt', async () => {
+      const filter = makeFilter({
+        id: 'f-spam',
+        userId: 'user-1',
+        conditions: [{ subjectContains: 'spam lottery' }],
+        actions: [{ delete: true }],
+      });
+
+      prisma.mailFilter.findUnique.mockResolvedValue(filter);
+
+      const email = {
+        id: 'em-spam',
+        userId: 'user-1',
+        fromAddress: 'unknown@junk.org',
+        toAddresses: ['me@quantmail.io'],
+        subject: 'You won the spam lottery!',
+        bodyPlain: 'Click here',
+        bodyHtml: null,
+        hasAttachments: false,
+        labels: [],
+        folderId: 'inbox',
+        isRead: false,
+        isStarred: false,
+        isSpam: false,
+        deletedAt: null,
+      };
+
+      prisma.email.findMany.mockResolvedValue([email]);
+      prisma.email.update.mockResolvedValue({});
+
+      const stats = await service.applyFilterToMessages('f-spam', 'user-1');
+
+      expect(stats.affectedCount).toBe(1);
+      expect(prisma.email.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'em-spam' },
+          data: expect.objectContaining({
+            deletedAt: expect.any(Date),
+          }),
+        }),
+      );
     });
   });
 });

@@ -7,6 +7,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { logger } from '@quant/common';
 import { browserApiRequest as apiRequest } from '../services/browser-api-request';
 
+// Consolidate and re-export modern React Query git hooks
+export * from './useRepos';
+
 interface Repository {
   id: string;
   name: string;
@@ -329,9 +332,10 @@ export function useGit(options: UseGitOptions = {}): UseGitReturn {
 
   const forkRepo = useCallback(async (rid: string): Promise<Repository | null> => {
     try {
-      const response = await apiRequest(`/api/repos/${rid}/fork`, { method: 'POST' });
+      const response = await apiRequest(`/api/repos/${rid}/forks`, { method: 'POST' });
       if (!response.ok) throw new Error('Fork failed');
-      const forked = await response.json();
+      const data = await response.json();
+      const forked = data.data || data.repository || data;
       setRepos((prev) => [forked, ...prev]);
       return forked;
     } catch (err) {
@@ -342,7 +346,7 @@ export function useGit(options: UseGitOptions = {}): UseGitReturn {
 
   const starRepo = useCallback(async (rid: string): Promise<void> => {
     try {
-      await apiRequest(`/api/repos/${rid}/star`, { method: 'PUT' });
+      await apiRequest(`/api/repos/${rid}/star`, { method: 'POST' });
       setRepos((prev) => prev.map((r) => (r.id === rid ? { ...r, stars: r.stars + 1 } : r)));
     } catch (err) {
       logger.error('Star failed:', err);

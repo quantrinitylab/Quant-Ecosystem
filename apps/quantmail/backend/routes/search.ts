@@ -7,6 +7,8 @@ const searchSchema = z.object({
   q: z.string().min(1).max(1000),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
 const parseSchema = z.object({
@@ -14,7 +16,7 @@ const parseSchema = z.object({
 });
 
 export default async function searchRoutes(fastify: FastifyInstance) {
-  // GET /search/emails?q=...&page=&pageSize=
+  // GET /search/emails?q=...&page=&pageSize=&cursor=&limit=
   // Executes a Gmail-style advanced search over the user's mail.
   fastify.get('/emails', async (request, reply) => {
     const parseResult = searchSchema.safeParse(request.query);
@@ -32,6 +34,8 @@ export default async function searchRoutes(fastify: FastifyInstance) {
     const result = await service.search(userId, parseResult.data.q, {
       page: parseResult.data.page,
       pageSize: parseResult.data.pageSize,
+      cursor: parseResult.data.cursor,
+      limit: parseResult.data.limit,
     });
 
     return reply.send({ success: true, data: result });
