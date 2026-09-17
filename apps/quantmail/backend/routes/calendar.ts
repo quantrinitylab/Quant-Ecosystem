@@ -44,6 +44,8 @@ const eventCreateSchema = z.object({
   end: z.string().optional(),
   allDay: z.boolean().optional(),
   location: z.string().max(500).optional(),
+  checkConflicts: z.boolean().optional(),
+  force: z.boolean().optional(),
   ...eventCollectionFields,
 });
 const eventUpdateSchema = z.object({
@@ -56,6 +58,8 @@ const eventUpdateSchema = z.object({
   allDay: z.boolean().optional(),
   location: z.string().max(500).optional(),
   status: z.enum(['confirmed', 'tentative', 'cancelled']).optional(),
+  checkConflicts: z.boolean().optional(),
+  force: z.boolean().optional(),
   ...eventCollectionFields,
 });
 const calendarCreateSchema = z.object({
@@ -299,6 +303,145 @@ function safeFileName(title: string): string {
       .slice(0, 50) || 'event'
   );
 }
+
+interface IcsOptions {
+  method?: 'PUBLISH' | 'REQUEST' | 'CANCEL';
+  sequence?: number;
+  organizer?: { name?: string; email: string };
+}
+
+function buildIcsContent(event: EventRow, options: IcsOptions = {}): string {
+  const method = options.method ?? 'PUBLISH';
+  const sequence = options.sequence ?? (method === 'CANCEL' ? 1 : 0);
+  const icsLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Quant Ecosystem//QuantCalendar//EN',
+    'CALSCALE:GREGORIAN',
+    `METHOD:${method}`,
+    'BEGIN:VEVENT',
+    `UID:${event.id}@quantmail.in`,
+    `DTSTAMP:${formatIcsDate(new Date())}`,
+    `DTSTART:${formatIcsDate(new Date(event.startTime))}`,
+    `DTEND:${formatIcsDate(new Date(event.endTime))}`,
+    `SUMMARY:${escapeIcs(event.title)}`,
+    `DESCRIPTION:${escapeIcs(event.description || '')}`,
+    `LOCATION:${escapeIcs(event.location || '')}`,
+    `STATUS:${method === 'CANCEL' ? 'CANCELLED' : (event.status || 'confirmed').toUpperCase()}`,
+    `SEQUENCE:${sequence}`,
+  ];
+
+  if (options.organizer?.email) {
+    const cn = escapeIcs(
+      options.organizer.name || options.organizer.email.split('@')[0] || 'Organizer',
+    );
+    icsLines.push(`ORGANIZER;CN=${cn}:mailto:${options.organizer.email}`);
+  }
+
+  if (method === 'REQUEST' || method === 'CANCEL') {
+    const attendees = parseJsonArray(event.attendees);
+    for (const raw of attendees) {
+      const entry = raw as any;
+      const email =
+        typeof entry === 'string'
+          ? entry.trim()
+          : typeof entry?.email === 'string'
+            ? entry.email.trim()
+            : '';
+      if (!email) continue;
+      const name =
+        typeof entry === 'object' && entry && typeof entry.name === 'string' && entry.name
+          ? escapeIcs(entry.name)
+          : email;
+      const status =
+        typeof entry === 'object' && entry && entry.status
+          ? String(entry.status).toUpperCase()
+          : 'NEEDS-ACTION';
+      icsLines.push(
+        `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=${status};RSVP=TRUE;CN=${name}:mailto:${email}`,
+      );
+    }
+  }
+
+  if (event.recurrenceRule) {
+    icsLines.push(`RRULE:${event.recurrenceRule}`);
+  }
+
+  icsLines.push('END:VEVENT', 'END:VCALENDAR');
+  return icsLines.join('\r\n') + '\r\n';
+}
+
+interface ConflictResult {
+  id: string;
+  title: string;
+  startTime: Date;
+  endTime: Date;
+}
+
+async function findEventConflicts(
+  prisma: any,
+  recurringService: RecurringService,
+  userId: string,
+  start: Date,
+  end: Date,
+  excludeIds: string[] = [],
+): Promise<ConflictResult[]> {
+  const excludeSet = new Set(excludeIds.filter(Boolean));
+
+  // 1. Non-recurring events
+  const nonRecurring = (await prisma.event.findMany({
+    where: {
+      userId,
+      recurrenceRule: null,
+      status: { not: 'cancelled' },
+      startTime: { lt: end },
+      endTime: { gt: start },
+    },
+    select: { id: true, title: true, startTime: true, endTime: true },
+  })) as Array<{ id: string; title: string; startTime: Date; endTime: Date }>;
+
+  const conflicts: ConflictResult[] = nonRecurring
+    .filter((e) => !excludeSet.has(e.id) && !excludeSet.has(parentEventId(e.id)))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      startTime: new Date(e.startTime),
+      endTime: new Date(e.endTime),
+    }));
+
+  // 2. Recurring events within the window
+  const recurringRows = (await prisma.event.findMany({
+    where: {
+      userId,
+      recurrenceRule: { not: null },
+      status: { not: 'cancelled' },
+      startTime: { lte: end },
+    },
+  })) as EventRow[];
+
+  for (const row of recurringRows) {
+    if (excludeSet.has(row.id)) continue;
+    try {
+      const occurrences = recurringService.expandOccurrences(toCalendarEvent(row), start, end);
+      for (const occ of occurrences) {
+        if (excludeSet.has(occ.id) || excludeSet.has(parentEventId(occ.id))) continue;
+        if (occ.status === 'cancelled') continue;
+        if (occ.startTime < end && occ.endTime > start) {
+          conflicts.push({
+            id: occ.id,
+            title: occ.title,
+            startTime: new Date(occ.startTime),
+            endTime: new Date(occ.endTime),
+          });
+        }
+      }
+    } catch {
+      // Skip on expansion failure
+    }
+  }
+
+  return conflicts;
+}
 function getTodayWindow(timeZoneInput?: string): { startOfDay: Date; endOfDay: Date } {
   let tz = 'UTC';
   if (timeZoneInput && typeof timeZoneInput === 'string' && timeZoneInput.trim()) {
@@ -418,8 +561,14 @@ export default async function calendarRoutes(
         const requestedEnd = toDate(end, 'end');
         if (requestedEnd < startDate)
           throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
-        const maxEnd = new Date(startDate.getTime() + MAX_EVENT_WINDOW_MS);
-        const endDate = requestedEnd > maxEnd ? maxEnd : requestedEnd;
+        if (requestedEnd.getTime() - startDate.getTime() > MAX_EVENT_WINDOW_MS) {
+          throw createAppError(
+            'Event query window cannot exceed 365 days',
+            400,
+            'WINDOW_TOO_LARGE',
+          );
+        }
+        const endDate = requestedEnd;
         const rows = (await getPrisma(fastify).event.findMany({
           where: {
             userId,
@@ -474,6 +623,113 @@ export default async function calendarRoutes(
       return reply.send({ success: true, data: rows.map(toEventDto) });
     },
   );
+
+  fastify.get<{
+    Querystring: {
+      start?: string;
+      end?: string;
+      startTime?: string;
+      endTime?: string;
+      calendarId?: string;
+    };
+  }>('/events/free-busy', async (request, reply) => {
+    const userId = requireUserId(request);
+    const startStr = request.query.start || request.query.startTime;
+    const endStr = request.query.end || request.query.endTime;
+    if (!startStr || !endStr) {
+      throw createAppError('Both start and end times are required', 400, 'MISSING_TIME_RANGE');
+    }
+    const startDate = toDate(startStr, 'start');
+    const endDate = toDate(endStr, 'end');
+    if (endDate < startDate) {
+      throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
+    }
+    if (endDate.getTime() - startDate.getTime() > MAX_EVENT_WINDOW_MS) {
+      throw createAppError('Event query window cannot exceed 365 days', 400, 'WINDOW_TOO_LARGE');
+    }
+
+    const calendarId = request.query.calendarId;
+    const prisma = getPrisma(fastify);
+
+    const nonRecurring = (await prisma.event.findMany({
+      where: {
+        userId,
+        recurrenceRule: null,
+        status: { not: 'cancelled' },
+        startTime: { lt: endDate },
+        endTime: { gt: startDate },
+        ...(calendarId ? { calendarId } : {}),
+      },
+      select: { id: true, title: true, startTime: true, endTime: true },
+    })) as Array<{ id: string; title: string; startTime: Date; endTime: Date }>;
+
+    const recurringRows = (await prisma.event.findMany({
+      where: {
+        userId,
+        recurrenceRule: { not: null },
+        status: { not: 'cancelled' },
+        startTime: { lte: endDate },
+        ...(calendarId ? { calendarId } : {}),
+      },
+    })) as EventRow[];
+
+    const recurringOccurrences: Array<{ start: Date; end: Date; eventId: string; title: string }> =
+      [];
+    for (const row of recurringRows) {
+      try {
+        const occs = recurringService.expandOccurrences(toCalendarEvent(row), startDate, endDate);
+        for (const occ of occs) {
+          if (occ.status === 'cancelled') continue;
+          if (occ.startTime < endDate && occ.endTime > startDate) {
+            recurringOccurrences.push({
+              start: new Date(Math.max(occ.startTime.getTime(), startDate.getTime())),
+              end: new Date(Math.min(occ.endTime.getTime(), endDate.getTime())),
+              eventId: occ.id,
+              title: occ.title,
+            });
+          }
+        }
+      } catch {
+        // Skip on expansion failure
+      }
+    }
+
+    const rawIntervals = [
+      ...nonRecurring.map((e) => ({
+        start: new Date(Math.max(new Date(e.startTime).getTime(), startDate.getTime())),
+        end: new Date(Math.min(new Date(e.endTime).getTime(), endDate.getTime())),
+        eventId: e.id,
+        title: e.title,
+      })),
+      ...recurringOccurrences,
+    ].sort((a, b) => a.start.getTime() - b.start.getTime());
+
+    const busy: Array<{ start: Date; end: Date }> = [];
+    for (const item of rawIntervals) {
+      if (busy.length === 0) {
+        busy.push({ start: item.start, end: item.end });
+      } else {
+        const prev = busy[busy.length - 1];
+        if (item.start.getTime() <= prev.end.getTime()) {
+          if (item.end.getTime() > prev.end.getTime()) {
+            prev.end = item.end;
+          }
+        } else {
+          busy.push({ start: item.start, end: item.end });
+        }
+      }
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        timeRange: { start: startDate, end: endDate },
+        busy,
+        conflictsCount: rawIntervals.length,
+        busyBlocksCount: busy.length,
+      },
+    });
+  });
   fastify.get<{
     Querystring: { timeZone?: string; timezone?: string; calendarId?: string };
   }>('/events/today', async (request, reply) => {
@@ -566,15 +822,13 @@ export default async function calendarRoutes(
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     return reply.send({ success: true, data: toEventDto(event as EventRow) });
   });
-  fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
+  const getEventForIcs = async (prisma: any, id: string, userId: string): Promise<EventRow> => {
     let event = (await prisma.event.findUnique({
-      where: { id: request.params.id },
+      where: { id },
     })) as EventRow | null;
-    if (!event && request.params.id.includes('_')) {
-      const parentId = request.params.id.split('_')[0]!;
-      const occIso = request.params.id.split('_').slice(1).join('_');
+    if (!event && id.includes('_')) {
+      const parentId = id.split('_')[0]!;
+      const occIso = id.split('_').slice(1).join('_');
       const parent = (await prisma.event.findUnique({
         where: { id: parentId },
       })) as EventRow | null;
@@ -583,7 +837,7 @@ export default async function calendarRoutes(
         const duration = new Date(parent.endTime).getTime() - new Date(parent.startTime).getTime();
         event = {
           ...parent,
-          id: request.params.id,
+          id,
           startTime: occStart,
           endTime: new Date(occStart.getTime() + (duration > 0 ? duration : 3_600_000)),
           recurrenceRule: null,
@@ -593,34 +847,59 @@ export default async function calendarRoutes(
     if (!event || event.userId !== userId) {
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
     }
+    return event;
+  };
 
-    const icsLines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Quant Ecosystem//QuantCalendar//EN',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'BEGIN:VEVENT',
-      `UID:${event.id}@quantmail.in`,
-      `DTSTAMP:${formatIcsDate(new Date())}`,
-      `DTSTART:${formatIcsDate(new Date(event.startTime))}`,
-      `DTEND:${formatIcsDate(new Date(event.endTime))}`,
-      `SUMMARY:${escapeIcs(event.title)}`,
-      `DESCRIPTION:${escapeIcs(event.description || '')}`,
-      `LOCATION:${escapeIcs(event.location || '')}`,
-      `STATUS:${(event.status || 'confirmed').toUpperCase()}`,
-    ];
-    if (event.recurrenceRule) {
-      icsLines.push(`RRULE:${event.recurrenceRule}`);
-    }
-    icsLines.push('END:VEVENT', 'END:VCALENDAR');
-    const icsString = icsLines.join('\r\n') + '\r\n';
+  const getOrganizerInfo = async (prisma: any, userId: string) => {
+    if (!prisma.user || typeof prisma.user.findUnique !== 'function') return undefined;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { displayName: true, email: true },
+    });
+    return user?.email ? { name: user.displayName || undefined, email: user.email } : undefined;
+  };
 
+  fastify.get<{ Params: { id: string } }>('/events/:id/ics', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const event = await getEventForIcs(prisma, request.params.id, userId);
+    const icsString = buildIcsContent(event, { method: 'PUBLISH' });
     return reply
       .header('Content-Type', 'text/calendar; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="${safeFileName(event.title)}.ics"`)
       .send(icsString);
   });
+
+  fastify.get<{ Params: { id: string } }>('/events/:id/invite.ics', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const event = await getEventForIcs(prisma, request.params.id, userId);
+    const organizer = await getOrganizerInfo(prisma, userId);
+    const icsString = buildIcsContent(event, { method: 'REQUEST', organizer, sequence: 0 });
+    return reply
+      .header('Content-Type', 'text/calendar; charset=utf-8')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="${safeFileName(event.title)}_invite.ics"`,
+      )
+      .send(icsString);
+  });
+
+  fastify.get<{ Params: { id: string } }>('/events/:id/cancel.ics', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const event = await getEventForIcs(prisma, request.params.id, userId);
+    const organizer = await getOrganizerInfo(prisma, userId);
+    const icsString = buildIcsContent(event, { method: 'CANCEL', organizer, sequence: 1 });
+    return reply
+      .header('Content-Type', 'text/calendar; charset=utf-8')
+      .header(
+        'Content-Disposition',
+        `attachment; filename="${safeFileName(event.title)}_cancel.ics"`,
+      )
+      .send(icsString);
+  });
+
   fastify.post('/events', async (request, reply) => {
     const parsed = eventCreateSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -633,6 +912,18 @@ export default async function calendarRoutes(
     const recurrence = pickRecurrence(parsed.data);
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
+
+    if (parsed.data.checkConflicts && !parsed.data.force) {
+      const conflicts = await findEventConflicts(prisma, recurringService, userId, start, end);
+      if (conflicts.length > 0) {
+        return reply.status(409).send({
+          success: false,
+          error: 'Event conflicts with existing event(s)',
+          code: 'CONFLICT_DETECTED',
+          conflicts,
+        });
+      }
+    }
 
     let targetCalendarId = parsed.data.calendarId;
     if (!targetCalendarId && prisma.calendar) {
@@ -751,6 +1042,25 @@ export default async function calendarRoutes(
         throw createAppError('`end` cannot be before `start`', 400, 'INVALID_RANGE');
       }
 
+      if (parsed.data.checkConflicts && !parsed.data.force) {
+        const conflicts = await findEventConflicts(
+          prisma,
+          recurringService,
+          userId,
+          eventStartTime,
+          eventEndTime,
+          [parentId, request.params.id],
+        );
+        if (conflicts.length > 0) {
+          return reply.status(409).send({
+            success: false,
+            error: 'Event conflicts with existing event(s)',
+            code: 'CONFLICT_DETECTED',
+            conflicts,
+          });
+        }
+      }
+
       const now = new Date();
       const created = (await prisma.event.create({
         data: {
@@ -795,6 +1105,28 @@ export default async function calendarRoutes(
     const existing = await prisma.event.findUnique({ where: { id: eventId } });
     if (!existing || existing.userId !== userId)
       throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+
+    if (parsed.data.checkConflicts && !parsed.data.force && (start || end)) {
+      const targetStart = start ?? new Date(existing.startTime);
+      const targetEnd = end ?? new Date(existing.endTime);
+      const conflicts = await findEventConflicts(
+        prisma,
+        recurringService,
+        userId,
+        targetStart,
+        targetEnd,
+        [existing.id],
+      );
+      if (conflicts.length > 0) {
+        return reply.status(409).send({
+          success: false,
+          error: 'Event conflicts with existing event(s)',
+          code: 'CONFLICT_DETECTED',
+          conflicts,
+        });
+      }
+    }
+
     const data: Record<string, unknown> = { updatedAt: new Date() };
     for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const)
       if (parsed.data[key] !== undefined) data[key] = parsed.data[key];

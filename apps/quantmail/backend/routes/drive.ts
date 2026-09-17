@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AIEngine } from '@quant/ai';
@@ -357,6 +357,12 @@ const shareSchema = z.object({
   email: z.string().trim().email(),
   permission: z.enum(['view', 'edit', 'admin']),
 });
+const publicShareLinkSchema = z.object({
+  fileId: z.string().min(1),
+  role: z.enum(['viewer', 'editor']).optional().default('viewer'),
+  expiresInDays: z.number().int().min(1).max(365).optional(),
+  password: z.string().max(100).optional(),
+});
 const initiateChunkedSchema = z.object({
   name: z.string().min(1).max(255),
   totalSize: z.number().int().positive(),
@@ -460,32 +466,58 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     );
   });
 
-  fastify.get<{ Querystring: { folderId?: string } }>('/drive/files', async (request, reply) => {
+  fastify.get<{
+    Querystring: {
+      folderId?: string;
+      cursor?: string;
+      limit?: string | number;
+      sortBy?: 'name' | 'updatedAt' | 'size';
+      sortDir?: 'asc' | 'desc';
+    };
+  }>('/drive/files', async (request, reply) => {
     const userId = requireUserId(request);
     const folderId = request.query.folderId || null;
+    const limit = Math.min(200, Math.max(1, Number(request.query.limit) || 50));
+    const cursor = request.query.cursor;
+    const sortBy = request.query.sortBy || 'updatedAt';
+    const sortDir = request.query.sortDir === 'asc' ? 'asc' : 'desc';
     const owner = await ownerInfo(prisma, userId);
-    const [folders, files, quota] = await Promise.all([
-      prisma.folder.findMany({
-        where: { userId, parentId: folderId, isDeleted: false },
-        orderBy: { name: 'asc' },
-      }),
+
+    const [folders, files, totalCount, quota] = await Promise.all([
+      cursor
+        ? []
+        : prisma.folder.findMany({
+            where: { userId, parentId: folderId, isDeleted: false },
+            orderBy: { [sortBy === 'size' ? 'name' : sortBy]: sortDir },
+          }),
       prisma.file.findMany({
         where: { userId, folderId, isDeleted: false },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ [sortBy]: sortDir }, { id: 'asc' }],
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       }),
+      prisma.file.count({ where: { userId, folderId, isDeleted: false } }),
       quotaService.getQuota(userId),
     ]);
+
+    const hasMore = files.length > limit;
+    const items = hasMore ? files.slice(0, limit) : files;
+    const nextCursor = hasMore ? items[items.length - 1].id : null;
+
     const decorations = await loadDecorations(
       prisma,
-      files.map((file: any) => file.id),
+      items.map((file: any) => file.id),
       folders.map((folder: any) => folder.id),
     );
     return reply.send({
       files: [
         ...folders.map((folder: FolderRow) => folderDto(folder, owner, decorations)),
-        ...files.map((file: FileRow) => fileDto(file, owner, decorations)),
+        ...items.map((file: FileRow) => fileDto(file, owner, decorations)),
       ],
       quota: { used: quota.usedBytes, total: quota.limitBytes },
+      nextCursor,
+      totalCount,
+      hasMore,
     });
   });
   fastify.get<{ Querystring: { q?: string } }>('/drive/search', async (request, reply) => {
@@ -767,6 +799,122 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       },
     });
   });
+
+  fastify.post('/drive/shares/link', async (request, reply) => {
+    const parsed = publicShareLinkSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request);
+    const file = await fileAccess(prisma, parsed.data.fileId, userId);
+    if (file.userId !== userId) {
+      throw createAppError('Only the file owner can create public share links', 403, 'FORBIDDEN');
+    }
+
+    const token = randomBytes(24).toString('hex');
+    const expiresAt = parsed.data.expiresInDays
+      ? new Date(Date.now() + parsed.data.expiresInDays * 86_400_000)
+      : null;
+
+    const share = await prisma.driveShare.create({
+      data: {
+        fileId: file.id,
+        createdById: userId,
+        token,
+        role: parsed.data.role ?? 'viewer',
+        password: parsed.data.password || null,
+        expiresAt,
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      share: {
+        id: share.id,
+        fileId: share.fileId,
+        token: share.token,
+        shareUrl: `/drive/share/${share.token}`,
+        role: share.role,
+        expiresAt: share.expiresAt,
+      },
+    });
+  });
+
+  fastify.get<{ Params: { token: string } }>(
+    '/drive/public/share/:token',
+    async (request, reply) => {
+      const share = await prisma.driveShare.findUnique({
+        where: { token: request.params.token },
+      });
+      if (!share) throw createAppError('Share link not found', 404, 'SHARE_NOT_FOUND');
+      if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
+        throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
+      }
+
+      const file = await prisma.file.findFirst({
+        where: { id: share.fileId, isDeleted: false },
+      });
+      if (!file) throw createAppError('File not found or has been deleted', 404, 'FILE_NOT_FOUND');
+
+      const owner = await prisma.user.findUnique({
+        where: { id: file.userId },
+        select: { displayName: true, email: true },
+      });
+
+      return reply.send({
+        success: true,
+        file: {
+          id: file.id,
+          name: file.name,
+          size: file.size,
+          mimeType: file.mimeType,
+          updatedAt: file.updatedAt,
+          role: share.role,
+          ownerName: owner?.displayName || owner?.email?.split('@')[0] || 'Unknown',
+          requiresPassword: Boolean(share.password),
+          expiresAt: share.expiresAt,
+        },
+      });
+    },
+  );
+
+  fastify.get<{ Params: { token: string } }>(
+    '/drive/public/share/:token/download',
+    async (request, reply) => {
+      const share = await prisma.driveShare.findUnique({
+        where: { token: request.params.token },
+      });
+      if (!share) throw createAppError('Share link not found', 404, 'SHARE_NOT_FOUND');
+      if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
+        throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
+      }
+
+      const file = await prisma.file.findFirst({
+        where: { id: share.fileId, isDeleted: false },
+      });
+      if (!file) throw createAppError('File not found or has been deleted', 404, 'FILE_NOT_FOUND');
+
+      requireStorage();
+      const bytes = await checkedPlaintext(file);
+      const filename = safeFileName(file.name);
+
+      return reply
+        .header('Content-Type', file.mimeType || 'application/octet-stream')
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .header('Content-Length', bytes.length)
+        .send(bytes);
+    },
+  );
+
+  fastify.delete<{ Params: { id: string } }>('/drive/shares/link/:id', async (request, reply) => {
+    const userId = requireUserId(request);
+    const share = await prisma.driveShare.findUnique({
+      where: { id: request.params.id },
+    });
+    if (!share) throw createAppError('Share link not found', 404, 'SHARE_NOT_FOUND');
+    if (share.createdById !== userId) throw createAppError('Forbidden', 403, 'FORBIDDEN');
+
+    await prisma.driveShare.delete({ where: { id: share.id } });
+    return reply.send({ success: true });
+  });
   fastify.get<{ Params: { id: string } }>('/drive/files/:id/versions', async (request, reply) => {
     const file = await fileAccess(prisma, request.params.id, requireUserId(request));
     const versions = await prisma.fileVersion.findMany({
@@ -947,6 +1095,36 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     );
     return reply.send({ ok: true, purged: files.length + folders.length });
   });
+
+  fastify.post<{ Body: { retentionDays?: number } }>(
+    '/drive/trash/cleanup',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      requireStorage();
+      const retentionDays = Math.max(1, Number(request.body?.retentionDays) || 30);
+      const thresholdDate = new Date(Date.now() - retentionDays * 86_400_000);
+      const [files, folders] = await Promise.all([
+        prisma.file.findMany({
+          where: { userId, isDeleted: true, deletedAt: { lte: thresholdDate } },
+          select: { id: true },
+        }),
+        prisma.folder.findMany({
+          where: { userId, isDeleted: true, deletedAt: { lte: thresholdDate } },
+          select: { id: true },
+        }),
+      ]);
+      const fileIds = files.map((f: any) => f.id);
+      const folderIds = folders.map((f: any) => f.id);
+      if (fileIds.length || folderIds.length) {
+        await purgeRows(fastify, userId, fileIds, folderIds);
+      }
+      return reply.send({
+        success: true,
+        purgedCount: fileIds.length + folderIds.length,
+        retentionDays,
+      });
+    },
+  );
   fastify.post('/drive/upload', { bodyLimit: DRIVE_MAX_BODY_BYTES }, async (request, reply) => {
     const parsed = uploadSchema.safeParse(request.body);
     if (!parsed.success) throw createAppError('Invalid upload payload', 400, 'VALIDATION_ERROR');

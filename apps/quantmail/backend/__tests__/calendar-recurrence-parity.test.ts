@@ -52,6 +52,15 @@ function createInMemoryPrisma() {
           if (where.startTime?.lte && e.startTime > where.startTime.lte) return false;
           if (where.startTime?.lt && e.startTime >= where.startTime.lt) return false;
           if (where.startTime?.gt && e.startTime <= where.startTime.gt) return false;
+          if (where.endTime?.gt && e.endTime <= where.endTime.gt) return false;
+          if (where.endTime?.lt && e.endTime >= where.endTime.lt) return false;
+          if (
+            where.status &&
+            typeof where.status === 'object' &&
+            where.status.not &&
+            e.status === where.status.not
+          )
+            return false;
           return true;
         });
         return list.map((e) => ({ ...e }));
@@ -95,6 +104,18 @@ function createInMemoryPrisma() {
         const existing = events.get(where.id);
         events.delete(where.id);
         return existing ? { ...existing } : null;
+      }),
+    },
+    user: {
+      findUnique: vi.fn().mockImplementation(async ({ where }: { where: { id: string } }) => {
+        if (where.id === 'user-parity-1') {
+          return {
+            id: 'user-parity-1',
+            email: 'founder@quantmail.in',
+            displayName: 'Founder & CEO',
+          };
+        }
+        return null;
       }),
     },
     calendar: {
@@ -501,6 +522,196 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       });
       expect(res.statusCode).toBe(404);
       expect(res.json().error.code).toBe('EVENT_NOT_FOUND');
+    });
+  });
+
+  describe('7. RFC 5545 Meeting Invites (Task C18)', () => {
+    it('GET /events/:id/invite.ics generates METHOD:REQUEST with ORGANIZER and ATTENDEE tags', async () => {
+      const event = await prisma.event.create({
+        data: {
+          id: 'evt-invite-test',
+          userId: 'user-parity-1',
+          title: 'Architectural Sync',
+          description: 'Weekly sync with external leads',
+          startTime: new Date('2026-09-25T10:00:00.000Z'),
+          endTime: new Date('2026-09-25T11:00:00.000Z'),
+          attendees: JSON.stringify([
+            { email: 'alex@external.org', name: 'Alex Partner', status: 'needs-action' },
+            { email: 'sam@collaborator.io', name: 'Sam Collab', status: 'accepted' },
+          ]),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/events/${event.id}/invite.ics`,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toBe('text/calendar; charset=utf-8');
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="architectural_sync_invite.ics"',
+      );
+
+      const body = res.body;
+      expect(body).toContain('METHOD:REQUEST');
+      expect(body).toContain('SEQUENCE:0');
+      expect(body).toContain('ORGANIZER;CN=Founder & CEO:mailto:founder@quantmail.in');
+      expect(body).toContain(
+        'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Alex Partner:mailto:alex@external.org',
+      );
+      expect(body).toContain(
+        'ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE;CN=Sam Collab:mailto:sam@collaborator.io',
+      );
+    });
+  });
+
+  describe('8. RFC 5545 Event Cancellation (Task C20)', () => {
+    it('GET /events/:id/cancel.ics generates METHOD:CANCEL with STATUS:CANCELLED and SEQUENCE:1', async () => {
+      const event = await prisma.event.create({
+        data: {
+          id: 'evt-cancel-test',
+          userId: 'user-parity-1',
+          title: 'Cancelled Meeting',
+          startTime: new Date('2026-09-26T15:00:00.000Z'),
+          endTime: new Date('2026-09-26T16:00:00.000Z'),
+          attendees: JSON.stringify([
+            { email: 'team@partner.com', name: 'Partner Team', status: 'accepted' },
+          ]),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: `/events/${event.id}/cancel.ics`,
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-disposition']).toContain(
+        'attachment; filename="cancelled_meeting_cancel.ics"',
+      );
+
+      const body = res.body;
+      expect(body).toContain('METHOD:CANCEL');
+      expect(body).toContain('STATUS:CANCELLED');
+      expect(body).toContain('SEQUENCE:1');
+      expect(body).toContain('ORGANIZER;CN=Founder & CEO:mailto:founder@quantmail.in');
+    });
+  });
+
+  describe('9. Free/Busy Engine & Overlapping Block Merging (Task C23)', () => {
+    it('GET /events/free-busy aggregates events and consolidates overlapping busy blocks', async () => {
+      // Event A: 10:00 - 11:30
+      await prisma.event.create({
+        data: {
+          id: 'busy-1',
+          userId: 'user-parity-1',
+          title: 'Session A',
+          startTime: new Date('2026-09-22T10:00:00.000Z'),
+          endTime: new Date('2026-09-22T11:30:00.000Z'),
+        },
+      });
+      // Event B: 11:00 - 12:00 (overlaps with Session A)
+      await prisma.event.create({
+        data: {
+          id: 'busy-2',
+          userId: 'user-parity-1',
+          title: 'Session B',
+          startTime: new Date('2026-09-22T11:00:00.000Z'),
+          endTime: new Date('2026-09-22T12:00:00.000Z'),
+        },
+      });
+      // Event C: 14:00 - 15:00 (separate slot)
+      await prisma.event.create({
+        data: {
+          id: 'busy-3',
+          userId: 'user-parity-1',
+          title: 'Session C',
+          startTime: new Date('2026-09-22T14:00:00.000Z'),
+          endTime: new Date('2026-09-22T15:00:00.000Z'),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/events/free-busy?start=2026-09-22T00:00:00.000Z&end=2026-09-22T23:59:59.999Z',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const json = res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.conflictsCount).toBe(3);
+      expect(json.data.busyBlocksCount).toBe(2);
+
+      const busy = json.data.busy;
+      expect(busy.length).toBe(2);
+      // First consolidated block: 10:00 to 12:00
+      expect(new Date(busy[0].start).toISOString()).toBe('2026-09-22T10:00:00.000Z');
+      expect(new Date(busy[0].end).toISOString()).toBe('2026-09-22T12:00:00.000Z');
+      // Second block: 14:00 to 15:00
+      expect(new Date(busy[1].start).toISOString()).toBe('2026-09-22T14:00:00.000Z');
+      expect(new Date(busy[1].end).toISOString()).toBe('2026-09-22T15:00:00.000Z');
+    });
+  });
+
+  describe('10. Conflict Detection & Warning (Task C24)', () => {
+    it('rejects conflicting event with 409 CONFLICT_DETECTED when checkConflicts is true', async () => {
+      await prisma.event.create({
+        data: {
+          id: 'evt-existing',
+          userId: 'user-parity-1',
+          title: 'Deep Work Block',
+          startTime: new Date('2026-09-23T14:00:00.000Z'),
+          endTime: new Date('2026-09-23T16:00:00.000Z'),
+        },
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/events',
+        payload: {
+          title: 'Interrupting Call',
+          start: '2026-09-23T15:00:00.000Z',
+          end: '2026-09-23T15:30:00.000Z',
+          checkConflicts: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(409);
+      const json = res.json();
+      expect(json.code).toBe('CONFLICT_DETECTED');
+      expect(json.conflicts.length).toBeGreaterThan(0);
+      expect(json.conflicts[0].id).toBe('evt-existing');
+    });
+
+    it('allows conflicting event when force: true is provided alongside checkConflicts', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/events',
+        payload: {
+          title: 'Forced Priority Meeting',
+          start: '2026-09-23T15:00:00.000Z',
+          end: '2026-09-23T15:30:00.000Z',
+          checkConflicts: true,
+          force: true,
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.json().success).toBe(true);
+    });
+  });
+
+  describe('11. Query Window Limits (Task C27)', () => {
+    it('GET /events rejects query windows exceeding 365 days with 400 WINDOW_TOO_LARGE', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/events?start=2026-01-01T00:00:00.000Z&end=2027-02-01T00:00:00.000Z',
+      });
+
+      expect(res.statusCode).toBe(400);
+      const json = res.json();
+      expect(json.error.code).toBe('WINDOW_TOO_LARGE');
     });
   });
 });

@@ -102,6 +102,11 @@ export function getConfig(): AppConfig {
       '/api/code/gitd',
       // Realtime collaboration WebSocket gateway handshake: authenticates via ?token= or quant_access_token cookie
       '/collab',
+      // Public Drive link sharing token inspection & download (Task D04)
+      '/drive/public/share',
+      '/api/drive/public/share',
+      // Health check endpoint
+      '/health',
     ],
     env,
   };
@@ -125,6 +130,8 @@ export async function buildApp(config?: AppConfig) {
   );
 
   await app.register(websocketPlugin);
+
+  app.get('/health', async () => ({ status: 'ok' }));
 
   // Fastify WebSocket Collaboration Gateway (Tasks N03, C-01)
   app.get(

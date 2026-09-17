@@ -61,7 +61,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^calendars\/[^/]+\/primary$/, methods: ['POST'] },
 
   { pattern: /^events$/, methods: ['GET', 'POST'] },
-  { pattern: /^events\/(?:today|upcoming)$/, methods: ['GET'] },
+  { pattern: /^events\/(?:today|upcoming|free-busy)$/, methods: ['GET'] },
   { pattern: /^events\/alarms\/due$/, methods: ['GET'] },
   { pattern: /^events\/alerts\/scheduled$/, methods: ['GET'] },
   // GET and PATCH added: calendar.ts registers GET /events/:id and both PUT and
@@ -70,7 +70,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // Its own row. The entry above is single-segment and anchored, so it cannot
   // match a nested path no matter which methods are listed on it.
   { pattern: /^events\/[^/]+\/rsvp$/, methods: ['POST'] },
-  { pattern: /^events\/[^/]+\/ics$/, methods: ['GET'] },
+  { pattern: /^events\/[^/]+\/(?:ics|invite\.ics|cancel\.ics)$/, methods: ['GET'] },
 
   // ── Booking links ──────────────────────────────────────────────────────────
   // Creating a link is authenticated. The invitee-facing read and the booking

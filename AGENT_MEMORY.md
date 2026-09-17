@@ -2029,3 +2029,55 @@ graph TD
   - **12/12 unit tests passing 100%** in `apps/quantmail/backend/__tests__/calendar-recurrence-parity.test.ts`.
   - **65/65 unit tests passing 100%** across all 3 backend Calendar test suites (`calendar-recurrence-parity`, `calendar.routes`, `calendar-parity.routes`).
   - **0 TypeScript compiler errors** across `@quant/quantmail` (`pnpm --filter @quant/quantmail run build:backend` and `tsc --noEmit`).
+
+### 37. Wave 10B: Phase D Deepening (Public Link Sharing, Trash Retention Sweeper & Cursor Pagination — Developer 4):
+
+- **1. Public Link Sharing with Crypto Tokens & Expiration (Task D04)**:
+  - Implemented `POST /drive/shares/link`: Generates a high-entropy 48-hex (24-byte) cryptographic token via `randomBytes(24)`, configurable role (`viewer` | `editor`), optional password protection, and customizable expiration (`expiresInDays`).
+  - Implemented `GET /drive/public/share/:token`: Public unauthenticated endpoint returning file metadata, file size, mimeType, and sanitized owner display name. Enforces HTTP 410 `LINK_EXPIRED` if the link has passed its expiry threshold.
+  - Implemented `GET /drive/public/share/:token/download`: Streams decrypted file plaintext directly with appropriate `Content-Type`, `Content-Disposition: attachment`, and `Content-Length` headers.
+  - Implemented `DELETE /drive/shares/link/:id`: Authenticated endpoint allowing the file owner to revoke public share links immediately.
+  - Excluded `/drive/public/share` and `/api/drive/public/share` in `apps/quantmail/backend/app.ts` `publicPaths` to allow anonymous link downloads without JWT tokens.
+- **2. Trash Auto-Purge Sweeper (Task D09)**:
+  - Implemented `POST /drive/trash/cleanup`: Authenticated endpoint targeting soft-deleted files and folders older than `retentionDays` (default 30 days, `deletedAt <= thresholdDate`). Executes cascading purge across storage objects and Prisma transactions.
+- **3. Server-Side Cursor Pagination & Sorting (Task D18)**:
+  - Updated `GET /drive/files` with `limit` (1-200, default 50), `cursor` (last item ID), `sortBy` (`name` | `updatedAt` | `size`), and `sortDir` (`asc` | `desc`).
+  - Returns structured envelope `{ files, quota, nextCursor, totalCount, hasMore }`, preventing in-memory overflow on large drives.
+- **4. Verification & Quality Gates**:
+  - **8/8 unit tests passing 100%** in `apps/quantmail/backend/__tests__/drive-deep-parity.routes.test.ts`.
+  - **16/16 unit tests passing 100%** across `drive-deep-parity` and `drive-parity`.
+
+### 38. Wave 11: Phase C Deepening (RFC 5545 Invites & Cancellations, Free-Busy Engine & Conflict Detection — Developer 3):
+
+- **1. RFC 5545 Meeting Invites & Cancellations (Tasks C18 & C20)**:
+  - Architected `buildIcsContent` helper supporting `METHOD:PUBLISH`, `METHOD:REQUEST`, and `METHOD:CANCEL`.
+  - Implemented `GET /events/:id/invite.ics`: Generates authentic RFC 5545 meeting invitation with `METHOD:REQUEST`, `ORGANIZER;CN=...:mailto:...`, `ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=...:mailto:...`, and `SEQUENCE:0`.
+  - Implemented `GET /events/:id/cancel.ics`: Generates authentic cancellation notice with `METHOD:CANCEL`, `STATUS:CANCELLED`, and `SEQUENCE:1`.
+  - Registered `/events/:id/(invite.ics|cancel.ics)` in `routes-config.ts` proxy allowlist.
+- **2. Free/Busy Engine & Overlap Merging (Task C23)**:
+  - Implemented `GET /events/free-busy`: Computes busy intervals for authenticated user within `[start, end]`.
+  - Queries active standalone events and expands recurring series occurrences using `RecurringService`.
+  - Consolidates overlapping and adjacent busy blocks into contiguous intervals and returns `{ timeRange, busy, conflictsCount, busyBlocksCount }`.
+- **3. Pre-Save Conflict Detection (Task C24)**:
+  - Implemented `findEventConflicts` helper detecting overlapping events across standalone and recurring series.
+  - Added `checkConflicts: z.boolean().optional()` and `force: z.boolean().optional()` to `POST /events`, `PUT /events/:id`, and `PATCH /events/:id`.
+  - Rejects overlapping bookings with HTTP 409 `CONFLICT_DETECTED` and detailed `conflicts` payload unless `force: true` is passed.
+- **4. Strict Query Window Boundary (Task C27)**:
+  - Replaced silent clamping in `GET /events` with fail-loud validation: queries spanning >365 days throw HTTP 400 `WINDOW_TOO_LARGE`.
+- **5. Verification & Quality Gates**:
+  - **18/18 unit tests passing 100%** in `apps/quantmail/backend/__tests__/calendar-recurrence-parity.test.ts`.
+
+### 39. Wave 12: Phase Q Completion (Route Reachability Invariants & Codebase Hygiene Enforcement — Developer 2 / Sentinel):
+
+- **1. Route-Reachability Invariant Suite (Task Q07)**:
+  - Authored `apps/quantmail/backend/__tests__/route-reachability.test.ts` testing 16 critical top-level endpoints across Auth, Mail, Calendar, Drive, Contacts, Repos, and Documents.
+  - Proves that unauthenticated requests consistently fail-closed with HTTP 401 `UNAUTHORIZED`, never leaking database errors or failing with 404 (unregistered route) or 500 (middleware crash).
+  - Added top-level public `/health` endpoint to Fastify `app.ts` and `publicPaths` returning `{ status: 'ok' }`.
+- **2. Codebase Hygiene & Mock Deletion Verification (Tasks Q08 & Q09)**:
+  - Authored `apps/quantmail/backend/__tests__/codebase-hygiene.test.ts`:
+    - Validates that zero empty `catch {}` blocks exist across core backend routes.
+    - Asserts that banned legacy in-memory mock services (`undo-send`, `email-templates`, `email-snooze`, `signature-builder`, `smart-inbox`) are completely purged from `src/services`.
+    - Asserts that every pattern in `ALLOWED_BACKEND_ROUTES` is a valid compiled RegExp with exported HTTP methods.
+- **3. Verification & Quality Gates**:
+  - **21/21 unit tests passing 100%** across `route-reachability.test.ts` (18/18) and `codebase-hygiene.test.ts` (3/3).
+  - Clean TypeScript compilation across monorepo backend (`pnpm --filter @quant/quantmail run build:backend` exit code 0).
