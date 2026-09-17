@@ -1431,6 +1431,15 @@ export default async function calendarRoutes(
 
     const parsedEvents = parseIcsContent(icsData, recurringService);
 
+    const MAX_ICS_EVENTS = 500;
+    if (parsedEvents.length > MAX_ICS_EVENTS) {
+      throw createAppError(
+        `ICS payload contains ${parsedEvents.length} events, which exceeds the limit of ${MAX_ICS_EVENTS}`,
+        400,
+        'TOO_MANY_EVENTS',
+      );
+    }
+
     // Resolve target calendarId
     let targetCalendarId = calendarId;
     if (!targetCalendarId && prisma.calendar) {

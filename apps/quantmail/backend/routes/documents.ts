@@ -63,7 +63,8 @@ function escapeHtml(str: string): string {
 }
 
 function formatInline(text: string): string {
-  return text
+  const escaped = escapeHtml(text);
+  return escaped
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     .replace(/`(.*?)`/g, '<code>$1</code>');
@@ -478,7 +479,8 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         contentType = 'text/html; charset=utf-8';
         const bodyContent = jsonInfo.isJson ? (jsonInfo.text ?? '') : contentStr;
         const bodyHtml = markdownToHtml(bodyContent);
-        exportedContent = `<!DOCTYPE html><html><head><title>${document.title}</title></head><body><h1>${document.title}</h1>${bodyHtml ? `\n${bodyHtml}\n` : ''}</body></html>`;
+        const escapedTitle = escapeHtml(document.title || 'Untitled');
+        exportedContent = `<!DOCTYPE html><html><head><title>${escapedTitle}</title></head><body><h1>${escapedTitle}</h1>${bodyHtml ? `\n${bodyHtml}\n` : ''}</body></html>`;
         break;
       }
       case 'txt': {

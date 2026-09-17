@@ -43,6 +43,7 @@ export interface YjsServerOptions {
   gc?: boolean;
   persistDebounceMs?: number;
   maxMessageBytes?: number;
+  checkAccess?: (docName: string, request: WebSocketRequestLike) => Promise<boolean> | boolean;
 }
 
 export interface WebSocketRequestLike {
@@ -205,6 +206,21 @@ export async function setupWSConnection(
   options: YjsServerOptions = {},
 ): Promise<DocRoom> {
   const name = resolveDocName(request, options.docName);
+  if (options.checkAccess) {
+    const allowed = await options.checkAccess(name, request);
+    if (!allowed) {
+      socket.close(4403, 'Forbidden: cross-tenant access prohibited');
+      return {
+        name,
+        doc: new Y.Doc(),
+        connections: new Set(),
+        awareness: new Map(),
+        awarenessClients: new Map(),
+        loaded: Promise.resolve(),
+        lastActivity: Date.now(),
+      };
+    }
+  }
   const room = await getRoom(name, options);
   room.connections.add(socket);
   room.lastActivity = Date.now();

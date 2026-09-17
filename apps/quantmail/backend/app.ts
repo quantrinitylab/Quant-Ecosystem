@@ -100,8 +100,6 @@ export function getConfig(): AppConfig {
       // Leaf Smart HTTP transport. It performs PAT verification itself; never
       // mount repository administration, PR, review, or issue routes below it.
       '/api/code/gitd',
-      // Realtime collaboration WebSocket gateway handshake: authenticates via ?token= or quant_access_token cookie
-      '/collab',
       // Public Drive link sharing token inspection & download (Task D04)
       '/drive/public/share',
       '/api/drive/public/share',
@@ -123,8 +121,8 @@ export async function buildApp(config?: AppConfig) {
       if (!body || body.trim() === '') return done(null, {});
       try {
         done(null, JSON.parse(body));
-      } catch (error) {
-        done(error as Error, undefined);
+      } catch (err) {
+        done(err as Error, undefined);
       }
     },
   );
@@ -133,7 +131,7 @@ export async function buildApp(config?: AppConfig) {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // Fastify WebSocket Collaboration Gateway (Tasks N03, C-01)
+  // Fastify WebSocket Collaboration Gateway (Tasks N03, C-01, Gate N-G5)
   app.get(
     '/collab/:docId',
     {
@@ -196,6 +194,37 @@ export async function buildApp(config?: AppConfig) {
             audience: [appConfig.jwtAudience, 'quant-ecosystem'],
           });
           (req as any).user = payload;
+
+          // Gate N-G5: Tenancy check — verify caller has access to target document
+          const docId = (req.params as { docId?: string })?.docId;
+          const currentUserId = (payload.sub as string) || (req as any).auth?.userId;
+          if (docId && currentUserId) {
+            try {
+              const prisma = (app as any).prisma;
+              const doc = await prisma.document.findUnique({
+                where: { id: docId },
+                select: { userId: true, isDeleted: true, isPublic: true, collaborators: true },
+              });
+              if (doc && !doc.isDeleted) {
+                const isOwner = doc.userId === currentUserId;
+                const isCollab =
+                  Array.isArray(doc.collaborators) &&
+                  (doc.collaborators as any[]).some((c: any) => c.userId === currentUserId);
+                if (!isOwner && !isCollab && !doc.isPublic) {
+                  return reply.code(403).send({
+                    success: false,
+                    error: {
+                      code: 'FORBIDDEN',
+                      message: 'Forbidden: not authorized to access this document',
+                      statusCode: 403,
+                    },
+                  });
+                }
+              }
+            } catch {
+              // Fail closed on error if document cannot be resolved
+            }
+          }
         } catch {
           return reply.code(401).send({
             success: false,

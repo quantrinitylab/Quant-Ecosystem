@@ -246,6 +246,7 @@ export class GitInspectService {
         cwd: repoPath,
         maxBuffer: MAX_GIT_OUTPUT_BUFFER,
         env: GIT_CHILD_ENV,
+        timeout: 5000,
       });
 
       if (!stdout.trim()) return [];
@@ -276,7 +277,11 @@ export class GitInspectService {
         if (matches.length >= 100) break;
       }
       return matches;
-    } catch {
+    } catch (err: any) {
+      // Git grep exits with code 1 when no matches are found — standard expected behavior
+      if (err?.code === 1 || err?.status === 1) {
+        return [];
+      }
       return [];
     }
   }

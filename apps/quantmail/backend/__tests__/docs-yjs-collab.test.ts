@@ -1124,4 +1124,65 @@ describe('QuantDocs Document Content Search & Export Engine (Tasks N09 & N10)', 
 
     await app.close();
   });
+
+  it('GET /documents/:id/export?format=html escapes document title and neutralizes XSS', async () => {
+    const doc: DocRow = {
+      id: 'doc-export-xss',
+      title: '<script>alert("xss")</script> & "Dangerous"',
+      content:
+        '# Heading with <img src=x onerror=alert(1)>\n\nParagraph text with **bold** and `code`.',
+      userId: 'user-1',
+      metadata: {},
+      isPublic: false,
+      isDeleted: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const harness = createDocumentsHarness([doc]);
+    const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/documents/doc-export-xss/export?format=html',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toContain('text/html');
+    // Ensure raw <script> is not present in title or h1
+    expect(res.body).not.toContain('<title><script>');
+    expect(res.body).not.toContain('<h1><script>');
+    expect(res.body).toContain('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
+    expect(res.body).toContain('&amp; &quot;Dangerous&quot;');
+
+    await app.close();
+  });
+
+  it('enforces Gate N-G5 fail-closed 4403 close code on cross-tenant WebSocket connection', async () => {
+    const closedCodes: { code: number; reason: string }[] = [];
+    const mockSocket: any = {
+      readyState: 1,
+      send: vi.fn(),
+      on: vi.fn(),
+      close: vi.fn((code: number, reason: string) => {
+        closedCodes.push({ code, reason });
+      }),
+    };
+
+    const req: any = {
+      url: '/collab/doc-foreign-123',
+      params: { docId: 'doc-foreign-123' },
+    };
+
+    // checkAccess returns false for foreign tenant doc
+    const room = await setupWSConnection(mockSocket, req, {
+      checkAccess: async (docName: string) => {
+        return docName !== 'doc-foreign-123';
+      },
+    });
+
+    expect(closedCodes.length).toBe(1);
+    expect(closedCodes[0]!.code).toBe(4403);
+    expect(closedCodes[0]!.reason).toContain('Forbidden');
+  });
 });

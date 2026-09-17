@@ -2140,96 +2140,12 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     const repo = await loadReadableRepo(request, request.params.id);
     const prisma = getPrisma(fastify);
 
-    let runs = await prisma.ciRun.findMany({
+    const runs = await prisma.ciRun.findMany({
       where: { repoId: repo.id },
       include: { jobs: true },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
-
-    if (
-      runs.length === 0 &&
-      process.env.NODE_ENV === 'development' &&
-      process.env.ENABLE_DEV_REPO_SEEDING === 'true'
-    ) {
-      // Auto-seed default realistic workflow runs for the repository
-      const seeds = [
-        {
-          branch: repo.defaultBranch || 'main',
-          commitSha: '317ed52d',
-          status: 'SUCCESS' as const,
-          triggeredBy: 'Developer 6',
-          jobs: [
-            {
-              name: 'Validate immutable main release',
-              status: 'SUCCESS' as const,
-              startedAt: new Date(Date.now() - 300000),
-              completedAt: new Date(Date.now() - 296000),
-            },
-            {
-              name: 'Build and deploy quantmail',
-              status: 'SUCCESS' as const,
-              startedAt: new Date(Date.now() - 295000),
-              completedAt: new Date(Date.now() - 4000),
-            },
-          ],
-        },
-        {
-          branch: repo.defaultBranch || 'main',
-          commitSha: 'ea67d137',
-          status: 'SUCCESS' as const,
-          triggeredBy: 'Sentinel',
-          jobs: [
-            {
-              name: 'Vitest Unit & Integration Suites',
-              status: 'SUCCESS' as const,
-              startedAt: new Date(Date.now() - 600000),
-              completedAt: new Date(Date.now() - 350000),
-            },
-            {
-              name: 'TypeScript Strict Typecheck',
-              status: 'SUCCESS' as const,
-              startedAt: new Date(Date.now() - 350000),
-              completedAt: new Date(Date.now() - 200000),
-            },
-          ],
-        },
-        {
-          branch: repo.defaultBranch || 'main',
-          commitSha: '948e3612',
-          status: 'SUCCESS' as const,
-          triggeredBy: 'Astra',
-          jobs: [
-            {
-              name: 'Security Audit & CodeQL Advanced',
-              status: 'SUCCESS' as const,
-              startedAt: new Date(Date.now() - 900000),
-              completedAt: new Date(Date.now() - 700000),
-            },
-          ],
-        },
-      ];
-      for (const s of seeds) {
-        await prisma.ciRun.create({
-          data: {
-            repoId: repo.id,
-            branch: s.branch,
-            commitSha: s.commitSha,
-            status: s.status,
-            triggeredBy: s.triggeredBy,
-            jobs: {
-              create: s.jobs,
-            },
-          },
-        });
-      }
-      runs = await prisma.ciRun.findMany({
-        where: { repoId: repo.id },
-        include: { jobs: true },
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-      });
-    }
 
     return reply.send({
       success: true,

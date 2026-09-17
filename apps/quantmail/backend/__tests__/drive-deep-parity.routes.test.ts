@@ -860,6 +860,8 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('image/svg+xml');
     expect(res.headers['cache-control']).toBe('private, max-age=86400');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
     expect(res.body).toContain('<svg');
     expect(res.body).toContain('PDF');
     expect(res.body).toContain('quant-specs.pdf');
@@ -894,6 +896,8 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toBe('image/png');
     expect(res.headers['cache-control']).toBe('private, max-age=86400');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
     expect(res.body).toBe('quant-public-streamed-file-content');
   });
 

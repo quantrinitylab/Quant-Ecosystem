@@ -1615,11 +1615,26 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     if (THUMBNAIL_IMAGE_MIME_TYPES.has(mime) && driveStorageReady() && file.encryptedContent) {
       try {
         const plaintext = await checkedPlaintext(file);
+        let thumbnailBuffer = plaintext;
+        try {
+          // @ts-ignore
+          const sharpModule: any = await import('sharp').catch(() => null);
+          if (sharpModule) {
+            const sharp = sharpModule.default || sharpModule;
+            thumbnailBuffer = await sharp(plaintext)
+              .resize(256, 256, { fit: 'inside', withoutEnlargement: true })
+              .toBuffer();
+          }
+        } catch {
+          // Fall back to original buffer if sharp downscaling is unavailable
+        }
         return reply
           .header('Content-Type', file.mimeType)
           .header('Cache-Control', 'private, max-age=86400')
-          .header('Content-Length', String(plaintext.length))
-          .send(plaintext);
+          .header('X-Content-Type-Options', 'nosniff')
+          .header('Content-Security-Policy', "default-src 'none'; sandbox")
+          .header('Content-Length', String(thumbnailBuffer.length))
+          .send(thumbnailBuffer);
       } catch {
         // Fall back to SVG thumbnail preview if storage retrieval fails
       }
@@ -1629,6 +1644,8 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     return reply
       .header('Content-Type', 'image/svg+xml')
       .header('Cache-Control', 'private, max-age=86400')
+      .header('X-Content-Type-Options', 'nosniff')
+      .header('Content-Security-Policy', "default-src 'none'; sandbox")
       .send(svg);
   });
 

@@ -631,6 +631,32 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
       expect(new Date(allDayCall.data.startTime).toISOString()).toBe('2026-10-26T00:00:00.000Z');
       expect(new Date(allDayCall.data.endTime).toISOString()).toBe('2026-10-27T00:00:00.000Z');
     });
+
+    it('rejects ICS import when parsed event count exceeds MAX_ICS_EVENTS (500) with 400 TOO_MANY_EVENTS', async () => {
+      const vevents: string[] = [];
+      for (let i = 1; i <= 501; i++) {
+        vevents.push(
+          'BEGIN:VEVENT',
+          `UID:evt-overflow-${i}@test.com`,
+          'DTSTART:20261101T100000Z',
+          'DTEND:20261101T110000Z',
+          `SUMMARY:Overflow Event ${i}`,
+          'END:VEVENT',
+        );
+      }
+      const icsData = ['BEGIN:VCALENDAR', 'VERSION:2.0', ...vevents, 'END:VCALENDAR'].join('\r\n');
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/events/import/ics',
+        payload: { icsData },
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.body);
+      expect(body.error.code).toBe('TOO_MANY_EVENTS');
+      expect(body.error.message).toContain('exceeds the limit of 500');
+    });
   });
 
   describe('Tasks C26 & C28: Cursor Pagination & Booking Route Deduplication', () => {

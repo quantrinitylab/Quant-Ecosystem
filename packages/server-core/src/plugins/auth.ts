@@ -24,8 +24,41 @@ async function authPlugin(
 
   fastify.decorate('requireAuth', function (options?: RequireAuthOptions) {
     return async function (request: FastifyRequest, reply: FastifyReply) {
+      let token: string | undefined;
+
       const authHeader = request.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.slice(7).trim();
+      }
+
+      if (!token) {
+        const cookies = (request as any).cookies as Record<string, string | undefined> | undefined;
+        if (
+          typeof cookies?.['quant_access_token'] === 'string' &&
+          cookies['quant_access_token'].trim()
+        ) {
+          token = cookies['quant_access_token'].trim();
+        } else if (request.headers.cookie) {
+          const match = request.headers.cookie.match(/(?:^|;\s*)quant_access_token=([^;]+)/);
+          if (match?.[1]) {
+            token = decodeURIComponent(match[1].trim());
+          }
+        }
+      }
+
+      if (!token) {
+        const query = request.query as Record<string, string | undefined> | undefined;
+        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
+          token = query['token'].trim();
+        } else if (request.url && request.url.includes('?')) {
+          const queryStart = request.url.indexOf('?');
+          const params = new URLSearchParams(request.url.slice(queryStart));
+          const qToken = params.get('token');
+          if (qToken?.trim()) token = qToken.trim();
+        }
+      }
+
+      if (!token) {
         return reply.status(401).send({
           success: false,
           error: {
@@ -36,12 +69,12 @@ async function authPlugin(
         });
       }
 
-      const token = authHeader.slice(7);
-
       try {
+        const issuer = [opts.jwtIssuer, 'quantmail', 'https://quantrinity.in', 'https://quant.app'];
+        const audience = [opts.jwtAudience, 'quant-ecosystem'];
         const { payload } = await jose.jwtVerify(token, secret, {
-          issuer: opts.jwtIssuer,
-          audience: opts.jwtAudience,
+          issuer,
+          audience,
         });
 
         const authContext: AuthContext = {
