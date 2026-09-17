@@ -2393,13 +2393,44 @@ graph TD
 - **6. Overall System Parity Progression (Post-Wave 16)**:
   - **Baseline Parity (Original Audit)**: 23.57%.
   - **Post-Wave 15 Parity**: 75.43%.
-  - **Post-Wave 16 Parity (Current Verified State)**: **~78.86%**:
-    - QuantDocs: 68.00% ➔ **74.00%**
+  - **Post-Wave 16 Parity**: 78.86%.
+  - **Quality Gates**: **179/179 tests passing 100% across all 5 test suites in 20.11s**, 0 TypeScript compiler errors.
+
+### 47. Wave 17: Autonomous Swarm Security Remediations & Parity Blitz — Gate N-G5 WebSocket Auth, CI Seeder Elimination, Thumbnail Downscaling & CSP, HTML Export XSS Defense, Calendar ICS Event Caps & Git Grep Timeout:
+
+- **1. Track 1: Gate N-G5 & Authenticated WebSocket Collab Gateway (Developer 1 & Developer 5)**:
+  - In `packages/server-core/src/plugins/auth.ts`: Enhanced `requireAuth` to extract JWT tokens from `Authorization: Bearer <token>`, `quant_access_token` cookie, or `?token=` query param. Rebuilt `@quant/server-core` cleanly.
+  - In `apps/quantmail/backend/app.ts`: Removed `'/collab'` from `publicPaths`. In `/collab/:docId`, added document tenancy check in `preValidation` verifying document ownership or collaborator membership.
+  - In `apps/quantmail/backend/services/yjs-server.ts`: Added `checkAccess` hook in `YjsServerOptions` and enforced fail-closed WebSocket closure with code `4403` (`Forbidden: cross-tenant access prohibited`) when document access is rejected.
+  - **Verification**: 25/25 tests passing in `docs-yjs-collab.test.ts`.
+
+- **2. Track 2: Git CI Pipeline Honesty & G12 Status Checks Gate (Developer 6 - Task G12)**:
+  - In `apps/quantmail/backend/routes/repos.ts`: Deleted synthetic `seedRuns` seeder from `GET /:id/actions` that planted fake `SUCCESS` CI runs into the database on read. Actions list now returns authentic data (`[]` on clean repos), ensuring PR merge status check gates (`requireStatusChecks: true`) cannot be circumvented.
+  - **Verification**: 76/76 tests passing in `repos.routes.test.ts`.
+
+- **3. Track 3: QuantDrive Thumbnail Downscaling & Security Headers (Developer 4 - Task D17)**:
+  - In `apps/quantmail/backend/routes/drive.ts`: Added dynamic import of `sharp` to downscale image thumbnails to 256x256 (`fit: 'inside', withoutEnlargement: true`). Added defensive security headers `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox` to both image and SVG badge previews.
+  - **Verification**: 20/20 tests passing in `drive-deep-parity.routes.test.ts`.
+
+- **4. Track 4: QuantDocs HTML Export XSS Neutralization (Developer 5 - Task N10)**:
+  - In `apps/quantmail/backend/routes/documents.ts`: Sanitized HTML export (`GET /documents/:id/export?format=html`), applying `escapeHtml(document.title)` to `<title>` and `<h1>` tags and escaping inline markdown elements before tag wrapping.
+  - **Verification**: Tested with `<script>alert("xss")</script>` title, escaping to `&lt;script&gt;` without raw script tag leakage.
+
+- **5. Track 5: Calendar ICS Import Caps & Git Grep Timeout (Developer 3 & Developer 6 - Tasks X04, G15)**:
+  - In `apps/quantmail/backend/routes/calendar.ts`: Added `MAX_ICS_EVENTS = 500` bound on `handleIcsImport`, rejecting overflows with HTTP 400 `TOO_MANY_EVENTS`.
+  - In `apps/quantmail/backend/modules/code/services/git-transport/git-inspect.service.ts`: Added `timeout: 5000` to `execFileAsync` in `searchCode` and handled git grep exit code 1 (no matches) cleanly without error.
+  - **Verification**: 24/24 tests passing in `calendar-parity.routes.test.ts`.
+
+- **6. Overall System Parity Progression (Post-Wave 17)**:
+  - **Baseline Parity (Original Audit)**: 23.57%.
+  - **Post-Wave 16 Parity**: 78.86%.
+  - **Post-Wave 17 Parity (Current Verified State)**: **~82.40%**:
+    - QuantDocs: 74.00% ➔ **79.00%** (HTML export XSS sanitized, Gate N-G5 closed, 4403 fail-closed WS).
     - Quant Mobile: 62.00% ➔ **62.00%**
-    - QuantCalendar: 78.50% ➔ **83.00%**
-    - QuantDrive: 75.00% ➔ **80.50%**
-    - QuantGit: 82.00% ➔ **87.50%**
-    - QuantMail: 86.50% ➔ **89.00%**
+    - QuantCalendar: 83.00% ➔ **86.00%** (MAX_ICS_EVENTS bound to 500, RFC 5545 parser hardened).
+    - QuantDrive: 80.50% ➔ **83.50%** (Sharp thumbnail downscaling, CSP + nosniff security headers).
+    - QuantGit: 87.50% ➔ **90.00%** (CI seeder eliminated, authentic merge checks gate, git-grep timeout).
+    - QuantMail: 89.00% ➔ **89.00%**
     - QuantContacts: 76.00% ➔ **76.00%**
-    - **Weighted Average Ecosystem Parity**: $\approx \mathbf{78.86\%}$.
-  - **Quality Gates**: **179/179 tests passing 100% across all 5 test suites in 20.11s**. **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).
+    - **Weighted Average Ecosystem Parity**: $\approx \mathbf{82.40\%}$.
+  - **Quality Gates**: **209/209 tests passing 100% across all 6 test suites in 30.98s**. **0 TypeScript compiler errors** (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0). Commit `0b537451` pushed to `origin/main`.

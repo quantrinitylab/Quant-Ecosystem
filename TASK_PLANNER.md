@@ -52,6 +52,29 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Wave 17 — Autonomous Swarm Security & Parity Remediations: Gate N-G5 WebSocket Auth Enforcement & Tenancy Isolation, Git CI Seeder Elimination & True Merge Gates, Drive Sharp Thumbnail Downscaling & CSP Headers, Docs HTML Export Sanitization, Calendar ICS Event Caps & Git Grep Timeout (Verified with Vitest 209/209 Passing, 0 TS Errors, commit `0b537451` on `main`)**:
+  - [x] **Track 1: Gate N-G5 & Authenticated WebSocket Collab Gateway (Developer 1 & Developer 5)**:
+    - **Token Extraction & Auth Plugin**: Enhanced `@quant/server-core` `requireAuth` to extract JWT tokens from `Authorization: Bearer <token>`, `quant_access_token` cookie, or `?token=` query param.
+    - **Fail-Closed WebSocket Isolation**: Removed `'/collab'` from `publicPaths` in `apps/quantmail/backend/app.ts`. Added tenancy pre-validation hook to `/collab/:docId` verifying document ownership or collaborator membership before connection.
+    - **Code 4403 Disconnect**: Added `checkAccess` hook in `apps/quantmail/backend/services/yjs-server.ts` enforcing immediate WebSocket termination with code `4403` (`Forbidden: cross-tenant access prohibited`) when document access is rejected.
+    - **Verification**: 25/25 tests passing in `docs-yjs-collab.test.ts`.
+  - [x] **Track 2: Git CI Pipeline Honesty & Truthful Status-Check Merge Gate (Developer 6 - Task G12)**:
+    - **Fake Seeder Elimination**: Completely removed synthetic `seedRuns` seeder from `GET /:id/actions` in `apps/quantmail/backend/routes/repos.ts` that previously planted fake `SUCCESS` CI runs on read.
+    - **Authentic Merge Gate**: Branch protection `requireStatusChecks: true` can no longer be satisfied by browsing the Actions tab; PR merge strictly verifies genuine workflow run execution.
+    - **Verification**: 76/76 tests passing in `repos.routes.test.ts`.
+  - [x] **Track 3: QuantDrive Thumbnail Downscaling & Security Hardening (Developer 4 - Task D17)**:
+    - **Sharp Image Downscaling**: Integrated `sharp` dynamic import in `apps/quantmail/backend/routes/drive.ts` (`GET /drive/files/:id/thumbnail`) to resize image previews to 256x256 (`fit: 'inside', withoutEnlargement: true`), eliminating full-resolution decryption denial-of-service.
+    - **Defensive Headers**: Added `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'; sandbox` to both image and SVG badge previews.
+    - **Verification**: 20/20 tests passing in `drive-deep-parity.routes.test.ts`.
+  - [x] **Track 4: QuantDocs HTML Export XSS Neutralization (Developer 5 - Task N10)**:
+    - **HTML Sanitization**: Sanitized HTML export (`GET /documents/:id/export?format=html`) in `apps/quantmail/backend/routes/documents.ts`, escaping document title inside `<title>` and `<h1>` tags and escaping markdown inline text before tag wrapping.
+    - **Verification**: Tested with `<script>alert("xss")</script>` title, escaping to `&lt;script&gt;` without raw script tag leakage.
+  - [x] **Track 5: Calendar ICS Event Caps & Git Grep Timeout (Developer 3 & Developer 6 - Tasks X04, G15)**:
+    - **ICS Import Cap**: Enforced `MAX_ICS_EVENTS = 500` bound on `handleIcsImport` in `apps/quantmail/backend/routes/calendar.ts`, rejecting payloads exceeding 500 VEVENT blocks with HTTP 400 `TOO_MANY_EVENTS`.
+    - **Git Grep Timeout & Exit Code Discrimination**: Added `timeout: 5000` to `execFileAsync` in `apps/quantmail/backend/modules/code/services/git-transport/git-inspect.service.ts` and handled git grep exit code 1 (no matches) cleanly without error.
+    - **Verification**: 24/24 tests passing in `calendar-parity.routes.test.ts`.
+  - [x] **Full Integrated Verification**: **209/209 tests passing 100% across all 6 test suites in 30.98s**, 0 TypeScript compiler errors across backend and frontend (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` exit code 0).
+
 - [x] **Wave 16 — Autonomous Swarm Parity Blitz: Git Multi-Repo & Bare Repo Code Search Engine, Drive Server-Side Filter Pills & Storage Validation, Calendar Cursor Pagination & Booking Route Deduplication, Shared Domain Config & Strict Sender Identity, Docs Body Search & Multi-Format Export Engine (Tasks G15, D15, D20, C26, C28, M13, M14, N09, N10) (Verified with Vitest 179/179 Passing, 0 TS Errors)**:
   - [x] **Track 1: QuantGit Multi-Repo & Bare Repo Code Search Engine (Developer 6 - Task G15)**:
     - **`GET /repos/search`**: Global multi-repo search across accessible repositories (public, owned, or collaborator), filtering by case-insensitive name/description and optional language, with pagination (`page`, `limit`).
