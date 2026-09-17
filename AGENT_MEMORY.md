@@ -1751,3 +1751,60 @@ graph TD
   - 32/32 tests passing 100% in `email.service.test.ts`.
   - 100% clean TypeScript compiler check (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json` 0 errors).
   - Landed on `main` at commit `ae3e0219` and pushed to `origin/main`.
+
+### 30. Phase R & Phase M Remediations: V23, V27, M-F09, M06, M08 (`d3f122be` on `main`):
+
+- **1. V23 Issue Toggle Authorization Hardening (`routes/repos.ts`)**:
+  - `POST /repos/:id/issues/:number/toggle`: Previously authenticated caller via `loadReadableRepo`, allowing any authenticated user to toggle issue open/close state on any public repo.
+  - Hardened with explicit ownership gate: requires authenticated `userId` (401 unauthenticated), queries issue author, and verifies `(repo.ownerId !== userId && issue.authorId !== userId)`. If caller is neither repo owner nor issue author, immediately rejects with 403 `FORBIDDEN` ("Only the repository owner or issue author can toggle issue status").
+  - Added 4 unit tests in `repos.routes.test.ts` verifying:
+    - Repo owner can toggle status (200 OK).
+    - Issue author can toggle status (200 OK).
+    - Non-owner/non-author caller is rejected with 403 `FORBIDDEN`.
+    - Unauthenticated caller is rejected with 401.
+
+- **2. V27 Autonomous AI Tool Capability Gating (`routes/ai-chat.ts`)**:
+  - Hardened `executeAutonomousTool` and the tool execution loop in `routes/ai-chat.ts`:
+    - Enforces `tools.allow` string array allowlist: if specified and the parsed tool call name is not included, execution is immediately skipped and emits status `'failed'` with error code `TOOL_NOT_ALLOWED` ("Tool <name> is not permitted by caller policy").
+    - Enforces `tools.maxSteps` limit: defaults to 2, caps maximum iterations, and breaks out of the execution loop once step count reaches `maxSteps`.
+  - Added 2 unit tests in `ai-chat.routes.test.ts` verifying:
+    - Emits status `'failed'` and error code `TOOL_NOT_ALLOWED` when tool is not in allowlist.
+    - Honors `tools.maxSteps` limit and halts further tool calls.
+
+- **3. M-F09 Tenancy Oracle Elimination (`routes/emails.ts`)**:
+  - Previously, all single-email endpoints checked `if (existing.userId !== userId)` and returned 403 `FORBIDDEN`. This allowed external attackers/cross-tenant callers to probe for existing email IDs by distinguishing 404 (does not exist) from 403 (exists but belongs to another tenant).
+  - Collapsed all 10 single-email HTTP endpoints in `routes/emails.ts` to return 404 `EMAIL_NOT_FOUND` ("Email not found or access denied"):
+    - `PUT /:id` (draft update)
+    - `POST /:id/send` (send draft)
+    - `POST /:id/archive`
+    - `POST /:id/unarchive`
+    - `POST /:id/restore`
+    - `POST /:id/snooze`
+    - `POST /:id/unsnooze`
+    - `POST /:id/not-spam`
+    - `POST /:id/unread`
+    - `DELETE /:id`
+  - Added 4 injection tests in `phase-r-m.routes.test.ts` verifying that attempting to mutate, send, archive, or delete a foreign tenant's email returns 404 `EMAIL_NOT_FOUND`, not 403.
+
+- **4. M06 Priority Enum Validation & Normalization (`routes/emails.ts` & `services/email.service.ts`)**:
+  - Exported canonical `EmailPriority` enum (`'LOW' | 'NORMAL' | 'HIGH' | 'URGENT'`) and helper `toPriority()` in `email.service.ts` normalizing case-insensitive string values to Prisma enum, defaulting to `'NORMAL'`.
+  - Added `prioritySchema` to `composeSchema` and `composeRequestSchema` in `routes/emails.ts`, rejecting invalid priorities with 400 `VALIDATION_ERROR`.
+  - Persisted `toPriority(d.priority)` on `PUT /emails/:id` and `EmailService.compose`.
+  - Added unit tests in `phase-r-m.routes.test.ts` verifying:
+    - 400 `VALIDATION_ERROR` when invalid priority is supplied.
+    - Persistence and case normalization (`urgent` -> `'URGENT'`) in DB.
+
+- **5. M08 Response Envelope Deduplication (`routes/emails.ts` & `src/hooks/useEmail.ts`)**:
+  - Frontend resilience: Updated `apps/quantmail/src/hooks/useEmail.ts:111` to `setEmails(data.data || data.emails || [])`.
+  - Backend deduplication: Removed redundant `emails: items` key from `GET /` and `GET /search` in `routes/emails.ts`, unifying the response envelope cleanly on `{ data: [...] }`.
+  - Added unit tests in `phase-r-m.routes.test.ts` asserting `body.data` is present and `body.emails` is undefined.
+
+- **6. Verification & Gate Sign-Off**:
+  - 119/119 unit tests passing across 4 suites:
+    - `phase-r-m.routes.test.ts` (22/22 tests passing)
+    - `repos.routes.test.ts` (35/35 tests passing)
+    - `ai-chat.routes.test.ts` (30/30 tests passing)
+    - `email.service.test.ts` (32/32 tests passing)
+  - TypeScript typechecks verified 100% clean with 0 errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`).
+  - ESLint checks verified 100% clean with 0 errors (`pnpm --filter @quant/quantmail run lint`).
+  - Landed on `main` at commit `d3f122be` and pushed to `origin/main`.

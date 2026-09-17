@@ -22,6 +22,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Phase R & Phase M Remediations: V23, V27, M-F09, M06, M08 (`d3f122be` on `main`)**:
+  - [x] **V23 Issue Toggle Authorization**: Restricted `POST /:id/issues/:number/toggle` in `routes/repos.ts` to repository owner (`repo.ownerId === userId`) or issue author (`issue.authorId === userId`), rejecting unauthenticated callers with 401 and foreign readers with 403 `FORBIDDEN`.
+  - [x] **V27 Autonomous Tool Capability Gating**: Hardened `POST /api/ai/chat` in `routes/ai-chat.ts` to enforce `tools.allow` allowlist (rejects disallowed tools with status `'failed'` and error code `TOOL_NOT_ALLOWED`) and enforces `tools.maxSteps` limit, stopping further tool calls once exceeded.
+  - [x] **M-F09 Tenancy Oracle Elimination**: Replaced 403 status returns with 404 `EMAIL_NOT_FOUND` across all 10 single-email HTTP endpoints (`PUT /:id`, `POST /:id/send`, `archive`, `unarchive`, `restore`, `snooze`, `unsnooze`, `not-spam`, `unread`, and `DELETE /:id`) in `routes/emails.ts`, preventing attackers from probing for existing email IDs.
+  - [x] **M06 Priority Enum Validation & Normalization**: Added case-insensitive Zod schema for `LOW`, `NORMAL`, `HIGH`, `URGENT`, normalized via `toPriority()`, persisted in `EmailService.compose` and `PUT /emails/:id`, and rejecting invalid priorities with 400 `VALIDATION_ERROR`.
+  - [x] **M08 Envelope Deduplication**: Updated frontend `src/hooks/useEmail.ts` to consume `data.data || data.emails || []` and removed redundant `emails: items` key from `GET /` and `GET /search` in `routes/emails.ts`, standardizing on `{ data: [...] }`.
+  - [x] **Verification**: 119/119 tests passing across `phase-r-m.routes.test.ts` (22/22), `repos.routes.test.ts` (35/35), `ai-chat.routes.test.ts` (30/30), and `email.service.test.ts` (32/32); 0 TypeScript errors (`tsc --noEmit && tsc --noEmit -p tsconfig.backend.json`); 0 ESLint errors.
+
 - [x] **Astra Review §9 Remediations: M-F15 BCC Leak Elimination, M-F16 SES Reply-All & T1-T4 Authentic Tests (`ae3e0219` on `main`)**:
   - [x] **M-F15 SMTP BCC Leak Elimination**: In `delivery-worker.service.ts`, DKIM headers are constructed using `to: toAddrs.join(', ')` and optional `cc: ccAddrs.join(', ')`. BCC addresses are completely excluded from headers, preventing exposure to external recipients over SMTP.
   - [x] **M-F16 SES Worker Delivery Unification**: Replaced per-recipient SES loop with a single authoritative `sendViaSes` call preserving `To`, `Cc`, `Bcc`, `replyTo`, and `fromName`, restoring Reply-All and threading while maintaining recipient privacy.
@@ -945,9 +953,9 @@
 - [x] **Task M-F16**: Single authoritative SES send in delivery worker preserving `To`, `Cc`, `Bcc`, `replyTo`, and `fromName` (`delivery-worker.service.ts`).
 - [x] **Task M-F11**: Add structured error logging on delivery failures in `EmailService.send`.
 - [x] **Task T1–T4**: Zero-mock Vitest regression suite covering Fastify route injection, route export invariants, proxy forwarding, and worker delivery (`phase-r-m.routes.test.ts`).
-- [ ] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
+- [x] **Task M06**: Validate `priority` against Prisma enum (invalid value returns 400, not DB crash).
 - [ ] **Task M07**: Collapse `POST /emails` and `POST /emails/compose` to one contract.
-- [ ] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).
+- [x] **Task M08**: Drop duplicate `emails` key from response envelope (unify on `data`).
 - [ ] **Task M09**: Merge 6 mail hooks into one `useMail` data layer (delete 5 files).
 - [ ] **Task M10**: Move Sent/Archive/Trash folder provisioning to signup (no upsert per request).
 - [ ] **Task M11**: Replace every empty `catch { }` in `emails.ts` with logged, typed handling.
