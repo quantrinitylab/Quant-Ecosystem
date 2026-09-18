@@ -3044,4 +3044,19 @@ graph TD
     - Excised swallowing `catch { this.storage = undefined }` in `collab-persistence.ts`.
     - In `deliverability.service.ts`: Set `bounceRate = 0.008` (0.8%) and `complaintRate = 0.0005` (0.05%), well below AWS SES suspension thresholds.
     - In `email.service.ts`: Support injected Prisma client for suppression checks, making test suites (`phase-r-m.routes.test.ts`) and custom client injection robust.
-  - **Full Verification**: **218/218 tests passing 100% green across 12 test suites**; dual TypeScript compilation clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).
+  - **Full Verification**: **218/218 tests passing 100% green across 12 test suites**; dual TypeScript compilation clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0). Commit `82319827` pushed to `origin/main`.
+
+- **5. Astra Executive Audit on Commit `82319827` (2026-09-18 — 4 Blockers Officially Signed Off & Closed)**:
+  - **Ledger Page Recorded**: _"🔬 Gate 3 & Gate 4 Remediation Audit — 4 Blockers Closed, 2 New (82319827)"_ (`https://app.notion.com/p/Gate-3-Gate-4-Remediation-Audit-4-Blockers-Closed-2-New-82319827-206d8d1e90fc44a39ae908784285fb0b`).
+  - **Official Sign-Offs Granted**:
+    - `G3-10` — **CLOSED**: One SQL statement with `to_tsvector @@ plainto_tsquery`, `COUNT(*)::int`, `LIMIT`/`OFFSET`. Parameter ceiling gone, Node memory allocation eliminated.
+    - `G3-11` — **CLOSED, and better than asked**: Mock rejects by default, preserving fallback tests. New tests assert `result.data[0].id` and `result.total`, proving data flows end-to-end through raw branch.
+    - `G4-7` — **CLOSED**: Gated on `PERMANENT`, `Undetermined` conservatively ignored.
+    - `G4-8` — **CLOSED**: HTTP 500 with `SUPPRESSION_WRITE_FAILED`, asserted through real route injections; `suppress()` upsert ensures idempotent SNS redelivery.
+    - Collab constructor — **CLOSED**: In-memory swallowing excised (`+1/-5`).
+  - **Remaining Active Sprints (Next Action Items)**:
+    - `G3-12`: Support `to:` (`toAddresses`), `label:` (`labels`), and `is:important` in raw WHERE-builder in `search-query.service.ts` so mixed queries (`to:alice invoice`) preserve recipient/label/importance constraints.
+    - `G4-9`: Replace hardcoded deliverability rates in `getReputation()` with dynamically computed rates from suppression counts and total volume, or real DMARC/SES metrics.
+    - In `email.service.ts`: Clean up capability probe by having `phase-r-m.routes.test.ts` inject a suppression double directly into the constructor, keeping production code exclusively on the singleton.
+    - Staging query plan (`EXPLAIN ANALYZE`) verification on real PostgreSQL once staging migrations are applied.
+  - **Visual Proof Artifact**: `astra_gates3_4_second_remediation_audit.png`.
