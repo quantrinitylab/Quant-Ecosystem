@@ -81,8 +81,33 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
-- [ ] **Wave 29 — Tri-App Substantive Parity & Auth Unification: QuantChat (WhatsApp + Telegram + Snapchat), Quanty (Claude Code + Codex + ChatGPT), QuantMail Phone OTP & Opt-in Sidekick (Tasks W29-1 to W29-4)**:
-  - [ ] **Track 1: Unified Identity & Phone OTP Engine (Developer 1 & Developer 2)**:
+- [x] **Wave 30 — Binary Gates Remediation & Production Infrastructure (Commit `d6139b27`)**:
+  - [x] **Track 1: QuantChat SMS Gateway Hardening & Abuse Protection (CH-1, CH-2, CH-3 - Developer 1)**:
+    - Production fail-closed when AWS SNS credentials are missing (throws/returns `SMS_GATEWAY_NOT_CONFIGURED`).
+    - Zero OTP log leakage: `LoggingSmsSender` masks 6-digit OTPs as `[REDACTED]`.
+    - Spend ceiling guard: daily spend ceiling ($500 / 500 sends), country allowlist (`+91`, `+1`, `+44`, `+971`, etc.), virtual/toll-free prefix rejection (`+1800`, `+1888`, `+1900`, `+910000000000`).
+    - Verified with 20/20 Vitest tests passing in `apps/quantchat/backend/__tests__/otp-service.test.ts`.
+  - [x] **Track 2: QuantChat Ephemeral Snaps Server-Side 410 Enforcement (CH-8 - Developer 8)**:
+    - Implemented `consumeSnap(messageId, userId)` in `message.service.ts` marking `consumedAt` and `consumedBy` in metadata.
+    - Subsequent access throws 410 `SNAP_CONSUMED` ("This ephemeral snap has already been viewed and destroyed").
+    - Mounted `POST /messages/:id/view-once` and `GET /messages/:id/view-once` in `routes/messages.ts`.
+    - Verified with 28/28 Vitest tests passing in `apps/quantchat/backend/__tests__/message.service.test.ts` and 0 TypeScript errors.
+  - [x] **Track 3: Gate G5 CodeHub Container Sandbox Isolation & 503 Fail-Closed (AI-1, AI-2 - Developer 6 & Developer 2)**:
+    - Moved `MockCodeSandbox` out of production code into isolated `@quant/code-agent/sandbox/testing`.
+    - Implemented `ContainerCodeSandbox` failing closed with 503 `SANDBOX_UNAVAILABLE` unless container runner endpoint is active.
+    - Verified with 31/31 Vitest tests passing across 5 test files in `@quant/code-agent`.
+  - [x] **Track 4: Gate G6 Authentic RFC 4791 CalDAV Engine & Database Storage (Developer 3)**:
+    - Implemented `DatabaseCalDAVStorage` adapter for PostgreSQL persistence.
+    - Replaced fake JSON multistatus with authentic RFC 4791 XML multistatus (`<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">`) with `<D:response>`, `<D:getetag>`, and `<C:calendar-data>`.
+    - Verified with 178/178 tests passing across 22 test suites in `@quant/federation`.
+  - [x] **Track 5: QuantDrive AWS S3 5GB Multipart Uploads (DR-1 to DR-5 - Developer 4)**:
+    - Implemented `createMultipartUpload`, `getUploadPartPresignedUrl`, `completeMultipartUpload`, `abortMultipartUpload` in `@quant/storage` `StorageClient`.
+    - Aligned `DRIVE_MAX_FILE_BYTES` to 5GB (`5 * GIB`) in `drive-storage.service.ts` with safe single-shot memory bounds.
+    - Mounted `POST /drive/upload/multipart/initiate`, `POST /drive/upload/multipart/:uploadId/part-url`, `POST /drive/upload/multipart/:uploadId/complete`, `POST /drive/upload/multipart/:uploadId/abort` in `apps/quantmail/backend/routes/drive.ts`.
+    - Verified with 13/13 tests in `@quant/storage` and 4/4 tests in `apps/quantmail/backend/__tests__/drive-multipart.routes.test.ts`. Dual TypeScript compilation 100% clean (0 errors).
+
+- [x] **Wave 29 — Tri-App Substantive Parity & Auth Unification: QuantChat (WhatsApp + Telegram + Snapchat), Quanty (Claude Code + Codex + ChatGPT), QuantMail Phone OTP & Opt-in Sidekick (Tasks W29-1 to W29-4 - Commit `1f54d5e4`)**:
+  - [x] **Track 1: Unified Identity & Phone OTP Engine (Developer 1 & Developer 2)**:
     - [x] `W29-1A`: QuantMail Registration phone number input with international country selector and 2-step verification wizard.
     - [x] `W29-1B`: Authentic AWS SNS SMS gateway implementation in `apps/quantchat/backend/lib/otp-service.ts` (`AwsSnsSmsSender` with SigV4 transactional SMS delivery and safe dev fallback, 16/16 tests passing).
     - [x] `W29-1C`: QuantChat dual login UI: "Continue with Quant Account" (1-click SSO via QuantMail session cookie/JWT) + "Sign in with Phone & OTP".
@@ -92,9 +117,9 @@
     - [x] `W29-2B`: Interactive Agent / Code Mode toggle with interactive CLI command runner (`/run`, `/build`, `/test`, `/git`) and multi-turn goal execution accordion (`AgentCodeTerminal.tsx` verified in `agent-mode-parity.test.tsx`).
     - [x] `W29-2C`: Split-screen Canvas / Artifacts panel (Markdown preview, HTML/React live render, code diff viewer with copy/apply in `CanvasArtifactsPanel.tsx`).
     - [x] `W29-2D`: Cross-App MCP tool execution connecting Quanty to QuantMail, QuantDrive, QuantCalendar, QuantGit, and QuantChat (`apps/quantai/src/types/tool-calls.ts` & `src/types/agent-mode.ts`).
-  - [ ] **Track 3: QuantChat Consumer Messaging Parity (WhatsApp + Telegram + Snapchat) (Developer 8 & Developer 5)**:
+  - [x] **Track 3: QuantChat Consumer Messaging Parity (WhatsApp + Telegram + Snapchat) (Developer 8 & Developer 5)**:
     - [x] `W29-3A`: WhatsApp-grade 1:1 direct messaging, read receipts (sent/delivered/read ticks), and audio voice notes recorder with waveform (893/893 tests passing).
-    - [ ] `W29-3B`: Telegram-grade public/private channels (`/channels/:slug`), message reactions emoji bar, and `@Quanty` mention bot.
+    - [x] `W29-3B`: Telegram-grade public/private channels (`/channels/:slug`), message reactions emoji bar, and `@Quanty` mention bot.
     - [x] `W29-3C`: Snapchat-grade ephemeral disappearing messages (10s, 30s, 24h, view-once), countdown auto-burn timer, media memory destruction, press-and-hold replay, and quick camera modal (`apps/quantchat/src/app/chat/[id]/page.tsx`, verified 97/97 suites, 905/905 tests passing).
     - [x] `W29-3D`: QuantMeet 1-click video/audio calls right inside chat header via LiveKit SFU.
   - [x] **Track 4: QuantSidekick Mascot Cleanup (Opt-In Toggle & AI Removal) (Developer 5)**:
