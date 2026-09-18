@@ -1,4 +1,4 @@
-﻿-- Migration 0069: QuantChat Ephemeral Snaps — Snap Views Table (Atomic View-Once & IDOR Protection)
+-- Migration 0069: QuantChat Ephemeral Snaps — Snap Views Table (Atomic View-Once & IDOR Protection)
 CREATE TABLE IF NOT EXISTS "snap_views" (
     "id" TEXT NOT NULL,
     "messageId" TEXT NOT NULL,
