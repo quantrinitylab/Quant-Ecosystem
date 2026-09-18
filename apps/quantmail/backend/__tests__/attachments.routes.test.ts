@@ -3,7 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
 import attachmentRoutes from '../routes/attachments';
 import { AttachmentService } from '../services/attachment.service';
-import { FakeStorage, makeDb } from './attachment.service.test';
+import { FakeStorage, makeDb } from './helpers/attachment-doubles';
 import type { AttachmentScannerPort, ScanResult } from '../services/attachment-scanner.service';
 
 class FakeScanner implements AttachmentScannerPort {

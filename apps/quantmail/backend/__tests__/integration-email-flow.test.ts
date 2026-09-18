@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EmailService } from '../services/email.service';
 import { FolderService } from '../services/folder.service';
 import { AttachmentService } from '../services/attachment.service';
-import { FakeStorage, makeDb } from './attachment.service.test';
+import { FakeStorage, makeDb } from './helpers/attachment-doubles';
 
 function createMockPrisma() {
   return {

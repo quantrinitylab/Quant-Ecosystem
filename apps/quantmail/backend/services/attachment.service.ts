@@ -7,7 +7,7 @@ export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024; // 25MB
 const UPLOAD_URL_TTL_SECONDS = 15 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
-export type AttachmentStatus = 'PENDING' | 'UPLOADED' | 'REJECTED_TOO_LARGE' | 'READY' | 'REJECTED';
+export type AttachmentStatus = 'PENDING' | 'READY' | 'REJECTED';
 
 /**
  * Sanitize filename to prevent directory traversal, CRLF header injection,
@@ -311,7 +311,7 @@ export class AttachmentService {
   }
 
   private assertUploaded(row: { status: string }): void {
-    if (row.status !== 'UPLOADED' && row.status !== 'READY') {
+    if (row.status !== 'READY') {
       throw createAppError('Attachment upload was never completed', 409, 'UPLOAD_INCOMPLETE');
     }
   }

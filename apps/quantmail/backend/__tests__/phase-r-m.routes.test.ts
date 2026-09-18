@@ -12,7 +12,7 @@ import emailsRoutes from '../routes/emails';
 import threadsRoutes from '../routes/threads';
 import attachmentRoutes from '../routes/attachments';
 import { AttachmentService } from '../services/attachment.service';
-import { FakeStorage, makeDb } from './attachment.service.test';
+import { FakeStorage, makeDb } from './helpers/attachment-doubles';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import * as sesSender from '../lib/ses-sender';
 

@@ -26,8 +26,3 @@ CREATE INDEX IF NOT EXISTS "mail_attachments_user_id_created_at_idx"
 -- CreateIndex
 CREATE INDEX IF NOT EXISTS "mail_attachments_email_id_idx"
     ON "mail_attachments" ("email_id");
-
--- CheckConstraint
-ALTER TABLE "mail_attachments" DROP CONSTRAINT IF EXISTS "mail_attachments_status_check";
-ALTER TABLE "mail_attachments" ADD CONSTRAINT "mail_attachments_status_check"
-    CHECK ("status" IN ('PENDING', 'UPLOADED', 'READY', 'REJECTED', 'REJECTED_TOO_LARGE'));

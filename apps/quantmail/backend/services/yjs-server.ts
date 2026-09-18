@@ -391,4 +391,4 @@ export async function closeYDoc(docName: string, options: YjsServerOptions = {})
   rooms.delete(docName);
 }
 
-export const yjsServer = { setupWSConnection, getYDoc, closeYDoc, flushPendingWrites };
+export const yjsServer = { setupWSConnection, getYDoc, closeYDoc, flushPendingWrites, getLiveDoc };
