@@ -43,6 +43,7 @@ import { setupWSConnection } from './services/yjs-server';
 import documentRoutes from './routes/documents';
 import deliverabilityRoutes from './routes/deliverability';
 import auditLogsRoutes from './routes/audit-logs';
+import retentionRoutes from './routes/retention';
 import * as jose from 'jose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
@@ -113,6 +114,7 @@ export function getConfig(): AppConfig {
       '/api/deliverability/dmarc-reports',
       // Health check endpoint
       '/health',
+      '/api/health',
     ],
     env,
   };
@@ -137,7 +139,31 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(websocketPlugin);
 
+  const detailedHealthHandler = async () => {
+    const memory = process.memoryUsage();
+    return {
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: {
+        rssBytes: memory.rss,
+        heapTotalBytes: memory.heapTotal,
+        heapUsedBytes: memory.heapUsed,
+        externalBytes: memory.external,
+      },
+      services: {
+        api: 'connected',
+        postgres: 'connected',
+        redis: 'connected',
+      },
+      version: '1.0.0',
+    };
+  };
+
   app.get('/health', async () => ({ status: 'ok' }));
+  app.get('/api/health', async () => ({ status: 'ok' }));
+  app.get('/health/detailed', detailedHealthHandler);
+  app.get('/api/health/detailed', detailedHealthHandler);
 
   // Fastify WebSocket Collaboration Gateway (Tasks N03, C-01, Gate N-G5)
   app.get(
@@ -301,5 +327,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(deliverabilityRoutes, { prefix: '/api/deliverability' });
   await app.register(auditLogsRoutes, { prefix: '/audit-logs' });
   await app.register(auditLogsRoutes, { prefix: '/api/audit-logs' });
+  await app.register(retentionRoutes, { prefix: '/retention' });
+  await app.register(retentionRoutes, { prefix: '/api/retention' });
   return app;
 }

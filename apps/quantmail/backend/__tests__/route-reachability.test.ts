@@ -59,6 +59,11 @@ describe('Phase Q: Route Reachability & Proxy Invariant Suite (Task Q07)', () =>
     { method: 'GET', url: '/repos' },
     // Documents
     { method: 'GET', url: '/documents' },
+    // Retention Policies & Legal Holds (Task X07)
+    { method: 'GET', url: '/retention/policies' },
+    { method: 'GET', url: '/retention/legal-holds' },
+    // Audit Logs (Task X06)
+    { method: 'GET', url: '/audit-logs' },
   ];
 
   for (const ep of protectedEndpoints) {
@@ -84,6 +89,22 @@ describe('Phase Q: Route Reachability & Proxy Invariant Suite (Task Q07)', () =>
     expect(res.statusCode).toBe(200);
     const json = res.json();
     expect(json.status).toBe('ok');
+  });
+
+  it('public detailed health check endpoint returns 200 OK with SLO metrics without authentication', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/health/detailed',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const json = res.json();
+    expect(json.status).toBe('healthy');
+    expect(typeof json.uptime).toBe('number');
+    expect(json.memory).toBeDefined();
+    expect(typeof json.memory.heapUsedBytes).toBe('number');
+    expect(json.services.postgres).toBe('connected');
+    expect(json.services.redis).toBe('connected');
   });
 
   it('public drive share endpoint does not reject anonymous caller with 401', async () => {

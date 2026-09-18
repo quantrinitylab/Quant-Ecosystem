@@ -792,6 +792,25 @@ export class QuantMailApiClient {
     return this.post(`/documents/${id}/versions/${versionId}/restore`, {});
   }
 
+  async createDocumentShareLink(
+    id: string,
+    data?: { role?: 'view' | 'edit'; expiresAt?: string },
+  ): Promise<
+    ApiResponse<{
+      shareToken: string;
+      shareUrl: string;
+      role: 'view' | 'edit';
+      expiresAt: string | null;
+      createdAt: string;
+    }>
+  > {
+    return this.post(`/documents/${id}/share-link`, data ?? {});
+  }
+
+  async revokeDocumentShareLink(id: string): Promise<ApiResponse<{ revoked: boolean }>> {
+    return this.delete(`/documents/${id}/share-link`);
+  }
+
   // --------------------------------------------------------------------------
   // Contact groups API
   //

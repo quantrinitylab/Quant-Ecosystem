@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { Button, Modal } from '@quant/shared-ui';
 import { showToast } from '../../../../components/InboxToast';
+import { apiClient } from '../../../../services/api-client';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -34,15 +35,72 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const [inviteRole, setInviteRole] = useState<'viewer' | 'editor' | 'admin'>('editor');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-  const shareUrl =
+  // Public share link state (Tasks N12 & D04)
+  const [publicShareToken, setPublicShareToken] = useState<string>('');
+  const [publicShareUrl, setPublicShareUrl] = useState<string>('');
+  const [publicRole, setPublicRole] = useState<'view' | 'edit'>('view');
+  const [expiresIn, setExpiresIn] = useState<'never' | '1d' | '7d' | '30d'>('7d');
+  const [isGeneratingLink, setIsGeneratingLink] = useState<boolean>(false);
+  const [isRevokingLink, setIsRevokingLink] = useState<boolean>(false);
+
+  const directDocUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/drive/doc/${docId}` : '';
 
-  const handleCopyLink = async () => {
+  const handleCopyLink = async (urlToCopy: string) => {
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(urlToCopy);
       showToast({ text: 'Link copied to clipboard', type: 'success', subject: 'share-link' });
     } catch {
       showToast({ text: 'Failed to copy link', type: 'error', subject: 'share-link' });
+    }
+  };
+
+  const handleGeneratePublicLink = async () => {
+    setIsGeneratingLink(true);
+    try {
+      let expiresAt: string | undefined = undefined;
+      const now = Date.now();
+      if (expiresIn === '1d') expiresAt = new Date(now + 86400000).toISOString();
+      else if (expiresIn === '7d') expiresAt = new Date(now + 7 * 86400000).toISOString();
+      else if (expiresIn === '30d') expiresAt = new Date(now + 30 * 86400000).toISOString();
+
+      const res = await apiClient.createDocumentShareLink(docId, {
+        role: publicRole,
+        expiresAt,
+      });
+
+      if (res.data?.shareToken) {
+        const fullPublicUrl = `${window.location.origin}/documents/public/share/${res.data.shareToken}`;
+        setPublicShareToken(res.data.shareToken);
+        setPublicShareUrl(fullPublicUrl);
+        showToast({ text: 'Public share link generated!', type: 'success', subject: 'share-link' });
+      }
+    } catch (err: any) {
+      showToast({
+        text: err?.message || 'Failed to generate public share link',
+        type: 'error',
+        subject: 'share-link',
+      });
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  const handleRevokePublicLink = async () => {
+    setIsRevokingLink(true);
+    try {
+      await apiClient.revokeDocumentShareLink(docId);
+      setPublicShareToken('');
+      setPublicShareUrl('');
+      showToast({ text: 'Public share link revoked', type: 'success', subject: 'share-link' });
+    } catch (err: any) {
+      showToast({
+        text: err?.message || 'Failed to revoke public share link',
+        type: 'error',
+        subject: 'share-link',
+      });
+    } finally {
+      setIsRevokingLink(false);
     }
   };
 
@@ -81,59 +139,116 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       size="md"
     >
       <div className="space-y-6 pt-1">
-        {/* Link sharing row */}
-        <div className="flex items-center justify-between p-3.5 rounded-xl border border-[#30363D] bg-[#161B22]">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42]">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                />
-              </svg>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-[#F0F6FC]">
-                {isPublic ? 'Anyone with the link can view' : 'Restricted to invited collaborators'}
-              </p>
-              <p className="text-[11px] text-[#8B949E]">
-                {isPublic ? 'Public web access enabled' : 'Only workspace members with access'}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onTogglePublic(!isPublic)}
-            className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-colors ${
-              isPublic
-                ? 'border-[#238636] bg-[#238636]/10 text-[#3FB950]'
-                : 'border-[#30363D] bg-[#0D1117] text-[#8B949E] hover:text-[#F0F6FC]'
-            }`}
-          >
-            {isPublic ? 'Public' : 'Private'}
-          </button>
-        </div>
-
-        {/* Copy Link input */}
+        {/* Direct Workspace Link */}
         <div>
-          <label className="block text-xs font-semibold text-[#8B949E] mb-1.5">Document Link</label>
+          <label className="block text-xs font-semibold text-[#8B949E] mb-1.5">
+            Workspace Direct Link
+          </label>
           <div className="flex items-center gap-2">
             <input
               type="text"
               readOnly
-              value={shareUrl}
+              value={directDocUrl}
               className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[#FF8C42]"
             />
             <Button
               variant="secondary"
-              onClick={handleCopyLink}
+              onClick={() => handleCopyLink(directDocUrl)}
               className="text-xs whitespace-nowrap"
             >
               Copy Link
             </Button>
           </div>
+        </div>
+
+        {/* Public Share Token Link (Tasks N12 & D04) */}
+        <div className="p-4 rounded-xl border border-[#30363D] bg-[#161B22] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42]">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-[#F0F6FC]">Public Share Link</p>
+                <p className="text-[11px] text-[#8B949E]">
+                  Share with anyone outside your workspace with role and expiration
+                </p>
+              </div>
+            </div>
+            {publicShareUrl && (
+              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-medium border border-[#238636] bg-[#238636]/10 text-[#3FB950]">
+                Active
+              </span>
+            )}
+          </div>
+
+          {!publicShareUrl ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <select
+                value={publicRole}
+                onChange={(e) => setPublicRole(e.target.value as 'view' | 'edit')}
+                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
+              >
+                <option value="view">Can View</option>
+                <option value="edit">Can Edit</option>
+              </select>
+              <select
+                value={expiresIn}
+                onChange={(e) => setExpiresIn(e.target.value as any)}
+                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
+              >
+                <option value="1d">Expires in 1 day</option>
+                <option value="7d">Expires in 7 days</option>
+                <option value="30d">Expires in 30 days</option>
+                <option value="never">Never expires</option>
+              </select>
+              <Button
+                variant="primary"
+                onClick={handleGeneratePublicLink}
+                disabled={isGeneratingLink}
+                className="text-xs ml-auto"
+              >
+                {isGeneratingLink ? 'Creating...' : '+ Create Public Link'}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={publicShareUrl}
+                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                />
+                <Button
+                  variant="primary"
+                  onClick={() => handleCopyLink(publicShareUrl)}
+                  className="text-xs whitespace-nowrap"
+                >
+                  Copy Link
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={handleRevokePublicLink}
+                  disabled={isRevokingLink}
+                  className="text-xs whitespace-nowrap"
+                >
+                  Revoke
+                </Button>
+              </div>
+              <p className="text-[11px] text-[#8B949E]">
+                Role: <span className="text-[#F0F6FC] capitalize">{publicRole}</span> • Expiration:{' '}
+                <span className="text-[#F0F6FC]">{expiresIn === 'never' ? 'None' : expiresIn}</span>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Invite collaborators */}

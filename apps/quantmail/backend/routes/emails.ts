@@ -13,6 +13,7 @@ import {
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
 import { MboxParserService } from '../services/mbox-parser.service';
+import { retentionService } from './retention';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -1151,6 +1152,20 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const email = await prisma.email.findUnique({ where: { id: request.params.id } });
     if (!email || email.userId !== userId) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    // Legal hold enforcement (Task X07)
+    const sender = email.fromAddress;
+    const toList = Array.isArray(email.toAddresses) ? (email.toAddresses as string[]) : [];
+    const participants = [sender, ...toList].filter(Boolean);
+    for (const address of participants) {
+      if (await retentionService.isUnderLegalHold(address)) {
+        throw createAppError(
+          `Cannot delete email: participant ${address} is subject to an active legal hold`,
+          423,
+          'LEGAL_HOLD_ACTIVE',
+        );
+      }
     }
 
     if (email.isTrash) {
