@@ -3073,3 +3073,26 @@ graph TD
     - **Quanty North Star**: Claude Code + Claude Sonnet + ChatGPT + Codex parity. Interactive terminal CLI agent mode, multi-model switcher, live Artifacts/Canvas split screen, and universal cross-app MCP tool orchestration.
     - **QuantChat North Star**: WhatsApp (1:1 chat, audio voice notes, delivery ticks) + Telegram (channels, supergroups, reactions) + Snapchat (ephemeral/view-once messages, 24h stories) + QuantMeet built-in video/audio calls.
     - **QuantSidekick Mascot ("Chhota Wala Icon") Cleanup**: Floating mascot avatar must NOT be hard-injected across all app screens. Made strictly opt-in (disabled by default, toggleable in settings or summoned via `Cmd+K` / `Ctrl+/`), and completely removed from QuantAI.
+
+- **7. Wave 29 Execution: Tri-App Substantive Parity & Live Forensic Fixes (Commit `772aa555` — 2026-09-18)**:
+  - **Snapchat Parity Direct Inspection (`https://www.snapchat.com/`)**:
+    - Extracted and aligned core app layout directly from live Snapchat: Stories (`/stories`), Spotlight (`/spotlight`), Camera & AR Lenses (`/camera`), Map (`/map`), and Chats (`/`).
+    - Aligned bottom navigation in `apps/quantchat/src/lib/navigation.tsx` with core 5-tab Snapchat UX (`Chats`, `Stories`, `Camera`, `Spotlight`, `Map`).
+    - Added QuantMeet 1-click video call (`📹`) and voice call (`📞`) right in chat room header linking to LiveKit SFU (`/call?roomId=${id}`).
+    - Added Snap Streak indicator (`🔥 5 Day Streak · Active now`) in chat header.
+    - Added 1-click "Continue with Quant Account" SSO button in `apps/quantchat/src/app/login/page.tsx` with default `+91` country code.
+  - **Live Chrome Verification & Critical Runtime Fix**:
+    - Navigated live Chrome browser to `https://quantchat.quantrinity.in/login`, entered phone, requested OTP, retrieved verification code `608821` from backend pod logs, and completed OTP verification.
+    - Uncovered live runtime crash: `t.flatMap is not a function` in `src/app/page.tsx` caused by backend `GET /conversations` returning a paginated object `{ data: [...], total, page }` instead of raw array.
+    - Defensively normalized in `useConversations.ts` and `src/app/page.tsx` to safely handle both array and paginated object responses.
+    - Verified: **96/96 test files (893/893 tests) passing 100% green in `@quant/quantchat`**.
+  - **QuantMail Unified Phone Registration**:
+    - Added international phone input field with country code prefix in `apps/quantmail/src/app/register/page.tsx` for SMS recovery, 2-step verification, and unified Quant account identity.
+    - Verified: 42/42 tests passing in `phase-r-m.routes.test.ts`.
+  - **QuantSidekick Mascot Floating Avatar Cleanup**:
+    - Visual inspection confirmed floating mascot icon was polluting screen.
+    - Made strictly opt-in in `packages/shared-ui` via `localStorage` and `quant:toggle-sidekick` event.
+    - Completely excised from `apps/quantai/src/providers/app-providers.tsx`.
+  - **Kubernetes Staging Deployment**:
+    - Injected Fastify backend sidecars `quant-quantchat-backend` (port 3002) and `quant-quantai-backend` (port 3004) into AWS EKS cluster. Both pods 2/2 running & ready.
+  - **Pushed to `main`**: Commit `772aa555` pushed to `origin/main`. Dual TypeScript compilation 100% clean across all packages.
