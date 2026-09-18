@@ -1101,6 +1101,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         'application/pdf',
         1024,
       );
+      await service.markReady(upload.attachmentId, Buffer.from('document content'));
 
       const res = await app.inject({
         method: 'GET',
@@ -1118,6 +1119,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
     it('M25: GET /attachments/:id/download enforces Content-Type application/octet-stream and CSP sandbox for SVG files', async () => {
       const app = await buildAttachmentApp('user-1');
       const upload = await service.generateUploadUrl('user-1', 'logo.svg', 'image/svg+xml', 1024);
+      await service.markReady(upload.attachmentId, Buffer.from('<svg></svg>'));
 
       const res = await app.inject({
         method: 'GET',

@@ -36,6 +36,7 @@
     "@quant/realtime": "workspace:*",
     "@quant/server-core": "workspace:*",
     "@quant/shared-ui": "workspace:*",
+    "@quant/storage": "workspace:*",
     "@tanstack/react-query": "^5.60.0",
     "argon2": "^0.43.0",
     "fastify": "^5.2.1",

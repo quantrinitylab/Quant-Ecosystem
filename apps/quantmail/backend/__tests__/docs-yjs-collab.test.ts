@@ -84,6 +84,8 @@ class MockSocket implements WebSocketLike {
 type PersistenceMock = {
   loadUpdate: ReturnType<typeof vi.fn>;
   saveDoc: ReturnType<typeof vi.fn>;
+  appendUpdate: ReturnType<typeof vi.fn>;
+  compact: ReturnType<typeof vi.fn>;
 };
 
 const roomsToClose: Array<{ name: string; persistence: PersistenceMock }> = [];
@@ -98,6 +100,8 @@ function persistenceWith(update: Uint8Array | null = null): PersistenceMock {
   return {
     loadUpdate: vi.fn().mockResolvedValue(update),
     saveDoc: vi.fn().mockResolvedValue(undefined),
+    appendUpdate: vi.fn().mockResolvedValue(1),
+    compact: vi.fn().mockResolvedValue({ snapshotBytes: 0, prunedUpdates: 0 }),
   };
 }
 
@@ -238,6 +242,12 @@ describe('Yjs document persistence', () => {
     const encoded = `yjs:v1:${Buffer.from(Y.encodeStateAsUpdate(source)).toString('base64')}`;
     const adapter = new PersistenceAdapter({
       document: { findUnique: vi.fn().mockResolvedValue({ content: encoded, isDeleted: false }) },
+      collabDocumentUpdate: {
+        findMany: vi.fn().mockResolvedValue([]),
+        create: vi.fn().mockResolvedValue({ id: '1' }),
+        findFirst: vi.fn().mockResolvedValue(null),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
     } as never);
     const loaded = await adapter.loadDoc('doc-1');
     expect(loaded.getText('content').toString()).toBe('first paragraph\nsecond paragraph');

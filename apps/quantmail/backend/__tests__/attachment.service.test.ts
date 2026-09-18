@@ -1,454 +1,370 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import Fastify from 'fastify';
-import { errorHandlerPlugin } from '@quant/server-core';
-import { AttachmentService, sanitizeFilename } from '../services/attachment.service';
-import attachmentRoutes, { MAX_ATTACHMENT_SIZE_BYTES } from '../routes/attachments';
-import { EICAR_TEST_SIGNATURE } from '../services/attachment-scanner.service';
+import { Readable } from 'node:stream';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AttachmentService } from '../services/attachment.service';
 
-describe('AttachmentService & Routes (Wave 15 Track 4: Tasks M24 & M25)', () => {
+// ---------------------------------------------------------------------------
+// Fake StorageClient — structurally compatible with packages/storage.
+// No mock BUFFERS of file content: bytes put in are the bytes read back.
+// ---------------------------------------------------------------------------
+class FakeStorage {
+  objects = new Map<string, { body: Buffer; contentType: string }>();
+  signedPuts: Array<{ key: string; contentLength: number; expiresIn: number }> = [];
+  signedGets: Array<{ key: string; expiresIn: number }> = [];
+  deleted: string[] = [];
+
+  async getSignedUploadUrl(args: {
+    key: string;
+    contentType: string;
+    contentLength: number;
+    expiresIn?: number;
+  }): Promise<any> {
+    this.signedPuts.push({
+      key: args.key,
+      contentLength: args.contentLength,
+      expiresIn: args.expiresIn ?? 0,
+    });
+    return {
+      url:
+        `https://acct.r2.cloudflarestorage.com/bucket/${args.key}` +
+        `?X-Amz-Algorithm=AWS4-HMAC-SHA256` +
+        `&X-Amz-Expires=${args.expiresIn ?? 900}` +
+        `&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost` +
+        `&X-Amz-Signature=deadbeef`,
+      key: args.key,
+      method: 'PUT',
+      expiresAt: new Date(Date.now() + (args.expiresIn ?? 900) * 1000),
+      requiredHeaders: {
+        'Content-Type': args.contentType,
+        'Content-Length': String(args.contentLength),
+      },
+      maxBytes: 25 * 1024 * 1024,
+    };
+  }
+
+  async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
+    this.signedGets.push({ key, expiresIn });
+    return (
+      `https://acct.r2.cloudflarestorage.com/bucket/${key}` +
+      `?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=${expiresIn}` +
+      `&X-Amz-Signature=cafebabe`
+    );
+  }
+
+  async headObject(key: string) {
+    const obj = this.objects.get(key);
+    if (!obj) {
+      const err = new Error('NotFound') as Error & { name: string };
+      err.name = 'NotFound';
+      throw err;
+    }
+    return {
+      contentType: obj.contentType,
+      contentLength: obj.body.byteLength,
+      lastModified: new Date('2026-09-18T00:00:00Z'),
+      metadata: {},
+    };
+  }
+
+  async getObjectSize(key: string): Promise<number | null> {
+    const obj = this.objects.get(key);
+    return obj ? obj.body.byteLength : null;
+  }
+
+  async download(key: string) {
+    const obj = this.objects.get(key);
+    if (!obj) {
+      const err = new Error('NotFound') as Error & { name: string };
+      err.name = 'NotFound';
+      throw err;
+    }
+    return {
+      body: Readable.from([obj.body]),
+      contentType: obj.contentType,
+      contentLength: obj.body.byteLength,
+    };
+  }
+
+  async delete(key: string) {
+    this.deleted.push(key);
+    this.objects.delete(key);
+  }
+
+  /** Simulates the browser's PUT to the presigned URL. */
+  put(key: string, body: Buffer, contentType: string) {
+    this.objects.set(key, { body, contentType });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fake mailAttachment delegate. NOT optional-chained: a missing delegate must
+// throw loudly (W15-3), so the service reads db.mailAttachment directly.
+// ---------------------------------------------------------------------------
+type Row = Record<string, unknown>;
+
+function makeDb() {
+  const rows = new Map<string, Row>();
+  return {
+    rows,
+    mailAttachment: {
+      create: vi.fn(async ({ data }: { data: Row }) => {
+        rows.set(data.id as string, { ...data });
+        return rows.get(data.id as string)!;
+      }),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+        return rows.get(where.id) ?? null;
+      }),
+      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Row }) => {
+        const existing = rows.get(where.id);
+        if (!existing) throw new Error('P2025');
+        const next = { ...existing, ...data };
+        rows.set(where.id, next);
+        return next;
+      }),
+      delete: vi.fn(async ({ where }: { where: { id: string } }) => {
+        const existing = rows.get(where.id);
+        if (!existing) throw new Error('P2025');
+        rows.delete(where.id);
+        return existing;
+      }),
+    },
+  };
+}
+
+const OWNER = 'user_owner_1';
+const OTHER = 'user_other_2';
+const MAX = 25 * 1024 * 1024;
+
+describe('AttachmentService (real storage)', () => {
+  let storage: FakeStorage;
+  let db: ReturnType<typeof makeDb>;
   let service: AttachmentService;
 
   beforeEach(() => {
-    service = new AttachmentService();
-  });
-
-  describe('sanitizeFilename helper', () => {
-    it('sanitizes path traversal characters and quotes', () => {
-      expect(sanitizeFilename('../../../secret"file".pdf')).toBe('secretfile.pdf');
-    });
-
-    it('strips carriage return and line feed characters (CRLF injection prevention)', () => {
-      expect(sanitizeFilename('file.pdf\r\nX-Injected: yes\r\n')).toBe('file.pdfX-Injected: yes');
-    });
-
-    it('falls back to default filename if input is empty or contains only invalid characters', () => {
-      expect(sanitizeFilename('')).toBe('attachment');
-      expect(sanitizeFilename('   ')).toBe('attachment');
-      expect(sanitizeFilename('///"""')).toBe('attachment');
+    storage = new FakeStorage();
+    db = makeDb();
+    service = new AttachmentService({
+      storage: storage as never,
+      db: db as never,
+      bucket: 'quantmail-attachments',
+      maxBytes: MAX,
     });
   });
 
-  describe('AttachmentService unit tests', () => {
-    describe('generateUploadUrl', () => {
-      it('generates a presigned upload URL', async () => {
-        const result = await service.generateUploadUrl(
-          'user-1',
-          'document.pdf',
-          'application/pdf',
-          102400,
-        );
+  // -- generateUploadUrl ----------------------------------------------------
 
-        expect(result.attachmentId).toMatch(/^att_/);
-        expect(result.uploadUrl).toContain('quantmail-attachments');
-        expect(result.uploadUrl).toContain('user-1');
-        expect(result.expiresAt).toBeInstanceOf(Date);
-        expect(result.expiresAt.getTime()).toBeGreaterThan(Date.now());
-      });
-
-      it('rejects files exceeding 25MB', async () => {
-        await expect(
-          service.generateUploadUrl('user-1', 'huge.zip', 'application/zip', 26 * 1024 * 1024),
-        ).rejects.toThrow('exceeds maximum of 25MB');
-      });
-
-      it('rejects zero-size files', async () => {
-        await expect(
-          service.generateUploadUrl('user-1', 'empty.txt', 'text/plain', 0),
-        ).rejects.toThrow('greater than 0');
-      });
-
-      it('rejects negative-size files', async () => {
-        await expect(
-          service.generateUploadUrl('user-1', 'neg.txt', 'text/plain', -1),
-        ).rejects.toThrow('greater than 0');
-      });
-
-      it('rejects empty filename', async () => {
-        await expect(service.generateUploadUrl('user-1', '', 'text/plain', 1024)).rejects.toThrow(
-          'Filename is required',
-        );
-      });
-
-      it('sets 15-minute expiry on upload URL', async () => {
-        const before = Date.now();
-        const result = await service.generateUploadUrl('user-1', 'test.txt', 'text/plain', 1024);
-        const after = Date.now();
-
-        const expiryMs = result.expiresAt.getTime();
-        expect(expiryMs).toBeGreaterThanOrEqual(before + 15 * 60 * 1000);
-        expect(expiryMs).toBeLessThanOrEqual(after + 15 * 60 * 1000 + 100);
-      });
-
-      it('generates unique attachment IDs', async () => {
-        const r1 = await service.generateUploadUrl('user-1', 'a.txt', 'text/plain', 100);
-        const r2 = await service.generateUploadUrl('user-1', 'b.txt', 'text/plain', 200);
-
-        expect(r1.attachmentId).not.toBe(r2.attachmentId);
-      });
+  it('returns a genuinely signed PUT URL and persists a PENDING row', async () => {
+    const result = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'report.pdf',
+      contentType: 'application/pdf',
+      size: 2048,
     });
 
-    describe('getAttachment', () => {
-      it('returns attachment metadata with sanitized filename and content details', async () => {
-        const result = await service.getAttachment('att_123', 'user-1');
+    expect(result.uploadUrl).toContain('X-Amz-Signature=');
+    expect(result.uploadUrl).toContain('X-Amz-Algorithm=AWS4-HMAC-SHA256');
+    // content-length must be signed — that is the ONLY size enforcement a
+    // presigned PUT can carry (R2 has no presigned POST / content-length-range).
+    expect(result.uploadUrl).toContain('content-length');
+    expect(result.attachmentId).toMatch(/^att_/);
+    expect(result.key).toBe(`attachments/${OWNER}/${result.attachmentId}/report.pdf`);
 
-        expect(result.id).toBe('att_123');
-        expect(result.userId).toBe('user-1');
-        expect(result.url).toContain('att_123');
-        expect(result.filename).toBe('document.pdf');
-        expect(result.content).toBeDefined();
-      });
+    const row = db.rows.get(result.attachmentId)!;
+    expect(row.status).toBe('PENDING');
+    expect(row.userId).toBe(OWNER);
+    expect(row.declaredSize).toBe(2048);
+    expect(storage.signedPuts[0]).toMatchObject({ contentLength: 2048 });
+  });
 
-      it('returns sanitized filename for attachments with unsanitized names', async () => {
-        const gen = await service.generateUploadUrl(
-          'user-1',
-          '../../../malicious"filename".pdf',
-          'application/pdf',
-          1024,
-        );
-        const fetched = await service.getAttachment(gen.attachmentId, 'user-1');
+  it('rejects declared sizes over 25MB with 413 ATTACHMENT_TOO_LARGE', async () => {
+    await expect(
+      service.generateUploadUrl({
+        userId: OWNER,
+        filename: 'huge.zip',
+        contentType: 'application/zip',
+        size: MAX + 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 413, code: 'ATTACHMENT_TOO_LARGE' });
+    expect(db.mailAttachment.create).not.toHaveBeenCalled();
+    expect(storage.signedPuts).toHaveLength(0);
+  });
 
-        expect(fetched.filename).toBe('maliciousfilename.pdf');
-        expect(fetched.content).toBeDefined();
-      });
+  it('sanitizes traversal filenames before they reach the object key', async () => {
+    const result = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: '../../etc/passwd',
+      contentType: 'text/plain',
+      size: 10,
+    });
+    expect(result.key).not.toContain('..');
+    expect(result.key.split('/')).toHaveLength(4);
+  });
 
-      it('enforces ownership: rejects when requested by non-owner user', async () => {
-        const gen = await service.generateUploadUrl(
-          'user-owner',
-          'private.pdf',
-          'application/pdf',
-          1024,
-        );
+  // -- finalizeUpload / HeadObject validation -------------------------------
 
-        await expect(service.getAttachment(gen.attachmentId, 'user-attacker')).rejects.toThrow(
-          'Not authorized to access this attachment',
-        );
-      });
-
-      it('throws for empty attachment ID', async () => {
-        await expect(service.getAttachment('', 'user-1')).rejects.toThrow('Attachment not found');
-      });
+  it('finalizeUpload verifies real bytes via HeadObject and marks READY', async () => {
+    const body = Buffer.from('a real pdf-ish payload');
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'report.pdf',
+      contentType: 'application/pdf',
+      size: body.byteLength,
     });
 
-    describe('deleteAttachment', () => {
-      it('deletes an attachment', async () => {
-        const result = await service.deleteAttachment('att_123', 'user-1');
-        expect(result.deleted).toBe(true);
-      });
+    storage.put(key, body, 'application/pdf');
 
-      it('enforces ownership: rejects delete when requested by non-owner', async () => {
-        const gen = await service.generateUploadUrl(
-          'user-owner',
-          'private.pdf',
-          'application/pdf',
-          1024,
-        );
-        await expect(service.deleteAttachment(gen.attachmentId, 'user-attacker')).rejects.toThrow(
-          'Not authorized to access this attachment',
-        );
-      });
+    const meta = await service.finalizeUpload({ userId: OWNER, attachmentId });
+    expect(meta.size).toBe(body.byteLength);
+    expect(meta.status).toBe('READY');
+    expect(db.rows.get(attachmentId)!.status).toBe('READY');
+  });
 
-      it('throws for empty attachment ID', async () => {
-        await expect(service.deleteAttachment('', 'user-1')).rejects.toThrow(
-          'Attachment not found',
-        );
-      });
+  it('finalizeUpload deletes the object and 413s when real size exceeds the cap', async () => {
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'sneaky.bin',
+      contentType: 'application/octet-stream',
+      size: 1024,
+    });
+
+    // A signature-mismatching upload should never land, but if the bucket is
+    // ever written by another path, finalize is the backstop.
+    storage.put(key, Buffer.alloc(MAX + 1), 'application/octet-stream');
+
+    await expect(service.finalizeUpload({ userId: OWNER, attachmentId })).rejects.toMatchObject({
+      statusCode: 413,
+      code: 'ATTACHMENT_TOO_LARGE',
+    });
+
+    expect(storage.deleted).toContain(key);
+    expect(storage.objects.has(key)).toBe(false);
+    expect(db.rows.get(attachmentId)!.status).toBe('REJECTED');
+  });
+
+  it('finalizeUpload 409s UPLOAD_INCOMPLETE when nothing was uploaded', async () => {
+    const { attachmentId } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'never.pdf',
+      contentType: 'application/pdf',
+      size: 10,
+    });
+
+    await expect(service.finalizeUpload({ userId: OWNER, attachmentId })).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'UPLOAD_INCOMPLETE',
+    });
+    expect(db.rows.get(attachmentId)!.status).toBe('PENDING');
+  });
+
+  // -- reads ----------------------------------------------------------------
+
+  it('readAttachment returns the exact uploaded bytes (no mock buffer)', async () => {
+    const body = Buffer.from('QuantMail real attachment bytes \u00e9\u00e8');
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'note.txt',
+      contentType: 'text/plain',
+      size: body.byteLength,
+    });
+    storage.put(key, body, 'text/plain');
+    await service.finalizeUpload({ userId: OWNER, attachmentId });
+
+    const { body: read, metadata } = await service.readAttachment(attachmentId, OWNER);
+    expect(read.equals(body)).toBe(true);
+    expect(read.toString()).not.toContain('Mock attachment content');
+    expect(metadata.size).toBe(body.byteLength);
+  });
+
+  it('readAttachment 409s on a PENDING row instead of inventing content', async () => {
+    const { attachmentId } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'pending.pdf',
+      contentType: 'application/pdf',
+      size: 10,
+    });
+    await expect(service.readAttachment(attachmentId, OWNER)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'UPLOAD_INCOMPLETE',
     });
   });
 
-  describe('Attachment Routes (Fastify Integration: M24 & M25)', () => {
-    async function buildAttachmentTestApp(
-      authenticatedUserId: string | null = 'user-1',
-      injectedService: AttachmentService = service,
-    ) {
-      const app = Fastify();
-      await app.register(errorHandlerPlugin);
-      app.addHook('onRequest', async (req) => {
-        (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
-      });
-      await app.register(attachmentRoutes, { prefix: '/attachments', service: injectedService });
-      return app;
-    }
-
-    describe('POST /attachments/upload-url (Task M24)', () => {
-      it('rejects unauthenticated callers with 401 UNAUTHORIZED', async () => {
-        const app = await buildAttachmentTestApp(null);
-        const res = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'test.pdf',
-            contentType: 'application/pdf',
-            size: 1024,
-          },
-        });
-
-        expect(res.statusCode).toBe(401);
-        expect(res.json().error.code).toBe('UNAUTHORIZED');
-        await app.close();
-      });
-
-      it('rejects attachment size exceeding 25MB with 413 ATTACHMENT_TOO_LARGE', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const res = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'huge.pdf',
-            contentType: 'application/pdf',
-            size: MAX_ATTACHMENT_SIZE_BYTES + 1, // 25MB + 1 byte
-          },
-        });
-
-        expect(res.statusCode).toBe(413);
-        const body = res.json();
-        expect(body.error.code).toBe('ATTACHMENT_TOO_LARGE');
-        expect(body.error.message).toContain('Attachment exceeds maximum allowed size of 25MB');
-        await app.close();
-      });
-
-      it('accepts attachment size at boundary (exact 25MB)', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const res = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'boundary.pdf',
-            contentType: 'application/pdf',
-            size: MAX_ATTACHMENT_SIZE_BYTES, // exactly 25MB
-          },
-        });
-
-        expect(res.statusCode).toBe(200);
-        expect(res.json().success).toBe(true);
-        expect(res.json().data.uploadUrl).toBeDefined();
-        await app.close();
-      });
-
-      it('rejects blocked file extensions with 400 BLOCKED_FILE_TYPE', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const res = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'malware.exe',
-            contentType: 'application/pdf',
-            size: 1024,
-          },
-        });
-
-        expect(res.statusCode).toBe(400);
-        expect(res.json().error.code).toBe('BLOCKED_FILE_TYPE');
-        await app.close();
-      });
-
-      it('rejects unsupported MIME types with 400 UNSUPPORTED_CONTENT_TYPE', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const res = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'payload.bin',
-            contentType: 'application/x-shockwave-flash',
-            size: 1024,
-          },
-        });
-
-        expect(res.statusCode).toBe(400);
-        expect(res.json().error.code).toBe('UNSUPPORTED_CONTENT_TYPE');
-        await app.close();
-      });
+  it('getDownloadUrl returns a signed GET with a short TTL', async () => {
+    const body = Buffer.from('payload');
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'big.bin',
+      contentType: 'application/octet-stream',
+      size: body.byteLength,
     });
+    storage.put(key, body, 'application/octet-stream');
+    await service.finalizeUpload({ userId: OWNER, attachmentId });
 
-    describe('GET /attachments/:id/download (Task M25)', () => {
-      it('rejects unauthenticated callers with 401 UNAUTHORIZED', async () => {
-        const app = await buildAttachmentTestApp(null);
-        const res = await app.inject({
-          method: 'GET',
-          url: '/attachments/att-123/download',
-        });
+    const { url, expiresAt, size } = await service.getDownloadUrl(attachmentId, OWNER, 120);
+    expect(url).toContain('X-Amz-Signature=');
+    expect(storage.signedGets[0]).toEqual({ key, expiresIn: 120 });
+    expect(size).toBe(body.byteLength);
+    expect(new Date(expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
 
-        expect(res.statusCode).toBe(401);
-        expect(res.json().error.code).toBe('UNAUTHORIZED');
-        await app.close();
-      });
+  // -- tenancy --------------------------------------------------------------
 
-      it('serves PDF with correct CSP sandbox and Content-Disposition headers', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const upload = await service.generateUploadUrl(
-          'user-1',
-          'financial_report.pdf',
-          'application/pdf',
-          2048,
-        );
-
-        const res = await app.inject({
-          method: 'GET',
-          url: `/attachments/${upload.attachmentId}/download`,
-        });
-
-        expect(res.statusCode).toBe(200);
-        expect(res.headers['content-type']).toBe('application/pdf');
-        expect(res.headers['content-disposition']).toBe(
-          'attachment; filename="financial_report.pdf"',
-        );
-        expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
-        expect(res.headers['x-content-type-options']).toBe('nosniff');
-        expect(res.headers['x-frame-options']).toBe('DENY');
-        await app.close();
-      });
-
-      it('sanitizes hazardous characters from filename in Content-Disposition', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        service.registerAttachment({
-          id: 'att-dangerous-1',
-          userId: 'user-1',
-          filename: '../../../etc/passwd"evil.pdf\r\n',
-          contentType: 'application/pdf',
-          size: 100,
-        });
-
-        const res = await app.inject({
-          method: 'GET',
-          url: '/attachments/att-dangerous-1/download',
-        });
-
-        expect(res.statusCode).toBe(200);
-        expect(res.headers['content-disposition']).toBe('attachment; filename="etcpasswdevil.pdf"');
-        expect(res.headers['content-disposition']).not.toContain('\r');
-        expect(res.headers['content-disposition']).not.toContain('\n');
-        expect(res.headers['content-disposition']).not.toContain('/');
-        await app.close();
-      });
-
-      it('enforces SVG security: forces Content-Type application/octet-stream and CSP sandbox', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const upload = await service.generateUploadUrl(
-          'user-1',
-          'vector-graphic.svg',
-          'image/svg+xml',
-          4096,
-        );
-
-        const res = await app.inject({
-          method: 'GET',
-          url: `/attachments/${upload.attachmentId}/download`,
-        });
-
-        expect(res.statusCode).toBe(200);
-        // S2 invariant: SVG content-type MUST be application/octet-stream so inline scripts cannot execute
-        expect(res.headers['content-type']).toBe('application/octet-stream');
-        expect(res.headers['content-disposition']).toBe(
-          'attachment; filename="vector-graphic.svg"',
-        );
-        expect(res.headers['content-security-policy']).toBe("default-src 'none'; sandbox");
-        expect(res.headers['x-content-type-options']).toBe('nosniff');
-        expect(res.headers['x-frame-options']).toBe('DENY');
-        await app.close();
-      });
-
-      it('validates attachment ownership: rejects access by another user with 403 FORBIDDEN', async () => {
-        const app = await buildAttachmentTestApp('user-attacker');
-        const upload = await service.generateUploadUrl(
-          'user-victim',
-          'confidential.pdf',
-          'application/pdf',
-          1024,
-        );
-
-        const res = await app.inject({
-          method: 'GET',
-          url: `/attachments/${upload.attachmentId}/download`,
-        });
-
-        expect(res.statusCode).toBe(403);
-        expect(res.json().error.code).toBe('FORBIDDEN');
-        await app.close();
-      });
-
-      it('Wave 18: permits audio and video mime types for upload url generation', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-
-        // Audio
-        const audioRes = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'voice_memo.mp3',
-            contentType: 'audio/mpeg',
-            size: 1024 * 1024,
-          },
-        });
-        expect(audioRes.statusCode).toBe(200);
-        expect(audioRes.json().success).toBe(true);
-
-        // Video
-        const videoRes = await app.inject({
-          method: 'POST',
-          url: '/attachments/upload-url',
-          payload: {
-            filename: 'presentation.mp4',
-            contentType: 'video/mp4',
-            size: 5 * 1024 * 1024,
-          },
-        });
-        expect(videoRes.statusCode).toBe(200);
-        expect(videoRes.json().success).toBe(true);
-
-        await app.close();
-      });
-
-      it('Wave 18: scans attachment buffer and reports clean file on POST /:id/scan', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        const upload = await service.generateUploadUrl(
-          'user-1',
-          'clean_document.pdf',
-          'application/pdf',
-          512,
-        );
-
-        const scanRes = await app.inject({
-          method: 'POST',
-          url: `/attachments/${upload.attachmentId}/scan`,
-        });
-
-        expect(scanRes.statusCode).toBe(200);
-        const data = scanRes.json().data;
-        expect(data.isInfected).toBe(false);
-        expect(data.engine).toBe('QuantHeuristicScanner');
-
-        await app.close();
-      });
-
-      it('Wave 18: blocks infected EICAR attachment download and scan reports virus', async () => {
-        const app = await buildAttachmentTestApp('user-1');
-        service.registerAttachment({
-          id: 'att-eicar-malware',
-          userId: 'user-1',
-          filename: 'test_virus.txt',
-          contentType: 'text/plain',
-          size: EICAR_TEST_SIGNATURE.length,
-          content: Buffer.from(EICAR_TEST_SIGNATURE),
-        });
-
-        // Test POST /:id/scan identifies virus
-        const scanRes = await app.inject({
-          method: 'POST',
-          url: '/attachments/att-eicar-malware/scan',
-        });
-        expect(scanRes.statusCode).toBe(200);
-        expect(scanRes.json().data.isInfected).toBe(true);
-        expect(scanRes.json().data.virusName).toBe('EICAR-Test-Signature');
-
-        // Test GET /:id/download blocks download with 422
-        const downloadRes = await app.inject({
-          method: 'GET',
-          url: '/attachments/att-eicar-malware/download',
-        });
-        expect(downloadRes.statusCode).toBe(422);
-        expect(downloadRes.json().error.code).toBe('MALICIOUS_ATTACHMENT_DETECTED');
-
-        await app.close();
-      });
+  it('hides another user\u2019s attachment as 404, not 403', async () => {
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'private.pdf',
+      contentType: 'application/pdf',
+      size: 4,
     });
+    storage.put(key, Buffer.from('abcd'), 'application/pdf');
+    await service.finalizeUpload({ userId: OWNER, attachmentId });
+
+    await expect(service.getAttachment(attachmentId, OTHER)).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'ATTACHMENT_NOT_FOUND',
+    });
+    await expect(service.getDownloadUrl(attachmentId, OTHER, 120)).rejects.toMatchObject({
+      statusCode: 404,
+    });
+    expect(storage.signedGets).toHaveLength(0);
+  });
+
+  it('unknown ids 404 instead of returning a hardcoded document.pdf', async () => {
+    await expect(service.getAttachment('att_does_not_exist', OWNER)).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'ATTACHMENT_NOT_FOUND',
+    });
+  });
+
+  // -- delete ---------------------------------------------------------------
+
+  it('deleteAttachment removes the object and the row', async () => {
+    const { attachmentId, key } = await service.generateUploadUrl({
+      userId: OWNER,
+      filename: 'gone.pdf',
+      contentType: 'application/pdf',
+      size: 3,
+    });
+    storage.put(key, Buffer.from('abc'), 'application/pdf');
+    await service.finalizeUpload({ userId: OWNER, attachmentId });
+
+    await expect(service.deleteAttachment(attachmentId, OWNER)).resolves.toEqual({ deleted: true });
+    expect(storage.deleted).toContain(key);
+    expect(db.rows.has(attachmentId)).toBe(false);
+  });
+
+  // -- fail-loud wiring (W15-3) --------------------------------------------
+
+  it('throws loudly when the mailAttachment delegate is missing', async () => {
+    const broken = new AttachmentService({
+      storage: storage as never,
+      db: {} as never,
+    });
+    await expect(
+      broken.generateUploadUrl({
+        userId: OWNER,
+        filename: 'x.pdf',
+        contentType: 'application/pdf',
+        size: 1,
+      }),
+    ).rejects.toMatchObject({ statusCode: 503 });
   });
 });

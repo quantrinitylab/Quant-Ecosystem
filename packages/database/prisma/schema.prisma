@@ -4133,3 +4133,42 @@ model WorkspaceInvite {
   @@index([status])
   @@map("workspace_invites")
 }
+
+// ==================== COLLABORATION WAL (GATE 1) ====================
+/// Append-only Yjs delta log. One row per CRDT update, pruned by compaction.
+/// Deliberately has NO foreign key to Document: this is a write-ahead log that
+/// must outlive document-row churn, and adding a relation would require editing
+/// the Document model inside a 129 KB schema file. See 0064 migration notes.
+model CollabDocumentUpdate {
+  id           String   @id
+  docId        String   @map("doc_id")
+  version      Int
+  updateBinary Bytes    @map("update_binary")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([docId, version])
+  @@index([docId, createdAt])
+  @@map("collab_document_updates")
+}
+
+// ==================== MAIL ATTACHMENTS (GATE 2) ====================
+/// Mail attachment metadata. Bytes live in object storage (R2/S3) under storageKey.
+/// Status lifecycle: PENDING -> UPLOADED, or PENDING -> REJECTED_TOO_LARGE.
+model MailAttachment {
+  id           String    @id
+  userId       String    @map("user_id")
+  emailId      String?   @map("email_id")
+  filename     String
+  contentType  String    @map("content_type")
+  declaredSize Int       @map("declared_size")
+  storedSize   Int?      @map("stored_size")
+  storageKey   String    @unique @map("storage_key")
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  uploadedAt   DateTime? @map("uploaded_at")
+
+  @@index([userId, createdAt])
+  @@index([emailId])
+  @@map("mail_attachments")
+}
+

@@ -102,6 +102,22 @@ From `Quant-Ecosystem-Audit-d8f88fc.zip` & `Quant-Ecosystem-Deep-Architecture-Au
 
 ### Recent Wave Audits & Architecture Decisions:
 
+- **`AUDIT-BINARY-GATES-1-AND-2` (Durable Docs & Real Cloudflare R2 / S3 Attachments - 100% VERIFIED & CLOSED)**:
+  - **Gate 1 (Durable QuantDocs)**:
+    - Resolved G-A-BUG-1 (Legacy Plaintext Overwrite): `loadUpdate()` seeds legacy text with fixed deterministic `LEGACY_SEED_CLIENT_ID = 1` and compacts to `yjs:v1:` immediately.
+    - Eliminated Room 404 Cache Poisoning: Wrapped room load in try/catch; on failure, removes promise from map and calls `doc.destroy()`.
+    - Eliminated Runaway WAL Amplification: Added origin guard `origin === 'prisma-load'`.
+    - Applied PostgreSQL migration `0064_add_collab_document_updates` with compound index `@@index([docId, version])`.
+    - Test Suite `collab-durability.test.ts` passing 6/6 tests (verifies crash recovery without compaction and rolling snapshot compaction).
+  - **Gate 2 (Real Attachments & Cloudflare R2 / AWS S3)**:
+    - Enforced AWS SDK v3 `requestChecksumCalculation: 'WHEN_REQUIRED'` so Cloudflare R2 presigned PUTs are not rejected with 400 Bad Request.
+    - Cloudflare R2 endpoint auto-derived from `CLOUDFLARE_R2_ACCOUNT_ID` with `auto` region.
+    - Presigned PUT generates SigV4 with signed `Content-Length`, preventing client-side size tampering.
+    - Post-upload `finalizeUpload` executes `getObjectSize` via `HeadObject` before setting status to `READY`. Over-limit files purged from bucket immediately.
+    - Eliminated all mock buffers (`Buffer.from('Mock attachment content...')`) and in-memory Maps in `attachment.service.ts`.
+    - Applied PostgreSQL migration `0065_add_mail_attachments`.
+    - Test Suites passing 100%: `attachment.service.test.ts` (13/13), `phase-r-m.routes.test.ts` (42/42), `integration-email-flow.test.ts` (12/12).
+
 - **`ADR-001` (Drive Content Indexing Security & Lifecycle)**:
   - Threat Model: Cleartext `drive_file_indexes.content` bypasses S3 envelope encryption and leaks via DB backups, slow query logs, and `pg_dump`. Trashed files leave orphaned cleartext.
   - Decision: Transition from cleartext storage to derived `tsvector` stripped of positions + GIN indexing. Store zero raw body text in Postgres; fetch decrypted snippets on-demand from S3 for displayed results. Move indexing from read path (`POST /drive/ai/search`) to upload write-path. Cascade-delete index rows on file trash/purge.

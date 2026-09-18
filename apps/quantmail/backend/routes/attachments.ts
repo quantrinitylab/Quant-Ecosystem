@@ -9,6 +9,12 @@ import {
 
 export const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
 
+/**
+ * Presigned-GET expiry. Deliberately short: the URL bypasses the malware
+ * scanner, so its blast radius is bounded by time.
+ */
+const DOWNLOAD_URL_TTL_SECONDS = 120;
+
 function requireUserId(request: unknown): string {
   const userId = (request as { auth?: { userId?: string } }).auth?.userId;
   if (!userId) {
@@ -96,7 +102,7 @@ export default async function attachmentRoutes(
   fastify: FastifyInstance,
   options?: AttachmentRoutesOptions,
 ) {
-  const service = options?.service ?? new AttachmentService();
+  const service = options?.service ?? new AttachmentService({});
   const scanner = options?.scanner ?? new DefaultAttachmentScanner();
 
   fastify.post('/upload-url', async (request, reply) => {
@@ -137,19 +143,30 @@ export default async function attachmentRoutes(
     return reply.status(200).send({ success: true, data: result });
   });
 
+  // Called by the client after the presigned PUT completes. Verifies the bytes
+  // that actually landed in R2/S3 instead of trusting the declared size.
+  fastify.post<{ Params: { id: string } }>('/:id/finalize', async (request, reply) => {
+    const userId = requireUserId(request);
+    const metadata = await service.finalizeUpload(request.params.id, userId);
+    return reply.status(200).send({ success: true, data: metadata });
+  });
+
   fastify.get<{ Params: { id: string } }>('/:id/download', async (request, reply) => {
     const userId = requireUserId(request);
-    const attachment = await service.getAttachment(request.params.id, userId);
-
-    if (!attachment || attachment.userId !== userId) {
+    const peek = await (service as any).peekAttachment?.(request.params.id);
+    if (peek && peek.userId !== userId) {
       throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
     }
+    // Real bytes, streamed out of R2/S3 and buffered so the scanner can see
+    // the whole object before a single byte reaches the client.
+    const { metadata: attachment, body: buffer } = await service.readAttachment(
+      request.params.id,
+      userId,
+    );
 
     const safeFilename = sanitizeFilename(attachment.filename);
-    const rawContent = attachment.content ?? Buffer.from('');
-    const contentBuffer = Buffer.isBuffer(rawContent) ? rawContent : Buffer.from(rawContent);
 
-    const scanResult = await scanner.scanBuffer(contentBuffer, safeFilename);
+    const scanResult = await scanner.scanBuffer(buffer, safeFilename);
     if (scanResult.isInfected) {
       throw createAppError(
         `Attachment blocked: malware detected (${scanResult.virusName || 'Infected'})`,
@@ -171,32 +188,80 @@ export default async function attachmentRoutes(
     return reply
       .header('Content-Type', contentType)
       .header('Content-Disposition', `attachment; filename="${safeFilename}"`)
+      .header('Content-Length', String(buffer.byteLength))
       .header('Content-Security-Policy', "default-src 'none'; sandbox")
       .header('X-Content-Type-Options', 'nosniff')
       .header('X-Frame-Options', 'DENY')
-      .send(contentBuffer);
+      .send(buffer);
   });
+
+  // Presigned GET for large files. NOTE: this path does not pass through the
+  // malware scanner, so it is NOT the default UI download path. The mail client
+  // MUST keep using GET /attachments/:id/download (scanned, proxied) for every
+  // ordinary download; this route exists only for objects too large to buffer
+  // in the API process, and it is gated three ways:
+  //   1. ownership is re-checked server-side before signing,
+  //   2. the URL lives for DOWNLOAD_URL_TTL_SECONDS (120s), not an hour,
+  //   3. the caller must opt in with ?unscanned=true so no client reaches this
+  //      route by accident, and the response says so explicitly.
+  fastify.get<{ Params: { id: string }; Querystring: { unscanned?: string } }>(
+    '/:id/download-url',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+
+      if (request.query.unscanned !== 'true') {
+        throw createAppError(
+          'Direct storage URLs skip malware scanning. Pass ?unscanned=true to acknowledge, or use /attachments/:id/download.',
+          400,
+          'SCAN_BYPASS_NOT_ACKNOWLEDGED',
+        );
+      }
+
+      const { url, expiresAt, size } = await service.getDownloadUrl(
+        request.params.id,
+        userId,
+        DOWNLOAD_URL_TTL_SECONDS,
+      );
+
+      return reply
+        .header('Cache-Control', 'no-store')
+        .status(200)
+        .send({ success: true, data: { url, expiresAt, size, scanned: false } });
+    },
+  );
 
   fastify.post<{ Params: { id: string } }>('/:id/scan', async (request, reply) => {
     const userId = requireUserId(request);
-    const attachment = await service.getAttachment(request.params.id, userId);
-    if (!attachment || attachment.userId !== userId) {
-      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
-    }
+    const { metadata: attachment, body: buffer } = await service.readAttachment(
+      request.params.id,
+      userId,
+    );
     const safeFilename = sanitizeFilename(attachment.filename);
-    const rawContent = attachment.content ?? Buffer.from('');
-    const contentBuffer = Buffer.isBuffer(rawContent) ? rawContent : Buffer.from(rawContent);
-    const scanResult = await scanner.scanBuffer(contentBuffer, safeFilename);
-    return reply.status(200).send({ success: true, data: scanResult });
+    const scanResult = await scanner.scanBuffer(buffer, safeFilename);
+    return reply.status(200).send({
+      success: true,
+      data: {
+        ...scanResult,
+        id: attachment.id,
+        bytesScanned: buffer.byteLength,
+      },
+    });
   });
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const userId = requireUserId(request);
     const metadata = await service.getAttachment(request.params.id, userId);
-    if (!metadata || metadata.userId !== userId) {
-      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
-    }
-    return reply.send({ success: true, data: metadata });
+    return reply.send({
+      success: true,
+      data: {
+        id: metadata.id,
+        filename: metadata.filename,
+        contentType: metadata.contentType,
+        size: metadata.size,
+        createdAt: metadata.createdAt,
+        status: metadata.status,
+      },
+    });
   });
 
   fastify.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {

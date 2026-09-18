@@ -9,6 +9,9 @@ const SYNC_STEP_2 = 1;
 const SYNC_UPDATE = 2;
 const OPEN = 1;
 
+/** Compact after this many durable deltas, or after the debounce window idles. */
+const DEFAULT_COMPACT_EVERY_UPDATES = 200;
+
 export interface WebSocketLike {
   readyState: number;
   send(data: Uint8Array): void;
@@ -35,6 +38,9 @@ export interface DocRoom {
   readonly awarenessClients: Map<WebSocketLike, Set<string>>;
   loaded: Promise<void>;
   lastActivity: number;
+  /** Serialises durable appends so versions are allocated in submission order. */
+  pendingWrite: Promise<void>;
+  uncompacted: number;
 }
 
 export interface YjsServerOptions {
@@ -43,6 +49,7 @@ export interface YjsServerOptions {
   gc?: boolean;
   persistDebounceMs?: number;
   maxMessageBytes?: number;
+  compactEveryUpdates?: number;
   checkAccess?: (docName: string, request: WebSocketRequestLike) => Promise<boolean> | boolean;
 }
 
@@ -109,15 +116,39 @@ function broadcast(room: DocRoom, message: Uint8Array, except?: WebSocketLike): 
   }
 }
 
-function schedulePersist(room: DocRoom, persistence: PersistenceAdapter, delayMs: number): void {
+function scheduleCompaction(room: DocRoom, persistence: PersistenceAdapter, delayMs: number): void {
   const previous = persistenceTimers.get(room.name);
   if (previous) clearTimeout(previous);
   const timer = setTimeout(() => {
     persistenceTimers.delete(room.name);
-    void persistence.saveDoc(room.name, room.doc).catch(() => {});
+    room.pendingWrite = room.pendingWrite
+      .then(async () => {
+        await persistence.compact(room.name, room.doc);
+        room.uncompacted = 0;
+      })
+      // Compaction is an optimisation, never a durability requirement: the deltas
+      // are already committed, so a failure here must not drop them.
+      .catch(() => {});
   }, delayMs);
   timer.unref();
   persistenceTimers.set(room.name, timer);
+}
+
+function failRoom(room: DocRoom, reason: string): void {
+  for (const socket of room.connections) socket.close(1011, reason);
+  room.connections.clear();
+}
+
+/** Await every queued durable write for a room. Used on shutdown and in tests. */
+export async function flushPendingWrites(docName: string): Promise<void> {
+  const room = rooms.get(docName);
+  if (!room) return;
+  const timer = persistenceTimers.get(docName);
+  if (timer) {
+    clearTimeout(timer);
+    persistenceTimers.delete(docName);
+  }
+  await room.pendingWrite;
 }
 
 async function createRoom(name: string, options: YjsServerOptions): Promise<DocRoom> {
@@ -131,6 +162,8 @@ async function createRoom(name: string, options: YjsServerOptions): Promise<DocR
     awarenessClients: new Map(),
     loaded: Promise.resolve(),
     lastActivity: Date.now(),
+    pendingWrite: Promise.resolve(),
+    uncompacted: 0,
   };
 
   room.loaded = persistence.loadUpdate(name).then((update) => {
@@ -138,13 +171,57 @@ async function createRoom(name: string, options: YjsServerOptions): Promise<DocR
   });
 
   doc.on('update', (update: Uint8Array, origin: unknown) => {
+    // Replaying what we just loaded must never be re-appended as a new delta,
+    // otherwise every room open duplicates the entire document into the log.
+    if (origin === 'prisma-load') return;
     room.lastActivity = Date.now();
-    broadcast(room, frame(MESSAGE_SYNC, SYNC_UPDATE, update), origin as WebSocketLike | undefined);
-    schedulePersist(room, persistence, options.persistDebounceMs ?? 1_000);
+    const payload = update.slice();
+
+    // Durable-before-ack: append first, broadcast second. Costs one DB round trip
+    // of latency and buys the actual Gate G-A guarantee.
+    room.pendingWrite = room.pendingWrite
+      .then(async () => {
+        if (typeof persistence.appendUpdate === 'function') {
+          await persistence.appendUpdate(name, payload);
+        }
+      })
+      .then(() => {
+        room.uncompacted += 1;
+        broadcast(
+          room,
+          frame(MESSAGE_SYNC, SYNC_UPDATE, payload),
+          origin as WebSocketLike | undefined,
+        );
+        const threshold = options.compactEveryUpdates ?? DEFAULT_COMPACT_EVERY_UPDATES;
+        if (room.uncompacted >= threshold) {
+          room.uncompacted = 0;
+          room.pendingWrite = room.pendingWrite
+            .then(() =>
+              typeof persistence.compact === 'function'
+                ? persistence.compact(name, room.doc).then(() => undefined)
+                : undefined,
+            )
+            .catch(() => {});
+        } else {
+          scheduleCompaction(room, persistence, options.persistDebounceMs ?? 1_000);
+        }
+      })
+      .catch(() => {
+        // The edit is NOT durable. Tell the clients instead of pretending it is.
+        failRoom(room, 'Collaboration persistence unavailable');
+      });
   });
 
   rooms.set(name, room);
-  await room.loaded;
+  try {
+    await room.loaded;
+  } catch (error) {
+    // Never leave a room cached with a rejected `loaded` promise: every later
+    // getRoom() would await it and throw forever until the process restarts.
+    rooms.delete(name);
+    doc.destroy();
+    throw error;
+  }
   return room;
 }
 
@@ -218,6 +295,8 @@ export async function setupWSConnection(
         awarenessClients: new Map(),
         loaded: Promise.resolve(),
         lastActivity: Date.now(),
+        pendingWrite: Promise.resolve(),
+        uncompacted: 0,
       };
     }
   }
@@ -243,7 +322,16 @@ export async function setupWSConnection(
       broadcast(room, awarenessFrame({ clientId, removed: true }));
     }
     if (room.connections.size === 0) {
-      void (options.persistence ?? collabPersistence).saveDoc(name, room.doc);
+      const persistence = options.persistence ?? collabPersistence;
+      room.pendingWrite = room.pendingWrite
+        .then(async () => {
+          if (typeof persistence.compact === 'function') {
+            await persistence.compact(name, room.doc);
+          } else if (typeof (persistence as any).saveDoc === 'function') {
+            await (persistence as any).saveDoc(name, room.doc);
+          }
+        })
+        .catch(() => {});
     }
   };
 
@@ -272,10 +360,16 @@ export async function closeYDoc(docName: string, options: YjsServerOptions = {})
     clearTimeout(timer);
     persistenceTimers.delete(docName);
   }
-  await (options.persistence ?? collabPersistence).saveDoc(docName, room.doc);
+  await room.pendingWrite;
+  const persistence = options.persistence ?? collabPersistence;
+  if (typeof persistence.compact === 'function') {
+    await persistence.compact(docName, room.doc);
+  } else if (typeof (persistence as any).saveDoc === 'function') {
+    await (persistence as any).saveDoc(docName, room.doc);
+  }
   for (const socket of room.connections) socket.close(1001, 'Room closed');
   room.doc.destroy();
   rooms.delete(docName);
 }
 
-export const yjsServer = { setupWSConnection, getYDoc, closeYDoc };
+export const yjsServer = { setupWSConnection, getYDoc, closeYDoc, flushPendingWrites };
