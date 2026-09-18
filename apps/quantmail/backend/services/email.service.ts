@@ -3,6 +3,7 @@ import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
+import { suppressionService } from './suppression.service';
 
 export interface PaginationOptions {
   page?: number;
@@ -424,10 +425,29 @@ export class EmailService {
       a.trim().toLowerCase(),
     );
 
-    const externalTo = toList.filter((address) => !internal.includes(address));
-    const externalCc = ccList.filter((address) => !internal.includes(address));
-    const externalBcc = bccList.filter((address) => !internal.includes(address));
-    const external = [...externalTo, ...externalCc, ...externalBcc];
+    let externalTo = toList.filter((address) => !internal.includes(address));
+    let externalCc = ccList.filter((address) => !internal.includes(address));
+    let externalBcc = bccList.filter((address) => !internal.includes(address));
+    let external = [...externalTo, ...externalCc, ...externalBcc];
+
+    // Gate 4: Hard-block outbound delivery if all recipients are suppressed.
+    // Prune suppressed addresses to protect AWS SES reputation (< 5% bounce / 0.1% complaint).
+    if (external.length > 0) {
+      const { allowed, suppressed } = await suppressionService.filterAllowedRecipients(external);
+      if (suppressed.length > 0) {
+        if (allowed.length === 0 && internal.length === 0) {
+          throw createAppError(
+            `Delivery blocked: all recipients are on the suppression list due to previous bounces or complaints (${suppressed.join(', ')})`,
+            422,
+            'RECIPIENT_SUPPRESSED',
+          );
+        }
+        externalTo = externalTo.filter((addr) => allowed.includes(addr));
+        externalCc = externalCc.filter((addr) => allowed.includes(addr));
+        externalBcc = externalBcc.filter((addr) => allowed.includes(addr));
+        external = [...externalTo, ...externalCc, ...externalBcc];
+      }
+    }
 
     let deliveryStatus = 'delivered';
     let deliveryError: string | undefined;

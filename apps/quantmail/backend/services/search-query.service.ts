@@ -351,4 +351,128 @@ export class SearchQueryService {
       hasMore,
     };
   }
+
+  /**
+   * Search drive files by name leveraging the GIN trigram index (drive_files_name_trgm_idx).
+   */
+  async searchFiles(
+    userId: string,
+    query: string,
+    options: { page?: number; pageSize?: number; limit?: number } = {},
+  ): Promise<{
+    data: unknown[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    if (!this.prisma) throw new Error('SearchQueryService requires a PrismaClient');
+    const q = query.trim();
+    const where: Record<string, unknown> = {
+      userId,
+      isDeleted: false,
+      ...(q.length > 0 ? { name: { contains: q, mode: 'insensitive' } } : {}),
+    };
+    const page = options.page ?? 1;
+    const pageSize = options.limit ?? options.pageSize ?? 25;
+    const [data, total] = await Promise.all([
+      (this.prisma as any).file.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      (this.prisma as any).file.count({ where }),
+    ]);
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * Search documents by title and content leveraging the GIN full-text index (documents_fts_idx).
+   */
+  async searchDocuments(
+    userId: string,
+    query: string,
+    options: { page?: number; pageSize?: number; limit?: number } = {},
+  ): Promise<{
+    data: unknown[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  }> {
+    if (!this.prisma) throw new Error('SearchQueryService requires a PrismaClient');
+    const q = query.trim();
+    const where: Record<string, unknown> = {
+      userId,
+      isDeleted: false,
+      ...(q.length > 0
+        ? {
+            OR: [
+              { title: { contains: q, mode: 'insensitive' } },
+              { content: { contains: q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const page = options.page ?? 1;
+    const pageSize = options.limit ?? options.pageSize ?? 25;
+    const [data, total] = await Promise.all([
+      (this.prisma as any).document.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          title: true,
+          userId: true,
+          createdAt: true,
+          updatedAt: true,
+          snapshotStorageKey: true,
+        },
+      }),
+      (this.prisma as any).document.count({ where }),
+    ]);
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  /**
+   * Unified cross-app search across emails, drive files, and collaborative documents.
+   */
+  async searchAll(
+    userId: string,
+    query: string,
+    options: { limit?: number } = {},
+  ): Promise<{
+    emails: unknown[];
+    files: unknown[];
+    documents: unknown[];
+    query: string;
+  }> {
+    const limit = options.limit ?? 10;
+    const [emailRes, fileRes, docRes] = await Promise.all([
+      this.search(userId, query, { limit }),
+      this.searchFiles(userId, query, { limit }),
+      this.searchDocuments(userId, query, { limit }),
+    ]);
+    return {
+      query,
+      emails: emailRes.data,
+      files: fileRes.data,
+      documents: docRes.data,
+    };
+  }
 }

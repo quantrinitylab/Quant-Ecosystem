@@ -1,5 +1,6 @@
 import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
+import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 import * as Y from 'yjs';
 
 const YJS_STATE_PREFIX = 'yjs:v1:';
@@ -40,6 +41,53 @@ export interface CompactionResult {
   prunedUpdates: number;
 }
 
+export interface CollabStorageClient {
+  upload(
+    key: string,
+    body: Buffer | any,
+    contentType: string,
+  ): Promise<{ key: string; etag: string }>;
+  download(key: string): Promise<{ body: any; contentType?: string; contentLength?: number }>;
+  getObjectSize?(key: string): Promise<number | null>;
+  headObject?(key: string): Promise<{ contentLength: number }>;
+}
+
+export function extractPlainText(update: Uint8Array): string {
+  const doc = new Y.Doc();
+  try {
+    Y.applyUpdate(doc, update);
+    const text = doc.getText('content');
+    const textStr = text ? text.toString() : '';
+    if (textStr.trim().length > 0) return textStr;
+
+    const parts: string[] = [];
+    for (const [, val] of doc.share.entries()) {
+      if (val instanceof Y.Text) {
+        const s = val.toString();
+        if (s.trim()) parts.push(s);
+      }
+    }
+    return parts.join('\n');
+  } catch {
+    return '';
+  } finally {
+    doc.destroy();
+  }
+}
+
+async function streamToBuffer(stream: any): Promise<Buffer> {
+  if (Buffer.isBuffer(stream)) return stream;
+  if (stream instanceof Uint8Array) return Buffer.from(stream);
+  if (stream && (typeof stream.read === 'function' || Symbol.asyncIterator in Object(stream))) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
+  return Buffer.alloc(0);
+}
+
 function encodeUpdate(update: Uint8Array): string {
   return `${YJS_STATE_PREFIX}${Buffer.from(update).toString('base64')}`;
 }
@@ -77,7 +125,24 @@ function legacyTextToUpdate(content: string): Uint8Array {
 
 /** Prisma-backed Yjs persistence: append-only delta log + snapshot compaction. */
 export class PersistenceAdapter {
-  constructor(private readonly db: CollabPrismaClient = defaultPrisma) {}
+  private readonly storage?: CollabStorageClient;
+
+  constructor(
+    private readonly db: CollabPrismaClient = defaultPrisma,
+    options?: { storage?: CollabStorageClient } | CollabStorageClient,
+  ) {
+    if (options && typeof (options as CollabStorageClient).download === 'function') {
+      this.storage = options as CollabStorageClient;
+    } else if (options && typeof options === 'object' && 'storage' in options) {
+      this.storage = options.storage;
+    } else if (process.env.NODE_ENV !== 'test') {
+      try {
+        this.storage = new StorageClient(resolveStorageConfigFromEnv());
+      } catch {
+        this.storage = undefined;
+      }
+    }
+  }
 
   /**
    * No optional chaining on the delegate. A missing Prisma model must fail loudly,
@@ -133,7 +198,7 @@ export class PersistenceAdapter {
   }
 
   /**
-   * Full durable state = snapshot (or legacy plaintext) + every un-compacted delta.
+   * Full durable state = snapshot (from R2/S3 or inline) + every un-compacted delta.
    *
    * G-A-BUG-1 fix: the legacy-plaintext branch used to exist only in loadDoc(), so
    * yjs-server opened pre-existing docs empty and the next compaction overwrote the
@@ -142,7 +207,7 @@ export class PersistenceAdapter {
   async loadUpdate(docId: string): Promise<Uint8Array | null> {
     const row = await this.db.document.findUnique({
       where: { id: docId },
-      select: { content: true, isDeleted: true },
+      select: { content: true, isDeleted: true, snapshotStorageKey: true },
     });
     if (!row || row.isDeleted) {
       throw createAppError('Collaborative document not found', 404, 'DOCUMENT_NOT_FOUND');
@@ -150,13 +215,36 @@ export class PersistenceAdapter {
 
     const parts: Uint8Array[] = [];
     let legacyUpgrade = false;
+    let loadedFromStorage = false;
 
-    const snapshot = decodeUpdate(row.content);
-    if (snapshot) {
-      parts.push(snapshot);
-    } else if (typeof row.content === 'string' && row.content.length > 0) {
-      parts.push(legacyTextToUpdate(row.content));
-      legacyUpgrade = true;
+    if (row.snapshotStorageKey && this.storage) {
+      try {
+        const downloaded = await this.storage.download(row.snapshotStorageKey);
+        const buf = await streamToBuffer(downloaded.body);
+        if (buf.byteLength > 0) {
+          parts.push(new Uint8Array(buf));
+          loadedFromStorage = true;
+        }
+      } catch (storageErr) {
+        console.warn(
+          `[CollabPersistence] Failed to download snapshot ${row.snapshotStorageKey} for doc ${docId}, falling back to replay`,
+          storageErr,
+        );
+      }
+    }
+
+    if (!loadedFromStorage) {
+      const snapshot = decodeUpdate(row.content);
+      if (snapshot) {
+        parts.push(snapshot);
+      } else if (
+        typeof row.content === 'string' &&
+        row.content.length > 0 &&
+        !row.snapshotStorageKey
+      ) {
+        parts.push(legacyTextToUpdate(row.content));
+        legacyUpgrade = true;
+      }
     }
 
     const deltas = await this.updates().findMany({
@@ -188,15 +276,56 @@ export class PersistenceAdapter {
     await this.writeSnapshot(docId, toUpdate(source));
   }
 
-  private async writeSnapshot(docId: string, update: Uint8Array): Promise<void> {
+  private async writeSnapshot(
+    docId: string,
+    update: Uint8Array,
+  ): Promise<{ snapshotStorageKey?: string }> {
     try {
+      if (this.storage) {
+        const snapshotKey = `documents/${docId}/snapshots/${Date.now()}.yjs`;
+        const buf = Buffer.from(update);
+        await this.storage.upload(snapshotKey, buf, 'application/octet-stream');
+
+        let verified = false;
+        if (typeof this.storage.getObjectSize === 'function') {
+          const size = await this.storage.getObjectSize(snapshotKey);
+          verified = typeof size === 'number' && size > 0;
+        } else if (typeof this.storage.headObject === 'function') {
+          const head = await this.storage.headObject(snapshotKey);
+          verified = Boolean(head && head.contentLength > 0);
+        } else {
+          verified = true;
+        }
+
+        if (verified) {
+          const plainText = extractPlainText(update);
+          await this.db.document.update({
+            where: { id: docId },
+            data: {
+              content: plainText,
+              snapshotStorageKey: snapshotKey,
+            },
+            select: { id: true },
+          });
+          return { snapshotStorageKey: snapshotKey };
+        } else {
+          throw new Error(`Failed to verify snapshot landing in storage: ${snapshotKey}`);
+        }
+      }
+
       await this.db.document.update({
         where: { id: docId },
         data: { content: encodeUpdate(update) },
         select: { id: true },
       });
-    } catch {
-      throw createAppError('Collaborative document not found', 404, 'DOCUMENT_NOT_FOUND');
+      return {};
+    } catch (err: any) {
+      if (err?.code === 'DOCUMENT_NOT_FOUND' || err?.statusCode === 404) throw err;
+      throw createAppError(
+        err?.message || 'Collaborative document snapshot could not be persisted',
+        500,
+        'INTERNAL_ERROR',
+      );
     }
   }
 
@@ -221,9 +350,19 @@ export class PersistenceAdapter {
     for (const delta of deltas) parts.push(toBytes(delta.updateBinary));
     const merged = parts.length === 1 ? parts[0]! : Y.mergeUpdates(parts);
 
-    await this.writeSnapshot(docId, merged);
+    let writeSuccess = false;
+    try {
+      await this.writeSnapshot(docId, merged);
+      writeSuccess = true;
+    } catch (err) {
+      console.warn(
+        `[CollabPersistence] Failed to write snapshot for doc ${docId}, refusing delta pruning`,
+        err,
+      );
+      return { snapshotBytes: merged.byteLength, prunedUpdates: 0 };
+    }
 
-    if (deltas.length > 0) {
+    if (writeSuccess && deltas.length > 0) {
       await delegate.deleteMany({
         where: { id: { in: deltas.map((delta: { id: string }) => delta.id) } },
       });

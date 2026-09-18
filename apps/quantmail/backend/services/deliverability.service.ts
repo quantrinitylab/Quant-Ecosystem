@@ -1,4 +1,5 @@
 import { createAppError } from '@quant/server-core';
+import { suppressionService } from './suppression.service';
 
 export interface DmarcRecord {
   sourceIp: string;
@@ -50,11 +51,10 @@ export interface SuppressionEntry {
 
 // In-memory persistent stores
 const memoryDmarcReports: DmarcReport[] = [];
-const memorySuppressionStore = new Map<string, SuppressionEntry>();
 
 export function resetDeliverabilityStores(): void {
   memoryDmarcReports.length = 0;
-  memorySuppressionStore.clear();
+  suppressionService.resetStore();
 }
 
 /**
@@ -188,7 +188,7 @@ export class DeliverabilityService {
 
     const bounceRate = 0.08;
     const complaintRate = 0.01;
-    const suppressionCount = memorySuppressionStore.size;
+    const suppressionCount = await suppressionService.count();
 
     // Reputation score 0-100: weighted average of auth alignment minus bounce/complaint penalties
     let score = Math.round(
@@ -225,17 +225,20 @@ export class DeliverabilityService {
   // --------------------------------------------------------------------------
   async isSuppressed(email: string): Promise<boolean> {
     if (!email) return false;
-    return memorySuppressionStore.has(email.trim().toLowerCase());
+    return suppressionService.isSuppressed(email);
   }
 
   async getSuppressionList(options?: {
     reason?: 'HARD_BOUNCE' | 'COMPLAINT' | 'UNSUBSCRIBE';
   }): Promise<SuppressionEntry[]> {
-    const all = Array.from(memorySuppressionStore.values());
-    if (options?.reason) {
-      return all.filter((e) => e.reason === options.reason);
-    }
-    return all;
+    const mappedReason = options?.reason === 'HARD_BOUNCE' ? 'BOUNCE' : options?.reason;
+    const rows = await suppressionService.list(mappedReason ? { reason: mappedReason } : undefined);
+    return rows.map((r) => ({
+      email: r.email,
+      reason: (r.reason === 'BOUNCE' ? 'HARD_BOUNCE' : r.reason) as any,
+      source: r.source,
+      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
+    }));
   }
 
   async addSuppression(
@@ -243,24 +246,20 @@ export class DeliverabilityService {
     reason: 'HARD_BOUNCE' | 'COMPLAINT' | 'UNSUBSCRIBE',
     source = 'inbound-webhook',
   ): Promise<SuppressionEntry> {
-    const normalized = email.trim().toLowerCase();
-    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      throw createAppError('Invalid email address for suppression', 400, 'INVALID_EMAIL');
-    }
-
-    const entry: SuppressionEntry = {
-      email: normalized,
+    const mappedReason = reason === 'HARD_BOUNCE' ? 'BOUNCE' : reason;
+    const mappedSource = source.includes('sns') ? 'SNS' : 'ADMIN';
+    const row = await suppressionService.suppress(email, mappedReason, mappedSource);
+    return {
+      email: row.email,
       reason,
-      source,
-      createdAt: new Date().toISOString(),
+      source: row.source,
+      createdAt:
+        row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
     };
-
-    memorySuppressionStore.set(normalized, entry);
-    return entry;
   }
 
   async removeSuppression(email: string): Promise<boolean> {
-    const normalized = email.trim().toLowerCase();
-    return memorySuppressionStore.delete(normalized);
+    await suppressionService.unsuppress(email);
+    return true;
   }
 }

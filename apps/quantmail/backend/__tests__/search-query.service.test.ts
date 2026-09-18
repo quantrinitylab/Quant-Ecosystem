@@ -129,6 +129,14 @@ describe('SearchQueryService.search', () => {
         findMany: vi.fn(),
         count: vi.fn(),
       },
+      file: {
+        findMany: vi.fn(),
+        count: vi.fn(),
+      },
+      document: {
+        findMany: vi.fn(),
+        count: vi.fn(),
+      },
     };
   }
 
@@ -201,5 +209,59 @@ describe('SearchQueryService.search', () => {
   it('throws when no PrismaClient is configured', async () => {
     const bare = new SearchQueryService();
     await expect(bare.search('user-1', 'x')).rejects.toThrow('requires a PrismaClient');
+  });
+
+  it('searches drive files by name and paginates', async () => {
+    prisma.file.findMany.mockResolvedValue([{ id: 'f1', name: 'financial_report_2026.pdf' }]);
+    prisma.file.count.mockResolvedValue(1);
+
+    const res = await service.searchFiles('user-1', 'report', { limit: 10 });
+    expect(res.data).toEqual([{ id: 'f1', name: 'financial_report_2026.pdf' }]);
+    expect(res.total).toBe(1);
+    expect(prisma.file.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          isDeleted: false,
+          name: { contains: 'report', mode: 'insensitive' },
+        },
+      }),
+    );
+  });
+
+  it('searches collaborative documents by title and content and paginates', async () => {
+    prisma.document.findMany.mockResolvedValue([{ id: 'd1', title: 'Architecture RFC' }]);
+    prisma.document.count.mockResolvedValue(1);
+
+    const res = await service.searchDocuments('user-1', 'RFC', { limit: 10 });
+    expect(res.data).toEqual([{ id: 'd1', title: 'Architecture RFC' }]);
+    expect(res.total).toBe(1);
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId: 'user-1',
+          isDeleted: false,
+          OR: [
+            { title: { contains: 'RFC', mode: 'insensitive' } },
+            { content: { contains: 'RFC', mode: 'insensitive' } },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('searchAll aggregates emails, drive files, and documents in parallel', async () => {
+    prisma.email.findMany.mockResolvedValue([{ id: 'e1' }]);
+    prisma.email.count.mockResolvedValue(1);
+    prisma.file.findMany.mockResolvedValue([{ id: 'f1' }]);
+    prisma.file.count.mockResolvedValue(1);
+    prisma.document.findMany.mockResolvedValue([{ id: 'd1' }]);
+    prisma.document.count.mockResolvedValue(1);
+
+    const res = await service.searchAll('user-1', 'test', { limit: 5 });
+    expect(res.query).toBe('test');
+    expect(res.emails).toHaveLength(1);
+    expect(res.files).toHaveLength(1);
+    expect(res.documents).toHaveLength(1);
   });
 });

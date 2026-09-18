@@ -3833,10 +3833,11 @@ model Document {
   content   String   @default("")
   userId    String
   metadata  Json     @default("{}")
-  isPublic  Boolean  @default(false)
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isPublic           Boolean  @default(false)
+  isDeleted          Boolean  @default(false)
+  snapshotStorageKey String?  @map("snapshot_storage_key")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   versions      DocumentVersion[]
   comments      DocComment[]
@@ -4153,7 +4154,7 @@ model CollabDocumentUpdate {
 
 // ==================== MAIL ATTACHMENTS (GATE 2) ====================
 /// Mail attachment metadata. Bytes live in object storage (R2/S3) under storageKey.
-/// Status lifecycle: PENDING -> UPLOADED, or PENDING -> REJECTED_TOO_LARGE.
+/// Status lifecycle: PENDING -> READY, or PENDING -> REJECTED.
 model MailAttachment {
   id           String    @id
   userId       String    @map("user_id")
@@ -4170,5 +4171,20 @@ model MailAttachment {
   @@index([userId, createdAt])
   @@index([emailId])
   @@map("mail_attachments")
+}
+
+// ==================== EMAIL SUPPRESSIONS (GATE 4) ====================
+/// Recipient suppression list for bounce/complaint protection against AWS SES thresholds.
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  reason    String   // BOUNCE | COMPLAINT | MANUAL | UNSUBSCRIBE
+  source    String   // SNS | USER | ADMIN
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@map("email_suppressions")
 }
 

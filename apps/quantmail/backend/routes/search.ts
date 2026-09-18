@@ -41,6 +41,76 @@ export default async function searchRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: result });
   });
 
+  // GET /search/drive?q=...&page=&pageSize=&limit=
+  // Executes GIN trigram search over user's drive files
+  fastify.get('/drive', async (request, reply) => {
+    const parseResult = searchSchema.safeParse(request.query);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new SearchQueryService(prisma as never);
+    const result = await service.searchFiles(userId, parseResult.data.q, {
+      page: parseResult.data.page,
+      pageSize: parseResult.data.pageSize,
+      limit: parseResult.data.limit,
+    });
+
+    return reply.send({ success: true, data: result });
+  });
+
+  // GET /search/documents?q=...&page=&pageSize=&limit=
+  // Executes GIN full-text search over user's collaborative documents
+  fastify.get('/documents', async (request, reply) => {
+    const parseResult = searchSchema.safeParse(request.query);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new SearchQueryService(prisma as never);
+    const result = await service.searchDocuments(userId, parseResult.data.q, {
+      page: parseResult.data.page,
+      pageSize: parseResult.data.pageSize,
+      limit: parseResult.data.limit,
+    });
+
+    return reply.send({ success: true, data: result });
+  });
+
+  // GET /search/all?q=...&limit=
+  // Executes omni cross-app search across emails, drive files, and documents
+  fastify.get('/all', async (request, reply) => {
+    const parseResult = searchSchema.safeParse(request.query);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new SearchQueryService(prisma as never);
+    const result = await service.searchAll(userId, parseResult.data.q, {
+      limit: parseResult.data.limit,
+    });
+
+    return reply.send({ success: true, data: result });
+  });
+
   // GET /search/parse?q=...
   // Returns the structured interpretation of a query (for query builders / UI
   // chips) without hitting the database.
