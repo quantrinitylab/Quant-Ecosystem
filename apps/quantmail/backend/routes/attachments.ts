@@ -153,10 +153,6 @@ export default async function attachmentRoutes(
 
   fastify.get<{ Params: { id: string } }>('/:id/download', async (request, reply) => {
     const userId = requireUserId(request);
-    const peek = await (service as any).peekAttachment?.(request.params.id);
-    if (peek && peek.userId !== userId) {
-      throw createAppError('Not authorized to access this attachment', 403, 'FORBIDDEN');
-    }
     // Real bytes, streamed out of R2/S3 and buffered so the scanner can see
     // the whole object before a single byte reaches the client.
     const { metadata: attachment, body: buffer } = await service.readAttachment(

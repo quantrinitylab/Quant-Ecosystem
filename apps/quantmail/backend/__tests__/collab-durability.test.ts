@@ -201,6 +201,8 @@ describe('Gate G-A: collaborative document durability', () => {
     await server.flushPendingWrites('doc_1');
 
     expect(socket.closes.some((entry: any) => entry.code === 1011)).toBe(true);
+    // Room must be evicted from cache so failed unpersisted state is not served or compacted
+    expect(server.getLiveDoc('doc_1')).toBeUndefined();
   });
 
   it('does not cache a poisoned room when the document is missing', async () => {

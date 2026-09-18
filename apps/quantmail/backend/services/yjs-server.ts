@@ -135,8 +135,27 @@ function scheduleCompaction(room: DocRoom, persistence: PersistenceAdapter, dela
 }
 
 function failRoom(room: DocRoom, reason: string): void {
-  for (const socket of room.connections) socket.close(1011, reason);
+  // Evict immediately so no subsequent getRoom() gets this failed/corrupt room
+  rooms.delete(room.name);
+
+  const timer = persistenceTimers.get(room.name);
+  if (timer) {
+    clearTimeout(timer);
+    persistenceTimers.delete(room.name);
+  }
+
+  for (const socket of room.connections) {
+    try {
+      socket.close(1011, reason);
+    } catch {}
+  }
   room.connections.clear();
+
+  room.pendingWrite.finally(() => {
+    try {
+      room.doc.destroy();
+    } catch {}
+  });
 }
 
 /** Await every queued durable write for a room. Used on shutdown and in tests. */

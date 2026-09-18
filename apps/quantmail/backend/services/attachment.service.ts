@@ -106,38 +106,6 @@ async function readToBuffer(stream: Readable, maxBytes: number): Promise<Buffer>
   return Buffer.concat(chunks);
 }
 
-function createMemoryAttachmentDb(): AttachmentPrismaClient {
-  const rows = new Map<string, any>();
-  return {
-    mailAttachment: {
-      create: async ({ data }: { data: any }) => {
-        const record = {
-          ...data,
-          content: Buffer.from(`Attachment content for ${data.filename}`),
-          createdAt: new Date(),
-        };
-        rows.set(data.id, record);
-        return record;
-      },
-      findUnique: async ({ where }: { where: { id: string } }) => {
-        return rows.get(where.id) ?? null;
-      },
-      update: async ({ where, data }: { where: { id: string }; data: any }) => {
-        const existing = rows.get(where.id);
-        if (!existing) throw new Error('P2025: Record not found');
-        const next = { ...existing, ...data };
-        rows.set(where.id, next);
-        return next;
-      },
-      delete: async ({ where }: { where: { id: string } }) => {
-        const existing = rows.get(where.id);
-        rows.delete(where.id);
-        return existing;
-      },
-    },
-  };
-}
-
 export class AttachmentService {
   private readonly storage: StorageClient;
   private readonly db: AttachmentPrismaClient;
@@ -145,13 +113,7 @@ export class AttachmentService {
 
   constructor(options: AttachmentServiceOptions = {}) {
     this.storage = options.storage ?? new StorageClient(resolveStorageConfigFromEnv());
-    if (options.db) {
-      this.db = options.db;
-    } else if (process.env.DATABASE_URL) {
-      this.db = defaultPrisma as unknown as AttachmentPrismaClient;
-    } else {
-      this.db = createMemoryAttachmentDb();
-    }
+    this.db = options.db ?? (defaultPrisma as unknown as AttachmentPrismaClient);
     this.maxBytes = options.maxBytes ?? MAX_ATTACHMENT_SIZE;
   }
 
@@ -313,25 +275,6 @@ export class AttachmentService {
     };
   }
 
-  /** Test/internal seam to mark an attachment ready with content in offline suites */
-  async markReady(attachmentId: string, content?: Buffer): Promise<void> {
-    await this.rows().update({
-      where: { id: attachmentId },
-      data: {
-        status: 'READY',
-        storedSize: content?.byteLength ?? 1024,
-        uploadedAt: new Date(),
-        ...(content ? { content } : {}),
-      },
-    });
-  }
-
-  /** Route helper to check row ownership without leaking across tenants */
-  async peekAttachment(attachmentId: string): Promise<any> {
-    if (!attachmentId) return null;
-    return await this.rows().findUnique({ where: { id: attachmentId } });
-  }
-
   /** Read the real bytes out of object storage for scanning and inline delivery. */
   async readAttachment(
     attachmentId: string,
@@ -339,24 +282,9 @@ export class AttachmentService {
   ): Promise<{ metadata: AttachmentMetadata; body: Buffer }> {
     const row = await this.requireOwnedRow(attachmentId, userId);
     this.assertUploaded(row);
-    try {
-      const object = await this.storage.download(row.storageKey);
-      const body = await readToBuffer(object.body, this.maxBytes);
-      return { metadata: toMetadata(row), body };
-    } catch (err: any) {
-      if (
-        process.env.NODE_ENV !== 'production' &&
-        (row as any).content &&
-        (err?.name === 'NotFound' ||
-          err?.code === 'ECONNREFUSED' ||
-          err?.code === 'ENOTFOUND' ||
-          err?.message?.includes('ENOTFOUND') ||
-          err?.message?.includes('connect'))
-      ) {
-        return { metadata: toMetadata(row), body: (row as any).content };
-      }
-      throw err;
-    }
+    const object = await this.storage.download(row.storageKey);
+    const body = await readToBuffer(object.body, this.maxBytes);
+    return { metadata: toMetadata(row), body };
   }
 
   async deleteAttachment(attachmentId: string, userId: string): Promise<{ deleted: boolean }> {

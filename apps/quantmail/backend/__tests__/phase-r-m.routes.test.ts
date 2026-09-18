@@ -12,6 +12,7 @@ import emailsRoutes from '../routes/emails';
 import threadsRoutes from '../routes/threads';
 import attachmentRoutes from '../routes/attachments';
 import { AttachmentService } from '../services/attachment.service';
+import { FakeStorage, makeDb } from './attachment.service.test';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import * as sesSender from '../lib/ses-sender';
 
@@ -1057,9 +1058,17 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
 
   describe('Phase M24 & M25: QuantMail Attachment Size Limits, Strict MIME & CSP Sandboxing', () => {
     let service: AttachmentService;
+    let storage: FakeStorage;
+    let db: ReturnType<typeof makeDb>;
 
     beforeEach(() => {
-      service = new AttachmentService();
+      storage = new FakeStorage();
+      db = makeDb();
+      service = new AttachmentService({
+        storage: storage as never,
+        db: db as never,
+        bucket: 'quantmail-attachments',
+      });
     });
 
     async function buildAttachmentApp(
@@ -1101,7 +1110,8 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         'application/pdf',
         1024,
       );
-      await service.markReady(upload.attachmentId, Buffer.from('document content'));
+      storage.put(upload.storageKey, Buffer.from('document content'), 'application/pdf');
+      await service.finalizeUpload(upload.attachmentId, 'user-1');
 
       const res = await app.inject({
         method: 'GET',
@@ -1119,7 +1129,8 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
     it('M25: GET /attachments/:id/download enforces Content-Type application/octet-stream and CSP sandbox for SVG files', async () => {
       const app = await buildAttachmentApp('user-1');
       const upload = await service.generateUploadUrl('user-1', 'logo.svg', 'image/svg+xml', 1024);
-      await service.markReady(upload.attachmentId, Buffer.from('<svg></svg>'));
+      storage.put(upload.storageKey, Buffer.from('<svg></svg>'), 'image/svg+xml');
+      await service.finalizeUpload(upload.attachmentId, 'user-1');
 
       const res = await app.inject({
         method: 'GET',
@@ -1135,7 +1146,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       await app.close();
     });
 
-    it('M25: GET /attachments/:id/download validates attachment ownership and rejects unauthorized user with 403', async () => {
+    it('M25: GET /attachments/:id/download validates attachment ownership and rejects unauthorized user with 404', async () => {
       const app = await buildAttachmentApp('user-attacker');
       const upload = await service.generateUploadUrl(
         'user-owner',
@@ -1143,14 +1154,16 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
         'application/pdf',
         1024,
       );
+      storage.put(upload.storageKey, Buffer.from('confidential bytes'), 'application/pdf');
+      await service.finalizeUpload(upload.attachmentId, 'user-owner');
 
       const res = await app.inject({
         method: 'GET',
         url: `/attachments/${upload.attachmentId}/download`,
       });
 
-      expect(res.statusCode).toBe(403);
-      expect(res.json().error.code).toBe('FORBIDDEN');
+      expect(res.statusCode).toBe(404);
+      expect(res.json().error.code).toBe('ATTACHMENT_NOT_FOUND');
       await app.close();
     });
   });

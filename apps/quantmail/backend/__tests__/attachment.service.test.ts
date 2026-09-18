@@ -5,12 +5,16 @@ import { AttachmentService } from '../services/attachment.service';
 // ---------------------------------------------------------------------------
 // Fake StorageClient — structurally compatible with packages/storage.
 // No mock BUFFERS of file content: bytes put in are the bytes read back.
-// ---------------------------------------------------------------------------
-class FakeStorage {
+export class FakeStorage {
+  bucket: string;
   objects = new Map<string, { body: Buffer; contentType: string }>();
   signedPuts: Array<{ key: string; contentLength: number; expiresIn: number }> = [];
   signedGets: Array<{ key: string; expiresIn: number }> = [];
   deleted: string[] = [];
+
+  constructor(bucket = 'quantmail-attachments') {
+    this.bucket = bucket;
+  }
 
   async getSignedUploadUrl(args: {
     key: string;
@@ -25,7 +29,7 @@ class FakeStorage {
     });
     return {
       url:
-        `https://acct.r2.cloudflarestorage.com/bucket/${args.key}` +
+        `https://acct.r2.cloudflarestorage.com/${this.bucket}/${args.key}` +
         `?X-Amz-Algorithm=AWS4-HMAC-SHA256` +
         `&X-Amz-Expires=${args.expiresIn ?? 900}` +
         `&X-Amz-SignedHeaders=content-length%3Bcontent-type%3Bhost` +
@@ -44,7 +48,7 @@ class FakeStorage {
   async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
     this.signedGets.push({ key, expiresIn });
     return (
-      `https://acct.r2.cloudflarestorage.com/bucket/${key}` +
+      `https://acct.r2.cloudflarestorage.com/${this.bucket}/${key}` +
       `?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=${expiresIn}` +
       `&X-Amz-Signature=cafebabe`
     );
@@ -101,7 +105,7 @@ class FakeStorage {
 // ---------------------------------------------------------------------------
 type Row = Record<string, unknown>;
 
-function makeDb() {
+export function makeDb() {
   const rows = new Map<string, Row>();
   return {
     rows,

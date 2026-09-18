@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EmailService } from '../services/email.service';
 import { FolderService } from '../services/folder.service';
 import { AttachmentService } from '../services/attachment.service';
+import { FakeStorage, makeDb } from './attachment.service.test';
 
 function createMockPrisma() {
   return {
@@ -46,7 +47,10 @@ describe('Integration: Email Flows', () => {
     prisma = createMockPrisma();
     emailService = new EmailService(prisma as never);
     folderService = new FolderService(prisma as never);
-    attachmentService = new AttachmentService();
+    attachmentService = new AttachmentService({
+      storage: new FakeStorage() as never,
+      db: makeDb() as never,
+    });
   });
 
   describe('New User Onboarding Flow', () => {
