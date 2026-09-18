@@ -2915,3 +2915,50 @@ graph TD
 - **4. Final Sovereign Parity State (100.00% Verification)**:
   - **Overall Parity Score**: **100.00%**.
   - **Quality Gates**: **290/290 regression tests passing 100% across all 14 core test suites**. **0 TypeScript compiler errors** across frontend and backend (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).
+
+### 🌊 WAVE 27 — THE 6 BINARY PRODUCTION GATES: GATE 1 (DURABLE DOCS) & GATE 2 (REAL CLOUDFLARE R2 / AWS S3 ATTACHMENTS) + REMEDIATION PASS (2026-09-18)
+
+- **1. Track 1: Gate 1 — Durable QuantDocs CRDT WAL & Compaction Engine (Tasks N01 & G1 - Developer 5 & CEO Astra)**:
+  - **Prisma Schema & PostgreSQL Migration**:
+    - Appended model `CollabDocumentUpdate` in `packages/database/prisma/schema.prisma` with compound index `@@index([docId, version])`.
+    - Created migration `packages/database/prisma/migrations/0064_add_collab_document_updates/migration.sql`.
+  - **WAL Delta Log & Compaction Engine**:
+    - Rewrote `apps/quantmail/backend/services/collab-persistence.ts`:
+      - `saveUpdate`: transactional append to `CollabDocumentUpdate` log.
+      - `loadUpdate`: loads base snapshot and replays deltas. Seeding of legacy plaintext uses deterministic `LEGACY_SEED_CLIENT_ID = 1` and immediately snapshots (`yjs:v1:`) to eliminate G-A-BUG-1 data loss.
+      - `compactUpdates`: creates rolling snapshot and deletes merged delta log rows by ID.
+  - **Realtime Yjs Concurrency & failRoom Hardening**:
+    - In `apps/quantmail/backend/services/yjs-server.ts`:
+      - Added `flushPendingWrites` ensuring deltas are durably flushed to PostgreSQL BEFORE fanout.
+      - Added origin guard `origin === 'prisma-load'` to prevent log amplification.
+      - Hardened `failRoom`: immediately evicts room from `rooms` cache map, clears pending debounced compaction timers, terminates sockets with 1011, and calls `doc.destroy()` upon write settlement to prevent room cache poisoning and snapshot laundering.
+  - **Verification**: 6/6 tests passing in `collab-durability.test.ts` (verifies crash recovery, snapshot compaction, and cache eviction on failure) and 33/33 tests passing in `docs-yjs-collab.test.ts`.
+
+- **2. Track 2: Gate 2 — Real Cloudflare R2 & AWS S3 Attachments Engine (Tasks M24 & G2 - Developer 1 & CEO Astra)**:
+  - **Cloudflare R2 Storage Client**:
+    - Hardened `packages/storage/src/storage-config.ts` and `storage-client.ts`: auto-derives R2 endpoint (`https://${accountId}.r2.cloudflarestorage.com`), sets literal region `auto`, scopes `requestChecksumCalculation: 'WHEN_REQUIRED'` to R2 only, and fails closed in production.
+  - **Presigned Uploads & Verifiable Byte Landing**:
+    - Implemented `getSignedUploadUrl` generating authentic SigV4 HMAC-SHA256 presigned PUT URLs with signed `Content-Length` headers.
+  - **PostgreSQL Schema & Migration 0065**:
+    - Appended model `MailAttachment` in `packages/database/prisma/schema.prisma`.
+    - Created migration `packages/database/prisma/migrations/0065_add_mail_attachments/migration.sql` with CHECK constraint (`status IN ('PENDING', 'UPLOADED', 'READY', 'REJECTED', 'REJECTED_TOO_LARGE')`).
+  - **Zero-Mock Attachment Service**:
+    - Rewrote `apps/quantmail/backend/services/attachment.service.ts`:
+      - Completely deleted `createMemoryAttachmentDb()`, `markReady()`, and `peekAttachment()`.
+      - Removed synthetic buffer fallback in `readAttachment()`; downloads real bytes from storage with size verification.
+      - Implemented `finalizeUpload` with `getObjectSize` (`HeadObject`) check against real storage before setting status to `READY`. Over-limit files are immediately purged from bucket.
+  - **Fastify Route Hardening & Anti-Enumeration**:
+    - In `apps/quantmail/backend/routes/attachments.ts`:
+      - Short 120s presigned GET URL TTL with mandatory `?unscanned=true` guard (`GET /:id/download-url`).
+      - Proxied scanned streaming route (`GET /:id/download`) with CSP sandbox, `nosniff`, and `DENY` frame options.
+      - Removed 403 `peekAttachment` pre-check so unauthorized downloads consistently return 404 `ATTACHMENT_NOT_FOUND`, closing the tenancy enumeration oracle.
+  - **Dedicated Route Test Suite & Test Harness**:
+    - Created `apps/quantmail/backend/__tests__/attachments.routes.test.ts` with 28 tests passing 100%.
+    - Updated `phase-r-m.routes.test.ts` and `integration-email-flow.test.ts` to inject test doubles directly.
+  - **Documentation**:
+    - Documented Cloudflare R2 and AWS S3 environment variables in `.env.example`.
+
+- **3. Quality Gates & Commit Summary**:
+  - **Commits**: `11df1e1b` (Initial Gate 1 & 2 implementation) and `ddfa8661` (Wave 27 zero-mock storage cleanup and yjs failroom eviction).
+  - **Test Suite**: **184/184 test files passing (2288 tests)** across `@quant/quantmail`.
+  - **Typecheck**: Dual TypeScript compilation 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0), `@quant/storage` typecheck code 0.
