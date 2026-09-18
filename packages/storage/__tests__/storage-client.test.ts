@@ -28,6 +28,18 @@ vi.mock('@aws-sdk/client-s3', () => ({
   HeadObjectCommand: vi.fn().mockImplementation(function (params) {
     return params;
   }),
+  CreateMultipartUploadCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  UploadPartCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  CompleteMultipartUploadCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
+  AbortMultipartUploadCommand: vi.fn().mockImplementation(function (params) {
+    return params;
+  }),
 }));
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -149,5 +161,61 @@ describe('StorageClient', () => {
     expect(result.contentType).toBe('image/png');
     expect(result.contentLength).toBe(5000);
     expect(result.metadata).toEqual({ userId: 'u-123' });
+  });
+
+  it('should create a multipart upload and return uploadId and key', async () => {
+    mockSend.mockResolvedValueOnce({ UploadId: 'test-upload-id-123' });
+
+    const result = await client.createMultipartUpload('large-file.zip', 'application/zip');
+
+    expect(result).toEqual({
+      uploadId: 'test-upload-id-123',
+      key: 'large-file.zip',
+    });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('should get presigned URL for upload part', async () => {
+    const url = await client.getUploadPartPresignedUrl({
+      key: 'large-file.zip',
+      uploadId: 'test-upload-id-123',
+      partNumber: 1,
+    });
+
+    expect(url).toBe('https://signed-url.example.com');
+  });
+
+  it('should complete multipart upload with parts list', async () => {
+    mockSend.mockResolvedValueOnce({
+      Location: 'https://test-bucket.s3.amazonaws.com/large-file.zip',
+      ETag: '"combined-etag-456"',
+    });
+
+    const result = await client.completeMultipartUpload({
+      key: 'large-file.zip',
+      uploadId: 'test-upload-id-123',
+      parts: [
+        { partNumber: 1, etag: '"etag-part-1"' },
+        { partNumber: 2, etag: '"etag-part-2"' },
+      ],
+    });
+
+    expect(result).toEqual({
+      key: 'large-file.zip',
+      location: 'https://test-bucket.s3.amazonaws.com/large-file.zip',
+      etag: '"combined-etag-456"',
+    });
+    expect(mockSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('should abort multipart upload', async () => {
+    mockSend.mockResolvedValueOnce({});
+
+    await client.abortMultipartUpload({
+      key: 'large-file.zip',
+      uploadId: 'test-upload-id-123',
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
   });
 });

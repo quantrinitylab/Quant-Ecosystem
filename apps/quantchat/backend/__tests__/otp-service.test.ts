@@ -125,6 +125,35 @@ describe('OtpService', () => {
     const res = await svc.requestCode('+14155550123');
     expect(res.ok).toBe(true);
   });
+
+  it('rejects toll-free and virtual dummy numbers (CH-3)', async () => {
+    const svc = new OtpService(makeSender());
+    const res = await svc.requestCode('+18005550199');
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Toll-free or virtual');
+  });
+
+  it('rejects unsupported destination countries (CH-3 country allowlist)', async () => {
+    const svc = new OtpService(makeSender(), { countryAllowlist: ['+91', '+1'] });
+    // Destination +7 (Russia) not in allowlist
+    const res = await svc.requestCode('+79991234567');
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('Destination country not supported');
+  });
+
+  it('enforces system-wide daily SMS send ceiling (CH-3 spend guard)', async () => {
+    const svc = new OtpService(makeSender(), {
+      cooldownMs: 0,
+      maxSendsPerHour: 10_000,
+      maxDailySends: 2,
+    });
+    expect((await svc.requestCode('+14155550123')).ok).toBe(true);
+    expect((await svc.requestCode('+14155550124')).ok).toBe(true);
+    // 3rd attempt exceeds maxDailySends -> blocked
+    const blocked = await svc.requestCode('+14155550125');
+    expect(blocked.ok).toBe(false);
+    expect(blocked.error).toContain('Daily SMS limit reached');
+  });
 });
 
 describe('AwsSnsSmsSender', () => {
@@ -143,7 +172,7 @@ describe('AwsSnsSmsSender', () => {
     process.env = { ...originalEnv };
   });
 
-  it('safely falls back to LoggingSmsSender when credentials are absent', async () => {
+  it('safely falls back to LoggingSmsSender when credentials are absent in non-production and masks OTP', async () => {
     const loggedMessages: string[] = [];
     const sender = new AwsSnsSmsSender(undefined, (msg) => loggedMessages.push(msg));
 
@@ -153,7 +182,19 @@ describe('AwsSnsSmsSender', () => {
     expect(result.success).toBe(true);
     expect(loggedMessages.length).toBe(1);
     expect(loggedMessages[0]).toContain('+14155550123');
-    expect(loggedMessages[0]).toContain('123456');
+    expect(loggedMessages[0]).toContain('[REDACTED]');
+    expect(loggedMessages[0]).not.toContain('123456');
+  });
+
+  it('fails closed in production environment when credentials are absent', async () => {
+    process.env.NODE_ENV = 'production';
+    const sender = new AwsSnsSmsSender();
+    expect(sender.isConfigured).toBe(false);
+
+    const result = await sender.send('+14155550123', 'Your code is 123456');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('SMS_GATEWAY_NOT_CONFIGURED');
+    expect(result.error).toContain('production');
   });
 
   it('delivers transactional SMS via AWS SigV4 REST request when configured', async () => {

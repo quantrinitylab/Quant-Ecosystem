@@ -145,4 +145,32 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true, data: message });
   });
+
+  // POST /messages/:id/view-once - Consume a view-once snap (returns 410 on subsequent requests)
+  fastify.post<{ Params: { id: string } }>('/messages/:id/view-once', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MessageService(prisma as never);
+    const result = await service.consumeSnap(request.params.id, userId);
+
+    return reply.send({ success: true, data: result });
+  });
+
+  // GET /messages/:id/view-once - Inspect/consume view-once snap
+  fastify.get<{ Params: { id: string } }>('/messages/:id/view-once', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new MessageService(prisma as never);
+    const result = await service.consumeSnap(request.params.id, userId);
+
+    return reply.send({ success: true, data: result });
+  });
 }

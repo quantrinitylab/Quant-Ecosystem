@@ -23,6 +23,7 @@ import { AISummarizeFileService } from '../services/ai-summarize-file.service';
 import { AISearchContentService } from '../services/ai-search-content.service';
 import { AIDuplicateService } from '../services/ai-duplicate.service';
 import { AIOrganizeService } from '../services/ai-organize.service';
+import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 
 const MEMORY_SCAN_LIMIT = 2000;
 const MEMORY_APP_LABELS: Record<string, string> = {
@@ -388,6 +389,40 @@ const uploadChunkSchema = z.object({
   chunkIndex: z.number().int().nonnegative(),
   contentBase64: z.string().min(1),
   checksumSha256: z.string().length(64).optional(),
+});
+const initiateMultipartSchema = z.object({
+  name: z.string().min(1).max(255),
+  totalSize: z.number().int().positive().max(DRIVE_MAX_FILE_BYTES),
+  mimeType: z.string().max(255).optional(),
+  folderId: z.string().nullable().optional(),
+  partSize: z
+    .number()
+    .int()
+    .min(5 * 1024 * 1024)
+    .max(50 * 1024 * 1024)
+    .optional(),
+});
+const multipartPartUrlSchema = z.object({
+  key: z.string().min(1),
+  partNumber: z.number().int().min(1).max(10000),
+});
+const completeMultipartSchema = z.object({
+  key: z.string().min(1),
+  name: z.string().min(1).max(255),
+  totalSize: z.number().int().positive().max(DRIVE_MAX_FILE_BYTES),
+  mimeType: z.string().max(255).optional(),
+  folderId: z.string().nullable().optional(),
+  parts: z
+    .array(
+      z.object({
+        partNumber: z.number().int().min(1).max(10000),
+        etag: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+const abortMultipartSchema = z.object({
+  key: z.string().min(1),
 });
 
 export default async function driveRoutes(fastify: FastifyInstance) {
@@ -1439,6 +1474,146 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = requireUserId(request);
       await chunkedUploadService.abort(userId, request.params.uploadId);
+      return reply.send({ ok: true });
+    },
+  );
+
+  // Task DR-1 to DR-5: Direct S3 5GB multipart presigned upload protocol
+  fastify.post('/drive/upload/multipart/initiate', async (request, reply) => {
+    const userId = requireUserId(request);
+    const parsed = initiateMultipartSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    await quotaService.checkQuota(userId, parsed.data.totalSize);
+
+    let folderId = parsed.data.folderId ?? null;
+    if (
+      folderId &&
+      !(await prisma.folder.findFirst({ where: { id: folderId, userId, isDeleted: false } }))
+    ) {
+      folderId = null;
+    }
+
+    const partSize = parsed.data.partSize ?? 5 * 1024 * 1024;
+    const totalParts = Math.ceil(parsed.data.totalSize / partSize);
+    const storageKey = driveObjectKey(
+      userId,
+      `multipart/${randomUUID()}-${safeFileName(parsed.data.name)}`,
+    );
+
+    const storage = new StorageClient(resolveStorageConfigFromEnv());
+    const { uploadId } = await storage.createMultipartUpload(
+      storageKey,
+      parsed.data.mimeType || 'application/octet-stream',
+    );
+
+    await quotaService.reserveQuota(userId, parsed.data.totalSize, uploadId, 24 * 60 * 60 * 1000);
+
+    return reply.status(201).send({
+      uploadId,
+      key: storageKey,
+      partSize,
+      totalParts,
+      folderId,
+    });
+  });
+
+  fastify.post<{ Params: { uploadId: string } }>(
+    '/drive/upload/multipart/:uploadId/part-url',
+    async (request, reply) => {
+      requireUserId(request);
+      const parsed = multipartPartUrlSchema.safeParse(request.body);
+      if (!parsed.success) throw parsed.error;
+
+      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      const presignedUrl = await storage.getUploadPartPresignedUrl({
+        key: parsed.data.key,
+        uploadId: request.params.uploadId,
+        partNumber: parsed.data.partNumber,
+      });
+
+      return reply.send({
+        uploadId: request.params.uploadId,
+        partNumber: parsed.data.partNumber,
+        url: presignedUrl,
+      });
+    },
+  );
+
+  fastify.post<{ Params: { uploadId: string } }>(
+    '/drive/upload/multipart/:uploadId/complete',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const parsed = completeMultipartSchema.safeParse(request.body);
+      if (!parsed.success) throw parsed.error;
+
+      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      const completeRes = await storage.completeMultipartUpload({
+        key: parsed.data.key,
+        uploadId: request.params.uploadId,
+        parts: parsed.data.parts,
+      });
+
+      let folderId = parsed.data.folderId ?? null;
+      if (
+        folderId &&
+        !(await prisma.folder.findFirst({ where: { id: folderId, userId, isDeleted: false } }))
+      ) {
+        folderId = null;
+      }
+
+      const file = await prisma.file.create({
+        data: {
+          userId,
+          name: safeFileName(parsed.data.name),
+          mimeType: parsed.data.mimeType || 'application/octet-stream',
+          size: parsed.data.totalSize,
+          folderId,
+          encryptedContent: completeRes.key,
+          encryptionIV: '',
+          encryptionAuthTag: '',
+          encryptionKey: '',
+          contentHash: completeRes.etag ?? '',
+        },
+      });
+
+      await prisma.fileVersion.create({
+        data: {
+          fileId: file.id,
+          versionNumber: 1,
+          encryptedContent: completeRes.key,
+          encryptionIV: '',
+          encryptionAuthTag: '',
+          encryptionKey: '',
+          size: parsed.data.totalSize,
+        },
+      });
+
+      quotaService.commitReservation(request.params.uploadId);
+      const quota = await quotaService.getQuota(userId);
+      const owner = await ownerInfo(prisma, userId);
+
+      return reply.status(201).send({
+        file: fileDto(file, owner),
+        quota: { used: quota.usedBytes, total: quota.limitBytes },
+      });
+    },
+  );
+
+  fastify.post<{ Params: { uploadId: string } }>(
+    '/drive/upload/multipart/:uploadId/abort',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const parsed = abortMultipartSchema.safeParse(request.body);
+      if (!parsed.success) throw parsed.error;
+
+      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      await storage.abortMultipartUpload({
+        key: parsed.data.key,
+        uploadId: request.params.uploadId,
+      });
+
+      quotaService.releaseReservation(request.params.uploadId);
       return reply.send({ ok: true });
     },
   );

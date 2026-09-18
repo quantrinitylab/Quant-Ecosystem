@@ -7,6 +7,10 @@ import {
   ListObjectsV2Command,
   CopyObjectCommand,
   HeadObjectCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'node:stream';
@@ -230,5 +234,85 @@ export class StorageClient {
       lastModified: result.LastModified ?? new Date(),
       metadata: result.Metadata ?? {},
     };
+  }
+
+  /**
+   * Initiates an S3 multipart upload session.
+   */
+  async createMultipartUpload(
+    key: string,
+    contentType = 'application/octet-stream',
+    metadata?: Record<string, string>,
+  ): Promise<{ uploadId: string; key: string }> {
+    const command = new CreateMultipartUploadCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+      Metadata: metadata,
+    });
+    const result = await this.client.send(command);
+    if (!result.UploadId) {
+      throw new Error('Failed to initiate multipart upload: missing UploadId');
+    }
+    return { uploadId: result.UploadId, key };
+  }
+
+  /**
+   * Generates a presigned URL for uploading a specific part in a multipart upload.
+   */
+  async getUploadPartPresignedUrl(params: {
+    key: string;
+    uploadId: string;
+    partNumber: number;
+    expiresIn?: number;
+  }): Promise<string> {
+    const command = new UploadPartCommand({
+      Bucket: this.bucket,
+      Key: params.key,
+      UploadId: params.uploadId,
+      PartNumber: params.partNumber,
+    });
+    return awsGetSignedUrl(this.client, command, {
+      expiresIn: params.expiresIn ?? 900,
+    });
+  }
+
+  /**
+   * Completes an S3 multipart upload after all parts have been uploaded.
+   */
+  async completeMultipartUpload(params: {
+    key: string;
+    uploadId: string;
+    parts: Array<{ partNumber: number; etag: string }>;
+  }): Promise<{ key: string; location?: string; etag?: string }> {
+    const command = new CompleteMultipartUploadCommand({
+      Bucket: this.bucket,
+      Key: params.key,
+      UploadId: params.uploadId,
+      MultipartUpload: {
+        Parts: params.parts.map((p) => ({
+          PartNumber: p.partNumber,
+          ETag: p.etag,
+        })),
+      },
+    });
+    const result = await this.client.send(command);
+    return {
+      key: params.key,
+      location: result.Location,
+      etag: result.ETag,
+    };
+  }
+
+  /**
+   * Aborts an active multipart upload and frees up storage.
+   */
+  async abortMultipartUpload(params: { key: string; uploadId: string }): Promise<void> {
+    const command = new AbortMultipartUploadCommand({
+      Bucket: this.bucket,
+      Key: params.key,
+      UploadId: params.uploadId,
+    });
+    await this.client.send(command);
   }
 }

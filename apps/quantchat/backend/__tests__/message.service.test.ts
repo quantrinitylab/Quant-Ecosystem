@@ -455,4 +455,81 @@ describe('MessageService', () => {
       expect(msg).toMatchObject({ id: 'msg-1' });
     });
   });
+
+  describe('consumeSnap (CH-8 Server-Side 410 Gone Enforcement)', () => {
+    it('consumes a snap on first access and updates consumedAt in metadata', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.message.update.mockResolvedValue({});
+
+      const result = await service.consumeSnap('snap-1', 'viewer-1');
+
+      expect(result).toEqual({
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        duration: 10,
+      });
+
+      expect(prisma.message.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'snap-1' },
+          data: {
+            metadata: expect.objectContaining({
+              viewOnce: true,
+              consumedBy: 'viewer-1',
+              consumedAt: expect.any(String),
+            }),
+          },
+        }),
+      );
+    });
+
+    it('throws 410 SNAP_CONSUMED when snap has already been consumed', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        metadata: {
+          viewOnce: true,
+          duration: 10,
+          consumedAt: new Date(Date.now() - 5000).toISOString(),
+          consumedBy: 'viewer-1',
+        },
+      });
+
+      await expect(service.consumeSnap('snap-1', 'viewer-1')).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'SNAP_CONSUMED',
+        message: expect.stringContaining('already been viewed and destroyed'),
+      });
+
+      expect(prisma.message.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects regular non-snap messages with 400 NOT_A_SNAP', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'msg-regular',
+        type: 'TEXT',
+        content: 'Hello',
+        metadata: {},
+      });
+
+      await expect(service.consumeSnap('msg-regular', 'viewer-1')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'NOT_A_SNAP',
+      });
+    });
+
+    it('throws 404 when snap is not found', async () => {
+      prisma.message.findUnique.mockResolvedValue(null);
+
+      await expect(service.consumeSnap('non-existent', 'viewer-1')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'MESSAGE_NOT_FOUND',
+      });
+    });
+  });
 });

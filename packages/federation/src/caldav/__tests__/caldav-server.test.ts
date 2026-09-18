@@ -145,4 +145,60 @@ describe('CalDAVServer', () => {
     const response = server.handle({ method: 'PROPFIND', path: '/calendars/alice/nonexist/' });
     expect(response.status).toBe(404);
   });
+
+  it('generates authentic RFC 4791 XML multistatus when Accept: application/xml is provided', () => {
+    const server = new CalDAVServer();
+    server.createCalendar({
+      id: 'personal',
+      displayName: 'Personal',
+      ownerPrincipal: 'alice',
+    });
+
+    const ical = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      'UID:xml-event-1',
+      'SUMMARY:Design Review',
+      'DTSTART:20240101T090000Z',
+      'DTEND:20240101T100000Z',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    server.handle({
+      method: 'PUT',
+      path: '/calendars/alice/personal/xml-event-1.ics',
+      body: ical,
+    });
+
+    // Test PROPFIND with XML header
+    const propfindResp = server.handle({
+      method: 'PROPFIND',
+      path: '/calendars/alice/',
+      headers: { accept: 'application/xml' },
+    });
+
+    expect(propfindResp.status).toBe(207);
+    expect(propfindResp.headers['content-type']).toContain('application/xml');
+    expect(propfindResp.body).toContain(
+      '<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">',
+    );
+    expect(propfindResp.body).toContain('<D:displayname>Personal</D:displayname>');
+    expect(propfindResp.body).toContain(
+      '<D:resourcetype><D:collection/><C:calendar xmlns:C="urn:ietf:params:xml:ns:caldav"/></D:resourcetype>',
+    );
+
+    // Test REPORT with XML header
+    const reportResp = server.handle({
+      method: 'REPORT',
+      path: '/calendars/alice/personal/',
+      headers: { accept: 'application/xml' },
+    });
+
+    expect(reportResp.status).toBe(207);
+    expect(reportResp.headers['content-type']).toContain('application/xml');
+    expect(reportResp.body).toContain('<C:calendar-data xmlns:C="urn:ietf:params:xml:ns:caldav">');
+    expect(reportResp.body).toContain('SUMMARY:Design Review');
+  });
 });

@@ -438,4 +438,61 @@ export class MessageService {
       hasPrev: page > 1,
     };
   }
+
+  /**
+   * CH-8: Ephemeral view-once media consumption.
+   * Returns media payload on first view and immediately marks snap as consumed.
+   * Any subsequent access throws HTTP 410 GONE.
+   */
+  async consumeSnap(
+    messageId: string,
+    userId: string,
+  ): Promise<{ mediaUrl: string; duration: number }> {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
+    }
+
+    const metadata = (message.metadata as Record<string, unknown> | null) ?? {};
+    const isSnap =
+      message.type === 'snap_photo' ||
+      message.type === 'snap_video' ||
+      Boolean(metadata.viewOnce) ||
+      Boolean(metadata.isSnap);
+
+    if (!isSnap) {
+      throw createAppError('Message is not an ephemeral snap', 400, 'NOT_A_SNAP');
+    }
+
+    // CH-8 Server-side 410 Gone enforcement
+    if (metadata.consumedAt) {
+      throw createAppError(
+        'This view-once snap has already been viewed and destroyed',
+        410,
+        'SNAP_CONSUMED',
+      );
+    }
+
+    // Mark as consumed immediately on the server
+    const updatedMetadata = {
+      ...metadata,
+      consumedAt: new Date().toISOString(),
+      consumedBy: userId,
+    };
+
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        metadata: updatedMetadata,
+      },
+    });
+
+    return {
+      mediaUrl: message.mediaUrl ?? '',
+      duration: typeof metadata.duration === 'number' ? metadata.duration : 10,
+    };
+  }
 }

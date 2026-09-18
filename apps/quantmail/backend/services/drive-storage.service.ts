@@ -4,21 +4,17 @@
 // Drive rows keep metadata plus envelope-encryption material. Ciphertext lives
 // in S3-compatible object storage; encryptedContent stores the object key.
 // ============================================================================
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  createHmac,
-  randomBytes,
-} from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 import { createAppError } from '@quant/server-core';
 import { byteEnv } from '../lib/env-bytes';
 
 const MIB = 1024 * 1024;
+const GIB = 1024 * MIB;
 
 export const DRIVE_QUOTA_BYTES = byteEnv('DRIVE_QUOTA_BYTES', 15 * 1024 * MIB);
-export const DRIVE_MAX_FILE_BYTES = byteEnv('DRIVE_MAX_FILE_BYTES', 25 * MIB);
-export const DRIVE_MAX_BODY_BYTES = Math.ceil(DRIVE_MAX_FILE_BYTES * 1.4) + 64 * 1024;
+export const DRIVE_MAX_FILE_BYTES = byteEnv('DRIVE_MAX_FILE_BYTES', 5 * GIB);
+export const DRIVE_MAX_BODY_BYTES =
+  Math.ceil(Math.min(DRIVE_MAX_FILE_BYTES, 25 * MIB) * 1.4) + 64 * 1024;
 
 type S3Config = {
   bucket: string;
@@ -39,7 +35,8 @@ function readMasterKey(): Buffer | null {
 function readS3Config(): S3Config | null {
   const bucket = process.env.DRIVE_S3_BUCKET ?? process.env.S3_BUCKET;
   const accessKeyId = process.env.DRIVE_S3_ACCESS_KEY_ID ?? process.env.S3_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.DRIVE_S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
+  const secretAccessKey =
+    process.env.DRIVE_S3_SECRET_ACCESS_KEY ?? process.env.S3_SECRET_ACCESS_KEY;
   if (!bucket || !accessKeyId || !secretAccessKey) return null;
   const region = process.env.DRIVE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1';
   const endpoint = (
@@ -101,7 +98,9 @@ async function s3Request(
   const signedHeaderNames = Object.keys(headers).sort();
   const canonicalHeaders = signedHeaderNames.map((h) => `${h}:${headers[h]}\n`).join('');
   const signedHeaders = signedHeaderNames.join(';');
-  const canonicalRequest = [method, path, '', canonicalHeaders, signedHeaders, payloadHash].join('\n');
+  const canonicalRequest = [method, path, '', canonicalHeaders, signedHeaders, payloadHash].join(
+    '\n',
+  );
   const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join('\n');
   const signingKey = hmac(
@@ -115,7 +114,8 @@ async function s3Request(
   return fetch(url, {
     method,
     headers: { ...headers, Authorization: authorization },
-    body: method === 'PUT' && payload ? (new Uint8Array(payload) as unknown as BodyInit) : undefined,
+    body:
+      method === 'PUT' && payload ? (new Uint8Array(payload) as unknown as BodyInit) : undefined,
   });
 }
 

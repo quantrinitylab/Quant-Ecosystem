@@ -1,4 +1,8 @@
-import { MockCodeSandbox } from '../sandbox/code-sandbox.js';
+import {
+  MockCodeSandbox,
+  ContainerCodeSandbox,
+  SandboxUnavailableError,
+} from '../sandbox/code-sandbox.js';
 import { SandboxConfig } from '../types.js';
 
 describe('MockCodeSandbox', () => {
@@ -55,5 +59,63 @@ describe('MockCodeSandbox', () => {
   it('cleanup sets flag', async () => {
     await sandbox.cleanup();
     expect(sandbox.cleaned).toBe(true);
+  });
+});
+
+describe('ContainerCodeSandbox (Gate G5 / AI-1 & AI-2)', () => {
+  const config: SandboxConfig = {
+    timeoutMs: 5000,
+    memoryMb: 512,
+    cpuCores: 1,
+    diskMb: 1024,
+    networkAccess: false,
+  };
+
+  it('fails closed with 503 SANDBOX_UNAVAILABLE when endpoint is not configured', async () => {
+    const sandbox = new ContainerCodeSandbox({ endpoint: undefined, failClosed: true });
+    expect(sandbox.isConfigured).toBe(false);
+
+    await expect(sandbox.execute('npm test', config)).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'SANDBOX_UNAVAILABLE',
+      message: expect.stringContaining('SANDBOX_ENDPOINT not configured'),
+    });
+  });
+
+  it('executes command against remote container worker endpoint when configured', async () => {
+    let capturedUrl = '';
+    let capturedBody: any;
+
+    const mockFetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      capturedUrl = String(url);
+      capturedBody = JSON.parse(String(init?.body));
+      return new Response(
+        JSON.stringify({
+          exitCode: 0,
+          stdout: 'test output from container',
+          stderr: '',
+          durationMs: 42,
+          timedOut: false,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    });
+
+    const sandbox = new ContainerCodeSandbox({
+      endpoint: 'http://gvisor-runner.internal:8080',
+      fetchFn: mockFetch as unknown as typeof fetch,
+    });
+
+    expect(sandbox.isConfigured).toBe(true);
+    const result = await sandbox.execute('vitest run', config);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('test output from container');
+    expect(capturedUrl).toBe('http://gvisor-runner.internal:8080/execute');
+    expect(capturedBody).toMatchObject({
+      command: 'vitest run',
+      timeoutMs: 5000,
+      memoryMb: 512,
+    });
   });
 });

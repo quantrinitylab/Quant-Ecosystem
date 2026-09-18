@@ -36,7 +36,11 @@ export interface OtpServiceConfig {
   cooldownMs: number;
   maxSendsPerHour: number;
   maxVerifyAttempts: number;
+  maxDailySends?: number;
+  countryAllowlist?: string[];
 }
+
+export const DEFAULT_ALLOWED_COUNTRIES = ['+91', '+1', '+44', '+971', '+65', '+61', '+49', '+33'];
 
 export const DEFAULT_OTP_CONFIG: OtpServiceConfig = {
   codeLength: 6,
@@ -44,6 +48,8 @@ export const DEFAULT_OTP_CONFIG: OtpServiceConfig = {
   cooldownMs: 60 * 1000,
   maxSendsPerHour: 5,
   maxVerifyAttempts: 5,
+  maxDailySends: 500,
+  countryAllowlist: DEFAULT_ALLOWED_COUNTRIES,
 };
 
 export interface RequestResult {
@@ -71,11 +77,25 @@ interface RateWindow {
 
 const E164 = /^\+[1-9]\d{6,14}$/;
 
+// Known virtual/toll-free/dummy prefixes disallowed from SMS verification
+const DISALLOWED_PREFIXES = [
+  '+1800',
+  '+1888',
+  '+1877',
+  '+1866',
+  '+1855',
+  '+1844',
+  '+1900',
+  '+910000000000',
+];
+
 export class OtpService {
   private readonly config: OtpServiceConfig;
   private readonly pending = new Map<string, PendingCode>();
   private readonly rate = new Map<string, RateWindow>();
   private readonly cooldownUntil = new Map<string, number>();
+  private dailySendsCount = 0;
+  private dailyWindowResetAt = 0;
 
   constructor(
     private readonly sms: SmsSender = new AwsSnsSmsSender(),
@@ -83,11 +103,19 @@ export class OtpService {
     private readonly now: () => number = Date.now,
   ) {
     this.config = { ...DEFAULT_OTP_CONFIG, ...config };
+    this.dailyWindowResetAt = this.now() + 86_400_000;
   }
 
   /** Normalise to E.164 (strip spaces, dashes, parentheses). */
   static normalize(phoneNumber: string): string {
     return phoneNumber.replace(/[\s\-()]/g, '');
+  }
+
+  /** Check if number belongs to an allowed country code prefix. */
+  private isCountryAllowed(phone: string): boolean {
+    const list = this.config.countryAllowlist ?? DEFAULT_ALLOWED_COUNTRIES;
+    if (list.length === 0) return true;
+    return list.some((prefix) => phone.startsWith(prefix));
   }
 
   async requestCode(phoneNumber: string, locale = 'en'): Promise<RequestResult> {
@@ -96,7 +124,28 @@ export class OtpService {
       return { ok: false, error: 'Invalid phone number format' };
     }
 
+    if (DISALLOWED_PREFIXES.some((prefix) => phone.startsWith(prefix))) {
+      return { ok: false, error: 'Toll-free or virtual numbers not permitted' };
+    }
+
+    if (!this.isCountryAllowed(phone)) {
+      return { ok: false, error: 'Destination country not supported for SMS verification' };
+    }
+
     const now = this.now();
+
+    // Daily system-wide spend guard (CH-3)
+    if (now >= this.dailyWindowResetAt) {
+      this.dailySendsCount = 0;
+      this.dailyWindowResetAt = now + 86_400_000;
+    }
+    const maxDaily = this.config.maxDailySends ?? 500;
+    if (this.dailySendsCount >= maxDaily) {
+      return {
+        ok: false,
+        error: 'Daily SMS limit reached. Please try again tomorrow or sign in with Quant SSO.',
+      };
+    }
 
     const cooldown = this.cooldownUntil.get(phone);
     if (cooldown && cooldown > now) {
@@ -127,6 +176,7 @@ export class OtpService {
       return { ok: false, error: sent.error ?? 'Failed to send SMS' };
     }
 
+    this.dailySendsCount += 1;
     this.pending.set(phone, {
       code,
       expiresAt: now + this.config.codeTtlMs,
@@ -190,14 +240,15 @@ export class OtpService {
 }
 
 /**
- * Dev/default SMS sender: logs the message instead of delivering. Real Twilio /
- * MSG91 adapters implement {@link SmsSender} and are selected by env config.
- * Returns success so the verification flow works end-to-end in development.
+ * Dev/default SMS sender: logs masked message instead of delivering.
+ * Enforces zero-leak logging: OTP is always masked as [REDACTED].
  */
 export class LoggingSmsSender implements SmsSender {
   constructor(private readonly log: (msg: string) => void = () => {}) {}
   async send(phoneNumber: string, message: string): Promise<{ success: boolean }> {
-    this.log(`[OTP][dev-sms] to=${phoneNumber} :: ${message}`);
+    // Redact 6-digit OTP from message so it NEVER leaks to server logs
+    const masked = message.replace(/\b\d{6}\b/g, '[REDACTED]');
+    this.log(`[OTP][dev-sms] to=${phoneNumber} :: ${masked}`);
     return { success: true };
   }
 }
@@ -250,6 +301,13 @@ export class AwsSnsSmsSender implements SmsSender {
   async send(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }> {
     const config = readAwsSnsConfig(this.configOverride);
     if (!config) {
+      // Fail closed in production: missing credentials must reject rather than silently succeed
+      if (process.env.NODE_ENV === 'production') {
+        return {
+          success: false,
+          error: 'SMS_GATEWAY_NOT_CONFIGURED: AWS SNS credentials are required in production',
+        };
+      }
       return this.fallback.send(phoneNumber, message);
     }
 
