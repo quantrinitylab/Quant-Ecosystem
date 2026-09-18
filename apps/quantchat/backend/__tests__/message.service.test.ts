@@ -20,6 +20,10 @@ function createMockPrisma() {
     messageOutbox: {
       create: vi.fn(),
     },
+    snapView: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(),
   };
   // Interactive transaction runs the callback with the same mock client.
@@ -456,15 +460,49 @@ describe('MessageService', () => {
     });
   });
 
-  describe('consumeSnap (CH-8 Server-Side 410 Gone Enforcement)', () => {
-    it('consumes a snap on first access and updates consumedAt in metadata', async () => {
+  describe('consumeSnap (CH-8 / SEC-1 / SEC-2 Ephemeral View-Once Enforcement)', () => {
+    it('rejects non-members with 403 NOT_A_MEMBER (SEC-1 IDOR Defense)', async () => {
       prisma.message.findUnique.mockResolvedValue({
         id: 'snap-1',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
         type: 'IMAGE',
         mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
         metadata: { viewOnce: true, duration: 10 },
       });
-      prisma.message.update.mockResolvedValue({});
+      // Caller is not a member of the conversation
+      prisma.conversationMember.findFirst.mockResolvedValue(null);
+
+      await expect(service.consumeSnap('snap-1', 'attacker-1')).rejects.toMatchObject({
+        statusCode: 403,
+        code: 'NOT_A_MEMBER',
+      });
+
+      expect(prisma.snapView.create).not.toHaveBeenCalled();
+    });
+
+    it('consumes a snap on first access by an active conversation member', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-viewer',
+        conversationId: 'conv-1',
+        userId: 'viewer-1',
+        role: 'MEMBER',
+        leftAt: null,
+      });
+      prisma.snapView.findUnique.mockResolvedValue(null);
+      prisma.snapView.create.mockResolvedValue({
+        id: 'sv-1',
+        messageId: 'snap-1',
+        userId: 'viewer-1',
+      });
 
       const result = await service.consumeSnap('snap-1', 'viewer-1');
 
@@ -472,32 +510,36 @@ describe('MessageService', () => {
         mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
         duration: 10,
       });
-
-      expect(prisma.message.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'snap-1' },
-          data: {
-            metadata: expect.objectContaining({
-              viewOnce: true,
-              consumedBy: 'viewer-1',
-              consumedAt: expect.any(String),
-            }),
-          },
-        }),
-      );
+      expect(prisma.snapView.create).toHaveBeenCalledWith({
+        data: {
+          messageId: 'snap-1',
+          userId: 'viewer-1',
+        },
+      });
     });
 
-    it('throws 410 SNAP_CONSUMED when snap has already been consumed', async () => {
+    it('throws 410 SNAP_CONSUMED when viewer has already viewed the snap', async () => {
       prisma.message.findUnique.mockResolvedValue({
         id: 'snap-1',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
         type: 'IMAGE',
         mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
-        metadata: {
-          viewOnce: true,
-          duration: 10,
-          consumedAt: new Date(Date.now() - 5000).toISOString(),
-          consumedBy: 'viewer-1',
-        },
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-viewer',
+        conversationId: 'conv-1',
+        userId: 'viewer-1',
+        role: 'MEMBER',
+        leftAt: null,
+      });
+      // Already viewed by viewer-1
+      prisma.snapView.findUnique.mockResolvedValue({
+        id: 'sv-1',
+        messageId: 'snap-1',
+        userId: 'viewer-1',
+        viewedAt: new Date(Date.now() - 60000),
       });
 
       await expect(service.consumeSnap('snap-1', 'viewer-1')).rejects.toMatchObject({
@@ -506,15 +548,131 @@ describe('MessageService', () => {
         message: expect.stringContaining('already been viewed and destroyed'),
       });
 
-      expect(prisma.message.update).not.toHaveBeenCalled();
+      expect(prisma.snapView.create).not.toHaveBeenCalled();
+    });
+
+    it('handles concurrent race condition: loser of P2002 unique constraint gets 410 (SEC-2)', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-viewer',
+        conversationId: 'conv-1',
+        userId: 'viewer-1',
+        role: 'MEMBER',
+        leftAt: null,
+      });
+      prisma.snapView.findUnique.mockResolvedValue(null);
+      // Simulate concurrent insert race collision
+      const p2002Error = new Error('Unique constraint violation');
+      (p2002Error as unknown as { code: string }).code = 'P2002';
+      prisma.snapView.create.mockRejectedValue(p2002Error);
+
+      await expect(service.consumeSnap('snap-1', 'viewer-1')).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'SNAP_CONSUMED',
+      });
+    });
+
+    it('allows sender review without consuming or creating snapView (SEC-1 Sender Exclusion)', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        conversationId: 'conv-1',
+        senderId: 'sender-author',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-author',
+        conversationId: 'conv-1',
+        userId: 'sender-author',
+        role: 'OWNER',
+        leftAt: null,
+      });
+
+      // First review by author
+      const res1 = await service.consumeSnap('snap-1', 'sender-author');
+      expect(res1).toEqual({
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        duration: 10,
+      });
+      // Author reviewing does NOT consume
+      expect(prisma.snapView.create).not.toHaveBeenCalled();
+
+      // Second review by author also succeeds
+      const res2 = await service.consumeSnap('snap-1', 'sender-author');
+      expect(res2).toEqual({
+        mediaUrl: 'https://s3.example.com/snaps/photo-1.jpg',
+        duration: 10,
+      });
+      expect(prisma.snapView.create).not.toHaveBeenCalled();
+    });
+
+    it('preserves group chat recipient independence: User A consuming does not burn for User B', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'group-snap',
+        conversationId: 'group-conv-1',
+        senderId: 'sender-alice',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/group-photo.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      // Both Bob and Charlie are active members
+      prisma.conversationMember.findFirst.mockImplementation(
+        async ({ where }: { where: { userId: string } }) => ({
+          id: `mem-${where.userId}`,
+          conversationId: 'group-conv-1',
+          userId: where.userId,
+          role: 'MEMBER',
+          leftAt: null,
+        }),
+      );
+
+      // Bob's first view consumes for Bob
+      prisma.snapView.findUnique.mockImplementation(
+        async ({ where }: { where: { messageId_userId: { userId: string } } }) => {
+          if (where.messageId_userId.userId === 'bob') return null;
+          if (where.messageId_userId.userId === 'charlie') return null;
+          return null;
+        },
+      );
+      prisma.snapView.create.mockResolvedValue({ id: 'sv-bob' });
+
+      const bobResult = await service.consumeSnap('group-snap', 'bob');
+      expect(bobResult.mediaUrl).toBe('https://s3.example.com/snaps/group-photo.jpg');
+      expect(prisma.snapView.create).toHaveBeenCalledWith({
+        data: { messageId: 'group-snap', userId: 'bob' },
+      });
+
+      // Charlie now views for the first time: Charlie still receives their own view
+      const charlieResult = await service.consumeSnap('group-snap', 'charlie');
+      expect(charlieResult.mediaUrl).toBe('https://s3.example.com/snaps/group-photo.jpg');
+      expect(prisma.snapView.create).toHaveBeenCalledWith({
+        data: { messageId: 'group-snap', userId: 'charlie' },
+      });
     });
 
     it('rejects regular non-snap messages with 400 NOT_A_SNAP', async () => {
       prisma.message.findUnique.mockResolvedValue({
         id: 'msg-regular',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
         type: 'TEXT',
         content: 'Hello',
         metadata: {},
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-viewer',
+        conversationId: 'conv-1',
+        userId: 'viewer-1',
+        role: 'MEMBER',
+        leftAt: null,
       });
 
       await expect(service.consumeSnap('msg-regular', 'viewer-1')).rejects.toMatchObject({

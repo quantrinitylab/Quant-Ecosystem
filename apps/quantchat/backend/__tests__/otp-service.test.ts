@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OtpService, AwsSnsSmsSender, type SmsSender } from '../lib/otp-service';
+import { OtpService, AwsSnsSmsSender, LoggingSmsSender, type SmsSender } from '../lib/otp-service';
 
 function makeSender(): SmsSender & { messages: { phone: string; body: string }[] } {
   const messages: { phone: string; body: string }[] = [];
@@ -184,6 +184,27 @@ describe('AwsSnsSmsSender', () => {
     expect(loggedMessages[0]).toContain('+14155550123');
     expect(loggedMessages[0]).toContain('[REDACTED]');
     expect(loggedMessages[0]).not.toContain('123456');
+  });
+
+  it('enforces OTP-1 zero-leak logging: redacts codes with codeLength 4 and 8', async () => {
+    const loggedMessages: string[] = [];
+    const sender = new LoggingSmsSender((msg) => loggedMessages.push(msg));
+
+    // 4-digit code
+    await sender.send(
+      '+14155550123',
+      'QuantChat: your verification code is 4821. It expires in 5 minutes.',
+    );
+    expect(loggedMessages[0]).not.toContain('4821');
+    expect(loggedMessages[0]).toContain('[REDACTED]');
+
+    // 8-digit code
+    await sender.send(
+      '+14155550123',
+      'QuantChat: your verification code is 87654321. It expires in 5 minutes.',
+    );
+    expect(loggedMessages[1]).not.toContain('87654321');
+    expect(loggedMessages[1]).toContain('[REDACTED]');
   });
 
   it('fails closed in production environment when credentials are absent', async () => {
