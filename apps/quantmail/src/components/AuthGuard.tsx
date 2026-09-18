@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/quantgit', '/brand-showcase'];
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/quantgit'];
 
 /**
  * Internal design labs under `/lab/…` render without a session. They read no

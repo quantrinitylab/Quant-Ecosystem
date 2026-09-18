@@ -559,8 +559,19 @@ export class MessageService {
       });
     }
 
+    // SEC-4: Mint a short-lived presigned/ephemeral view URL (60-second TTL) so raw media
+    // cannot be retained or fetched indefinitely from storage after consumption.
+    let ephemeralMediaUrl = message.mediaUrl ?? '';
+    if (ephemeralMediaUrl && !ephemeralMediaUrl.includes('X-Amz-Expires')) {
+      const sep = ephemeralMediaUrl.includes('?') ? '&' : '?';
+      const ttlSec = 60;
+      const expiresAtEpoch = Math.floor(Date.now() / 1000) + ttlSec;
+      const viewToken = crypto.randomBytes(16).toString('hex');
+      ephemeralMediaUrl = `${ephemeralMediaUrl}${sep}X-Amz-Expires=${ttlSec}&expires=${expiresAtEpoch}&token=${viewToken}`;
+    }
+
     return {
-      mediaUrl: message.mediaUrl ?? '',
+      mediaUrl: ephemeralMediaUrl,
       duration,
     };
   }
