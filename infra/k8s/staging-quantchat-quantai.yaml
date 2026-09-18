@@ -1,4 +1,4 @@
-﻿apiVersion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: quant-quantchat
@@ -29,6 +29,8 @@ spec:
           env:
             - name: PORT
               value: '3015'
+            - name: QUANTCHAT_BACKEND_URL
+              value: 'http://localhost:3002'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantchat.quantrinity.in'
           readinessProbe:
@@ -52,6 +54,34 @@ spec:
             limits:
               cpu: 500m
               memory: 1Gi
+        - name: quant-quantchat-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat:3c12703717dac7d7123eaee915a57c2111ce8648
+          command:
+            - sh
+            - -c
+            - 'PORT=3002 VOICE_BOT_SECRET=quant-staging-voice-bot-secret-2026 pnpm --filter @quant/quantchat exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3002
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3002'
+            - name: HOST
+              value: '0.0.0.0'
+            - name: VOICE_BOT_SECRET
+              value: 'quant-staging-voice-bot-secret-2026'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -67,6 +97,9 @@ spec:
     - port: 3015
       targetPort: 3015
       name: http
+    - port: 3002
+      targetPort: 3002
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -99,6 +132,8 @@ spec:
           env:
             - name: PORT
               value: '3020'
+            - name: QUANTAI_BACKEND_URL
+              value: 'http://localhost:3004'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quanty.quantrinity.in'
           readinessProbe:
@@ -122,6 +157,32 @@ spec:
             limits:
               cpu: 500m
               memory: 1Gi
+        - name: quant-quantai-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantai:3c12703717dac7d7123eaee915a57c2111ce8648
+          command:
+            - sh
+            - -c
+            - 'PORT=3004 pnpm --filter @quant/quantai exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3004
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3004'
+            - name: HOST
+              value: '0.0.0.0'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -137,6 +198,9 @@ spec:
     - port: 3020
       targetPort: 3020
       name: http
+    - port: 3004
+      targetPort: 3004
+      name: backend
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress

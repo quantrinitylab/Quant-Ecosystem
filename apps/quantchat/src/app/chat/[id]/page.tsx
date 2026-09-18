@@ -302,10 +302,35 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     <div className="flex flex-col h-screen">
       <TopBar
         title={`Chat ${id}`}
+        subtitle="🔥 5 Day Streak · Active now"
         onBack={() => {
           window.location.href = '/';
         }}
         rightActions={[
+          <button
+            key="call-video"
+            type="button"
+            onClick={() => {
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend`;
+            }}
+            aria-label="Start video call"
+            className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
+            title="Video Call (QuantMeet)"
+          >
+            📹
+          </button>,
+          <button
+            key="call-audio"
+            type="button"
+            onClick={() => {
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend&audioOnly=true`;
+            }}
+            aria-label="Start audio call"
+            className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
+            title="Voice Call"
+          >
+            📞
+          </button>,
           <button
             key="games"
             type="button"

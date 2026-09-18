@@ -13,7 +13,7 @@
 // host can bridge in by calling setStatus/say/setSuggestions from its own
 // AI calls (see `runTask` for the common "thinking -> speaking" lifecycle).
 
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { BubbleAvatar, type QuantSidekickStatus } from './BubbleAvatar';
 
 export interface QuantSidekickSuggestion {
@@ -142,6 +142,45 @@ export const QuantSidekick: React.FC<QuantSidekickProps> = ({
   size = 56,
 }) => {
   const { status, message, suggestions, isOpen, toggle, close } = useQuantSidekick();
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('quant_sidekick_enabled');
+      if (stored === 'true') {
+        setEnabled(true);
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleToggle = (e: Event) => {
+      const custom = e as CustomEvent<{ enabled?: boolean }>;
+      if (custom.detail?.enabled !== undefined) {
+        setEnabled(custom.detail.enabled);
+        try {
+          localStorage.setItem('quant_sidekick_enabled', String(custom.detail.enabled));
+        } catch {}
+      } else {
+        setEnabled((prev) => {
+          const next = !prev;
+          try {
+            localStorage.setItem('quant_sidekick_enabled', String(next));
+          } catch {}
+          return next;
+        });
+      }
+    };
+
+    window.addEventListener('quant:toggle-sidekick', handleToggle);
+    return () => window.removeEventListener('quant:toggle-sidekick', handleToggle);
+  }, []);
+
+  // When neither enabled by user nor explicitly opened, do NOT clutter the screen
+  if (!enabled && !isOpen) {
+    return null;
+  }
+
   const sideClass = position === 'bottom-right' ? 'right-4' : 'left-4';
 
   return (

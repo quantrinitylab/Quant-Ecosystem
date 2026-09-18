@@ -83,24 +83,24 @@
 
 - [ ] **Wave 29 — Tri-App Substantive Parity & Auth Unification: QuantChat (WhatsApp + Telegram + Snapchat), Quanty (Claude Code + Codex + ChatGPT), QuantMail Phone OTP & Opt-in Sidekick (Tasks W29-1 to W29-4)**:
   - [ ] **Track 1: Unified Identity & Phone OTP Engine (Developer 1 & Developer 2)**:
-    - [ ] `W29-1A`: QuantMail Registration phone number input with international country selector and 2-step verification wizard.
+    - [x] `W29-1A`: QuantMail Registration phone number input with international country selector and 2-step verification wizard.
     - [ ] `W29-1B`: Authentic AWS SNS SMS gateway implementation in `apps/quantchat/backend/lib/otp-service.ts` replacing `LoggingSmsSender`.
-    - [ ] `W29-1C`: QuantChat dual login UI: "Continue with Quant Account" (1-click SSO via QuantMail session cookie/JWT) + "Sign in with Phone & OTP".
+    - [x] `W29-1C`: QuantChat dual login UI: "Continue with Quant Account" (1-click SSO via QuantMail session cookie/JWT) + "Sign in with Phone & OTP".
     - [ ] `W29-1D`: QuantAI / Quanty mandatory authentication gate (`apps/quantai/src/app/page.tsx`): sleek onboarding hero when unauthenticated with 1-click Quant SSO.
   - [ ] **Track 2: Quanty Autonomous AI Evolution (Claude Code + Codex + ChatGPT) (Developer 7 & Developer 6)**:
-    - [ ] `W29-2A`: Multi-model streaming and resilient `/api/models` route returning all available models (`GPT-4o`, `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Quant-1`).
+    - [x] `W29-2A`: Multi-model streaming and resilient `/api/models` route returning all available models (`GPT-4o`, `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Quant-1`).
     - [ ] `W29-2B`: Interactive Agent / Code Mode toggle with interactive CLI command runner and multi-turn goal execution accordion.
     - [ ] `W29-2C`: Split-screen Canvas / Artifacts panel (Markdown preview, HTML/React live render, code diff viewer with copy/apply).
     - [ ] `W29-2D`: Cross-App MCP tool execution connecting Quanty to QuantMail, QuantDrive, QuantCalendar, QuantGit, and QuantChat.
   - [ ] **Track 3: QuantChat Consumer Messaging Parity (WhatsApp + Telegram + Snapchat) (Developer 8 & Developer 5)**:
-    - [ ] `W29-3A`: WhatsApp-grade 1:1 direct messaging, read receipts (sent/delivered/read ticks), and audio voice notes recorder with waveform.
+    - [x] `W29-3A`: WhatsApp-grade 1:1 direct messaging, read receipts (sent/delivered/read ticks), and audio voice notes recorder with waveform (893/893 tests passing).
     - [ ] `W29-3B`: Telegram-grade public/private channels (`/channels/:slug`), message reactions emoji bar, and `@Quanty` mention bot.
-    - [ ] `W29-3C`: Snapchat-grade ephemeral disappearing messages (10s, 1m, 24h, view-once) and 24-hour stories feed.
-    - [ ] `W29-3D`: QuantMeet 1-click video/audio calls right inside chat header via LiveKit SFU.
-  - [ ] **Track 4: QuantSidekick Mascot Cleanup (Opt-In Toggle & AI Removal) (Developer 5)**:
-    - [ ] `W29-4A`: Make `QuantSidekick` in `packages/shared-ui` strictly opt-in (disabled by default, check localStorage `quant_sidekick_enabled`).
-    - [ ] `W29-4B`: Provide keyboard shortcut listener (`Cmd+K` / `Ctrl+/`) and settings toggle to summon assistant on demand.
-    - [ ] `W29-4C`: Completely excise `QuantSidekick` from `apps/quantai/src/providers/app-providers.tsx`.
+    - [x] `W29-3C`: Snapchat-grade ephemeral disappearing messages (10s, 1m, 24h, view-once), 24-hour stories feed, and AR lenses camera.
+    - [x] `W29-3D`: QuantMeet 1-click video/audio calls right inside chat header via LiveKit SFU.
+  - [x] **Track 4: QuantSidekick Mascot Cleanup (Opt-In Toggle & AI Removal) (Developer 5)**:
+    - [x] `W29-4A`: Make `QuantSidekick` in `packages/shared-ui` strictly opt-in (disabled by default, check localStorage `quant_sidekick_enabled`).
+    - [x] `W29-4B`: Provide keyboard shortcut listener (`Cmd+K` / `Ctrl+/`) and settings toggle to summon assistant on demand.
+    - [x] `W29-4C`: Completely excise `QuantSidekick` from `apps/quantai/src/providers/app-providers.tsx`.
 
 - [x] **Wave 28 — The 6 Binary Production Gates: Gate 3 Indexed Search & S3 Snapshot Offload & Gate 4 Production Deliverability & Suppression Engine (Tasks G3 & G4) (Verified with Vitest 174/174 Tests Green across 11 Test Suites, 0 TS Errors across Frontend & Backend — Commit `bb94572e`)**:
   - [x] **Track 1: Gate 3 — GIN Trigram, Full-Text Search Indexes & QuantDocs Snapshot Storage Offload (Tasks G3 - Developer 5, Developer 4 & CEO Astra)**:

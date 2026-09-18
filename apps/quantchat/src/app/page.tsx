@@ -170,6 +170,18 @@ export default function ChatListPage() {
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [archivedIds, setArchivedIds] = useState<Set<string>>(new Set());
 
+  const conversationList = useMemo(() => {
+    if (Array.isArray(conversations)) return conversations;
+    if (
+      conversations &&
+      typeof conversations === 'object' &&
+      Array.isArray((conversations as unknown as { data?: typeof conversations }).data)
+    ) {
+      return (conversations as unknown as { data: typeof conversations }).data!;
+    }
+    return [];
+  }, [conversations]);
+
   // Live presence keyed on the real member ids of every conversation in the
   // list (Requirements 11.1, 11.2). usePresence seeds from the backend presence
   // snapshot and stays live over the WebSocket; it returns `unknown` for ids it
@@ -177,16 +189,19 @@ export default function ChatListPage() {
   const memberIds = useMemo(
     () =>
       Array.from(
-        new Set(conversations.flatMap((conv) => (conv.participants ?? []).map((p) => p.userId))),
+        new Set(conversationList.flatMap((conv) => (conv.participants ?? []).map((p) => p.userId))),
       ),
-    [conversations],
+    [conversationList],
   );
   const presenceMap = usePresence(memberIds);
 
   // Keep the conversation list live: join every conversation room over the
   // shared chat socket and refetch the list when a new message arrives so the
   // last-message preview / ordering / unread counts reflect real-time activity.
-  const conversationIds = useMemo(() => conversations.map((conv) => conv.id), [conversations]);
+  const conversationIds = useMemo(
+    () => conversationList.map((conv) => conv.id),
+    [conversationList],
+  );
   const handleSocketEvent = useCallback(
     (event: { type?: string; payload?: { type?: string } }) => {
       const type = event?.type ?? event?.payload?.type;
@@ -202,7 +217,7 @@ export default function ChatListPage() {
   if (isLoading) return <LoadingState variant="skeleton" text="Loading conversations..." />;
   if (error) return <ErrorState message={error.message} onRetry={() => void refetch()} />;
 
-  if (conversations.length === 0)
+  if (conversationList.length === 0)
     return (
       <AppShell topBar={<TopBar title="QuantChat" />}>
         <EmptyState title="No conversations" description="Start a new chat to get connected" />
@@ -229,7 +244,7 @@ export default function ChatListPage() {
     return 'offline';
   };
 
-  const enhancedItems: EnhancedConversation[] = conversations
+  const enhancedItems: EnhancedConversation[] = conversationList
     .map((conv) => ({
       id: conv.id,
       name: conv.name || 'Chat',

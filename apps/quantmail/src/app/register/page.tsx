@@ -17,6 +17,7 @@ import { browserAuthSession } from '../../services/browser-auth-session';
 
 interface RegistrationErrors {
   username?: string;
+  phone?: string;
   password?: string;
   confirmPassword?: string;
   terms?: string;
@@ -25,6 +26,8 @@ interface RegistrationErrors {
 export default function RegisterPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +44,9 @@ export default function RegisterPage() {
     if (!normalized) errors.username = 'Choose a handle.';
     else if (!isValidUsername(normalized)) {
       errors.username = 'Use 3–30 letters, numbers, dots, dashes, or underscores.';
+    }
+    if (phoneNumber && phoneNumber.replace(/\D/g, '').length < 8) {
+      errors.phone = 'Enter a valid phone number (at least 8 digits).';
     }
     if (!password) errors.password = 'Enter a password.';
     else if (password.length < 8) errors.password = 'Use at least 8 characters.';
@@ -141,6 +147,35 @@ export default function RegisterPage() {
               >
                 {fieldErrors.username ||
                   (address ? `Your address will be ${address}` : '3–30 supported characters.')}
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="reg-phone" className="mb-2 block text-[13px] font-medium">
+                Phone number (SMS recovery & QuantChat)
+              </label>
+              <div
+                className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.phone ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
+              >
+                <div className="flex items-center border-r border-[var(--quant-border)] px-3 text-sm font-medium text-[var(--quant-muted-foreground)]">
+                  {countryCode}
+                </div>
+                <input
+                  id="reg-phone"
+                  type="tel"
+                  autoComplete="tel"
+                  placeholder="e.g. 9876543210"
+                  value={phoneNumber}
+                  onChange={(event) => setPhoneNumber(event.target.value)}
+                  className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                />
+              </div>
+              <p
+                id="reg-phone-help"
+                className={`mt-1.5 text-xs ${fieldErrors.phone ? 'text-[var(--quant-destructive)]' : 'text-[var(--quant-muted-foreground)]'}`}
+              >
+                {fieldErrors.phone ||
+                  'Used for secure 2-step verification and 1-click QuantChat login.'}
               </p>
             </div>
 

@@ -19,7 +19,16 @@ export function useConversations() {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load conversations');
       }
-      return response.data ?? [];
+      const raw = response.data;
+      if (Array.isArray(raw)) return raw;
+      if (
+        raw &&
+        typeof raw === 'object' &&
+        Array.isArray((raw as unknown as { data?: Conversation[] }).data)
+      ) {
+        return (raw as unknown as { data: Conversation[] }).data;
+      }
+      return [];
     },
   });
 

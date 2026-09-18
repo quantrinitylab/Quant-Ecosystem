@@ -4,11 +4,11 @@ import type { NavItem } from '@quant/shared-ui';
 // 5-tab Snapchat-style bottom bar. Stories, Spotlight and Memories are reachable
 // from the Profile hub (see app/profile/page.tsx) to keep the bar to five tabs.
 export const navItems: NavItem[] = [
-  { id: 'chats', label: 'Chats', icon: <span>&#128172;</span> },
-  { id: 'reels', label: 'Reels', icon: <span>&#127909;</span> },
-  { id: 'camera', label: 'Camera', icon: <span>&#128247;</span> },
-  { id: 'map', label: 'Map', icon: <span>&#127758;</span> },
-  { id: 'profile', label: 'Profile', icon: <span>&#128100;</span> },
+  { id: 'chats', label: 'Chats', icon: <span>💬</span> },
+  { id: 'stories', label: 'Stories', icon: <span>⚡</span> },
+  { id: 'camera', label: 'Camera', icon: <span>📸</span> },
+  { id: 'spotlight', label: 'Spotlight', icon: <span>✨</span> },
+  { id: 'map', label: 'Map', icon: <span>🗺️</span> },
 ];
 
 export const routes: Record<string, string> = {

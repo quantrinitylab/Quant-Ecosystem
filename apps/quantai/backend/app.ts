@@ -156,5 +156,65 @@ export async function buildApp(config?: AppConfig) {
   await app.register(automationsRoutes, { prefix: '/automations' });
   await app.register(mcpRoutes, { prefix: '/mcp' });
 
+  app.get('/models', async (request, reply) => {
+    return reply.send([
+      {
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        provider: 'openai',
+        contextWindow: 128000,
+        capabilities: ['reasoning', 'vision', 'code', 'tools'],
+        icon: '⭐',
+        description: 'Most capable OpenAI model',
+        isDefault: true,
+      },
+      {
+        id: 'claude-3.5-sonnet',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        contextWindow: 200000,
+        capabilities: ['reasoning', 'code', 'vision', 'tools', 'analysis'],
+        icon: '✨',
+        description: 'Best for nuanced tasks',
+      },
+      {
+        id: 'claude-3-opus',
+        name: 'Claude 3 Opus',
+        provider: 'anthropic',
+        contextWindow: 200000,
+        capabilities: ['reasoning', 'creative', 'analysis'],
+        icon: '🎵',
+        description: 'Creative & analytical powerhouse',
+      },
+      {
+        id: 'quant-1',
+        name: 'Quant-1',
+        provider: 'quant',
+        contextWindow: 256000,
+        capabilities: ['ecosystem', 'automation', 'tools', 'cross-app'],
+        icon: '🚀',
+        description: 'Native Quant ecosystem model',
+      },
+      {
+        id: 'llama-3-70b',
+        name: 'Llama 3 70B',
+        provider: 'meta',
+        contextWindow: 8192,
+        capabilities: ['reasoning', 'code', 'multilingual'],
+        icon: '🦙',
+        description: 'Open-source excellence',
+      },
+      {
+        id: 'gemini-pro',
+        name: 'Gemini Pro',
+        provider: 'google',
+        contextWindow: 1000000,
+        capabilities: ['reasoning', 'vision', 'code', 'multimodal'],
+        icon: '💎',
+        description: 'Google multimodal AI',
+      },
+    ]);
+  });
+
   return app;
 }

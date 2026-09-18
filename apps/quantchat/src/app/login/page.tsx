@@ -22,12 +22,28 @@ const COUNTRY_CODE_RE = /^\+\d{1,4}$/;
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>('phone');
-  const [countryCode, setCountryCode] = useState('+1');
+  const [countryCode, setCountryCode] = useState('+91');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  const handleQuantSSO = useCallback(() => {
+    try {
+      const stored =
+        localStorage.getItem('token') ||
+        localStorage.getItem('quant_token') ||
+        localStorage.getItem('quantchat_access_token');
+      if (stored) {
+        persistSession(stored, stored);
+        router.replace('/');
+        return;
+      }
+    } catch {}
+    const returnTo = encodeURIComponent(window.location.origin + '/');
+    window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
+  }, [router]);
 
   const requestCode = useCallback(async () => {
     setError(null);
@@ -111,6 +127,23 @@ export default function LoginPage() {
             {info}
           </div>
         )}
+
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={handleQuantSSO}
+            className="w-full flex items-center justify-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface,#18181b)] py-2.5 font-medium text-[var(--quant-foreground)] hover:bg-[var(--quant-muted,#27272a)] transition-colors shadow-sm"
+          >
+            <span className="text-emerald-400 font-bold">⚡</span> Continue with Quant Account
+          </button>
+          <div className="relative flex items-center justify-center py-2">
+            <div className="border-t border-[var(--quant-border)] w-full" />
+            <span className="bg-[var(--quant-background)] px-2 text-xs text-[var(--quant-muted-foreground)] uppercase">
+              Or with phone
+            </span>
+            <div className="border-t border-[var(--quant-border)] w-full" />
+          </div>
+        </div>
 
         {step === 'phone' ? (
           <form
