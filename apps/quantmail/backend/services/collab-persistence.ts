@@ -123,19 +123,35 @@ function legacyTextToUpdate(content: string): Uint8Array {
   return update;
 }
 
+export interface PersistenceAdapterOptions {
+  storage?: CollabStorageClient;
+  allowInlineFallback?: boolean;
+}
+
 /** Prisma-backed Yjs persistence: append-only delta log + snapshot compaction. */
 export class PersistenceAdapter {
   private readonly storage?: CollabStorageClient;
+  private readonly allowInlineFallback: boolean;
 
   constructor(
     private readonly db: CollabPrismaClient = defaultPrisma,
-    options?: { storage?: CollabStorageClient } | CollabStorageClient,
+    options?: PersistenceAdapterOptions | CollabStorageClient,
   ) {
     if (options && typeof (options as CollabStorageClient).download === 'function') {
       this.storage = options as CollabStorageClient;
+      this.allowInlineFallback = false;
     } else if (options && typeof options === 'object' && 'storage' in options) {
-      this.storage = options.storage;
-    } else if (process.env.NODE_ENV !== 'test') {
+      this.storage = (options as PersistenceAdapterOptions).storage;
+      this.allowInlineFallback = Boolean(
+        (options as PersistenceAdapterOptions).allowInlineFallback,
+      );
+    } else if (options && typeof options === 'object' && 'allowInlineFallback' in options) {
+      this.storage = (options as PersistenceAdapterOptions).storage;
+      this.allowInlineFallback = Boolean(
+        (options as PersistenceAdapterOptions).allowInlineFallback,
+      );
+    } else {
+      this.allowInlineFallback = false;
       try {
         this.storage = new StorageClient(resolveStorageConfigFromEnv());
       } catch {
@@ -313,18 +329,26 @@ export class PersistenceAdapter {
         }
       }
 
-      await this.db.document.update({
-        where: { id: docId },
-        data: { content: encodeUpdate(update) },
-        select: { id: true },
-      });
-      return {};
+      if (this.allowInlineFallback) {
+        await this.db.document.update({
+          where: { id: docId },
+          data: { content: encodeUpdate(update) },
+          select: { id: true },
+        });
+        return {};
+      }
+
+      throw createAppError(
+        'Storage client required for collaborative document snapshots; refusing silent base64 fallback',
+        503,
+        'STORAGE_UNAVAILABLE',
+      );
     } catch (err: any) {
       if (err?.code === 'DOCUMENT_NOT_FOUND' || err?.statusCode === 404) throw err;
       throw createAppError(
         err?.message || 'Collaborative document snapshot could not be persisted',
-        500,
-        'INTERNAL_ERROR',
+        err?.statusCode || 500,
+        err?.code || 'INTERNAL_ERROR',
       );
     }
   }

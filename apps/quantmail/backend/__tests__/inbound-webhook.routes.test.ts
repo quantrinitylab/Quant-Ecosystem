@@ -59,6 +59,7 @@ vi.mock('@aws-sdk/client-s3', () => ({
 import { GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import inboundWebhookRoutes, { __setInboundIngestAdapter } from '../routes/inbound-webhook';
 import type { InboundIngestAdapter } from '../services/inbound-ingest.service';
+import { suppressionService } from '../services/suppression.service';
 
 const TOPIC = 'arn:aws:sns:us-east-1:123456789012:quantmail-inbound';
 const BUCKET = 'quantmail-inbound-emails';
@@ -846,6 +847,112 @@ describe('POST /admin/inbound/sync-all — replaying the bucket is not a public 
 
       expect(response.statusCode).toBe(403);
       expect(response.json()).toEqual({ ok: false, error: 'FORBIDDEN' });
+    });
+  });
+
+  describe('POST /webhook/inbound — SES Bounce & Complaint automatic suppression (Gate 4 / Task G4-3)', () => {
+    it('automatically records suppression for bounced recipients', async () => {
+      const suppressSpy = vi.spyOn(suppressionService, 'suppress').mockResolvedValue({
+        id: 'supp_1',
+        email: 'bounced-user@remote.com',
+        reason: 'BOUNCE',
+        source: 'SNS',
+        details: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const payload = {
+        Type: 'Notification',
+        MessageId: 'msg-bounce-123',
+        TopicArn: TOPIC,
+        Timestamp: new Date().toISOString(),
+        Message: JSON.stringify({
+          notificationType: 'Bounce',
+          bounce: {
+            bounceType: 'Permanent',
+            bounceSubType: 'General',
+            bouncedRecipients: [{ emailAddress: 'bounced-user@remote.com' }],
+            timestamp: '2026-09-18T12:00:00.000Z',
+            feedbackId: 'fb-bounce-001',
+          },
+        }),
+      };
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        ok: true,
+        type: 'bounce',
+        suppressed: ['bounced-user@remote.com'],
+      });
+      expect(suppressSpy).toHaveBeenCalledWith(
+        'bounced-user@remote.com',
+        'BOUNCE',
+        'SNS',
+        expect.objectContaining({
+          bounceType: 'Permanent',
+          bounceSubType: 'General',
+          feedbackId: 'fb-bounce-001',
+        }),
+      );
+      suppressSpy.mockRestore();
+    });
+
+    it('automatically records suppression for complained recipients', async () => {
+      const suppressSpy = vi.spyOn(suppressionService, 'suppress').mockResolvedValue({
+        id: 'supp_2',
+        email: 'complaining-user@remote.com',
+        reason: 'COMPLAINT',
+        source: 'SNS',
+        details: {},
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const payload = {
+        Type: 'Notification',
+        MessageId: 'msg-complaint-123',
+        TopicArn: TOPIC,
+        Timestamp: new Date().toISOString(),
+        Message: JSON.stringify({
+          notificationType: 'Complaint',
+          complaint: {
+            complaintFeedbackType: 'abuse',
+            complainedRecipients: [{ emailAddress: 'complaining-user@remote.com' }],
+            timestamp: '2026-09-18T12:00:00.000Z',
+            feedbackId: 'fb-complaint-001',
+          },
+        }),
+      };
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        ok: true,
+        type: 'complaint',
+        suppressed: ['complaining-user@remote.com'],
+      });
+      expect(suppressSpy).toHaveBeenCalledWith(
+        'complaining-user@remote.com',
+        'COMPLAINT',
+        'SNS',
+        expect.objectContaining({
+          complaintFeedbackType: 'abuse',
+          feedbackId: 'fb-complaint-001',
+        }),
+      );
+      suppressSpy.mockRestore();
     });
   });
 });

@@ -1,71 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SuppressionService, type SuppressionRow } from '../services/suppression.service';
-
-function createMockDb() {
-  const table = new Map<string, SuppressionRow>();
-  return {
-    table,
-    emailSuppression: {
-      findUnique: vi.fn(async ({ where }: { where: { email: string } }) => {
-        return table.get(where.email) ?? null;
-      }),
-      findMany: vi.fn(async ({ where }: { where: { email: { in: string[] } } }) => {
-        return where.email.in
-          .map((email) => table.get(email))
-          .filter((r): r is SuppressionRow => r !== undefined);
-      }),
-      create: vi.fn(async ({ data }: { data: any }) => {
-        const row: SuppressionRow = {
-          id: `sup_${Date.now()}_${Math.random()}`,
-          email: data.email,
-          reason: data.reason,
-          source: data.source,
-          details: data.details,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        table.set(data.email, row);
-        return row;
-      }),
-      upsert: vi.fn(async ({ where, create, update }: any) => {
-        const existing = table.get(where.email);
-        if (existing) {
-          const updated: SuppressionRow = {
-            ...existing,
-            ...update,
-            updatedAt: new Date(),
-          };
-          table.set(where.email, updated);
-          return updated;
-        }
-        const row: SuppressionRow = {
-          id: `sup_${Date.now()}_${Math.random()}`,
-          email: create.email,
-          reason: create.reason,
-          source: create.source,
-          details: create.details,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        table.set(where.email, row);
-        return row;
-      }),
-      delete: vi.fn(async ({ where }: { where: { email: string } }) => {
-        const existing = table.get(where.email);
-        if (!existing) throw new Error('P2025');
-        table.delete(where.email);
-        return existing;
-      }),
-    },
-  };
-}
+import { SuppressionService } from '../services/suppression.service';
+import { createMockSuppressionDb } from './helpers/suppression-doubles';
 
 describe('Gate 4: SuppressionService (Hard-Block Bounces & Complaints)', () => {
-  let db: ReturnType<typeof createMockDb>;
+  let db: ReturnType<typeof createMockSuppressionDb>;
   let service: SuppressionService;
 
   beforeEach(() => {
-    db = createMockDb();
+    db = createMockSuppressionDb();
     service = new SuppressionService(db as any);
   });
 
@@ -131,8 +73,7 @@ describe('Gate 4: SuppressionService (Hard-Block Bounces & Complaints)', () => {
 
   it('EmailService.send throws 422 RECIPIENT_SUPPRESSED when all external recipients are on suppression list', async () => {
     const { EmailService } = await import('../services/email.service');
-    const { suppressionService } = await import('../services/suppression.service');
-    await suppressionService.suppress('blocked-user@badhost.org', 'BOUNCE', 'SNS');
+    await service.suppress('blocked-user@badhost.org', 'BOUNCE', 'SNS');
 
     const fakePrisma = {
       email: {
@@ -161,7 +102,7 @@ describe('Gate 4: SuppressionService (Hard-Block Bounces & Complaints)', () => {
       },
     };
 
-    const emailService = new EmailService(fakePrisma as any);
+    const emailService = new EmailService(fakePrisma as any, undefined, service);
     await expect(
       emailService.send('user_sender_1', 'email_suppressed_1', 'sent_folder_1'),
     ).rejects.toMatchObject({

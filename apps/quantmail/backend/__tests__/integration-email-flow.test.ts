@@ -3,6 +3,8 @@ import { EmailService } from '../services/email.service';
 import { FolderService } from '../services/folder.service';
 import { AttachmentService } from '../services/attachment.service';
 import { FakeStorage, makeDb } from './helpers/attachment-doubles';
+import { SuppressionService } from '../services/suppression.service';
+import { createMockSuppressionDb } from './helpers/suppression-doubles';
 
 function createMockPrisma() {
   return {
@@ -45,7 +47,9 @@ describe('Integration: Email Flows', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    emailService = new EmailService(prisma as never);
+    const suppressionDb = createMockSuppressionDb();
+    const suppression = new SuppressionService(suppressionDb as any);
+    emailService = new EmailService(prisma as never, undefined, suppression);
     folderService = new FolderService(prisma as never);
     attachmentService = new AttachmentService({
       storage: new FakeStorage() as never,

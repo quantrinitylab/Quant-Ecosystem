@@ -187,8 +187,15 @@ export class SearchQueryService {
    * Build a Prisma `where` filter for the Email model from a query string,
    * always scoped to `userId` and excluding soft-deleted rows. Multiple
    * operators of the same kind combine with AND.
+   * If `ftsEmailIds` is supplied, matches from the GIN `emails_fts_idx` index
+   * are passed via `{ id: { in: ftsEmailIds } }`.
    */
-  buildEmailWhere(userId: string, query: string, now: Date = new Date()): Record<string, unknown> {
+  buildEmailWhere(
+    userId: string,
+    query: string,
+    now: Date = new Date(),
+    ftsEmailIds?: string[] | null,
+  ): Record<string, unknown> {
     const parsed = this.parse(query, now);
     const and: Record<string, unknown>[] = [];
 
@@ -228,14 +235,18 @@ export class SearchQueryService {
       if (parsed.before) receivedAt.lte = parsed.before;
       and.push({ receivedAt });
     }
-    for (const term of parsed.terms) {
-      and.push({
-        OR: [
-          { subject: { contains: term, mode: 'insensitive' } },
-          { snippet: { contains: term, mode: 'insensitive' } },
-          { bodyPlain: { contains: term, mode: 'insensitive' } },
-        ],
-      });
+    if (ftsEmailIds !== undefined && ftsEmailIds !== null) {
+      and.push({ id: { in: ftsEmailIds } });
+    } else {
+      for (const term of parsed.terms) {
+        and.push({
+          OR: [
+            { subject: { contains: term, mode: 'insensitive' } },
+            { snippet: { contains: term, mode: 'insensitive' } },
+            { bodyPlain: { contains: term, mode: 'insensitive' } },
+          ],
+        });
+      }
     }
 
     const where: Record<string, unknown> = { userId, deletedAt: null };
@@ -249,6 +260,7 @@ export class SearchQueryService {
    * Execute a search against the Email model. Requires a PrismaClient (supplied
    * via the constructor). Returns a paginated result ordered by `receivedAt`.
    * Supports both offset (page/pageSize) and cursor-based (cursor/limit) pagination.
+   * Uses PostgreSQL GIN index `emails_fts_idx` via `plainto_tsquery` when terms are present.
    */
   async search(
     userId: string,
@@ -272,7 +284,26 @@ export class SearchQueryService {
     if (!this.prisma) {
       throw new Error('SearchQueryService.search requires a PrismaClient');
     }
-    const where = this.buildEmailWhere(userId, query, options.now);
+    const parsed = this.parse(query, options.now);
+    let ftsEmailIds: string[] | null = null;
+    if (parsed.terms.length > 0 && typeof (this.prisma as any).$queryRawUnsafe === 'function') {
+      try {
+        const fullTerms = parsed.terms.join(' ');
+        const rows = await (this.prisma as any).$queryRawUnsafe(
+          `SELECT id FROM emails
+           WHERE "userId" = $1
+             AND "deletedAt" IS NULL
+             AND to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '')) @@ plainto_tsquery('english', $2)`,
+          userId,
+          fullTerms,
+        );
+        ftsEmailIds = rows.map((r: { id: string }) => r.id);
+      } catch {
+        ftsEmailIds = null;
+      }
+    }
+
+    const where = this.buildEmailWhere(userId, query, options.now, ftsEmailIds);
     const limit = options.limit ?? options.pageSize ?? 25;
 
     if (options.cursor) {
@@ -395,6 +426,8 @@ export class SearchQueryService {
 
   /**
    * Search documents by title and content leveraging the GIN full-text index (documents_fts_idx).
+   * Executes authentic PostgreSQL to_tsvector('english', ...) @@ plainto_tsquery('english', $query)
+   * matching the GIN index expression created in migration 0067.
    */
   async searchDocuments(
     userId: string,
@@ -409,6 +442,50 @@ export class SearchQueryService {
   }> {
     if (!this.prisma) throw new Error('SearchQueryService requires a PrismaClient');
     const q = query.trim();
+    const page = options.page ?? 1;
+    const pageSize = options.limit ?? options.pageSize ?? 25;
+    const offset = (page - 1) * pageSize;
+
+    // 1. When PostgreSQL raw query is available, execute authentic GIN full-text search
+    if (q.length > 0 && typeof (this.prisma as any).$queryRawUnsafe === 'function') {
+      try {
+        const [data, countRes] = await Promise.all([
+          (this.prisma as any).$queryRawUnsafe(
+            `SELECT id, title, "userId", "createdAt", "updatedAt", "snapshotStorageKey"
+             FROM documents
+             WHERE "userId" = $1
+               AND "isDeleted" = false
+               AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('english', $2)
+             ORDER BY "updatedAt" DESC
+             LIMIT $3 OFFSET $4`,
+            userId,
+            q,
+            pageSize,
+            offset,
+          ),
+          (this.prisma as any).$queryRawUnsafe(
+            `SELECT count(*)::int as total
+             FROM documents
+             WHERE "userId" = $1
+               AND "isDeleted" = false
+               AND to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('english', $2)`,
+            userId,
+            q,
+          ),
+        ]);
+        const total = Number(countRes[0]?.total ?? 0);
+        return {
+          data,
+          total,
+          page,
+          pageSize,
+          totalPages: Math.ceil(total / pageSize),
+        };
+      } catch {
+        // Fall through to delegate if raw query fails on test double
+      }
+    }
+
     const where: Record<string, unknown> = {
       userId,
       isDeleted: false,
@@ -421,12 +498,10 @@ export class SearchQueryService {
           }
         : {}),
     };
-    const page = options.page ?? 1;
-    const pageSize = options.limit ?? options.pageSize ?? 25;
     const [data, total] = await Promise.all([
       (this.prisma as any).document.findMany({
         where,
-        skip: (page - 1) * pageSize,
+        skip: offset,
         take: pageSize,
         orderBy: { updatedAt: 'desc' },
         select: {

@@ -108,6 +108,11 @@ export class EmailService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly pipeline?: OutboundDeliveryPipeline,
+    private readonly suppression?: {
+      filterAllowedRecipients(
+        recipients: string[],
+      ): Promise<{ allowed: string[]; suppressed: string[] }>;
+    },
   ) {}
 
   async compose(input: ComposeEmailInput): Promise<Email> {
@@ -433,7 +438,8 @@ export class EmailService {
     // Gate 4: Hard-block outbound delivery if all recipients are suppressed.
     // Prune suppressed addresses to protect AWS SES reputation (< 5% bounce / 0.1% complaint).
     if (external.length > 0) {
-      const { allowed, suppressed } = await suppressionService.filterAllowedRecipients(external);
+      const activeSuppression = this.suppression ?? suppressionService;
+      const { allowed, suppressed } = await activeSuppression.filterAllowedRecipients(external);
       if (suppressed.length > 0) {
         if (allowed.length === 0 && internal.length === 0) {
           throw createAppError(

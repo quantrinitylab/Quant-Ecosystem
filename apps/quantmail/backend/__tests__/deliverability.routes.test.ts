@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fastify from 'fastify';
-import deliverabilityRoutes from '../routes/deliverability';
-import { resetDeliverabilityStores } from '../services/deliverability.service';
+import deliverabilityRoutes, { __setDeliverabilityService } from '../routes/deliverability';
+import {
+  resetDeliverabilityStores,
+  DeliverabilityService,
+} from '../services/deliverability.service';
+import { SuppressionService } from '../services/suppression.service';
+import { createMockSuppressionDb } from './helpers/suppression-doubles';
 
 const SAMPLE_DMARC_XML = `<?xml version="1.0" encoding="UTF-8" ?>
 <feedback>
@@ -86,6 +91,13 @@ async function buildTestApp(userId?: string) {
 describe('QuantMail Deliverability, DMARC & Suppression Routes (Tasks X08, X09, X10)', () => {
   beforeEach(() => {
     resetDeliverabilityStores();
+    const mockDb = createMockSuppressionDb();
+    const mockSuppression = new SuppressionService(mockDb as any);
+    __setDeliverabilityService(new DeliverabilityService(mockSuppression));
+  });
+
+  afterEach(() => {
+    __setDeliverabilityService(undefined);
   });
 
   it('POST /deliverability/dmarc-reports ingests RFC 7489 XML feedback report and returns status 201', async () => {

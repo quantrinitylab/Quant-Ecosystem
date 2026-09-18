@@ -54,7 +54,6 @@ const memoryDmarcReports: DmarcReport[] = [];
 
 export function resetDeliverabilityStores(): void {
   memoryDmarcReports.length = 0;
-  suppressionService.resetStore();
 }
 
 /**
@@ -152,6 +151,8 @@ export function parseDmarcXmlReport(rawXml: string): DmarcReport {
 }
 
 export class DeliverabilityService {
+  constructor(private readonly suppression: typeof suppressionService = suppressionService) {}
+
   async ingestDmarcReport(rawXml: string): Promise<DmarcReport> {
     const parsed = parseDmarcXmlReport(rawXml);
     memoryDmarcReports.push(parsed);
@@ -188,7 +189,7 @@ export class DeliverabilityService {
 
     const bounceRate = 0.08;
     const complaintRate = 0.01;
-    const suppressionCount = await suppressionService.count();
+    const suppressionCount = await this.suppression.count();
 
     // Reputation score 0-100: weighted average of auth alignment minus bounce/complaint penalties
     let score = Math.round(
@@ -225,14 +226,14 @@ export class DeliverabilityService {
   // --------------------------------------------------------------------------
   async isSuppressed(email: string): Promise<boolean> {
     if (!email) return false;
-    return suppressionService.isSuppressed(email);
+    return this.suppression.isSuppressed(email);
   }
 
   async getSuppressionList(options?: {
     reason?: 'HARD_BOUNCE' | 'COMPLAINT' | 'UNSUBSCRIBE';
   }): Promise<SuppressionEntry[]> {
     const mappedReason = options?.reason === 'HARD_BOUNCE' ? 'BOUNCE' : options?.reason;
-    const rows = await suppressionService.list(mappedReason ? { reason: mappedReason } : undefined);
+    const rows = await this.suppression.list(mappedReason ? { reason: mappedReason } : undefined);
     return rows.map((r) => ({
       email: r.email,
       reason: (r.reason === 'BOUNCE' ? 'HARD_BOUNCE' : r.reason) as any,
@@ -248,7 +249,7 @@ export class DeliverabilityService {
   ): Promise<SuppressionEntry> {
     const mappedReason = reason === 'HARD_BOUNCE' ? 'BOUNCE' : reason;
     const mappedSource = source.includes('sns') ? 'SNS' : 'ADMIN';
-    const row = await suppressionService.suppress(email, mappedReason, mappedSource);
+    const row = await this.suppression.suppress(email, mappedReason, mappedSource);
     return {
       email: row.email,
       reason,
@@ -259,7 +260,7 @@ export class DeliverabilityService {
   }
 
   async removeSuppression(email: string): Promise<boolean> {
-    await suppressionService.unsuppress(email);
+    await this.suppression.unsuppress(email);
     return true;
   }
 }

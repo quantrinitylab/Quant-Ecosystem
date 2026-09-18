@@ -3,7 +3,15 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { DeliverabilityService } from '../services/deliverability.service';
 
-const deliverabilityService = new DeliverabilityService();
+let serviceSingleton: DeliverabilityService | undefined;
+
+export function __setDeliverabilityService(service: DeliverabilityService | undefined): void {
+  serviceSingleton = service;
+}
+
+function getService(): DeliverabilityService {
+  return serviceSingleton ?? new DeliverabilityService();
+}
 
 function requireUserId(request: FastifyRequest): string {
   const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
@@ -56,7 +64,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const report = await deliverabilityService.ingestDmarcReport(xmlContent);
+    const report = await getService().ingestDmarcReport(xmlContent);
     return reply.status(201).send({
       success: true,
       data: report,
@@ -66,7 +74,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
   // GET /deliverability/stats - Deliverability dashboard metrics
   fastify.get('/stats', async (request, reply) => {
     const query = request.query as { domain?: string };
-    const stats = await deliverabilityService.getDeliverabilityStats(query?.domain);
+    const stats = await getService().getDeliverabilityStats(query?.domain);
     return reply.send({
       success: true,
       data: stats,
@@ -77,7 +85,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
   fastify.get('/suppression', async (request, reply) => {
     requireUserId(request);
     const query = request.query as { reason?: 'HARD_BOUNCE' | 'COMPLAINT' | 'UNSUBSCRIBE' };
-    const list = await deliverabilityService.getSuppressionList(query);
+    const list = await getService().getSuppressionList(query);
     return reply.send({
       success: true,
       data: list,
@@ -91,7 +99,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
     if (!email) {
       throw createAppError('Missing email query parameter', 400, 'MISSING_EMAIL');
     }
-    const suppressed = await deliverabilityService.isSuppressed(email);
+    const suppressed = await getService().isSuppressed(email);
     return reply.send({
       success: true,
       data: { email, suppressed },
@@ -110,7 +118,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const entry = await deliverabilityService.addSuppression(
+    const entry = await getService().addSuppression(
       parsed.data.email,
       parsed.data.reason,
       parsed.data.source,
@@ -126,7 +134,7 @@ export default async function deliverabilityRoutes(fastify: FastifyInstance) {
   fastify.delete<{ Params: { email: string } }>('/suppression/:email', async (request, reply) => {
     requireUserId(request);
     const email = decodeURIComponent(request.params.email);
-    const removed = await deliverabilityService.removeSuppression(email);
+    const removed = await getService().removeSuppression(email);
     return reply.send({
       success: true,
       data: { email, removed },

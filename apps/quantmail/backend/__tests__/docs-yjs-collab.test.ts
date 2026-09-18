@@ -222,7 +222,9 @@ describe('Yjs realtime sync and awareness protocol', () => {
 describe('Yjs document persistence', () => {
   it('persists a binary Yjs update in the document content column', async () => {
     const updateMock = vi.fn().mockResolvedValue({ id: 'doc-1' });
-    const adapter = new PersistenceAdapter({ document: { update: updateMock } } as never);
+    const adapter = new PersistenceAdapter({ document: { update: updateMock } } as never, {
+      allowInlineFallback: true,
+    });
     const source = new Y.Doc();
     source.getText('content').insert(0, 'binary state');
     const update = Y.encodeStateAsUpdate(source);

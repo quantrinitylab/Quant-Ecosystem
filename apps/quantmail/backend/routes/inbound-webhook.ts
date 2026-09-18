@@ -45,6 +45,7 @@ import {
   type AuthVerdict,
 } from '../services/deliverability-auth.service';
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
+import { suppressionService } from '../services/suppression.service';
 
 const REGION = process.env['AWS_REGION'] ?? 'us-east-1';
 const S3_BUCKET = process.env['INBOUND_S3_BUCKET'] ?? 'quantmail-inbound-emails';
@@ -502,6 +503,84 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
       app.log.error({ err: error }, '[inbound] SNS Message is not JSON');
       return reply.send({ ok: true, ignored: 'unparseable-message' });
     }
+
+    // 4.1) Handle SES Bounce & Complaint notifications to auto-populate suppression list (Gate 4 / Task G4-3)
+    const isBounce =
+      ses.notificationType === 'Bounce' ||
+      (ses as any).eventType === 'BOUNCE' ||
+      Boolean((ses as any).bounce);
+
+    if (isBounce && (ses as any).bounce) {
+      const bounce = (ses as any).bounce;
+      const bouncedRecipients: Array<{ emailAddress?: string }> = bounce.bouncedRecipients ?? [];
+      const suppressedEmails: string[] = [];
+
+      for (const r of bouncedRecipients) {
+        if (r.emailAddress) {
+          try {
+            await suppressionService.suppress(r.emailAddress, 'BOUNCE', 'SNS', {
+              bounceType: bounce.bounceType,
+              bounceSubType: bounce.bounceSubType,
+              timestamp: bounce.timestamp,
+              feedbackId: bounce.feedbackId,
+            });
+            suppressedEmails.push(r.emailAddress);
+          } catch (suppressErr) {
+            app.log.error(
+              { err: suppressErr, email: r.emailAddress },
+              '[inbound] failed to record bounce suppression',
+            );
+          }
+        }
+      }
+
+      app.log.info(
+        {
+          bounceType: bounce.bounceType,
+          suppressedCount: suppressedEmails.length,
+          suppressedEmails,
+        },
+        '[inbound] SES bounce processed into suppression engine',
+      );
+      return reply.send({ ok: true, type: 'bounce', suppressed: suppressedEmails });
+    }
+
+    const isComplaint =
+      ses.notificationType === 'Complaint' ||
+      (ses as any).eventType === 'COMPLAINT' ||
+      Boolean((ses as any).complaint);
+
+    if (isComplaint && (ses as any).complaint) {
+      const complaint = (ses as any).complaint;
+      const complainedRecipients: Array<{ emailAddress?: string }> =
+        complaint.complainedRecipients ?? [];
+      const suppressedEmails: string[] = [];
+
+      for (const r of complainedRecipients) {
+        if (r.emailAddress) {
+          try {
+            await suppressionService.suppress(r.emailAddress, 'COMPLAINT', 'SNS', {
+              complaintFeedbackType: complaint.complaintFeedbackType,
+              timestamp: complaint.timestamp,
+              feedbackId: complaint.feedbackId,
+            });
+            suppressedEmails.push(r.emailAddress);
+          } catch (suppressErr) {
+            app.log.error(
+              { err: suppressErr, email: r.emailAddress },
+              '[inbound] failed to record complaint suppression',
+            );
+          }
+        }
+      }
+
+      app.log.info(
+        { suppressedCount: suppressedEmails.length, suppressedEmails },
+        '[inbound] SES complaint processed into suppression engine',
+      );
+      return reply.send({ ok: true, type: 'complaint', suppressed: suppressedEmails });
+    }
+
     const receipt = ses.receipt;
     const action = receipt?.action;
 

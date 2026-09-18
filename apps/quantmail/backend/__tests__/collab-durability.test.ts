@@ -127,7 +127,7 @@ describe('Gate G-A: collaborative document durability', () => {
   it('compaction folds deltas into the snapshot and prunes the log losslessly', async () => {
     const db = createFakeDb();
     const server = await loadServer();
-    const persistence = new PersistenceAdapter(db as any);
+    const persistence = new PersistenceAdapter(db as any, { allowInlineFallback: true });
 
     const socket = makeSocket();
     await server.setupWSConnection(
@@ -152,7 +152,7 @@ describe('Gate G-A: collaborative document durability', () => {
   it('G-A-BUG-1: a legacy plaintext body is preserved, not overwritten', async () => {
     const db = createFakeDb('This document predates Yjs and must not be destroyed.');
     const server = await loadServer();
-    const persistence = new PersistenceAdapter(db as any);
+    const persistence = new PersistenceAdapter(db as any, { allowInlineFallback: true });
 
     const socket = makeSocket();
     await server.setupWSConnection(

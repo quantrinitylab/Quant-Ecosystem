@@ -32,19 +32,23 @@ export interface SuppressionPrismaClient {
 }
 
 export class SuppressionService {
-  private readonly db?: SuppressionPrismaClient;
-  private readonly memoryFallback = new Map<string, SuppressionRow>();
+  private readonly db: SuppressionPrismaClient;
 
   constructor(db?: SuppressionPrismaClient) {
-    if (db) {
-      this.db = db;
-    } else if (process.env.DATABASE_URL) {
-      this.db = defaultPrisma as unknown as SuppressionPrismaClient;
-    }
+    this.db = db ?? (defaultPrisma as unknown as SuppressionPrismaClient);
   }
 
-  resetStore(): void {
-    this.memoryFallback.clear();
+  /** No optional chaining on the delegate: a missing model must fail loudly (W15-3 / Gate 4). */
+  private rows() {
+    const delegate = this.db?.emailSuppression;
+    if (!delegate || typeof delegate.findUnique !== 'function') {
+      throw createAppError(
+        'email_suppressions is not available; run prisma migrate + prisma generate',
+        503,
+        'DATABASE_UNAVAILABLE',
+      );
+    }
+    return delegate;
   }
 
   normalizeEmail(email: string): string {
@@ -54,17 +58,10 @@ export class SuppressionService {
   async isSuppressed(email: string): Promise<boolean> {
     const normalized = this.normalizeEmail(email);
     if (!normalized) return false;
-    try {
-      if (this.db?.emailSuppression?.findUnique) {
-        const row = await this.db.emailSuppression.findUnique({
-          where: { email: normalized },
-        });
-        if (row) return true;
-      }
-    } catch {
-      // Prisma call failed (e.g. in standalone test environment)
-    }
-    return this.memoryFallback.has(normalized);
+    const row = await this.rows().findUnique({
+      where: { email: normalized },
+    });
+    return Boolean(row);
   }
 
   async suppress(
@@ -77,45 +74,22 @@ export class SuppressionService {
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       throw createAppError('Invalid email address for suppression', 400, 'INVALID_EMAIL');
     }
-    let row: SuppressionRow | null = null;
-    try {
-      if (this.db?.emailSuppression?.upsert) {
-        row = await this.db.emailSuppression.upsert({
-          where: { email: normalized },
-          create: { email: normalized, reason, source, details },
-          update: { reason, source, details },
-        });
-      }
-    } catch {
-      // Fall through to memory fallback
-    }
-
-    if (!row) {
-      row = {
-        id: `sup_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        email: normalized,
-        reason,
-        source,
-        details,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-    }
-    this.memoryFallback.set(normalized, row);
-    return row;
+    return this.rows().upsert({
+      where: { email: normalized },
+      create: { email: normalized, reason, source, details },
+      update: { reason, source, details },
+    });
   }
 
   async unsuppress(email: string): Promise<void> {
     const normalized = this.normalizeEmail(email);
-    this.memoryFallback.delete(normalized);
+    if (!normalized) return;
     try {
-      if (this.db?.emailSuppression?.delete) {
-        await this.db.emailSuppression.delete({
-          where: { email: normalized },
-        });
-      }
+      await this.rows().delete({
+        where: { email: normalized },
+      });
     } catch {
-      // Idempotent: non-existing record deletion is a no-op
+      // Idempotent: deleting a non-existent suppression record is a no-op
     }
   }
 
@@ -130,25 +104,10 @@ export class SuppressionService {
       return { allowed: [], suppressed: [] };
     }
 
-    const suppressedSet = new Set<string>();
-    try {
-      if (this.db?.emailSuppression?.findMany) {
-        const found = await this.db.emailSuppression.findMany({
-          where: { email: { in: normalizedList } },
-        });
-        for (const r of found) {
-          suppressedSet.add(r.email.toLowerCase());
-        }
-      }
-    } catch {
-      // Fail open for DB blip
-    }
-
-    for (const email of normalizedList) {
-      if (this.memoryFallback.has(email)) {
-        suppressedSet.add(email);
-      }
-    }
+    const found = await this.rows().findMany({
+      where: { email: { in: normalizedList } },
+    });
+    const suppressedSet = new Set<string>(found.map((r) => r.email.toLowerCase()));
 
     const allowed = normalizedList.filter((e) => !suppressedSet.has(e));
     const suppressed = normalizedList.filter((e) => suppressedSet.has(e));
@@ -157,34 +116,20 @@ export class SuppressionService {
   }
 
   async list(options?: { reason?: string }): Promise<SuppressionRow[]> {
-    try {
-      if (this.db?.emailSuppression?.findMany) {
-        const where = options?.reason ? { reason: options.reason } : {};
-        const rows = await this.db.emailSuppression.findMany({
-          where,
-          orderBy: { createdAt: 'desc' },
-        });
-        if (rows && rows.length > 0) return rows;
-      }
-    } catch {
-      // Fall through
-    }
-    const all = Array.from(this.memoryFallback.values());
-    if (options?.reason) {
-      return all.filter((r) => r.reason === options.reason);
-    }
-    return all;
+    const where = options?.reason ? { reason: options.reason } : {};
+    return this.rows().findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   async count(): Promise<number> {
-    try {
-      if (typeof this.db?.emailSuppression?.count === 'function') {
-        return await this.db.emailSuppression.count();
-      }
-    } catch {
-      // Fall through
+    const delegate = this.rows();
+    if (typeof delegate.count === 'function') {
+      return delegate.count();
     }
-    return this.memoryFallback.size;
+    const all = await delegate.findMany({});
+    return all.length;
   }
 }
 
