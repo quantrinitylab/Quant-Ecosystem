@@ -1,45 +1,17 @@
-/** Quant wordmark SVG - clean geometric sans-serif spelling QUANT with distinctive Q tail */
+/** Quant wordmark SVG - clean geometric sans-serif with distinctive Q tail */
 
-export const quantWordmarkLight = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" fill="none">
-  <defs>
-    <linearGradient id="q_wm_grad_light" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#4F46E5"/>
-      <stop offset="100%" stop-color="#06B6D4"/>
-    </linearGradient>
-  </defs>
-  <!-- Q Symbol Icon -->
-  <path d="M24 6C14.059 6 6 14.059 6 24C6 33.941 14.059 42 24 42C28.243 42 32.136 40.528 35.19 38.071L30.938 33.819C28.989 35.185 26.591 36 24 36C17.373 36 12 30.627 12 24C12 17.373 17.373 12 24 12C30.627 12 36 17.373 36 24C36 26.241 35.385 28.339 34.316 30.134L39.047 34.865C41.053 31.761 42 28.026 42 24C42 14.059 33.941 6 24 6Z" fill="url(#q_wm_grad_light)"/>
-  <path d="M27 27L42 42M42 36V42H36" stroke="#4F46E5" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Q letter in text -->
-  <path d="M68 12C60.268 12 54 18.268 54 26C54 33.732 60.268 40 68 40C71.3 40 74.3 38.8 76.7 36.9L80 40.2L83.5 36.7L80.2 33.4C81.4 31.2 82 28.7 82 26C82 18.268 75.732 12 68 12ZM68 17C72.971 17 77 21.029 77 26C77 30.971 72.971 35 68 35C63.029 35 59 30.971 59 26C59 21.029 63.029 17 68 17Z" fill="#0F172A"/>
-  <!-- U letter -->
-  <path d="M92 13H97V28C97 32.4 100.1 35.5 104.5 35.5C108.9 35.5 112 32.4 112 28V13H117V28C117 35.2 111.8 40.5 104.5 40.5C97.2 40.5 92 35.2 92 28V13Z" fill="#0F172A"/>
-  <!-- A letter -->
-  <path d="M136 13H142L153 40H147.5L145.2 34H132.8L130.5 40H125L136 13ZM143.5 29.5L139 17.8L134.5 29.5H143.5Z" fill="#0F172A"/>
-  <!-- N letter -->
-  <path d="M162 13H167L178 32V13H183V40H178L167 21V40H162V13Z" fill="#0F172A"/>
-  <!-- T letter -->
-  <path d="M192 13H214V18H205.5V40H200.5V18H192V13Z" fill="#0F172A"/>
+export const quantWordmarkLight = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20c4.12 0 7.97-1.25 11.16-3.39L40.8 46.24l4.24-4.24-5.63-5.63A19.9 19.9 0 0 0 44 24C44 12.954 35.046 4 24 4Zm0 6c7.732 0 14 6.268 14 14s-6.268 14-14 14-14-6.268-14-14S16.268 10 24 10Z" fill="#1E1B4B"/>
+  <path d="M60 14h6v3.5c1.5-2.5 4-4 7-4 5.5 0 9.5 4.5 9.5 11s-4 11-9.5 11c-3 0-5.5-1.5-7-4V44h-6V14Zm11 16c3.3 0 5.5-2.7 5.5-6s-2.2-6-5.5-6-5.5 2.7-5.5 6 2.2 6 5.5 6Z" fill="#1E1B4B"/>
+  <path d="M96 34.5c-3 0-5.5-1.5-7-4V34h-6V14h6v16.5c1.5 2.5 4 4 7 4V34.5Zm-7-16.5v3.5c1.5-2.5 4-4 7-4V14c-3 0-5.5 1.5-7 4Z" fill="#1E1B4B"/>
+  <path d="M100 14h6v2.5c1.8-2 4.2-3 7-3 5 0 8 3.5 8 9V34h-6V23.5c0-3.5-1.8-5.5-5-5.5s-5.5 2-6 4.5V34h-6V14h2Z" fill="#1E1B4B"/>
+  <path d="M128 8h6v6h5v5h-5v9c0 2 .8 3 2.5 3h2.5v5h-3.5c-4.5 0-7.5-2.5-7.5-7.5V19h-4v-5h4V8Z" fill="#1E1B4B"/>
 </svg>`;
 
-export const quantWordmarkDark = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 48" fill="none">
-  <defs>
-    <linearGradient id="q_wm_grad_dark" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#818CF8"/>
-      <stop offset="100%" stop-color="#22D3EE"/>
-    </linearGradient>
-  </defs>
-  <!-- Q Symbol Icon -->
-  <path d="M24 6C14.059 6 6 14.059 6 24C6 33.941 14.059 42 24 42C28.243 42 32.136 40.528 35.19 38.071L30.938 33.819C28.989 35.185 26.591 36 24 36C17.373 36 12 30.627 12 24C12 17.373 17.373 12 24 12C30.627 12 36 17.373 36 24C36 26.241 35.385 28.339 34.316 30.134L39.047 34.865C41.053 31.761 42 28.026 42 24C42 14.059 33.941 6 24 6Z" fill="url(#q_wm_grad_dark)"/>
-  <path d="M27 27L42 42M42 36V42H36" stroke="#818CF8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Q letter in text -->
-  <path d="M68 12C60.268 12 54 18.268 54 26C54 33.732 60.268 40 68 40C71.3 40 74.3 38.8 76.7 36.9L80 40.2L83.5 36.7L80.2 33.4C81.4 31.2 82 28.7 82 26C82 18.268 75.732 12 68 12ZM68 17C72.971 17 77 21.029 77 26C77 30.971 72.971 35 68 35C63.029 35 59 30.971 59 26C59 21.029 63.029 17 68 17Z" fill="#F8FAFC"/>
-  <!-- U letter -->
-  <path d="M92 13H97V28C97 32.4 100.1 35.5 104.5 35.5C108.9 35.5 112 32.4 112 28V13H117V28C117 35.2 111.8 40.5 104.5 40.5C97.2 40.5 92 35.2 92 28V13Z" fill="#F8FAFC"/>
-  <!-- A letter -->
-  <path d="M136 13H142L153 40H147.5L145.2 34H132.8L130.5 40H125L136 13ZM143.5 29.5L139 17.8L134.5 29.5H143.5Z" fill="#F8FAFC"/>
-  <!-- N letter -->
-  <path d="M162 13H167L178 32V13H183V40H178L167 21V40H162V13Z" fill="#F8FAFC"/>
-  <!-- T letter -->
-  <path d="M192 13H214V18H205.5V40H200.5V18H192V13Z" fill="#F8FAFC"/>
+export const quantWordmarkDark = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <path d="M24 4C12.954 4 4 12.954 4 24s8.954 20 20 20c4.12 0 7.97-1.25 11.16-3.39L40.8 46.24l4.24-4.24-5.63-5.63A19.9 19.9 0 0 0 44 24C44 12.954 35.046 4 24 4Zm0 6c7.732 0 14 6.268 14 14s-6.268 14-14 14-14-6.268-14-14S16.268 10 24 10Z" fill="#E0E7FF"/>
+  <path d="M60 14h6v3.5c1.5-2.5 4-4 7-4 5.5 0 9.5 4.5 9.5 11s-4 11-9.5 11c-3 0-5.5-1.5-7-4V44h-6V14Zm11 16c3.3 0 5.5-2.7 5.5-6s-2.2-6-5.5-6-5.5 2.7-5.5 6 2.2 6 5.5 6Z" fill="#E0E7FF"/>
+  <path d="M96 34.5c-3 0-5.5-1.5-7-4V34h-6V14h6v16.5c1.5 2.5 4 4 7 4V34.5Zm-7-16.5v3.5c1.5-2.5 4-4 7-4V14c-3 0-5.5 1.5-7 4Z" fill="#E0E7FF"/>
+  <path d="M100 14h6v2.5c1.8-2 4.2-3 7-3 5 0 8 3.5 8 9V34h-6V23.5c0-3.5-1.8-5.5-5-5.5s-5.5 2-6 4.5V34h-6V14h2Z" fill="#E0E7FF"/>
+  <path d="M128 8h6v6h5v5h-5v9c0 2 .8 3 2.5 3h2.5v5h-3.5c-4.5 0-7.5-2.5-7.5-7.5V19h-4v-5h4V8Z" fill="#E0E7FF"/>
 </svg>`;
