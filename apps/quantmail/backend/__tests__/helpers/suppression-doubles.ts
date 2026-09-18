@@ -1,4 +1,4 @@
-﻿import { vi } from 'vitest';
+import { vi } from 'vitest';
 import type { SuppressionRow, SuppressionPrismaClient } from '../../services/suppression.service';
 
 export function createMockSuppressionDb(): SuppressionPrismaClient & {
@@ -71,7 +71,10 @@ export function createMockSuppressionDb(): SuppressionPrismaClient & {
         table.delete(where.email.toLowerCase());
         return existing;
       }),
-      count: vi.fn(async () => {
+      count: vi.fn(async (args?: { where?: { reason?: string } }) => {
+        if (args?.where?.reason) {
+          return Array.from(table.values()).filter((r) => r.reason === args.where!.reason).length;
+        }
         return table.size;
       }),
     },

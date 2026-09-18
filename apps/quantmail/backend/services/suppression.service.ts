@@ -123,12 +123,13 @@ export class SuppressionService {
     });
   }
 
-  async count(): Promise<number> {
+  async count(options?: { reason?: string }): Promise<number> {
     const delegate = this.rows();
+    const where = options?.reason ? { reason: options.reason } : {};
     if (typeof delegate.count === 'function') {
-      return delegate.count();
+      return delegate.count({ where });
     }
-    const all = await delegate.findMany({});
+    const all = await delegate.findMany({ where });
     return all.length;
   }
 }

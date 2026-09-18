@@ -3060,3 +3060,16 @@ graph TD
     - In `email.service.ts`: Clean up capability probe by having `phase-r-m.routes.test.ts` inject a suppression double directly into the constructor, keeping production code exclusively on the singleton.
     - Staging query plan (`EXPLAIN ANALYZE`) verification on real PostgreSQL once staging migrations are applied.
   - **Visual Proof Artifact**: `astra_gates3_4_second_remediation_audit.png`.
+
+- **6. Tri-App Production Launch & Full Substantive Parity Directive (2026-09-18)**:
+  - **Live Production Deployments on AWS EKS & Cloudflare**:
+    - `https://quantmail.in` $\rightarrow$ 200 OK (Super-hub identity root, mail, calendar, drive, git).
+    - `https://quantchat.quantrinity.in` $\rightarrow$ 200 OK (Messaging, channels, Meet gateway).
+    - `https://quanty.quantrinity.in` & `https://quantai.quantrinity.in` $\rightarrow$ 200 OK (Central AI control plane).
+  - **Forensic Findings & User Directives**:
+    - **QuantChat Auth**: Phone OTP failed due to missing live SMS gateway (in-memory logger) and missing backend routing. Must implement AWS SNS SMS sender and provide 1-click "Continue with Quant Account" SSO.
+    - **QuantMail Registration**: Lacked phone collection and SMS/Email OTP verification. User identity requires unified phone + email authentication.
+    - **QuantAI / Quanty Auth Gate**: Unauthenticated users were dumped directly into the chat UI. Must enforce Quant SSO login gate.
+    - **Quanty North Star**: Claude Code + Claude Sonnet + ChatGPT + Codex parity. Interactive terminal CLI agent mode, multi-model switcher, live Artifacts/Canvas split screen, and universal cross-app MCP tool orchestration.
+    - **QuantChat North Star**: WhatsApp (1:1 chat, audio voice notes, delivery ticks) + Telegram (channels, supergroups, reactions) + Snapchat (ephemeral/view-once messages, 24h stories) + QuantMeet built-in video/audio calls.
+    - **QuantSidekick Mascot ("Chhota Wala Icon") Cleanup**: Floating mascot avatar must NOT be hard-injected across all app screens. Made strictly opt-in (disabled by default, toggleable in settings or summoned via `Cmd+K` / `Ctrl+/`), and completely removed from QuantAI.

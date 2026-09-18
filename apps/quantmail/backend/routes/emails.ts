@@ -15,6 +15,7 @@ import { formatEmailRecord } from '../lib/format-email';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
 import { retentionService } from './retention';
+import { suppressionService } from '../services/suppression.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -181,7 +182,8 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
   const createSendService = (prisma: PrismaClient) => {
     outboundQueue ??= OutboundDeliveryPipeline.createQueue();
     const pipeline = new OutboundDeliveryPipeline(prisma, outboundQueue);
-    return new EmailService(prisma, pipeline);
+    const suppression = (fastify as any).suppressionService ?? suppressionService;
+    return new EmailService(prisma, pipeline, suppression);
   };
 
   fastify.addHook('onClose', async () => {

@@ -1,0 +1,182 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantchat
+  namespace: quant-staging
+  labels:
+    app: quant-quantchat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantchat
+  template:
+    metadata:
+      labels:
+        app: quant-quantchat
+    spec:
+      containers:
+        - name: quant-quantchat
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantchat:3c12703717dac7d7123eaee915a57c2111ce8648
+          ports:
+            - containerPort: 3015
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3015'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantchat.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3015
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3015
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantchat
+  namespace: quant-staging
+  labels:
+    app: quant-quantchat
+spec:
+  selector:
+    app: quant-quantchat
+  ports:
+    - port: 3015
+      targetPort: 3015
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantai
+  namespace: quant-staging
+  labels:
+    app: quant-quantai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantai
+  template:
+    metadata:
+      labels:
+        app: quant-quantai
+    spec:
+      containers:
+        - name: quant-quantai
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantai:3c12703717dac7d7123eaee915a57c2111ce8648
+          ports:
+            - containerPort: 3020
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3020'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quanty.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3020
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3020
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantai
+  namespace: quant-staging
+  labels:
+    app: quant-quantai
+spec:
+  selector:
+    app: quant-quantai
+  ports:
+    - port: 3020
+      targetPort: 3020
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-apps-staging-ingress
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantchat.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantchat
+                port:
+                  number: 3015
+    - host: quanty.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantai
+                port:
+                  number: 3020
+    - host: quantai.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantai
+                port:
+                  number: 3020

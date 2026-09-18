@@ -187,9 +187,21 @@ export class DeliverabilityService {
     const dkimAlignmentRate =
       totalEvaluated > 0 ? Math.round((totalDkimPass / totalEvaluated) * 10000) / 100 : 99.9;
 
-    const bounceRate = 0.008;
-    const complaintRate = 0.0005;
     const suppressionCount = await this.suppression.count();
+    const bounceCount = await this.suppression.count({ reason: 'BOUNCE' });
+    const complaintCount = await this.suppression.count({ reason: 'COMPLAINT' });
+
+    // G4-9: Dynamically compute bounce and complaint rates from authentic database suppression counts
+    // and total evaluated volume; zero hardcoded/fabricated numbers.
+    const evaluationDenominator = totalEvaluated > 0 ? totalEvaluated : 0;
+    const bounceRate =
+      evaluationDenominator > 0
+        ? Math.round((bounceCount / evaluationDenominator) * 10000) / 10000
+        : 0;
+    const complaintRate =
+      evaluationDenominator > 0
+        ? Math.round((complaintCount / evaluationDenominator) * 10000) / 10000
+        : 0;
 
     // Reputation score 0-100: weighted average of auth alignment minus bounce/complaint penalties
     let score = Math.round(

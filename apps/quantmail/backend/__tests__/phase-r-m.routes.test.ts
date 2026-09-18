@@ -160,13 +160,6 @@ function createMockPrisma() {
         ...update,
       })),
     },
-    emailSuppression: {
-      findUnique: vi.fn().mockResolvedValue(null),
-      findMany: vi.fn().mockResolvedValue([]),
-      create: vi.fn().mockImplementation(async ({ data }: any) => ({ ...data, id: 'supp-1' })),
-      delete: vi.fn().mockResolvedValue({ id: 'supp-1' }),
-      count: vi.fn().mockResolvedValue(0),
-    },
   };
 }
 
@@ -174,6 +167,12 @@ async function buildTestFastifyApp(prisma: any, authenticatedUserId: string | nu
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   app.decorate('prisma', prisma);
+  app.decorate('suppressionService', {
+    filterAllowedRecipients: async (recipients: string[]) => ({
+      allowed: recipients,
+      suppressed: [],
+    }),
+  });
   app.addHook('onRequest', async (req) => {
     (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
   });
@@ -361,11 +360,17 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
   describe('Phase M01: Authoritative Delivery & SESv2 Amendment (§8.7 & §7)', () => {
     let service: EmailService;
     let prisma: ReturnType<typeof createMockPrisma>;
+    const mockSuppression = {
+      filterAllowedRecipients: async (recipients: string[]) => ({
+        allowed: recipients,
+        suppressed: [],
+      }),
+    };
 
     beforeEach(() => {
       vi.clearAllMocks();
       prisma = createMockPrisma();
-      service = new EmailService(prisma as never);
+      service = new EmailService(prisma as never, undefined, mockSuppression);
     });
 
     afterEach(() => {
@@ -431,7 +436,11 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       const mockPipeline = {
         enqueueSend: vi.fn().mockRejectedValue(new Error('Redis connection timeout')),
       };
-      const serviceWithFailingPipeline = new EmailService(prisma as never, mockPipeline as never);
+      const serviceWithFailingPipeline = new EmailService(
+        prisma as never,
+        mockPipeline as never,
+        mockSuppression,
+      );
 
       const mockEmail = {
         id: 'email-err-1',

@@ -393,4 +393,49 @@ describe('SearchQueryService.search', () => {
     expect(result.data).toEqual([{ id: 'doc-no-raw', title: 'No Raw' }]);
     expect(noRawPrisma.document.findMany).toHaveBeenCalled();
   });
+
+  it('preserves to:, label:, and is:important operators in the raw full-text search SQL branch (G3-12)', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)::int AS total')) {
+        return [{ total: 1 }];
+      }
+      return [
+        {
+          id: 'email-filtered-1',
+          subject: 'Alpha invoice',
+          fromAddress: 'alice@example.com',
+          toAddresses: ['bob@example.com'],
+          labels: ['finance', 'urgent'],
+          isImportant: true,
+        },
+      ];
+    });
+
+    const result = await service.search(
+      'user-1',
+      'invoice to:bob@example.com label:finance is:important',
+      { page: 1, limit: 10 },
+    );
+
+    expect(result.data).toHaveLength(1);
+    expect((result.data[0] as any).id).toBe('email-filtered-1');
+    expect(result.total).toBe(1);
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+    const countCall = calls.find((c: any[]) => String(c[0]).includes('COUNT(*)::int'));
+
+    expect(dataCall).toBeDefined();
+    expect(countCall).toBeDefined();
+
+    // Verify SQL contains operators
+    expect(dataCall![0]).toContain('"toAddresses"::text ILIKE $');
+    expect(dataCall![0]).toContain('"labels"::text ILIKE $');
+    expect(dataCall![0]).toContain('"isImportant" = $');
+
+    // Verify params contain the operator values
+    expect(dataCall!).toContain('%bob@example.com%');
+    expect(dataCall!).toContain('%finance%');
+    expect(dataCall!).toContain(true);
+  });
 });

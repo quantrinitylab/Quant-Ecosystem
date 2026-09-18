@@ -303,6 +303,14 @@ export class SearchQueryService {
           whereClauses.push(`subject ILIKE $${paramIdx++}`);
           params.push(`%${subj}%`);
         }
+        for (const to of parsed.to) {
+          whereClauses.push(`"toAddresses"::text ILIKE $${paramIdx++}`);
+          params.push(`%${to}%`);
+        }
+        for (const label of parsed.labels) {
+          whereClauses.push(`"labels"::text ILIKE $${paramIdx++}`);
+          params.push(`%${label}%`);
+        }
         if (parsed.folderIds.length > 0) {
           whereClauses.push(`"folderId" = ANY($${paramIdx++}::text[])`);
           params.push(parsed.folderIds);
@@ -318,6 +326,10 @@ export class SearchQueryService {
         if (parsed.isStarred !== undefined) {
           whereClauses.push(`"isStarred" = $${paramIdx++}`);
           params.push(parsed.isStarred);
+        }
+        if (parsed.isImportant !== undefined) {
+          whereClauses.push(`"isImportant" = $${paramIdx++}`);
+          params.push(parsed.isImportant);
         }
         if (parsed.isSpam !== undefined) {
           whereClauses.push(`"isSpam" = $${paramIdx++}`);

@@ -438,11 +438,7 @@ export class EmailService {
     // Gate 4: Hard-block outbound delivery if all recipients are suppressed.
     // Prune suppressed addresses to protect AWS SES reputation (< 5% bounce / 0.1% complaint).
     if (external.length > 0) {
-      const activeSuppression =
-        this.suppression ??
-        ((this.prisma as any)?.emailSuppression
-          ? new SuppressionService(this.prisma as any)
-          : suppressionService);
+      const activeSuppression = this.suppression ?? suppressionService;
       const { allowed, suppressed } = await activeSuppression.filterAllowedRecipients(external);
       if (suppressed.length > 0) {
         if (allowed.length === 0 && internal.length === 0) {
