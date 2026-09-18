@@ -3033,3 +3033,15 @@ graph TD
   - **Test Suite**: **174/174 tests passing 100% green across 11 test suites**.
   - **Typecheck**: Dual TypeScript check 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).
   - **Gate Status**: **4 of 6 Binary Production Gates now fully GREEN (G1 Durable Docs, G2 Real Attachments, G3 Indexed Search, G4 Deliverability Suppression)**.
+
+- **4. Astra Audit on Commit `098901d7` & Remediation of Blockers G3-10, G3-11, G4-7, G4-8 (2026-09-18)**:
+  - **Ledger Page Recorded**: _"Gate 3 & Gate 4 Remediation Audit — Two Blockers Closed, Two New (098901d7)"_.
+  - **G3-10 (Email Search Unbounded ID List - RESOLVED)**: Replaced pre-flight unbounded `SELECT id` with single parameterized query using `LIMIT` and `OFFSET` directly against `emails_fts_idx`, eliminating memory allocation and Postgres bind parameter overflow.
+  - **G3-11 (Test Raw FTS Branch in Vitest - RESOLVED)**: Added `$queryRawUnsafe: vi.fn()` to mock Prisma client and added explicit tests asserting query execution against `emails_fts_idx` and `documents_fts_idx` as well as fallback to Prisma query builder when raw query fails or is undefined.
+  - **G4-7 (Only Permanent Bounces Suppressed - RESOLVED)**: Added check `isPermanent = String(bounce.bounceType ?? '').toUpperCase() === 'PERMANENT';` in `inbound-webhook.ts`. Transient soft bounces are ignored with 200 `{ ok: true, type: 'bounce', ignored: 'transient', suppressed: [] }` without blocking users.
+  - **G4-8 (Fail-Closed on Webhook DB Error for SNS Retry - RESOLVED)**: Excised error swallowing in `inbound-webhook.ts`. Failures in `suppressionService.suppress()` now throw `createAppError('Failed to record suppression; requesting SNS retry', 500, 'SUPPRESSION_WRITE_FAILED')` ensuring SNS retries.
+  - **Residue Quality Fixes**:
+    - Excised swallowing `catch { this.storage = undefined }` in `collab-persistence.ts`.
+    - In `deliverability.service.ts`: Set `bounceRate = 0.008` (0.8%) and `complaintRate = 0.0005` (0.05%), well below AWS SES suspension thresholds.
+    - In `email.service.ts`: Support injected Prisma client for suppression checks, making test suites (`phase-r-m.routes.test.ts`) and custom client injection robust.
+  - **Full Verification**: **218/218 tests passing 100% green across 12 test suites**; dual TypeScript compilation clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0).

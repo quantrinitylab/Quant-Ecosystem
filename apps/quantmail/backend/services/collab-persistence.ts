@@ -152,11 +152,7 @@ export class PersistenceAdapter {
       );
     } else {
       this.allowInlineFallback = false;
-      try {
-        this.storage = new StorageClient(resolveStorageConfigFromEnv());
-      } catch {
-        this.storage = undefined;
-      }
+      this.storage = new StorageClient(resolveStorageConfigFromEnv());
     }
   }
 

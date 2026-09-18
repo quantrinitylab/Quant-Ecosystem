@@ -954,5 +954,105 @@ describe('POST /admin/inbound/sync-all — replaying the bucket is not a public 
       );
       suppressSpy.mockRestore();
     });
+
+    it('ignores transient/soft bounce notifications without recording suppression (G4-7)', async () => {
+      const suppressSpy = vi.spyOn(suppressionService, 'suppress');
+
+      const payload = {
+        Type: 'Notification',
+        MessageId: 'msg-bounce-transient',
+        TopicArn: TOPIC,
+        Timestamp: new Date().toISOString(),
+        Message: JSON.stringify({
+          notificationType: 'Bounce',
+          bounce: {
+            bounceType: 'Transient',
+            bounceSubType: 'MailboxFull',
+            bouncedRecipients: [{ emailAddress: 'full-inbox@remote.com' }],
+            timestamp: '2026-09-18T12:00:00.000Z',
+            feedbackId: 'fb-bounce-002',
+          },
+        }),
+      };
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        ok: true,
+        type: 'bounce',
+        ignored: 'transient',
+        suppressed: [],
+      });
+      expect(suppressSpy).not.toHaveBeenCalled();
+      suppressSpy.mockRestore();
+    });
+
+    it('fails closed with HTTP 500 when suppression write fails on bounce (G4-8)', async () => {
+      const suppressSpy = vi
+        .spyOn(suppressionService, 'suppress')
+        .mockRejectedValue(new Error('DB connection pool exhausted'));
+
+      const payload = {
+        Type: 'Notification',
+        MessageId: 'msg-bounce-fail',
+        TopicArn: TOPIC,
+        Timestamp: new Date().toISOString(),
+        Message: JSON.stringify({
+          notificationType: 'Bounce',
+          bounce: {
+            bounceType: 'Permanent',
+            bounceSubType: 'General',
+            bouncedRecipients: [{ emailAddress: 'bounced@remote.com' }],
+            timestamp: '2026-09-18T12:00:00.000Z',
+            feedbackId: 'fb-bounce-003',
+          },
+        }),
+      };
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload,
+      });
+
+      expect(response.statusCode).toBe(500);
+      suppressSpy.mockRestore();
+    });
+
+    it('fails closed with HTTP 500 when suppression write fails on complaint (G4-8)', async () => {
+      const suppressSpy = vi
+        .spyOn(suppressionService, 'suppress')
+        .mockRejectedValue(new Error('DB connection pool exhausted'));
+
+      const payload = {
+        Type: 'Notification',
+        MessageId: 'msg-complaint-fail',
+        TopicArn: TOPIC,
+        Timestamp: new Date().toISOString(),
+        Message: JSON.stringify({
+          notificationType: 'Complaint',
+          complaint: {
+            complaintFeedbackType: 'abuse',
+            complainedRecipients: [{ emailAddress: 'complaining@remote.com' }],
+            timestamp: '2026-09-18T12:00:00.000Z',
+            feedbackId: 'fb-complaint-002',
+          },
+        }),
+      };
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload,
+      });
+
+      expect(response.statusCode).toBe(500);
+      suppressSpy.mockRestore();
+    });
   });
 });

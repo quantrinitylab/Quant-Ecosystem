@@ -46,6 +46,7 @@ import {
 } from '../services/deliverability-auth.service';
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
 import { suppressionService } from '../services/suppression.service';
+import { createAppError } from '@quant/server-core';
 
 const REGION = process.env['AWS_REGION'] ?? 'us-east-1';
 const S3_BUCKET = process.env['INBOUND_S3_BUCKET'] ?? 'quantmail-inbound-emails';
@@ -512,6 +513,15 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
 
     if (isBounce && (ses as any).bounce) {
       const bounce = (ses as any).bounce;
+      const isPermanent = String(bounce.bounceType ?? '').toUpperCase() === 'PERMANENT';
+      if (!isPermanent) {
+        app.log.info(
+          { bounceType: bounce.bounceType, bounceSubType: bounce.bounceSubType },
+          '[inbound] ignoring non-permanent bounce notification',
+        );
+        return reply.send({ ok: true, type: 'bounce', ignored: 'transient', suppressed: [] });
+      }
+
       const bouncedRecipients: Array<{ emailAddress?: string }> = bounce.bouncedRecipients ?? [];
       const suppressedEmails: string[] = [];
 
@@ -528,7 +538,12 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
           } catch (suppressErr) {
             app.log.error(
               { err: suppressErr, email: r.emailAddress },
-              '[inbound] failed to record bounce suppression',
+              '[inbound] failed to record bounce suppression; requesting SNS retry',
+            );
+            throw createAppError(
+              'Failed to record suppression; requesting SNS retry',
+              500,
+              'SUPPRESSION_WRITE_FAILED',
             );
           }
         }
@@ -568,7 +583,12 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
           } catch (suppressErr) {
             app.log.error(
               { err: suppressErr, email: r.emailAddress },
-              '[inbound] failed to record complaint suppression',
+              '[inbound] failed to record complaint suppression; requesting SNS retry',
+            );
+            throw createAppError(
+              'Failed to record suppression; requesting SNS retry',
+              500,
+              'SUPPRESSION_WRITE_FAILED',
             );
           }
         }

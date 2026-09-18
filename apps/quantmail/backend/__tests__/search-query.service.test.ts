@@ -125,6 +125,7 @@ describe('SearchQueryService.buildEmailWhere', () => {
 describe('SearchQueryService.search', () => {
   function createMockPrisma() {
     return {
+      $queryRawUnsafe: vi.fn().mockRejectedValue(new Error('raw query disabled in base mock')),
       email: {
         findMany: vi.fn(),
         count: vi.fn(),
@@ -263,5 +264,133 @@ describe('SearchQueryService.search', () => {
     expect(res.emails).toHaveLength(1);
     expect(res.files).toHaveLength(1);
     expect(res.documents).toHaveLength(1);
+  });
+
+  it('executes parameterized raw full-text search with LIMIT and OFFSET against emails_fts_idx when terms present (G3-10 & G3-11)', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('COUNT(*)')) {
+        return [{ total: 1 }];
+      }
+      return [
+        {
+          id: 'email-fts-1',
+          userId: 'user-1',
+          subject: 'Project Alpha Q3 Report',
+          bodyPlain: 'Detailed revenue report for Q3',
+          receivedAt: new Date('2026-09-18T10:00:00.000Z'),
+        },
+      ];
+    });
+
+    const result = await service.search('user-1', 'Alpha Q3 from:bob is:unread', {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect((result.data[0] as any).id).toBe('email-fts-1');
+    expect(result.total).toBe(1);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(2);
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const countCall = calls.find((c: any[]) => String(c[0]).includes('COUNT(*)'));
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, "userId"'));
+
+    expect(countCall).toBeDefined();
+    expect(dataCall).toBeDefined();
+
+    expect(countCall![0]).toContain('COUNT(*)::int AS total FROM emails');
+    expect(countCall![0]).toContain("to_tsvector('english'");
+    expect(countCall![0]).toContain("plainto_tsquery('english', $2)");
+    expect(countCall!).toContain('user-1');
+    expect(countCall!).toContain('Alpha Q3');
+
+    expect(dataCall![0]).toContain('LIMIT $');
+    expect(dataCall![0]).toContain('OFFSET $');
+    expect(dataCall!).toContain(10);
+    expect(dataCall!).toContain(0);
+  });
+
+  it('gracefully falls back to Prisma email.findMany when $queryRawUnsafe throws (G3-11)', async () => {
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('raw query failed'));
+    prisma.email.findMany.mockResolvedValue([{ id: 'email-fallback-1' }]);
+    prisma.email.count.mockResolvedValue(1);
+
+    const result = await service.search('user-1', 'quarterly report', { page: 1, limit: 10 });
+
+    expect(result.data).toEqual([{ id: 'email-fallback-1' }]);
+    expect(prisma.email.findMany).toHaveBeenCalled();
+  });
+
+  it('executes parameterized raw full-text search with LIMIT and OFFSET against documents_fts_idx (G3-11)', async () => {
+    prisma.$queryRawUnsafe.mockImplementation(async (sql: string) => {
+      if (sql.includes('count(*)')) {
+        return [{ total: 1 }];
+      }
+      return [
+        {
+          id: 'doc-fts-1',
+          title: 'Quantum Computing Specs',
+          userId: 'user-1',
+          snapshotStorageKey: 'documents/doc-fts-1/snapshots/1.yjs',
+        },
+      ];
+    });
+
+    const result = await service.searchDocuments('user-1', 'Quantum Computing', {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(result.data).toHaveLength(1);
+    expect((result.data[0] as any).id).toBe('doc-fts-1');
+    expect(result.total).toBe(1);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(2);
+
+    const calls = prisma.$queryRawUnsafe.mock.calls;
+    const dataCall = calls.find((c: any[]) => String(c[0]).includes('SELECT id, title'));
+    const countCall = calls.find((c: any[]) => String(c[0]).includes('count(*)'));
+
+    expect(dataCall).toBeDefined();
+    expect(countCall).toBeDefined();
+    expect(dataCall![0]).toContain("to_tsvector('english'");
+    expect(dataCall![0]).toContain("plainto_tsquery('english', $2)");
+    expect(dataCall![0]).toContain('LIMIT $3 OFFSET $4');
+    expect(dataCall![1]).toBe('user-1');
+    expect(dataCall![2]).toBe('Quantum Computing');
+    expect(dataCall![3]).toBe(10);
+    expect(dataCall![4]).toBe(0);
+  });
+
+  it('falls back to Prisma document.findMany when $queryRawUnsafe throws (G3-11)', async () => {
+    prisma.$queryRawUnsafe.mockRejectedValue(new Error('raw query failed'));
+    prisma.document.findMany.mockResolvedValue([{ id: 'doc-fb-1', title: 'Fallback Doc' }]);
+    prisma.document.count.mockResolvedValue(1);
+
+    const result = await service.searchDocuments('user-1', 'Fallback', { page: 1, limit: 10 });
+
+    expect(result.data).toEqual([{ id: 'doc-fb-1', title: 'Fallback Doc' }]);
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          isDeleted: false,
+        }),
+      }),
+    );
+  });
+
+  it('falls back to Prisma document.findMany when $queryRawUnsafe is not defined (G3-11)', async () => {
+    const noRawPrisma = {
+      document: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'doc-no-raw', title: 'No Raw' }]),
+        count: vi.fn().mockResolvedValue(1),
+      },
+    };
+    const s = new SearchQueryService(noRawPrisma as any);
+    const result = await s.searchDocuments('user-1', 'No Raw', { page: 1, limit: 10 });
+
+    expect(result.data).toEqual([{ id: 'doc-no-raw', title: 'No Raw' }]);
+    expect(noRawPrisma.document.findMany).toHaveBeenCalled();
   });
 });

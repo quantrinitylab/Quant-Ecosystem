@@ -187,15 +187,11 @@ export class SearchQueryService {
    * Build a Prisma `where` filter for the Email model from a query string,
    * always scoped to `userId` and excluding soft-deleted rows. Multiple
    * operators of the same kind combine with AND.
-   * If `ftsEmailIds` is supplied, matches from the GIN `emails_fts_idx` index
-   * are passed via `{ id: { in: ftsEmailIds } }`.
+   * Build a Prisma `where` filter for the Email model from a query string,
+   * always scoped to `userId` and excluding soft-deleted rows. Multiple
+   * operators of the same kind combine with AND.
    */
-  buildEmailWhere(
-    userId: string,
-    query: string,
-    now: Date = new Date(),
-    ftsEmailIds?: string[] | null,
-  ): Record<string, unknown> {
+  buildEmailWhere(userId: string, query: string, now: Date = new Date()): Record<string, unknown> {
     const parsed = this.parse(query, now);
     const and: Record<string, unknown>[] = [];
 
@@ -235,18 +231,14 @@ export class SearchQueryService {
       if (parsed.before) receivedAt.lte = parsed.before;
       and.push({ receivedAt });
     }
-    if (ftsEmailIds !== undefined && ftsEmailIds !== null) {
-      and.push({ id: { in: ftsEmailIds } });
-    } else {
-      for (const term of parsed.terms) {
-        and.push({
-          OR: [
-            { subject: { contains: term, mode: 'insensitive' } },
-            { snippet: { contains: term, mode: 'insensitive' } },
-            { bodyPlain: { contains: term, mode: 'insensitive' } },
-          ],
-        });
-      }
+    for (const term of parsed.terms) {
+      and.push({
+        OR: [
+          { subject: { contains: term, mode: 'insensitive' } },
+          { snippet: { contains: term, mode: 'insensitive' } },
+          { bodyPlain: { contains: term, mode: 'insensitive' } },
+        ],
+      });
     }
 
     const where: Record<string, unknown> = { userId, deletedAt: null };
@@ -285,26 +277,89 @@ export class SearchQueryService {
       throw new Error('SearchQueryService.search requires a PrismaClient');
     }
     const parsed = this.parse(query, options.now);
-    let ftsEmailIds: string[] | null = null;
+    const limit = options.limit ?? options.pageSize ?? 25;
+    const page = options.page ?? 1;
+    const offset = options.cursor ? 0 : (page - 1) * limit;
+
+    // G3-10: When terms are present and $queryRawUnsafe is available, execute a single
+    // bounded SQL query with LIMIT and OFFSET directly against emails_fts_idx,
+    // eliminating unbounded in-memory ID arrays and parameter overflow.
     if (parsed.terms.length > 0 && typeof (this.prisma as any).$queryRawUnsafe === 'function') {
       try {
         const fullTerms = parsed.terms.join(' ');
-        const rows = await (this.prisma as any).$queryRawUnsafe(
-          `SELECT id FROM emails
-           WHERE "userId" = $1
-             AND "deletedAt" IS NULL
-             AND to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '')) @@ plainto_tsquery('english', $2)`,
-          userId,
-          fullTerms,
-        );
-        ftsEmailIds = rows.map((r: { id: string }) => r.id);
+        const whereClauses: string[] = [
+          `"userId" = $1`,
+          `"deletedAt" IS NULL`,
+          `to_tsvector('english', coalesce(subject, '') || ' ' || coalesce("bodyPlain", '') || ' ' || coalesce("fromAddress", '')) @@ plainto_tsquery('english', $2)`,
+        ];
+        const params: any[] = [userId, fullTerms];
+        let paramIdx = 3;
+
+        for (const from of parsed.from) {
+          whereClauses.push(`"fromAddress" ILIKE $${paramIdx++}`);
+          params.push(`%${from}%`);
+        }
+        for (const subj of parsed.subject) {
+          whereClauses.push(`subject ILIKE $${paramIdx++}`);
+          params.push(`%${subj}%`);
+        }
+        if (parsed.folderIds.length > 0) {
+          whereClauses.push(`"folderId" = ANY($${paramIdx++}::text[])`);
+          params.push(parsed.folderIds);
+        }
+        if (parsed.hasAttachment !== undefined) {
+          whereClauses.push(`"hasAttachments" = $${paramIdx++}`);
+          params.push(parsed.hasAttachment);
+        }
+        if (parsed.isUnread !== undefined) {
+          whereClauses.push(`"isRead" = $${paramIdx++}`);
+          params.push(!parsed.isUnread);
+        }
+        if (parsed.isStarred !== undefined) {
+          whereClauses.push(`"isStarred" = $${paramIdx++}`);
+          params.push(parsed.isStarred);
+        }
+        if (parsed.isSpam !== undefined) {
+          whereClauses.push(`"isSpam" = $${paramIdx++}`);
+          params.push(parsed.isSpam);
+        }
+        if (parsed.after) {
+          whereClauses.push(`"receivedAt" >= $${paramIdx++}`);
+          params.push(parsed.after);
+        }
+        if (parsed.before) {
+          whereClauses.push(`"receivedAt" <= $${paramIdx++}`);
+          params.push(parsed.before);
+        }
+
+        const whereSql = whereClauses.join(' AND ');
+        const countSql = `SELECT COUNT(*)::int AS total FROM emails WHERE ${whereSql}`;
+        const dataSql = `SELECT id, "userId", "folderId", "threadId", "fromAddress", "fromName", "toAddresses", "ccAddresses", "bccAddresses", subject, "bodyPlain", snippet, "isRead", "isStarred", "isArchived", "isDraft", "isTrash", "isSpam", "hasAttachments", "createdAt", "receivedAt", "sentAt" FROM emails WHERE ${whereSql} ORDER BY "receivedAt" DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
+
+        const [countRes, data] = await Promise.all([
+          (this.prisma as any).$queryRawUnsafe(countSql, ...params),
+          (this.prisma as any).$queryRawUnsafe(dataSql, ...params, limit, offset),
+        ]);
+
+        const total = Number(countRes[0]?.total ?? countRes[0]?.count ?? 0);
+        const hasMore = offset + limit < total;
+        const nextCursor =
+          hasMore && data.length > 0 ? (data[data.length - 1] as { id: string }).id : null;
+        return {
+          data,
+          total,
+          page,
+          pageSize: limit,
+          totalPages: Math.ceil(total / limit),
+          nextCursor,
+          hasMore,
+        };
       } catch {
-        ftsEmailIds = null;
+        // Fall through to Prisma query builder if raw query fails on test double
       }
     }
 
-    const where = this.buildEmailWhere(userId, query, options.now, ftsEmailIds);
-    const limit = options.limit ?? options.pageSize ?? 25;
+    const where = this.buildEmailWhere(userId, query, options.now);
 
     if (options.cursor) {
       const [rawItems, total] = await Promise.all([
@@ -356,8 +411,7 @@ export class SearchQueryService {
       };
     }
 
-    const page = options.page ?? 1;
-    const pageSize = options.pageSize ?? 25;
+    const pageSize = options.pageSize ?? limit;
     const [data, total] = await Promise.all([
       this.prisma.email.findMany({
         where,

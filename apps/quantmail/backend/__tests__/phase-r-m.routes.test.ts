@@ -160,6 +160,13 @@ function createMockPrisma() {
         ...update,
       })),
     },
+    emailSuppression: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({ ...data, id: 'supp-1' })),
+      delete: vi.fn().mockResolvedValue({ id: 'supp-1' }),
+      count: vi.fn().mockResolvedValue(0),
+    },
   };
 }
 
