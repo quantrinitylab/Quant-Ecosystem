@@ -2864,7 +2864,7 @@ graph TD
   - **Post-Wave 23 Parity**: 96.80%.
   - **Post-Wave 24 Parity**: 98.65%.
   - **Post-Wave 25 Parity**: 99.60%.
-  - **Post-Wave 26 Parity (FINAL SOVEREIGN COMPLETION)**: **100.00%**:
+  - **Post-Wave 26 Parity (FINAL SOVEREIGN COMPLETION — commit 8c55f3cb on main)**: **100.00%**:
     - QuantMail: 99.95% ➔ **100.00%** (Dynamic theme preference engine, RFC 3501 IMAP import, conversation threading, legal holds, DMARC, MBOX).
     - QuantGit: 99.50% ➔ **100.00%** (Canonical `/repos` route consolidation, PR review approvals gate, branch protection, CI merge gate).
     - Sovereign Admin & Audit: **100.00%** (Retention policy lifecycle, legal hold placement & release, SLO metrics `/health/detailed`).
