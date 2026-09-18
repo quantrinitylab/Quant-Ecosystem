@@ -308,6 +308,24 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/cancel-send`, {});
   }
 
+  async importMbox(
+    mboxData: string,
+    options?: { folder?: string; maxMessages?: number },
+  ): Promise<
+    ApiResponse<{
+      totalFound: number;
+      importedCount: number;
+      skippedCount: number;
+      messageIds: string[];
+    }>
+  > {
+    return this.post('/emails/import/mbox', {
+      mboxData,
+      folder: options?.folder,
+      maxMessages: options?.maxMessages,
+    });
+  }
+
   /**
    * Reply in place, without going through the composer.
    *

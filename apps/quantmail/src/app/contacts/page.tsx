@@ -14,11 +14,18 @@ import {
   useUpdateContact,
   useDeleteContact,
 } from '../../hooks/useContacts';
+import {
+  useContactGroups,
+  useCreateContactGroup,
+  useUpdateContactGroup,
+  useDeleteContactGroup,
+} from '../../hooks/useContactGroups';
 import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';
 import { ContactsDedupeModal } from './components/ContactsDedupeModal';
-import type { Contact } from '../../types';
+import { ContactGroupModal } from './components/ContactGroupModal';
+import type { Contact, ContactGroup } from '../../types';
 import { showToast } from '../../components/InboxToast';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
@@ -28,6 +35,9 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDedupeModal, setShowDedupeModal] = useState(false);
@@ -86,7 +96,63 @@ export default function ContactsPage() {
   const createContact = useCreateContact();
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
+  const { data: contactGroups = [] } = useContactGroups();
+  const createContactGroup = useCreateContactGroup();
+  const updateContactGroup = useUpdateContactGroup();
+  const deleteContactGroup = useDeleteContactGroup();
   const { confirm, dialog } = useConfirm();
+
+  const handleSaveGroup = useCallback(
+    async (data: { name: string; emails: string[]; color: string | null }) => {
+      if (editingGroup) {
+        await updateContactGroup.mutateAsync({ id: editingGroup.id, data });
+        showToast({ text: `Updated group "${data.name}"`, type: 'success' });
+      } else {
+        await createContactGroup.mutateAsync(data);
+        showToast({ text: `Created group "${data.name}"`, type: 'success' });
+      }
+      setShowGroupModal(false);
+      setEditingGroup(null);
+    },
+    [editingGroup, updateContactGroup, createContactGroup],
+  );
+
+  const handleDeleteGroup = useCallback(
+    async (groupId: string) => {
+      const ok = await confirm({
+        title: 'Delete this group?',
+        message: 'The group will be deleted. The contacts themselves will not be removed.',
+        confirmLabel: 'Delete group',
+        variant: 'destructive',
+      });
+      if (ok) {
+        await deleteContactGroup.mutateAsync(groupId);
+        if (selectedGroupId === groupId) {
+          setSelectedGroupId(null);
+        }
+        setShowGroupModal(false);
+        setEditingGroup(null);
+        showToast({ text: 'Group deleted', type: 'info' });
+      }
+    },
+    [confirm, deleteContactGroup, selectedGroupId],
+  );
+
+  const activeGroup = useMemo(
+    () => contactGroups.find((g) => g.id === selectedGroupId),
+    [contactGroups, selectedGroupId],
+  );
+
+  const displayedContacts = useMemo(() => {
+    const list = contacts ?? [];
+    if (!activeGroup) return list;
+    const groupEmails = new Set((activeGroup.emails || []).map((e) => e.toLowerCase()));
+    return list.filter(
+      (c) =>
+        (c.email && groupEmails.has(c.email.toLowerCase())) ||
+        (c.tags && c.tags.includes(activeGroup.name)),
+    );
+  }, [contacts, activeGroup]);
 
   const handleOpenCreate = useCallback(() => {
     setFormData({ name: '', email: '', phone: '', company: '', tags: '' });
@@ -188,7 +254,7 @@ export default function ContactsPage() {
 
   // Group contacts alphabetically by first letter
   const groupedContacts = useMemo(() => {
-    const list = contacts ?? [];
+    const list = displayedContacts ?? [];
     const map: Record<string, Contact[]> = {};
     for (const c of list) {
       const letter = (c.name?.[0] || c.email?.[0] || '#').toUpperCase();
@@ -202,7 +268,7 @@ export default function ContactsPage() {
         letter,
         contacts: map[letter].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email)),
       }));
-  }, [contacts]);
+  }, [displayedContacts]);
 
   /**
    * Recent-thread counts, keyed by lowercased address.
@@ -526,6 +592,66 @@ export default function ContactsPage() {
                     ? ` (${pagination.total})`
                     : ''}
                 </span>
+              </button>
+            </div>
+
+            {/* Contact Group Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-[45vw] py-0.5 scrollbar-none">
+              {contactGroups.map((grp) => {
+                const isSelected = selectedGroupId === grp.id;
+                return (
+                  <button
+                    key={grp.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedGroupId(isSelected ? null : grp.id);
+                      setPage(1);
+                      setInspectContact(null);
+                    }}
+                    className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors ${
+                      isSelected
+                        ? 'border-[#FF8C42] bg-[#2B1A11] text-[#FF8C42] font-semibold'
+                        : 'border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:border-[#3A404D] hover:text-[#F5F5F5]'
+                    }`}
+                    title={`Filter by ${grp.name} (${(grp.emails || []).length} members)`}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: grp.color || '#FF8C42' }}
+                    />
+                    <span className="truncate max-w-[120px]">{grp.name}</span>
+                    <span className="text-[10px] text-[#6B6E76] font-mono">
+                      ({(grp.emails || []).length})
+                    </span>
+                    {isSelected && (
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingGroup(grp);
+                          setShowGroupModal(true);
+                        }}
+                        className="ml-0.5 rounded px-1 text-[#FF8C42] hover:bg-[#3D2214]"
+                        title="Edit group"
+                      >
+                        ✎
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingGroup(null);
+                  setShowGroupModal(true);
+                }}
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-dashed border-[#282C35] bg-[#121316] px-2 py-1 text-xs text-[#A1A4AC] hover:border-[#FF8C42] hover:text-[#FF8C42] transition-colors"
+                title="Create new contact group"
+              >
+                <span>+ Group</span>
               </button>
             </div>
           </div>
@@ -1340,6 +1466,17 @@ export default function ContactsPage() {
           onMerged={() => {
             refetch();
           }}
+        />
+        <ContactGroupModal
+          isOpen={showGroupModal}
+          onClose={() => {
+            setShowGroupModal(false);
+            setEditingGroup(null);
+          }}
+          group={editingGroup}
+          onSave={handleSaveGroup}
+          onDelete={handleDeleteGroup}
+          isSaving={createContactGroup.isPending || updateContactGroup.isPending}
         />
       </div>
     </AppShell>

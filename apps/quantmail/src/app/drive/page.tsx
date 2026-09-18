@@ -295,12 +295,38 @@ export default function DrivePage() {
     fetchTrashFiles,
     restoreFile,
     purgeFile,
+    moveFiles,
   } = useDrive();
 
   const { confirm, dialog } = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewModeState] = useState<'grid' | 'list'>('grid');
+  const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
+  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+
+  const handleMoveFile = useCallback(
+    async (fileId: string, targetFolderId: string) => {
+      if (fileId === targetFolderId) return;
+      const fileToMove = files.find((f) => f.id === fileId);
+      const targetFolder = files.find((f) => f.id === targetFolderId);
+      try {
+        await moveFiles([fileId], targetFolderId);
+        showToast({
+          text: `Moved "${fileToMove?.name || 'file'}" to "${targetFolder?.name || 'folder'}"`,
+          type: 'success',
+        });
+        await fetchFiles(currentFolderId, activeFilter);
+      } catch (err: unknown) {
+        showToast({
+          text: err instanceof Error ? err.message : 'Failed to move file',
+          type: 'error',
+        });
+      }
+    },
+    [files, moveFiles, fetchFiles, currentFolderId, activeFilter],
+  );
 
   useEffect(() => {
     try {
@@ -322,7 +348,6 @@ export default function DrivePage() {
     }
   }, []);
 
-  const [activeFilter, setActiveFilter] = useState<DriveFilter>('all');
   const [isDragOver, setIsDragOver] = useState(false);
   const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
@@ -1372,14 +1397,43 @@ export default function DrivePage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                         {folders.map((folder) => {
                           const isSelected = selectedIds.has(folder.id);
+                          const isDragTarget = dragOverFolderId === folder.id;
                           return (
                             <div
                               key={folder.id}
                               onClick={() => navigateToFolder(folder.id, folder.name)}
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
+                                if (dragOverFolderId !== folder.id) {
+                                  setDragOverFolderId(folder.id);
+                                }
+                              }}
+                              onDragLeave={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (dragOverFolderId === folder.id) {
+                                  setDragOverFolderId(null);
+                                }
+                              }}
+                              onDrop={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDragOverFolderId(null);
+                                const fileId =
+                                  e.dataTransfer.getData('text/plain') || draggedFileId;
+                                if (fileId && fileId !== folder.id) {
+                                  await handleMoveFile(fileId, folder.id);
+                                }
+                                setDraggedFileId(null);
+                              }}
                               className={`group relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
-                                isSelected
-                                  ? 'border-[#FF8C42] bg-[#FF8C42]/10'
-                                  : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
+                                isDragTarget
+                                  ? 'border-[#FF8C42] bg-[#FF8C42]/20 ring-2 ring-[#FF8C42] scale-[1.02]'
+                                  : isSelected
+                                    ? 'border-[#FF8C42] bg-[#FF8C42]/10'
+                                    : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
                               }`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1500,10 +1554,23 @@ export default function DrivePage() {
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                           {regularFiles.map((file) => {
                             const isSelected = selectedIds.has(file.id);
+                            const isBeingDragged = draggedFileId === file.id;
                             return (
                               <div
                                 key={file.id}
-                                className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all shadow-sm ${
+                                draggable={true}
+                                onDragStart={(e) => {
+                                  setDraggedFileId(file.id);
+                                  e.dataTransfer.setData('text/plain', file.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedFileId(null);
+                                  setDragOverFolderId(null);
+                                }}
+                                className={`group relative flex flex-col justify-between p-3.5 rounded-2xl border transition-all shadow-sm cursor-grab active:cursor-grabbing ${
+                                  isBeingDragged ? 'opacity-40 scale-95' : ''
+                                } ${
                                   isSelected
                                     ? 'border-[#FF8C42] bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]'
                                     : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60'
@@ -1701,12 +1768,23 @@ export default function DrivePage() {
                                 : regularFiles
                               ).map((file) => {
                                 const isSelected = selectedIds.has(file.id);
+                                const isBeingDragged = draggedFileId === file.id;
                                 return (
                                   <tr
                                     key={file.id}
-                                    className={`transition-colors ${
-                                      isSelected ? 'bg-[#FF8C42]/10' : 'hover:bg-[#282C35]/50'
-                                    }`}
+                                    draggable={true}
+                                    onDragStart={(e) => {
+                                      setDraggedFileId(file.id);
+                                      e.dataTransfer.setData('text/plain', file.id);
+                                      e.dataTransfer.effectAllowed = 'move';
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggedFileId(null);
+                                      setDragOverFolderId(null);
+                                    }}
+                                    className={`transition-colors cursor-grab active:cursor-grabbing ${
+                                      isBeingDragged ? 'opacity-40' : ''
+                                    } ${isSelected ? 'bg-[#FF8C42]/10' : 'hover:bg-[#282C35]/50'}`}
                                   >
                                     <td className="py-3 px-4">
                                       <input

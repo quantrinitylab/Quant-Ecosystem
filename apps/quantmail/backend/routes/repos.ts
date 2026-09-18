@@ -361,14 +361,42 @@ const createWebhookSchema = z.object({
   active: z.boolean().default(true),
 });
 
+export interface ReviewCommentRecord {
+  id: string;
+  prId: string;
+  authorId: string;
+  filePath: string;
+  line: number;
+  side: 'LEFT' | 'RIGHT';
+  body: string;
+  commitId?: string;
+  createdAt: string;
+  updatedAt: string;
+  author?: {
+    id: string;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+}
+
 const memoryCollaboratorsStore = new Map<string, CollaboratorRecord[]>();
 const memoryTagsStore = new Map<string, TagRecord[]>();
 const memoryReleasesStore = new Map<string, ReleaseRecord[]>();
 const memoryWebhooksStore = new Map<string, WebhookRecord[]>();
 const memoryForksStore = new Map<string, string[]>();
+const memoryReviewCommentsStore = new Map<string, ReviewCommentRecord[]>();
 
 const createForkSchema = z.object({
   name: z.string().min(1).max(100).optional(),
+});
+
+const createReviewCommentSchema = z.object({
+  filePath: z.string().min(1),
+  line: z.number().int().positive(),
+  side: z.enum(['LEFT', 'RIGHT']).default('RIGHT'),
+  body: z.string().trim().min(1),
+  commitId: z.string().optional(),
 });
 
 export function resetRepoStores(): void {
@@ -377,6 +405,7 @@ export function resetRepoStores(): void {
   memoryReleasesStore.clear();
   memoryWebhooksStore.clear();
   memoryForksStore.clear();
+  memoryReviewCommentsStore.clear();
 }
 
 export async function dispatchWebhook(
@@ -1573,6 +1602,160 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       });
 
       return reply.status(201).send({ success: true, data: review });
+    },
+  );
+
+  // GET /:id/pulls/:number/comments - list inline code review comments on PR diff (Task G11/G14)
+  fastify.get<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/comments',
+    async (request, reply) => {
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      let comments: any[] = [];
+      if (prisma.reviewComment?.findMany) {
+        comments = await prisma.reviewComment.findMany({
+          where: { prId: pr.id },
+          include: {
+            author: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+      } else {
+        comments = memoryReviewCommentsStore.get(pr.id) ?? [];
+      }
+
+      return reply.send({ success: true, data: comments });
+    },
+  );
+
+  // POST /:id/pulls/:number/comments - create an inline code review comment on PR diff (Task G11/G14)
+  fastify.post<{ Params: { id: string; number: string } }>(
+    '/:id/pulls/:number/comments',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      const parsed = createReviewCommentSchema.safeParse(request.body);
+      if (!parsed.success) throw parsed.error;
+
+      const perm = await getRepoPermission(prisma, repo, userId);
+      if (!perm) {
+        throw createAppError(
+          'Must be repository owner or collaborator to comment on pull requests',
+          403,
+          'FORBIDDEN',
+        );
+      }
+
+      let comment: any;
+      if (prisma.reviewComment?.create) {
+        comment = await prisma.reviewComment.create({
+          data: {
+            prId: pr.id,
+            authorId: userId,
+            filePath: parsed.data.filePath,
+            line: parsed.data.line,
+            body: parsed.data.body,
+          },
+          include: {
+            author: {
+              select: { id: true, username: true, displayName: true, avatarUrl: true },
+            },
+          },
+        });
+      } else {
+        const id = `rc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const now = new Date().toISOString();
+        comment = {
+          id,
+          prId: pr.id,
+          authorId: userId,
+          filePath: parsed.data.filePath,
+          line: parsed.data.line,
+          side: parsed.data.side,
+          body: parsed.data.body,
+          commitId: parsed.data.commitId,
+          createdAt: now,
+          updatedAt: now,
+          author: {
+            id: userId,
+            username: 'reviewer',
+            displayName: 'PR Reviewer',
+            avatarUrl: null,
+          },
+        };
+        const list = memoryReviewCommentsStore.get(pr.id) ?? [];
+        list.push(comment);
+        memoryReviewCommentsStore.set(pr.id, list);
+      }
+
+      return reply.status(201).send({ success: true, data: comment });
+    },
+  );
+
+  // DELETE /:id/pulls/:number/comments/:commentId - delete an inline code review comment (Task G11/G14)
+  fastify.delete<{ Params: { id: string; number: string; commentId: string } }>(
+    '/:id/pulls/:number/comments/:commentId',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const repo = await loadReadableRepo(request, request.params.id);
+      const num = parseInt(request.params.number, 10);
+      if (isNaN(num)) throw createAppError('Invalid PR number', 400, 'INVALID_NUMBER');
+      const prisma = getPrisma(fastify);
+
+      const pr = await prisma.pullRequest.findFirst({
+        where: { repoId: repo.id, number: num },
+      });
+      if (!pr) throw createAppError('Pull request not found', 404, 'PR_NOT_FOUND');
+
+      if (prisma.reviewComment?.findUnique && prisma.reviewComment?.delete) {
+        const existing = await prisma.reviewComment.findUnique({
+          where: { id: request.params.commentId },
+        });
+        if (!existing || existing.prId !== pr.id) {
+          throw createAppError('Review comment not found', 404, 'COMMENT_NOT_FOUND');
+        }
+        if (existing.authorId !== userId && repo.ownerId !== userId) {
+          throw createAppError("Cannot delete another user's comment", 403, 'FORBIDDEN');
+        }
+        await prisma.reviewComment.delete({ where: { id: request.params.commentId } });
+      } else {
+        const list = memoryReviewCommentsStore.get(pr.id) ?? [];
+        const idx = list.findIndex((c) => c.id === request.params.commentId);
+        if (idx === -1) {
+          throw createAppError('Review comment not found', 404, 'COMMENT_NOT_FOUND');
+        }
+        if (list[idx].authorId !== userId && repo.ownerId !== userId) {
+          throw createAppError("Cannot delete another user's comment", 403, 'FORBIDDEN');
+        }
+        list.splice(idx, 1);
+        memoryReviewCommentsStore.set(pr.id, list);
+      }
+
+      return reply.send({ success: true, data: { deleted: true } });
     },
   );
 

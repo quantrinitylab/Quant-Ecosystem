@@ -12,6 +12,7 @@ import {
 } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { MboxParserService } from '../services/mbox-parser.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
 
@@ -1267,5 +1268,44 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     return reply.send({ success: true, data: result });
+  });
+
+  const importMboxSchema = z.object({
+    mboxData: z.string().min(1),
+    folder: z.enum(['inbox', 'sent', 'archive', 'trash', 'spam', 'draft']).optional(),
+    maxMessages: z.number().int().min(1).max(500).optional(),
+  });
+
+  // POST /emails/import/mbox - RFC 4155 / Google Takeout MBOX bulk import engine (Task X02)
+  fastify.post('/import/mbox', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    let mboxData = '';
+    let folder: string | undefined;
+    let maxMessages: number | undefined;
+
+    if (typeof request.body === 'string') {
+      mboxData = request.body;
+    } else {
+      const parseResult = importMboxSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        throw parseResult.error;
+      }
+      mboxData = parseResult.data.mboxData;
+      folder = parseResult.data.folder;
+      maxMessages = parseResult.data.maxMessages;
+    }
+
+    const prisma = getPrisma(fastify);
+    const service = new MboxParserService(prisma);
+    const result = await service.importMbox(userId, mboxData, {
+      targetFolder: folder,
+      maxMessages,
+    });
+
+    return reply.status(201).send({ success: true, data: result });
   });
 }

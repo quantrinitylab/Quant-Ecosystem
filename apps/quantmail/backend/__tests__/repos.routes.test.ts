@@ -2574,4 +2574,73 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(body.data.id).toBe('repo-1');
     });
   });
+
+  describe('PR Inline Diff Line-by-Line Code Review Comments (Tasks G11 & G14)', () => {
+    it('POST /repos/:id/pulls/:number/comments creates an inline comment on a diff line', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/comments',
+        payload: {
+          filePath: 'src/index.ts',
+          line: 42,
+          side: 'RIGHT',
+          body: 'Consider extracting this helper into a separate module.',
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.filePath).toBe('src/index.ts');
+      expect(body.data.line).toBe(42);
+      expect(body.data.body).toBe('Consider extracting this helper into a separate module.');
+    });
+
+    it('GET /repos/:id/pulls/:number/comments returns all comments on PR diff', async () => {
+      const app = await buildApp('user-1');
+      await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/comments',
+        payload: {
+          filePath: 'src/index.ts',
+          line: 42,
+          side: 'RIGHT',
+          body: 'Consider extracting this helper into a separate module.',
+        },
+      });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/repos/repo-1/pulls/1/comments',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.length).toBeGreaterThanOrEqual(1);
+      expect(body.data[0].filePath).toBe('src/index.ts');
+    });
+
+    it('DELETE /repos/:id/pulls/:number/comments/:commentId removes comment', async () => {
+      const app = await buildApp('user-1');
+      const postRes = await app.inject({
+        method: 'POST',
+        url: '/repos/repo-1/pulls/1/comments',
+        payload: {
+          filePath: 'lib/auth.ts',
+          line: 15,
+          body: 'Temporary review note.',
+        },
+      });
+      const commentId = postRes.json().data.id;
+
+      const delRes = await app.inject({
+        method: 'DELETE',
+        url: `/repos/repo-1/pulls/1/comments/${commentId}`,
+      });
+
+      expect(delRes.statusCode).toBe(200);
+      expect(delRes.json()).toEqual({ success: true, data: { deleted: true } });
+    });
+  });
 });

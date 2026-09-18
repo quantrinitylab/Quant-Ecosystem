@@ -255,7 +255,9 @@ export async function buildApp(config?: AppConfig) {
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
+  await app.register(contactsRoutes, { prefix: '/api/contacts' });
   await app.register(contactGroupsRoutes, { prefix: '/contact-groups' });
+  await app.register(contactGroupsRoutes, { prefix: '/api/contact-groups' });
   await app.register(reposRoutes, { prefix: '/repos' });
   await app.register(reposRoutes, { prefix: '/api/repos' });
   await app.register(workspaceRoutes);
