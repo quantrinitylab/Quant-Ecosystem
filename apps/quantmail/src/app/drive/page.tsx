@@ -247,6 +247,28 @@ function isImageOrDocument(mimeType: string, name: string): boolean {
   );
 }
 
+function isTextOrCodeFile(mimeType: string, name: string): boolean {
+  const m = (mimeType || '').toLowerCase();
+  const n = (name || '').toLowerCase();
+  if (
+    m.startsWith('text/') ||
+    m.includes('javascript') ||
+    m.includes('typescript') ||
+    m.includes('json') ||
+    m.includes('xml') ||
+    m.includes('yaml') ||
+    m.includes('markdown') ||
+    m.includes('sql') ||
+    m.includes('x-sh') ||
+    m.includes('x-python')
+  ) {
+    return true;
+  }
+  return /\.(txt|md|markdown|json|js|jsx|ts|tsx|py|rs|go|java|c|cpp|h|hpp|cs|rb|php|sh|bash|zsh|yml|yaml|toml|ini|env|sql|graphql|prisma|html|css|scss|less|svg|xml|log|csv|tsv)$/i.test(
+    n,
+  );
+}
+
 export default function DrivePage() {
   const router = useRouter();
   const {
@@ -313,6 +335,69 @@ export default function DrivePage() {
   const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
+  const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
+  const [textPreviewError, setTextPreviewError] = useState<string | null>(null);
+  const [copiedTextPreview, setCopiedTextPreview] = useState(false);
+
+  useEffect(() => {
+    if (!previewItem || !isTextOrCodeFile(previewItem.mimeType, previewItem.name)) {
+      setTextPreviewContent(null);
+      setIsLoadingTextPreview(false);
+      setTextPreviewError(null);
+      setCopiedTextPreview(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsLoadingTextPreview(true);
+    setTextPreviewError(null);
+    setTextPreviewContent(null);
+    setCopiedTextPreview(false);
+
+    const url = getDownloadUrl(previewItem.id);
+    fetch(url, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load file preview (${res.status})`);
+        }
+        const text = await res.text();
+        const MAX_PREVIEW_BYTES = 1024 * 1024; // 1 MB preview ceiling
+        if (text.length > MAX_PREVIEW_BYTES) {
+          setTextPreviewContent(
+            text.slice(0, MAX_PREVIEW_BYTES) +
+              '\n\n/* ... [Preview truncated: file exceeds 1 MB limit] ... */',
+          );
+        } else {
+          setTextPreviewContent(text);
+        }
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setTextPreviewError(err instanceof Error ? err.message : 'Failed to load file preview');
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoadingTextPreview(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [previewItem, getDownloadUrl]);
+
+  const handleCopyTextPreview = useCallback(async () => {
+    if (!textPreviewContent) return;
+    try {
+      await navigator.clipboard.writeText(textPreviewContent);
+      setCopiedTextPreview(true);
+      setTimeout(() => setCopiedTextPreview(false), 2000);
+    } catch {
+      showToast({ text: 'Failed to copy to clipboard', type: 'error' });
+    }
+  }, [textPreviewContent]);
 
   const handleThumbnailError = useCallback((fileId: string) => {
     setFailedThumbnails((prev) => {
@@ -1776,6 +1861,122 @@ export default function DrivePage() {
                 <p className="text-xs text-[#A1A4AC] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
+              </div>
+            ) : previewItem && isTextOrCodeFile(previewItem.mimeType, previewItem.name) ? (
+              <div className="rounded-xl bg-[#111318] p-4 text-left shadow-[inset_0_0_0_1px_#282C35]">
+                <div className="flex items-center justify-between border-b border-[#282C35] pb-3 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[#FF8C42] shrink-0">
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <polyline
+                          points="16 18 22 12 16 6"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <polyline
+                          points="8 6 2 12 8 18"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-[#F5F5F5] truncate">
+                        {previewItem.name}
+                      </h4>
+                      <p className="text-[11px] text-[#A1A4AC]">
+                        {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
+                        {textPreviewContent !== null && (
+                          <span className="text-[#FF8C42] ml-1.5 font-mono">
+                            ({textPreviewContent.split('\n').length} lines)
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCopyTextPreview}
+                    disabled={!textPreviewContent || isLoadingTextPreview}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#1D2027] border border-[#323642] text-xs font-semibold text-[#E0E2EC] hover:bg-[#252A33] hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {copiedTextPreview ? (
+                      <>
+                        <svg
+                          className="w-3.5 h-3.5 text-emerald-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <polyline
+                            points="20 6 9 17 4 12"
+                            strokeWidth={2}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span className="text-emerald-400">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          className="w-3.5 h-3.5 text-[#A1A4AC]"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <rect
+                            x="9"
+                            y="9"
+                            width="13"
+                            height="13"
+                            rx="2"
+                            strokeWidth={1.8}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                            strokeWidth={1.8}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {isLoadingTextPreview ? (
+                  <div className="py-12 text-center text-xs text-[#A1A4AC] space-y-3">
+                    <div className="w-6 h-6 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p>Loading code preview…</p>
+                  </div>
+                ) : textPreviewError ? (
+                  <div className="py-8 text-center text-xs text-rose-400 bg-rose-500/10 rounded-lg p-4 border border-rose-500/20">
+                    <p className="font-semibold mb-1">Unable to preview file</p>
+                    <p className="text-zinc-400">{textPreviewError}</p>
+                  </div>
+                ) : textPreviewContent !== null ? (
+                  <div className="flex bg-[#0B0C0E] border border-[#282C35] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
+                    <div className="select-none py-3 px-3 text-right text-[#4E525E] border-r border-[#22262E] bg-[#0E1014] font-mono text-xs leading-relaxed shrink-0">
+                      {textPreviewContent.split('\n').map((_, idx) => (
+                        <div key={idx}>{idx + 1}</div>
+                      ))}
+                    </div>
+                    <pre className="p-3 text-[#E0E2EC] whitespace-pre overflow-x-auto min-w-0 flex-1 font-mono text-xs leading-relaxed">
+                      <code>{textPreviewContent}</code>
+                    </pre>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">

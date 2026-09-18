@@ -89,6 +89,54 @@ export interface UpsertVacationResponderPreference {
   intervalDays?: number;
 }
 
+export interface MailFilterCondition {
+  from?: string;
+  to?: string;
+  subjectContains?: string;
+  bodyContains?: string;
+  hasAttachment?: boolean;
+  domain?: string;
+}
+
+export interface MailFilterAction {
+  addLabelId?: string;
+  moveToFolderId?: string;
+  markRead?: boolean;
+  star?: boolean;
+  archive?: boolean;
+  markSpam?: boolean;
+  forwardTo?: string;
+  delete?: boolean;
+}
+
+export interface MailFilterItem {
+  id: string;
+  userId: string;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  matchAll: boolean;
+  conditions: MailFilterCondition[];
+  actions: MailFilterAction[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateMailFilterInput {
+  name: string;
+  enabled?: boolean;
+  priority?: number;
+  matchAll?: boolean;
+  conditions: MailFilterCondition[];
+  actions: MailFilterAction[];
+}
+
+export interface ApplyFilterResult {
+  filterId: string;
+  processedCount: number;
+  affectedCount: number;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -386,7 +434,43 @@ export class QuantMailApiClient {
   }
 
   async getFilters(): Promise<ApiResponse<EmailFilter[]>> {
-    return this.get('/filters');
+    return this.get('/mail-filters');
+  }
+
+  async getMailFilters(): Promise<ApiResponse<MailFilterItem[]>> {
+    return this.get('/mail-filters');
+  }
+
+  async createMailFilter(data: CreateMailFilterInput): Promise<ApiResponse<MailFilterItem>> {
+    return this.post('/mail-filters', data);
+  }
+
+  async updateMailFilter(
+    id: string,
+    data: Partial<CreateMailFilterInput>,
+  ): Promise<ApiResponse<MailFilterItem>> {
+    return this.put(`/mail-filters/${id}`, data);
+  }
+
+  async deleteMailFilter(id: string): Promise<ApiResponse<{ id: string }>> {
+    return this.delete(`/mail-filters/${id}`);
+  }
+
+  async testMailFilter(
+    id: string,
+    sample: {
+      fromAddress: string;
+      toAddresses?: string[];
+      subject?: string;
+      bodyPlain?: string;
+      hasAttachments?: boolean;
+    },
+  ): Promise<ApiResponse<{ matches: boolean }>> {
+    return this.post(`/mail-filters/${id}/test`, sample);
+  }
+
+  async applyMailFilter(id: string): Promise<ApiResponse<ApplyFilterResult>> {
+    return this.post(`/mail-filters/${id}/apply`, {});
   }
 
   async getEmailStats(): Promise<

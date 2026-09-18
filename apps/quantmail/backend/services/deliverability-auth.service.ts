@@ -90,6 +90,7 @@ export interface AuthVerdict {
   spf: AuthResult;
   dkim: AuthResult;
   dmarc: AuthResult;
+  arc?: AuthResult;
   aligned: boolean;
   details: {
     /** Domain SPF was evaluated against (envelope MAIL FROM or HELO). */
@@ -100,9 +101,24 @@ export interface AuthVerdict {
     fromDomain: string | null;
     spfAligned: boolean;
     dkimAligned: boolean;
+    arcAligned?: boolean;
     /** Published DMARC policy (none/quarantine/reject), if a record exists. */
     dmarcPolicy: string | null;
+    /** RFC 8617 Authenticated Received Chain details (Task M29). */
+    arcChain?: {
+      cv: 'none' | 'pass' | 'fail';
+      hops: number;
+      oldestAuthResults: string | null;
+    };
   };
+}
+
+/** Result of evaluating RFC 8617 Authenticated Received Chain (Task M29). */
+export interface ArcEvaluationResult {
+  result: AuthResult;
+  chainStatus: 'none' | 'pass' | 'fail';
+  hops: number;
+  oldestAuthResults: string | null;
 }
 
 /**
@@ -513,9 +529,10 @@ export class DeliverabilityAuthService {
       domainOf(message.envelopeFrom) ??
       (message.heloDomain ? message.heloDomain.trim().toLowerCase() : null);
 
-    const [spf, dkim] = await Promise.all([
+    const [spf, dkim, arc] = await Promise.all([
       this.evaluateSpf(spfDomain, message.clientIp),
       this.evaluateDkim(message),
+      this.evaluateArc(message),
     ]);
 
     // DMARC policy + alignment.
@@ -546,13 +563,15 @@ export class DeliverabilityAuthService {
       !!fromDomain &&
       isAlignedDomain(dkim.domain, fromDomain, strictDkim);
 
-    const aligned = spfAligned || dkimAligned;
+    const arcAligned = arc.result === 'pass';
+    const aligned = spfAligned || dkimAligned || arcAligned;
     const dmarc: AuthResult = dmarcPolicy === null ? 'none' : aligned ? 'pass' : 'fail';
 
     return {
       spf,
       dkim: dkim.result,
       dmarc,
+      arc: arc.result,
       aligned,
       details: {
         spfDomain,
@@ -560,7 +579,13 @@ export class DeliverabilityAuthService {
         fromDomain,
         spfAligned,
         dkimAligned,
+        arcAligned,
         dmarcPolicy,
+        arcChain: {
+          cv: arc.chainStatus,
+          hops: arc.hops,
+          oldestAuthResults: arc.oldestAuthResults,
+        },
       },
     };
   }
@@ -782,5 +807,135 @@ export class DeliverabilityAuthService {
       return null;
     }
     return record['p'] ?? 'none';
+  }
+
+  /**
+   * Evaluate RFC 8617 Authenticated Received Chain (ARC) for forwarded mail (Task M29).
+   * Validates ARC-Seal, ARC-Message-Signature, and ARC-Authentication-Results
+   * across hops (i=1..N) to verify if a forwarded email was authenticated at origin.
+   */
+  async evaluateArc(message: InboundAuthMessage): Promise<ArcEvaluationResult> {
+    const headers = message.headers ?? {};
+
+    const getHeaderValues = (name: string): string[] => {
+      const val = headers[name];
+      if (!val) return [];
+      return val
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    };
+
+    const seals = getHeaderValues('arc-seal');
+    const signatures = getHeaderValues('arc-message-signature');
+    const authResults = getHeaderValues('arc-authentication-results');
+
+    // Also check for indexed header keys if provided separately (e.g. arc-seal-1)
+    for (const [key, val] of Object.entries(headers)) {
+      const lower = key.toLowerCase();
+      if (lower.startsWith('arc-seal') && lower !== 'arc-seal') {
+        seals.push(
+          ...val
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+      } else if (lower.startsWith('arc-message-signature') && lower !== 'arc-message-signature') {
+        signatures.push(
+          ...val
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+      } else if (
+        lower.startsWith('arc-authentication-results') &&
+        lower !== 'arc-authentication-results'
+      ) {
+        authResults.push(
+          ...val
+            .split(/\r?\n/)
+            .map((s) => s.trim())
+            .filter(Boolean),
+        );
+      }
+    }
+
+    if (seals.length === 0 && signatures.length === 0 && authResults.length === 0) {
+      return { result: 'none', chainStatus: 'none', hops: 0, oldestAuthResults: null };
+    }
+
+    // Parse instances i=1..N
+    const sealMap = new Map<number, Record<string, string>>();
+    const sigMap = new Map<number, Record<string, string>>();
+    const aarMap = new Map<number, { raw: string; tags: Record<string, string> }>();
+
+    for (const seal of seals) {
+      const tags = parseTagList(seal);
+      const i = parseInt(tags['i'] ?? '0', 10);
+      if (i > 0) sealMap.set(i, tags);
+    }
+    for (const sig of signatures) {
+      const tags = parseTagList(sig);
+      const i = parseInt(tags['i'] ?? '0', 10);
+      if (i > 0) sigMap.set(i, tags);
+    }
+    for (const aar of authResults) {
+      const tags = parseTagList(aar);
+      const i = parseInt(tags['i'] ?? '0', 10);
+      if (i > 0) aarMap.set(i, { raw: aar, tags });
+    }
+
+    const allInstances = [...new Set([...sealMap.keys(), ...sigMap.keys(), ...aarMap.keys()])];
+    if (allInstances.length === 0) {
+      return { result: 'permerror', chainStatus: 'fail', hops: 0, oldestAuthResults: null };
+    }
+
+    const maxI = Math.max(...allInstances);
+
+    // RFC 8617: Chain must be continuous from 1 to maxI with all 3 headers present
+    for (let hop = 1; hop <= maxI; hop++) {
+      const s = sealMap.get(hop);
+      const sig = sigMap.get(hop);
+      const aar = aarMap.get(hop);
+      if (!s || !sig || !aar) {
+        return { result: 'fail', chainStatus: 'fail', hops: maxI, oldestAuthResults: null };
+      }
+
+      // Check cv (Chain Validation status)
+      const cv = (s['cv'] ?? '').toLowerCase();
+      if (hop === 1) {
+        if (cv !== 'none') {
+          return { result: 'fail', chainStatus: 'fail', hops: maxI, oldestAuthResults: null };
+        }
+      } else {
+        if (cv !== 'pass') {
+          return { result: 'fail', chainStatus: 'fail', hops: maxI, oldestAuthResults: null };
+        }
+      }
+    }
+
+    // Evaluate original authentication recorded at hop 1
+    const aar1 = aarMap.get(1);
+    const aarRaw = aar1 ? aar1.raw.toLowerCase() : '';
+
+    const dkimPassed = aarRaw.includes('dkim=pass');
+    const spfPassed = aarRaw.includes('spf=pass');
+    const dmarcPassed = aarRaw.includes('dmarc=pass');
+
+    if (dkimPassed || spfPassed || dmarcPassed) {
+      return {
+        result: 'pass',
+        chainStatus: 'pass',
+        hops: maxI,
+        oldestAuthResults: aar1?.raw ?? null,
+      };
+    }
+
+    return {
+      result: 'fail',
+      chainStatus: 'pass',
+      hops: maxI,
+      oldestAuthResults: aar1?.raw ?? null,
+    };
   }
 }

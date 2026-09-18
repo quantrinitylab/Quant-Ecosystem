@@ -14,6 +14,7 @@ import {
   DeliverabilityAuthService,
   type DnsResolverPort,
 } from '../services/deliverability-auth.service';
+import { InboundIngestAdapter } from '../services/inbound-ingest.service';
 
 interface DomainAuthRow {
   domain: string;
@@ -142,5 +143,115 @@ describe('DeliverabilityAuthService.provisionDomainKey', () => {
     });
 
     expect(verdict.dkim).toBe('fail');
+  });
+
+  describe('DeliverabilityAuthService.evaluateArc (Task M29 RFC 8617)', () => {
+    it('returns none when message has no ARC headers', async () => {
+      const service = new DeliverabilityAuthService(createPrismaMock() as never);
+      const result = await service.evaluateArc({
+        headerFrom: 'alice@example.com',
+        headers: { from: 'alice@example.com', to: 'bob@quantmail.in' },
+        rawBody: 'Hello',
+      });
+
+      expect(result.result).toBe('none');
+      expect(result.chainStatus).toBe('none');
+      expect(result.hops).toBe(0);
+    });
+
+    it('validates a single-hop ARC set where hop 1 has cv=none and dkim=pass', async () => {
+      const service = new DeliverabilityAuthService(createPrismaMock() as never);
+      const result = await service.evaluateArc({
+        headerFrom: 'alice@example.com',
+        headers: {
+          'arc-seal': 'i=1; a=rsa-sha256; cv=none; d=forwarder.org; s=arc1; b=fakeSig==',
+          'arc-message-signature':
+            'i=1; a=rsa-sha256; d=forwarder.org; s=arc1; bh=bodyHash==; b=sig==',
+          'arc-authentication-results':
+            'i=1; mx.forwarder.org; dkim=pass header.i=@example.com; spf=pass smtp.mailfrom=alice@example.com',
+        },
+        rawBody: 'Hello',
+      });
+
+      expect(result.result).toBe('pass');
+      expect(result.chainStatus).toBe('pass');
+      expect(result.hops).toBe(1);
+      expect(result.oldestAuthResults).toContain('dkim=pass');
+    });
+
+    it('validates a multi-hop ARC chain where hop 1 has cv=none and hop 2 has cv=pass', async () => {
+      const service = new DeliverabilityAuthService(createPrismaMock() as never);
+      const result = await service.evaluateArc({
+        headerFrom: 'alice@example.com',
+        headers: {
+          'arc-seal': [
+            'i=1; a=rsa-sha256; cv=none; d=forwarder.org; s=arc1; b=sig1==',
+            'i=2; a=rsa-sha256; cv=pass; d=mailgroup.org; s=arc2; b=sig2==',
+          ].join('\n'),
+          'arc-message-signature': [
+            'i=1; a=rsa-sha256; d=forwarder.org; s=arc1; bh=bh1==; b=msig1==',
+            'i=2; a=rsa-sha256; d=mailgroup.org; s=arc2; bh=bh2==; b=msig2==',
+          ].join('\n'),
+          'arc-authentication-results': [
+            'i=1; mx.forwarder.org; dkim=pass header.i=@example.com; spf=pass',
+            'i=2; mx.mailgroup.org; arc=pass (as.1=pass ams.1=pass)',
+          ].join('\n'),
+        },
+        rawBody: 'Hello',
+      });
+
+      expect(result.result).toBe('pass');
+      expect(result.chainStatus).toBe('pass');
+      expect(result.hops).toBe(2);
+    });
+
+    it('fails when intermediate hop has broken chain (hop 2 cv != pass)', async () => {
+      const service = new DeliverabilityAuthService(createPrismaMock() as never);
+      const result = await service.evaluateArc({
+        headerFrom: 'alice@example.com',
+        headers: {
+          'arc-seal': [
+            'i=1; a=rsa-sha256; cv=none; d=forwarder.org; s=arc1; b=sig1==',
+            'i=2; a=rsa-sha256; cv=fail; d=mailgroup.org; s=arc2; b=sig2==',
+          ].join('\n'),
+          'arc-message-signature': [
+            'i=1; a=rsa-sha256; d=forwarder.org; s=arc1; bh=bh1==; b=msig1==',
+            'i=2; a=rsa-sha256; d=mailgroup.org; s=arc2; bh=bh2==; b=msig2==',
+          ].join('\n'),
+          'arc-authentication-results': [
+            'i=1; mx.forwarder.org; dkim=pass header.i=@example.com',
+            'i=2; mx.mailgroup.org; arc=fail',
+          ].join('\n'),
+        },
+        rawBody: 'Hello',
+      });
+
+      expect(result.result).toBe('fail');
+      expect(result.chainStatus).toBe('fail');
+    });
+
+    it('rescues forwarded mail in verifyInbound and prevents quarantine via InboundIngestAdapter.shouldQuarantine', async () => {
+      const service = new DeliverabilityAuthService(createPrismaMock() as never);
+      const verdict = await service.verifyInbound({
+        headerFrom: 'alice@forwarded-list.com',
+        headers: {
+          from: 'alice@forwarded-list.com',
+          to: 'bob@quantmail.in',
+          'arc-seal': 'i=1; a=rsa-sha256; cv=none; d=relay.net; s=arc; b=sig==',
+          'arc-message-signature': 'i=1; a=rsa-sha256; d=relay.net; s=arc; bh=b==; b=s==',
+          'arc-authentication-results':
+            'i=1; relay.net; dkim=pass header.i=@forwarded-list.com; spf=pass',
+        },
+        rawBody: 'Forwarded message body',
+      });
+
+      expect(verdict.arc).toBe('pass');
+      expect(verdict.aligned).toBe(true);
+      expect(verdict.details.arcAligned).toBe(true);
+      expect(verdict.details.arcChain?.hops).toBe(1);
+
+      // Verified: legitimate forwarded mail is NOT quarantined
+      expect(InboundIngestAdapter.shouldQuarantine(verdict)).toBe(false);
+    });
   });
 });

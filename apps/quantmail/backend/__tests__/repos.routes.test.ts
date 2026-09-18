@@ -386,6 +386,7 @@ async function buildApp(
       (request as unknown as { auth: { userId: string } }).auth = { userId: overrideUser };
   });
   await app.register(reposRoutes, { prefix: '/repos' });
+  await app.register(reposRoutes, { prefix: '/api/repos' });
   await app.ready();
   return app;
 }
@@ -2542,6 +2543,35 @@ describe('QuantGit Database-Backed Repos Routes', () => {
 
       expect(res.statusCode).toBe(401);
       expect(res.json().error.code).toBe('UNAUTHORIZED');
+    });
+  });
+
+  describe('Canonical /api/repos Alias (Task G06)', () => {
+    it('GET /api/repos lists accessible repositories identically to /repos', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/repos',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.length).toBe(1);
+      expect(body.data[0].id).toBe('repo-1');
+    });
+
+    it('GET /api/repos/:id fetches repository details via canonical alias', async () => {
+      const app = await buildApp('user-1');
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/repos/repo-1',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.id).toBe('repo-1');
     });
   });
 });

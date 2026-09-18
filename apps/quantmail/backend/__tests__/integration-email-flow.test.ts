@@ -22,8 +22,13 @@ function createMockPrisma() {
       delete: vi.fn(),
     },
     user: {
-      findUnique: vi.fn(),
-      findMany: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'user-1@quantmail.in',
+        username: 'user1',
+        displayName: 'User One',
+      }),
+      findMany: vi.fn().mockResolvedValue([]),
     },
     label: {
       findMany: vi.fn(),

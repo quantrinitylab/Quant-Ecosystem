@@ -236,8 +236,13 @@ export class InboundIngestAdapter {
    * a DMARC policy is published for the From domain and neither SPF nor DKIM
    * aligns (`dmarc === 'fail'`). Absence of any DMARC record (`'none'`) is not a
    * failure and routes normally.
+   * RFC 8617 (Task M29): Validated Authenticated Received Chain (ARC) verifies
+   * that forwarded mail was authenticated at origin, rescuing it from quarantine.
    */
   static shouldQuarantine(verdict: AuthVerdict): boolean {
+    if (verdict.arc === 'pass') {
+      return false;
+    }
     return verdict.dmarc === 'fail';
   }
 

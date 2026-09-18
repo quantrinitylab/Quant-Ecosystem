@@ -76,6 +76,7 @@ import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { apiClient } from '../../services/api-client';
 import { VacationResponderSettings } from './VacationResponderSettings';
+import { MailFiltersSettings } from './MailFiltersSettings';
 import { PhoneVerificationCard } from '../../components/PhoneVerificationCard';
 import { showToast } from '../../components/InboxToast';
 import { ShortcutKeys } from '../../components/ShortcutKeys';
@@ -92,7 +93,14 @@ import {
   type SettingsChoiceOption,
 } from './SettingsPrimitives';
 
-type SettingsTab = 'general' | 'ai' | 'security' | 'notifications' | 'appearance' | 'keyboard';
+type SettingsTab =
+  | 'general'
+  | 'filters'
+  | 'ai'
+  | 'security'
+  | 'notifications'
+  | 'appearance'
+  | 'keyboard';
 type Theme = 'light' | 'dark' | 'system';
 type Density = 'comfortable' | 'compact';
 
@@ -187,6 +195,7 @@ const AI_ENGINE_MODES: AIModelOption[] = [
  */
 const TABS: Array<{ key: SettingsTab; label: string }> = [
   { key: 'general', label: 'General' },
+  { key: 'filters', label: 'Mail Filters' },
   { key: 'ai', label: 'Assistant' },
   { key: 'security', label: 'Security & Encryption' },
   { key: 'notifications', label: 'Notifications' },
@@ -762,6 +771,8 @@ export default function SettingsPage() {
               <VacationResponderSettings />
             </>
           )}
+
+          {activeTab === 'filters' && <MailFiltersSettings />}
 
           {activeTab === 'ai' && (
             <>

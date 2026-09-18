@@ -795,4 +795,57 @@ describe('POST /admin/inbound/sync-all — replaying the bucket is not a public 
 
     expect(response.json()).toEqual({ ok: true, scanned: 2, delivered: 1, skipped: 0, failed: 1 });
   });
+
+  describe('Task M30 / Security Gate S5: INBOUND_SNS_TOPIC_ARNS production enforcement', () => {
+    beforeEach(() => {
+      process.env['INBOUND_WEBHOOK_TEST_UNSIGNED'] = 'true';
+    });
+
+    afterEach(() => {
+      delete process.env['INBOUND_WEBHOOK_TEST_UNSIGNED'];
+    });
+
+    it('rejects inbound webhook in production when INBOUND_SNS_TOPIC_ARNS is unset', async () => {
+      process.env['NODE_ENV'] = 'production';
+      delete process.env['INBOUND_SNS_TOPIC_ARNS'];
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload: notification(),
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({ ok: false, error: 'FORBIDDEN' });
+    });
+
+    it('accepts inbound webhook in production when INBOUND_SNS_TOPIC_ARNS matches', async () => {
+      process.env['NODE_ENV'] = 'production';
+      process.env['INBOUND_SNS_TOPIC_ARNS'] = TOPIC;
+      state.users.push(localUser());
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload: notification(),
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true, key: KEY, delivered: 1 });
+    });
+
+    it('rejects inbound webhook in production when TopicArn does not match INBOUND_SNS_TOPIC_ARNS', async () => {
+      process.env['NODE_ENV'] = 'production';
+      process.env['INBOUND_SNS_TOPIC_ARNS'] = 'arn:aws:sns:eu-west-1:123456789012:other-topic';
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/webhook/inbound',
+        payload: notification(),
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({ ok: false, error: 'FORBIDDEN' });
+    });
+  });
 });

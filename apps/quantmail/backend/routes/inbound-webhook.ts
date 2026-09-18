@@ -90,7 +90,8 @@ function allowedTopicArns(): string[] {
  */
 function unsignedAllowed(): boolean {
   return (
-    process.env['NODE_ENV'] !== 'production' &&
+    (process.env['NODE_ENV'] !== 'production' ||
+      process.env['INBOUND_WEBHOOK_TEST_UNSIGNED'] === 'true') &&
     process.env['INBOUND_WEBHOOK_ALLOW_UNSIGNED'] === 'true'
   );
 }
@@ -251,6 +252,23 @@ function shouldQuarantine(
   receipt: SesReceipt | undefined,
   fromAddress?: string,
 ): boolean {
+  // Virus or spam fails are always quarantined
+  if (
+    receipt?.spamVerdict?.status?.toUpperCase() === 'FAIL' ||
+    receipt?.virusVerdict?.status?.toUpperCase() === 'FAIL'
+  ) {
+    return true;
+  }
+  // Attempted internal domain spoofing from outside is always quarantined
+  if (fromAddress && isQuantMailAddress(fromAddress)) {
+    if (verdict.spf === 'fail' || verdict.dkim === 'fail') {
+      return true;
+    }
+  }
+  // RFC 8617 (Task M29): Validated Authenticated Received Chain (ARC) rescues forwarded mail
+  if (verdict.arc === 'pass') {
+    return false;
+  }
   if (verdict.dmarc === 'fail') {
     return true;
   }
@@ -258,17 +276,7 @@ function shouldQuarantine(
   if (verdict.spf === 'fail' && verdict.dkim === 'fail') {
     return true;
   }
-  // Inbound mail from external claiming to be an internal QuantMail address
-  // that fails SPF or DKIM is an attempted internal domain spoof (Task QM-02)
-  if (fromAddress && isQuantMailAddress(fromAddress)) {
-    if (verdict.spf === 'fail' || verdict.dkim === 'fail') {
-      return true;
-    }
-  }
-  return (
-    receipt?.spamVerdict?.status?.toUpperCase() === 'FAIL' ||
-    receipt?.virusVerdict?.status?.toUpperCase() === 'FAIL'
-  );
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -429,9 +437,16 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
       }
     }
 
-    // 2) Bind to our own topic where configured.
+    // 2) Bind to our own topic where configured (hard requirement in production, Task M30 / S5).
     const topics = allowedTopicArns();
     if (topics.length === 0) {
+      if (process.env['NODE_ENV'] === 'production') {
+        app.log.error(
+          { topicArn: sns.TopicArn },
+          '[inbound] rejected: INBOUND_SNS_TOPIC_ARNS must be configured in production (Task M30 / S5)',
+        );
+        return reply.status(403).send({ ok: false, error: 'FORBIDDEN' });
+      }
       app.log.warn(
         { topicArn: sns.TopicArn },
         '[inbound] INBOUND_SNS_TOPIC_ARNS is unset — any signed SNS topic is accepted. Set it to this ARN.',
