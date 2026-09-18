@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { OtpService, type SmsSender } from '../lib/otp-service';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { OtpService, AwsSnsSmsSender, type SmsSender } from '../lib/otp-service';
 
 function makeSender(): SmsSender & { messages: { phone: string; body: string }[] } {
   const messages: { phone: string; body: string }[] = [];
@@ -117,5 +117,141 @@ describe('OtpService', () => {
     const res = await svc.requestCode('+14155550123');
     expect(res.ok).toBe(false);
     expect(res.error).toContain('carrier down');
+  });
+
+  it('initializes with default AwsSnsSmsSender fallback when no sender provided', async () => {
+    const svc = new OtpService();
+    // In test environment without AWS credentials, it safely uses the logging fallback
+    const res = await svc.requestCode('+14155550123');
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe('AwsSnsSmsSender', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env['AWS_REGION'];
+    delete process.env['AWS_ACCESS_KEY_ID'];
+    delete process.env['AWS_SECRET_ACCESS_KEY'];
+    delete process.env['SNS_REGION'];
+    delete process.env['SNS_ACCESS_KEY_ID'];
+    delete process.env['SNS_SECRET_ACCESS_KEY'];
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('safely falls back to LoggingSmsSender when credentials are absent', async () => {
+    const loggedMessages: string[] = [];
+    const sender = new AwsSnsSmsSender(undefined, (msg) => loggedMessages.push(msg));
+
+    expect(sender.isConfigured).toBe(false);
+    const result = await sender.send('+14155550123', 'Your code is 123456');
+
+    expect(result.success).toBe(true);
+    expect(loggedMessages.length).toBe(1);
+    expect(loggedMessages[0]).toContain('+14155550123');
+    expect(loggedMessages[0]).toContain('123456');
+  });
+
+  it('delivers transactional SMS via AWS SigV4 REST request when configured', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+
+    const mockFetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      capturedUrl = String(url);
+      capturedInit = init;
+      return new Response(
+        '<PublishResponse><PublishResult><MessageId>msg-123</MessageId></PublishResult></PublishResponse>',
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/xml' },
+        },
+      );
+    });
+
+    const sender = new AwsSnsSmsSender(
+      {
+        region: 'ap-south-1',
+        accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+        secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        senderId: 'QUANTCHAT',
+      },
+      undefined,
+      mockFetch as unknown as typeof fetch,
+    );
+
+    expect(sender.isConfigured).toBe(true);
+    const result = await sender.send('+919876543210', 'QuantChat OTP: 987654');
+
+    expect(result.success).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(capturedUrl).toBe('https://sns.ap-south-1.amazonaws.com/');
+    expect(capturedInit?.method).toBe('POST');
+
+    const headers = capturedInit?.headers as Record<string, string>;
+    expect(headers['Authorization']).toContain('AWS4-HMAC-SHA256');
+    expect(headers['Authorization']).toContain('Credential=AKIAIOSFODNN7EXAMPLE');
+    expect(headers['Authorization']).toContain('/ap-south-1/sns/aws4_request');
+    expect(headers['content-type']).toBe('application/x-www-form-urlencoded; charset=utf-8');
+
+    const body = String(capturedInit?.body);
+    const params = new URLSearchParams(body);
+    expect(params.get('Action')).toBe('Publish');
+    expect(params.get('PhoneNumber')).toBe('+919876543210');
+    expect(params.get('Message')).toBe('QuantChat OTP: 987654');
+    expect(params.get('MessageAttributes.entry.1.Name')).toBe('AWS.SNS.SMS.SMSType');
+    expect(params.get('MessageAttributes.entry.1.Value.StringValue')).toBe('Transactional');
+    expect(params.get('MessageAttributes.entry.2.Name')).toBe('AWS.SNS.SMS.SenderID');
+    expect(params.get('MessageAttributes.entry.2.Value.StringValue')).toBe('QUANTCHAT');
+  });
+
+  it('handles AWS SNS HTTP failure response gracefully', async () => {
+    const mockFetch = vi.fn(async () => {
+      return new Response(
+        '<ErrorResponse><Error><Message>Monthly quota exceeded</Message></Error></ErrorResponse>',
+        {
+          status: 400,
+          headers: { 'Content-Type': 'text/xml' },
+        },
+      );
+    });
+
+    const sender = new AwsSnsSmsSender(
+      {
+        region: 'us-east-1',
+        accessKeyId: 'test-key',
+        secretAccessKey: 'test-secret',
+      },
+      undefined,
+      mockFetch as unknown as typeof fetch,
+    );
+
+    const result = await sender.send('+14155550123', 'Code 111111');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('SNS Publish failed (400)');
+    expect(result.error).toContain('Monthly quota exceeded');
+  });
+
+  it('handles network transport failure safely', async () => {
+    const mockFetch = vi.fn(async () => {
+      throw new Error('Connection reset by peer');
+    });
+
+    const sender = new AwsSnsSmsSender(
+      {
+        region: 'us-east-1',
+        accessKeyId: 'test-key',
+        secretAccessKey: 'test-secret',
+      },
+      undefined,
+      mockFetch as unknown as typeof fetch,
+    );
+
+    const result = await sender.send('+14155550123', 'Code 111111');
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Connection reset by peer');
   });
 });

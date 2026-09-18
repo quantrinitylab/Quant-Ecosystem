@@ -6,6 +6,7 @@ import contactsRoutes from '../routes/contacts';
 import mailFiltersRoutes from '../routes/mail-filters';
 import { ALLOWED_BACKEND_ROUTES } from '../lib/routes-config';
 import { OUTBOUND_DELIVERY_QUEUE } from '../services/outbound-delivery.service';
+import { SuppressionService } from '../services/suppression.service';
 
 // Mock SES sender to avoid external network calls during unit tests
 vi.mock('../lib/ses-sender', () => ({
@@ -262,6 +263,24 @@ function createInMemoryPrisma() {
       create: vi.fn().mockResolvedValue({ id: 'thread-1' }),
       update: vi.fn().mockResolvedValue({ id: 'thread-1' }),
     },
+    emailSuppression: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation(async ({ data }: any) => ({
+        ...data,
+        id: 'sup-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      upsert: vi.fn().mockImplementation(async ({ create }: any) => ({
+        ...create,
+        id: 'sup-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
+      delete: vi.fn().mockResolvedValue({ id: 'sup-1' }),
+      count: vi.fn().mockResolvedValue(0),
+    },
   };
 }
 
@@ -269,6 +288,7 @@ async function buildFastifyApp(prisma: any, authenticatedUserId: string | null =
   const app = Fastify();
   await app.register(errorHandlerPlugin);
   app.decorate('prisma', prisma);
+  app.decorate('suppressionService', new SuppressionService(prisma));
   app.addHook('onRequest', async (req) => {
     (req as any).auth = authenticatedUserId ? { userId: authenticatedUserId } : null;
   });

@@ -96,7 +96,18 @@ const ESTIMATED_ROW_HEIGHT = 80;
  * `Spam` sits in the chip row as an inline lens, filtering junk messages directly
  * in the active thread pool without navigating away.
  */
-type InboxLens = 'all' | 'unread' | 'contacts' | 'groups' | 'snoozed' | 'spam';
+type InboxLens =
+  | 'all'
+  | 'primary'
+  | 'unread'
+  | 'updates'
+  | 'social'
+  | 'promotions'
+  | 'forums'
+  | 'contacts'
+  | 'groups'
+  | 'snoozed'
+  | 'spam';
 type InboxTurn = 'any' | 'needs_you' | 'waiting';
 type InboxFilter = 'starred' | 'attachment';
 
@@ -107,7 +118,24 @@ const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
    * selected rather than a partition they have to opt out of.
    */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
+  { key: 'primary', label: 'Primary', hint: 'Direct person-to-person human correspondence' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
+  {
+    key: 'updates',
+    label: 'Updates',
+    hint: 'Receipts, confirmations, billing, and GitHub notices',
+  },
+  {
+    key: 'social',
+    label: 'Social',
+    hint: 'Social networks, media platforms, and community notices',
+  },
+  { key: 'promotions', label: 'Promotions', hint: 'Newsletters, marketing, deals, and discounts' },
+  {
+    key: 'forums',
+    label: 'Forums',
+    hint: 'Mailing lists, group discussions, and community digests',
+  },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'groups', label: 'Groups', hint: 'Conversations with multiple people or saved groups' },
   { key: 'snoozed', label: 'Snoozed', hint: 'Conversations waiting for their wake time' },
@@ -1410,6 +1438,11 @@ export default function InboxPage() {
   const matchesLens = useCallback(
     (t: ConversationThread, lens: InboxLens) => {
       if (lens === 'all') return true;
+      if (lens === 'primary') return t.category === 'primary';
+      if (lens === 'updates') return t.category === 'updates';
+      if (lens === 'social') return t.category === 'social';
+      if (lens === 'promotions') return t.category === 'promotions';
+      if (lens === 'forums') return t.category === 'forums';
       if (lens === 'unread') return !t.isRead;
       if (lens === 'contacts') return isContactThread(t);
       if (lens === 'groups') return isGroupThread(t);
@@ -1595,11 +1628,21 @@ export default function InboxPage() {
     const basePool = showArchivedView ? allArchivedThreads : (threads ?? []);
     const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
     let allUnread = 0;
+    let primaryUnread = 0;
+    let updatesUnread = 0;
+    let socialUnread = 0;
+    let promotionsUnread = 0;
+    let forumsUnread = 0;
     let groupsUnread = 0;
     let contactsUnread: number | null = isDirectoryPending ? null : 0;
     for (const t of pool) {
       if (!t.isRead) {
         allUnread += 1;
+        if (t.category === 'primary') primaryUnread += 1;
+        else if (t.category === 'updates') updatesUnread += 1;
+        else if (t.category === 'social') socialUnread += 1;
+        else if (t.category === 'promotions') promotionsUnread += 1;
+        else if (t.category === 'forums') forumsUnread += 1;
         if (isGroupThread(t)) groupsUnread += 1;
         if (contactsUnread !== null && isContactThread(t)) contactsUnread += 1;
       }
@@ -1608,7 +1651,12 @@ export default function InboxPage() {
     const snoozedUnread = allSnoozedThreads.filter((t) => !t.isRead).length;
     const counts: Record<InboxLens, number | null> = {
       all: allUnread,
+      primary: primaryUnread,
       unread: allUnread,
+      updates: updatesUnread,
+      social: socialUnread,
+      promotions: promotionsUnread,
+      forums: forumsUnread,
       contacts: contactsUnread,
       groups: groupsUnread,
       snoozed: snoozedUnread,

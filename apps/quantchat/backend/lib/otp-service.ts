@@ -16,11 +16,18 @@
 // with no real time or network. State is in-memory; inject a shared/persistent
 // store (e.g. Redis) for multi-instance production (documented follow-up).
 
-import { randomInt } from 'node:crypto';
+import { createHash, createHmac, randomInt } from 'node:crypto';
 
 export interface SmsSender {
-  /** Deliver an SMS. Real adapters (Twilio/MSG91) implement this. */
+  /** Deliver an SMS. Real adapters (AWS SNS / Twilio / MSG91) implement this. */
   send(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }>;
+}
+
+export interface AwsSnsConfig {
+  region: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  senderId?: string;
 }
 
 export interface OtpServiceConfig {
@@ -71,7 +78,7 @@ export class OtpService {
   private readonly cooldownUntil = new Map<string, number>();
 
   constructor(
-    private readonly sms: SmsSender,
+    private readonly sms: SmsSender = new AwsSnsSmsSender(),
     config: Partial<OtpServiceConfig> = {},
     private readonly now: () => number = Date.now,
   ) {
@@ -192,5 +199,127 @@ export class LoggingSmsSender implements SmsSender {
   async send(phoneNumber: string, message: string): Promise<{ success: boolean }> {
     this.log(`[OTP][dev-sms] to=${phoneNumber} :: ${message}`);
     return { success: true };
+  }
+}
+
+function env(name: string): string | undefined {
+  const value = process.env[name];
+  return value && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+export function readAwsSnsConfig(override?: Partial<AwsSnsConfig>): AwsSnsConfig | null {
+  const region = override?.region ?? env('AWS_REGION') ?? env('SNS_REGION');
+  const accessKeyId = override?.accessKeyId ?? env('AWS_ACCESS_KEY_ID') ?? env('SNS_ACCESS_KEY_ID');
+  const secretAccessKey =
+    override?.secretAccessKey ?? env('AWS_SECRET_ACCESS_KEY') ?? env('SNS_SECRET_ACCESS_KEY');
+  if (!region || !accessKeyId || !secretAccessKey) return null;
+  const senderId = override?.senderId ?? env('SNS_SENDER_ID') ?? env('AWS_SNS_SENDER_ID');
+  return { region, accessKeyId, secretAccessKey, ...(senderId ? { senderId } : {}) };
+}
+
+function hmac(key: Buffer | string, data: string): Buffer {
+  return createHmac('sha256', key).update(data, 'utf8').digest();
+}
+
+function sha256Hex(data: string): string {
+  return createHash('sha256').update(data, 'utf8').digest('hex');
+}
+
+/**
+ * Authentic AWS SNS SMS sender implementing {@link SmsSender}.
+ *
+ * Checks for AWS credentials (AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY).
+ * Uses AWS SNS Publish REST API (SigV4) to send transactional SMS (AWS.SNS.SMS.SMSType: Transactional).
+ * Falls back safely to LoggingSmsSender in test or development environments when AWS keys are absent.
+ */
+export class AwsSnsSmsSender implements SmsSender {
+  private readonly fallback: LoggingSmsSender;
+
+  constructor(
+    private readonly configOverride?: Partial<AwsSnsConfig>,
+    fallbackLogger?: (msg: string) => void,
+    private readonly fetchFn: typeof fetch = fetch,
+  ) {
+    this.fallback = new LoggingSmsSender(fallbackLogger);
+  }
+
+  get isConfigured(): boolean {
+    return readAwsSnsConfig(this.configOverride) !== null;
+  }
+
+  async send(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }> {
+    const config = readAwsSnsConfig(this.configOverride);
+    if (!config) {
+      return this.fallback.send(phoneNumber, message);
+    }
+
+    try {
+      const host = `sns.${config.region}.amazonaws.com`;
+      const params = new URLSearchParams({
+        Action: 'Publish',
+        Version: '2010-03-31',
+        PhoneNumber: phoneNumber,
+        Message: message,
+        'MessageAttributes.entry.1.Name': 'AWS.SNS.SMS.SMSType',
+        'MessageAttributes.entry.1.Value.DataType': 'String',
+        'MessageAttributes.entry.1.Value.StringValue': 'Transactional',
+      });
+      if (config.senderId) {
+        params.set('MessageAttributes.entry.2.Name', 'AWS.SNS.SMS.SenderID');
+        params.set('MessageAttributes.entry.2.Value.DataType', 'String');
+        params.set('MessageAttributes.entry.2.Value.StringValue', config.senderId);
+      }
+
+      const body = params.toString();
+      const payloadHash = sha256Hex(body);
+      const amzDate = new Date().toISOString().replace(/[:-]|\.\d{3}/g, '');
+      const dateStamp = amzDate.slice(0, 8);
+
+      const headers: Record<string, string> = {
+        'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+        host,
+        'x-amz-date': amzDate,
+      };
+      const signedHeaderNames = Object.keys(headers).sort();
+      const canonicalHeaders = signedHeaderNames.map((h) => `${h}:${headers[h]}\n`).join('');
+      const signedHeaders = signedHeaderNames.join(';');
+      const canonicalRequest = ['POST', '/', '', canonicalHeaders, signedHeaders, payloadHash].join(
+        '\n',
+      );
+
+      const scope = `${dateStamp}/${config.region}/sns/aws4_request`;
+      const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256Hex(canonicalRequest)].join(
+        '\n',
+      );
+      const signingKey = hmac(
+        hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), config.region), 'sns'),
+        'aws4_request',
+      );
+      const signature = createHmac('sha256', signingKey).update(stringToSign, 'utf8').digest('hex');
+
+      const response = await this.fetchFn(`https://${host}/`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          Authorization:
+            `AWS4-HMAC-SHA256 Credential=${config.accessKeyId}/${scope}, ` +
+            `SignedHeaders=${signedHeaders}, Signature=${signature}`,
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return {
+          success: false,
+          error: `SNS Publish failed (${response.status}): ${text.slice(0, 400)}`,
+        };
+      }
+
+      return { success: true };
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : String(err);
+      return { success: false, error };
+    }
   }
 }

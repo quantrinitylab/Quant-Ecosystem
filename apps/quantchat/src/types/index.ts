@@ -114,7 +114,9 @@ export type MessageType =
   | 'gif'
   | 'location'
   | 'contact'
-  | 'file';
+  | 'file'
+  | 'snap_photo'
+  | 'snap_video';
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 export type DisappearMode = 'off' | 'after_view' | '24h' | '7d' | '30d';
 

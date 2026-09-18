@@ -24,6 +24,8 @@ const MESSAGE_TYPE_MAP: Record<string, MessageType> = {
   contact: MessageType.CONTACT,
   poll: MessageType.POLL,
   system: MessageType.SYSTEM,
+  snap_photo: MessageType.IMAGE,
+  snap_video: MessageType.VIDEO,
 };
 
 export function toMessageType(type?: string): MessageType {

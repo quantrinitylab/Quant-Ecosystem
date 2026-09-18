@@ -8,8 +8,10 @@ const notifier = new CrossAppDispatcher('quantchat');
 
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(10000),
-  type: z.enum(['text', 'image', 'video', 'audio', 'file', 'location']).optional(),
-  mediaUrl: z.string().url().optional(),
+  type: z
+    .enum(['text', 'image', 'video', 'audio', 'file', 'location', 'snap_photo', 'snap_video'])
+    .optional(),
+  mediaUrl: z.string().optional(),
   replyToId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });

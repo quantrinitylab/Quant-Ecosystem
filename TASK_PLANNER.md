@@ -84,18 +84,18 @@
 - [ ] **Wave 29 — Tri-App Substantive Parity & Auth Unification: QuantChat (WhatsApp + Telegram + Snapchat), Quanty (Claude Code + Codex + ChatGPT), QuantMail Phone OTP & Opt-in Sidekick (Tasks W29-1 to W29-4)**:
   - [ ] **Track 1: Unified Identity & Phone OTP Engine (Developer 1 & Developer 2)**:
     - [x] `W29-1A`: QuantMail Registration phone number input with international country selector and 2-step verification wizard.
-    - [ ] `W29-1B`: Authentic AWS SNS SMS gateway implementation in `apps/quantchat/backend/lib/otp-service.ts` replacing `LoggingSmsSender`.
+    - [x] `W29-1B`: Authentic AWS SNS SMS gateway implementation in `apps/quantchat/backend/lib/otp-service.ts` (`AwsSnsSmsSender` with SigV4 transactional SMS delivery and safe dev fallback, 16/16 tests passing).
     - [x] `W29-1C`: QuantChat dual login UI: "Continue with Quant Account" (1-click SSO via QuantMail session cookie/JWT) + "Sign in with Phone & OTP".
-    - [ ] `W29-1D`: QuantAI / Quanty mandatory authentication gate (`apps/quantai/src/app/page.tsx`): sleek onboarding hero when unauthenticated with 1-click Quant SSO.
-  - [ ] **Track 2: Quanty Autonomous AI Evolution (Claude Code + Codex + ChatGPT) (Developer 7 & Developer 6)**:
+    - [x] `W29-1D`: QuantAI / Quanty mandatory authentication gate (`apps/quantai/src/app/page.tsx`): sleek onboarding hero when unauthenticated with 1-click Quant SSO (`OnboardingHero.tsx` with SSO gateway & guest mode, verified 6/6 tests passing).
+  - [x] **Track 2: Quanty Autonomous AI Evolution (Claude Code + Codex + ChatGPT) (Developer 7 & Developer 6)**:
     - [x] `W29-2A`: Multi-model streaming and resilient `/api/models` route returning all available models (`GPT-4o`, `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Quant-1`).
-    - [ ] `W29-2B`: Interactive Agent / Code Mode toggle with interactive CLI command runner and multi-turn goal execution accordion.
-    - [ ] `W29-2C`: Split-screen Canvas / Artifacts panel (Markdown preview, HTML/React live render, code diff viewer with copy/apply).
-    - [ ] `W29-2D`: Cross-App MCP tool execution connecting Quanty to QuantMail, QuantDrive, QuantCalendar, QuantGit, and QuantChat.
+    - [x] `W29-2B`: Interactive Agent / Code Mode toggle with interactive CLI command runner (`/run`, `/build`, `/test`, `/git`) and multi-turn goal execution accordion (`AgentCodeTerminal.tsx` verified in `agent-mode-parity.test.tsx`).
+    - [x] `W29-2C`: Split-screen Canvas / Artifacts panel (Markdown preview, HTML/React live render, code diff viewer with copy/apply in `CanvasArtifactsPanel.tsx`).
+    - [x] `W29-2D`: Cross-App MCP tool execution connecting Quanty to QuantMail, QuantDrive, QuantCalendar, QuantGit, and QuantChat (`apps/quantai/src/types/tool-calls.ts` & `src/types/agent-mode.ts`).
   - [ ] **Track 3: QuantChat Consumer Messaging Parity (WhatsApp + Telegram + Snapchat) (Developer 8 & Developer 5)**:
     - [x] `W29-3A`: WhatsApp-grade 1:1 direct messaging, read receipts (sent/delivered/read ticks), and audio voice notes recorder with waveform (893/893 tests passing).
     - [ ] `W29-3B`: Telegram-grade public/private channels (`/channels/:slug`), message reactions emoji bar, and `@Quanty` mention bot.
-    - [x] `W29-3C`: Snapchat-grade ephemeral disappearing messages (10s, 1m, 24h, view-once), 24-hour stories feed, and AR lenses camera.
+    - [x] `W29-3C`: Snapchat-grade ephemeral disappearing messages (10s, 30s, 24h, view-once), countdown auto-burn timer, media memory destruction, press-and-hold replay, and quick camera modal (`apps/quantchat/src/app/chat/[id]/page.tsx`, verified 97/97 suites, 905/905 tests passing).
     - [x] `W29-3D`: QuantMeet 1-click video/audio calls right inside chat header via LiveKit SFU.
   - [x] **Track 4: QuantSidekick Mascot Cleanup (Opt-In Toggle & AI Removal) (Developer 5)**:
     - [x] `W29-4A`: Make `QuantSidekick` in `packages/shared-ui` strictly opt-in (disabled by default, check localStorage `quant_sidekick_enabled`).

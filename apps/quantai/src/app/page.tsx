@@ -18,6 +18,11 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { PersonaSelector } from '../components/PersonaSelector';
 import type { Persona } from '../components/PersonaSelector';
+import { getAuthToken } from '../lib/auth';
+import { OnboardingHero } from '../components/OnboardingHero';
+import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
+import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
+import type { CanvasArtifact } from '../types/agent-mode';
 
 export default function AIPage() {
   const { models, currentModel, switchModel } = useModelSelector();
@@ -48,6 +53,56 @@ export default function AIPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
+
+  // QuantAI Mode: ChatGPT / Claude conversational chat vs Claude Code / Codex agentic CLI
+  const [activeMode, setActiveMode] = useState<'chat' | 'agent'>('chat');
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
+  const [currentArtifact, setCurrentArtifact] = useState<CanvasArtifact | null>(null);
+
+  // Authentication & Guest State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
+
+  useEffect(() => {
+    try {
+      const token =
+        getAuthToken() ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('quant_token') ||
+        localStorage.getItem('quantchat_access_token');
+      const guestStored = localStorage.getItem('quantai_guest') === 'true';
+      if (token) {
+        setIsAuthenticated(true);
+      } else if (guestStored) {
+        setIsGuest(true);
+      }
+    } catch {}
+    setHasCheckedAuth(true);
+  }, []);
+
+  const handleQuantSSO = useCallback(() => {
+    try {
+      const stored =
+        localStorage.getItem('token') ||
+        localStorage.getItem('quant_token') ||
+        localStorage.getItem('quantchat_access_token');
+      if (stored) {
+        localStorage.setItem('token', stored);
+        setIsAuthenticated(true);
+        return;
+      }
+    } catch {}
+    const returnTo = encodeURIComponent(window.location.href);
+    window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
+  }, []);
+
+  const handleContinueAsGuest = useCallback(() => {
+    try {
+      localStorage.setItem('quantai_guest', 'true');
+    } catch {}
+    setIsGuest(true);
+  }, []);
 
   const handleModelSwitch = (modelId: string) => {
     switchModel(modelId);
@@ -267,27 +322,97 @@ export default function AIPage() {
           transition={prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }}
         >
           {/* Header */}
-          <div className="p-4 border-b border-[var(--quant-border)]">
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold text-[var(--foreground)]">AI Assistant</h1>
+          <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/60 backdrop-blur-sm">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-lg font-semibold text-[var(--foreground)]">QuantAI</h1>
+
+              {/* Mode Switcher: 💬 Chat Mode vs ⚡ Agent / Code Mode */}
+              <div className="flex items-center gap-1 bg-[var(--quant-surface-hover)] p-1 rounded-xl border border-[var(--quant-border)]">
+                <button
+                  type="button"
+                  onClick={() => setActiveMode('chat')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeMode === 'chat'
+                      ? 'bg-[var(--quant-accent)] text-white shadow-sm'
+                      : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
+                  }`}
+                  aria-pressed={activeMode === 'chat'}
+                  title="ChatGPT / Claude Conversational Chat"
+                >
+                  <span>💬</span>
+                  <span className="hidden sm:inline">Chat Mode</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMode('agent')}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    activeMode === 'agent'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
+                  }`}
+                  aria-pressed={activeMode === 'agent'}
+                  title="Claude Code / Codex / Replit Agentic Terminal"
+                >
+                  <span>⚡</span>
+                  <span className="hidden sm:inline">Agent / Code Mode</span>
+                </button>
+              </div>
+
               <ModelSelector
                 currentModel={currentModel}
                 models={models}
                 onSelect={handleModelSwitch}
               />
-              <PersonaSelector
-                personas={customPersonas}
-                activePersona={activePersona}
-                onSelect={handlePersonaSelect}
-                onCreateCustom={handleCreatePersona}
-              />
+
+              {activeMode === 'chat' && (
+                <PersonaSelector
+                  personas={customPersonas}
+                  activePersona={activePersona}
+                  onSelect={handlePersonaSelect}
+                  onCreateCustom={handleCreatePersona}
+                />
+              )}
+
               <div className="ml-auto flex items-center gap-2">
+                {/* Split-Screen Canvas / Artifacts Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsCanvasOpen(!isCanvasOpen)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    isCanvasOpen
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
+                      : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground)]'
+                  }`}
+                  title="Toggle Split-Screen Canvas / Artifacts Panel"
+                >
+                  <span>🎨</span>
+                  <span className="hidden md:inline">
+                    {isCanvasOpen ? 'Close Canvas' : 'Artifacts'}
+                  </span>
+                  {currentArtifact && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  )}
+                </button>
+
+                {/* 1-Click Quant Account SSO button if unauthenticated or guest */}
+                {!isAuthenticated && (
+                  <button
+                    type="button"
+                    onClick={handleQuantSSO}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                    title="Sign in with Quant Account (1-Click SSO)"
+                  >
+                    <span>⚡</span>
+                    <span className="hidden sm:inline">Sign In</span>
+                  </button>
+                )}
+
                 <ExportMenu conversation={activeConversation} messages={messages} />
                 <VoiceToggle isActive={voiceActive} onToggle={() => setVoiceActive(!voiceActive)} />
               </div>
             </div>
             <StatsHeader />
-            {activePersona && (
+            {activePersona && activeMode === 'chat' && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -299,74 +424,127 @@ export default function AIPage() {
             )}
           </div>
 
-          {/* Chat Messages */}
-          <ChatMessages
-            messages={messages}
-            isStreaming={isStreaming}
-            onFeedback={setFeedback}
-            onRegenerate={retryLastMessage}
-          />
-
-          {/* Multi-modal input area */}
-          {isStreaming && (
-            <div className="flex justify-center pb-1">
-              <button
-                type="button"
-                onClick={stopStreaming}
-                className="text-xs px-3 py-1 rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
-              >
-                ◼ Stop generating
-              </button>
-            </div>
-          )}
-          <ChatInput
-            onSend={sendMessage}
-            isStreaming={isStreaming}
-            imagePreview={imagePreview}
-            attachedFile={attachedFile}
-            voiceRecording={voiceRecording}
-            onImageUpload={() => imageInputRef.current?.click()}
-            onFileAttach={() => fileInputRef.current?.click()}
-            onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
-            onClearImage={() => setImagePreview(null)}
-            onClearFile={() => setAttachedFile(null)}
-          />
-
-          {/* Hidden file inputs */}
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          <input ref={fileInputRef} type="file" onChange={handleFileAttach} className="hidden" />
-
-          {/* Agentic messages panel */}
-          <AnimatePresence>
-            {messages.some((m) => m.toolCalls && m.toolCalls.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ type: 'spring', ...spring.snappy }}
-                className="border-t border-[var(--quant-border)] overflow-hidden"
-              >
-                <div className="p-4 space-y-3 overflow-y-auto max-h-60">
-                  {messages
-                    .filter((m) => m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0)
-                    .map((m) => (
-                      <AgenticMessage
-                        key={m.id}
-                        content={m.content}
-                        toolCalls={m.toolCalls || []}
-                        reasoning={m.reasoning}
-                      />
-                    ))}
+          {/* Main Content Area: Split-Screen Canvas support */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Left Panel: Chat Mode or Agent Mode Terminal */}
+            <div
+              className={`flex-1 flex flex-col min-w-0 transition-all ${
+                isCanvasOpen ? 'w-full lg:w-1/2' : 'w-full'
+              }`}
+            >
+              {/* Unauthenticated Onboarding Hero prompt */}
+              {!isAuthenticated && !isGuest && hasCheckedAuth && (
+                <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/30 overflow-y-auto max-h-[60vh]">
+                  <OnboardingHero
+                    onContinueQuantSSO={handleQuantSSO}
+                    onContinueAsGuest={handleContinueAsGuest}
+                  />
                 </div>
-              </motion.div>
+              )}
+
+              {activeMode === 'chat' ? (
+                <>
+                  {/* Chat Messages */}
+                  <ChatMessages
+                    messages={messages}
+                    isStreaming={isStreaming}
+                    onFeedback={setFeedback}
+                    onRegenerate={retryLastMessage}
+                  />
+
+                  {/* Multi-modal input area */}
+                  {isStreaming && (
+                    <div className="flex justify-center pb-1">
+                      <button
+                        type="button"
+                        onClick={stopStreaming}
+                        className="text-xs px-3 py-1 rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] transition-colors"
+                      >
+                        ◼ Stop generating
+                      </button>
+                    </div>
+                  )}
+                  <ChatInput
+                    onSend={sendMessage}
+                    isStreaming={isStreaming}
+                    imagePreview={imagePreview}
+                    attachedFile={attachedFile}
+                    voiceRecording={voiceRecording}
+                    onImageUpload={() => imageInputRef.current?.click()}
+                    onFileAttach={() => fileInputRef.current?.click()}
+                    onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
+                    onClearImage={() => setImagePreview(null)}
+                    onClearFile={() => setAttachedFile(null)}
+                  />
+
+                  {/* Hidden file inputs */}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileAttach}
+                    className="hidden"
+                  />
+
+                  {/* Agentic messages panel */}
+                  <AnimatePresence>
+                    {messages.some((m) => m.toolCalls && m.toolCalls.length > 0) && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ type: 'spring', ...spring.snappy }}
+                        className="border-t border-[var(--quant-border)] overflow-hidden"
+                      >
+                        <div className="p-4 space-y-3 overflow-y-auto max-h-60">
+                          {messages
+                            .filter(
+                              (m) =>
+                                m.role === 'assistant' && m.toolCalls && m.toolCalls.length > 0,
+                            )
+                            .map((m) => (
+                              <AgenticMessage
+                                key={m.id}
+                                content={m.content}
+                                toolCalls={m.toolCalls || []}
+                                reasoning={m.reasoning}
+                              />
+                            ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </>
+              ) : (
+                /* Agent / Code Mode Terminal (Claude Code + Codex Parity) */
+                <AgentCodeTerminal
+                  currentModelName={currentModel.name}
+                  onArtifactGenerated={(artifact) => {
+                    setCurrentArtifact(artifact);
+                    setIsCanvasOpen(true);
+                  }}
+                  onOpenCanvas={() => setIsCanvasOpen(true)}
+                />
+              )}
+            </div>
+
+            {/* Right Panel: Split-Screen Canvas / Artifacts Panel */}
+            {isCanvasOpen && (
+              <div className="w-full lg:w-1/2 border-l border-[var(--quant-border)] h-full overflow-hidden">
+                <CanvasArtifactsPanel
+                  artifact={currentArtifact}
+                  onClose={() => setIsCanvasOpen(false)}
+                  onUpdateArtifact={(updated) => setCurrentArtifact(updated)}
+                />
+              </div>
             )}
-          </AnimatePresence>
+          </div>
         </motion.div>
       </AnimatedPage>
     </AppShell>

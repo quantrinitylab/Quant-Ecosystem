@@ -564,6 +564,75 @@ function collapseDuplicateSends(messages: Email[]): Email[] {
 }
 
 /**
+ * Classifies an email into one of the canonical category buckets:
+ * - 'social': Social media notifications (Twitter/X, LinkedIn, Facebook, Instagram, YouTube, Discord, TikTok, etc.)
+ * - 'updates': Notifications, receipts, billing, security alerts, and service updates (GitHub, Stripe, AWS, banks)
+ * - 'promotions': Marketing newsletters, deals, discounts, and store offers
+ * - 'forums': Group discussions, Google Groups, mailing lists, and community digests
+ * - 'primary': Direct human correspondence and personal email
+ */
+export function classifyEmailCategory(email: Email): EmailCategory {
+  if (email.category && email.category !== 'primary') {
+    return email.category;
+  }
+  const from = (
+    email.from?.email ||
+    (email as { fromAddress?: string }).fromAddress ||
+    ''
+  ).toLowerCase();
+  const subject = (email.subject || '').toLowerCase();
+  const snippet = (email.snippet || '').toLowerCase();
+
+  // 1. Social
+  if (
+    /twitter\.com|x\.com|linkedin\.com|facebookmail\.com|instagram\.com|youtube\.com|reddit\.com|discord\.com|tiktok\.com|pinterest\.com|threads\.net|bsky\.app/i.test(
+      from,
+    ) ||
+    /new follower|connected with you|tagged you|mentioned you in a|sent you a message on|invitation to connect|subscribed to your channel/i.test(
+      subject,
+    )
+  ) {
+    return 'social';
+  }
+
+  // 2. Forums
+  if (
+    /google-groups|discourse|yahoogroups|groups\.io|forum|community|group-announcement/i.test(
+      from,
+    ) ||
+    /\[.*\]\s*(digest|weekly|announcement|discussion)/i.test(subject) ||
+    (email as { isGroup?: boolean }).isGroup === true
+  ) {
+    return 'forums';
+  }
+
+  // 3. Promotions
+  if (
+    /promo|marketing|sales@|deals?@|offers?@|store@|shop@|rewards?@|discounts?@/i.test(from) ||
+    /% off|discount|sale|clearance|save \$\d+|special offer|exclusive deal|coupon|promo code|black friday|cyber monday/i.test(
+      subject,
+    ) ||
+    /unsubscribe|view in browser|privacy policy.*opt-?out/i.test(snippet)
+  ) {
+    return 'promotions';
+  }
+
+  // 4. Updates
+  if (
+    /github\.com|gitlab\.com|aws|stripe\.com|paypal\.com|bank|receipt|billing|invoice|shipping|tracking|order|statement|verification code|security alert|password reset|login alert|no-?reply|notification|notice/i.test(
+      from,
+    ) ||
+    /your receipt|order confirmation|shipping update|tracking number|invoice|statement|security alert|action required|verify your|password reset/i.test(
+      subject,
+    )
+  ) {
+    return 'updates';
+  }
+
+  return 'primary';
+}
+
+/**
  * Group messages into conversations, newest conversation first.
  *
  * Grouping is by counterparty — see `conversationKeyOf` for why a chat list and a
@@ -619,6 +688,11 @@ export function groupEmailsIntoThreads(
 
     const normalizedLatest = normalizeSubject(latest.subject);
 
+    const category =
+      latest.category && latest.category !== 'primary'
+        ? latest.category
+        : classifyEmailCategory(latest);
+
     threads.push({
       id: latest.id,
       threadId: latest.threadId || latest.id,
@@ -632,7 +706,7 @@ export function groupEmailsIntoThreads(
       isRead,
       isStarred,
       receivedAt: latest.receivedAt || latest.createdAt || new Date(),
-      category: latest.category || 'primary',
+      category,
       priority: latest.priority,
       labels: Array.from(new Set(messages.flatMap((m) => m.labels || []))),
       kindMix: threadKindMix(messages),
