@@ -239,6 +239,32 @@ export function AppShell({
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+
+  // Dynamic theme engine with localStorage persistence (Task X20)
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark' | 'neon'>(theme);
+
+  useEffect(() => {
+    setEffectiveTheme(theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('quant_theme') as 'light' | 'dark' | 'neon' | null;
+      if (saved && (saved === 'light' || saved === 'dark' || saved === 'neon')) {
+        setEffectiveTheme(saved);
+      }
+      const handleThemeChange = (e: Event) => {
+        const customEvent = e as CustomEvent<{ theme?: 'light' | 'dark' | 'neon' }>;
+        if (customEvent.detail?.theme) {
+          setEffectiveTheme(customEvent.detail.theme);
+        }
+      };
+      window.addEventListener('quant:theme-changed', handleThemeChange);
+      return () => {
+        window.removeEventListener('quant:theme-changed', handleThemeChange);
+      };
+    }
+  }, []);
   /*
    * The mobile search row, which the shell owns rather than each route.
    *
@@ -579,14 +605,14 @@ export function AppShell({
     return [{ id: 'compose', label: 'Compose email', onSelect: () => router.push('/compose') }];
   }, [pathname, onFabClick, fabLabel, router]);
 
-  const semanticTheme = theme === 'dark' ? quantMailDarkSemanticTheme : undefined;
+  const semanticTheme = effectiveTheme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
   return (
     <section
       className={`flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
       aria-label={ariaLabel}
-      data-theme={theme}
-      data-quant-theme={theme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
+      data-theme={effectiveTheme}
+      data-quant-theme={effectiveTheme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
       style={semanticTheme}
       /*
         No `role="application"`. It used to sit here, presumably talked into
