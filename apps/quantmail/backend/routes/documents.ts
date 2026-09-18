@@ -54,6 +54,26 @@ const documentParamsSchema = z.object({
   id: z.string().min(1),
 });
 
+const createShareLinkSchema = z.object({
+  role: z.enum(['view', 'edit']).default('view'),
+  expiresAt: z.string().optional().nullable(),
+});
+
+export const documentShareLinks = new Map<
+  string,
+  {
+    docId: string;
+    token: string;
+    role: 'view' | 'edit';
+    expiresAt: string | null;
+    createdAt: string;
+  }
+>();
+
+export function resetDocumentShareLinks(): void {
+  documentShareLinks.clear();
+}
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -811,4 +831,201 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       });
     },
   );
+
+  // POST /documents/:id/share-link (Tasks N12 & D04) — Create public share link with role & expiration
+  fastify.post<{ Params: { id: string } }>('/:id/share-link', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const parsed = createShareLinkSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw createAppError(
+        parsed.error.errors[0]?.message || 'Invalid share link options',
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
+    if (parsed.data.expiresAt && isNaN(Date.parse(parsed.data.expiresAt))) {
+      throw createAppError('Invalid expiresAt timestamp format', 400, 'VALIDATION_ERROR');
+    }
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isOwnerOrAdmin = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'ADMIN' || c.role === 'OWNER'),
+      );
+      if (!isOwnerOrAdmin) {
+        throw createAppError('Forbidden: not authorized to share this document', 403, 'FORBIDDEN');
+      }
+    }
+
+    const token = `doc_share_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    const role = parsed.data.role ?? 'view';
+    const expiresAt = parsed.data.expiresAt ?? null;
+
+    const shareRecord = {
+      docId: document.id,
+      token,
+      role,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    };
+
+    documentShareLinks.set(token, shareRecord);
+
+    const currentMetadata =
+      document.metadata && typeof document.metadata === 'object'
+        ? { ...(document.metadata as Record<string, unknown>) }
+        : {};
+
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        metadata: {
+          ...currentMetadata,
+          shareToken: token,
+          shareRole: role,
+          shareExpiresAt: expiresAt,
+          publicShare: shareRecord,
+        },
+        updatedAt: new Date(),
+      },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        id: document.id,
+        token,
+        role,
+        expiresAt,
+        shareUrl: `/documents/public/share/${token}`,
+      },
+    });
+  });
+
+  // GET /documents/public/share/:token (Tasks N12 & D04) — Public link resolution without authentication
+  fastify.get<{ Params: { token: string } }>('/public/share/:token', async (request, reply) => {
+    const prisma = getPrisma(fastify);
+    const token = request.params.token;
+
+    let docId: string | undefined;
+    const cachedShare = documentShareLinks.get(token);
+
+    if (cachedShare) {
+      docId = cachedShare.docId;
+    }
+
+    let document: any = null;
+    if (docId) {
+      document = await prisma.document.findUnique({
+        where: { id: docId },
+      });
+    }
+
+    if (!document) {
+      try {
+        const candidates = await prisma.document.findMany({
+          where: { isDeleted: false },
+        });
+        document = candidates.find((d: any) => (d.metadata as any)?.shareToken === token);
+      } catch {
+        // Fallback for offline harness
+      }
+    }
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document share link not found', 404, 'SHARE_LINK_NOT_FOUND');
+    }
+
+    const metadata = (document.metadata as Record<string, unknown>) || {};
+    const role = cachedShare?.role || (metadata.shareRole as 'view' | 'edit') || 'view';
+    const expiresAt = cachedShare?.expiresAt || (metadata.shareExpiresAt as string | null);
+
+    if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+      throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
+    }
+
+    return reply.send({
+      success: true,
+      data: {
+        id: document.id,
+        title: document.title,
+        content: document.content,
+        role,
+        expiresAt,
+        updatedAt: document.updatedAt,
+      },
+    });
+  });
+
+  // DELETE /documents/:id/share-link (Tasks N12 & D04) — Revoke public share link
+  fastify.delete<{ Params: { id: string } }>('/:id/share-link', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isOwnerOrAdmin = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'ADMIN' || c.role === 'OWNER'),
+      );
+      if (!isOwnerOrAdmin) {
+        throw createAppError('Forbidden: not authorized to revoke share link', 403, 'FORBIDDEN');
+      }
+    }
+
+    const metadata = (document.metadata as Record<string, unknown>) || {};
+    const token = metadata.shareToken as string | undefined;
+    if (token) {
+      documentShareLinks.delete(token);
+    }
+
+    const nextMetadata = { ...metadata };
+    delete nextMetadata.shareToken;
+    delete nextMetadata.shareRole;
+    delete nextMetadata.shareExpiresAt;
+    delete nextMetadata.publicShare;
+
+    await prisma.document.update({
+      where: { id: document.id },
+      data: {
+        metadata: nextMetadata,
+        updatedAt: new Date(),
+      },
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        id: document.id,
+        revoked: true,
+        message: 'Share link revoked successfully',
+      },
+    });
+  });
 }

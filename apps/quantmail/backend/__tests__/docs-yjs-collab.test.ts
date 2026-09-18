@@ -1,9 +1,9 @@
 // @vitest-environment node
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import * as Y from 'yjs';
-import documentRoutes from '../routes/documents';
+import documentRoutes, { resetDocumentShareLinks } from '../routes/documents';
 import {
   closeYDoc,
   setupWSConnection,
@@ -1358,6 +1358,173 @@ describe('QuantDocs Document Content Search & Export Engine (Tasks N09 & N10)', 
 
       expect(res.statusCode).toBe(404);
       expect(JSON.parse(res.body).error.code).toBe('VERSION_NOT_FOUND');
+
+      await app.close();
+    });
+  });
+
+  describe('Task N12 & D04: QuantDocs Public Share Links with Expiration & Access Roles', () => {
+    beforeEach(() => {
+      resetDocumentShareLinks();
+    });
+
+    it('POST /documents/:id/share-link generates a public share link with token and role', async () => {
+      const doc: DocRow = {
+        id: 'doc-share-test-1',
+        title: 'Project Roadmap',
+        content: '# Roadmap 2026',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-share-test-1/share-link',
+        payload: {
+          role: 'view',
+          expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.success).toBe(true);
+      expect(body.data.id).toBe('doc-share-test-1');
+      expect(body.data.token).toBeDefined();
+      expect(body.data.role).toBe('view');
+      expect(body.data.shareUrl).toContain('/documents/public/share/');
+
+      await app.close();
+    });
+
+    it('GET /documents/public/share/:token resolves document publicly without authentication', async () => {
+      const doc: DocRow = {
+        id: 'doc-share-test-2',
+        title: 'Public Architecture RFC',
+        content: 'This is public RFC content.',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-share-test-2/share-link',
+        payload: { role: 'view' },
+      });
+      const token = createRes.json().data.token;
+
+      // Access without any auth hook / unauthenticated app
+      const publicApp = Fastify();
+      publicApp.decorate('prisma', harness.prisma as never);
+      await publicApp.register(documentRoutes, { prefix: '/documents' });
+      await publicApp.ready();
+
+      const resolveRes = await publicApp.inject({
+        method: 'GET',
+        url: `/documents/public/share/${token}`,
+      });
+
+      expect(resolveRes.statusCode).toBe(200);
+      const body = resolveRes.json();
+      expect(body.success).toBe(true);
+      expect(body.data.title).toBe('Public Architecture RFC');
+      expect(body.data.content).toBe('This is public RFC content.');
+      expect(body.data.role).toBe('view');
+
+      await app.close();
+      await publicApp.close();
+    });
+
+    it('GET /documents/public/share/:token rejects expired links with 410 LINK_EXPIRED', async () => {
+      const doc: DocRow = {
+        id: 'doc-expired-test',
+        title: 'Expired Document',
+        content: 'Old secret content',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const expiredTime = new Date(Date.now() - 10000).toISOString();
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-expired-test/share-link',
+        payload: {
+          role: 'view',
+          expiresAt: expiredTime,
+        },
+      });
+      const token = createRes.json().data.token;
+
+      const resolveRes = await app.inject({
+        method: 'GET',
+        url: `/documents/public/share/${token}`,
+      });
+
+      expect(resolveRes.statusCode).toBe(410);
+      expect(resolveRes.json().error.code).toBe('LINK_EXPIRED');
+
+      await app.close();
+    });
+
+    it('DELETE /documents/:id/share-link revokes the public share link', async () => {
+      const doc: DocRow = {
+        id: 'doc-revoke-test',
+        title: 'Revokable Document',
+        content: 'Confidential draft',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-revoke-test/share-link',
+        payload: { role: 'view' },
+      });
+      const token = createRes.json().data.token;
+
+      // Revoke link
+      const delRes = await app.inject({
+        method: 'DELETE',
+        url: '/documents/doc-revoke-test/share-link',
+      });
+      expect(delRes.statusCode).toBe(200);
+      expect(delRes.json().data.revoked).toBe(true);
+
+      // Subsequent access returns 404 SHARE_LINK_NOT_FOUND
+      const checkRes = await app.inject({
+        method: 'GET',
+        url: `/documents/public/share/${token}`,
+      });
+      expect(checkRes.statusCode).toBe(404);
+      expect(checkRes.json().error.code).toBe('SHARE_LINK_NOT_FOUND');
 
       await app.close();
     });

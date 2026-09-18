@@ -41,6 +41,8 @@ import inboundWebhookRoutes from './routes/inbound-webhook';
 import websocketPlugin from '@fastify/websocket';
 import { setupWSConnection } from './services/yjs-server';
 import documentRoutes from './routes/documents';
+import deliverabilityRoutes from './routes/deliverability';
+import auditLogsRoutes from './routes/audit-logs';
 import * as jose from 'jose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
@@ -103,6 +105,12 @@ export function getConfig(): AppConfig {
       // Public Drive link sharing token inspection & download (Task D04)
       '/drive/public/share',
       '/api/drive/public/share',
+      // Public Document link sharing token inspection (Task N12 & D04)
+      '/documents/public/share',
+      '/api/documents/public/share',
+      // RFC 7489 DMARC external MTA feedback report ingestion (Task X08)
+      '/deliverability/dmarc-reports',
+      '/api/deliverability/dmarc-reports',
       // Health check endpoint
       '/health',
     ],
@@ -288,5 +296,10 @@ export async function buildApp(config?: AppConfig) {
   await app.register(federationRoutes, { prefix: '/federation' });
   await app.register(inboundWebhookRoutes);
   await app.register(documentRoutes, { prefix: '/documents' });
+  await app.register(documentRoutes, { prefix: '/api/documents' });
+  await app.register(deliverabilityRoutes, { prefix: '/deliverability' });
+  await app.register(deliverabilityRoutes, { prefix: '/api/deliverability' });
+  await app.register(auditLogsRoutes, { prefix: '/audit-logs' });
+  await app.register(auditLogsRoutes, { prefix: '/api/audit-logs' });
   return app;
 }
