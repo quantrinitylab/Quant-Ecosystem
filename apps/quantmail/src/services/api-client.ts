@@ -326,6 +326,35 @@ export class QuantMailApiClient {
     });
   }
 
+  async importImap(data: {
+    host: string;
+    port?: number;
+    tls?: boolean;
+    username: string;
+    password?: string;
+    accessToken?: string;
+    mailbox?: string;
+    maxMessages?: number;
+    folder?: string;
+  }): Promise<
+    ApiResponse<{
+      jobId: string;
+      mailbox: string;
+      totalFound: number;
+      importedCount: number;
+      skippedCount: number;
+      messageIds: string[];
+      threadsCreated: number;
+      status: string;
+    }>
+  > {
+    return this.post('/emails/import/imap', data);
+  }
+
+  async getImapJobStatus(jobId: string): Promise<ApiResponse<any>> {
+    return this.get(`/emails/import/imap/status/${jobId}`);
+  }
+
   /**
    * Reply in place, without going through the composer.
    *

@@ -13,6 +13,7 @@ import {
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
 import { MboxParserService } from '../services/mbox-parser.service';
+import { ImapImporterService } from '../services/imap-importer.service';
 import { retentionService } from './retention';
 
 const notifier = new CrossAppDispatcher('quantmail');
@@ -1323,4 +1324,62 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send({ success: true, data: result });
   });
+
+  const importImapSchema = z.object({
+    host: z.string().min(1),
+    port: z.number().int().min(1).max(65535).optional(),
+    tls: z.boolean().optional(),
+    username: z.string().min(1),
+    password: z.string().optional(),
+    accessToken: z.string().optional(),
+    mailbox: z.string().optional(),
+    maxMessages: z.number().int().min(1).max(500).optional(),
+    folder: z.enum(['inbox', 'sent', 'archive', 'trash', 'spam', 'draft']).optional(),
+  });
+
+  // POST /emails/import/imap - RFC 3501 IMAP mailbox bulk import & thread sync engine (Task X01)
+  fastify.post('/import/imap', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const parseResult = importImapSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw createAppError(
+        parseResult.error.errors[0]?.message || 'Validation error',
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
+    const prisma = getPrisma(fastify);
+    const service = new ImapImporterService(prisma);
+    const result = await service.importFromImap(userId, {
+      ...parseResult.data,
+      targetFolder: parseResult.data.folder,
+    });
+
+    return reply.status(201).send({ success: true, data: result });
+  });
+
+  // GET /emails/import/imap/status/:jobId - IMAP sync job progress inspection (Task X01)
+  fastify.get<{ Params: { jobId: string } }>(
+    '/import/imap/status/:jobId',
+    async (request, reply) => {
+      const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+      if (!userId) {
+        throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+      }
+
+      const prisma = getPrisma(fastify);
+      const service = new ImapImporterService(prisma);
+      const job = service.getJobStatus(request.params.jobId);
+      if (!job || job.userId !== userId) {
+        throw createAppError('IMAP sync job not found', 404, 'NOT_FOUND');
+      }
+
+      return reply.send({ success: true, data: job });
+    },
+  );
 }
