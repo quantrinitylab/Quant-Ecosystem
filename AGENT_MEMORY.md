@@ -2967,7 +2967,8 @@ graph TD
   - **Test Suite**: **184/184 test files passing (2288 tests)** across `@quant/quantmail`; 121/121 tests passing in affected suites (`attachment.service.test.ts`, `attachments.routes.test.ts`, `collab-durability.test.ts`, `docs-yjs-collab.test.ts`, `integration-email-flow.test.ts`, `phase-r-m.routes.test.ts`).
   - **Typecheck**: Dual TypeScript compilation 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0), `@quant/storage` typecheck code 0.
   - **Notion AI Fleet Audit & Gate Ratification**:
-    - CEO Astra (Opus 5) verified all 5 remediation items (W27-1 to W27-5) and recorded ledger entry `🧹 Wave 27 Remediation Audit — G-A Code-Closed, G-B Conditional (ddfa8661)`.
-    - **Gate 4 (Production Deliverability)**: Formally authorized to GO immediately (SES production limits, dedicated IP warmup, RFC 7489 DMARC/TLS-RPT, suppression lists).
-    - **Gate 3 (Indexed Search)**: Formally authorized to GO, unblocked by W27-1 migration chain fix. Document snapshots offloaded to R2/S3 (`documents/${docId}/snapshots/${version}.yjs`), leaving PostgreSQL `documents.content` reserved exclusively for extracted plain text for GIN Trigram / `to_tsvector` indexing.
-    - Visual proof artifact recorded: `astra_wave27_final_submitted.png`.
+    - CEO Astra (Opus 5) verified all 5 remediation items (W27-1 to W27-5) and recorded ledger entry `🧹 Wave 27 Remediation Audit — G-A Code-Closed, G-B Conditional (ddfa8661)` and closure update at commit `22e6b598`.
+    - **UNCONDITIONAL GO GRANTED FOR GATES 3 & 4**: All preconditions satisfied; no blockers remaining.
+    - **Gate 3 (Indexed Search)**: Execution brief ratified. Document snapshots offloaded to R2/S3 (`documents/${docId}/snapshots/${version}.yjs`), leaving PostgreSQL `documents.content` reserved exclusively for extracted plain text. Indexing strategy: `to_tsvector('english', ...)` GIN indexes on `subject` and `body` with explicit `isEncrypted = false` partial predicate; `pg_trgm` GIN indexes scoped strictly to filenames and contact autocomplete; redundant JS post-filtering deleted.
+    - **Gate 4 (Production Deliverability)**: Execution brief ratified. SES production access request prioritized; bounce/complaint suppression list hard-blocking outbound sends via SNS; Easy DKIM, SPF alignment, DMARC `p=none` with `rua` report ingestion; Postmaster Tools domain verification.
+    - Visual proof artifacts recorded: `astra_wave27_final_submitted.png` and `astra_wave27_1_go_verdict.png`.
