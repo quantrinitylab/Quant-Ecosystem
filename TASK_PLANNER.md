@@ -81,7 +81,7 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
-- [x] **Wave 27 — The 6 Binary Production Gates: Gate 1 Durable Docs (PostgreSQL WAL & CRDT Compaction Engine) & Gate 2 Real Attachments (Cloudflare R2 / AWS S3 Presigned Upload Engine & Migration 0065) (Tasks G1 & G2) (Verified with Vitest 100% Green across All Suites, 0 TS Errors across Frontend & Backend — Commit `11df1e1b` & Remediation Commit `ddfa8661`)**:
+- [x] **Wave 27 — The 6 Binary Production Gates: Gate 1 Durable Docs (PostgreSQL WAL & CRDT Compaction Engine) & Gate 2 Real Attachments (Cloudflare R2 / AWS S3 Presigned Upload Engine & Migration 0065) (Tasks G1 & G2) (Verified with Vitest 100% Green across All Suites, 0 TS Errors across Frontend & Backend — Commits `11df1e1b`, `ddfa8661`, & `22e6b598`)**:
   - [x] **Track 1: Gate 1 — Durable QuantDocs CRDT WAL & Compaction Engine (Tasks N01 & G1 - Developer 5 & CEO Astra)**:
     - **PostgreSQL Schema**: Appended model `CollabDocumentUpdate` to `packages/database/prisma/schema.prisma` with compound index `@@index([docId, version])`.
     - **Database Migration**: Authored SQL migration `packages/database/prisma/migrations/0064_add_collab_document_updates/migration.sql`.
@@ -91,13 +91,14 @@
   - [x] **Track 2: Gate 2 — Real Cloudflare R2 & AWS S3 Attachments Engine (Tasks M24 & G2 - Developer 1 & CEO Astra)**:
     - **Cloudflare R2 Storage Client**: Hardened `packages/storage/src/storage-config.ts` and `storage-client.ts` supporting automatic R2 endpoint derivation (`https://${accountId}.r2.cloudflarestorage.com`), `auto` region, and AWS SDK v3 checksum compatibility flags (`requestChecksumCalculation: 'WHEN_REQUIRED'`).
     - **Signed PUT Uploads**: Implemented `getSignedUploadUrl` generating authentic SigV4 HMAC-SHA256 presigned PUT URLs with signed `Content-Length` headers pinning declared size.
-    - **PostgreSQL Schema & Migration 0065**: Appended model `MailAttachment` to `packages/database/prisma/schema.prisma` and authored SQL migration `packages/database/prisma/migrations/0065_add_mail_attachments/migration.sql` with CHECK constraint (`status IN ('PENDING', 'UPLOADED', 'READY', 'REJECTED', 'REJECTED_TOO_LARGE')`).
-    - **Authentic Attachment Service**: Rewrote `apps/quantmail/backend/services/attachment.service.ts` completely eliminating all in-memory `Map`s, mock buffers, `createMemoryAttachmentDb()`, `markReady()`, and `peekAttachment()`. Implemented `finalizeUpload` with `getObjectSize` verification against real storage objects.
+    - **PostgreSQL Schema & Migration 0065 & 0066**: Restored migration `0065_add_mail_attachments` immutability to `11df1e1b` bytes; added forward migration `packages/database/prisma/migrations/0066_add_mail_attachment_status_check/migration.sql` with CHECK constraint (`status IN ('PENDING', 'READY', 'REJECTED')`).
+    - **Authentic Attachment Service**: Rewrote `apps/quantmail/backend/services/attachment.service.ts` completely eliminating all in-memory `Map`s, mock buffers, `createMemoryAttachmentDb()`, `markReady()`, and `peekAttachment()`. Implemented `finalizeUpload` with `getObjectSize` verification against real storage objects. Collapsed `AttachmentStatus` to `'PENDING' | 'READY' | 'REJECTED'`.
     - **Fastify Route Hardening & Tenancy Protection**: Updated `apps/quantmail/backend/routes/attachments.ts` with short 120s TTL, `POST /:id/finalize`, streamed `GET /:id/download` with CSP sandbox headers, `GET /:id/download-url` with `?unscanned=true` guard, removed 403 peek check (returns uniform 404 `ATTACHMENT_NOT_FOUND` to eliminate tenant enumeration oracle).
-    - **Environment Configuration**: Documented Cloudflare R2 and AWS S3 object storage environment variables in `.env.example`.
+    - **Test Doubles Isolation**: Moved `FakeStorage` and `makeDb` to `apps/quantmail/backend/__tests__/helpers/attachment-doubles.ts` eliminating double test suite runs across Vitest imports.
+    - **Environment Configuration**: Documented Cloudflare R2 and AWS S3 object storage environment variables (`R2_ENDPOINT`, `AWS_REGION`) in `.env.example` and `.env.local.example`.
     - **Dedicated Route Test Suite**: Added `apps/quantmail/backend/__tests__/attachments.routes.test.ts` with 28 tests passing 100%.
     - **Verification**: 13/13 tests in `attachment.service.test.ts`, 28/28 tests in `attachments.routes.test.ts`, 55/55 tests in `phase-r-m.routes.test.ts`, and 25/25 tests in `integration-email-flow.test.ts`.
-  - [x] **Full Integrated Verification**: Dual TypeScript compilation 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0), `@quant/storage` typecheck code 0, **184/184 test files passing (2288 tests)** across `@quant/quantmail`. Commit `ddfa8661` pushed to `origin/main`.
+  - [x] **Full Integrated Verification & Final Pass (W27-1 to W27-5)**: Dual TypeScript compilation 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0), `@quant/storage` typecheck code 0, **184/184 test files passing (2288 tests)** across `@quant/quantmail`. Commit `22e6b598` pushed to `origin/main`. Gates 3 and 4 formally ratified by CEO Astra.
 
 - [x] **Wave 26 — Autonomous Swarm Parity Blitz: Dynamic Theme Engine, ADR-012 Shared-Code Boundaries, Pre-Flight Deduplication & Zero-Mock Quality Gate (Tasks X20, K11, Q14) (Verified with Vitest 290/290 Tests Passing across 14 Test Files, 0 TS Errors — 100.00% COMPLETE SOVEREIGN PARITY)**:
   - [x] **Track 1: Dynamic Light/Dark Theme Preference Engine (Task X20 - Developer 5 & CEO Astra)**:

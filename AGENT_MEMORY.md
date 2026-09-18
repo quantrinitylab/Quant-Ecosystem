@@ -2959,6 +2959,15 @@ graph TD
     - Documented Cloudflare R2 and AWS S3 environment variables in `.env.example`.
 
 - **3. Quality Gates & Commit Summary**:
-  - **Commits**: `11df1e1b` (Initial Gate 1 & 2 implementation) and `ddfa8661` (Wave 27 zero-mock storage cleanup and yjs failroom eviction).
-  - **Test Suite**: **184/184 test files passing (2288 tests)** across `@quant/quantmail`.
+  - **Commits**:
+    - `11df1e1b`: Initial Gate 1 (Durable Docs WAL 0064) & Gate 2 (Cloudflare R2 Storage 0065).
+    - `ddfa8661`: Zero-mock storage cleanup and yjs failroom eviction.
+    - `25a00896`: Master memory and task planner synchronization.
+    - `22e6b598`: Wave 27 Final Pass: Migration 0066 status check constraint, collapsed status union (`PENDING | READY | REJECTED`), test doubles isolation (`helpers/attachment-doubles.ts`), `.env.example` & `.env.local.example` storage variables (`R2_ENDPOINT`, `AWS_REGION`), and `getLiveDoc` barrel export in `yjsServer`.
+  - **Test Suite**: **184/184 test files passing (2288 tests)** across `@quant/quantmail`; 121/121 tests passing in affected suites (`attachment.service.test.ts`, `attachments.routes.test.ts`, `collab-durability.test.ts`, `docs-yjs-collab.test.ts`, `integration-email-flow.test.ts`, `phase-r-m.routes.test.ts`).
   - **Typecheck**: Dual TypeScript compilation 100% clean (`tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` code 0), `@quant/storage` typecheck code 0.
+  - **Notion AI Fleet Audit & Gate Ratification**:
+    - CEO Astra (Opus 5) verified all 5 remediation items (W27-1 to W27-5) and recorded ledger entry `🧹 Wave 27 Remediation Audit — G-A Code-Closed, G-B Conditional (ddfa8661)`.
+    - **Gate 4 (Production Deliverability)**: Formally authorized to GO immediately (SES production limits, dedicated IP warmup, RFC 7489 DMARC/TLS-RPT, suppression lists).
+    - **Gate 3 (Indexed Search)**: Formally authorized to GO, unblocked by W27-1 migration chain fix. Document snapshots offloaded to R2/S3 (`documents/${docId}/snapshots/${version}.yjs`), leaving PostgreSQL `documents.content` reserved exclusively for extracted plain text for GIN Trigram / `to_tsvector` indexing.
+    - Visual proof artifact recorded: `astra_wave27_final_submitted.png`.
