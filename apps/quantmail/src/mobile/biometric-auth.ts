@@ -1,5 +1,5 @@
-// Quantads - Biometric Authentication Service
-// Mobile biometric authentication for advertising platform
+// Quant Sovereign OS / QuantMail - Biometric Authentication Service
+// Mobile & browser biometric authentication using WebAuthn / Platform Authenticator & Android Bridge
 
 export interface BiometricCapabilities {
   fingerprint: boolean;
@@ -64,22 +64,48 @@ export class BiometricAuthService {
   private maxAttempts: number = 5;
 
   public async checkAvailability(): Promise<BiometricCapabilities> {
+    const hasWebAuthn = typeof window !== 'undefined' && Boolean(window.PublicKeyCredential);
+    let hasPlatformAuthenticator = false;
+    if (
+      hasWebAuthn &&
+      typeof window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable === 'function'
+    ) {
+      try {
+        hasPlatformAuthenticator =
+          await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      } catch {
+        hasPlatformAuthenticator = false;
+      }
+    }
+
+    const hasNativeBridge =
+      typeof window !== 'undefined' &&
+      (Boolean(
+        (
+          window as unknown as { QuantNative?: { hasBiometrics?: () => boolean } }
+        ).QuantNative?.hasBiometrics?.(),
+      ) ||
+        Boolean(
+          (
+            window as unknown as { AndroidBridge?: { isBiometricAvailable?: () => boolean } }
+          ).AndroidBridge?.isBiometricAvailable?.(),
+        ));
+
+    const isHardwareAvailable = hasPlatformAuthenticator || hasNativeBridge;
+
     const capabilities: BiometricCapabilities = {
-      fingerprint: await this.checkSensor('fingerprint'),
-      faceId: await this.checkSensor('face_id'),
-      iris: await this.checkSensor('iris'),
-      deviceCredential: await this.checkDeviceCredential(),
+      fingerprint:
+        isHardwareAvailable ||
+        (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)),
+      faceId:
+        isHardwareAvailable &&
+        typeof navigator !== 'undefined' &&
+        /iphone|ipad|mac/i.test(navigator.userAgent),
+      iris: false,
+      deviceCredential: isHardwareAvailable || hasWebAuthn,
     };
     this.capabilities = capabilities;
     return capabilities;
-  }
-
-  private async checkSensor(type: string): Promise<boolean> {
-    return type === 'fingerprint' || type === 'face_id';
-  }
-
-  private async checkDeviceCredential(): Promise<boolean> {
-    return true;
   }
 
   public async authenticate(config?: Partial<BiometricConfig>): Promise<BiometricResult> {
@@ -101,7 +127,7 @@ export class BiometricAuthService {
       invalidateOnNewEnrollment: false,
       confirmationRequired: true,
       title: 'Verify Identity',
-      subtitle: 'Authenticate to access advertising platform',
+      subtitle: 'Authenticate to access Quant Sovereign OS',
       negativeButtonText: 'Cancel',
       ...config,
     };
@@ -118,8 +144,75 @@ export class BiometricAuthService {
     return result;
   }
 
-  private async performBiometricPrompt(_config: BiometricConfig): Promise<BiometricResult> {
+  private async performBiometricPrompt(config: BiometricConfig): Promise<BiometricResult> {
     if (!this.capabilities) await this.checkAvailability();
+
+    // Check native Android bridge first if present
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as {
+        AndroidBridge?: { authenticateBiometric?: (title: string, subtitle: string) => boolean };
+        QuantNative?: { authenticate?: (reason: string) => Promise<boolean> };
+      };
+      if (win.AndroidBridge?.authenticateBiometric) {
+        try {
+          const ok = win.AndroidBridge.authenticateBiometric(config.title, config.subtitle);
+          if (!ok) {
+            return {
+              success: false,
+              method: 'none',
+              timestamp: Date.now(),
+              error: {
+                code: 'user_cancelled',
+                message: 'Biometric prompt cancelled',
+                recoverable: true,
+              },
+            };
+          }
+          return { success: true, method: 'fingerprint', timestamp: Date.now() };
+        } catch (e: unknown) {
+          return {
+            success: false,
+            method: 'none',
+            timestamp: Date.now(),
+            error: {
+              code: 'hw_unavailable',
+              message: e instanceof Error ? e.message : 'Hardware error',
+              recoverable: true,
+            },
+          };
+        }
+      }
+      if (win.QuantNative?.authenticate) {
+        try {
+          const ok = await win.QuantNative.authenticate(config.title);
+          if (!ok) {
+            return {
+              success: false,
+              method: 'none',
+              timestamp: Date.now(),
+              error: {
+                code: 'user_cancelled',
+                message: 'User cancelled biometrics',
+                recoverable: true,
+              },
+            };
+          }
+          return { success: true, method: 'fingerprint', timestamp: Date.now() };
+        } catch (e: unknown) {
+          return {
+            success: false,
+            method: 'none',
+            timestamp: Date.now(),
+            error: {
+              code: 'hw_unavailable',
+              message: e instanceof Error ? e.message : 'Hardware error',
+              recoverable: true,
+            },
+          };
+        }
+      }
+    }
+
     const method = this.capabilities?.faceId
       ? 'face_id'
       : this.capabilities?.fingerprint
@@ -163,11 +256,14 @@ export class BiometricAuthService {
 
   public async protectSensitiveAction(action: string): Promise<BiometricResult> {
     const sensitiveActions = [
-      'approve_budget',
-      'launch_campaign',
+      'view_keys',
+      'export_data',
       'delete_account',
       'change_password',
-      'export_data',
+      'transfer_credits',
+      'device_authorize',
+      'approve_budget',
+      'launch_campaign',
     ];
     if (!sensitiveActions.includes(action)) {
       return { success: true, method: 'none', timestamp: Date.now() };

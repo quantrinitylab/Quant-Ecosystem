@@ -15,6 +15,7 @@ import { showToast } from '../../../../components/InboxToast';
 import { browserApiRequest } from '../../../../services/browser-api-request';
 import { useCollabDoc } from './useCollabDoc';
 import { DocumentHeader } from './DocumentHeader';
+import { DocumentVersionHistoryModal } from './DocumentVersionHistoryModal';
 import { BlockEditor } from './BlockEditor';
 import { blocksToMarkdown, markdownToBlocks, downloadMarkdownFile } from './markdown-serializer';
 
@@ -46,6 +47,7 @@ export default function DocumentPage() {
   const [fullWidth, setFullWidth] = useState<boolean>(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [isCreatingSubpage, setIsCreatingSubpage] = useState<boolean>(false);
+  const [showVersionHistoryModal, setShowVersionHistoryModal] = useState<boolean>(false);
 
   const handleAddSubpage = useCallback(async () => {
     setIsCreatingSubpage(true);
@@ -180,6 +182,7 @@ export default function DocumentPage() {
           onToggleFullWidth={() => setFullWidth(!fullWidth)}
           wordCount={wordCount}
           breadcrumbs={breadcrumbs}
+          onOpenVersionHistory={() => setShowVersionHistoryModal(true)}
         />
 
         {/* Scrollable Document Workspace */}
@@ -340,6 +343,17 @@ export default function DocumentPage() {
           </div>
         </main>
       </div>
+
+      <DocumentVersionHistoryModal
+        isOpen={showVersionHistoryModal}
+        onClose={() => setShowVersionHistoryModal(false)}
+        docId={docId}
+        currentTitle={title}
+        onVersionRestored={(content, newTitle) => {
+          setTitle(newTitle);
+          setBlocks(markdownToBlocks(content));
+        }}
+      />
     </AppShell>
   );
 }

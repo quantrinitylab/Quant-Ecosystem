@@ -25,6 +25,8 @@ export interface ToastMessage {
   type: 'success' | 'info' | 'warning' | 'error';
   undoAction?: () => void;
   duration?: number;
+  /** Countdown duration in seconds for timed reversible actions like Undo-Send */
+  countdown?: number;
   /**
    * Dedupe key. A new toast evicts any live toast carrying the same `subject`,
    * regardless of wording.

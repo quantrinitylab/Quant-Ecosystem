@@ -492,6 +492,7 @@ function createDocumentsHarness(initialDocs: DocRow[] = []) {
   for (const doc of initialDocs) {
     docs.set(doc.id, { ...doc });
   }
+  const versionsList: any[] = [];
 
   const prismaMock = {
     document: {
@@ -568,11 +569,28 @@ function createDocumentsHarness(initialDocs: DocRow[] = []) {
       }),
     },
     documentVersion: {
-      create: vi.fn().mockResolvedValue({ id: 'ver-1' }),
+      create: vi.fn(async ({ data }: any) => {
+        const id = data.id || `ver-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const row = { id, createdAt: new Date(), ...data };
+        versionsList.push(row);
+        return { ...row };
+      }),
+      findMany: vi.fn(async ({ where }: any = {}) => {
+        return versionsList
+          .filter((v) => !where?.docId || v.docId === where.docId)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      }),
+      findFirst: vi.fn(async ({ where }: any = {}) => {
+        return (
+          versionsList.find(
+            (v) => (!where?.id || v.id === where.id) && (!where?.docId || v.docId === where.docId),
+          ) || null
+        );
+      }),
     },
   };
 
-  return { docs, prisma: prismaMock };
+  return { docs, prisma: prismaMock, versions: versionsList };
 }
 
 async function buildDocumentsTestApp(prismaMock: any, userId = 'user-1') {
@@ -1184,5 +1202,164 @@ describe('QuantDocs Document Content Search & Export Engine (Tasks N09 & N10)', 
     expect(closedCodes.length).toBe(1);
     expect(closedCodes[0]!.code).toBe(4403);
     expect(closedCodes[0]!.reason).toContain('Forbidden');
+  });
+
+  describe('Task N11: Document Version History & Snapshot Restore Engine', () => {
+    it('creates a named checkpoint version via POST /documents/:id/versions', async () => {
+      const doc: DocRow = {
+        id: 'doc-version-test',
+        title: 'Draft Document',
+        content: '# Draft content line 1\nLine 2',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-version-test/versions',
+        payload: { title: 'First Review Checkpoint' },
+      });
+
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body);
+      expect(body.success).toBe(true);
+      expect(body.data.title).toBe('First Review Checkpoint');
+      expect(body.data.docId).toBe('doc-version-test');
+      expect(body.data.content).toBe('# Draft content line 1\nLine 2');
+
+      await app.close();
+    });
+
+    it('lists all versions via GET /documents/:id/versions', async () => {
+      const doc: DocRow = {
+        id: 'doc-version-test-2',
+        title: 'Document with History',
+        content: 'Original Content',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      // Create two versions
+      await app.inject({
+        method: 'POST',
+        url: '/documents/doc-version-test-2/versions',
+        payload: { title: 'v1.0 Baseline' },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/documents/doc-version-test-2/versions',
+        payload: { title: 'v2.0 Milestone' },
+      });
+
+      const listRes = await app.inject({
+        method: 'GET',
+        url: '/documents/doc-version-test-2/versions',
+      });
+
+      expect(listRes.statusCode).toBe(200);
+      const body = JSON.parse(listRes.body);
+      expect(body.success).toBe(true);
+      expect(body.data.length).toBe(2);
+
+      await app.close();
+    });
+
+    it('restores a previous version via POST /documents/:id/versions/:versionId/restore with pre-restore backup', async () => {
+      const doc: DocRow = {
+        id: 'doc-restore-test',
+        title: 'Original Title',
+        content: 'Original Content State',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      // 1. Create a version of the initial state
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-restore-test/versions',
+        payload: { title: 'Initial State' },
+      });
+      const versionId = JSON.parse(createRes.body).data.id;
+
+      // 2. Modify document content
+      await app.inject({
+        method: 'PATCH',
+        url: '/documents/doc-restore-test',
+        payload: { title: 'Modified Title', content: 'Radically modified content' },
+      });
+
+      // 3. Restore to initial state
+      const restoreRes = await app.inject({
+        method: 'POST',
+        url: `/documents/doc-restore-test/versions/${versionId}/restore`,
+      });
+
+      expect(restoreRes.statusCode).toBe(200);
+      const restoreBody = JSON.parse(restoreRes.body);
+      expect(restoreBody.success).toBe(true);
+      expect(restoreBody.data.content).toBe('Original Content State');
+      expect(restoreBody.data.title).toBe('Initial State');
+
+      // 4. Verify pre-restore snapshot was created in versions
+      const versionsRes = await app.inject({
+        method: 'GET',
+        url: '/documents/doc-restore-test/versions',
+      });
+      const versionsBody = JSON.parse(versionsRes.body);
+      const preRestoreSnapshot = versionsBody.data.find((v: any) =>
+        v.title.includes('Pre-restore snapshot'),
+      );
+      expect(preRestoreSnapshot).toBeDefined();
+
+      await app.close();
+    });
+
+    it('rejects version restoration on non-existent version with 404', async () => {
+      const doc: DocRow = {
+        id: 'doc-not-found-ver',
+        title: 'Test',
+        content: 'Content',
+        userId: 'user-1',
+        metadata: {},
+        isPublic: false,
+        isDeleted: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const harness = createDocumentsHarness([doc]);
+      const app = await buildDocumentsTestApp(harness.prisma, 'user-1');
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/documents/doc-not-found-ver/versions/ver-missing-123/restore',
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(JSON.parse(res.body).error.code).toBe('VERSION_NOT_FOUND');
+
+      await app.close();
+    });
   });
 });

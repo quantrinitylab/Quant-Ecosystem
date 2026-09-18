@@ -2,7 +2,7 @@
 
 import React from 'react';
 import type { CalendarView, EntryType } from '../types';
-import { CALENDAR_VIEWS } from '../types';
+import { CALENDAR_VIEWS, TIMEZONES } from '../types';
 
 export interface CalendarHeaderProps {
   activeMonthName: string;
@@ -12,6 +12,8 @@ export interface CalendarHeaderProps {
   activeView: CalendarView;
   selectView: (view: CalendarView) => void;
   openDedicatedSheet: (type: EntryType) => void;
+  activeTimezone?: string;
+  onChangeTimezone?: (tz: string) => void;
 }
 
 export function CalendarHeader({
@@ -22,6 +24,8 @@ export function CalendarHeader({
   activeView,
   selectView,
   openDedicatedSheet,
+  activeTimezone,
+  onChangeTimezone,
 }: CalendarHeaderProps) {
   return (
     <>
@@ -62,6 +66,29 @@ export function CalendarHeader({
         </div>
 
         <div className="flex items-center gap-2">
+          {onChangeTimezone && (
+            <div className="relative">
+              <select
+                value={activeTimezone || 'Asia/Kolkata'}
+                onChange={(e) => onChangeTimezone(e.target.value)}
+                className="appearance-none rounded-lg border border-[#282C35] bg-[#111318] pl-7 pr-6 py-1 text-xs text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] focus:outline-none focus:border-[#FF8C42] cursor-pointer transition-colors"
+                title="Select Calendar Timezone"
+              >
+                {TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value} className="bg-[#16181D] text-[#F5F5F5]">
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
+                🌐
+              </span>
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
+                ▼
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center rounded-lg border border-[#282C35] bg-[#111318] p-0.5">
             {CALENDAR_VIEWS.map((v) => (
               <button
@@ -132,6 +159,29 @@ export function CalendarHeader({
             </button>
           </div>
         </div>
+
+        {onChangeTimezone && (
+          <div className="mt-2 relative">
+            <select
+              value={activeTimezone || 'Asia/Kolkata'}
+              onChange={(e) => onChangeTimezone(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-[#282C35] bg-[#111318] pl-7 pr-6 py-1.5 text-xs text-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] cursor-pointer"
+              title="Select Calendar Timezone"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value} className="bg-[#16181D] text-[#F5F5F5]">
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
+              🌐
+            </span>
+            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
+              ▼
+            </span>
+          </div>
+        )}
 
         <div
           className="mt-2 flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-0.5"

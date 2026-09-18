@@ -295,8 +295,17 @@ export class QuantMailApiClient {
 
   async sendEmail(
     id: string,
+    options?: { sendAt?: string; delayMs?: number },
   ): Promise<ApiResponse<{ message: string; emailId: string; deliveryStatus: string }>> {
-    return this.post(`/emails/${id}/send`, {});
+    return this.post(`/emails/${id}/send`, options ?? {});
+  }
+
+  async undoSend(id: string): Promise<ApiResponse<{ message: string; emailId: string }>> {
+    return this.post(`/emails/${id}/undo-send`, {});
+  }
+
+  async cancelSend(id: string): Promise<ApiResponse<{ message: string; emailId: string }>> {
+    return this.post(`/emails/${id}/cancel-send`, {});
   }
 
   /**
@@ -702,6 +711,67 @@ export class QuantMailApiClient {
 
   async deleteContact(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.delete(`/contacts/${id}`);
+  }
+
+  async getContactDuplicates(): Promise<
+    ApiResponse<
+      Array<{
+        primaryContact: Contact;
+        duplicates: Contact[];
+        reason: 'email' | 'name';
+      }>
+    >
+  > {
+    return this.get('/contacts/duplicates');
+  }
+
+  async mergeContacts(primaryId: string, duplicateIds: string[]): Promise<ApiResponse<Contact>> {
+    return this.post('/contacts/merge', { primaryId, duplicateIds });
+  }
+
+  async deduplicateContacts(): Promise<ApiResponse<{ mergedCount: number }>> {
+    return this.post('/contacts/deduplicate', {});
+  }
+
+  // --------------------------------------------------------------------------
+  // Documents API (Task N11)
+  // --------------------------------------------------------------------------
+
+  async getDocument(id: string): Promise<ApiResponse<any>> {
+    return this.get(`/documents/${id}`);
+  }
+
+  async getDocumentVersions(id: string): Promise<
+    ApiResponse<
+      Array<{
+        id: string;
+        docId: string;
+        title: string;
+        createdAt: string;
+        content?: string;
+      }>
+    >
+  > {
+    return this.get(`/documents/${id}/versions`);
+  }
+
+  async createDocumentVersion(
+    id: string,
+    title?: string,
+  ): Promise<
+    ApiResponse<{
+      id: string;
+      docId: string;
+      title: string;
+      createdAt: string;
+      content?: string;
+    }>
+  > {
+    return this.post(`/documents/${id}/versions`, { title });
+  }
+
+  async restoreDocumentVersion(id: string, versionId: string): Promise<ApiResponse<any>> {
+    return this.post(`/documents/${id}/versions/${versionId}/restore`, {});
   }
 
   // --------------------------------------------------------------------------

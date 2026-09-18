@@ -485,6 +485,7 @@ export interface Contact extends BaseEntity {
   company?: string;
   title?: string;
   avatarUrl?: string;
+  avatar?: string;
   addresses: ContactAddress[];
   tags: string[];
   notes?: string;
@@ -492,6 +493,7 @@ export interface Contact extends BaseEntity {
   socialLinks: Record<string, string>;
   lastContactedAt?: Date;
   isFavorite: boolean;
+  frequency?: number;
   source: QuantApp | 'import' | 'manual';
   syncedApps: QuantApp[];
 }

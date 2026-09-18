@@ -19,6 +19,7 @@ interface DocumentHeaderProps {
   onTogglePublic: (isPublic: boolean) => void;
   onExportMarkdown: () => void;
   onImportMarkdown: (file: File) => void;
+  onOpenVersionHistory?: () => void;
   onDeleteDocument?: () => void;
   onDuplicateDocument?: () => void;
   fullWidth?: boolean;
@@ -38,6 +39,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
   onTogglePublic,
   onExportMarkdown,
   onImportMarkdown,
+  onOpenVersionHistory,
   onDeleteDocument,
   onDuplicateDocument,
   fullWidth,
@@ -227,6 +229,27 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <span>Export MD</span>
           </button>
 
+          {/* Version History Button */}
+          {onOpenVersionHistory && (
+            <button
+              type="button"
+              onClick={onOpenVersionHistory}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+              title="View Version History"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-[#8B949E]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                <polyline points="12 6 12 12 16 14" strokeWidth={2} />
+              </svg>
+              <span>History</span>
+            </button>
+          )}
+
           {/* Hidden File Input for Import */}
           <input
             ref={fileInputRef}
@@ -306,6 +329,28 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   </svg>
                   <span>Export Markdown</span>
                 </button>
+
+                {onOpenVersionHistory && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenVersionHistory();
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 text-[#8B949E]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="12" cy="12" r="10" strokeWidth={2} />
+                      <polyline points="12 6 12 12 16 14" strokeWidth={2} />
+                    </svg>
+                    <span>Version History</span>
+                  </button>
+                )}
 
                 {onToggleFullWidth && (
                   <button

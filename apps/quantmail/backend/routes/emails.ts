@@ -451,8 +451,11 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /emails/:id/undo-send (Tasks M21, M22, M23)
-  fastify.post<{ Params: { id: string } }>('/:id/undo-send', async (request, reply) => {
+  // POST /emails/:id/undo-send & POST /emails/:id/cancel-send (Tasks M21, M22, M23)
+  const handleUndoSend = async (
+    request: import('fastify').FastifyRequest<{ Params: { id: string } }>,
+    reply: import('fastify').FastifyReply,
+  ) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -513,7 +516,10 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
         emailId: email.id,
       },
     });
-  });
+  };
+
+  fastify.post<{ Params: { id: string } }>('/:id/undo-send', handleUndoSend);
+  fastify.post<{ Params: { id: string } }>('/:id/cancel-send', handleUndoSend);
 
   // POST /emails/:id/reply - reply to a message. The client may pass either an
   // email id or a thread id (the thread view historically sends the thread id),

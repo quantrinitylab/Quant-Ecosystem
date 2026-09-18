@@ -102,6 +102,20 @@ export default function CalendarPage() {
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [isNotificationSliderOpen, setIsNotificationSliderOpen] = useState(false);
   const [notifSliderIndex, setNotifSliderIndex] = useState(3);
+  const [activeTimezone, setActiveTimezone] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('quant_calendar_timezone') || 'Asia/Kolkata';
+    }
+    return 'Asia/Kolkata';
+  });
+
+  const handleTimezoneChange = useCallback((tz: string) => {
+    setActiveTimezone(tz);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('quant_calendar_timezone', tz);
+    }
+    setFormState((prev) => ({ ...prev, timezone: tz }));
+  }, []);
 
   // Infinite agenda loading states & buffer
   const [isLoadingPast, setIsLoadingPast] = useState(false);
@@ -882,6 +896,8 @@ export default function CalendarPage() {
           activeView={activeView}
           selectView={selectView}
           openDedicatedSheet={openDedicatedSheet}
+          activeTimezone={activeTimezone}
+          onChangeTimezone={handleTimezoneChange}
         />
 
         <CalendarViews

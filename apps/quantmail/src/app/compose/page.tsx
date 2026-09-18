@@ -148,7 +148,7 @@ export default function ComposePage() {
       // Scheduling currently persists an explicitly scheduled draft only.
       if (data.scheduledAt) return;
 
-      const response = await apiClient.sendEmail(draft.id);
+      const response = await apiClient.sendEmail(draft.id, { delayMs: 10000 });
       if (!response.success) {
         throw new Error(response.error?.message || 'Message could not be sent.');
       }
@@ -157,7 +157,28 @@ export default function ComposePage() {
       // a list left marked fresh would paint without the message that was just sent.
       invalidateMailLists(queryClient);
 
-      showToast({ text: 'Message sent', type: 'success' });
+      showToast({
+        text: 'Message queued to send',
+        type: 'info',
+        duration: 10000,
+        countdown: 10,
+        undoAction: async () => {
+          try {
+            const undoRes = await apiClient.undoSend(draft.id);
+            if (undoRes.success) {
+              showToast({ text: 'Sending undone. Message restored to Drafts.', type: 'info' });
+              invalidateMailLists(queryClient);
+            } else {
+              showToast({
+                text: undoRes.error?.message || 'Could not undo send.',
+                type: 'warning',
+              });
+            }
+          } catch {
+            showToast({ text: 'Could not undo send.', type: 'error' });
+          }
+        },
+      });
       router.push('/');
     },
     [composeDraft, queryClient, router],

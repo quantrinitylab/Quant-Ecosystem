@@ -91,6 +91,85 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
   }
 }
 
+function InboxToastItem({
+  toast,
+  onDismiss,
+}: {
+  toast: ToastMessage;
+  onDismiss: (id: string) => void;
+}) {
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(toast.countdown ?? null);
+
+  useEffect(() => {
+    if (toast.countdown === undefined || toast.countdown <= 0) return;
+    setSecondsLeft(toast.countdown);
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [toast.countdown]);
+
+  return (
+    <motion.div
+      key={toast.id}
+      className={`inbox-toast inbox-toast--${toast.type} ${toast.countdown ? 'undo-send-toast' : ''}`}
+      initial={{ opacity: 0, y: 16, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -8, scale: 0.95 }}
+      transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+      role="status"
+    >
+      <span className="inbox-toast-icon flex items-center justify-center" aria-hidden="true">
+        {secondsLeft !== null ? (
+          <span className="undo-countdown text-xs font-bold">{secondsLeft}s</span>
+        ) : (
+          <ToastIcon type={toast.type} />
+        )}
+      </span>
+      <span className="inbox-toast-text text-[#F5F5F5]">{toast.text}</span>
+      {toast.undoAction && (
+        <button
+          type="button"
+          className="inbox-toast-undo text-[#FF8C42] hover:bg-[#2B1A11] px-2 py-0.5 rounded font-bold transition-colors"
+          onClick={() => {
+            // Dismiss first: clears the pending undo, so the same action
+            // cannot be reversed a second time.
+            onDismiss(toast.id);
+            toast.undoAction?.();
+          }}
+        >
+          Undo
+        </button>
+      )}
+      <button
+        type="button"
+        className="inbox-toast-dismiss text-[#6B6E76] hover:text-[#F5F5F5] transition-colors p-1"
+        onClick={() => onDismiss(toast.id)}
+        aria-label="Dismiss"
+      >
+        <svg
+          className="size-3.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </motion.div>
+  );
+}
+
 export function InboxToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -139,53 +218,7 @@ export function InboxToastContainer() {
     <div className="inbox-toast-container" aria-live="polite" aria-atomic="false">
       <AnimatePresence>
         {toasts.map((toast) => (
-          <motion.div
-            key={toast.id}
-            className={`inbox-toast inbox-toast--${toast.type}`}
-            initial={{ opacity: 0, y: 16, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-            role="status"
-          >
-            <span className="inbox-toast-icon flex items-center justify-center" aria-hidden="true">
-              <ToastIcon type={toast.type} />
-            </span>
-            <span className="inbox-toast-text text-[#F5F5F5]">{toast.text}</span>
-            {toast.undoAction && (
-              <button
-                type="button"
-                className="inbox-toast-undo text-[#FF8C42] hover:bg-[#2B1A11]"
-                onClick={() => {
-                  // Dismiss first: that clears the pending undo, so the same
-                  // action cannot then be reversed a second time with `z`.
-                  dismiss(toast.id);
-                  toast.undoAction?.();
-                }}
-              >
-                Undo
-              </button>
-            )}
-            <button
-              type="button"
-              className="inbox-toast-dismiss text-[#6B6E76] hover:text-[#F5F5F5] transition-colors p-1"
-              onClick={() => dismiss(toast.id)}
-              aria-label="Dismiss"
-            >
-              <svg
-                className="size-3.5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </motion.div>
+          <InboxToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
         ))}
       </AnimatePresence>
     </div>

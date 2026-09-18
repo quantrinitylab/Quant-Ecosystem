@@ -17,6 +17,7 @@ import {
 import { useInbox } from '../../hooks/useInbox';
 import { useConfirm } from '../../hooks/useConfirm';
 import { IconChevronRight, IconStar, IconStarFilled } from '../../components/icons';
+import { ContactsDedupeModal } from './components/ContactsDedupeModal';
 import type { Contact } from '../../types';
 import { showToast } from '../../components/InboxToast';
 
@@ -29,6 +30,7 @@ export default function ContactsPage() {
   const [activeTab, setActiveTab] = useState<'all' | 'favorites'>('all');
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDedupeModal, setShowDedupeModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [inspectContact, setInspectContact] = useState<Contact | null>(null);
   const vcardInputRef = useRef<HTMLInputElement>(null);
@@ -567,6 +569,27 @@ export default function ContactsPage() {
                 />
               </svg>
               <span>Export page</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDedupeModal(true)}
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
+              title="Find and merge duplicate contacts"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-[#FF8C42]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                />
+              </svg>
+              <span>Merge duplicates</span>
             </button>
 
             {/*
@@ -1311,6 +1334,13 @@ export default function ContactsPage() {
           </div>
         </Modal>
         {dialog}
+        <ContactsDedupeModal
+          isOpen={showDedupeModal}
+          onClose={() => setShowDedupeModal(false)}
+          onMerged={() => {
+            refetch();
+          }}
+        />
       </div>
     </AppShell>
   );

@@ -634,4 +634,181 @@ export default async function documentRoutes(fastify: FastifyInstance) {
       data: { id: existing.id, isDeleted: true },
     });
   });
+
+  // GET /documents/:id/versions (Task N11) — Lists document snapshot version history
+  fastify.get<{ Params: { id: string } }>('/:id/versions', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isCollaborator = document.collaborators?.some(
+        (c: { userId: string }) => c.userId === userId,
+      );
+      if (!isCollaborator && !document.isPublic) {
+        throw createAppError(
+          'Forbidden: not authorized to access document versions',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    }
+
+    const versions = await prisma.documentVersion.findMany({
+      where: { docId: document.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        docId: true,
+        title: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    return reply.send({ success: true, data: versions });
+  });
+
+  // POST /documents/:id/versions (Task N11) — Creates a named checkpoint snapshot
+  fastify.post<{ Params: { id: string } }>('/:id/versions', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse(request.params);
+
+    const bodySchema = z.object({
+      title: z.string().min(1).max(200).optional(),
+    });
+    const parsed = bodySchema.parse(request.body ?? {});
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    if (document.userId !== userId) {
+      const isEditor = document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId && (c.role === 'EDIT' || c.role === 'ADMIN' || !c.role),
+      );
+      if (!isEditor) {
+        throw createAppError(
+          'Forbidden: not authorized to snapshot this document',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    }
+
+    const snapshotTitle = parsed.title?.trim() || `${document.title || 'Untitled'} (Snapshot)`;
+    const version = await prisma.documentVersion.create({
+      data: {
+        docId: document.id,
+        title: snapshotTitle,
+        content: document.content || '',
+      },
+      select: {
+        id: true,
+        docId: true,
+        title: true,
+        createdAt: true,
+        content: true,
+      },
+    });
+
+    return reply.status(201).send({ success: true, data: version });
+  });
+
+  // POST /documents/:id/versions/:versionId/restore (Task N11) — Restores historical version
+  fastify.post<{ Params: { id: string; versionId: string } }>(
+    '/:id/versions/:versionId/restore',
+    async (request, reply) => {
+      const userId = requireUserId(request);
+      const prisma = getPrisma(fastify);
+      const { id } = documentParamsSchema.parse({ id: request.params.id });
+      const versionId = request.params.versionId;
+
+      const document = await prisma.document.findUnique({
+        where: { id },
+        include: {
+          collaborators: true,
+        },
+      });
+
+      if (!document || document.isDeleted) {
+        throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+      }
+
+      if (document.userId !== userId) {
+        const isEditor = document.collaborators?.some(
+          (c: { userId: string; role?: string }) =>
+            c.userId === userId && (c.role === 'EDIT' || c.role === 'ADMIN' || !c.role),
+        );
+        if (!isEditor) {
+          throw createAppError(
+            'Forbidden: not authorized to restore this document',
+            403,
+            'FORBIDDEN',
+          );
+        }
+      }
+
+      const targetVersion = await prisma.documentVersion.findFirst({
+        where: { id: versionId, docId: document.id },
+      });
+
+      if (!targetVersion) {
+        throw createAppError('Version not found', 404, 'VERSION_NOT_FOUND');
+      }
+
+      // Safe pre-restore checkpoint: save current document state so no edits are lost
+      await prisma.documentVersion
+        .create({
+          data: {
+            docId: document.id,
+            title: `Pre-restore snapshot: ${document.title}`,
+            content: document.content || '',
+          },
+        })
+        .catch(() => {});
+
+      // Restore document content and title
+      const updated = await prisma.document.update({
+        where: { id: document.id },
+        data: {
+          title: targetVersion.title.replace(/^Pre-restore snapshot:\s*/i, ''),
+          content: targetVersion.content,
+          updatedAt: new Date(),
+        },
+        include: {
+          versions: {
+            orderBy: { createdAt: 'desc' },
+          },
+          collaborators: true,
+        },
+      });
+
+      return reply.send({
+        success: true,
+        data: updated,
+        restoredVersionId: targetVersion.id,
+      });
+    },
+  );
 }
