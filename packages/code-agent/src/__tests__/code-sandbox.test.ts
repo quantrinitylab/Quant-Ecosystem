@@ -72,9 +72,16 @@ describe('ContainerCodeSandbox (Gate G5 / AI-1 & AI-2)', () => {
   };
 
   it('fails closed with 503 SANDBOX_UNAVAILABLE when endpoint is not configured', async () => {
-    const sandbox = new ContainerCodeSandbox({ endpoint: undefined, failClosed: true });
+    const sandbox = new ContainerCodeSandbox({ endpoint: undefined });
     expect(sandbox.isConfigured).toBe(false);
 
+    // Assert the error *type*, not just its shape. `toMatchObject` alone passes
+    // for any object carrying these three fields, so it would keep passing if
+    // the throw were replaced by a plain Error literal — which is precisely the
+    // regression this Gate G5 test exists to catch.
+    await expect(sandbox.execute('npm test', config)).rejects.toBeInstanceOf(
+      SandboxUnavailableError,
+    );
     await expect(sandbox.execute('npm test', config)).rejects.toMatchObject({
       statusCode: 503,
       code: 'SANDBOX_UNAVAILABLE',
@@ -86,7 +93,11 @@ describe('ContainerCodeSandbox (Gate G5 / AI-1 & AI-2)', () => {
     let capturedUrl = '';
     let capturedBody: any;
 
-    const mockFetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+    // Derived from `fetch` itself rather than spelled as `RequestInfo | URL`:
+    // @types/node exposes the fetch *function* globally but not that alias, so
+    // naming it is what broke the typecheck. Deriving also keeps the mock honest
+    // if Node's signature shifts under us.
+    const mockFetch = vi.fn(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
       capturedUrl = String(url);
       capturedBody = JSON.parse(String(init?.body));
       return new Response(

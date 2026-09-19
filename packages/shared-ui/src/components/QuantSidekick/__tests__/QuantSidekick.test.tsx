@@ -62,6 +62,14 @@ function Harness() {
 
 describe('QuantSidekick widget + provider', () => {
   it('toggles the panel open/closed via the alien button', () => {
+    // The sidekick is opt-in: QuantSidekick renders `null` while it is neither
+    // enabled nor open, so that it cannot clutter an app the user never asked it
+    // into. This test previously rendered a closed, un-enabled sidekick and then
+    // looked for its toggle, which the component is designed never to show — so
+    // it was asserting against the opposite of the intended contract. Enabling it
+    // the way a real user does (the persisted preference) is what makes "closed,
+    // but has a visible toggle" a reachable state at all.
+    localStorage.setItem('quant_sidekick_enabled', 'true');
     render(
       <QuantSidekickProvider>
         <QuantSidekick />

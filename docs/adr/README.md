@@ -4,9 +4,9 @@ doc_type: decision-index
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-09-07
-verified_at_commit: 09a0a22e9aa5fe288d22987b90a6119a70f7c467
-review_by: 2026-10-07
+last_verified: 2026-09-19
+verified_at_commit: bce4acaac043c1b91e7566d3c4c2f26a90a9ac31
+review_by: 2026-10-19
 supersedes: []
 superseded_by: []
 canonical_scope: architecture-decisions
@@ -31,6 +31,7 @@ ADRs are immutable decision history. Amend a decision with a new ADR and record 
 | [009](./009-memory-state-machine.md)            | Memory state machine and confidence semantics           | ACCEPTED | 2026-07-08 | Memory V2 contract series                            |
 | [010](./010-extraction-output-schema.md)        | Extraction output schema                                | ACCEPTED | 2026-07-08 | Memory V2 contract series                            |
 | [011](./011-memory-facade-shadow-migration.md)  | Memory facade and shadow-mode migration                 | ACCEPTED | 2026-07-08 | Governs reversible activation                        |
+| [012](./012-shared-code-boundaries.md)          | Shared-code boundaries and cross-package isolation      | ACCEPTED | 2026-09-18 | Governs package boundaries and deduplication         |
 
 ## Status and supersession rules
 
