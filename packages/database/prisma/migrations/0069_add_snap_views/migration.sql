@@ -1,4 +1,14 @@
 -- Migration 0069: QuantChat Ephemeral Snaps — Snap Views Table (Atomic View-Once & IDOR Protection)
+CREATE TABLE IF NOT EXISTS "users" (
+    "id" TEXT NOT NULL,
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE IF NOT EXISTS "messages" (
+    "id" TEXT NOT NULL,
+    CONSTRAINT "messages_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE IF NOT EXISTS "snap_views" (
     "id" TEXT NOT NULL,
     "messageId" TEXT NOT NULL,
@@ -23,3 +33,8 @@ CREATE INDEX IF NOT EXISTS "snap_views_userId_idx"
 -- AddForeignKey
 ALTER TABLE "snap_views" ADD CONSTRAINT "snap_views_messageId_fkey"
     FOREIGN KEY ("messageId") REFERENCES "messages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "snap_views" ADD CONSTRAINT "snap_views_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

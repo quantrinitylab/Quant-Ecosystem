@@ -125,6 +125,7 @@ model User {
   scheduledMessages  ScheduledMessage[]
   quantAvatar        Avatar?           @relation()
   preKeyBundle       PreKeyBundle?
+  snapViews          SnapView[]
 
   @@index([email])
   @@index([username])
@@ -482,6 +483,7 @@ model SnapView {
   viewedAt  DateTime @default(now())
 
   message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([messageId])

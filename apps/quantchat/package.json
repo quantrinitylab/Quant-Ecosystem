@@ -33,6 +33,7 @@
     "@quant/server-core": "workspace:*",
     "@quant/brand": "workspace:*",
     "@quant/shared-ui": "workspace:*",
+    "@quant/storage": "workspace:*",
     "fastify": "^5.3.3",
     "@fastify/websocket": "^11.0.2",
     "livekit-server-sdk": "^2.15.3",
