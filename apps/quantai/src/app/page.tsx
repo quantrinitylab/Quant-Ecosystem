@@ -573,6 +573,11 @@ function ChatMessages({
   onRegenerate?: () => void;
 }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Whether the reader is still following the tail. Autoscroll used to be
+  // unconditional, so scrolling up to re-read something mid-stream yanked you
+  // back down on the next token — the transcript fought the reader.
+  const isPinnedToBottomRef = useRef(true);
   const prefersReducedMotion = useReducedMotion();
 
   // Id of the last assistant message — only it offers "Regenerate".
@@ -583,26 +588,41 @@ function ChatMessages({
     return null;
   }, [messages]);
 
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // 48px of slack: "near the bottom" rather than "exactly at it", so a
+    // fractional scroll position or a half-rendered code block does not read as
+    // the reader having scrolled away.
+    isPinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }, []);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!isPinnedToBottomRef.current) return;
+    messagesEndRef.current?.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'end',
+    });
+  }, [messages, prefersReducedMotion]);
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center">
+      <div className="flex-1 flex flex-col items-center justify-center px-6">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', ...spring.gentle }}
+          className="w-full max-w-xl"
         >
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-            <span className="text-2xl text-white font-bold">AI</span>
-          </div>
-          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-2">
-            Start a conversation
-          </h3>
-          <p className="text-sm text-[var(--foreground-secondary)] max-w-sm">
-            Ask questions, write code, analyze data, or explore creative ideas.
+          {/* No mascot and no gradient tile. The empty state is the product's
+              first sentence, so it carries a specific explanation rather than
+              decoration — QUANT_DESIGN_OS §6: "no low-contrast decorative
+              filler". */}
+          <h2 className="text-[1.375rem] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
+            What can I help with?
+          </h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--foreground-secondary)]">
+            Ask a question, paste code to review, or describe a task across your Quant apps.
           </p>
         </motion.div>
       </div>
@@ -610,51 +630,66 @@ function ChatMessages({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      <AnimatePresence initial={false}>
-        {messages.map((msg) => (
-          <motion.div
-            key={msg.id}
-            initial={prefersReducedMotion ? false : { opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring', ...spring.snappy }}
-            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-          >
-            <div
-              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                msg.role === 'user'
-                  ? 'bg-[var(--quant-accent)] text-white'
-                  : 'bg-gradient-to-br from-purple-500 to-indigo-600 text-white'
-              }`}
+    /*
+     * role="log" + aria-live is the whole screen-reader channel for a streaming
+     * answer, and it was missing: tokens arrived with no announcement at all.
+     * aria-atomic="false" so only appended text is read rather than the entire
+     * transcript on every delta, and aria-busy marks generation in progress.
+     */
+    <div
+      ref={scrollRef}
+      onScroll={handleScroll}
+      role="log"
+      aria-live="polite"
+      aria-atomic="false"
+      aria-relevant="additions text"
+      aria-busy={isStreaming}
+      aria-label="Conversation"
+      className="flex-1 overflow-y-auto px-4 py-6"
+    >
+      <div className="mx-auto max-w-3xl space-y-7">
+        <AnimatePresence initial={false}>
+          {messages.map((msg) => (
+            <motion.div
+              key={msg.id}
+              initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: 'spring', ...spring.snappy }}
+              className={msg.role === 'user' ? 'flex justify-end' : 'flex flex-col'}
             >
-              {msg.role === 'user' ? 'U' : 'AI'}
-            </div>
-
-            <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                msg.role === 'user'
-                  ? 'bg-[var(--quant-accent)] text-white'
-                  : 'bg-[var(--quant-surface-hover)] text-[var(--foreground)]'
-              }`}
-            >
-              {msg.role === 'assistant' ? (
-                <div className="relative">
-                  <MarkdownRenderer content={msg.content} />
-                  {msg.isStreaming && <StreamingCursor />}
+              {/*
+               * The 'U' / 'AI' letter circles are gone. They were the one thing
+               * that made this read as a toy chat rather than a tool, and they
+               * were also an accessibility defect: the letters are text content,
+               * so a screen reader announced "U" before every user turn. Role is
+               * now carried by position and a real label.
+               */}
+              {msg.role === 'user' ? (
+                <div className="max-w-[80%] rounded-2xl bg-[var(--quant-surface-hover)] px-4 py-2.5">
+                  <p className="whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-[var(--foreground)]">
+                    {msg.content}
+                  </p>
                 </div>
               ) : (
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                /*
+                 * Assistant answers run full width on the canvas with no bubble,
+                 * the way Claude and ChatGPT present them. A bubble caps line
+                 * length and makes code blocks and tables — the things this
+                 * surface exists to show — feel boxed in.
+                 */
+                <>
+                  <span className="mb-1.5 select-none text-xs font-medium tracking-wide text-[var(--foreground-secondary)]">
+                    Quanty
+                  </span>
+                  <div className="text-[0.9375rem] leading-relaxed text-[var(--foreground)]">
+                    <MarkdownRenderer content={msg.content} />
+                    {msg.isStreaming && <StreamingCursor />}
+                  </div>
+                </>
               )}
-              <span
-                className={`block text-[10px] mt-1.5 ${msg.role === 'user' ? 'text-white/60' : 'text-[var(--foreground-secondary)]'}`}
-              >
-                {new Date(msg.timestamp).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
+
               {msg.role === 'assistant' && !msg.pending && (
-                <div className="flex items-center gap-1 mt-1.5">
+                <div className="mt-2 flex items-center gap-1">
                   <CopyButton text={msg.content} />
                   {onRegenerate && msg.id === lastAssistantId && !isStreaming && (
                     <button
@@ -698,11 +733,11 @@ function ChatMessages({
                   )}
                 </div>
               )}
-            </div>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-      <div ref={messagesEndRef} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        <div ref={messagesEndRef} />
+      </div>
     </div>
   );
 }
@@ -741,11 +776,27 @@ function CopyButton({ text }: { text: string }) {
 /* ============ Streaming Cursor ============ */
 
 function StreamingCursor() {
+  const prefersReducedMotion = useReducedMotion();
+
+  // `ease: 'steps(2)'` was not a value framer-motion accepts, so the blink
+  // silently fell back to its default easing — a soft fade rather than the
+  // terminal-style tick it was written to be. `steps(2, 'start')` is the real
+  // spelling. Under reduced motion the caret is shown solid instead of removed,
+  // because it is the only signal that an answer is still arriving.
+  if (prefersReducedMotion) {
+    return (
+      <span
+        className="ml-0.5 inline-block h-[1.05em] w-0.5 translate-y-[0.15em] bg-[var(--quant-accent)]"
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
     <motion.span
-      className="inline-block w-0.5 h-4 bg-[var(--quant-accent)] ml-0.5 align-middle"
-      animate={{ opacity: [1, 0, 1] }}
-      transition={{ duration: 1, repeat: Infinity, ease: 'steps(2)' }}
+      className="ml-0.5 inline-block h-[1.05em] w-0.5 translate-y-[0.15em] bg-[var(--quant-accent)]"
+      animate={{ opacity: [1, 1, 0, 0] }}
+      transition={{ duration: 1.06, repeat: Infinity, ease: 'linear', times: [0, 0.5, 0.5, 1] }}
       aria-hidden="true"
     />
   );
@@ -817,6 +868,7 @@ function ChatInput({
   onClearFile,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -826,6 +878,10 @@ function ChatInput({
         setInput('');
         onClearImage();
         onClearFile();
+        // Keep the caret in the composer. Without this, submitting drops focus
+        // to the document body, so a keyboard user has to tab back in before
+        // they can ask a follow-up.
+        textareaRef.current?.focus();
       }
     },
     [input, isStreaming, onSend, onClearImage, onClearFile],
@@ -963,12 +1019,19 @@ function ChatInput({
           </svg>
         </button>
 
-        {/* Text input */}
+        {/* Text input. A placeholder is not an accessible name — it disappears
+            on first keystroke and several screen readers ignore it outright — so
+            the composer had no name at all. aria-describedby carries the
+            Enter/Shift+Enter affordance that was previously invisible to
+            assistive tech and to anyone who never guessed it. */}
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Ask anything..."
+          aria-label="Message Quanty"
+          aria-describedby="composer-hint"
           disabled={isStreaming}
           rows={1}
           className="flex-1 min-h-[44px] max-h-32 resize-none rounded-xl border border-[var(--quant-border)] px-4 py-2.5 text-sm bg-[var(--quant-surface)] text-[var(--foreground)] placeholder-[var(--foreground-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--quant-accent)]/30 focus:border-[var(--quant-accent)] disabled:opacity-50 transition-colors"
@@ -991,6 +1054,18 @@ function ChatInput({
           </svg>
         </button>
       </form>
+
+      {/* The keyboard contract, stated once. Visible to sighted users and
+          referenced by the composer's aria-describedby, rather than being folk
+          knowledge. */}
+      <p
+        id="composer-hint"
+        className="mt-2 text-center text-[11px] text-[var(--foreground-secondary)]"
+      >
+        <kbd className="font-sans font-medium">Enter</kbd> to send ·{' '}
+        <kbd className="font-sans font-medium">Shift</kbd>+
+        <kbd className="font-sans font-medium">Enter</kbd> for a new line
+      </p>
     </div>
   );
 }
