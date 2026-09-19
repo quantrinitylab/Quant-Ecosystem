@@ -184,14 +184,11 @@ function writeSummary(counts, findings, level) {
  * has not yet released a patched version.
  */
 const AUDIT_EXCEPTIONS = [
-  {
-    packageName: 'adm-zip',
-    advisorySnippet: 'GHSA-vwc7-r8mq-g2x9',
-    maxSeverity: 'moderate',
-    expiresAt: '2026-12-31',
-    justification:
-      'Transitive dependency via onnxruntime-node. adm-zip@0.6.0 is the latest version published to npm and resolves the HIGH severity CVE-2026-39244. No upstream patch yet exists for GHSA-vwc7-r8mq-g2x9.',
-  },
+  // The adm-zip / GHSA-vwc7-r8mq-g2x9 exception was removed once adm-zip@0.6.1
+  // shipped: its justification asserted that 0.6.0 was the newest published
+  // version, which stopped being true. An exception that no longer matches any
+  // finding is not neutral — it is a standing permission for the next advisory
+  // that happens to fit its shape, so it is deleted rather than left to expire.
 ];
 
 function isDocumentedException(finding) {
