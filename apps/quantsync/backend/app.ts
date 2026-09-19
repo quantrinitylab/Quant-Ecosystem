@@ -9,6 +9,8 @@ import authRoutes from './routes/auth';
 import interactionsRoutes from './routes/interactions';
 import followRoutes from './routes/follow';
 import notificationsRoutes from './routes/notifications';
+import searchRoutes, { discoveryRoutes } from './routes/search';
+import spacesRoutes from './routes/spaces';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -48,6 +50,10 @@ export async function buildApp(config?: AppConfig) {
   await app.register(interactionsRoutes, { prefix: '/interactions' });
   await app.register(followRoutes, { prefix: '/follow' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });
+  await app.register(searchRoutes, { prefix: '/search' });
+  await app.register(spacesRoutes, { prefix: '/spaces' });
+  // `/explore` and `/trending` are top-level paths, so this registration takes no prefix.
+  await app.register(discoveryRoutes);
 
   return app;
 }

@@ -27,6 +27,16 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    // Gate 4 suppression gate, derived by EmailService from this injected client.
+    // SuppressionService fails loudly when the delegate is missing, so model it here.
+    // Default: nothing suppressed.
+    emailSuppression: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+    },
   };
 }
 

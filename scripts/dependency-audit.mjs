@@ -182,17 +182,16 @@ function writeSummary(counts, findings, level) {
 /**
  * Documented, time-boxed exceptions for known transitive advisories where upstream
  * has not yet released a patched version.
+ *
+ * Currently empty: the previous `adm-zip` exception (GHSA-vwc7-r8mq-g2x9, reached via
+ * onnxruntime-node) was retired once adm-zip@0.6.1 shipped. The root `pnpm.overrides`
+ * entry `"adm-zip@<0.6.1": "0.6.1"` now lifts the whole tree past both that advisory
+ * and the HIGH severity GHSA-7q85-xj36-vmfc, so no exception is required.
+ *
+ * Add entries here only when upstream has no patched release at all, and always set a
+ * real `expiresAt` so the exception cannot outlive its justification.
  */
-const AUDIT_EXCEPTIONS = [
-  {
-    packageName: 'adm-zip',
-    advisorySnippet: 'GHSA-vwc7-r8mq-g2x9',
-    maxSeverity: 'moderate',
-    expiresAt: '2026-12-31',
-    justification:
-      'Transitive dependency via onnxruntime-node. adm-zip@0.6.0 is the latest version published to npm and resolves the HIGH severity CVE-2026-39244. No upstream patch yet exists for GHSA-vwc7-r8mq-g2x9.',
-  },
-];
+const AUDIT_EXCEPTIONS = [];
 
 function isDocumentedException(finding) {
   const now = new Date();

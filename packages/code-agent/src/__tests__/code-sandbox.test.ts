@@ -72,9 +72,14 @@ describe('ContainerCodeSandbox (Gate G5 / AI-1 & AI-2)', () => {
   };
 
   it('fails closed with 503 SANDBOX_UNAVAILABLE when endpoint is not configured', async () => {
-    const sandbox = new ContainerCodeSandbox({ endpoint: undefined, failClosed: true });
+    const sandbox = new ContainerCodeSandbox({ endpoint: undefined });
     expect(sandbox.isConfigured).toBe(false);
 
+    // Fail closed on the concrete error type, not just its shape: a plain Error
+    // carrying the same fields would let a silently-faked execution path pass.
+    await expect(sandbox.execute('npm test', config)).rejects.toBeInstanceOf(
+      SandboxUnavailableError,
+    );
     await expect(sandbox.execute('npm test', config)).rejects.toMatchObject({
       statusCode: 503,
       code: 'SANDBOX_UNAVAILABLE',

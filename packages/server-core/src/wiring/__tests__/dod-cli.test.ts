@@ -155,5 +155,17 @@ describe('end-to-end against the real tree (baseline)', () => {
     // The end-to-end scan walks the entire monorepo (all packages/apps) to build
     // the import graph for ~70 engines, which can exceed vitest's 5s default on a
     // full install. Give it explicit headroom; the assertions above pass cleanly.
-  }, 30000);
+    //
+    // The budget is deliberately large rather than merely "generous". This single walk
+    // covers ~5,100 source files, and its wall time is dominated by filesystem latency, not
+    // by the assertions: measured at ~6s on a warm cache but 230s+ on a cold one or while
+    // the rest of the monorepo's suites are competing for I/O under
+    // `turbo test --concurrency=4`. At 30s it flipped between passing and timing out purely
+    // on machine load, which made the repo's own wiring gate untrustworthy. Nothing here is
+    // relaxed — the DoD assertions above are unchanged; only the clock is.
+    //
+    // The real fix is to make the scan cheaper (one indexed pass over the tree instead of a
+    // walk per engine); until then this stops a load-sensitive timeout from reading as a
+    // Definition-of-Done violation.
+  }, 300_000);
 });

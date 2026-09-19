@@ -25,7 +25,6 @@ export class SandboxUnavailableError extends Error {
 export interface ContainerSandboxOptions {
   endpoint?: string;
   fetchFn?: typeof fetch;
-  failClosed?: boolean;
 }
 
 /**
@@ -35,12 +34,10 @@ export interface ContainerSandboxOptions {
 export class ContainerCodeSandbox implements ICodeSandbox {
   private readonly endpoint?: string;
   private readonly fetchFn: typeof fetch;
-  private readonly failClosed: boolean;
 
   constructor(options: ContainerSandboxOptions = {}) {
     this.endpoint = options.endpoint ?? process.env.SANDBOX_ENDPOINT;
     this.fetchFn = options.fetchFn ?? fetch;
-    this.failClosed = options.failClosed ?? process.env.NODE_ENV === 'production';
   }
 
   get isConfigured(): boolean {

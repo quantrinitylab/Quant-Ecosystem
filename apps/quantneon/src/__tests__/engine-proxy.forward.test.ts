@@ -18,7 +18,7 @@
 //                 app/api/feed/candidates/route.ts             POST -> /feed/candidates
 //
 // All quantneon proxy helpers default the backend origin to
-// http://localhost:3012 (the quantneon backend PORT — Requirement 1.6) when
+// http://localhost:3008 (the quantneon backend PORT — Requirement 1.6) when
 // NEXT_PUBLIC_QUANTNEON_BACKEND_URL is unset. `proxyToBackend` returns 502
 // unless the backend response is application/json, so the fetch mock sets that
 // content-type.
@@ -30,7 +30,7 @@ import { POST as federationBlockPost } from '../app/api/federation/instances/blo
 import { GET as feedGet } from '../app/api/feed/route';
 import { POST as feedCandidatesPost } from '../app/api/feed/candidates/route';
 
-const BACKEND = 'http://localhost:3012';
+const BACKEND = 'http://localhost:3008';
 
 function makeFetchMock(status = 200, payload: unknown = { success: true, data: {} }) {
   return vi.fn(

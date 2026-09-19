@@ -73,6 +73,44 @@ export interface SendMessageInput {
   metadata?: Record<string, unknown>;
   encryption?: 'e2e';
   recipientPublicKeys?: RecipientPublicKey[];
+  /**
+   * Client-declared disappearing behaviour. `'after_view'` marks the message as a
+   * view-once snap. See {@link isEphemeralSend}.
+   */
+  disappearMode?: string;
+}
+
+/**
+ * Public (lowercase) API message types that denote view-once snap media.
+ *
+ * These strings only exist at the HTTP boundary: {@link MESSAGE_TYPE_MAP} folds
+ * `snap_photo`/`snap_video` down to the Prisma `IMAGE`/`VIDEO` enum members, because
+ * `MessageType` has no snap variants. Anything that needs to know a message was a snap
+ * *after* it is persisted must therefore read `metadata`, not `message.type`.
+ */
+const SNAP_TYPES = new Set(['snap_photo', 'snap_video']);
+
+export function isSnapType(type?: string): boolean {
+  return type !== undefined && SNAP_TYPES.has(type.toLowerCase());
+}
+
+/**
+ * Decide whether a send is view-once, from the values the HTTP layer actually receives:
+ * a snap message type, an explicit `disappearMode: 'after_view'`, or metadata the caller
+ * set itself. This is the single point where ephemerality is established, so
+ * {@link MessageService.consumeSnap} can rely on persisted metadata alone.
+ */
+export function isEphemeralSend(input: {
+  type?: string;
+  disappearMode?: string;
+  metadata?: Record<string, unknown>;
+}): boolean {
+  return (
+    isSnapType(input.type) ||
+    input.disappearMode === 'after_view' ||
+    Boolean(input.metadata?.['viewOnce']) ||
+    Boolean(input.metadata?.['isSnap'])
+  );
 }
 
 export class MessageService {
@@ -162,7 +200,22 @@ export class MessageService {
       metadata,
       encryption,
       recipientPublicKeys,
+      disappearMode,
     } = input;
+
+    // CH-8: persist view-once intent as metadata at send time.
+    //
+    // `type: 'snap_photo'` is mapped to the Prisma `IMAGE` enum on the way in, so the
+    // snap-ness of a message is NOT recoverable from `message.type` afterwards. Previously
+    // nothing wrote `metadata.viewOnce`, so every real snap came back from the database
+    // looking like an ordinary image and `consumeSnap` rejected it with 400 NOT_A_SNAP —
+    // the 410-Gone path was unreachable outside tests that hand-built the metadata.
+    const ephemeral = isEphemeralSend({ type, disappearMode, metadata });
+    const effectiveMetadata: Record<string, unknown> = { ...(metadata ?? {}) };
+    if (ephemeral) {
+      effectiveMetadata['viewOnce'] = true;
+      if (disappearMode !== undefined) effectiveMetadata['disappearMode'] = disappearMode;
+    }
 
     // Verify user is a member of the conversation
     const membership = await this.prisma.conversationMember.findFirst({
@@ -214,7 +267,7 @@ export class MessageService {
           type: toMessageType(type),
           mediaUrl: mediaUrl ?? null,
           replyToId: replyToId ?? null,
-          metadata: (metadata ?? {}) as Prisma.InputJsonValue,
+          metadata: effectiveMetadata as Prisma.InputJsonValue,
         },
       });
 
@@ -457,11 +510,12 @@ export class MessageService {
     }
 
     const metadata = (message.metadata as Record<string, unknown> | null) ?? {};
-    const isSnap =
-      message.type === 'snap_photo' ||
-      message.type === 'snap_video' ||
-      Boolean(metadata.viewOnce) ||
-      Boolean(metadata.isSnap);
+    // Detection is metadata-only by design. `message.type` can never be 'snap_photo'/
+    // 'snap_video' here: those public strings are folded into the IMAGE/VIDEO enum members
+    // by MESSAGE_TYPE_MAP before insert, so comparing against them was statically dead
+    // code. `sendMessage` stamps `metadata.viewOnce` instead; `isSnap` is kept for rows
+    // written by older callers.
+    const isSnap = Boolean(metadata.viewOnce) || Boolean(metadata.isSnap);
 
     if (!isSnap) {
       throw createAppError('Message is not an ephemeral snap', 400, 'NOT_A_SNAP');

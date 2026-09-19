@@ -48,6 +48,20 @@ const createPollSchema = z.object({
   allowMultiple: z.boolean().optional(),
 });
 
+/** `POST /posts/repost` — the collection-level form, taking the target in the body. */
+const repostSchema = z.object({
+  postId: z.string().min(1),
+});
+
+/** `POST /posts/quote` — a repost that carries the quoter's own commentary. */
+const quoteSchema = z.object({
+  postId: z.string().min(1),
+  content: z.string().min(1).max(50000),
+  mediaUrls: z.array(z.string()).optional(),
+  hashtags: z.array(z.string()).optional(),
+  mentions: z.array(z.string()).optional(),
+});
+
 export default async function postsRoutes(fastify: FastifyInstance) {
   fastify.post('/', async (request, reply) => {
     const parseResult = createPostSchema.safeParse(request.body);
@@ -63,6 +77,45 @@ export default async function postsRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new PostService(prisma as never);
     const post = await service.createPost({ ...parseResult.data, userId });
+
+    return reply.status(201).send({ success: true, data: post });
+  });
+
+  // Collection-level repost/quote. These take the target id in the body; `/:id/repost` below
+  // is the equivalent resource-level form. Both were proxied but only `/:id/repost` existed.
+  fastify.post('/repost', async (request, reply) => {
+    const parseResult = repostSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new PostService(prisma as never);
+    const post = await service.repost(parseResult.data.postId, userId);
+
+    return reply.status(201).send({ success: true, data: post });
+  });
+
+  fastify.post('/quote', async (request, reply) => {
+    const parseResult = quoteSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      throw parseResult.error;
+    }
+
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const { postId, ...quote } = parseResult.data;
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new PostService(prisma as never);
+    const post = await service.quote(postId, userId, quote);
 
     return reply.status(201).send({ success: true, data: post });
   });

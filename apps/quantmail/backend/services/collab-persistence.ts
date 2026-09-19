@@ -238,6 +238,7 @@ export class PersistenceAdapter {
           loadedFromStorage = true;
         }
       } catch (storageErr) {
+        // eslint-disable-next-line no-console
         console.warn(
           `[CollabPersistence] Failed to download snapshot ${row.snapshotStorageKey} for doc ${docId}, falling back to replay`,
           storageErr,
@@ -375,6 +376,7 @@ export class PersistenceAdapter {
       await this.writeSnapshot(docId, merged);
       writeSuccess = true;
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.warn(
         `[CollabPersistence] Failed to write snapshot for doc ${docId}, refusing delta pruning`,
         err,

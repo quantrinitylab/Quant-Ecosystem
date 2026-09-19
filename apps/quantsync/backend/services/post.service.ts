@@ -256,6 +256,78 @@ export class PostService {
     });
   }
 
+  /**
+   * Quote post: a repost that carries the quoter's OWN commentary.
+   *
+   * Modelled exactly like {@link repost} — `type: 'REPOST'` with `replyToId` pointing at the
+   * quoted post — except the content is the quoter's, not a copy of the original. That is the
+   * only thing distinguishing a quote from a plain repost, and it needs no schema change.
+   */
+  async quote(
+    postId: string,
+    userId: string,
+    input: { content: string; mediaUrls?: string[]; hashtags?: string[]; mentions?: string[] },
+  ): Promise<Post> {
+    const content = input.content?.trim();
+    if (!content) {
+      throw createAppError('Quote posts require your own commentary', 400, 'EMPTY_QUOTE');
+    }
+
+    const original = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!original || original.deletedAt) {
+      throw createAppError('Original post not found', 404, 'POST_NOT_FOUND');
+    }
+
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: { repostCount: { increment: 1 } },
+    });
+
+    return this.prisma.post.create({
+      data: {
+        userId,
+        type: 'REPOST',
+        content,
+        mediaUrls: input.mediaUrls ?? [],
+        hashtags: input.hashtags ?? [],
+        mentions: input.mentions ?? [],
+        replyToId: postId,
+        communityId: null,
+        visibility: 'PUBLIC',
+        likeCount: 0,
+        commentCount: 0,
+        repostCount: 0,
+        viewCount: 0,
+        isEdited: false,
+        isPinned: false,
+        moderationStatus: 'APPROVED',
+        publishedAt: new Date(),
+      },
+    });
+  }
+
+  /**
+   * Record feed impressions.
+   *
+   * Batched because the feed reports what scrolled into view, not one call per post.
+   * `updateMany` keeps it a single statement and silently ignores ids that no longer exist,
+   * which is the right behaviour for telemetry — a deleted post must not fail the batch.
+   */
+  async recordEngagement(
+    postIds: string[],
+    event: 'view' | 'impression' = 'view',
+  ): Promise<{ event: string; recorded: number }> {
+    const ids = Array.from(new Set(postIds.filter((id) => typeof id === 'string' && id.trim())));
+    if (ids.length === 0) return { event, recorded: 0 };
+
+    const result = await this.prisma.post.updateMany({
+      where: { id: { in: ids }, deletedAt: null },
+      data: { viewCount: { increment: 1 } },
+    });
+
+    return { event, recorded: result.count };
+  }
+
   async repost(postId: string, userId: string): Promise<Post> {
     const original = await this.prisma.post.findUnique({
       where: { id: postId },
