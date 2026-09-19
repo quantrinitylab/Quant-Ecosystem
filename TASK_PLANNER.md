@@ -1625,9 +1625,9 @@
 ### 🛡️ Phase Q — Quality Gates (14 Tasks)
 
 - **Assigned to**: Developer 2 (QA Sentinel Lead) + CEO Astra
-- [x] **Task Q01**: Protect `main` branch against unreviewed direct pushes. _(Completed by Developer 6 & Developer 2 in Wave 15: branch protection engine and protected branch invariant)_.
-- [x] **Task Q02**: Require at least one non-author review approval. _(Completed by Developer 6 in Wave 15 Track 1: author self-approval rejection 400, requiredApprovals merge gate 403)_.
-- [x] **Task Q03**: Require green CI gate to merge PRs. _(Completed by Developer 6 in Wave 15 Track 1: latest CiRun.status === 'SUCCESS' branch protection merge gate 403)_.
+- [ ] **Task Q01**: Protect `main` branch against unreviewed direct pushes. _(RE-OPENED per CEO Astra GOV-2 ruling: ruleset must be applied on main in GitHub UI including administrators, verified by rejected direct push)_.
+- [ ] **Task Q02**: Require at least one non-author review approval. _(RE-OPENED per CEO Astra GOV-2 ruling: non-author reviewer account must be provisioned and approval enforced)_.
+- [ ] **Task Q03**: Require green CI gate to merge PRs. _(RE-OPENED per CEO Astra GOV-2 ruling: gate checks must strictly guard PR merge)_.
 - [ ] **Task Q04**: Enforce ESLint ban on `as any`, `as never`, `as unknown as` in new code.
 - [ ] **Task Q05**: Enforce ESLint ban on empty catch blocks (`catch {}`).
 - [ ] **Task Q06**: Require typed Fastify Prisma decoration (no per-handler casts).

@@ -65,11 +65,21 @@ jobs:
         id: base
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "filter=[origin/${{ github.base_ref }}]" >> "$GITHUB_OUTPUT"
-            echo "ref=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+            ref="origin/${{ github.base_ref }}"
           else
-            echo "filter=[HEAD~1]" >> "$GITHUB_OUTPUT"
-            echo "ref=HEAD~1" >> "$GITHUB_OUTPUT"
+            ref="HEAD~1"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+          workspaces=$(git diff --name-only "$ref"...HEAD | grep -E '^(apps|packages|services)/' | cut -d/ -f1,2 | sort -u)
+          if [ -n "$workspaces" ]; then
+            filter=""
+            for ws in $workspaces; do
+              filter="$filter --filter={$ws}"
+            done
+            echo "filter=$filter" >> "$GITHUB_OUTPUT"
+          else
+            echo "filter=--filter=[$ref]" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Test dependency heatmap scanner
@@ -92,10 +102,9 @@ jobs:
       - name: Typecheck, lint, test, build directly changed packages
         env:
           NODE_OPTIONS: --max-old-space-size=4096
-        # `[base]` selects directly changed workspaces. The previous `...[base]`
-        # also selected every downstream app, duplicating full-sweep and making
-        # unrelated pre-existing failures blocking despite this gate's contract.
-        run: npx turbo typecheck lint test build --concurrency=2 --continue --filter='${{ steps.base.outputs.filter }}'
+        # Selects directly changed workspaces. Unrelated pre-existing failures
+        # elsewhere in the monorepo do not block this gate.
+        run: npx turbo typecheck lint test build --concurrency=2 --continue ${{ steps.base.outputs.filter }}
 
   # Hard gate: Memory V2 shadow evidence must survive client reconstruction and
   # preserve tenant isolation against a real PostgreSQL instance.
@@ -147,6 +156,11 @@ jobs:
         run: >-
           pnpm --filter @quant/database exec vitest run
           src/__tests__/memory-shadow-report.postgres.test.ts
+
+      - name: Prove SnapView parallel race condition against real Postgres
+        run: >-
+          pnpm --filter @quant/database exec vitest run
+          src/__tests__/snap-views.postgres.test.ts
 
   # Hard gate: QuantChat must meet the >=50% coverage threshold (Requirement 18.1).
   # Thresholds live in apps/quantchat/vitest.config.ts; `vitest run --coverage` exits

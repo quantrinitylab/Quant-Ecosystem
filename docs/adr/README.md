@@ -31,6 +31,7 @@ ADRs are immutable decision history. Amend a decision with a new ADR and record 
 | [009](./009-memory-state-machine.md)            | Memory state machine and confidence semantics           | ACCEPTED | 2026-07-08 | Memory V2 contract series                            |
 | [010](./010-extraction-output-schema.md)        | Extraction output schema                                | ACCEPTED | 2026-07-08 | Memory V2 contract series                            |
 | [011](./011-memory-facade-shadow-migration.md)  | Memory facade and shadow-mode migration                 | ACCEPTED | 2026-07-08 | Governs reversible activation                        |
+| [012](./012-shared-code-boundaries.md)          | Shared-code boundaries and cross-package isolation      | ACCEPTED | 2026-09-18 | Governs dependency direction and monorepo boundaries |
 
 ## Status and supersession rules
 

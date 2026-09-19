@@ -2,8 +2,36 @@ import type { PrismaClient, Message } from '@prisma/client';
 import { Prisma, MessageType } from '@prisma/client';
 import * as crypto from 'node:crypto';
 import { createAppError } from '@quant/server-core';
+import { StorageClient, resolveStorageConfigFromEnv } from '@quant/storage';
 import { PrismaOutboxService, type OutboxService } from './outbox.service';
 import { StreakService } from './streak.service';
+
+/**
+ * Extract an object storage key from a media URL or raw path.
+ */
+export function extractStorageKey(mediaUrl: string): string {
+  if (!mediaUrl) return '';
+  if (mediaUrl.startsWith('s3://')) {
+    const parts = mediaUrl.slice(5).split('/');
+    parts.shift(); // strip bucket
+    return parts.join('/');
+  }
+  try {
+    const parsed = new URL(mediaUrl);
+    const pathname = parsed.pathname.replace(/^\/+/, '');
+    const bucket =
+      process.env.ATTACHMENTS_BUCKET ||
+      process.env.R2_BUCKET ||
+      process.env.S3_BUCKET ||
+      'quantmail-attachments';
+    if (pathname.startsWith(`${bucket}/`)) {
+      return pathname.slice(bucket.length + 1);
+    }
+    return pathname || mediaUrl;
+  } catch {
+    return mediaUrl.replace(/^\/+/, '');
+  }
+}
 
 /**
  * Map the public (lowercase) message-type string accepted by the API/clients to
@@ -78,6 +106,7 @@ export interface SendMessageInput {
 export class MessageService {
   private readonly outbox: OutboxService;
   private readonly streaks: StreakService;
+  private readonly storage: StorageClient;
 
   /**
    * @param prisma  Prisma client used for all persistence.
@@ -88,14 +117,17 @@ export class MessageService {
    * @param streaks Streak engine used to update the 1:1 messaging streak after a
    *   message commits (best-effort; never blocks delivery). Defaults to one bound
    *   to the same Prisma client.
+   * @param storage Storage client used for minting authentic SigV4 presigned URLs.
    */
   constructor(
     private readonly prisma: PrismaClient,
     outbox?: OutboxService,
     streaks?: StreakService,
+    storage?: StorageClient,
   ) {
     this.outbox = outbox ?? new PrismaOutboxService(prisma);
     this.streaks = streaks ?? new StreakService(prisma as never);
+    this.storage = storage ?? new StorageClient(resolveStorageConfigFromEnv());
   }
 
   /**
@@ -440,9 +472,12 @@ export class MessageService {
   }
 
   /**
-   * CH-8: Ephemeral view-once media consumption.
-   * Returns media payload on first view and immediately marks snap as consumed.
-   * Any subsequent access throws HTTP 410 GONE.
+   * CH-8 / SEC-1 / SEC-2: Ephemeral view-once media consumption.
+   * - Enforces active conversation membership (403 NOT_A_MEMBER).
+   * - Excludes sender (sender review does not consume or destroy media).
+   * - Enforces per-recipient view-once atomic consumption via snap_views table.
+   * - Under concurrent reads, @@unique([messageId, userId]) guarantees race loser
+   *   fails closed with HTTP 410 SNAP_CONSUMED.
    */
   async consumeSnap(
     messageId: string,
@@ -456,10 +491,20 @@ export class MessageService {
       throw createAppError('Message not found', 404, 'MESSAGE_NOT_FOUND');
     }
 
+    // SEC-1: Enforce active conversation membership check
+    const membership = await this.prisma.conversationMember.findFirst({
+      where: { conversationId: message.conversationId, userId, leftAt: null },
+    });
+
+    if (!membership) {
+      throw createAppError('User is not a member of this conversation', 403, 'NOT_A_MEMBER');
+    }
+
     const metadata = (message.metadata as Record<string, unknown> | null) ?? {};
+    const msgTypeStr = String(message.type);
     const isSnap =
-      message.type === 'snap_photo' ||
-      message.type === 'snap_video' ||
+      msgTypeStr === 'snap_photo' ||
+      msgTypeStr === 'snap_video' ||
       Boolean(metadata.viewOnce) ||
       Boolean(metadata.isSnap);
 
@@ -467,8 +512,67 @@ export class MessageService {
       throw createAppError('Message is not an ephemeral snap', 400, 'NOT_A_SNAP');
     }
 
-    // CH-8 Server-side 410 Gone enforcement
-    if (metadata.consumedAt) {
+    const duration = typeof metadata.duration === 'number' ? metadata.duration : 10;
+
+    // Helper to mint authentic SigV4 presigned view URL (60-second TTL) fail-closed (SEC-4)
+    const mintPresignedSnapUrl = async (rawMediaUrl: string): Promise<string> => {
+      if (!rawMediaUrl) return '';
+
+      // Prefer explicit persisted storageKey if available in metadata, else extract from mediaUrl
+      const storageKey =
+        typeof metadata.storageKey === 'string' && metadata.storageKey.trim().length > 0
+          ? metadata.storageKey.trim()
+          : extractStorageKey(rawMediaUrl);
+
+      if (!storageKey) {
+        throw createAppError(
+          'Cannot determine storage key for ephemeral snap',
+          500,
+          'STORAGE_KEY_MISSING',
+        );
+      }
+
+      try {
+        return await this.storage.getSignedUrl(storageKey, 60);
+      } catch (error: unknown) {
+        throw createAppError(
+          `Failed to mint ephemeral presigned URL: ${error instanceof Error ? error.message : 'Storage signing failure'}`,
+          500,
+          'PRESIGNING_FAILED',
+        );
+      }
+    };
+
+    // SEC-1: Sender exclusion — reviewing your own sent snap does not consume or destroy it,
+    // but still delivers an authentic short-lived presigned URL (SEC-4).
+    if (message.senderId === userId) {
+      const ephemeralMediaUrl = await mintPresignedSnapUrl(message.mediaUrl ?? '');
+      return {
+        mediaUrl: ephemeralMediaUrl,
+        duration,
+      };
+    }
+
+    // SEC-2: Per-recipient atomic view-once consumption via snapView table
+    const snapViewDelegate = this.prisma.snapView;
+    if (!snapViewDelegate || typeof snapViewDelegate.create !== 'function') {
+      throw createAppError(
+        'SnapView storage delegate is unavailable; run prisma migrate + prisma generate',
+        500,
+        'DATABASE_UNAVAILABLE',
+      );
+    }
+
+    const existingView = await snapViewDelegate.findUnique({
+      where: {
+        messageId_userId: {
+          messageId,
+          userId,
+        },
+      },
+    });
+
+    if (existingView) {
       throw createAppError(
         'This view-once snap has already been viewed and destroyed',
         410,
@@ -476,23 +580,34 @@ export class MessageService {
       );
     }
 
-    // Mark as consumed immediately on the server
-    const updatedMetadata = {
-      ...metadata,
-      consumedAt: new Date().toISOString(),
-      consumedBy: userId,
-    };
+    try {
+      await snapViewDelegate.create({
+        data: {
+          messageId,
+          userId,
+        },
+      });
+    } catch (err: unknown) {
+      if (
+        (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') ||
+        (err as { code?: string })?.code === 'P2002'
+      ) {
+        throw createAppError(
+          'This view-once snap has already been viewed and destroyed',
+          410,
+          'SNAP_CONSUMED',
+        );
+      }
+      throw err;
+    }
 
-    await this.prisma.message.update({
-      where: { id: messageId },
-      data: {
-        metadata: updatedMetadata,
-      },
-    });
+    // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL) fail-closed
+    // so raw media cannot be retained or fetched indefinitely from storage after consumption.
+    const ephemeralMediaUrl = await mintPresignedSnapUrl(message.mediaUrl ?? '');
 
     return {
-      mediaUrl: message.mediaUrl ?? '',
-      duration: typeof metadata.duration === 'number' ? metadata.duration : 10,
+      mediaUrl: ephemeralMediaUrl,
+      duration,
     };
   }
 }

@@ -241,13 +241,14 @@ export class OtpService {
 
 /**
  * Dev/default SMS sender: logs masked message instead of delivering.
- * Enforces zero-leak logging: OTP is always masked as [REDACTED].
+ * Enforces zero-leak logging (OTP-1): all numeric OTP tokens are masked as [REDACTED]
+ * regardless of codeLength (4, 6, 8, etc.).
  */
 export class LoggingSmsSender implements SmsSender {
   constructor(private readonly log: (msg: string) => void = () => {}) {}
   async send(phoneNumber: string, message: string): Promise<{ success: boolean }> {
-    // Redact 6-digit OTP from message so it NEVER leaks to server logs
-    const masked = message.replace(/\b\d{6}\b/g, '[REDACTED]');
+    // Redact all digit sequences so OTP never leaks to server logs for any code length
+    const masked = message.replace(/\b\d+\b/g, '[REDACTED]');
     this.log(`[OTP][dev-sms] to=${phoneNumber} :: ${masked}`);
     return { success: true };
   }

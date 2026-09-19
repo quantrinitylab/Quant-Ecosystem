@@ -125,6 +125,7 @@ model User {
   scheduledMessages  ScheduledMessage[]
   quantAvatar        Avatar?           @relation()
   preKeyBundle       PreKeyBundle?
+  snapViews          SnapView[]
 
   @@index([email])
   @@index([username])
@@ -438,6 +439,7 @@ model Message {
   replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
   replies      Message[]         @relation("MessageReplies")
   reactions    MessageReaction[]
+  snapViews    SnapView[]
 
   @@index([conversationId])
   @@index([senderId])
@@ -472,6 +474,21 @@ model MessageReaction {
   @@unique([messageId, userId, emoji])
   @@index([messageId])
   @@map("message_reactions")
+}
+
+model SnapView {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  viewedAt  DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("snap_views")
 }
 
 // ==================== EMAILS (QuantMail) ====================
