@@ -34,10 +34,16 @@ function createMockPrisma() {
 describe('MessageService', () => {
   let service: MessageService;
   let prisma: ReturnType<typeof createMockPrisma>;
+  let mockStorage: { getSignedUrl: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new MessageService(prisma as never);
+    mockStorage = {
+      getSignedUrl: vi.fn().mockImplementation(async (key: string, ttl: number) => {
+        return `https://s3.example.com/${key}?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=${ttl}&X-Amz-Signature=mock-sig`;
+      }),
+    };
+    service = new MessageService(prisma as never, undefined, undefined, mockStorage as never);
   });
 
   describe('sendMessage', () => {
@@ -624,7 +630,7 @@ describe('MessageService', () => {
       }
     });
 
-    it('allows sender review without consuming or creating snapView (SEC-1 Sender Exclusion)', async () => {
+    it('allows sender review without consuming or creating snapView while still presigning (SEC-1 & SEC-4)', async () => {
       prisma.message.findUnique.mockResolvedValue({
         id: 'snap-1',
         conversationId: 'conv-1',
@@ -641,16 +647,20 @@ describe('MessageService', () => {
         leftAt: null,
       });
 
-      // First review by author
+      // First review by author: receives authentic 60s presigned URL
       const res1 = await service.consumeSnap('snap-1', 'sender-author');
-      expect(res1.mediaUrl).toContain('https://s3.example.com/snaps/photo-1.jpg');
+      expect(res1.mediaUrl).toContain('snaps/photo-1.jpg');
+      expect(res1.mediaUrl).toContain('X-Amz-Expires=60');
+      expect(res1.mediaUrl).toContain('X-Amz-Signature=');
       expect(res1.duration).toBe(10);
       // Author reviewing does NOT consume
       expect(prisma.snapView.create).not.toHaveBeenCalled();
 
-      // Second review by author also succeeds
+      // Second review by author also succeeds with presigned URL
       const res2 = await service.consumeSnap('snap-1', 'sender-author');
-      expect(res2.mediaUrl).toContain('https://s3.example.com/snaps/photo-1.jpg');
+      expect(res2.mediaUrl).toContain('snaps/photo-1.jpg');
+      expect(res2.mediaUrl).toContain('X-Amz-Expires=60');
+      expect(res2.mediaUrl).toContain('X-Amz-Signature=');
       expect(res2.duration).toBe(10);
       expect(prisma.snapView.create).not.toHaveBeenCalled();
     });
@@ -675,16 +685,26 @@ describe('MessageService', () => {
         }),
       );
 
-      // Bob's first view consumes for Bob
+      // Track consumed users dynamically to prevent false-pass mocking
+      const consumedUsers = new Set<string>();
       prisma.snapView.findUnique.mockImplementation(
         async ({ where }: { where: { messageId_userId: { userId: string } } }) => {
-          if (where.messageId_userId.userId === 'bob') return null;
-          if (where.messageId_userId.userId === 'charlie') return null;
+          if (consumedUsers.has(where.messageId_userId.userId)) {
+            return {
+              id: `sv-${where.messageId_userId.userId}`,
+              messageId: 'group-snap',
+              userId: where.messageId_userId.userId,
+            };
+          }
           return null;
         },
       );
-      prisma.snapView.create.mockResolvedValue({ id: 'sv-bob' });
+      prisma.snapView.create.mockImplementation(async ({ data }: { data: { userId: string } }) => {
+        consumedUsers.add(data.userId);
+        return { id: `sv-${data.userId}`, ...data };
+      });
 
+      // Bob's first view consumes for Bob
       const bobResult = await service.consumeSnap('group-snap', 'bob');
       expect(bobResult.mediaUrl).toContain('snaps/group-photo.jpg');
       expect(bobResult.mediaUrl).toContain('X-Amz-Expires=60');
@@ -693,13 +713,52 @@ describe('MessageService', () => {
         data: { messageId: 'group-snap', userId: 'bob' },
       });
 
-      // Charlie now views for the first time: Charlie still receives their own view
+      // Bob tries to view again: rejected with 410 SNAP_CONSUMED
+      await expect(service.consumeSnap('group-snap', 'bob')).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'SNAP_CONSUMED',
+      });
+
+      // Charlie views for the first time: Charlie receives view successfully
       const charlieResult = await service.consumeSnap('group-snap', 'charlie');
       expect(charlieResult.mediaUrl).toContain('snaps/group-photo.jpg');
       expect(charlieResult.mediaUrl).toContain('X-Amz-Expires=60');
       expect(charlieResult.mediaUrl).toContain('X-Amz-Signature=');
       expect(prisma.snapView.create).toHaveBeenCalledWith({
         data: { messageId: 'group-snap', userId: 'charlie' },
+      });
+
+      // Charlie tries to view again: also rejected with 410 SNAP_CONSUMED
+      await expect(service.consumeSnap('group-snap', 'charlie')).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'SNAP_CONSUMED',
+      });
+    });
+
+    it('fails closed with 500 PRESIGNING_FAILED when storage signing fails', async () => {
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-fail',
+        conversationId: 'conv-1',
+        senderId: 'sender-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://s3.example.com/snaps/secret.jpg',
+        metadata: { viewOnce: true, duration: 10 },
+      });
+      prisma.conversationMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+        conversationId: 'conv-1',
+        userId: 'viewer-1',
+        role: 'MEMBER',
+        leftAt: null,
+      });
+      prisma.snapView.findUnique.mockResolvedValue(null);
+      prisma.snapView.create.mockResolvedValue({ id: 'sv-1' });
+
+      mockStorage.getSignedUrl.mockRejectedValueOnce(new Error('KMS encryption key expired'));
+
+      await expect(service.consumeSnap('snap-fail', 'viewer-1')).rejects.toMatchObject({
+        statusCode: 500,
+        code: 'PRESIGNING_FAILED',
       });
     });
 
