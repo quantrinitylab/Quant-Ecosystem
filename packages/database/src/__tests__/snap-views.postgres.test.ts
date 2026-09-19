@@ -11,23 +11,21 @@ describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)
   beforeAll(async () => {
     prisma = new PrismaClient({ datasourceUrl: databaseUrl });
     await prisma.$connect();
-    // Ensure parent tables and snap_views exist via authentic DDL
+    // Ensure parent tables and snap_views exist via authentic DDL (single command per statement)
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "users" ("id" TEXT PRIMARY KEY)`);
+    await prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "messages" ("id" TEXT PRIMARY KEY)`);
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "users" (
-          "id" TEXT PRIMARY KEY
-      );
-      CREATE TABLE IF NOT EXISTS "messages" (
-          "id" TEXT PRIMARY KEY
-      );
       CREATE TABLE IF NOT EXISTS "snap_views" (
           "id" TEXT NOT NULL,
           "messageId" TEXT NOT NULL,
           "userId" TEXT NOT NULL,
           "viewedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT "snap_views_pkey" PRIMARY KEY ("id")
-      );
+      )
+    `);
+    await prisma.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "snap_views_messageId_userId_key"
-          ON "snap_views" ("messageId", "userId");
+          ON "snap_views" ("messageId", "userId")
     `);
   });
 
@@ -40,10 +38,14 @@ describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)
     const userId = `user-race-${randomUUID()}`;
 
     // Ensure foreign key targets exist in parent tables
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO "users" ("id") VALUES ('${userId}') ON CONFLICT DO NOTHING;
-      INSERT INTO "messages" ("id") VALUES ('${messageId}') ON CONFLICT DO NOTHING;
-    `);
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "users" ("id") VALUES ($1) ON CONFLICT DO NOTHING`,
+      userId,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "messages" ("id") VALUES ($1) ON CONFLICT DO NOTHING`,
+      messageId,
+    );
 
     // Fire 10 simultaneous concurrent inserts for the EXACT SAME (messageId, userId) pair
     const results = await Promise.allSettled(
