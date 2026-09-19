@@ -457,11 +457,14 @@ export class MessageService {
     }
 
     const metadata = (message.metadata as Record<string, unknown> | null) ?? {};
-    const isSnap =
-      message.type === 'snap_photo' ||
-      message.type === 'snap_video' ||
-      Boolean(metadata.viewOnce) ||
-      Boolean(metadata.isSnap);
+    // Snap-ness lives in `metadata`, never in `type`. The wire accepts
+    // `snap_photo`/`snap_video`, but MESSAGE_TYPE_MAP above folds them onto the
+    // Prisma enum (`IMAGE`/`VIDEO`), which has no snap members — so the two
+    // `message.type === 'snap_*'` comparisons this replaces could never be true
+    // and TypeScript flagged them as non-overlapping. Removing them is not a
+    // behaviour change; leaving them in implied a second, working detection path
+    // that a future reader would trust.
+    const isSnap = Boolean(metadata.viewOnce) || Boolean(metadata.isSnap);
 
     if (!isSnap) {
       throw createAppError('Message is not an ephemeral snap', 400, 'NOT_A_SNAP');
