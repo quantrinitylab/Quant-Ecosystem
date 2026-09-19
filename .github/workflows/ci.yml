@@ -157,12 +157,6 @@ jobs:
           pnpm --filter @quant/database exec vitest run
           src/__tests__/memory-shadow-report.postgres.test.ts
 
-      - name: Apply isolated snap-views migration
-        run: >-
-          pnpm --filter @quant/database exec prisma db execute
-          --schema=prisma/schema.prisma
-          --file=prisma/migrations/0069_add_snap_views/migration.sql
-
       - name: Prove SnapView parallel race condition against real Postgres
         run: >-
           pnpm --filter @quant/database exec vitest run
