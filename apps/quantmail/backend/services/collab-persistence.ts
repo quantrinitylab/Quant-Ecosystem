@@ -238,6 +238,11 @@ export class PersistenceAdapter {
           loadedFromStorage = true;
         }
       } catch (storageErr) {
+        // A failed snapshot download is recoverable — the delta log is replayed
+        // instead — but it must stay visible, because silent fallback to replay
+        // is how a broken storage key turns into unexplained load. Same
+        // convention as the other backend services here.
+        // eslint-disable-next-line no-console
         console.warn(
           `[CollabPersistence] Failed to download snapshot ${row.snapshotStorageKey} for doc ${docId}, falling back to replay`,
           storageErr,
@@ -375,6 +380,10 @@ export class PersistenceAdapter {
       await this.writeSnapshot(docId, merged);
       writeSuccess = true;
     } catch (err) {
+      // Refusing to prune after a failed snapshot write is the safe branch: the
+      // deltas are the only remaining copy of the document. Surfacing it matters
+      // precisely because the request still succeeds.
+      // eslint-disable-next-line no-console
       console.warn(
         `[CollabPersistence] Failed to write snapshot for doc ${docId}, refusing delta pruning`,
         err,

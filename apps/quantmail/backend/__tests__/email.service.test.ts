@@ -27,13 +27,35 @@ function createMockPrisma() {
   };
 }
 
+/**
+ * `EmailService.send` prunes suppressed recipients, and with no suppression port
+ * injected it falls back to the module-level `suppressionService` singleton,
+ * which is bound to the real Prisma client. Mocking `prisma` here therefore did
+ * not isolate this suite: `send` reached for a live database and failed with
+ * `Environment variable not found: DATABASE_URL`.
+ *
+ * Injecting the seam the constructor already exposes keeps the suite offline. It
+ * allows every recipient, because suppression has its own dedicated tests and
+ * this file is about EmailService's own behaviour.
+ */
+function createAllowAllSuppression() {
+  return {
+    filterAllowedRecipients: vi.fn().mockImplementation(async (recipients: string[]) => ({
+      allowed: recipients,
+      suppressed: [],
+    })),
+  };
+}
+
 describe('EmailService', () => {
   let service: EmailService;
   let prisma: ReturnType<typeof createMockPrisma>;
+  let suppression: ReturnType<typeof createAllowAllSuppression>;
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new EmailService(prisma as never);
+    suppression = createAllowAllSuppression();
+    service = new EmailService(prisma as never, undefined, suppression);
   });
 
   describe('compose', () => {
