@@ -514,16 +514,47 @@ export class MessageService {
 
     const duration = typeof metadata.duration === 'number' ? metadata.duration : 10;
 
-    // SEC-1: Sender exclusion — reviewing your own sent snap does not consume or destroy it
+    // Helper to mint authentic SigV4 presigned view URL (60-second TTL) fail-closed (SEC-4)
+    const mintPresignedSnapUrl = async (rawMediaUrl: string): Promise<string> => {
+      if (!rawMediaUrl) return '';
+
+      // Prefer explicit persisted storageKey if available in metadata, else extract from mediaUrl
+      const storageKey =
+        typeof metadata.storageKey === 'string' && metadata.storageKey.trim().length > 0
+          ? metadata.storageKey.trim()
+          : extractStorageKey(rawMediaUrl);
+
+      if (!storageKey) {
+        throw createAppError(
+          'Cannot determine storage key for ephemeral snap',
+          500,
+          'STORAGE_KEY_MISSING',
+        );
+      }
+
+      try {
+        return await this.storage.getSignedUrl(storageKey, 60);
+      } catch (error: unknown) {
+        throw createAppError(
+          `Failed to mint ephemeral presigned URL: ${error instanceof Error ? error.message : 'Storage signing failure'}`,
+          500,
+          'PRESIGNING_FAILED',
+        );
+      }
+    };
+
+    // SEC-1: Sender exclusion — reviewing your own sent snap does not consume or destroy it,
+    // but still delivers an authentic short-lived presigned URL (SEC-4).
     if (message.senderId === userId) {
+      const ephemeralMediaUrl = await mintPresignedSnapUrl(message.mediaUrl ?? '');
       return {
-        mediaUrl: message.mediaUrl ?? '',
+        mediaUrl: ephemeralMediaUrl,
         duration,
       };
     }
 
     // SEC-2: Per-recipient atomic view-once consumption via snapView table
-    const snapViewDelegate = (this.prisma as any).snapView;
+    const snapViewDelegate = this.prisma.snapView;
     if (!snapViewDelegate || typeof snapViewDelegate.create !== 'function') {
       throw createAppError(
         'SnapView storage delegate is unavailable; run prisma migrate + prisma generate',
@@ -570,19 +601,9 @@ export class MessageService {
       throw err;
     }
 
-    // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL)
+    // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL) fail-closed
     // so raw media cannot be retained or fetched indefinitely from storage after consumption.
-    let ephemeralMediaUrl = message.mediaUrl ?? '';
-    if (ephemeralMediaUrl) {
-      const storageKey = extractStorageKey(ephemeralMediaUrl);
-      if (storageKey) {
-        try {
-          ephemeralMediaUrl = await this.storage.getSignedUrl(storageKey, 60);
-        } catch {
-          // If storage signing fails in unit tests or dev, retain mediaUrl
-        }
-      }
-    }
+    const ephemeralMediaUrl = await mintPresignedSnapUrl(message.mediaUrl ?? '');
 
     return {
       mediaUrl: ephemeralMediaUrl,
