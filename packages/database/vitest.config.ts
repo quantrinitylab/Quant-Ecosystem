@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    exclude: ['**/*.postgres.test.*', 'dist/**', 'node_modules/**'],
   },
 });
