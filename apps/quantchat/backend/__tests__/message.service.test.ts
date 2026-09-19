@@ -506,8 +506,9 @@ describe('MessageService', () => {
 
       const result = await service.consumeSnap('snap-1', 'viewer-1');
 
-      expect(result.mediaUrl).toContain('https://s3.example.com/snaps/photo-1.jpg');
+      expect(result.mediaUrl).toContain('snaps/photo-1.jpg');
       expect(result.mediaUrl).toContain('X-Amz-Expires=60');
+      expect(result.mediaUrl).toContain('X-Amz-Signature=');
       expect(result.duration).toBe(10);
       expect(prisma.snapView.create).toHaveBeenCalledWith({
         data: {
@@ -608,8 +609,9 @@ describe('MessageService', () => {
         expect(rejected).toHaveLength(1);
 
         if (fulfilled[0]?.status === 'fulfilled') {
-          expect(fulfilled[0].value.mediaUrl).toContain('https://s3.example.com/snaps/race.jpg');
+          expect(fulfilled[0].value.mediaUrl).toContain('snaps/race.jpg');
           expect(fulfilled[0].value.mediaUrl).toContain('X-Amz-Expires=60');
+          expect(fulfilled[0].value.mediaUrl).toContain('X-Amz-Signature=');
           expect(fulfilled[0].value.duration).toBe(10);
         }
 
@@ -684,14 +686,18 @@ describe('MessageService', () => {
       prisma.snapView.create.mockResolvedValue({ id: 'sv-bob' });
 
       const bobResult = await service.consumeSnap('group-snap', 'bob');
-      expect(bobResult.mediaUrl).toContain('https://s3.example.com/snaps/group-photo.jpg');
+      expect(bobResult.mediaUrl).toContain('snaps/group-photo.jpg');
+      expect(bobResult.mediaUrl).toContain('X-Amz-Expires=60');
+      expect(bobResult.mediaUrl).toContain('X-Amz-Signature=');
       expect(prisma.snapView.create).toHaveBeenCalledWith({
         data: { messageId: 'group-snap', userId: 'bob' },
       });
 
       // Charlie now views for the first time: Charlie still receives their own view
       const charlieResult = await service.consumeSnap('group-snap', 'charlie');
-      expect(charlieResult.mediaUrl).toContain('https://s3.example.com/snaps/group-photo.jpg');
+      expect(charlieResult.mediaUrl).toContain('snaps/group-photo.jpg');
+      expect(charlieResult.mediaUrl).toContain('X-Amz-Expires=60');
+      expect(charlieResult.mediaUrl).toContain('X-Amz-Signature=');
       expect(prisma.snapView.create).toHaveBeenCalledWith({
         data: { messageId: 'group-snap', userId: 'charlie' },
       });

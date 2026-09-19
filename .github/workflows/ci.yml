@@ -148,6 +148,17 @@ jobs:
           pnpm --filter @quant/database exec vitest run
           src/__tests__/memory-shadow-report.postgres.test.ts
 
+      - name: Apply isolated snap-views migration
+        run: >-
+          pnpm --filter @quant/database exec prisma db execute
+          --schema=prisma/schema.prisma
+          --file=prisma/migrations/0069_add_snap_views/migration.sql
+
+      - name: Prove SnapView parallel race condition against real Postgres
+        run: >-
+          pnpm --filter @quant/database exec vitest run
+          src/__tests__/snap-views.postgres.test.ts
+
   # Hard gate: QuantChat must meet the >=50% coverage threshold (Requirement 18.1).
   # Thresholds live in apps/quantchat/vitest.config.ts; `vitest run --coverage` exits
   # non-zero when any metric (statements/branches/functions/lines) drops below 50%.

@@ -448,6 +448,9 @@ importers:
       '@quant/shared-ui':
         specifier: workspace:*
         version: link:../../packages/shared-ui
+      '@quant/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@tanstack/react-query':
         specifier: ^5.60.0
         version: 5.100.14(react@19.2.6)
@@ -3443,7 +3446,6 @@ importers:
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.9(vitest@4.1.11))(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
-
   services/signal-projector:
     dependencies:
       '@quant/health-server':
