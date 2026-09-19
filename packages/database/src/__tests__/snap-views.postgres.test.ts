@@ -3,9 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient, Prisma } from '@prisma/client';
 
 const databaseUrl = process.env['DATABASE_URL'] || process.env['MEMORY_SHADOW_TEST_DATABASE_URL'];
-const describePostgres = databaseUrl ? describe : describe.skip;
+if (!databaseUrl) {
+  throw new Error(
+    'DATABASE_URL or MEMORY_SHADOW_TEST_DATABASE_URL environment variable is required for snap-views.postgres.test.ts',
+  );
+}
 
-describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)', () => {
+describe('SnapView PostgreSQL concurrency and unique index proof (SEC-2)', () => {
   let prisma: PrismaClient;
 
   beforeAll(async () => {
@@ -26,6 +30,26 @@ describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)
     await prisma.$executeRawUnsafe(`
       CREATE UNIQUE INDEX IF NOT EXISTS "snap_views_messageId_userId_key"
           ON "snap_views" ("messageId", "userId")
+    `);
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'snap_views_messageId_fkey'
+        ) THEN
+          ALTER TABLE "snap_views" ADD CONSTRAINT "snap_views_messageId_fkey"
+            FOREIGN KEY ("messageId") REFERENCES "messages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$;
+    `);
+    await prisma.$executeRawUnsafe(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'snap_views_userId_fkey'
+        ) THEN
+          ALTER TABLE "snap_views" ADD CONSTRAINT "snap_views_userId_fkey"
+            FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+        END IF;
+      END $$;
     `);
   });
 
@@ -50,7 +74,7 @@ describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)
     // Fire 10 simultaneous concurrent inserts for the EXACT SAME (messageId, userId) pair
     const results = await Promise.allSettled(
       Array.from({ length: 10 }, () =>
-        (prisma as any).snapView.create({
+        prisma.snapView.create({
           data: {
             messageId,
             userId,
@@ -75,7 +99,7 @@ describePostgres('SnapView PostgreSQL concurrency and unique index proof (SEC-2)
     }
 
     // Verify exactly 1 row exists in Postgres
-    const count = await (prisma as any).snapView.count({
+    const count = await prisma.snapView.count({
       where: { messageId, userId },
     });
     expect(count).toBe(1);
