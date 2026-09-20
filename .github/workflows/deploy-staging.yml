@@ -11,6 +11,7 @@ on:
         options:
           - quantmail
           - quantmail-backend
+          - quantube-backend
           - quantchat
           - quantai
           - admin
@@ -205,6 +206,10 @@ jobs:
               repository=quant-quantube; dockerfile=apps/quantube/Dockerfile
               deployment=quant-quantube; container=quant-quantube
               needs_cloudflare=false ;;
+            quantube-backend)
+              repository=quant-quantube-backend; dockerfile=apps/quantube/Dockerfile.backend
+              deployment=quant-quantube-backend; container=quantube-backend
+              needs_cloudflare=true ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile
               deployment=quant-quantedits; container=quant-quantedits

@@ -264,6 +264,12 @@ spec:
               value: '3105'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantube.quantrinity.in'
+            # Server-side proxy (src/app/api/_lib/proxy.ts) reads this at runtime
+            # to reach the QuantTube Fastify backend Service in-cluster. Without
+            # it the proxy defaults to localhost:3006 and every /api call returns
+            # empty/HTML, which is the "Unexpected end of JSON input" the app showed.
+            - name: QUANTUBE_BACKEND_URL
+              value: 'http://quant-quantube-backend.quant-staging.svc.cluster.local:3006'
           readinessProbe:
             httpGet:
               path: /api/health

@@ -1,0 +1,100 @@
+# QuantTube Fastify backend (staging): Deployment + Service + /api ingress.
+# The frontend (quantube.quantrinity.in) calls same-origin /api/*; this ingress
+# strips /api and routes to the backend, whose routes live at root (/videos,
+# /channels, /feed, /ai, ...). Mirrors infra/k8s/quantmail-backend.yaml, scoped
+# to the staging namespace and the quantube backend port (3006).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantube-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantube-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantube-backend
+  template:
+    metadata:
+      labels:
+        app: quant-quantube-backend
+    spec:
+      containers:
+        - name: quantube-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantube-backend:4b9f3079acbfbb1f7fea1fc2566bab1a838e14da
+          ports:
+            - containerPort: 3006
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3006'
+          # readiness runs SELECT 1 via fastify.prisma and returns 503 when the
+          # DB is unreachable, so a backend that can't reach Postgres leaves the
+          # Service instead of serving 502s. 10s x 6 rides out a transient blip.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3006
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          # liveness is deliberately dumber: /livez only reports the process is
+          # alive, so a brief DB outage drains (readiness) without restarting.
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3006
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantube-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantube-backend
+spec:
+  selector:
+    app: quant-quantube-backend
+  ports:
+    - port: 3006
+      targetPort: 3006
+      name: http
+---
+# /api on the quantube host -> backend. Separate ingress object so a mistake
+# here cannot take the frontend ingress (quant-remaining-apps-staging-ingress)
+# down with it. Higher-specificity /api path is matched before the frontend's /.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantube-api-staging
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantube.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantube-backend
+                port:
+                  number: 3006
