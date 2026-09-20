@@ -74,6 +74,8 @@
       "morgan@<1.12.0": "1.12.0",
       "vitest@>=2.1.0 <4.1.11": "4.1.11",
       "@vitest/mocker@>=2.1.0 <4.1.11": "4.1.11",
+      "@ai-sdk/provider-utils@>=3.0.0 <3.0.28": "3.0.28",
+      "@ai-sdk/provider-utils@>=4.0.0 <4.0.33": "4.0.33",
       "websocket-driver@<0.7.5": "0.7.5",
       "linkify-it@<=5.0.1": "5.0.2",
       "nodemailer@<=9.1.0": "9.1.1",
