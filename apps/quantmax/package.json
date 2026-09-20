@@ -6,13 +6,14 @@
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev",
-    "dev:backend": "node --loader ts-node/esm backend/app.ts",
+    "dev:backend": "tsx watch backend/server.ts",
     "build": "next build",
     "build:backend": "tsc --noEmit -p tsconfig.backend.json",
     "start": "next start",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.backend.json",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "start:backend": "tsx backend/server.ts"
   },
   "dependencies": {
     "@quant/api-client": "workspace:*",

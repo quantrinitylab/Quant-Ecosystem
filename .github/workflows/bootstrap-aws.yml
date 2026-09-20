@@ -439,6 +439,17 @@ jobs:
             namespace: $NS
           spec:
             replicas: 1
+            # Surge-free: a 1-replica Deployment with the default 25% maxSurge has
+            # to schedule a SECOND pod before the old one may terminate, so a
+            # namespace with no spare CPU/memory cannot roll out at all. Two
+            # rollouts burned the full 600s deadline on "1 old replicas are
+            # pending termination" on 2026-09-20. deploy-staging.yml re-applies
+            # this same patch on every rollout.
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 0
+                maxUnavailable: 1
             selector:
               matchLabels:
                 app: quant-quantmail
@@ -478,6 +489,13 @@ jobs:
             namespace: $NS
           spec:
             replicas: 1
+            # See the note on the frontend Deployment above: surge-free rollouts
+            # so a rollout never waits on capacity that is not there.
+            strategy:
+              type: RollingUpdate
+              rollingUpdate:
+                maxSurge: 0
+                maxUnavailable: 1
             selector:
               matchLabels:
                 app: quant-quantmail-backend

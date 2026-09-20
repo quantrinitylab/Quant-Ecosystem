@@ -6,12 +6,13 @@
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev -p 3003",
-    "dev:backend": "node --loader ts-node/esm backend/app.ts",
+    "dev:backend": "tsx watch backend/server.ts",
     "build": "next build",
     "start": "next start -p 3003",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "start:backend": "tsx backend/server.ts"
   },
   "dependencies": {
     "@quant/agentic": "workspace:*",
