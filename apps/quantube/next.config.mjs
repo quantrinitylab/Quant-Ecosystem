@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@quant/brand', '@quant/shared-ui', '@quant/common'],
+  transpilePackages: ['@quant/agentic', '@quant/brand', '@quant/shared-ui', '@quant/common'],
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   webpack: (config) => {
     // Resolve workspace TS packages that use NodeNext `.js` import specifiers

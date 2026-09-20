@@ -3,28 +3,28 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
     },
     "./voice-commands": {
-      "types": "./dist/voice/use-voice-commands.d.ts",
-      "import": "./dist/voice/use-voice-commands.js",
-      "default": "./dist/voice/use-voice-commands.js"
+      "types": "./src/voice/use-voice-commands.ts",
+      "import": "./src/voice/use-voice-commands.ts",
+      "default": "./src/voice/use-voice-commands.ts"
     },
     "./cross-app": {
-      "types": "./dist/cross-app/browser.d.ts",
-      "import": "./dist/cross-app/browser.js",
-      "default": "./dist/cross-app/browser.js"
+      "types": "./src/cross-app/browser.ts",
+      "import": "./src/cross-app/browser.ts",
+      "default": "./src/cross-app/browser.ts"
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": ["src", "dist"],
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
