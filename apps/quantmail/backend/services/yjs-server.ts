@@ -1,6 +1,6 @@
-import { createAppError } from '@quant/server-core';
+﻿import { createAppError } from '@quant/server-core';
 import * as Y from 'yjs';
-import { collabPersistence, type PersistenceAdapter } from './collab-persistence';
+import { getCollabPersistence, type PersistenceAdapter } from './collab-persistence';
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
@@ -171,7 +171,7 @@ export async function flushPendingWrites(docName: string): Promise<void> {
 }
 
 async function createRoom(name: string, options: YjsServerOptions): Promise<DocRoom> {
-  const persistence = options.persistence ?? collabPersistence;
+  const persistence = options.persistence ?? getCollabPersistence();
   const doc = new Y.Doc({ gc: options.gc ?? true });
   const room: DocRoom = {
     name,
@@ -341,7 +341,7 @@ export async function setupWSConnection(
       broadcast(room, awarenessFrame({ clientId, removed: true }));
     }
     if (room.connections.size === 0) {
-      const persistence = options.persistence ?? collabPersistence;
+      const persistence = options.persistence ?? getCollabPersistence();
       room.pendingWrite = room.pendingWrite
         .then(async () => {
           if (typeof persistence.compact === 'function') {
@@ -380,7 +380,7 @@ export async function closeYDoc(docName: string, options: YjsServerOptions = {})
     persistenceTimers.delete(docName);
   }
   await room.pendingWrite;
-  const persistence = options.persistence ?? collabPersistence;
+  const persistence = options.persistence ?? getCollabPersistence();
   if (typeof persistence.compact === 'function') {
     await persistence.compact(docName, room.doc);
   } else if (typeof (persistence as any).saveDoc === 'function') {

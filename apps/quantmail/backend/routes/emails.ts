@@ -3,7 +3,9 @@ import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
+import { createMemoryService, createInMemoryMemoryDb } from '@quant/ai';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
+import { MemoryBackedLearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
 import { ThreadService } from '../services/thread.service';
 import { ContactService } from '../services/contact.service';
 import {
@@ -1211,6 +1213,44 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
     const email = await service.markStarred(request.params.id, userId);
+
+    return reply.send({ success: true, data: formatEmailRecord(email) });
+  });
+
+  // PATCH /emails/:id/category — reassign an email's inbox partition and LEARN
+  // from it. Beyond fixing this one message, the correction is remembered
+  // per-user and per-sender (durable @quant/ai memory), so future inbound mail
+  // from the same sender is auto-sorted the way this user prefers — sorting that
+  // adapts to the individual, which fixed tabs cannot do. Learning is
+  // best-effort: a memory write fault never fails the recategorization itself.
+  fastify.patch<{ Params: { id: string } }>('/:id/category', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const parsed = z
+      .object({ category: z.enum(['primary', 'social', 'promotions', 'updates', 'forums']) })
+      .safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
+    const email = await service.setCategory(request.params.id, userId, parsed.data.category);
+
+    // Learn the correction. Keyed on the sender so it generalizes to the whole
+    // relationship, not just this one message.
+    try {
+      const memoryDb = process.env['DATABASE_URL']
+        ? ((fastify as unknown as { prisma?: unknown }).prisma ?? createInMemoryMemoryDb())
+        : createInMemoryMemoryDb();
+      const memoryBackend = createMemoryService({ prisma: memoryDb as never });
+      const learned = new MemoryBackedLearnedInboxCategoryStore(memoryBackend);
+      const sender = (email as unknown as { fromAddress?: string }).fromAddress;
+      if (sender) await learned.record(userId, sender, parsed.data.category);
+    } catch {
+      // Best-effort: the message is already recategorized; learning is additive.
+    }
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });

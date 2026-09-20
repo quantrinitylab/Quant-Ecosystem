@@ -45,6 +45,13 @@ All [ADR-011](./adr/011-memory-facade-shadow-migration.md) gates must be evidenc
 
 Use the existing [M11d protocol](./M11D_PROTOCOL.md), [runbook](./M11D_RUNBOOK.md), [shadow deployment runbook](./SHADOW_DEPLOY_RUNBOOK.md), and [decision log](./M11D_DECISION_LOG.md). Record one behavioral variable per experiment; never rewrite prior rows.
 
+## Owner-directed parallel feature work (recorded, not a milestone change)
+
+On 2026-09-20 the owner explicitly authorized a parallel QuantMail product-feature workstream outside M11D. This is recorded here per the update rule; it does **not** change the active milestone, which remains M11D-SHADOW-CANARY work unit 4, and it does **not** promote any backlog item.
+
+- **QM-SMART-INBOX** — populate the `aiCategory` column that the inbox category tabs already read but nothing wrote. The rules-based `SmartInboxService` (already built and unit-tested) is now invoked by `InboundIngestAdapter` for non-quarantined inbound mail, and the category is persisted via `EmailService.receive`. Scope is additive and fail-open: a categorization fault cannot block delivery, and quarantined mail is never categorized. This closes a real Gmail-parity gap (Primary/Social/Promotions/Updates/Forums were permanently empty). Evidence: backend typecheck clean on touched files plus `smart-inbox.service.test.ts` and inbound-ingest tests.
+- **QM-SMART-INBOX-LEARN** — durable, per-user learned categorization (beyond fixed Gmail tabs). New shared memory channel `UserInboxCategoryMemory` (`@quant/ai`) records sender→category corrections in user-owned memory; `PATCH /emails/:id/category` reassigns an owned email and best-effort records the correction; `InboundIngestAdapter` consults the learned store before built-in heuristics so a user's own past decision for a sender wins and survives restart. Fail-open throughout. Also fixed a stale `packages/auth/dist` build artifact that was breaking the QuantMail backend PAT typecheck (rebuilt `@quant/auth` and `@quant/common`; not a source change). Evidence: `@quant/ai` + backend typecheck clean; `user-inbox-category-memory.test.ts` (5/5), ingest learned-override test, PAT service tests (5/5).
+
 ## Parallel operational-readiness boundary
 
 The 2026-08-07 security/provider/infrastructure hardening stack is merged, but it did not replace the active milestone. External administrators may work on reversible prerequisites—GitHub OIDC, read-authorized EKS verification, real secret provisioning, private-endpoint access, plan review, immutable images, and staging evidence—without marking production ready or advancing this queue.

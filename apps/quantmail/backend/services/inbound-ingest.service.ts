@@ -11,6 +11,8 @@ import { ThreadService } from './thread.service';
 import { MailFilterService, type ResolvedActions } from './mail-filter.service';
 import { VacationResponderService } from './vacation-responder.service';
 import { SpamClassifierService } from './spam-classifier.service';
+import { SmartInboxService } from './smart-inbox.service';
+import type { LearnedInboxCategoryStore } from './learned-inbox-category.service';
 // Observability (Task 23.1, Req 23.2): every inbound delivery operation emits a span.
 import { noopSpanPort, withSpan, type SpanPort } from '../shared/observability';
 
@@ -132,6 +134,22 @@ export interface InboundIngestDeps {
    * Evaluates content tokens & headers when auth verdict does not force quarantine.
    */
   spamClassifier?: SpamClassifierService;
+  /**
+   * Optional smart-inbox categorizer. When provided (the default constructs one),
+   * every non-quarantined inbound message is sorted into a partition
+   * (`primary`/`social`/`promotions`/`updates`/`forums`) and the result is
+   * persisted to the email's `aiCategory` column — the field the inbox category
+   * tabs read but which nothing wrote before. Quarantined mail is never
+   * categorized: it belongs to Spam, not to a partition tab.
+   */
+  smartInbox?: SmartInboxService;
+  /**
+   * Optional durable, per-user learned-category store. When provided, a user's
+   * own past correction for a sender ("this belongs in Updates") wins over the
+   * built-in heuristics — the individual's sorting, remembered across restarts.
+   * Omitted => built-in rules only (still fully functional).
+   */
+  learnedCategory?: LearnedInboxCategoryStore;
 }
 
 /** Structural view of the folder lookups this adapter needs. */
@@ -215,6 +233,8 @@ export class InboundIngestAdapter {
   private readonly vacation: VacationResponderService | undefined;
   private readonly autoResponder: InboundAutoResponderPort | undefined;
   private readonly spamClassifier: SpamClassifierService | undefined;
+  private readonly smartInbox: SmartInboxService;
+  private readonly learnedCategory: LearnedInboxCategoryStore | undefined;
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -229,6 +249,8 @@ export class InboundIngestAdapter {
     this.vacation = deps.vacation;
     this.autoResponder = deps.autoResponder;
     this.spamClassifier = deps.spamClassifier;
+    this.smartInbox = deps.smartInbox ?? new SmartInboxService();
+    this.learnedCategory = deps.learnedCategory;
   }
 
   /**
@@ -321,6 +343,38 @@ export class InboundIngestAdapter {
 
         // 5) Persist, recording the AuthVerdict + routing (Requirements 5.1/5.3).
         const text = rawMessage.text ?? null;
+
+        // Smart-inbox partition. Only non-quarantined mail earns a category —
+        // spam belongs to the Spam tab, not to Primary/Social/etc. Fail-open:
+        // a categorization fault must never stop a message from being delivered,
+        // so the message simply lands uncategorized (Primary) on error.
+        let aiCategory: string | undefined;
+        if (!quarantine) {
+          try {
+            // The user's own past decision for this sender wins over heuristics.
+            // Best-effort: a memory read fault falls through to the built-in
+            // rules rather than blocking delivery.
+            let learned: string | null = null;
+            if (this.learnedCategory) {
+              try {
+                learned = await this.learnedCategory.lookup(userId, fromAddress);
+              } catch {
+                learned = null;
+              }
+            }
+            aiCategory =
+              learned ??
+              this.smartInbox.categorize({
+                from: fromAddress,
+                subject: rawMessage.subject,
+                to: rawMessage.to.join(', '),
+                body: text ?? rawMessage.html ?? '',
+              }).category;
+          } catch {
+            aiCategory = undefined;
+          }
+        }
+
         const email = await this.email.receive({
           userId,
           folderId: folderId ?? '',
@@ -340,6 +394,7 @@ export class InboundIngestAdapter {
           authResults: verdict as unknown,
           isSpam: quarantine,
           deliveryStatus: 'delivered',
+          ...(aiCategory !== undefined ? { aiCategory } : {}),
         });
 
         // Persist the originating Message-ID so future replies thread correctly.
@@ -412,6 +467,7 @@ export class InboundIngestAdapter {
           'delivery.quarantined': quarantine,
           'delivery.dmarc': verdict.dmarc,
           'delivery.indexed': !quarantine && !filterSuppressedIndex,
+          ...(aiCategory !== undefined ? { 'delivery.category': aiCategory } : {}),
         });
 
         return finalEmail;
