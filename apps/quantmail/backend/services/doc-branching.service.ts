@@ -1,7 +1,7 @@
 import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import * as Y from 'yjs';
-import { collabPersistence, type PersistenceAdapter } from './collab-persistence';
+import { getCollabPersistence, type PersistenceAdapter } from './collab-persistence';
 import { getLiveDoc } from './yjs-server';
 
 const BRANCH_PREFIX = '__branch__:';
@@ -78,7 +78,10 @@ function changed(update: Uint8Array): boolean {
 export class DocBranchingService {
   constructor(
     private readonly db: BranchingPrismaClient = defaultPrisma,
-    private readonly persistence: PersistenceAdapter = collabPersistence,
+    // Lazy by construction: a default parameter is evaluated per call, so the
+    // storage requirement bites when this service is instantiated rather than
+    // when the module is imported.
+    private readonly persistence: PersistenceAdapter = getCollabPersistence(),
   ) {}
 
   async createBranch(
