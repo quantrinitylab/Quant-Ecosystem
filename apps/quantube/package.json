@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "onnxruntime-node": "1.26.0",
     "@quant/api-client": "workspace:*",
     "@quant/agentic": "workspace:*",
     "@quant/auth": "workspace:*",
