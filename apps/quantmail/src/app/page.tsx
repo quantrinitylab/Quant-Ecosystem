@@ -59,7 +59,7 @@ import {
 import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
-import type { ContactGroup, Email } from '../types';
+import type { ContactGroup, Email, EmailCategory } from '../types';
 
 export type { ConversationThread };
 
@@ -2172,6 +2172,16 @@ export default function InboxPage() {
     [mutations, conversationIds],
   );
 
+  const moveSelectedToCategory = useCallback(
+    async (category: Exclude<EmailCategory, 'spam'>) => {
+      const selected = Array.from(selectedIds);
+      if (selected.length !== 1) return;
+      const saved = await mutations.moveToCategory(conversationIds(selected[0]), category);
+      if (saved) setSelectedIds(new Set());
+    },
+    [conversationIds, mutations, selectedIds],
+  );
+
   const toggleStar = useCallback(
     async (event: React.MouseEvent | null, id: string) => {
       event?.stopPropagation();
@@ -2336,6 +2346,7 @@ export default function InboxPage() {
       onTogglePin={() => void batchToggleStar(Array.from(selectedIds), allSelectedPinned)}
       onMarkRead={() => void batchMarkRead(Array.from(selectedIds), true)}
       onMarkUnread={() => void batchMarkRead(Array.from(selectedIds), false)}
+      onMoveToCategory={(category) => void moveSelectedToCategory(category)}
       onArchive={() => void batchAction('archive')}
       onDelete={() => void batchAction('delete')}
       onSnooze={(until) => void batchSnooze(until)}

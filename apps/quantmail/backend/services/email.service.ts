@@ -95,6 +95,14 @@ export interface ReceiveEmailInput {
   isSpam?: boolean;
   /** Inbound delivery lifecycle state (inbound mail is `delivered`). */
   deliveryStatus?: string;
+  /**
+   * Smart-inbox partition (`primary` | `social` | `promotions` | `updates` |
+   * `forums`), written by the InboundIngestAdapter's SmartInboxService pass so
+   * the inbox category tabs read a column that is actually populated. Absent =>
+   * the column stays null and the message falls into Primary, which is the same
+   * behaviour every message had before categorization was wired.
+   */
+  aiCategory?: string;
 }
 
 export interface Label {
@@ -624,6 +632,7 @@ export class EmailService {
         ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
         ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
         ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
+        ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
       } as never,
     });
 
@@ -746,6 +755,50 @@ export class EmailService {
     return this.prisma.email.update({
       where: { id: emailId },
       data: { isStarred: !email.isStarred },
+    });
+  }
+
+  /**
+   * Reassign every owner-local row represented by one UI conversation. The
+   * anchor must be present in the request and every requested row must belong to
+   * the same caller; the transaction rejects the whole correction otherwise.
+   */
+  async setCategory(
+    anchorEmailId: string,
+    emailIds: string[],
+    userId: string,
+    category: string,
+  ): Promise<{ updated: number; emails: Email[] }> {
+    const ids = Array.from(new Set(emailIds.filter(Boolean)));
+    if (!ids.includes(anchorEmailId) || ids.length === 0) {
+      throw createAppError('Conversation email ids are invalid', 400, 'INVALID_EMAIL_IDS');
+    }
+
+    return this.prisma.$transaction(async (transaction) => {
+      const emails = await transaction.email.findMany({
+        where: { id: { in: ids }, userId, deletedAt: null },
+      });
+      if (emails.length !== ids.length) {
+        // One generic answer for absent and other-tenant rows: no id oracle.
+        throw createAppError('Email conversation not found', 404, 'EMAIL_NOT_FOUND');
+      }
+
+      const result = await transaction.email.updateMany({
+        where: { id: { in: ids }, userId, deletedAt: null },
+        data: { aiCategory: category },
+      });
+      if (result.count !== ids.length) {
+        throw createAppError(
+          'Email conversation changed while it was being categorized',
+          409,
+          'CATEGORY_CONFLICT',
+        );
+      }
+
+      return {
+        updated: result.count,
+        emails: emails.map((email) => ({ ...email, aiCategory: category })),
+      };
     });
   }
 

@@ -99,9 +99,7 @@ function createMockPrisma() {
     },
     emailFolder: {
       findFirst: vi.fn(async (args: { where: { userId: string; type: string } }) =>
-        args.where.type === 'SPAM'
-          ? { id: SPAM_FOLDER_ID }
-          : { id: INBOX_FOLDER_ID },
+        args.where.type === 'SPAM' ? { id: SPAM_FOLDER_ID } : { id: INBOX_FOLDER_ID },
       ),
     },
     emailThread: {
@@ -290,11 +288,89 @@ describe('InboundIngestAdapter.ingest — auth recording + quarantine routing (R
   });
 
   it('static shouldQuarantine() is true exactly when DMARC fails', () => {
-    expect(
-      InboundIngestAdapter.shouldQuarantine({ dmarc: 'fail' } as never),
-    ).toBe(true);
+    expect(InboundIngestAdapter.shouldQuarantine({ dmarc: 'fail' } as never)).toBe(true);
     expect(InboundIngestAdapter.shouldQuarantine({ dmarc: 'pass' } as never)).toBe(false);
     expect(InboundIngestAdapter.shouldQuarantine({ dmarc: 'none' } as never)).toBe(false);
+  });
+
+  // ── Smart-inbox categorization (QM-SMART-INBOX) ──────────────────────────
+  // The category tabs read `aiCategory`, a column nothing wrote before this
+  // wiring. Ingest now runs SmartInboxService over non-quarantined mail and
+  // persists the partition, so a facebook.com sender lands in `social` instead
+  // of everything collapsing to Primary.
+
+  it('writes aiCategory on a non-quarantined inbound message (social sender -> social)', async () => {
+    const adapter = makeAdapter(prisma, buildZones(), indexer);
+
+    // facebook.com publishes no DMARC record in the seeded zones, so dmarc is
+    // 'none' -> not quarantined -> routed to INBOX and eligible for a category.
+    const social: InboundRawMessage = {
+      from: 'Facebook <notifications@facebook.com>',
+      to: [RECIPIENT],
+      subject: 'You have a new friend request',
+      text: 'Someone wants to connect with you.',
+      messageId: '<social-1@facebook.com>',
+      inReplyTo: null,
+      date: new Date('2024-01-03T00:00:00Z'),
+      envelopeFrom: 'bounce@facebook.com',
+      clientIp: '203.0.113.99',
+    };
+
+    await adapter.ingest(social);
+
+    const data = emailCreateData(prisma);
+    expect(data['isSpam']).toBe(false);
+    expect(data['folderId']).toBe(INBOX_FOLDER_ID);
+    // The whole point of the change: the column is populated, not null.
+    expect(data['aiCategory']).toBe('social');
+  });
+
+  it('does NOT categorize a quarantined (DMARC-fail) message — spam has no partition', async () => {
+    const adapter = makeAdapter(prisma, buildZones(), indexer);
+
+    await adapter.ingest(buildDmarcFailMessage());
+
+    const data = emailCreateData(prisma);
+    expect(data['isSpam']).toBe(true);
+    // Quarantined mail belongs to Spam, never to a category tab: aiCategory
+    // must be absent so it cannot surface under Primary/Social/etc.
+    expect(data['aiCategory']).toBeUndefined();
+  });
+
+  it("a user's learned correction overrides the built-in heuristic for that sender", async () => {
+    // The built-in rules would sort notifications@facebook.com as `social`, but
+    // this user has previously moved that sender's mail to `updates`. The
+    // learned decision must win.
+    const learnedCategory = {
+      lookup: vi.fn(async (_userId: string, sender: string) =>
+        sender.toLowerCase().includes('facebook.com') ? 'updates' : null,
+      ),
+      record: vi.fn(async () => undefined),
+    };
+    const auth = new DeliverabilityAuthService(prisma as never, {
+      dns: new FakeDnsResolver(buildZones()),
+    });
+    const adapter = new InboundIngestAdapter(prisma as never, auth, {
+      indexer,
+      learnedCategory,
+    });
+
+    await adapter.ingest({
+      from: 'Facebook <notifications@facebook.com>',
+      to: [RECIPIENT],
+      subject: 'You have a new friend request',
+      text: 'Someone wants to connect.',
+      messageId: '<learned-1@facebook.com>',
+      inReplyTo: null,
+      date: new Date('2024-01-04T00:00:00Z'),
+      envelopeFrom: 'bounce@facebook.com',
+      clientIp: '203.0.113.99',
+    });
+
+    expect(learnedCategory.lookup).toHaveBeenCalledTimes(1);
+    const data = emailCreateData(prisma);
+    // `updates` (learned) beats `social` (built-in rule for facebook.com).
+    expect(data['aiCategory']).toBe('updates');
   });
 });
 

@@ -71,6 +71,10 @@ export interface MailMutations {
   toggleStar: (ids: string | string[]) => Promise<void>;
   markRead: (ids: string | string[]) => Promise<void>;
   markUnread: (ids: string | string[]) => Promise<void>;
+  moveToCategory: (
+    ids: string | string[],
+    category: Exclude<EmailCategory, 'spam'>,
+  ) => Promise<boolean>;
   /**
    * `unitCount` switches the toast from a single row's voice to a batch's: omit it
    * and it reads "Snoozed until tomorrow 09:00", pass it and it says how many
@@ -461,6 +465,33 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
     [queryClient, run],
   );
 
+  const moveToCategory = useCallback(
+    async (ids: string | string[], category: Exclude<EmailCategory, 'spam'>) => {
+      const list = idList(ids);
+      if (list.length === 0) return false;
+
+      const rollback = applyOptimistic(list, { category, aiCategory: category });
+      const response = await apiClient.setConversationCategory(list[0], list, category);
+      if (!response.success) {
+        rollback();
+        showToast({
+          text: response.error?.message || 'Conversation category could not be saved',
+          type: 'error',
+        });
+        scheduleReconcile();
+        return false;
+      }
+
+      showToast({
+        text: `Conversation moved to ${category[0].toUpperCase()}${category.slice(1)}`,
+        type: 'success',
+      });
+      scheduleReconcile();
+      return true;
+    },
+    [applyOptimistic, scheduleReconcile],
+  );
+
   const snooze = useCallback(
     (ids: string | string[], until: Date, unitCount?: number) =>
       run({
@@ -512,10 +543,22 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       toggleStar,
       markRead,
       markUnread,
+      moveToCategory,
       snooze,
       batch,
     }),
-    [archive, unarchive, trash, restore, toggleStar, markRead, markUnread, snooze, batch],
+    [
+      archive,
+      unarchive,
+      trash,
+      restore,
+      toggleStar,
+      markRead,
+      markUnread,
+      moveToCategory,
+      snooze,
+      batch,
+    ],
   );
 }
 

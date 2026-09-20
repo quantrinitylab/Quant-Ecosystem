@@ -16,6 +16,7 @@ import { browserAuthSession } from './browser-auth-session';
 import { readAIIntent } from '../lib/ai-intent-preference';
 import type {
   Email,
+  EmailCategory,
   EmailThread,
   EmailLabel,
   EmailFilter,
@@ -425,6 +426,29 @@ export class QuantMailApiClient {
 
   async markAllRead(category?: string): Promise<ApiResponse<{ message: string; updated: number }>> {
     return this.post('/emails/mark-all-read', { category });
+  }
+
+  async setConversationCategory(
+    anchorId: string,
+    emailIds: string[],
+    category: Exclude<EmailCategory, 'spam'>,
+  ): Promise<ApiResponse<{ updated: number; emails: Email[]; learnedSenders: number }>> {
+    return this.patch(`/emails/${anchorId}/category`, { emailIds, category });
+  }
+
+  async backfillInboxCategories(input: {
+    limit?: number;
+    cursor?: string;
+  }): Promise<
+    ApiResponse<{
+      scanned: number;
+      updated: number;
+      skipped: number;
+      nextCursor: string | null;
+      remaining: number;
+    }>
+  > {
+    return this.post('/emails/categories/backfill', input);
   }
 
   async addLabel(emailId: string, label: string): Promise<ApiResponse<{ message: string }>> {

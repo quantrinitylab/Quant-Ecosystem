@@ -688,10 +688,14 @@ export function groupEmailsIntoThreads(
 
     const normalizedLatest = normalizeSubject(latest.subject);
 
+    // An explicit server-side correction wins even when it is `primary`.
+    // `category` alone cannot tell that apart from the formatter's fallback, so
+    // only `aiCategory` may override the local heuristic with Primary.
     const category =
-      latest.category && latest.category !== 'primary'
+      latest.aiCategory ??
+      (latest.category && latest.category !== 'primary'
         ? latest.category
-        : classifyEmailCategory(latest);
+        : classifyEmailCategory(latest));
 
     threads.push({
       id: latest.id,

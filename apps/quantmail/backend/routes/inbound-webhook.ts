@@ -317,6 +317,11 @@ export function __setInboundIngestAdapter(adapter: InboundIngestAdapter | undefi
   adapterSingleton = adapter;
 }
 
+export interface InboundWebhookRouteOptions {
+  /** Process-scoped mail runtime injected by buildApp; fallback preserves tests. */
+  inboundIngest?: InboundIngestAdapter;
+}
+
 /**
  * Map a parsed message onto the pipeline's input shape.
  *
@@ -362,6 +367,7 @@ async function deliverStoredMessage(
   bucket: string,
   key: string,
   receipt: SesReceipt | undefined,
+  inboundIngest: InboundIngestAdapter,
 ): Promise<DeliveryOutcome> {
   const rawEmail = await fetchRawEmail(bucket, key);
   const parsed = parseRawEmail(rawEmail);
@@ -390,7 +396,7 @@ async function deliverStoredMessage(
   let delivered = 0;
   for (const user of users) {
     try {
-      await ingestAdapter().ingest(raw, { userId: user.id, verdict, quarantine });
+      await inboundIngest.ingest(raw, { userId: user.id, verdict, quarantine });
       delivered += 1;
     } catch (error) {
       failures.push(user.id);
@@ -408,7 +414,11 @@ async function deliverStoredMessage(
 // Routes
 // ---------------------------------------------------------------------------
 
-export default async function inboundWebhookRoutes(app: FastifyInstance): Promise<void> {
+export default async function inboundWebhookRoutes(
+  app: FastifyInstance,
+  options: InboundWebhookRouteOptions = {},
+): Promise<void> {
+  const inboundIngest = options.inboundIngest ?? ingestAdapter();
   app.post('/webhook/inbound', async (request, reply) => {
     const sns = (request.body ?? {}) as SnsEnvelope;
 
@@ -623,7 +633,7 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
 
     // 6) Deliver through the shared ingest pipeline.
     try {
-      const outcome = await deliverStoredMessage(app.log, bucket, key, receipt);
+      const outcome = await deliverStoredMessage(app.log, bucket, key, receipt, inboundIngest);
       return reply.send({ ok: true, ...outcome });
     } catch (error) {
       // Non-2xx so SNS redelivers. Idempotency on `(userId, messageId)` makes the
@@ -700,7 +710,13 @@ export default async function inboundWebhookRoutes(app: FastifyInstance): Promis
     const failed: string[] = [];
     for (const key of keys) {
       try {
-        const outcome = await deliverStoredMessage(app.log, S3_BUCKET, key, undefined);
+        const outcome = await deliverStoredMessage(
+          app.log,
+          S3_BUCKET,
+          key,
+          undefined,
+          inboundIngest,
+        );
         delivered += outcome.delivered;
         if (outcome.skipped) {
           skipped += 1;
