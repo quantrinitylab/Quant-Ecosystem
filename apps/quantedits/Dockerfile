@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --ch
 FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
-RUN pnpm turbo build --filter=@quant/quantedits --concurrency=1
+RUN pnpm turbo build --filter=@quant/quantcooks --concurrency=1
 
 FROM node:22-slim AS runner
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
@@ -35,4 +35,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 
 # Use the workspace-pinned Next (v15) via pnpm — never `npx next`, which fetches
 # the latest Next (16.x) at runtime and runs the v15-built app on v16 (crash).
-CMD ["pnpm", "--filter", "@quant/quantedits", "exec", "next", "start", "-p", "3106"]
+CMD ["pnpm", "--filter", "@quant/quantcooks", "exec", "next", "start", "-p", "3106"]
