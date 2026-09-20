@@ -51,15 +51,3 @@ export async function buildApp(config?: AppConfig) {
 
   return app;
 }
-
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
-  const config = getConfig();
-  buildApp(config).then((app) => {
-    app.listen({ port: config.port, host: config.host }, (err) => {
-      if (err) {
-        app.log.error(err);
-        process.exit(1);
-      }
-    });
-  });
-}

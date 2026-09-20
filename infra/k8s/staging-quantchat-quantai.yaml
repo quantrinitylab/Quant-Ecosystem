@@ -7,6 +7,16 @@ metadata:
     app: quant-quantchat
 spec:
   replicas: 1
+  # Surge-free: a 1-replica Deployment with the default 25% maxSurge must
+  # schedule a SECOND pod before the old one may terminate, so a rollout stalls
+  # for its full deadline whenever the namespace has no spare capacity (seen on
+  # quanttrinity and quantmail-backend, 2026-09-20). deploy-staging.yml
+  # re-applies this patch on every rollout.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantchat
@@ -110,6 +120,12 @@ metadata:
     app: quant-quantai
 spec:
   replicas: 1
+  # See the note on quant-quantchat above.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantai

@@ -158,64 +158,113 @@ jobs:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
+          # `container` is the PRIMARY container: the one the Cloudflare env
+          # plumbing targets and the one the post-rollout digest assertion reads.
+          # `containers` is every container in the Deployment that runs THIS
+          # image. For the app targets the Fastify backend runs as a sidecar off
+          # the same image as the Next frontend, so updating only the primary
+          # left the sidecar pinned to whatever tag the manifest was applied
+          # with — the frontend moved and its backend did not.
+          # `smoke_url` + `smoke_paths` are the post-rollout proof: the public
+          # host and a few REAL data routes that must not answer 5xx. Health
+          # routes alone cannot catch a dead backend, because on these apps
+          # /api/health is served by Next itself.
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
               deployment=quant-quantmail; container=quant-quantmail
+              containers=quant-quantmail
+              smoke_url=https://quantmail.in
+              smoke_paths='/api/healthz /api/contacts'
               needs_cloudflare=false ;;
             quantmail-backend)
               repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
               deployment=quant-quantmail-backend; container=quantmail-backend
+              containers=quantmail-backend
+              smoke_url=https://quantmail.in
+              smoke_paths='/api/healthz /api/contacts /api/drive/files'
               needs_cloudflare=true ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
               deployment=quant-quantchat; container=quant-quantchat
+              containers='quant-quantchat quant-quantchat-backend'
+              smoke_url=https://quantchat.quantrinity.in
+              smoke_paths='/api/health /api/conversations'
               needs_cloudflare=false ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
               deployment=quant-quantai; container=quant-quantai
+              containers='quant-quantai quant-quantai-backend'
+              smoke_url=https://quantai.quantrinity.in
+              smoke_paths='/api/health /api/assistant/conversations'
               needs_cloudflare=true ;;
             admin)
               repository=quant-admin; dockerfile=apps/admin/Dockerfile
               deployment=quant-platform-staging-admin; container=admin
+              containers=admin
+              smoke_url=''; smoke_paths=''
               needs_cloudflare=false ;;
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
               deployment=quant-ws-gateway; container=ws-gateway
+              containers=ws-gateway
+              smoke_url=''; smoke_paths=''
               needs_cloudflare=false ;;
             # The seven apps that shipped a Dockerfile and an /api/health route
             # but had no ECR repository, no Deployment and no DNS, so they could
-            # never be reached. Each is a single Next.js process, so deployment
-            # and container share the app's name. Hostnames use the Wave E
-            # product names; see infra/k8s/staging-remaining-apps.yaml for the
-            # directory-to-host mapping.
+            # never be reached. Hostnames use the Wave E product names; see
+            # infra/k8s/staging-remaining-apps.yaml for the directory-to-host
+            # mapping and the frontend/backend port pairs.
             quantsync)
               repository=quant-quantsync; dockerfile=apps/quantsync/Dockerfile
               deployment=quant-quantsync; container=quant-quantsync
+              containers='quant-quantsync quant-quantsync-backend'
+              smoke_url=https://quantwave.quantrinity.in
+              smoke_paths='/api/health /api/communities /api/anonymous/feed'
               needs_cloudflare=false ;;
             quantmax)
               repository=quant-quantmax; dockerfile=apps/quantmax/Dockerfile
               deployment=quant-quantmax; container=quant-quantmax
+              containers='quant-quantmax quant-quantmax-backend'
+              smoke_url=https://quantmax.quantrinity.in
+              smoke_paths='/api/health /api/economy/wallet /api/commerce/orders'
               needs_cloudflare=false ;;
             quantneon)
               repository=quant-quantneon; dockerfile=apps/quantneon/Dockerfile
               deployment=quant-quantneon; container=quant-quantneon
+              containers='quant-quantneon quant-quantneon-backend'
+              smoke_url=https://quantgram.quantrinity.in
+              smoke_paths='/api/health /api/explore /api/dm/conversations'
               needs_cloudflare=false ;;
             quantube)
               repository=quant-quantube; dockerfile=apps/quantube/Dockerfile
               deployment=quant-quantube; container=quant-quantube
+              containers='quant-quantube quant-quantube-backend'
+              smoke_url=https://quantube.quantrinity.in
+              smoke_paths='/api/health /api/creator/credits /api/cross-publish/library'
               needs_cloudflare=false ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile
               deployment=quant-quantedits; container=quant-quantedits
+              containers='quant-quantedits quant-quantedits-backend'
+              smoke_url=https://quantcooks.quantrinity.in
+              smoke_paths='/api/health /api/assets /api/effects'
               needs_cloudflare=false ;;
             quantads)
               repository=quant-quantads; dockerfile=apps/quantads/Dockerfile
               deployment=quant-quantads; container=quant-quantads
+              containers='quant-quantads quant-quantads-backend'
+              smoke_url=https://quantads.quantrinity.in
+              smoke_paths='/api/health /api/audiences /api/bidding/stats'
               needs_cloudflare=false ;;
+            # quanttrinity has no backend/ directory: its route handlers run
+            # in-process, so one container is correct here.
             quanttrinity)
               repository=quant-quanttrinity; dockerfile=apps/quanttrinity/Dockerfile
               deployment=quant-quanttrinity; container=quant-quanttrinity
+              containers=quant-quanttrinity
+              smoke_url=https://quanttrinity.quantrinity.in
+              smoke_paths='/api/health /api/overview /api/apps'
               needs_cloudflare=false ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
@@ -225,6 +274,9 @@ jobs:
             echo "dockerfile=$dockerfile"
             echo "deployment=$deployment"
             echo "container=$container"
+            echo "containers=$containers"
+            echo "smoke_url=$smoke_url"
+            echo "smoke_paths=$smoke_paths"
             echo "needs_cloudflare=$needs_cloudflare"
             echo "registry=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
           } >> "$GITHUB_OUTPUT"
@@ -296,9 +348,12 @@ jobs:
         shell: bash
         env:
           CONTAINER: ${{ steps.target.outputs.container }}
+          CONTAINERS: ${{ steps.target.outputs.containers }}
           DEPLOYMENT: ${{ steps.target.outputs.deployment }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+          SMOKE_URL: ${{ steps.target.outputs.smoke_url }}
+          SMOKE_PATHS: ${{ steps.target.outputs.smoke_paths }}
           NEEDS_CLOUDFLARE: ${{ steps.target.outputs.needs_cloudflare }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -309,11 +364,49 @@ jobs:
           kubectl auth can-i patch deployments -n "$K8S_NAMESPACE" | grep -qx yes
           kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" >/dev/null
 
+          # Capture the current image of EVERY container this target owns, before
+          # the Cloudflare env patch below triggers its own rollout. `set_args` /
+          # `restore_args` keep frontend and backend sidecar moving together; a
+          # single-container target simply has one entry.
+          set_args=()
+          restore_args=()
+          for c in $CONTAINERS; do
+            prev="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+              -o "jsonpath={.spec.template.spec.containers[?(@.name=='$c')].image}")"
+            test -n "$prev" || {
+              echo "Container $c not found in deployment $DEPLOYMENT" >&2
+              exit 1
+            }
+            set_args+=("$c=$IMMUTABLE_IMAGE")
+            restore_args+=("$c=$prev")
+          done
           previous_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
             -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
-          test -n "$previous_image" || {
-            echo "Container $CONTAINER not found in deployment $DEPLOYMENT" >&2
-            exit 1
+
+          # Pod selector straight off the Deployment, so diagnostics work for
+          # every target regardless of which label scheme it was created with.
+          pod_selector="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+            -o go-template='{{range $k, $v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' | sed 's/,$//')"
+
+          # A bare "exceeded its progress deadline" says nothing about WHY. The
+          # reason is always in the new pods' events (Pending + Insufficient
+          # cpu/memory, ImagePullBackOff, CrashLoopBackOff) or their logs, so dump
+          # both before touching anything.
+          dump_diagnostics() {
+            echo '::group::Rollout diagnostics'
+            kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" -o wide || true
+            kubectl describe "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" | tail -30 || true
+            kubectl get pods -n "$K8S_NAMESPACE" -l "$pod_selector" -o wide || true
+            for p in $(kubectl get pods -n "$K8S_NAMESPACE" -l "$pod_selector" \
+              -o 'jsonpath={.items[*].metadata.name}'); do
+              echo "--- events: $p ---"
+              kubectl describe "pod/$p" -n "$K8S_NAMESPACE" | sed -n '/Events:/,$p' || true
+              echo "--- logs: $p (all containers, tail 60) ---"
+              kubectl logs "pod/$p" -n "$K8S_NAMESPACE" --all-containers=true --tail=60 2>&1 || true
+              kubectl logs "pod/$p" -n "$K8S_NAMESPACE" --all-containers=true --tail=60 --previous 2>&1 || true
+            done
+            kubectl get events -n "$K8S_NAMESPACE" --sort-by=.lastTimestamp | tail -25 || true
+            echo '::endgroup::'
           }
 
           # ── Cloudflare Workers AI credentials ──────────────────────────────
@@ -378,8 +471,22 @@ jobs:
             trap - EXIT
           fi
 
+          # ── Surge-free rollout for single-replica staging workloads ─────────
+          # With the default 25% maxSurge, a 1-replica Deployment must schedule a
+          # SECOND pod before the old one may terminate, so a namespace with no
+          # spare CPU/memory cannot roll out at all: on 2026-09-20 quanttrinity
+          # and quantmail-backend each spent the full 600s on "1 old replicas are
+          # pending termination" and then rolled back. maxSurge 0 trades a few
+          # seconds of staging downtime for a rollout that does not depend on
+          # spare capacity. The patch is idempotent.
+          replicas="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" -o 'jsonpath={.spec.replicas}')"
+          if [ "${replicas:-1}" -le 1 ]; then
+            kubectl patch "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" --type=merge -p \
+              '{"spec":{"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxSurge":0,"maxUnavailable":1}}}}'
+          fi
+
           kubectl set image "deployment/$DEPLOYMENT" \
-            "$CONTAINER=$IMMUTABLE_IMAGE" -n "$K8S_NAMESPACE"
+            "${set_args[@]}" -n "$K8S_NAMESPACE"
 
           set +e
           kubectl rollout status "deployment/$DEPLOYMENT" \
@@ -387,25 +494,80 @@ jobs:
           rollout_status=$?
           set -e
           if [ "$rollout_status" -ne 0 ]; then
+            dump_diagnostics
             echo 'Rollout failed; restoring the previous image.' >&2
             kubectl set image "deployment/$DEPLOYMENT" \
-              "$CONTAINER=$previous_image" -n "$K8S_NAMESPACE"
+              "${restore_args[@]}" -n "$K8S_NAMESPACE"
             kubectl rollout status "deployment/$DEPLOYMENT" \
               -n "$K8S_NAMESPACE" --timeout=600s
             exit "$rollout_status"
           fi
 
-          deployed_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
-            -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].image}")"
-          test "$deployed_image" = "$IMMUTABLE_IMAGE"
+          # Every container this target owns must be on the release digest, not
+          # just the primary one.
+          for c in $CONTAINERS; do
+            deployed_image="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
+              -o "jsonpath={.spec.template.spec.containers[?(@.name=='$c')].image}")"
+            test "$deployed_image" = "$IMMUTABLE_IMAGE" || {
+              echo "Container $c is on $deployed_image, expected $IMMUTABLE_IMAGE" >&2
+              exit 1
+            }
+          done
+
+          # ── Post-rollout smoke: real routes, not just /api/health ───────────
+          # On the Next apps /api/health is served by Next itself, so it stays
+          # green while every backend-proxying route answers 500/502 — exactly the
+          # state all six app frontends shipped in on 2026-09-20 with a "success"
+          # deploy. A 401 here is a PASS: it proves the request reached a live
+          # backend that validated the token. Only 5xx and transport failures mean
+          # the data path is dead.
+          smoke_report='skipped (no public host for this target)'
+          if [ -n "${SMOKE_URL:-}" ] && [ -n "${SMOKE_PATHS:-}" ]; then
+            smoke_failed=''
+            smoke_report=''
+            for path in $SMOKE_PATHS; do
+              code=000
+              for _attempt in 1 2 3 4 5 6 7 8 9 10; do
+                code="$(curl -s -o /dev/null -w '%{http_code}' \
+                  --connect-timeout 10 --max-time 25 "$SMOKE_URL$path" || echo 000)"
+                case "$code" in
+                  5* | 000) sleep 6 ;;
+                  *) break ;;
+                esac
+              done
+              echo "smoke $SMOKE_URL$path -> $code"
+              smoke_report="$smoke_report \`$path\`=$code"
+              case "$code" in
+                5* | 000) smoke_failed="$smoke_failed $path=$code" ;;
+              esac
+            done
+            if [ -n "$smoke_failed" ]; then
+              echo "Smoke checks failed:$smoke_failed" >&2
+              dump_diagnostics
+              echo 'Restoring the previous image.' >&2
+              kubectl set image "deployment/$DEPLOYMENT" \
+                "${restore_args[@]}" -n "$K8S_NAMESPACE"
+              kubectl rollout status "deployment/$DEPLOYMENT" \
+                -n "$K8S_NAMESPACE" --timeout=600s || true
+              {
+                echo '## Staging rollout FAILED smoke'
+                echo "- Target: \`${{ inputs.target }}\`"
+                echo "- Failing routes:$smoke_failed"
+                echo '- Rolled back to the previous image.'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          fi
           {
             echo '## Staging rollout'
             echo "- Target: \`${{ inputs.target }}\`"
             echo "- Release SHA: \`$RELEASE_SHA\`"
             echo "- Image digest: \`$IMAGE_DIGEST\`"
             echo "- Deployment: \`$DEPLOYMENT\`"
+            echo "- Containers updated: \`$CONTAINERS\`"
             echo "- Previous image: \`$previous_image\`"
             echo "- Reused existing image: \`${{ steps.build.outputs.reused }}\`"
+            echo "- Smoke: $smoke_report"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Logout and remove local release image

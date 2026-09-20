@@ -2,19 +2,50 @@
 # Dockerfile and an /api/health route but had never been deployed: QuantWave,
 # QuantMax, QuantGram, Quantube, QuantCooks, QuantAds and QuantTrinity.
 #
-# Shape follows staging-quantchat-quantai.yaml exactly, minus the backend
-# sidecar: each of these apps is a single Next.js process (`next start -p <port>`
-# per its Dockerfile), so there is one container and one port.
+# Shape follows staging-quantchat-quantai.yaml exactly, INCLUDING the backend
+# sidecar. Six of these apps ship a Fastify backend under `apps/<app>/backend/`
+# and a Next frontend whose `app/api/**` handlers are thin proxies to it
+# (`<APP>_BACKEND_URL`). Deploying only the frontend container is what made
+# every data route answer 500/502 in staging on 2026-09-20 while `/api/health`
+# — served by Next itself, not the backend — stayed green:
+#   quantube  /api/creator/*      502      quantneon /api/explore      500
+#   quantmax  /api/economy/wallet 502      quantsync /api/communities  502
+#   quantads  /api/audiences      502      quantedits /api/assets      500
+# The sidecar runs the SAME image as the frontend (the app Dockerfile copies the
+# whole `apps/<app>/` tree plus root node_modules, so `backend/server.ts` and
+# tsx are both present), so no new ECR repository or image build is needed.
+#
+# QuantTrinity has no `backend/` directory — its 17 route handlers run in-process
+# against @quant/* packages — so it stays a single container by design.
 #
 # Hostnames use the Wave E product names rather than the directory names, so the
-# mapping is deliberate and recorded here:
-#   apps/quantsync      -> quantwave.quantrinity.in    (QuantWave)
-#   apps/quantneon      -> quantgram.quantrinity.in    (QuantGram)
-#   apps/quantedits     -> quantcooks.quantrinity.in   (QuantCooks)
-#   apps/quantmax       -> quantmax.quantrinity.in
-#   apps/quantube       -> quantube.quantrinity.in
-#   apps/quantads       -> quantads.quantrinity.in
-#   apps/quanttrinity   -> quanttrinity.quantrinity.in
+# mapping is deliberate and recorded here. The pnpm package name differs from the
+# directory for three apps, and the sidecar's `--filter` needs the PACKAGE name:
+#   apps/quantsync      -> quantwave.quantrinity.in    (@quant/quantwave)
+#   apps/quantneon      -> quantgram.quantrinity.in    (@quant/quantgram)
+#   apps/quantedits     -> quantcooks.quantrinity.in   (@quant/quantcooks)
+#   apps/quantmax       -> quantmax.quantrinity.in     (@quant/quantmax)
+#   apps/quantube       -> quantube.quantrinity.in     (@quant/quantube)
+#   apps/quantads       -> quantads.quantrinity.in     (@quant/quantads)
+#   apps/quanttrinity   -> quanttrinity.quantrinity.in (@quant/quanttrinity)
+#
+# Backend ports are each backend's own `getConfig()` default (`PORT ?? <port>`),
+# so the sidecar, the frontend's `<APP>_BACKEND_URL` and local `pnpm dev:backend`
+# all agree on one number per app.
+#
+# Every Deployment pins `maxSurge: 0` / `maxUnavailable: 1`. These are
+# single-replica staging workloads, and a default 25% surge means a rollout must
+# schedule a SECOND pod before the old one is allowed to terminate. On
+# 2026-09-20 two unrelated rollouts (quanttrinity, quantmail-backend) each sat
+# for the full 10-minute deadline on "1 old replicas are pending termination" —
+# the signature of a surge pod that cannot be scheduled — and then rolled back.
+# Surge-free updates trade a few seconds of staging downtime for rollouts that
+# do not depend on spare cluster capacity.
+#
+# NOTE ON CAPACITY: the six sidecars add ~600m CPU / 1.5Gi of memory REQUESTS to
+# the namespace. If pods land in Pending with "Insufficient cpu/memory", the node
+# group needs scaling — the deploy workflow now prints pod events on rollout
+# failure, so that shows up as a named cause instead of a bare timeout.
 #
 # The image tag below is the main commit these were first cut from. deploy-staging
 # rewrites it to an immutable digest on every rollout, so this value only matters
@@ -30,6 +61,11 @@ metadata:
     app: quant-quantsync
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantsync
@@ -52,6 +88,8 @@ spec:
           env:
             - name: PORT
               value: '3102'
+            - name: QUANTSYNC_BACKEND_URL
+              value: 'http://localhost:3004'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantwave.quantrinity.in'
           readinessProbe:
@@ -66,6 +104,71 @@ spec:
               path: /api/health
               port: 3102
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantsync-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3004 pnpm --filter @quant/quantwave exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3004
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3004'
+            - name: HOST
+              value: '0.0.0.0'
+          # @quant/server-core's health plugin registers /healthz, /livez and
+          # /readyz — NOT /health, which only appears in the auth-exempt path list
+          # and answers 404. Verified by booting apps/quantube/backend/server.ts:
+          #   /healthz 200  /livez 200  /health 404
+          # Probing /health would have left every sidecar permanently unready and
+          # failed all six rollouts.
+          #
+          # readiness = /healthz, NOT /readyz, and that differs from
+          # quant-quantmail-backend on purpose. /readyz runs SELECT 1 and returns
+          # 503 when the database is unreachable (verified: {"status":
+          # "unavailable","checks":{"database":"fail"}}). For quantmail that is
+          # correct — it has multiple replicas behind its own Service, so draining
+          # a bad one sends traffic to a good one. Here the backend is a SIDECAR
+          # in a single-replica pod: a pod that goes unready takes the FRONTEND
+          # out of the Service with it, so a database blip would black out the
+          # whole app's UI and route traffic nowhere. The data path is instead
+          # gated where it can be proven end-to-end — the post-rollout smoke step
+          # in deploy-staging.yml calls real routes through the public host and
+          # rolls back on 5xx.
+          #
+          # liveness = /livez: deliberately dumber than readiness, it reports only
+          # that the process is alive, so a dependency outage never restarts a
+          # healthy process. failureThreshold 6 rides out transient CPU starvation
+          # rather than restarting a backend that is merely slow.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3004
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3004
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -90,6 +193,9 @@ spec:
     - port: 3102
       targetPort: 3102
       name: http
+    - port: 3004
+      targetPort: 3004
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -100,6 +206,11 @@ metadata:
     app: quant-quantmax
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantmax
@@ -122,6 +233,14 @@ spec:
           env:
             - name: PORT
               value: '3103'
+            # quantmax reads BOTH spellings: `_lib/proxy.ts` uses
+            # QUANTMAX_BACKEND_URL, `_lib/engine-proxy.ts` + `_lib/feed-proxy.ts`
+            # use NEXT_PUBLIC_QUANTMAX_BACKEND_URL. Set both or half the routes
+            # keep dialling localhost.
+            - name: QUANTMAX_BACKEND_URL
+              value: 'http://localhost:3008'
+            - name: NEXT_PUBLIC_QUANTMAX_BACKEND_URL
+              value: 'http://localhost:3008'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantmax.quantrinity.in'
           readinessProbe:
@@ -136,6 +255,47 @@ spec:
               path: /api/health
               port: 3103
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantmax-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantmax:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3008 pnpm --filter @quant/quantmax exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3008
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3008'
+            - name: HOST
+              value: '0.0.0.0'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3008
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3008
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -160,6 +320,9 @@ spec:
     - port: 3103
       targetPort: 3103
       name: http
+    - port: 3008
+      targetPort: 3008
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -170,6 +333,11 @@ metadata:
     app: quant-quantneon
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantneon
@@ -192,6 +360,11 @@ spec:
           env:
             - name: PORT
               value: '3104'
+            # Both spellings are read by quantneon route handlers.
+            - name: QUANTNEON_BACKEND_URL
+              value: 'http://localhost:3012'
+            - name: NEXT_PUBLIC_QUANTNEON_BACKEND_URL
+              value: 'http://localhost:3012'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantgram.quantrinity.in'
           readinessProbe:
@@ -206,6 +379,47 @@ spec:
               path: /api/health
               port: 3104
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantneon-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3012 pnpm --filter @quant/quantgram exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3012
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3012'
+            - name: HOST
+              value: '0.0.0.0'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3012
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3012
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -230,6 +444,9 @@ spec:
     - port: 3104
       targetPort: 3104
       name: http
+    - port: 3012
+      targetPort: 3012
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -240,6 +457,11 @@ metadata:
     app: quant-quantube
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantube
@@ -262,6 +484,12 @@ spec:
           env:
             - name: PORT
               value: '3105'
+            # `_lib/proxy.ts` reads QUANTUBE_BACKEND_URL; the newer
+            # `_lib/engine-proxy.ts` reads NEXT_PUBLIC_QUANTUBE_BACKEND_URL.
+            - name: QUANTUBE_BACKEND_URL
+              value: 'http://localhost:3006'
+            - name: NEXT_PUBLIC_QUANTUBE_BACKEND_URL
+              value: 'http://localhost:3006'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantube.quantrinity.in'
           readinessProbe:
@@ -276,6 +504,47 @@ spec:
               path: /api/health
               port: 3105
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantube-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantube:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3006 pnpm --filter @quant/quantube exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3006
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3006'
+            - name: HOST
+              value: '0.0.0.0'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3006
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3006
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -300,6 +569,9 @@ spec:
     - port: 3105
       targetPort: 3105
       name: http
+    - port: 3006
+      targetPort: 3006
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -310,6 +582,11 @@ metadata:
     app: quant-quantedits
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantedits
@@ -332,6 +609,8 @@ spec:
           env:
             - name: PORT
               value: '3106'
+            - name: QUANTEDITS_BACKEND_URL
+              value: 'http://localhost:3013'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantcooks.quantrinity.in'
           readinessProbe:
@@ -346,6 +625,47 @@ spec:
               path: /api/health
               port: 3106
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantedits-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantedits:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3013 pnpm --filter @quant/quantcooks exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3013
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3013'
+            - name: HOST
+              value: '0.0.0.0'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3013
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3013
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -370,6 +690,9 @@ spec:
     - port: 3106
       targetPort: 3106
       name: http
+    - port: 3013
+      targetPort: 3013
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -380,6 +703,11 @@ metadata:
     app: quant-quantads
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quantads
@@ -402,6 +730,13 @@ spec:
           env:
             - name: PORT
               value: '3108'
+            - name: QUANTADS_BACKEND_URL
+              value: 'http://localhost:3010'
+            # /api/auth/userinfo deliberately proxies to QuantMail's OIDC
+            # userinfo, NOT to the quantads backend. quant-staging-config already
+            # sets QUANTMAIL_BACKEND_URL=http://quant-quantmail-backend:3011,
+            # which is why that one route answered while every quantads data
+            # route 502'd.
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantads.quantrinity.in'
           readinessProbe:
@@ -416,6 +751,47 @@ spec:
               path: /api/health
               port: 3108
             initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        - name: quant-quantads-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          command:
+            - sh
+            - -c
+            - 'PORT=3010 pnpm --filter @quant/quantads exec tsx backend/server.ts'
+          ports:
+            - containerPort: 3010
+              name: backend
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3010'
+            - name: HOST
+              value: '0.0.0.0'
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 3010
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3010
+            initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5
           resources:
@@ -440,6 +816,9 @@ spec:
     - port: 3108
       targetPort: 3108
       name: http
+    - port: 3010
+      targetPort: 3010
+      name: backend
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -450,6 +829,11 @@ metadata:
     app: quant-quanttrinity
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: quant-quanttrinity
@@ -459,6 +843,7 @@ spec:
         app: quant-quanttrinity
     spec:
       containers:
+        # Single container by design: quanttrinity has no `backend/` directory.
         - name: quant-quanttrinity
           image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quanttrinity:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
           ports:

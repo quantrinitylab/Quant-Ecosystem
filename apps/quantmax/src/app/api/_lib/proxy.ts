@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.QUANTMAX_BACKEND_URL || 'http://localhost:3007';
+const BACKEND_URL = process.env.QUANTMAX_BACKEND_URL || 'http://localhost:3008';
 
 export async function proxyToBackend(
   request: NextRequest,

@@ -8,10 +8,11 @@
     "dev": "next dev -p 3005",
     "build": "next build",
     "start": "next start -p 3005",
-    "dev:backend": "node --loader ts-node/esm backend/app.ts",
+    "dev:backend": "tsx watch backend/server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "start:backend": "tsx backend/server.ts"
   },
   "dependencies": {
     "@quant/api-client": "workspace:*",
