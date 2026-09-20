@@ -95,6 +95,14 @@ export interface ReceiveEmailInput {
   isSpam?: boolean;
   /** Inbound delivery lifecycle state (inbound mail is `delivered`). */
   deliveryStatus?: string;
+  /**
+   * Smart-inbox partition (`primary` | `social` | `promotions` | `updates` |
+   * `forums`), written by the InboundIngestAdapter's SmartInboxService pass so
+   * the inbox category tabs read a column that is actually populated. Absent =>
+   * the column stays null and the message falls into Primary, which is the same
+   * behaviour every message had before categorization was wired.
+   */
+  aiCategory?: string;
 }
 
 export interface Label {
@@ -624,6 +632,7 @@ export class EmailService {
         ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
         ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
         ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
+        ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
       } as never,
     });
 
@@ -746,6 +755,26 @@ export class EmailService {
     return this.prisma.email.update({
       where: { id: emailId },
       data: { isStarred: !email.isStarred },
+    });
+  }
+
+  /**
+   * Reassign an owned email's inbox partition (`aiCategory`). Returns the
+   * updated row so the caller can record the sender-keyed correction into the
+   * user's learned-category memory. Ownership is enforced: a user can only
+   * recategorize their own mail.
+   */
+  async setCategory(emailId: string, userId: string, category: string): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+    return this.prisma.email.update({
+      where: { id: emailId },
+      data: { aiCategory: category } as never,
     });
   }
 

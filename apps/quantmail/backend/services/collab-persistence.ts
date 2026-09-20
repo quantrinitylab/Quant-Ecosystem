@@ -428,4 +428,30 @@ export class PersistenceAdapter {
   }
 }
 
-export const collabPersistence = new PersistenceAdapter();
+/**
+ * Process-wide adapter, constructed on first use rather than at import.
+ *
+ * This used to be `export const collabPersistence = new PersistenceAdapter()`.
+ * The constructor resolves object-storage config from the environment and throws
+ * when it is absent — correct, because silently writing snapshots nowhere would
+ * lose documents. But as a module-scope `const` that throw happened at *import*
+ * time, and importing this file transitively boots the whole QuantMail backend.
+ * The result: with no R2/S3 credentials configured the server died before
+ * listening, so a missing document-storage secret took down login, the inbox and
+ * sending — none of which touch Yjs persistence.
+ *
+ * Deferring construction keeps the fail-closed contract exactly as strict, and
+ * scopes it to the feature that actually needs storage: collaborative documents
+ * fail loudly, and the rest of the mail product keeps serving.
+ */
+let adapter: PersistenceAdapter | undefined;
+
+export function getCollabPersistence(): PersistenceAdapter {
+  adapter ??= new PersistenceAdapter();
+  return adapter;
+}
+
+/** Exposed for tests, which need a fresh adapter per case. */
+export function __resetCollabPersistence(): void {
+  adapter = undefined;
+}

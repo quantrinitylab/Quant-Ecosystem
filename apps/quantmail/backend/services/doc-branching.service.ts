@@ -1,7 +1,7 @@
-import { prisma as defaultPrisma } from '@quant/database';
+﻿import { prisma as defaultPrisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import * as Y from 'yjs';
-import { collabPersistence, type PersistenceAdapter } from './collab-persistence';
+import { getCollabPersistence, type PersistenceAdapter } from './collab-persistence';
 import { getLiveDoc } from './yjs-server';
 
 const BRANCH_PREFIX = '__branch__:';
@@ -62,10 +62,14 @@ function fromBase64(state: string): Uint8Array {
 function parseBranch(content: string): StoredBranch | null {
   try {
     const parsed = JSON.parse(content) as Partial<StoredBranch>;
-    return parsed.kind === PAYLOAD_KIND && typeof parsed.branchName === 'string' &&
-      typeof parsed.userId === 'string' && typeof parsed.baseState === 'string' &&
-      typeof parsed.state === 'string' && (parsed.status === 'open' || parsed.status === 'merged')
-      ? parsed as StoredBranch : null;
+    return parsed.kind === PAYLOAD_KIND &&
+      typeof parsed.branchName === 'string' &&
+      typeof parsed.userId === 'string' &&
+      typeof parsed.baseState === 'string' &&
+      typeof parsed.state === 'string' &&
+      (parsed.status === 'open' || parsed.status === 'merged')
+      ? (parsed as StoredBranch)
+      : null;
   } catch {
     return null;
   }
@@ -78,7 +82,9 @@ function changed(update: Uint8Array): boolean {
 export class DocBranchingService {
   constructor(
     private readonly db: BranchingPrismaClient = defaultPrisma,
-    private readonly persistence: PersistenceAdapter = collabPersistence,
+    // Lazy default: getCollabPersistence() runs when the service is constructed,
+    // not at import, matching collab-persistence.ts's deferred fail-closed contract.
+    private readonly persistence: PersistenceAdapter = getCollabPersistence(),
   ) {}
 
   async createBranch(
@@ -89,7 +95,10 @@ export class DocBranchingService {
   ): Promise<DocBranch> {
     const normalized = branchName.trim();
     if (!normalized) throw createAppError('Branch name is required', 400, 'INVALID_BRANCH_NAME');
-    const exists = await this.db.document.findUnique({ where: { id: docId }, select: { id: true } });
+    const exists = await this.db.document.findUnique({
+      where: { id: docId },
+      select: { id: true },
+    });
     if (!exists) throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
     const state = source instanceof Uint8Array ? source : Y.encodeStateAsUpdate(source);
     const payload: StoredBranch = {
@@ -115,25 +124,44 @@ export class DocBranchingService {
     });
     return rows.flatMap((row: any) => {
       const branch = parseBranch(row.content);
-      return branch ? [{ id: row.id, docId: row.docId, branchName: branch.branchName,
-        userId: branch.userId, createdAt: row.createdAt, status: branch.status }] : [];
+      return branch
+        ? [
+            {
+              id: row.id,
+              docId: row.docId,
+              branchName: branch.branchName,
+              userId: branch.userId,
+              createdAt: row.createdAt,
+              status: branch.status,
+            },
+          ]
+        : [];
     });
   }
 
   async updateBranchState(branchId: string, source: Y.Doc | Uint8Array): Promise<void> {
-    const row = await this.db.documentVersion.findUnique({ where: { id: branchId }, select: { content: true } });
+    const row = await this.db.documentVersion.findUnique({
+      where: { id: branchId },
+      select: { content: true },
+    });
     const branch = row && parseBranch(row.content);
-    if (!branch || branch.status !== 'open') throw createAppError('Open branch not found', 404, 'BRANCH_NOT_FOUND');
+    if (!branch || branch.status !== 'open')
+      throw createAppError('Open branch not found', 404, 'BRANCH_NOT_FOUND');
     branch.state = toBase64(source instanceof Uint8Array ? source : Y.encodeStateAsUpdate(source));
-    await this.db.documentVersion.update({ where: { id: branchId }, data: { content: JSON.stringify(branch) } });
+    await this.db.documentVersion.update({
+      where: { id: branchId },
+      data: { content: JSON.stringify(branch) },
+    });
   }
 
   async mergeBranchIntoTrunk(branchId: string, trunk: Y.Doc | Uint8Array): Promise<MergeResult> {
     const row = await this.db.documentVersion.findUnique({
-      where: { id: branchId }, select: { docId: true, content: true },
+      where: { id: branchId },
+      select: { docId: true, content: true },
     });
     const branch = row && parseBranch(row.content);
-    if (!row || !branch || branch.status !== 'open') throw createAppError('Open branch not found', 404, 'BRANCH_NOT_FOUND');
+    if (!row || !branch || branch.status !== 'open')
+      throw createAppError('Open branch not found', 404, 'BRANCH_NOT_FOUND');
 
     const baseDoc = new Y.Doc();
     const branchDoc = new Y.Doc();
@@ -150,22 +178,35 @@ export class DocBranchingService {
       Y.applyUpdate(mergedDoc, trunkDelta, 'trunk');
       Y.applyUpdate(mergedDoc, branchDelta, 'branch');
       const mergedUpdate = Y.encodeStateAsUpdate(mergedDoc);
-      const conflicts = changed(branchDelta) && changed(trunkDelta) ? [{
-        path: 'document', resolution: 'yjs-crdt' as const,
-        description: 'Concurrent branch and trunk operations were deterministically merged by Yjs.',
-      }] : [];
+      const conflicts =
+        changed(branchDelta) && changed(trunkDelta)
+          ? [
+              {
+                path: 'document',
+                resolution: 'yjs-crdt' as const,
+                description:
+                  'Concurrent branch and trunk operations were deterministically merged by Yjs.',
+              },
+            ]
+          : [];
       const trunkDocId = row.docId;
       await this.persistence.saveDoc(trunkDocId, mergedUpdate);
       branch.status = 'merged';
       branch.mergedAt = new Date().toISOString();
-      await this.db.documentVersion.update({ where: { id: branchId }, data: { content: JSON.stringify(branch) } });
+      await this.db.documentVersion.update({
+        where: { id: branchId },
+        data: { content: JSON.stringify(branch) },
+      });
       const liveDoc = getLiveDoc(trunkDocId);
       if (liveDoc) {
         Y.applyUpdate(liveDoc, mergedUpdate, 'branch-merge');
       }
       return { state: mergedUpdate, conflicts };
     } finally {
-      baseDoc.destroy(); branchDoc.destroy(); trunkDoc.destroy(); mergedDoc.destroy();
+      baseDoc.destroy();
+      branchDoc.destroy();
+      trunkDoc.destroy();
+      mergedDoc.destroy();
     }
   }
 }

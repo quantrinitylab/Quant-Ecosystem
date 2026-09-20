@@ -168,6 +168,17 @@ export {
   USER_CONTACT_MEMORY_PREFIX,
 } from './adapters/user-contact-memory';
 export type { UserContactContext, ContactMemoryBackend } from './adapters/user-contact-memory';
+
+export {
+  UserInboxCategoryMemory,
+  UserInboxCategoryCorrectionSchema,
+  USER_INBOX_CATEGORY_MEMORY_PREFIX,
+  INBOX_CATEGORIES,
+} from './adapters/user-inbox-category-memory';
+export type {
+  UserInboxCategoryCorrection,
+  InboxCategoryMemoryBackend,
+} from './adapters/user-inbox-category-memory';
 export {
   UserCommitmentMemory,
   UserCommitmentSchema,
