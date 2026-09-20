@@ -1,0 +1,597 @@
+# Staging Deployments, Services and Ingress for the seven apps that had a
+# Dockerfile and an /api/health route but had never been deployed: QuantWave,
+# QuantMax, QuantGram, Quantube, QuantCooks, QuantAds and QuantTrinity.
+#
+# Shape follows staging-quantchat-quantai.yaml exactly, minus the backend
+# sidecar: each of these apps is a single Next.js process (`next start -p <port>`
+# per its Dockerfile), so there is one container and one port.
+#
+# Hostnames use the Wave E product names rather than the directory names, so the
+# mapping is deliberate and recorded here:
+#   apps/quantsync      -> quantwave.quantrinity.in    (QuantWave)
+#   apps/quantneon      -> quantgram.quantrinity.in    (QuantGram)
+#   apps/quantedits     -> quantcooks.quantrinity.in   (QuantCooks)
+#   apps/quantmax       -> quantmax.quantrinity.in
+#   apps/quantube       -> quantube.quantrinity.in
+#   apps/quantads       -> quantads.quantrinity.in
+#   apps/quanttrinity   -> quanttrinity.quantrinity.in
+#
+# The image tag below is the main commit these were first cut from. deploy-staging
+# rewrites it to an immutable digest on every rollout, so this value only matters
+# for the very first apply — the pods stay pending until that workflow pushes the
+# tag, which is expected.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantsync
+  namespace: quant-staging
+  labels:
+    app: quant-quantsync
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantsync
+  template:
+    metadata:
+      labels:
+        app: quant-quantsync
+    spec:
+      containers:
+        - name: quant-quantsync
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3102
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3102'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantwave.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3102
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3102
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantsync
+  namespace: quant-staging
+  labels:
+    app: quant-quantsync
+spec:
+  selector:
+    app: quant-quantsync
+  ports:
+    - port: 3102
+      targetPort: 3102
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantmax
+  namespace: quant-staging
+  labels:
+    app: quant-quantmax
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantmax
+  template:
+    metadata:
+      labels:
+        app: quant-quantmax
+    spec:
+      containers:
+        - name: quant-quantmax
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantmax:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3103
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3103'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantmax.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3103
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3103
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantmax
+  namespace: quant-staging
+  labels:
+    app: quant-quantmax
+spec:
+  selector:
+    app: quant-quantmax
+  ports:
+    - port: 3103
+      targetPort: 3103
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantneon
+  namespace: quant-staging
+  labels:
+    app: quant-quantneon
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantneon
+  template:
+    metadata:
+      labels:
+        app: quant-quantneon
+    spec:
+      containers:
+        - name: quant-quantneon
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3104
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3104'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantgram.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3104
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3104
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantneon
+  namespace: quant-staging
+  labels:
+    app: quant-quantneon
+spec:
+  selector:
+    app: quant-quantneon
+  ports:
+    - port: 3104
+      targetPort: 3104
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantube
+  namespace: quant-staging
+  labels:
+    app: quant-quantube
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantube
+  template:
+    metadata:
+      labels:
+        app: quant-quantube
+    spec:
+      containers:
+        - name: quant-quantube
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantube:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3105
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3105'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantube.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3105
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3105
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantube
+  namespace: quant-staging
+  labels:
+    app: quant-quantube
+spec:
+  selector:
+    app: quant-quantube
+  ports:
+    - port: 3105
+      targetPort: 3105
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantedits
+  namespace: quant-staging
+  labels:
+    app: quant-quantedits
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantedits
+  template:
+    metadata:
+      labels:
+        app: quant-quantedits
+    spec:
+      containers:
+        - name: quant-quantedits
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantedits:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3106
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3106'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantcooks.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3106
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3106
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantedits
+  namespace: quant-staging
+  labels:
+    app: quant-quantedits
+spec:
+  selector:
+    app: quant-quantedits
+  ports:
+    - port: 3106
+      targetPort: 3106
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantads
+  namespace: quant-staging
+  labels:
+    app: quant-quantads
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantads
+  template:
+    metadata:
+      labels:
+        app: quant-quantads
+    spec:
+      containers:
+        - name: quant-quantads
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3108
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3108'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quantads.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3108
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3108
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantads
+  namespace: quant-staging
+  labels:
+    app: quant-quantads
+spec:
+  selector:
+    app: quant-quantads
+  ports:
+    - port: 3108
+      targetPort: 3108
+      name: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quanttrinity
+  namespace: quant-staging
+  labels:
+    app: quant-quanttrinity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quanttrinity
+  template:
+    metadata:
+      labels:
+        app: quant-quanttrinity
+    spec:
+      containers:
+        - name: quant-quanttrinity
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quanttrinity:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          ports:
+            - containerPort: 3113
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3113'
+            - name: NEXT_PUBLIC_APP_URL
+              value: 'https://quanttrinity.quantrinity.in'
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3113
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3113
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quanttrinity
+  namespace: quant-staging
+  labels:
+    app: quant-quanttrinity
+spec:
+  selector:
+    app: quant-quanttrinity
+  ports:
+    - port: 3113
+      targetPort: 3113
+      name: http
+---
+# Separate from quant-apps-staging-ingress so a mistake here cannot take
+# quantchat or quantai down with it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-remaining-apps-staging-ingress
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantwave.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantsync
+                port:
+                  number: 3102
+    - host: quantmax.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantmax
+                port:
+                  number: 3103
+    - host: quantgram.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantneon
+                port:
+                  number: 3104
+    - host: quantube.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantube
+                port:
+                  number: 3105
+    - host: quantcooks.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantedits
+                port:
+                  number: 3106
+    - host: quantads.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantads
+                port:
+                  number: 3108
+    - host: quanttrinity.quantrinity.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quanttrinity
+                port:
+                  number: 3113
