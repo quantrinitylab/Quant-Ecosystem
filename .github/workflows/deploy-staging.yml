@@ -15,6 +15,13 @@ on:
           - quantai
           - admin
           - ws-gateway
+          - quantsync
+          - quantmax
+          - quantneon
+          - quantube
+          - quantedits
+          - quantads
+          - quanttrinity
       release_sha:
         description: Exact 40-character SHA of the current protected main commit
         required: true
@@ -175,6 +182,40 @@ jobs:
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
               deployment=quant-ws-gateway; container=ws-gateway
+              needs_cloudflare=false ;;
+            # The seven apps that shipped a Dockerfile and an /api/health route
+            # but had no ECR repository, no Deployment and no DNS, so they could
+            # never be reached. Each is a single Next.js process, so deployment
+            # and container share the app's name. Hostnames use the Wave E
+            # product names; see infra/k8s/staging-remaining-apps.yaml for the
+            # directory-to-host mapping.
+            quantsync)
+              repository=quant-quantsync; dockerfile=apps/quantsync/Dockerfile
+              deployment=quant-quantsync; container=quant-quantsync
+              needs_cloudflare=false ;;
+            quantmax)
+              repository=quant-quantmax; dockerfile=apps/quantmax/Dockerfile
+              deployment=quant-quantmax; container=quant-quantmax
+              needs_cloudflare=false ;;
+            quantneon)
+              repository=quant-quantneon; dockerfile=apps/quantneon/Dockerfile
+              deployment=quant-quantneon; container=quant-quantneon
+              needs_cloudflare=false ;;
+            quantube)
+              repository=quant-quantube; dockerfile=apps/quantube/Dockerfile
+              deployment=quant-quantube; container=quant-quantube
+              needs_cloudflare=false ;;
+            quantedits)
+              repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile
+              deployment=quant-quantedits; container=quant-quantedits
+              needs_cloudflare=false ;;
+            quantads)
+              repository=quant-quantads; dockerfile=apps/quantads/Dockerfile
+              deployment=quant-quantads; container=quant-quantads
+              needs_cloudflare=false ;;
+            quanttrinity)
+              repository=quant-quanttrinity; dockerfile=apps/quanttrinity/Dockerfile
+              deployment=quant-quanttrinity; container=quant-quanttrinity
               needs_cloudflare=false ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac
