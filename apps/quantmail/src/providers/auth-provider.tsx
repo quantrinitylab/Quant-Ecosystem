@@ -28,6 +28,17 @@ export type LoginOutcome =
   | { status: 'signed-in' }
   | { status: 'two-factor-required'; expiresIn: number };
 
+/** Structured error lets the form distinguish an expired challenge from a bad code. */
+class AuthFlowError extends Error {
+  constructor(
+    message: string,
+    readonly code: string,
+  ) {
+    super(message);
+    this.name = 'AuthFlowError';
+  }
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
@@ -160,30 +171,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!challenge) {
         const message = 'This sign-in attempt is no longer valid. Enter your password again.';
         setError(message);
-        throw new Error(message);
+        throw new AuthFlowError(message, 'CHALLENGE_EXPIRED');
       }
 
       setError(null);
       setIsLoading(true);
+      let sessionIssued = false;
       try {
         const session = await browserAuthSession.completeTwoFactor(challenge, code);
         if (!session.success || !session.data?.accessToken) {
-          throw new Error(session.error?.message || 'That code was not accepted.');
+          throw new AuthFlowError(
+            session.error?.message || 'That code was not accepted.',
+            session.error?.code || 'TWO_FACTOR_FAILED',
+          );
         }
-        // Spent: the server will not honour it twice, and holding it invites a
-        // retry that can only fail confusingly.
+        sessionIssued = true;
+        try {
+          await loadProfile();
+        } catch {
+          throw new AuthFlowError(
+            'Your code was accepted, but the session could not be initialized. Sign in again.',
+            'SESSION_INITIALIZATION_FAILED',
+          );
+        }
+        // Drop the password-proof challenge only after the browser session and
+        // profile are both ready. It carries no app authority by itself.
         challengeRef.current = null;
         setIsTwoFactorPending(false);
-        await loadProfile();
       } catch (caught) {
-        const message = caught instanceof Error ? caught.message : 'That code was not accepted.';
-        setError(message);
-        throw caught;
+        const flowError =
+          caught instanceof AuthFlowError
+            ? caught
+            : new AuthFlowError('That code was not accepted.', 'TWO_FACTOR_FAILED');
+
+        if (sessionIssued) {
+          // A refresh cookie and access token were minted before profile
+          // hydration failed. Revoke/clear both so UI state cannot say signed
+          // out while credentials remain live.
+          try {
+            await browserAuthSession.logout();
+          } catch {
+            browserAuthSession.clearAccessToken();
+          }
+          clearMemorySession();
+        } else if (flowError.code === 'CHALLENGE_EXPIRED') {
+          challengeRef.current = null;
+          setIsTwoFactorPending(false);
+        }
+
+        setError(flowError.message);
+        throw flowError;
       } finally {
         setIsLoading(false);
       }
     },
-    [loadProfile],
+    [clearMemorySession, loadProfile],
   );
 
   const cancelTwoFactor = useCallback(() => {

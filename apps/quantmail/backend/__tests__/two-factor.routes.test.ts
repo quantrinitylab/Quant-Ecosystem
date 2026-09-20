@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     twoFactorBackupCode: {
       deleteMany: vi.fn(),
@@ -170,6 +171,7 @@ beforeEach(() => {
     tokenType: 'Bearer',
   });
   mocks.prisma.user.update.mockResolvedValue({});
+  mocks.prisma.user.updateMany.mockResolvedValue({ count: 1 });
   mocks.prisma.twoFactorBackupCode.deleteMany.mockResolvedValue({ count: 0 });
   mocks.prisma.twoFactorBackupCode.createMany.mockResolvedValue({ count: 10 });
   mocks.prisma.twoFactorBackupCode.findMany.mockResolvedValue([]);
@@ -447,14 +449,34 @@ describe('POST /auth/2fa/verify', () => {
     expect(mocks.totpVerify).toHaveBeenCalledWith('123456', LIVE_SECRET);
   });
 
-  it('raises the replay floor past the code it just accepted', async () => {
+  it('atomically raises the replay floor past the code it just accepted', async () => {
     mocks.prisma.user.findUnique.mockResolvedValue(enabledUser());
 
     await call('/auth/2fa/verify', publicReq({ challenge: await liveChallenge(), code: '123456' }));
 
-    expect(lastUserUpdate()).toEqual({
-      twoFactorLastUsedStep: totpReplayFloorAfter(totpStepFor()),
+    const nextFloor = totpReplayFloorAfter(totpStepFor());
+    expect(mocks.prisma.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: USER_ID,
+        OR: [{ twoFactorLastUsedStep: null }, { twoFactorLastUsedStep: { lt: nextFloor } }],
+      },
+      data: { twoFactorLastUsedStep: nextFloor },
     });
+  });
+
+  it('rejects the loser when concurrent requests race to spend the same TOTP step', async () => {
+    mocks.prisma.user.findUnique.mockResolvedValue(enabledUser());
+    mocks.prisma.user.updateMany.mockResolvedValue({ count: 0 });
+
+    const reply = await call(
+      '/auth/2fa/verify',
+      publicReq({ challenge: await liveChallenge(), code: '123456' }),
+    );
+
+    expect(reply.statusCode).toBe(401);
+    expect(reply.body.error.code).toBe('CODE_ALREADY_USED');
+    expect(reply.cookie).toBeUndefined();
+    expect(mocks.generateTokenPair).not.toHaveBeenCalled();
   });
 
   /**
@@ -475,7 +497,7 @@ describe('POST /auth/2fa/verify', () => {
     expect(reply.body.error.code).toBe('CODE_ALREADY_USED');
     expect(reply.cookie).toBeUndefined();
     expect(mocks.generateTokenPair).not.toHaveBeenCalled();
-    expect(mocks.prisma.user.update).not.toHaveBeenCalled();
+    expect(mocks.prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   /** A wrong code is never reported as a reused one — that would be a hint. */
