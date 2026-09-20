@@ -56,7 +56,11 @@ const StoryViewerPage: React.FC = () => {
           duration: SEGMENT_DURATION,
         },
       ],
-      viewerCount: (s.viewerCount as number) || Math.floor(Math.random() * 500) + 50,
+      // Report the real view count the API returns, or nothing. This previously fell back to
+      // `Math.floor(Math.random() * 500) + 50`, so the UI showed an invented viewer number
+      // that changed on every render; `||` also discarded a legitimate 0. The backend tracks
+      // this for real via `POST /stories/:id/view` and `GET /stories/:id/viewers`.
+      viewerCount: typeof s.viewerCount === 'number' ? s.viewerCount : 0,
       seenBy: (s.seenBy as StoryUser['seenBy']) || [],
     };
   });

@@ -16,13 +16,12 @@ quantmax,apps/quantmax/src/pages/live.tsx,generated_array,phase-23,Mock live str
 quantmax,apps/quantmax/src/pages/matches.tsx,generated_array,phase-23,Mock match conversations
 quantmax,apps/quantmax/src/pages/matching.tsx,generated_array,phase-23,Mock dating profiles
 quantmax,apps/quantmax/src/pages/nearby.tsx,generated_array,phase-23,Mock nearby people and waves
-quantneon,apps/quantneon/src/pages/camera.tsx,hardcoded_array,phase-23,Mock camera filters/effects
-quantneon,apps/quantneon/src/pages/create.tsx,hardcoded_array,phase-23,Mock creation tools
-quantneon,apps/quantneon/src/pages/explore.tsx,hardcoded_array,phase-23,Mock explore grid
-quantneon,apps/quantneon/src/pages/index.tsx,generated_array,phase-23,Mock feed posts
-quantneon,apps/quantneon/src/pages/post/[id].tsx,hardcoded_array,phase-23,Mock post detail
-quantneon,apps/quantneon/src/pages/profile/[id].tsx,hardcoded_array,phase-23,Mock user profile
-quantneon,apps/quantneon/src/pages/reels.tsx,hardcoded_array,phase-23,Mock reels feed
-quantneon,apps/quantneon/src/pages/stories.tsx,hardcoded_array,phase-23,Mock stories
+quantneon,apps/quantneon/src/pages/broadcast.tsx,hardcoded_array,phase-23,MOCK_CHANNELS + MOCK_MESSAGES; no broadcast backend exists
+quantneon,apps/quantneon/src/pages/collab.tsx,hardcoded_array,phase-23,MOCK_COLLABS + MOCK_PENDING + MOCK_SEARCH; no collab backend exists
+quantneon,apps/quantneon/src/pages/guides.tsx,hardcoded_array,phase-23,MOCK_GUIDES; no guides backend exists
+quantneon,apps/quantneon/src/pages/highlights.tsx,hardcoded_array,phase-23,MOCK_HIGHLIGHTS + MOCK_AVAILABLE; needs story-highlight routes
+quantneon,apps/quantneon/src/pages/notes.tsx,hardcoded_array,phase-23,MOCK_NOTES; no notes backend exists
+quantneon,apps/quantneon/src/pages/shopping.tsx,hardcoded_array,phase-23,MOCK_CATEGORIES + MOCK_PRODUCTS; useShopping is client-only state with a simulated placeOrder
+quantneon,apps/quantneon/src/pages/explore.tsx,hardcoded_array,phase-23,Partially wired: grid uses useExplore but TRENDING_TAGS is still hardcoded
 quantube,apps/quantube/src/pages/index.tsx,mock_function,phase-23,generateMockVideos function
 quantube,apps/quantube/src/pages/watch/[id].tsx,generated_array,phase-23,Mock comments and video data

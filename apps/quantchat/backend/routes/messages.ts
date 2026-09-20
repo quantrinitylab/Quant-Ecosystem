@@ -14,6 +14,10 @@ const sendMessageSchema = z.object({
   mediaUrl: z.string().optional(),
   replyToId: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
+  // The snap composer sends `disappearMode: 'after_view'`. Zod strips unknown keys, so while
+  // this was absent the ephemeral intent was silently discarded and every snap was stored as a
+  // plain image. Must stay in sync with `DisappearMode` in src/types/index.ts.
+  disappearMode: z.enum(['off', 'after_view', '24h', '7d', '30d']).optional(),
 });
 
 const editMessageSchema = z.object({
@@ -48,6 +52,7 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       mediaUrl: parseResult.data.mediaUrl,
       replyToId: parseResult.data.replyToId,
       metadata: parseResult.data.metadata,
+      disappearMode: parseResult.data.disappearMode,
     });
 
     // Notify conversation participants about the new message. Recipients are

@@ -30,12 +30,12 @@ import type { NextRequest } from 'next/server';
 import { proxyToBackend } from '@quant/api-client';
 
 /**
- * The quantneon backend origin. Defaults to the backend's `PORT` (3012, see
+ * The quantneon backend origin. Defaults to the backend's `PORT` (3008, see
  * `apps/quantneon/backend/app.ts` `getConfig()`), overridable via a single env
  * var so the proxy and backend share one source of truth (Requirement 1.6).
  */
 export const QUANTNEON_BACKEND_URL =
-  process.env.NEXT_PUBLIC_QUANTNEON_BACKEND_URL ?? 'http://localhost:3012';
+  process.env.NEXT_PUBLIC_QUANTNEON_BACKEND_URL ?? 'http://localhost:3008';
 
 interface ProxyArLensesOptions {
   /** Parsed request body to forward (mutations only). */

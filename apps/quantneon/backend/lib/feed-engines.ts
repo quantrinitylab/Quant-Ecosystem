@@ -41,6 +41,7 @@ import {
   AlgorithmType,
 } from '@quant/ranking';
 import type { CandidateProvider, FeedItem, FeedResponse } from '@quant/ranking';
+import { PostFeedCandidateSource } from './feed-candidate-source';
 import { InferenceEngine, ModelRegistry as MlModelRegistry } from '@quant/ml-pipeline';
 import { ModelLoader } from '@quant/ml-runtime';
 import type { StorageBackend, ModelDownloader } from '@quant/ml-runtime';
@@ -191,6 +192,15 @@ export class FeedEngineBundle {
   // Node's single-threaded request handling.
   private activeFeedId = '';
 
+  /**
+   * Real content source for the candidate pool. Optional so the bundle can still be
+   * constructed without a database (tests, and the `POST /feed/candidates` seeding path).
+   */
+  private source?: PostFeedCandidateSource;
+
+  /** Last hydration time per feed, used to throttle repeat database reads. */
+  private hydratedAt = new Map<string, number>();
+
   constructor(tritonBaseUrl: string) {
     this.candidates = new FeedCandidateStore();
 
@@ -249,6 +259,52 @@ export class FeedEngineBundle {
       antiRage,
       service: new FeedService(registry, preferences, antiRage, candidateProvider),
     };
+  }
+
+  /**
+   * Attach the Prisma-backed content source.
+   *
+   * Called once at boot from `app.ts`, after the prisma decorator exists. Without it the pool
+   * is only ever filled by `POST /feed/candidates`, which is what left a freshly started
+   * backend serving an empty feed.
+   */
+  setCandidateSource(source: PostFeedCandidateSource): void {
+    this.source = source;
+  }
+
+  /**
+   * Fill a feed's candidate pool from the database.
+   *
+   * Throttled per feed (`ttlMs`) so a burst of requests does not re-query for every page, and
+   * skipped entirely when the pool already holds items unless `force` is set. Failures are
+   * swallowed deliberately: a database hiccup should degrade the feed to whatever is already
+   * pooled rather than turning a read into a 500. Returns the pool size afterwards.
+   */
+  async hydrate(
+    feedId: string,
+    options: { force?: boolean; ttlMs?: number; limit?: number } = {},
+  ): Promise<number> {
+    const existing = this.candidates.get(feedId);
+    if (!this.source) return existing.length;
+
+    const ttlMs = options.ttlMs ?? 30_000;
+    const last = this.hydratedAt.get(feedId) ?? 0;
+    const fresh = Date.now() - last < ttlMs;
+
+    // Already populated and recently refreshed — nothing to do.
+    if (!options.force && existing.length > 0 && fresh) return existing.length;
+    // Populated but stale: still skip if we refreshed very recently.
+    if (!options.force && existing.length === 0 && fresh && last !== 0) return 0;
+
+    try {
+      const items = await this.source.load(feedId, { limit: options.limit });
+      this.hydratedAt.set(feedId, Date.now());
+      // `replace` keeps the pool authoritative and drops posts that were deleted upstream.
+      this.candidates.replace(feedId, items);
+      return items.length;
+    } catch {
+      return this.candidates.get(feedId).length;
+    }
   }
 
   /** Run the recommendation pipeline over a feed's pool (retrieval order). */

@@ -15,6 +15,11 @@ export interface PrismaClient {
       where: Record<string, unknown>;
       data: Record<string, unknown>;
     }) => Promise<any>;
+    /** Batch writes, e.g. incrementing `viewCount` for a page of feed impressions. */
+    updateMany: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<{ count: number }>;
   };
   community: {
     create: (args: { data: Record<string, unknown> }) => Promise<any>;

@@ -456,6 +456,157 @@ describe('MessageService', () => {
     });
   });
 
+  // These cover the seam that was broken end to end: the composer sends a snap type (and
+  // `disappearMode: 'after_view'`) with NO metadata, the type is folded to the IMAGE enum
+  // on insert, and nothing marked the row as ephemeral — so consumeSnap answered
+  // 400 NOT_A_SNAP for every genuine snap. Each test below asserts against what is
+  // actually PERSISTED, so a regression cannot hide behind hand-built metadata.
+  describe('sendMessage — view-once persistence (CH-8)', () => {
+    function setupEphemeralSend() {
+      prisma.conversationMember.findFirst.mockResolvedValue({ id: 'member-1', leftAt: null });
+      prisma.conversationMember.findMany.mockResolvedValue([
+        { userId: 'user-1' },
+        { userId: 'user-2' },
+      ]);
+      prisma.message.create.mockResolvedValue({ id: 'snap-1', createdAt: new Date() });
+      prisma.conversation.update.mockResolvedValue({});
+    }
+
+    function persistedMetadata() {
+      return prisma.message.create.mock.calls[0]?.[0]?.data?.metadata;
+    }
+
+    it('marks a snap_photo send as viewOnce even when the client sends no metadata', async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'Photo Snap',
+        type: 'snap_photo',
+        mediaUrl: 'https://cdn.example.com/snap.jpg',
+      });
+
+      expect(persistedMetadata()).toMatchObject({ viewOnce: true });
+      // Still stored under the mapped Prisma enum member, which is why metadata is required.
+      expect(prisma.message.create.mock.calls[0]?.[0]?.data?.type).toBe('IMAGE');
+    });
+
+    it('marks a snap_video send as viewOnce', async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'Video Snap',
+        type: 'snap_video',
+      });
+
+      expect(persistedMetadata()).toMatchObject({ viewOnce: true });
+      expect(prisma.message.create.mock.calls[0]?.[0]?.data?.type).toBe('VIDEO');
+    });
+
+    it("honours disappearMode 'after_view' on an ordinary image send", async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'peek',
+        type: 'image',
+        disappearMode: 'after_view',
+      });
+
+      expect(persistedMetadata()).toMatchObject({
+        viewOnce: true,
+        disappearMode: 'after_view',
+      });
+    });
+
+    it('does NOT mark ordinary sends as viewOnce', async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'just a normal message',
+        type: 'text',
+      });
+
+      expect(persistedMetadata()).not.toHaveProperty('viewOnce');
+    });
+
+    it("does NOT mark a send as viewOnce for disappearMode 'off'", async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'normal',
+        type: 'image',
+        disappearMode: 'off',
+      });
+
+      expect(persistedMetadata()).not.toHaveProperty('viewOnce');
+    });
+
+    it('preserves caller-supplied metadata alongside the viewOnce marker', async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'Photo Snap',
+        type: 'snap_photo',
+        metadata: { duration: 7 },
+      });
+
+      expect(persistedMetadata()).toMatchObject({ viewOnce: true, duration: 7 });
+    });
+
+    it('round-trips: a snap sent with no metadata is consumable, then 410s', async () => {
+      setupEphemeralSend();
+
+      await service.sendMessage({
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        content: 'Photo Snap',
+        type: 'snap_photo',
+        mediaUrl: 'https://cdn.example.com/snap.jpg',
+        metadata: { duration: 5 },
+      });
+
+      // Feed exactly what was written back in as the stored row.
+      const stored = persistedMetadata() as Record<string, unknown>;
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://cdn.example.com/snap.jpg',
+        metadata: stored,
+      });
+      prisma.message.update.mockResolvedValue({});
+
+      await expect(service.consumeSnap('snap-1', 'viewer-1')).resolves.toEqual({
+        mediaUrl: 'https://cdn.example.com/snap.jpg',
+        duration: 5,
+      });
+
+      // Second access sees the consumed row and must be refused with 410.
+      const consumed = prisma.message.update.mock.calls[0]?.[0]?.data?.metadata;
+      prisma.message.findUnique.mockResolvedValue({
+        id: 'snap-1',
+        type: 'IMAGE',
+        mediaUrl: 'https://cdn.example.com/snap.jpg',
+        metadata: consumed,
+      });
+
+      await expect(service.consumeSnap('snap-1', 'viewer-2')).rejects.toMatchObject({
+        statusCode: 410,
+        code: 'SNAP_CONSUMED',
+      });
+    });
+  });
+
   describe('consumeSnap (CH-8 Server-Side 410 Gone Enforcement)', () => {
     it('consumes a snap on first access and updates consumedAt in metadata', async () => {
       prisma.message.findUnique.mockResolvedValue({

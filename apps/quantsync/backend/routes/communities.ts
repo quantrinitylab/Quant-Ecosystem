@@ -47,6 +47,18 @@ export default async function communitiesRoutes(fastify: FastifyInstance) {
     return reply.send(communities);
   });
 
+  // Single community detail. Declared after the static `/trending` so that path is never
+  // captured as an `:id`. The service method already existed; only the route was missing,
+  // which left the community detail page 404ing.
+  fastify.get('/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const community = await communityService.getCommunity(id);
+    if (!community) {
+      throw createAppError('Community not found', 404, 'COMMUNITY_NOT_FOUND');
+    }
+    return reply.send({ success: true, data: community });
+  });
+
   // --- Membership / moderator tools -----------------------------------------
 
   const roleSchema = z.object({ role: z.enum(['ADMIN', 'MODERATOR', 'MEMBER']) });

@@ -264,26 +264,27 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
     }
     setSpace((prev) => (prev ? { ...prev, isMicOn: newMicState } : null));
     wsRef.current?.send(JSON.stringify({ type: 'mic_toggle', muted: !newMicState }));
+    // Persist the mute state so other participants (and a reconnect) see it. The websocket
+    // message alone is in-flight only; it does not survive a refresh.
+    await fetch(`/api/spaces/${space.id}/mic`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ muted: !newMicState }),
+    });
   }, [space]);
 
+  // `raise-hand` is the canonical path (POST raises, DELETE lowers). These previously
+  // posted to `/hand`, which had neither a Next proxy nor a backend route.
   const raiseHand = useCallback(async () => {
     if (!space) return;
     setSpace((prev) => (prev ? { ...prev, hasRaisedHand: true } : null));
-    await fetch(`/api/spaces/${space.id}/hand`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raised: true }),
-    });
+    await fetch(`/api/spaces/${space.id}/raise-hand`, { method: 'POST' });
   }, [space]);
 
   const lowerHand = useCallback(async () => {
     if (!space) return;
     setSpace((prev) => (prev ? { ...prev, hasRaisedHand: false } : null));
-    await fetch(`/api/spaces/${space.id}/hand`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ raised: false }),
-    });
+    await fetch(`/api/spaces/${space.id}/raise-hand`, { method: 'DELETE' });
   }, [space]);
 
   const react = useCallback((emoji: string) => {

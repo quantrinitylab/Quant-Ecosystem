@@ -60,7 +60,7 @@ import type { AppConfig } from '@quant/server-core';
 
 const testConfig: AppConfig = {
   ...getConfig(),
-  port: 3012,
+  port: 3008,
   host: '0.0.0.0',
   logLevel: 'silent',
   jwtSecret: 'test-secret-key-that-is-long-enough-for-hs256',
