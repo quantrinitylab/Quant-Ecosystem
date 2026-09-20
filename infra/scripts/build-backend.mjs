@@ -29,6 +29,13 @@ const external = [
   'bcrypt',
   'sharp',
   'fsevents',
+  // Native ONNX runtime addon (loads platform-specific `.node` binaries at
+  // runtime) — pulled in transitively by the ML feed engines (@quant/ml-runtime,
+  // @quant/triton-client) that apps like quantube/quantmax use. esbuild cannot
+  // bundle `.node` files, so it stays external and is provided by the runtime
+  // image's node_modules, exactly like the Prisma engine and argon2.
+  'onnxruntime-node',
+  'onnxruntime-common',
 ];
 
 const appAbs = path.resolve(appDir);
