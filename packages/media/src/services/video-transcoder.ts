@@ -4,12 +4,37 @@
 // ============================================================================
 
 import ffmpeg from 'fluent-ffmpeg';
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { mkdir } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { z } from 'zod';
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+// Resolve the ffmpeg binary without letting a missing binary crash the process
+// at import time. In containers we install the system ffmpeg (apt) and pass its
+// path via FFMPEG_PATH; that is preferred. Only if it is unset do we fall back
+// to @ffmpeg-installer/ffmpeg, whose `.path` getter THROWS when the
+// platform-specific binary package (e.g. @ffmpeg-installer/linux-x64) is not
+// present — which is exactly the case in the esbuild-bundled backend image,
+// where pnpm never materialised that optional dependency. Reading it eagerly at
+// module scope turned "transcoding is unavailable" into "the whole API pod
+// crash-loops before it can serve a single request". The try/catch degrades
+// transcoding gracefully instead: routes that need ffmpeg fail per-request, the
+// rest of the API stays up.
+function resolveFfmpegPath(): string | null {
+  const fromEnv = process.env['FFMPEG_PATH'];
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    const installer = require('@ffmpeg-installer/ffmpeg') as { path: string };
+    return installer.path;
+  } catch {
+    return null;
+  }
+}
+
+const ffmpegPath = resolveFfmpegPath();
+if (ffmpegPath) {
+  ffmpeg.setFfmpegPath(ffmpegPath);
+}
 
 /**
  * Join path segments with forward slashes regardless of OS. HLS playlist and
