@@ -2,7 +2,7 @@
 // In-Memory Neural Collaborative Filtering (test fixture / local dev fallback)
 // ============================================================================
 
-import type { NCFConfig, NCFLayer, ActivationType } from '../../types';
+import type { NCFConfig, NCFLayer, ActivationType } from '../types';
 
 /** Training sample for neural CF */
 interface TrainingSample {

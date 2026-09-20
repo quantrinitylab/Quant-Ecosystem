@@ -7,7 +7,7 @@ import type { NCFConfig } from '../types';
 
 // InMemoryNeuralCF type for the lazily-loaded fallback
 type InMemoryNeuralCFType = InstanceType<
-  typeof import('../__tests__/fixtures/in-memory-ncf').InMemoryNeuralCF
+  typeof import('./in-memory-ncf').InMemoryNeuralCF
 >;
 
 /** Configuration for TritonNCFClient */
@@ -46,13 +46,13 @@ export class NeuralCF {
     this.fallbackConfig = config.fallbackConfig;
   }
 
-  /** Lazily load the in-memory fallback to avoid pulling test fixtures into production bundle */
+  /** Lazily load the in-memory fallback so it stays out of the hot path until needed */
   private async loadFallback(): Promise<InMemoryNeuralCFType | null> {
     if (this.fallbackLoaded) return this.fallback;
     this.fallbackLoaded = true;
 
     if (this.fallbackMode && this.fallbackConfig) {
-      const { InMemoryNeuralCF } = await import('../__tests__/fixtures/in-memory-ncf');
+      const { InMemoryNeuralCF } = await import('./in-memory-ncf');
       this.fallback = new InMemoryNeuralCF(this.fallbackConfig);
     }
     return this.fallback;
