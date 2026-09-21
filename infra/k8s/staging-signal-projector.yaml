@@ -1,0 +1,63 @@
+# Signal projector (staging) — the event spine's consumer.
+#
+# Reads the per-aggregate Redis Streams that services/cdc-relay publishes and
+# folds the events that say something about a person's interests into
+# `user_interest_signals`. Until this ran, the spine had a producer and a carrier
+# and no reader: events were published and then nothing happened to them.
+#
+# No Service and no Ingress: it is a worker driven by a stream, and its only HTTP
+# surface is a health port for the kubelet.
+#
+# Unlike cdc-relay, this CAN scale horizontally as-is. It reads through a Redis
+# consumer group, so each replica gets a disjoint slice and pending entries are
+# tracked per consumer name (derived from the pid). replicas:1 is throughput, not
+# correctness.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-signal-projector
+  namespace: quant-staging
+  labels:
+    app: quant-signal-projector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-signal-projector
+  template:
+    metadata:
+      labels:
+        app: quant-signal-projector
+    spec:
+      containers:
+        - name: signal-projector
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-signal-projector:bootstrap
+          ports:
+            - containerPort: 3025
+              name: health
+          envFrom:
+            # DATABASE_URL and REDIS_URL both come from here.
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            # Which streams to follow. Widening this is a config change, not a
+            # code change — the projector skips event types it has no rule for.
+            - name: SIGNAL_STREAMS
+              value: 'outbox.Video'
+            - name: HEALTH_PORT
+              value: '3025'
+            - name: BATCH_SIZE
+              value: '100'
+          livenessProbe:
+            tcpSocket:
+              port: 3025
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
