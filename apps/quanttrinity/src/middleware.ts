@@ -21,8 +21,28 @@ function timingSafeEqual(a: string, b: string): boolean {
  * closed (503). There is no JWT-shape acceptance: a string merely *looking*
  * like a JWT (`eyJ...`) is not a credential and must be rejected.
  */
+/**
+ * The container's liveness/readiness endpoint. It must stay reachable without a
+ * credential: this gate used to cover it, so Kubernetes probed `/api/health`,
+ * got 401, failed the liveness check, and SIGTERMed the pod. Next.js shut down
+ * gracefully, so the container reported `Completed` with exit code 0 and the
+ * restart loop looked like a clean exit rather than a failure — ~300 restarts
+ * over 18h with no error in the logs.
+ *
+ * Exempting it costs nothing: `/api/health` returns a static
+ * `{ status, service }` and reads no request data, no database and no secret.
+ * Every other `/api/*` path stays owner-gated.
+ */
+const PUBLIC_API_PATHS = new Set(['/api/health']);
+
 export function middleware(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith('/api')) {
+  const { pathname } = request.nextUrl;
+
+  if (!pathname.startsWith('/api')) {
+    return NextResponse.next();
+  }
+
+  if (PUBLIC_API_PATHS.has(pathname)) {
     return NextResponse.next();
   }
 
