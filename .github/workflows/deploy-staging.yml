@@ -18,6 +18,7 @@ on:
           - quantedits-backend
           - quantads-backend
           - cdc-relay
+          - signal-projector
           - quantchat
           - quantai
           - admin
@@ -239,6 +240,10 @@ jobs:
             cdc-relay)
               repository=quant-cdc-relay; dockerfile=services/cdc-relay/Dockerfile
               deployment=quant-cdc-relay; container=cdc-relay
+              needs_cloudflare=false ;;
+            signal-projector)
+              repository=quant-signal-projector; dockerfile=services/signal-projector/Dockerfile
+              deployment=quant-signal-projector; container=signal-projector
               needs_cloudflare=false ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile

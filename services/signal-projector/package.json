@@ -1,0 +1,28 @@
+{
+  "name": "@quant/signal-projector",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "dev": "node --loader ts-node/esm --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "ioredis": "^5.6.1",
+    "pg": "^8.13.1",
+    "@quant/health-server": "workspace:*",
+    "pino": "^9.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "vitest": "^4",
+    "typescript": "~5.5.0",
+    "ts-node": "^10.9.0"
+  }
+}
