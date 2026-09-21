@@ -80,7 +80,7 @@ export default function QuantGitPage() {
   const { user } = useAuth();
   const currentUsername =
     user?.username || (user?.email ? user.email.split('@')[0] : 'kundansinghrajput31980');
-  const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('quanty');
+  const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
   const [currentBranch, setCurrentBranch] = useState<string>('main');

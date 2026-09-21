@@ -12,6 +12,7 @@ export interface QuantGitHeaderProps {
   setSelectedRepo: (repo: Repo | null) => void;
   viewingFile: FileNode | null;
   setViewingFile: (file: FileNode | null) => void;
+  activeGitHubTab?: GitHubTab;
   setActiveGitHubTab: (tab: GitHubTab) => void;
   currentUsername: string;
   isHistoryOpen: boolean;
@@ -26,6 +27,8 @@ export interface QuantGitHeaderProps {
   setModalState: (modal: any) => void;
   setIsPersonalizeOpen: (open: boolean) => void;
   showToast: (msg: string) => void;
+  isCopilotDrawerOpen?: boolean;
+  setIsCopilotDrawerOpen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 export function QuantGitHeader({
@@ -33,12 +36,12 @@ export function QuantGitHeader({
   setActiveDeckTab,
   selectedRepo,
   setSelectedRepo,
+  activeGitHubTab,
+  setActiveGitHubTab,
   viewingFile,
   setViewingFile,
-  setActiveGitHubTab,
   currentUsername,
-  isHistoryOpen,
-  setIsHistoryOpen,
+  setModalState,
   chatSessions,
   setChatSessions,
   activeSessionId,
@@ -46,9 +49,12 @@ export function QuantGitHeader({
   pinnedSessionIds,
   setPinnedSessionIds,
   setChatMessages,
-  setModalState,
+  isHistoryOpen,
+  setIsHistoryOpen,
   setIsPersonalizeOpen,
   showToast,
+  isCopilotDrawerOpen,
+  setIsCopilotDrawerOpen,
 }: QuantGitHeaderProps) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -232,6 +238,20 @@ export function QuantGitHeader({
                 <path d="M8 16a2 2 0 0 0 1.985-1.75c.001-.014.004-.028.005-.042.005-.07.01-.14.01-.208H6a2 2 0 0 0 2 2Zm.636-14.708a.75.75 0 0 0-1.272 0A5.5 5.5 0 0 0 3 6.5v3.428l-.78 1.56a.75.75 0 0 0 .67 1.012h10.22a.75.75 0 0 0 .67-1.012L13 9.928V6.5a5.5 5.5 0 0 0-4.364-5.208Z" />
               </svg>
               <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#58A6FF]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsCopilotDrawerOpen?.((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-semibold transition-all ${
+                isCopilotDrawerOpen
+                  ? 'bg-[#FF8C42]/20 border-[#FF8C42] text-[#FF8C42]'
+                  : 'bg-[#21262D] border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D]'
+              }`}
+              title="Toggle Quanty Copilot"
+            >
+              <span>✨</span>
+              <span className="hidden md:inline">Copilot</span>
             </button>
 
             <div className="flex items-center gap-1.5 pl-1 border-l border-[#30363D]">

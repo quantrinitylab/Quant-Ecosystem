@@ -6,20 +6,30 @@ import type { Repo, FileNode } from '../types';
 export interface CodeTabProps {
   selectedRepo: Repo;
   currentBranch: string;
+  repoBranches?: string[];
+  currentPath?: string;
   files: FileNode[];
   setModalState: (modal: any) => void;
   openBlobEditor: (file: FileNode) => Promise<void>;
+  onNavigatePath?: (path: string) => void;
   showToast: (msg: string) => void;
 }
 
 export function CodeTab({
   selectedRepo,
   currentBranch,
+  repoBranches,
+  currentPath = '',
   files,
   setModalState,
   openBlobEditor,
+  onNavigatePath,
   showToast,
 }: CodeTabProps) {
+  const branchCount =
+    repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount || 1;
+  const commitCount = selectedRepo.commitCount || (selectedRepo.latestCommitSha ? 2118 : 1);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
       {/* Left / Main Column (75%) */}
@@ -41,8 +51,8 @@ export function CodeTab({
             </button>
 
             <span className="text-[#7D8590] hidden sm:inline">
-              <span className="text-white font-semibold">348</span> branches ·{' '}
-              <span className="text-white font-semibold">2</span> tags
+              <span className="text-white font-semibold">{branchCount.toLocaleString()}</span>{' '}
+              branches · <span className="text-white font-semibold">2</span> tags
             </span>
           </div>
 
@@ -80,6 +90,45 @@ export function CodeTab({
           </div>
         </div>
 
+        {/* Breadcrumb Path Navigator */}
+        {currentPath && (
+          <div className="flex items-center gap-1.5 text-xs text-[#7D8590] px-1 py-1">
+            <button
+              type="button"
+              onClick={() => onNavigatePath?.('')}
+              className="text-[#58A6FF] hover:underline font-semibold flex items-center gap-1"
+            >
+              <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
+                <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h6.5a.25.25 0 0 1 .25.25v.5a.25.25 0 0 1-.25.25h-6.5a.25.25 0 0 1-.25-.25Z" />
+              </svg>
+              {selectedRepo.name}
+            </button>
+            {currentPath
+              .split('/')
+              .filter(Boolean)
+              .map((segment, idx, arr) => {
+                const segPath = arr.slice(0, idx + 1).join('/');
+                const isLast = idx === arr.length - 1;
+                return (
+                  <React.Fragment key={segPath}>
+                    <span className="text-[#7D8590]">/</span>
+                    {isLast ? (
+                      <span className="text-white font-semibold">{segment}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onNavigatePath?.(segPath)}
+                        className="text-[#58A6FF] hover:underline font-semibold"
+                      >
+                        {segment}
+                      </button>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+          </div>
+        )}
+
         {/* Latest Commit Banner */}
         <div className="bg-[#161B22] border border-[#30363D] rounded-t-md p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 min-w-0">
@@ -112,7 +161,7 @@ export function CodeTab({
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                 <path d="M1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0ZM8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
               </svg>
-              2,118 Commits
+              {commitCount.toLocaleString()} Commits
             </button>
           </div>
         </div>
@@ -125,7 +174,11 @@ export function CodeTab({
               className="flex items-center justify-between px-3.5 py-2.5 hover:bg-[#161B22] transition-colors cursor-pointer group"
               onClick={() => {
                 if (file.type === 'dir') {
-                  showToast(`Opening folder ${file.name}`);
+                  if (onNavigatePath) {
+                    onNavigatePath(file.path);
+                  } else {
+                    showToast(`Opening folder ${file.name}`);
+                  }
                 } else {
                   void openBlobEditor(file);
                 }

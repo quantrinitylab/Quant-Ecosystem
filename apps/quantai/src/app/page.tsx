@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
@@ -18,7 +20,14 @@ import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { MarkdownRenderer } from '../components/MarkdownRenderer';
 import { PersonaSelector } from '../components/PersonaSelector';
 import type { Persona } from '../components/PersonaSelector';
-import { getAuthToken } from '../lib/auth';
+import {
+  getAuthToken,
+  getAuthUser,
+  clearAuthSession,
+  setGuestMode,
+  savePreservedChatState,
+  type AuthUser,
+} from '../lib/auth';
 import { OnboardingHero } from '../components/OnboardingHero';
 import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
 import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
@@ -59,21 +68,23 @@ export default function AIPage() {
   const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const [currentArtifact, setCurrentArtifact] = useState<CanvasArtifact | null>(null);
 
+  const router = useRouter();
+
   // Authentication & Guest State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [dismissGuestBanner, setDismissGuestBanner] = useState(false);
 
   useEffect(() => {
     try {
-      const token =
-        getAuthToken() ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('quant_token') ||
-        localStorage.getItem('quantchat_access_token');
+      const token = getAuthToken();
       const guestStored = localStorage.getItem('quantai_guest') === 'true';
       if (token) {
         setIsAuthenticated(true);
+        setAuthUser(getAuthUser());
       } else if (guestStored) {
         setIsGuest(true);
       }
@@ -81,7 +92,35 @@ export default function AIPage() {
     setHasCheckedAuth(true);
   }, []);
 
+  const handleNavigateToLogin = useCallback(() => {
+    // Preserve current chat state so returning after login maintains full conversation
+    if (conversations.length > 0) {
+      savePreservedChatState({
+        conversations,
+        activeConversationId: activeConversation?.id ?? null,
+        savedAt: new Date().toISOString(),
+      });
+    }
+    router.push('/login');
+  }, [conversations, activeConversation, router]);
+
+  const handleSignOut = useCallback(() => {
+    clearAuthSession();
+    setIsAuthenticated(false);
+    setAuthUser(null);
+    setIsGuest(true);
+    setShowProfileMenu(false);
+  }, []);
+
   const handleQuantSSO = useCallback(() => {
+    // Preserve current chat state before redirecting to SSO
+    if (conversations.length > 0) {
+      savePreservedChatState({
+        conversations,
+        activeConversationId: activeConversation?.id ?? null,
+        savedAt: new Date().toISOString(),
+      });
+    }
     try {
       const stored =
         localStorage.getItem('token') ||
@@ -90,17 +129,16 @@ export default function AIPage() {
       if (stored) {
         localStorage.setItem('token', stored);
         setIsAuthenticated(true);
+        setAuthUser(getAuthUser());
         return;
       }
     } catch {}
     const returnTo = encodeURIComponent(window.location.href);
     window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
-  }, []);
+  }, [conversations, activeConversation]);
 
   const handleContinueAsGuest = useCallback(() => {
-    try {
-      localStorage.setItem('quantai_guest', 'true');
-    } catch {}
+    setGuestMode(true);
     setIsGuest(true);
   }, []);
 
@@ -307,8 +345,40 @@ export default function AIPage() {
             </div>
           }
           footer={
-            <div className="px-3 py-2 text-xs text-[var(--foreground-secondary)]">
-              Model: {currentModel.icon} {currentModel.name}
+            <div className="px-3 py-2 space-y-2 border-t border-[var(--quant-border)] text-xs">
+              <div className="text-[var(--foreground-secondary)] flex items-center justify-between">
+                <span>Model:</span>
+                <span className="font-medium text-[var(--foreground)] truncate ml-1">
+                  {currentModel.icon} {currentModel.name}
+                </span>
+              </div>
+              {isAuthenticated ? (
+                <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                    <span className="truncate text-[11px] text-[var(--foreground)] font-medium">
+                      {authUser?.email || 'Quant Member'}
+                    </span>
+                  </div>
+                  <Link
+                    href="/profile"
+                    className="text-[10px] text-violet-400 hover:text-violet-300 font-semibold uppercase tracking-wider shrink-0"
+                  >
+                    Profile
+                  </Link>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
+                  <span className="text-[11px] text-zinc-400">Guest exploration</span>
+                  <button
+                    type="button"
+                    onClick={handleNavigateToLogin}
+                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
+                  >
+                    Sign In →
+                  </button>
+                </div>
+              )}
             </div>
           }
         />
@@ -394,17 +464,81 @@ export default function AIPage() {
                   )}
                 </button>
 
-                {/* 1-Click Quant Account SSO button if unauthenticated or guest */}
-                {!isAuthenticated && (
-                  <button
-                    type="button"
-                    onClick={handleQuantSSO}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
-                    title="Sign in with Quant Account (1-Click SSO)"
-                  >
-                    <span>⚡</span>
-                    <span className="hidden sm:inline">Sign In</span>
-                  </button>
+                {/* Authentication surface / User Profile in Header */}
+                {isAuthenticated ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileMenu(!showProfileMenu)}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-[var(--foreground)] text-xs font-semibold transition-all cursor-pointer"
+                      title="User Profile & Account Menu"
+                    >
+                      <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-violet-500 to-indigo-600 flex items-center justify-center text-[10px] text-white font-bold">
+                        {(authUser?.name || authUser?.email || 'Q').charAt(0).toUpperCase()}
+                      </div>
+                      <span className="hidden sm:inline truncate max-w-[120px]">
+                        {authUser?.name || authUser?.email?.split('@')[0] || 'Member'}
+                      </span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    </button>
+
+                    {showProfileMenu && (
+                      <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-2xl p-2 z-50 text-xs">
+                        <div className="px-3 py-2 border-b border-[var(--quant-border)]">
+                          <div className="font-semibold text-[var(--foreground)] truncate">
+                            {authUser?.name || 'Quant Member'}
+                          </div>
+                          <div className="text-[11px] text-[var(--foreground-secondary)] truncate">
+                            {authUser?.email || 'user@quantmail.in'}
+                          </div>
+                          <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            ACTIVE • CLOUD SYNC
+                          </span>
+                        </div>
+                        <div className="py-1">
+                          <Link
+                            href="/profile"
+                            onClick={() => setShowProfileMenu(false)}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-[var(--quant-surface-hover)] text-[var(--foreground)] transition-colors"
+                          >
+                            <span>👤</span>
+                            <span>Your Profile & Stats</span>
+                          </Link>
+                        </div>
+                        <div className="pt-1 border-t border-[var(--quant-border)]">
+                          <button
+                            type="button"
+                            onClick={handleSignOut}
+                            className="w-full text-left flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-red-500/10 text-red-400 transition-colors cursor-pointer"
+                          >
+                            <span>🚪</span>
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleNavigateToLogin}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                      title="Sign In to save chats and unlock cloud persistence"
+                    >
+                      <span>🔒</span>
+                      <span>Sign In</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQuantSSO}
+                      className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)] text-xs font-semibold transition-all cursor-pointer"
+                      title="Quick SSO with QuantMail"
+                    >
+                      <span>⚡</span>
+                      <span>SSO</span>
+                    </button>
+                  </div>
                 )}
 
                 <ExportMenu conversation={activeConversation} messages={messages} />
@@ -439,6 +573,44 @@ export default function AIPage() {
                     onContinueQuantSSO={handleQuantSSO}
                     onContinueAsGuest={handleContinueAsGuest}
                   />
+                </div>
+              )}
+
+              {/* Sleek Guest Sign-In Banner to save conversations */}
+              {!isAuthenticated && !dismissGuestBanner && hasCheckedAuth && (
+                <div className="px-4 py-2.5 m-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-zinc-900/60 to-violet-950/30 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg shadow-violet-950/20">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-violet-500/20 text-violet-400 text-xs shrink-0">
+                      ✨
+                    </span>
+                    <div className="text-xs text-zinc-300 truncate">
+                      <span className="font-semibold text-white">Guest Exploration:</span>{' '}
+                      <span className="text-zinc-400 hidden sm:inline">
+                        Sign in to save your conversation history across devices, access deep
+                        reasoning models, and sync memory.
+                      </span>
+                      <span className="text-zinc-400 sm:hidden">
+                        Sign in to save conversations.
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleNavigateToLogin}
+                      className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                    >
+                      Sign In to Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDismissGuestBanner(true)}
+                      className="text-zinc-400 hover:text-zinc-200 p-1 text-xs cursor-pointer"
+                      aria-label="Dismiss banner"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               )}
 

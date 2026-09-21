@@ -181,11 +181,11 @@ export class DeliverabilityService {
     }
 
     const dmarcPassRate =
-      totalEvaluated > 0 ? Math.round((totalDmarcPass / totalEvaluated) * 10000) / 100 : 99.8;
+      totalEvaluated > 0 ? Math.round((totalDmarcPass / totalEvaluated) * 10000) / 100 : 0;
     const spfAlignmentRate =
-      totalEvaluated > 0 ? Math.round((totalSpfPass / totalEvaluated) * 10000) / 100 : 99.5;
+      totalEvaluated > 0 ? Math.round((totalSpfPass / totalEvaluated) * 10000) / 100 : 0;
     const dkimAlignmentRate =
-      totalEvaluated > 0 ? Math.round((totalDkimPass / totalEvaluated) * 10000) / 100 : 99.9;
+      totalEvaluated > 0 ? Math.round((totalDkimPass / totalEvaluated) * 10000) / 100 : 0;
 
     const suppressionCount = await this.suppression.count();
     const bounceCount = await this.suppression.count({ reason: 'BOUNCE' });
@@ -193,24 +193,22 @@ export class DeliverabilityService {
 
     // G4-9: Dynamically compute bounce and complaint rates from authentic database suppression counts
     // and total evaluated volume; zero hardcoded/fabricated numbers.
-    const evaluationDenominator = totalEvaluated > 0 ? totalEvaluated : 0;
     const bounceRate =
-      evaluationDenominator > 0
-        ? Math.round((bounceCount / evaluationDenominator) * 10000) / 10000
-        : 0;
+      totalEvaluated > 0 ? Math.round((bounceCount / totalEvaluated) * 10000) / 10000 : 0;
     const complaintRate =
-      evaluationDenominator > 0
-        ? Math.round((complaintCount / evaluationDenominator) * 10000) / 10000
-        : 0;
+      totalEvaluated > 0 ? Math.round((complaintCount / totalEvaluated) * 10000) / 10000 : 0;
 
     // Reputation score 0-100: weighted average of auth alignment minus bounce/complaint penalties
-    let score = Math.round(
-      dmarcPassRate * 0.5 +
-        spfAlignmentRate * 0.25 +
-        dkimAlignmentRate * 0.25 -
-        bounceRate * 50 -
-        complaintRate * 200,
-    );
+    let score =
+      totalEvaluated > 0
+        ? Math.round(
+            dmarcPassRate * 0.5 +
+              spfAlignmentRate * 0.25 +
+              dkimAlignmentRate * 0.25 -
+              bounceRate * 50 -
+              complaintRate * 200,
+          )
+        : 100;
     score = Math.max(0, Math.min(100, score));
 
     let status: DeliverabilityStats['status'] = 'EXCELLENT';
@@ -222,7 +220,7 @@ export class DeliverabilityService {
     return {
       domain,
       reputationScore: score,
-      totalEvaluated: totalEvaluated || 1500,
+      totalEvaluated,
       dmarcPassRate,
       spfAlignmentRate,
       dkimAlignmentRate,

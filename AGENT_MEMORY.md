@@ -3122,3 +3122,62 @@ graph TD
   - **CEO Astra Wave 30 Benchmark Scorecard Recorded on Notion**:
     - Notion Page: _"Wave 30 — Full Ecosystem Competitor Benchmark, Brutal Reality Scorecard & Dev 1–8 Dispatch"_ (`https://app.notion.com/p/Wave-30-Full-Ecosystem-Competitor-Benchmark-Brutal-Reality-Scorecard-Dev-1-8-Dispatch-896afca6537941528b8f5c6a7a6325fb`).
     - True ecosystem substance parity calibrated at ~52% (infrastructure gates G5 & G6 are the critical path forward).
+
+- **9. Wave 30 Security Hardening & PR #261 CEO Astra Sign-Off**:
+  - **CEO Astra Official Ruling (§16 Master Ledger)**:
+    - Ruled SEC-1, SEC-2, SEC-4, and OTP-1 closed on the code diff. Engineering signed off.
+    - Presigning fail-closed (HTTP 500), atomic view-once 410 consumption, Postgres race proof with P2002 loser handling, and zero-leak OTP masking verified.
+    - PR #261 status: Open at `hotfix/sec-snap-view-otp-hardening`. Migration must advance from `0069_add_snap_views` to `0070_add_snap_views` upon rebase over `main` (commit `2a6716c4`).
+
+- **10. Full Staging Ecosystem Deployment & Event Spine Rollout (PRs #262–#296 — Commit `2a6716c4` — 2026-09-22)**:
+  - **10 Killer Core Applications & Standalone Backends 100% Deployed**:
+    - **18/18 Deployments 1/1 Running** in Kubernetes namespace `quant-staging` (total 20 pods running, including dual sidecars for QuantAI and QuantChat).
+    - **All 11 Public Endpoints Verified Responding HTTP 200**:
+      1. `https://quantmail.in/` (HTTP 200)
+      2. `https://quantchat.quantrinity.in/` (HTTP 200)
+      3. `https://quantai.quantrinity.in/` (HTTP 200)
+      4. `https://quanty.quantrinity.in/` (HTTP 200)
+      5. `https://quantube.quantrinity.in/` (HTTP 200)
+      6. `https://quantgram.quantrinity.in/` (HTTP 200)
+      7. `https://quantwave.quantrinity.in/` (HTTP 200)
+      8. `https://quantmax.quantrinity.in/` (HTTP 200)
+      9. `https://quantcooks.quantrinity.in/` (HTTP 200)
+      10. `https://quantads.quantrinity.in/` (HTTP 200)
+      11. `https://quanttrinity.quantrinity.in/` (HTTP 200)
+  - **QuantTrinity Incident Postmortem & Root Cause Fixed**:
+    - Liveness probe had been failing behind Next.js owner API auth gate (`/api/:path*`), resulting in ~300 restarts over 18h with graceful shutdown (`exitCode=0`).
+    - Fixed in PR #283 by exempting `/api/health` from the gate (11 new tests added) and installing `openssl` for Prisma engine in PR #282. QuantTrinity is now serving 200 stably.
+  - **Event Spine (Law 3 Architecture) Activated & Proven End-to-End**:
+    - **Carrier (`services/cdc-relay`)**: Drains PostgreSQL `outbox_events` table onto Redis Streams transport (`redis-streams` implementation, with TLS, SKIP LOCKED concurrency, PRs #286–#292). Pod running live (`quant-cdc-relay`).
+    - **First Producer (`VideoService.likeVideo`)**: Atomically writes `Video.liked` into `outbox_events` in the same transaction as state mutation (PR #294). Verified live on staging.
+    - **Signal Projector (`services/signal-projector`)**: Consumer reading Redis Stream `outbox.Video` via group `signal-projector` and folding events into `user_interest_signals` table (Migration 0069, PR #296).
+    - **Forensic Runtime Fix**: Executed `XGROUP CREATE outbox.Video signal-projector 0 MKSTREAM` on Redis 7.4.11, resolving `NOGROUP` error and transitioning `quant-signal-projector` into clean, zero-error blocking consumer loop.
+
+- **11. Wave 32 Execution: Grand Ecosystem Parity, Dual Authentication & CEO Astra Ruling (2026-09-22)**:
+  - **CEO Astra Official Ruling (§Notion Ledger)**:
+    - Ledger Page: _"🧭 Wave 32 Architecture Ruling — Conditional Authorization (2a6716c4)"_ (`https://app.notion.com/p/Wave-32-Architecture-Ruling-Conditional-Authorization-2a6716c4-17329dd93a064276a777b2eb974baf66`).
+    - Nine Sign-Off Conditions established by Astra.
+  - **Track 1: QuantChat Dual Authentication & Scoped Identity**:
+    - Implemented `POST /auth/login` validating identifier (email/username/phone) and password with `argon2id` and dummy timing-safe verification.
+    - Added dual tabs `[⚡ Quant Account]` vs `[📱 Phone Number]` in `apps/quantchat/src/app/login/page.tsx`.
+    - Scoped `jwtAudience` to `'quantchat'` by default, guaranteeing QuantChat-minted password tokens cannot bypass QuantMail 2FA on sibling backends (satisfying W32-3).
+    - 97 test suites and 913 tests passing 100% green.
+  - **Track 2: QuantGit / CodeHub Repository Parity**:
+    - Set default `activeDeckTab` to `'repos'`, loading developer repository dashboard directly on `/quantgit`.
+    - Eliminated hardcoded fallback commit SHA (`317ed52d`) in `repos.ts`; fails closed with 400 `COMMIT_SHA_UNAVAILABLE`.
+    - Eliminated fabricated `SUCCESS` job status in CI trigger; initializes jobs as `QUEUED`.
+    - 90/90 tests passing green in `repos.routes.test.ts`.
+  - **Track 3: QuantAI / Quanty Hardened Authentication**:
+    - Created dedicated `/login` page with QuantMail SSO and email/password form.
+    - Proxies login to QuantMail root auth, setting `quant_access_token` as an `httpOnly` secure cookie to prevent script exfiltration (satisfying W32-5).
+  - **Tracks 4 & 5: Public Media/Social Feeds & Anti-Prefix Bypass Engine**:
+    - Upgraded `packages/server-core` to enforce exact-path and method-aware matching for `publicPaths`, preventing bare collection prefix bypasses (satisfying W32-6).
+    - Configured exact GET-only public read paths for QuanTube (`GET /videos`), QuantGram (`GET /posts/feed`), QuantWave (`GET /feed`), QuantMax (`GET /feed/for-you`), and QuantCooks (`GET /templates`).
+    - Added adjacent and mutating path rejection test suite in `packages/server-core` (13/13 tests green).
+  - **Track 7 / W32-1: Signal Projector Auto-Claim & DLQ**:
+    - Implemented `XAUTOCLAIM` pending entries claim path in `services/signal-projector/src/consumer.ts` with `maxDeliveries` cap.
+    - Exceeded retries are routed to `${stream}.DLQ` stream with full provenance and acknowledged from main stream.
+    - Added write-failure tracking and readiness signal for health probes. 27/27 tests green.
+  - **Gate Hardening (G3-12 & G4-9)**:
+    - G3-12 verified: `search-query.service.ts` includes `toAddresses`, `labels`, and `isImportant` in raw PostgreSQL full-text search where-clause.
+    - G4-9 resolved: `deliverability.service.ts` replaced fabricated numbers (1500, 99.8, 99.5, 99.9) with authentic calculated rates from DB suppression counts and real volume. 7/7 tests green.

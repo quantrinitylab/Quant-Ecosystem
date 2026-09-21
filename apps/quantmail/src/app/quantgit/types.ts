@@ -1,4 +1,4 @@
-export type MainDeckTab = 'quanty' | 'repos' | 'lab';
+export type MainDeckTab = 'quanty' | 'repos' | 'code' | 'lab';
 
 export type GitHubTab =
   | 'code'
@@ -36,6 +36,9 @@ export type Repo = {
   license: string;
   website: string;
   topics: string[];
+  branchCount?: number;
+  commitCount?: number;
+  branches?: string[];
 };
 
 export type FileNode = {

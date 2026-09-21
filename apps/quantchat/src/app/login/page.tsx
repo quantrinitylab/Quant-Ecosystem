@@ -1,26 +1,28 @@
 'use client';
 
 // ============================================================================
-// QuantChat - Phone OTP sign-in
+// QuantChat - Dual Sign-In (Email/Password & Phone OTP)
 // ============================================================================
 //
-// Two-step phone sign-in against the REAL backend OTP endpoints (proxied via
-// /api/auth/otp/*). On successful verification the issued JWTs are persisted
-// (localStorage + apiClient) so the shared useAuth hook resolves the verified
-// identity and every authed data request carries the bearer. No fabricated
-// session is ever created: a failed request surfaces the backend error.
+// Dual sign-in against the REAL backend endpoints (proxied via /api/auth/*).
+// Supports instant QuantMail account (Email & Password) login and SMS OTP.
+// On successful verification the issued JWTs are persisted (localStorage + apiClient).
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 
+type AuthMode = 'password' | 'phone';
 type Step = 'phone' | 'otp';
 
 const COUNTRY_CODE_RE = /^\+\d{1,4}$/;
 
 export default function LoginPage() {
   const router = useRouter();
+  const [authMode, setAuthMode] = useState<AuthMode>('password');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [step, setStep] = useState<Step>('phone');
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -44,6 +46,40 @@ export default function LoginPage() {
     const returnTo = encodeURIComponent(window.location.origin + '/');
     window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
   }, [router]);
+
+  const handlePasswordLogin = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      setInfo(null);
+      if (!identifier.trim()) {
+        setError('Enter your email or username');
+        return;
+      }
+      if (!password) {
+        setError('Enter your password');
+        return;
+      }
+      setBusy(true);
+      try {
+        const res = await apiClient.loginWithPassword({
+          identifier: identifier.trim(),
+          password,
+        });
+        if (!res.success || !res.data) {
+          setError(res.error?.message ?? 'Invalid credentials');
+          return;
+        }
+        persistSession(res.data.accessToken, res.data.refreshToken);
+        router.replace('/');
+      } catch {
+        setError('Network error. Please try again.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [identifier, password, router],
+  );
 
   const requestCode = useCallback(async () => {
     setError(null);
@@ -81,8 +117,6 @@ export default function LoginPage() {
     setBusy(true);
     try {
       const full = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
-      // apiClient.verifyOTP injects its own generated deviceId, overriding this
-      // placeholder — it is only present to satisfy the OTPVerifyRequest type.
       const res = await apiClient.verifyOTP({ phoneNumber: full, otp, deviceId: '' });
       if (!res.success || !res.data) {
         setError(res.error?.message ?? 'Invalid or expired code');
@@ -98,54 +132,124 @@ export default function LoginPage() {
   }, [countryCode, phoneNumber, otp, router]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[var(--quant-background)] px-4">
+    <main className="min-h-screen flex items-center justify-center bg-[var(--quant-background,#09090b)] px-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold">
+          <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-indigo-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-emerald-500/20">
             Q
           </div>
-          <h1 className="text-2xl font-bold text-[var(--quant-foreground)]">
+          <h1 className="text-2xl font-bold text-[var(--quant-foreground,#fafafa)]">
             Sign in to QuantChat
           </h1>
-          <p className="text-sm text-[var(--quant-muted-foreground)]">
-            {step === 'phone'
-              ? 'Enter your phone number to get a verification code.'
-              : `Enter the code sent to ${countryCode} ${phoneNumber}.`}
+          <p className="text-sm text-[var(--quant-muted-foreground,#a1a1aa)]">
+            {authMode === 'password'
+              ? 'Sign in with your QuantMail or ecosystem credentials.'
+              : step === 'phone'
+                ? 'Enter your phone number to get a verification code.'
+                : `Enter the code sent to ${countryCode} ${phoneNumber}.`}
           </p>
         </div>
 
         {error && (
           <div
             role="alert"
-            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-500"
+            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400"
           >
             {error}
           </div>
         )}
         {info && !error && (
-          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600">
+          <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-400">
             {info}
           </div>
         )}
 
-        <div className="space-y-3">
+        {/* Tab Selector */}
+        <div className="flex rounded-lg bg-[var(--quant-muted,#27272a)] p-1 border border-[var(--quant-border,#3f3f46)]">
           <button
             type="button"
-            onClick={handleQuantSSO}
-            className="w-full flex items-center justify-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface,#18181b)] py-2.5 font-medium text-[var(--quant-foreground)] hover:bg-[var(--quant-muted,#27272a)] transition-colors shadow-sm"
+            onClick={() => {
+              setAuthMode('password');
+              setError(null);
+            }}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              authMode === 'password'
+                ? 'bg-[var(--quant-background,#09090b)] text-white shadow'
+                : 'text-[var(--quant-muted-foreground,#a1a1aa)] hover:text-white'
+            }`}
           >
-            <span className="text-emerald-400 font-bold">⚡</span> Continue with Quant Account
+            ⚡ Quant Account
           </button>
-          <div className="relative flex items-center justify-center py-2">
-            <div className="border-t border-[var(--quant-border)] w-full" />
-            <span className="bg-[var(--quant-background)] px-2 text-xs text-[var(--quant-muted-foreground)] uppercase">
-              Or with phone
-            </span>
-            <div className="border-t border-[var(--quant-border)] w-full" />
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('phone');
+              setError(null);
+            }}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${
+              authMode === 'phone'
+                ? 'bg-[var(--quant-background,#09090b)] text-white shadow'
+                : 'text-[var(--quant-muted-foreground,#a1a1aa)] hover:text-white'
+            }`}
+          >
+            📱 Phone OTP
+          </button>
         </div>
 
-        {step === 'phone' ? (
+        {authMode === 'password' ? (
+          <form className="space-y-4" onSubmit={handlePasswordLogin}>
+            <div>
+              <label
+                htmlFor="identifier"
+                className="block text-xs font-medium text-[var(--quant-muted-foreground,#a1a1aa)] mb-1"
+              >
+                Email or Username
+              </label>
+              <input
+                id="identifier"
+                type="text"
+                autoComplete="username"
+                placeholder="user@quantmail.in or username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full rounded-lg border border-[var(--quant-border,#3f3f46)] bg-[var(--quant-surface,#18181b)] px-3 py-2 text-sm text-[var(--quant-foreground,#fafafa)] placeholder-[var(--quant-muted-foreground,#71717a)] focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="password"
+                className="block text-xs font-medium text-[var(--quant-muted-foreground,#a1a1aa)] mb-1"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-lg border border-[var(--quant-border,#3f3f46)] bg-[var(--quant-surface,#18181b)] px-3 py-2 text-sm text-[var(--quant-foreground,#fafafa)] placeholder-[var(--quant-muted-foreground,#71717a)] focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full rounded-lg bg-emerald-500 py-2.5 font-semibold text-white transition-opacity hover:bg-emerald-600 disabled:opacity-60 shadow-md shadow-emerald-500/20"
+            >
+              {busy ? 'Signing in…' : 'Sign in to QuantChat'}
+            </button>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleQuantSSO}
+                className="w-full text-center text-xs text-[var(--quant-muted-foreground,#a1a1aa)] hover:text-emerald-400 transition-colors"
+              >
+                Sign in with QuantMail SSO →
+              </button>
+            </div>
+          </form>
+        ) : step === 'phone' ? (
           <form
             className="space-y-4"
             onSubmit={(e) => {
@@ -163,7 +267,7 @@ export default function LoginPage() {
                   inputMode="tel"
                   value={countryCode}
                   onChange={(e) => setCountryCode(e.target.value.trim())}
-                  className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
+                  className="w-full rounded-lg border border-[var(--quant-border,#3f3f46)] bg-[var(--quant-surface,#18181b)] px-3 py-2 text-sm text-[var(--quant-foreground,#fafafa)]"
                   aria-label="Country code"
                 />
               </div>
@@ -178,14 +282,14 @@ export default function LoginPage() {
                   placeholder="Phone number"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-[var(--quant-foreground)]"
+                  className="w-full rounded-lg border border-[var(--quant-border,#3f3f46)] bg-[var(--quant-surface,#18181b)] px-3 py-2 text-sm text-[var(--quant-foreground,#fafafa)] placeholder-[var(--quant-muted-foreground,#71717a)]"
                 />
               </div>
             </div>
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-emerald-500 py-2.5 font-semibold text-white transition-opacity disabled:opacity-60"
+              className="w-full rounded-lg bg-emerald-500 py-2.5 font-semibold text-white transition-opacity hover:bg-emerald-600 disabled:opacity-60 shadow-md shadow-emerald-500/20"
             >
               {busy ? 'Sending…' : 'Send code'}
             </button>
@@ -209,13 +313,13 @@ export default function LoginPage() {
                 placeholder="Verification code"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                className="w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] px-3 py-2 text-center text-lg tracking-[0.4em] text-[var(--quant-foreground)]"
+                className="w-full rounded-lg border border-[var(--quant-border,#3f3f46)] bg-[var(--quant-surface,#18181b)] px-3 py-2 text-center text-lg tracking-[0.4em] text-[var(--quant-foreground,#fafafa)]"
               />
             </div>
             <button
               type="submit"
               disabled={busy}
-              className="w-full rounded-lg bg-emerald-500 py-2.5 font-semibold text-white transition-opacity disabled:opacity-60"
+              className="w-full rounded-lg bg-emerald-500 py-2.5 font-semibold text-white transition-opacity hover:bg-emerald-600 disabled:opacity-60 shadow-md shadow-emerald-500/20"
             >
               {busy ? 'Verifying…' : 'Verify & continue'}
             </button>
@@ -227,7 +331,7 @@ export default function LoginPage() {
                 setError(null);
                 setInfo(null);
               }}
-              className="w-full py-2 text-sm text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+              className="w-full py-2 text-sm text-[var(--quant-muted-foreground,#a1a1aa)] hover:text-[var(--quant-foreground,#fafafa)]"
             >
               Use a different number
             </button>

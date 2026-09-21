@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
-import type { AppConfig } from './types';
+import type { AppConfig, PublicPathEntry } from './types';
 import errorHandler from './plugins/error-handler';
 import healthPlugin from './plugins/health';
 import authPlugin from './plugins/auth';
@@ -135,23 +135,64 @@ export async function createApp(config: AppConfig) {
   await fastify.register(identityPermissionsPlugin);
   await fastify.register(teamsPlugin);
 
-  // Public paths that bypass auth
-  const PUBLIC_PATHS = [
-    '/health',
-    '/healthz',
-    '/ready',
-    '/readyz',
-    '/live',
-    '/livez',
-    '/metrics',
-    // Caller-supplied pre-authentication endpoints (e.g. login / OTP).
+  // Public paths that bypass auth (health/metrics are GET-only exact matches by default)
+  const PUBLIC_PATHS: PublicPathEntry[] = [
+    { path: '/health', methods: ['GET'], exact: true },
+    { path: '/healthz', methods: ['GET'], exact: true },
+    { path: '/ready', methods: ['GET'], exact: true },
+    { path: '/readyz', methods: ['GET'], exact: true },
+    { path: '/live', methods: ['GET'], exact: true },
+    { path: '/livez', methods: ['GET'], exact: true },
+    { path: '/metrics', methods: ['GET'], exact: true },
+    // Caller-supplied pre-authentication endpoints (e.g. login/OTP) or public read paths.
     ...(config.publicPaths ?? []),
   ];
 
-  // Enforce auth on all routes except health/metrics
+  function matchesPublicPath(entry: PublicPathEntry, path: string, method: string): boolean {
+    let pattern: string;
+    let allowedMethods: string[] | undefined;
+    let exact = true;
+
+    if (typeof entry === 'string') {
+      if (entry.endsWith('/*')) {
+        pattern = entry.slice(0, -2);
+        exact = false;
+      } else {
+        pattern = entry;
+        exact = true;
+      }
+    } else {
+      pattern = entry.path;
+      allowedMethods = entry.methods;
+      exact = entry.exact ?? true;
+    }
+
+    if (allowedMethods && allowedMethods.length > 0 && !allowedMethods.includes(method)) {
+      return false;
+    }
+
+    if (exact) {
+      if (path === pattern) return true;
+      if (pattern.includes(':')) {
+        const patternSegments = pattern.split('/').filter(Boolean);
+        const pathSegments = path.split('/').filter(Boolean);
+        if (patternSegments.length === pathSegments.length) {
+          return patternSegments.every((seg, i) => seg.startsWith(':') || seg === pathSegments[i]);
+        }
+      }
+      return false;
+    }
+
+    // Wildcard prefix matching ONLY when explicitly declared (e.g. pattern ends with /*)
+    return path === pattern || path.startsWith(pattern + '/');
+  }
+
+  // Enforce auth on all routes except health/metrics and caller-configured public paths
   fastify.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0] ?? '';
-    if (PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'))) {
+    const method = request.method;
+    if (PUBLIC_PATHS.some((p) => matchesPublicPath(p, path, method))) {
+      await fastify.optionalAuth()(request);
       return;
     }
     await fastify.requireAuth()(request, reply);

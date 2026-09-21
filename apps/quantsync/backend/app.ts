@@ -28,9 +28,13 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantsync',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
-    // SSO login is pre-authentication: the caller has a QuantMail token, not a
-    // QuantSync session yet, so this endpoint must bypass the global auth hook.
-    publicPaths: ['/auth/sso/login'],
+    // SSO login and public feed discovery bypass the global auth hook so guests can explore
+    publicPaths: [
+      { path: '/auth/sso/login', exact: true },
+      { path: '/feed', methods: ['GET'], exact: true },
+      { path: '/explore', methods: ['GET'], exact: true },
+      { path: '/trending', methods: ['GET'], exact: true },
+    ],
     env,
   };
 }

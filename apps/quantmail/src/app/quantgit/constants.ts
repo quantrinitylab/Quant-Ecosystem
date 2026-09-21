@@ -40,6 +40,9 @@ export const INITIAL_REPOS: Repo[] = [
       'monorepo',
       'jetpack-compose',
     ],
+    branchCount: 348,
+    commitCount: 2118,
+    branches: ['main', 'feat/sprint-7-github-parity', 'fix/core-astra-audit', 'release/v1.0.0-apk'],
   },
   {
     id: 'quantmail-core',
@@ -62,6 +65,9 @@ export const INITIAL_REPOS: Repo[] = [
     license: 'Proprietary',
     website: 'https://quantmail.in',
     topics: ['email', 'privacy', 'onnx', 'rust-worker'],
+    branchCount: 42,
+    commitCount: 846,
+    branches: ['main', 'feat/offline-sync', 'fix/ses-deliverability'],
   },
   {
     id: 'quantchat-meet',
@@ -83,6 +89,9 @@ export const INITIAL_REPOS: Repo[] = [
     license: 'Proprietary',
     website: 'https://quantmail.in',
     topics: ['webrtc', 'livekit', 'voice-ai', 'messaging'],
+    branchCount: 28,
+    commitCount: 512,
+    branches: ['main', 'feat/livekit-sfu', 'feat/voice-bot'],
   },
   {
     id: 'quant-mobile-android',
@@ -105,6 +114,9 @@ export const INITIAL_REPOS: Repo[] = [
     license: 'Apache-2.0',
     website: 'https://quantmail.in',
     topics: ['android', 'kotlin', 'compose', 'apk', 'mobile'],
+    branchCount: 16,
+    commitCount: 394,
+    branches: ['main', 'feat/jetpack-compose', 'fix/webview-perf'],
   },
 ];
 

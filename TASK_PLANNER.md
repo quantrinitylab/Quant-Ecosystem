@@ -81,6 +81,48 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [ ] **Wave 32 — Grand Ecosystem Substance & Universal Parity Sprint (In Progress)**:
+  - [ ] **Track 1: QuantChat Dual Authentication & Email Fallback (Developer 1)**:
+    - Add Email & Password sign-in tab to QuantChat login page (`apps/quantchat/src/app/login/page.tsx`).
+    - Mount `POST /auth/login` on QuantChat backend for direct bcrypt/QuantMail credentials validation and JWT issuance.
+    - Add Email OTP delivery fallback via QuantMail SES/SMTP sender when SMS gateway is unavailable.
+    - Complete cross-subdomain SSO session sync from `quantmail.in` to `quantchat.quantrinity.in`.
+  - [ ] **Track 2: QuantGit / CodeHub GitHub-Class Overhaul (Developer 6)**:
+    - Redesign `/quantgit` to open directly to the Developer Repository Dashboard (recent repos, branches, commit activity, language tags).
+    - Wire real backend endpoints (`GET /api/repos`, `GET /api/repos/:owner/:repo/tree`, commits history, pull requests).
+    - Implement real syntax-highlighted code viewer and PR inline diff viewer.
+    - Move Quanty AI into an omnipresent collapsible sidebar copilot instead of hijacking the repository screen.
+  - [ ] **Track 3: QuantAI Real Authentication & Database Persistence (Developer 7)**:
+    - Build dedicated `apps/quantai/src/app/login/page.tsx` with QuantMail SSO + email/password login.
+    - Persist user conversations and message history into PostgreSQL database.
+    - Connect live multi-model streaming endpoints (`GPT-4o`, `Claude 3.5 Sonnet`, `Quant-1`).
+  - [ ] **Track 4: Media Apps Public Feeds & YouTube/Instagram Parity (Developer 3 & Developer 4)**:
+    - Eliminate 401 on `GET /videos` in QuanTube backend; return trending public videos when unauthenticated.
+    - Build YouTube-grade video grid, category chips, video player preview, and universal `EcosystemHeader`.
+    - Eliminate 401 on `GET /posts/feed` in QuantGram backend; return explore reels and public posts.
+    - Build Instagram-grade explore feed, story carousel, and eliminate infinite skeleton loader.
+  - [ ] **Track 5: Social Apps Public Feeds & X/TikTok/CapCut Parity (Developer 5 & Developer 8)**:
+    - Eliminate 401 on `GET /feed` in QuantWave backend; build X/Twitter-grade timeline with trending hashtags.
+    - Eliminate 401 on `GET /feed/for-you` in QuantMax backend; build TikTok-grade vertical swipe player.
+    - Eliminate 401 on `GET /templates` in QuantCooks backend; build CapCut-grade template gallery studio.
+
+- [x] **Wave 31 — Full Staging Ecosystem Deployment & Event Spine Rollout (PRs #262–#296 — Commit `2a6716c4` — 2026-09-22)**:
+  - [x] **Track 1: Full-Namespace Staging Rollout (18 Deployments, 20 Pods 100% Running)**:
+    - Standalone backends built, containerized, and wired for `quantads`, `quantedits`, `quantmax`, `quantneon`, `quantsync`, `quanttrinity`, `quantube`.
+    - 18/18 Deployments 1/1 Running in Kubernetes namespace `quant-staging` with 0 crash loops.
+    - All 11 public ingress endpoints verified returning HTTP 200 (`quantmail.in`, `quantchat`, `quantai`, `quanty`, `quantube`, `quantgram`, `quantwave`, `quantmax`, `quantcooks`, `quantads`, `quanttrinity`).
+  - [x] **Track 2: QuantTrinity Incident Remediation (PRs #282–#283)**:
+    - Exempted `/api/health` from Next.js owner API auth gate (`/api/:path*`), eliminating the 18h / 300-restart loop.
+    - Installed `openssl` into image for Prisma engine. Liveness probe verified 100% green.
+  - [x] **Track 3: Event Spine Activation (Law 3 Architecture - PRs #286–#296)**:
+    - `services/cdc-relay` deployed and connected to Postgres (TLS) and Redis Streams (`quant-cdc-relay`).
+    - `VideoService.likeVideo` atomically emits `Video.liked` into `outbox_events` in the same transaction.
+    - `services/signal-projector` deployed to consume `outbox.Video` and fold into `user_interest_signals` (Migration 0069).
+    - Initialized Redis 7.4.11 consumer group `signal-projector` via `MKSTREAM`, establishing zero-error event stream folding.
+  - [ ] **Track 4: PR #261 Rebase over `2a6716c4` (Snap Views & OTP Hardening)**:
+    - Advance Migration 0069 (`0069_add_snap_views`) to Migration 0070 (`0070_add_snap_views`) to resolve collision with `0069_add_user_interest_signals`.
+    - Rebase branch `hotfix/sec-snap-view-otp-hardening` over `main` (`2a6716c4`), verify CI, and merge.
+
 - [x] **Wave 30 — Binary Gates Remediation & Production Infrastructure (Commit `d6139b27`)**:
   - [x] **Track 1: QuantChat SMS Gateway Hardening & Abuse Protection (CH-1, CH-2, CH-3 - Developer 1)**:
     - Production fail-closed when AWS SNS credentials are missing (throws/returns `SMS_GATEWAY_NOT_CONFIGURED`).

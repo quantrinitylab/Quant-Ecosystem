@@ -17,8 +17,14 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PrismaClient } from '@prisma/client';
+import { passwordService } from '@quant/auth';
 import type { OtpService } from '../lib/otp-service';
 import type { SessionTokenIssuer } from '../lib/session-tokens';
+
+const loginSchema = z.object({
+  identifier: z.string().min(1).max(255),
+  password: z.string().min(1).max(255),
+});
 
 const requestSchema = z.object({
   phoneNumber: z.string().min(4).max(20),
@@ -93,6 +99,83 @@ export default async function authRoutes(fastify: FastifyInstance) {
         role: String(user.role).toLowerCase(),
         xpPoints: user.xpPoints,
         level: user.level,
+      },
+    });
+  });
+
+  // POST /auth/login — Email/Username/Phone + Password direct authentication
+  fastify.post('/login', async (request, reply) => {
+    const parsed = loginSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'Identifier and password are required',
+          statusCode: 400,
+        },
+      });
+    }
+    const { identifier, password } = parsed.data;
+    const normalized = identifier.trim().toLowerCase();
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: normalized }, { username: normalized }, { phoneNumber: identifier.trim() }],
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        displayName: true,
+        phoneNumber: true,
+        passwordHash: true,
+        role: true,
+      },
+    });
+
+    const DUMMY_HASH = '$argon2id$v=19$m=19456,t=2,p=1$c29tZXNhbHQ$c29tZXNhbHQ';
+    if (!user || !user.passwordHash || user.passwordHash.startsWith('!')) {
+      await passwordService.verify(DUMMY_HASH, password).catch(() => false);
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid identifier or password',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const isValid = await passwordService.verify(user.passwordHash, password);
+    if (!isValid) {
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Invalid identifier or password',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    return reply.send({
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          displayName: user.displayName,
+          phoneNumber: user.phoneNumber,
+          role: String(user.role).toLowerCase(),
+        },
       },
     });
   });

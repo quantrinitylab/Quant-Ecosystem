@@ -89,17 +89,24 @@ export function parseQuantGitRoute(pathname: string): QuantGitRoute {
   const root = segments[0]?.toLowerCase();
 
   if (root === 'codehub') {
-    return { kind: 'quanty' };
+    return { kind: 'repositories' };
   }
 
   if (root !== 'quantgit' || segments.length === 1) {
-    return { kind: 'quanty' };
+    return { kind: 'repositories' };
   }
 
   const firstSlug = safeDecode(segments[1] ?? '').toLowerCase();
 
-  if (segments.length === 2 && firstSlug === 'repositories') {
+  if (
+    segments.length === 2 &&
+    (firstSlug === 'repositories' || firstSlug === 'repos' || firstSlug === 'code')
+  ) {
     return { kind: 'repositories' };
+  }
+
+  if (segments.length === 2 && (firstSlug === 'quanty' || firstSlug === 'copilot')) {
+    return { kind: 'quanty' };
   }
 
   if (segments.length === 2 && firstSlug === 'agentlab') {
@@ -110,7 +117,7 @@ export function parseQuantGitRoute(pathname: string): QuantGitRoute {
   const repo = decodeRequiredSlug(segments[2]);
 
   if (!owner || !repo) {
-    return { kind: 'quanty' };
+    return { kind: 'repositories' };
   }
 
   const action = safeDecode(segments[3] ?? '').toLowerCase();
@@ -159,10 +166,10 @@ export function parseQuantGitRoute(pathname: string): QuantGitRoute {
 export function quantGitPath(route: QuantGitRoute): string {
   switch (route.kind) {
     case 'quanty':
-      return '/quantgit';
+      return '/quantgit/copilot';
 
     case 'repositories':
-      return '/quantgit/repositories';
+      return '/quantgit';
 
     case 'agentlab':
       return '/quantgit/agentlab';
@@ -203,7 +210,7 @@ export function routesEqual(left: QuantGitRoute, right: QuantGitRoute) {
 
 export function readQuantGitRoute() {
   if (typeof window === 'undefined') {
-    return { kind: 'quanty' } satisfies QuantGitRoute;
+    return { kind: 'repositories' } satisfies QuantGitRoute;
   }
 
   return parseQuantGitRoute(window.location.pathname);

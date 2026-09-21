@@ -191,4 +191,52 @@ describe('server-core app', () => {
       expect(response.statusCode).toBe(401);
     });
   });
+
+  describe('public paths exact matching and method gating (W32-6)', () => {
+    let publicApp: Awaited<ReturnType<typeof createApp>>;
+
+    beforeAll(async () => {
+      publicApp = await createApp({
+        ...testConfig,
+        publicPaths: [{ path: '/videos', methods: ['GET'], exact: true }, '/auth/login'],
+      });
+
+      publicApp.get('/videos', async () => ({ success: true, data: [] }));
+      publicApp.post('/videos', async () => ({ success: true, created: true }));
+      publicApp.get('/videos/private-draft', async () => ({ success: true, draft: true }));
+      publicApp.post('/auth/login', async () => ({ success: true, token: 'test' }));
+      publicApp.get('/auth/login/secrets', async () => ({ success: true, secrets: true }));
+
+      await publicApp.ready();
+    });
+
+    afterAll(async () => {
+      await publicApp.close();
+    });
+
+    it('allows guest to access GET /videos', async () => {
+      const res = await publicApp.inject({ method: 'GET', url: '/videos' });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('rejects guest attempting mutating POST /videos with 401', async () => {
+      const res = await publicApp.inject({ method: 'POST', url: '/videos' });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('rejects guest attempting nested /videos/private-draft with 401', async () => {
+      const res = await publicApp.inject({ method: 'GET', url: '/videos/private-draft' });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it('allows POST /auth/login exact path', async () => {
+      const res = await publicApp.inject({ method: 'POST', url: '/auth/login' });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('rejects adjacent /auth/login/secrets with 401', async () => {
+      const res = await publicApp.inject({ method: 'GET', url: '/auth/login/secrets' });
+      expect(res.statusCode).toBe(401);
+    });
+  });
 });

@@ -28,6 +28,11 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantedits',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    publicPaths: [
+      { path: '/templates', methods: ['GET'], exact: true },
+      { path: '/effects', methods: ['GET'], exact: true },
+      { path: '/assets', methods: ['GET'], exact: true },
+    ],
     env,
   };
 }

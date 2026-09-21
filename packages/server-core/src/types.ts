@@ -14,13 +14,21 @@ export interface AppConfig {
   jwtAudience: string;
   env: 'development' | 'production' | 'test';
   /**
-   * Extra URL path prefixes that bypass the global auth hook (in addition to
+   * Extra URL path rules that bypass or relax the global auth hook (in addition to
    * the built-in health/metrics paths). Use for pre-authentication endpoints
-   * such as login / OTP request+verify. Each entry matches the path exactly or
-   * as a prefix segment (e.g. '/auth/otp' matches '/auth/otp/request').
+   * (e.g. login/OTP) or public read routes (e.g. GET /videos).
+   * Exact matching is enforced by default to prevent prefix bypass leaks (W32-6).
    */
-  publicPaths?: string[];
+  publicPaths?: PublicPathEntry[];
 }
+
+export interface PublicPathRule {
+  path: string;
+  methods?: Array<'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | string>;
+  exact?: boolean;
+}
+
+export type PublicPathEntry = string | PublicPathRule;
 
 export interface AuthenticatedRequest extends FastifyRequest {
   auth: AuthContext;
