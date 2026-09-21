@@ -3255,6 +3255,9 @@ importers:
 
   services/cdc-relay:
     dependencies:
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.5.4))(typescript@5.5.4)
       '@quant/common':
         specifier: workspace:*
         version: link:../../packages/common
@@ -11212,6 +11215,11 @@ snapshots:
 
   '@pinojs/redact@0.4.0': {}
 
+  '@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.5.4))(typescript@5.5.4)':
+    optionalDependencies:
+      prisma: 6.19.3(magicast@0.3.5)(typescript@5.5.4)
+      typescript: 5.5.4
+
   '@prisma/client@6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)':
     optionalDependencies:
       prisma: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
@@ -14442,6 +14450,16 @@ snapshots:
       ansi-regex: 5.0.1
       ansi-styles: 5.2.0
       react-is: 17.0.2
+
+  prisma@6.19.3(magicast@0.3.5)(typescript@5.5.4):
+    dependencies:
+      '@prisma/config': 6.19.3(magicast@0.3.5)
+      '@prisma/engines': 6.19.3
+    optionalDependencies:
+      typescript: 5.5.4
+    transitivePeerDependencies:
+      - magicast
+    optional: true
 
   prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3):
     dependencies:
