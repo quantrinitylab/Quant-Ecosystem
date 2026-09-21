@@ -1,8 +1,40 @@
-import { Pool, type PoolClient } from 'pg';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
 import pino from 'pino';
 import type { EventTransport, OutboxRecord } from './transport.js';
 
 const logger = pino({ name: 'outbox-poller' });
+
+/**
+ * Build the pool config, with TLS on by default.
+ *
+ * This is load-bearing, not defensive. RDS here runs with forced SSL, and `pg`
+ * — unlike Prisma, which negotiates TLS by default — connects in the clear
+ * unless told otherwise. So the first working build of this relay still could not
+ * read the outbox: Postgres rejected every connection with SQLSTATE 28000
+ * (ClientAuthentication FATAL), once per second, which reads like bad
+ * credentials and is actually "no encryption".
+ *
+ * Server verification is separate from encryption, and the honest default here is
+ * partial: set `DATABASE_CA_CERT` to the RDS CA bundle and the server certificate
+ * is verified. Without it the connection is encrypted but the server is NOT
+ * authenticated, which does not stop an in-path attacker who can present any
+ * certificate. That is acceptable for an in-VPC staging worker and is NOT
+ * acceptable in production — hence the warning on the unverified path rather than
+ * a silent default.
+ */
+export function buildPoolConfig(env: NodeJS.ProcessEnv = process.env): PoolConfig {
+  const connectionString = env['DATABASE_URL'];
+  const ca = env['DATABASE_CA_CERT'];
+
+  if (ca) {
+    return { connectionString, ssl: { ca, rejectUnauthorized: true } };
+  }
+
+  logger.warn(
+    'DATABASE_CA_CERT is not set: the Postgres connection is encrypted but the server certificate is not verified. Set it before production.',
+  );
+  return { connectionString, ssl: { rejectUnauthorized: false } };
+}
 
 /**
  * Minimal surface this poller needs from a Postgres pool, so tests can supply a
@@ -80,7 +112,7 @@ export class OutboxPoller {
     this.transport = transport;
     this.pollIntervalMs = pollIntervalMs;
     this.batchSize = batchSize;
-    this.pool = pool ?? new Pool({ connectionString: process.env['DATABASE_URL'] });
+    this.pool = pool ?? new Pool(buildPoolConfig());
   }
 
   start(): void {

@@ -4,8 +4,32 @@ vi.mock('pino', () => ({
   default: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
 }));
 
-import { OutboxPoller, type QueryablePool } from '../src/outbox-poller.js';
+import { OutboxPoller, buildPoolConfig, type QueryablePool } from '../src/outbox-poller.js';
 import type { EventTransport, OutboxRecord } from '../src/transport.js';
+
+describe('buildPoolConfig', () => {
+  it('enables TLS even with no CA, because RDS rejects unencrypted connections', () => {
+    // Regression: `pg` connects in the clear by default (Prisma does not), so the
+    // first working build was rejected with SQLSTATE 28000 once per second — which
+    // looks like bad credentials and is actually "no encryption".
+    const cfg = buildPoolConfig({ DATABASE_URL: 'postgresql://u:p@h:5432/d' });
+    expect(cfg.ssl).toEqual({ rejectUnauthorized: false });
+  });
+
+  it('verifies the server when a CA is supplied', () => {
+    const cfg = buildPoolConfig({
+      DATABASE_URL: 'postgresql://u:p@h:5432/d',
+      DATABASE_CA_CERT: '---CA---',
+    });
+    expect(cfg.ssl).toEqual({ ca: '---CA---', rejectUnauthorized: true });
+  });
+
+  it('passes the connection string through', () => {
+    expect(buildPoolConfig({ DATABASE_URL: 'postgresql://u:p@h:5432/d' }).connectionString).toBe(
+      'postgresql://u:p@h:5432/d',
+    );
+  });
+});
 
 interface Row {
   id: string;
