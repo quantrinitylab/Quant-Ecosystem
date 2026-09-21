@@ -13,6 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "ioredis": "^5.6.1",
     "kafkajs": "^2.2.4",
     "@quant/health-server": "workspace:*",
     "@quant/common": "workspace:*",

@@ -1,0 +1,72 @@
+# CDC relay (staging) — the event spine's dispatcher.
+#
+# Drains `outbox_events` and appends each event to a Redis Stream per aggregate
+# type (`outbox.User`, `outbox.Email`, ...). Until this runs, every row written
+# to the outbox by `@quant/data-plane` sits there forever with `publishedAt
+# NULL`: the write side of Foundation Law 3 ("everything is an event") was
+# shipped, but nothing carried the events anywhere.
+#
+# No Ingress and no Service: this is a worker, not an API. Nothing outside the
+# cluster should reach it, and nothing inside needs to — it is driven by the
+# database, and its only HTTP surface is a health port for the kubelet.
+#
+# replicas: 1 is deliberate. The poller claims a batch inside one transaction and
+# marks it published in the same transaction, which makes a second replica read
+# the same unpublished rows and double-publish. Delivery is already at-least-once
+# (consumers deduplicate on `eventId`), but a second replica would make duplicates
+# the normal case rather than the failure case. Scaling this out needs row-level
+# claiming (SELECT ... FOR UPDATE SKIP LOCKED) first.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-cdc-relay
+  namespace: quant-staging
+  labels:
+    app: quant-cdc-relay
+spec:
+  replicas: 1
+  strategy:
+    # Never run two pollers at once, not even for a few seconds during a rollout.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: quant-cdc-relay
+  template:
+    metadata:
+      labels:
+        app: quant-cdc-relay
+    spec:
+      containers:
+        - name: cdc-relay
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-cdc-relay:bootstrap
+          ports:
+            - containerPort: 3024
+              name: health
+          envFrom:
+            # DATABASE_URL and REDIS_URL both come from here.
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: EVENT_TRANSPORT
+              value: 'redis'
+            - name: HEALTH_PORT
+              value: '3024'
+            - name: POLL_INTERVAL_MS
+              value: '1000'
+            - name: BATCH_SIZE
+              value: '100'
+          # The health server only reports that the process is up. There is no
+          # readiness gate because nothing routes traffic here.
+          livenessProbe:
+            tcpSocket:
+              port: 3024
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
