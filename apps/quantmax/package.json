@@ -15,6 +15,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "onnxruntime-node": "1.26.0",
     "@quant/api-client": "workspace:*",
     "@quant/auth": "workspace:*",
     "@quant/ai": "workspace:*",

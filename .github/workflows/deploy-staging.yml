@@ -12,6 +12,10 @@ on:
           - quantmail
           - quantmail-backend
           - quantube-backend
+          - quantmax-backend
+          - quantneon-backend
+          - quantsync-backend
+          - quantedits-backend
           - quantchat
           - quantai
           - admin
@@ -209,6 +213,22 @@ jobs:
             quantube-backend)
               repository=quant-quantube-backend; dockerfile=apps/quantube/Dockerfile.backend
               deployment=quant-quantube-backend; container=quantube-backend
+              needs_cloudflare=true ;;
+            quantmax-backend)
+              repository=quant-quantmax-backend; dockerfile=apps/quantmax/Dockerfile.backend
+              deployment=quant-quantmax-backend; container=quantmax-backend
+              needs_cloudflare=true ;;
+            quantneon-backend)
+              repository=quant-quantneon-backend; dockerfile=apps/quantneon/Dockerfile.backend
+              deployment=quant-quantneon-backend; container=quantneon-backend
+              needs_cloudflare=true ;;
+            quantsync-backend)
+              repository=quant-quantsync-backend; dockerfile=apps/quantsync/Dockerfile.backend
+              deployment=quant-quantsync-backend; container=quantsync-backend
+              needs_cloudflare=true ;;
+            quantedits-backend)
+              repository=quant-quantedits-backend; dockerfile=apps/quantedits/Dockerfile.backend
+              deployment=quant-quantedits-backend; container=quantedits-backend
               needs_cloudflare=true ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile

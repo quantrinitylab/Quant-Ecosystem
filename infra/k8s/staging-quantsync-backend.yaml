@@ -1,0 +1,91 @@
+# QuantSync (@quant/quantwave) Fastify backend (staging): Deployment + Service
+# + /api ingress. The frontend (quantwave.quantrinity.in) calls same-origin
+# /api/*; this ingress strips /api and routes to the backend, whose routes live
+# at root. Mirrors staging-quantube-backend.yaml, scoped to port 3004.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantsync-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantsync-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantsync-backend
+  template:
+    metadata:
+      labels:
+        app: quant-quantsync-backend
+    spec:
+      containers:
+        - name: quantsync-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync-backend:bootstrap
+          ports:
+            - containerPort: 3004
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3004'
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3004
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3004
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantsync-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantsync-backend
+spec:
+  selector:
+    app: quant-quantsync-backend
+  ports:
+    - port: 3004
+      targetPort: 3004
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantsync-api-staging
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantwave.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantsync-backend
+                port:
+                  number: 3004

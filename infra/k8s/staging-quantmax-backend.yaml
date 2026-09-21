@@ -1,0 +1,98 @@
+# QuantMax Fastify backend (staging): Deployment + Service + /api ingress.
+# The frontend (quantmax.quantrinity.in) calls same-origin /api/*; this ingress
+# strips /api and routes to the backend, whose routes live at root. Mirrors
+# infra/k8s/staging-quantube-backend.yaml, scoped to the quantmax port (3008).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantmax-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantmax-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantmax-backend
+  template:
+    metadata:
+      labels:
+        app: quant-quantmax-backend
+    spec:
+      containers:
+        - name: quantmax-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantmax-backend:bootstrap
+          ports:
+            - containerPort: 3008
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3008'
+          # readiness runs SELECT 1 via fastify.prisma and returns 503 when the
+          # DB is unreachable, so a backend that can't reach Postgres leaves the
+          # Service instead of serving 502s. 10s x 6 rides out a transient blip.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3008
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          # liveness is deliberately dumber: /livez only reports the process is
+          # alive, so a brief DB outage drains (readiness) without restarting.
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3008
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantmax-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantmax-backend
+spec:
+  selector:
+    app: quant-quantmax-backend
+  ports:
+    - port: 3008
+      targetPort: 3008
+      name: http
+---
+# /api on the quantmax host -> backend. Separate ingress object so a mistake
+# here cannot take the frontend ingress down with it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantmax-api-staging
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantmax.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantmax-backend
+                port:
+                  number: 3008

@@ -1,0 +1,91 @@
+# QuantEdits (@quant/quantcooks) Fastify backend (staging): Deployment + Service
+# + /api ingress. The frontend (quantcooks.quantrinity.in) calls same-origin
+# /api/*; this ingress strips /api and routes to the backend, whose routes live
+# at root. Mirrors staging-quantube-backend.yaml, scoped to port 3013.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quant-quantedits-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantedits-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quant-quantedits-backend
+  template:
+    metadata:
+      labels:
+        app: quant-quantedits-backend
+    spec:
+      containers:
+        - name: quantedits-backend
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantedits-backend:bootstrap
+          ports:
+            - containerPort: 3013
+              name: http
+          envFrom:
+            - configMapRef:
+                name: quant-staging-config
+            - secretRef:
+                name: quant-staging-secrets
+          env:
+            - name: PORT
+              value: '3013'
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 3013
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 3013
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quant-quantedits-backend
+  namespace: quant-staging
+  labels:
+    app: quant-quantedits-backend
+spec:
+  selector:
+    app: quant-quantedits-backend
+  ports:
+    - port: 3013
+      targetPort: 3013
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantedits-api-staging
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantcooks.quantrinity.in
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantedits-backend
+                port:
+                  number: 3013
