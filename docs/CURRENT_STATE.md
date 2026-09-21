@@ -4,9 +4,9 @@ doc_type: current-state
 authority: canonical
 status: active
 owner: platform-architecture
-last_verified: 2026-09-07
-verified_at_commit: 2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a
-review_by: 2026-10-07
+last_verified: 2026-09-21
+verified_at_commit: e10bbb864ad023ab3f7fd464fdc90f6e5550967b
+review_by: 2026-10-21
 supersedes: []
 superseded_by: []
 canonical_scope: current-repository-state
@@ -14,7 +14,7 @@ canonical_scope: current-repository-state
 
 # Current State
 
-This is the canonical repository-truth snapshot pinned to merged `main` commit `2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
+This is the canonical repository-truth snapshot pinned to merged `main` commit `e10bbb864ad023ab3f7fd464fdc90f6e5550967b`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
 
 ## Active direction
 
@@ -40,6 +40,7 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 | Frontend debt             | The #161 QuantMail changed boundary and production build passed. A later unmerged feature-wiring worktree is candidate evidence only until reviewed and merged.                                                                                                                                                                                                                                                             | Do not infer full feature readiness from login-proxy proof or local candidate builds.                                                                                                                    |
 | QuantMail staging runtime | Frontend image `266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail@sha256:b0574a82285f567e04d64f460db3933d847c181a0867f5f2ce372dcef78f0281` was rolled out by SSM command `bd0d69a5-c3c9-432d-98a3-f0d607f2a58a` to the `quant-staging` namespace. Internal and external `POST /auth/login` invalid-payload probes returned HTTP 400 JSON; the external proof used `https://quantmail.quantrinity.in/auth/login`. | The build-time recursive auth rewrite/plain-text 500 is fixed live in staging. This proves the login transport boundary only, not all QuantMail features.                                                |
 | Deployment/cutover        | A reversible, digest-pinned QuantMail frontend rollout occurred on the staging cluster backing the current live hostname. No production deployment gate, production EKS activation, Terraform apply, placeholder-secret write, or production DNS change was performed by this release.                                                                                                                                      | Staging login is proven; production cutover and complete product readiness remain gated.                                                                                                                 |
+| App backends on staging   | Six Fastify backends run in `quant-staging`, each `1/1` with zero restarts: quantmail (3011), quantube (3006), quantmax (3008), quantneon (3012), quantsync (3004), quantedits (3013). Each `/readyz` returned `200 {"status":"ok","checks":{"database":"ok","redis":"ok"}}` in-pod, and each app host answered `GET /api/healthz` with `200 application/json`. `GET /api/feed` on quantube, quantmax, quantgram, quantwave, and quantcooks returned `401 UNAUTHORIZED` as **JSON**, not HTML. | The "Unexpected end of JSON input" class of failure is resolved on staging: the five app frontends now reach a real backend over `/api`. Data-path behaviour beyond the auth boundary is still unproven — every probe was unauthenticated. |
 | Legacy guidance           | The [production prompt](../.kiro/steering/PRODUCTION_READINESS_PROMPT.md) contains historical bootstrap guidance.                                                                                                                                                                                                                                                                                                           | It remains manual, non-authoritative, and must not auto-execute.                                                                                                                                         |
 
 ## Merged hardening baseline
@@ -53,6 +54,14 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 - #135 `8aa8fa5d911ec306229a03bb9cad9a6124ea1c7b` — fail-closed Workers AI runtime.
 - #132 `09a0a22e9aa5fe288d22987b90a6119a70f7c467` — HttpOnly browser refresh session.
 - #161 `2e3a3d6b67883156e7cd4991ce0f4b53c3382d4a` — runtime QuantMail auth proxy and live staging login JSON contract.
+- #271 `c4afcb1d` — unblocked the seven failing staging app deploys (`@quant/agentic` source exports, Dockerfile package-name filters).
+- #272 `4b9f3079` — moved the recommendations NCF fallback out of `__tests__` so production builds resolve it.
+- #274 `31bdc699` — quantube backend server entry, container, and staging deploy wiring.
+- #275 `fb05de92` — declared `@prisma/client` so the quantube backend bundle resolves it at runtime.
+- #276 `7ff7f066` — declared `onnxruntime-node` for the same reason.
+- #277 `bda39e15` — `@quant/media` no longer crashes the process when the ffmpeg binary is absent.
+- #278 `7a541f6a` — stopped the quantube backend listening twice (`EADDRINUSE`).
+- #279 `e10bbb86` — backends plus staging deploy wiring for quantmax, quantneon, quantsync, and quantedits.
 
 ## Working-tree boundary
 
