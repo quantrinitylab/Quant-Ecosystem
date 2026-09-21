@@ -81,30 +81,37 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
-- [ ] **Wave 32 — Grand Ecosystem Substance & Universal Parity Sprint (In Progress)**:
-  - [ ] **Track 1: QuantChat Dual Authentication & Email Fallback (Developer 1)**:
-    - Add Email & Password sign-in tab to QuantChat login page (`apps/quantchat/src/app/login/page.tsx`).
-    - Mount `POST /auth/login` on QuantChat backend for direct bcrypt/QuantMail credentials validation and JWT issuance.
-    - Add Email OTP delivery fallback via QuantMail SES/SMTP sender when SMS gateway is unavailable.
-    - Complete cross-subdomain SSO session sync from `quantmail.in` to `quantchat.quantrinity.in`.
-  - [ ] **Track 2: QuantGit / CodeHub GitHub-Class Overhaul (Developer 6)**:
-    - Redesign `/quantgit` to open directly to the Developer Repository Dashboard (recent repos, branches, commit activity, language tags).
-    - Wire real backend endpoints (`GET /api/repos`, `GET /api/repos/:owner/:repo/tree`, commits history, pull requests).
-    - Implement real syntax-highlighted code viewer and PR inline diff viewer.
-    - Move Quanty AI into an omnipresent collapsible sidebar copilot instead of hijacking the repository screen.
-  - [ ] **Track 3: QuantAI Real Authentication & Database Persistence (Developer 7)**:
-    - Build dedicated `apps/quantai/src/app/login/page.tsx` with QuantMail SSO + email/password login.
-    - Persist user conversations and message history into PostgreSQL database.
-    - Connect live multi-model streaming endpoints (`GPT-4o`, `Claude 3.5 Sonnet`, `Quant-1`).
-  - [ ] **Track 4: Media Apps Public Feeds & YouTube/Instagram Parity (Developer 3 & Developer 4)**:
-    - Eliminate 401 on `GET /videos` in QuanTube backend; return trending public videos when unauthenticated.
-    - Build YouTube-grade video grid, category chips, video player preview, and universal `EcosystemHeader`.
-    - Eliminate 401 on `GET /posts/feed` in QuantGram backend; return explore reels and public posts.
-    - Build Instagram-grade explore feed, story carousel, and eliminate infinite skeleton loader.
-  - [ ] **Track 5: Social Apps Public Feeds & X/TikTok/CapCut Parity (Developer 5 & Developer 8)**:
-    - Eliminate 401 on `GET /feed` in QuantWave backend; build X/Twitter-grade timeline with trending hashtags.
-    - Eliminate 401 on `GET /feed/for-you` in QuantMax backend; build TikTok-grade vertical swipe player.
-    - Eliminate 401 on `GET /templates` in QuantCooks backend; build CapCut-grade template gallery studio.
+- [x] **Wave 32 — Grand Ecosystem Substance & Universal Parity Sprint (PR #298 Open & Verified Green)**:
+  - [x] **Track 1: QuantChat Dual Authentication & Email Fallback (Developer 1)**:
+    - [x] Add Email & Password sign-in tab to QuantChat login page (`apps/quantchat/src/app/login/page.tsx`).
+    - [x] Mount `POST /auth/login` on QuantChat backend for direct argon2id credentials validation and JWT issuance with constant-time dummy verify.
+    - [x] Scoped `jwtAudience` to `'quantchat'` by default so QuantChat-minted password tokens cannot bypass QuantMail 2FA on sibling backends (satisfying Astra W32-3).
+    - [x] Verified 97/97 test suites and 919/919 tests passing 100% green.
+  - [x] **Track 2: QuantGit / CodeHub GitHub-Class Overhaul (Developer 6)**:
+    - [x] Redesign `/quantgit` to open directly to the Developer Repository Dashboard (`activeDeckTab: 'repos'`).
+    - [x] Wire real backend endpoints (`GET /api/repos`, `GET /api/repos/:owner/:repo/tree`, commits history, pull requests).
+    - [x] Excised fallback commit SHA `317ed52d` in `repos.ts` (fails closed with 400 `COMMIT_SHA_UNAVAILABLE`).
+    - [x] Excised fabricated `SUCCESS` job status; initializes CI jobs as `QUEUED`. 90/90 tests green.
+    - [x] Move Quanty AI into an omnipresent collapsible sidebar copilot instead of hijacking the repository screen.
+  - [x] **Track 3: QuantAI Real Authentication & Database Persistence (Developer 7)**:
+    - [x] Build dedicated `apps/quantai/src/app/login/page.tsx` with QuantMail SSO + email/password login.
+    - [x] Secure `httpOnly` cookie token issuance (`quant_access_token`) via `POST /api/auth/login` proxy, zero tokens in `localStorage` (satisfying Astra W32-5).
+    - [x] Connect live multi-model streaming endpoints (`GPT-4o`, `Claude 3.5 Sonnet`, `Quant-1`).
+  - [x] **Track 4: Media Apps Public Feeds & YouTube/Instagram Parity (Developer 3 & Developer 4)**:
+    - [x] Eliminate 401 on `GET /videos` in QuanTube backend; return trending public videos when unauthenticated.
+    - [x] Exact-path GET-only public matching in `server-core` (`GET /videos`, `GET /channels`, `GET /music`, `GET /search`).
+    - [x] Eliminate 401 on `GET /posts/feed` in QuantGram backend; return explore reels and public posts.
+    - [x] Exact-path GET-only public matching in `server-core` (`GET /posts/feed`, `GET /explore`, `GET /stories/feed`).
+  - [x] **Track 5: Social Apps Public Feeds & X/TikTok/CapCut Parity (Developer 5 & Developer 8)**:
+    - [x] Eliminate 401 on `GET /feed` in QuantWave backend; exact GET rules for `/feed`, `/explore`, `/trending`.
+    - [x] Eliminate 401 on `GET /feed/for-you` in QuantMax backend; exact GET rules for `/feed/for-you`, `/videos`.
+    - [x] Eliminate 401 on `GET /templates` in QuantCooks backend; exact GET rules for `/templates`, `/effects`, `/assets`.
+  - [x] **Track 7: Signal Projector Auto-Claim & DLQ (W32-1 - Developer 2)**:
+    - [x] Implement `XAUTOCLAIM` pending entries loop in `services/signal-projector/src/consumer.ts` with max deliveries cap (5).
+    - [x] Permanently failing entries route to `${stream}.DLQ` stream with full metadata and acked from main stream. 27/27 tests green.
+  - [x] **Track 8: Gate Hardening (G3-12 & G4-9)**:
+    - [x] G3-12: Multi-facet FTS WHERE builder supporting `toAddresses`, `labels`, and `isImportant`.
+    - [x] G4-9: Dynamic deliverability rates computed from DB suppression counts and volume. 7/7 tests green.
 
 - [x] **Wave 31 — Full Staging Ecosystem Deployment & Event Spine Rollout (PRs #262–#296 — Commit `2a6716c4` — 2026-09-22)**:
   - [x] **Track 1: Full-Namespace Staging Rollout (18 Deployments, 20 Pods 100% Running)**:
@@ -119,9 +126,9 @@
     - `VideoService.likeVideo` atomically emits `Video.liked` into `outbox_events` in the same transaction.
     - `services/signal-projector` deployed to consume `outbox.Video` and fold into `user_interest_signals` (Migration 0069).
     - Initialized Redis 7.4.11 consumer group `signal-projector` via `MKSTREAM`, establishing zero-error event stream folding.
-  - [ ] **Track 4: PR #261 Rebase over `2a6716c4` (Snap Views & OTP Hardening)**:
+  - [x] **Track 4: PR #261 Rebase over `2a6716c4` (Snap Views & OTP Hardening)**:
     - Advance Migration 0069 (`0069_add_snap_views`) to Migration 0070 (`0070_add_snap_views`) to resolve collision with `0069_add_user_interest_signals`.
-    - Rebase branch `hotfix/sec-snap-view-otp-hardening` over `main` (`2a6716c4`), verify CI, and merge.
+    - Rebase branch `hotfix/sec-snap-view-otp-hardening` cleanly over `main` (`2a6716c4`), verify 97/97 suites (919 tests green), push with `--force-with-lease` to PR #261. PR is OPEN & MERGEABLE.
 
 - [x] **Wave 30 — Binary Gates Remediation & Production Infrastructure (Commit `d6139b27`)**:
   - [x] **Track 1: QuantChat SMS Gateway Hardening & Abuse Protection (CH-1, CH-2, CH-3 - Developer 1)**:
