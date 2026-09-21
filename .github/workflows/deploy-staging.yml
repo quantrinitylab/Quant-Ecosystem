@@ -16,6 +16,7 @@ on:
           - quantneon-backend
           - quantsync-backend
           - quantedits-backend
+          - quantads-backend
           - quantchat
           - quantai
           - admin
@@ -229,6 +230,10 @@ jobs:
             quantedits-backend)
               repository=quant-quantedits-backend; dockerfile=apps/quantedits/Dockerfile.backend
               deployment=quant-quantedits-backend; container=quantedits-backend
+              needs_cloudflare=true ;;
+            quantads-backend)
+              repository=quant-quantads-backend; dockerfile=apps/quantads/Dockerfile.backend
+              deployment=quant-quantads-backend; container=quantads-backend
               needs_cloudflare=true ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile

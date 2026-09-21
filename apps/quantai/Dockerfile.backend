@@ -9,6 +9,15 @@
 # by the copied node_modules.
 # ============================================================================
 FROM node:22-slim AS deps
+# openssl is required: Prisma's query engine detects the libssl version at
+# runtime and node:22-slim ships none, so without it the pod logs "Prisma failed
+# to detect the libssl/openssl version to use ... defaulting to openssl-1.1.x"
+# and then guesses. Installed here (the builder derives from this stage and
+# `prisma generate` picks the engine here) and again in runner (where the engine
+# actually runs).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
@@ -24,6 +33,11 @@ RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
 RUN node infra/scripts/build-backend.mjs apps/quantai backend/server.ts apps/quantai/backend/dist/server.mjs
 
 FROM node:22-slim AS runner
+# See the note on the `deps` stage: this is the stage the query engine actually
+# runs in, so the libssl detection has to succeed here as well.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@10.28.1 --activate
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 quantapp
 WORKDIR /app
@@ -43,7 +57,14 @@ COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-work
 USER quantapp
 EXPOSE 3004
 
+# `/livez`, not `/health` — `/health` IS NOT A ROUTE. server-core's health plugin
+# registers `/healthz`, `/livez` and `/readyz`; `/health` appears only in that
+# file's publicPaths list, so this HEALTHCHECK reported the container unhealthy
+# for as long as it was written this way. `/livez` and not `/readyz` because
+# liveness must answer "is this process alive": `/readyz` returns 503 when
+# Postgres is briefly unreachable, and restarting a healthy container because its
+# database blinked turns one outage into two.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://localhost:3004/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
+  CMD node -e "fetch('http://localhost:3004/livez').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))" || exit 1
 
 CMD ["node", "apps/quantai/backend/dist/server.mjs"]
