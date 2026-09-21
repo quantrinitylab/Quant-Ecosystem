@@ -57,7 +57,14 @@ ENV EVENT_TRANSPORT=redis
 # output stays where pnpm put it (it lives in the store, not node_modules/.prisma).
 COPY --from=builder --chown=quant:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=quant:nodejs /app/packages/database/ ./packages/database/
-COPY --from=builder --chown=quant:nodejs /app/services/cdc-relay/dist/ ./services/cdc-relay/dist/
+# The WHOLE service directory, not just dist/. pnpm links a package only into
+# whatever declares it, so `@prisma/client` lives at
+# services/cdc-relay/node_modules/@prisma/client — a symlink into the root
+# .pnpm store. Copying only dist/ left that behind and the bundle died with
+# "Cannot find package '@prisma/client' imported from .../dist/index.mjs", even
+# though the root node_modules was present. The app Dockerfiles copy their whole
+# app directory for exactly this reason.
+COPY --from=builder --chown=quant:nodejs /app/services/cdc-relay/ ./services/cdc-relay/
 COPY --from=builder --chown=quant:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=quant:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 USER quant
