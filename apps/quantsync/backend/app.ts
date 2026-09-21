@@ -52,7 +52,15 @@ export async function buildApp(config?: AppConfig) {
   return app;
 }
 
-if (process.argv[1] && import.meta.url.endsWith(process.argv[1])) {
+// Dev-only self-start: `pnpm dev:backend` runs this file directly
+// (backend/app.ts). In production the entry is backend/server.ts, which imports
+// buildApp and calls listen itself. esbuild bundles app.ts INTO server.mjs, so
+// the previous `import.meta.url.endsWith(process.argv[1])` guard evaluated TRUE
+// in the bundle (both resolve to server.mjs) and made the process listen twice
+// -> EADDRINUSE crash-loop. Gating on the entry basename being app.(ts|js|mjs)
+// keeps the dev path working while staying inert inside the bundle.
+const entry = process.argv[1] ?? '';
+if (/[/\\]app\.(ts|js|mjs)$/.test(entry)) {
   const config = getConfig();
   buildApp(config).then((app) => {
     app.listen({ port: config.port, host: config.host }, (err) => {

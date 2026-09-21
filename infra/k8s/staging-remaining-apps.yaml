@@ -54,6 +54,12 @@ spec:
               value: '3102'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantwave.quantrinity.in'
+            # The route handlers proxy to the QuantSync Fastify backend Service
+            # in-cluster. Their code default is localhost:3003 — both wrong host
+            # AND wrong port (the backend listens on 3004), so without this every
+            # /api call returned empty/HTML ("Unexpected end of JSON input").
+            - name: QUANTSYNC_BACKEND_URL
+              value: 'http://quant-quantsync-backend.quant-staging.svc.cluster.local:3004'
           readinessProbe:
             httpGet:
               path: /api/health
@@ -124,6 +130,14 @@ spec:
               value: '3103'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantmax.quantrinity.in'
+            # Both proxies must reach the QuantMax Fastify backend Service:
+            # _lib/proxy.ts reads QUANTMAX_BACKEND_URL (code default localhost:3007
+            # — wrong port, the backend listens on 3008) and the engine routes read
+            # NEXT_PUBLIC_QUANTMAX_BACKEND_URL. Set both or half the API 404s/hangs.
+            - name: QUANTMAX_BACKEND_URL
+              value: 'http://quant-quantmax-backend.quant-staging.svc.cluster.local:3008'
+            - name: NEXT_PUBLIC_QUANTMAX_BACKEND_URL
+              value: 'http://quant-quantmax-backend.quant-staging.svc.cluster.local:3008'
           readinessProbe:
             httpGet:
               path: /api/health
@@ -194,6 +208,14 @@ spec:
               value: '3104'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantgram.quantrinity.in'
+            # Both proxies must reach the QuantNeon Fastify backend Service:
+            # _lib/proxy.ts reads QUANTNEON_BACKEND_URL and the engine routes read
+            # NEXT_PUBLIC_QUANTNEON_BACKEND_URL. Their localhost:3012 defaults only
+            # work in dev.
+            - name: QUANTNEON_BACKEND_URL
+              value: 'http://quant-quantneon-backend.quant-staging.svc.cluster.local:3012'
+            - name: NEXT_PUBLIC_QUANTNEON_BACKEND_URL
+              value: 'http://quant-quantneon-backend.quant-staging.svc.cluster.local:3012'
           readinessProbe:
             httpGet:
               path: /api/health
@@ -270,6 +292,14 @@ spec:
             # empty/HTML, which is the "Unexpected end of JSON input" the app showed.
             - name: QUANTUBE_BACKEND_URL
               value: 'http://quant-quantube-backend.quant-staging.svc.cluster.local:3006'
+            # The engine routes (feed, recommendations, cross-publish, payouts,
+            # creator, ...) proxy via src/app/api/_lib/engine-proxy.ts, which
+            # reads NEXT_PUBLIC_QUANTUBE_BACKEND_URL (server-side, at runtime).
+            # Both proxies must point at the same in-cluster backend Service, so
+            # set both — otherwise the engine-backed pages (the feed itself) keep
+            # returning empty/HTML while only the plain-proxy routes work.
+            - name: NEXT_PUBLIC_QUANTUBE_BACKEND_URL
+              value: 'http://quant-quantube-backend.quant-staging.svc.cluster.local:3006'
           readinessProbe:
             httpGet:
               path: /api/health
@@ -340,6 +370,12 @@ spec:
               value: '3106'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantcooks.quantrinity.in'
+            # The route handlers proxy to the QuantEdits Fastify backend Service
+            # in-cluster. Their code default is localhost:3008 — that is QuantMax's
+            # port, not QuantEdits' (3013), so without this the proxy pointed at the
+            # wrong service entirely.
+            - name: QUANTEDITS_BACKEND_URL
+              value: 'http://quant-quantedits-backend.quant-staging.svc.cluster.local:3013'
           readinessProbe:
             httpGet:
               path: /api/health
