@@ -10,12 +10,15 @@
 # cluster should reach it, and nothing inside needs to — it is driven by the
 # database, and its only HTTP surface is a health port for the kubelet.
 #
-# replicas: 1 is deliberate. The poller claims a batch inside one transaction and
-# marks it published in the same transaction, which makes a second replica read
-# the same unpublished rows and double-publish. Delivery is already at-least-once
-# (consumers deduplicate on `eventId`), but a second replica would make duplicates
-# the normal case rather than the failure case. Scaling this out needs row-level
-# claiming (SELECT ... FOR UPDATE SKIP LOCKED) first.
+# replicas: 1 for now, but no longer a correctness requirement. The poller claims
+# rows with `SELECT ... FOR UPDATE SKIP LOCKED`, so a second replica skips rows a
+# first replica already holds rather than double-publishing them. One replica is
+# simply enough throughput for staging; this can be scaled without changing the
+# query.
+#
+# Delivery is at-least-once by construction — rows are published before they are
+# marked, in the same transaction, so a transport failure retries the batch. The
+# envelope carries `eventId` precisely so consumers can deduplicate.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -26,7 +29,8 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    # Never run two pollers at once, not even for a few seconds during a rollout.
+    # A brief overlap during rollout is safe now that claiming is row-level, but
+    # Recreate keeps exactly one poller and costs nothing for a background worker.
     type: Recreate
   selector:
     matchLabels:

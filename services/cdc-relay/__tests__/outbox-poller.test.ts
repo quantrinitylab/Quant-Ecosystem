@@ -1,21 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockTransaction = vi.fn();
-
-vi.mock('@quant/database', () => ({
-  PrismaClient: vi.fn().mockImplementation(function () {
-    return {
-      $transaction: mockTransaction,
-      $disconnect: vi.fn().mockResolvedValue(undefined),
-    };
-  }),
-}));
-
 vi.mock('pino', () => ({
   default: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
 }));
 
-import { OutboxPoller } from '../src/outbox-poller.js';
+import { OutboxPoller, type QueryablePool } from '../src/outbox-poller.js';
 import type { EventTransport, OutboxRecord } from '../src/transport.js';
 
 interface Row {
@@ -25,7 +14,6 @@ interface Row {
   eventType: string;
   payload: unknown;
   createdAt: Date;
-  publishedAt: Date | null;
 }
 
 const ROWS: Row[] = [
@@ -36,7 +24,6 @@ const ROWS: Row[] = [
     eventType: 'User.created',
     payload: { name: 'John' },
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    publishedAt: null,
   },
   {
     id: 'evt-2',
@@ -45,38 +32,49 @@ const ROWS: Row[] = [
     eventType: 'User.deleted',
     payload: { reason: 'gdpr' },
     createdAt: new Date('2026-01-01T00:00:01.000Z'),
-    publishedAt: null,
   },
 ];
 
-/** Records the order of operations so "publish before mark" can be asserted. */
-function harness(rows: Row[], transport: EventTransport) {
-  const calls: string[] = [];
-  const updateMany = vi.fn().mockImplementation(() => {
-    calls.push('markPublished');
-    return Promise.resolve({ count: rows.length });
+/**
+ * A pool double that records every statement in order, so transaction shape
+ * (BEGIN / claim / mark / COMMIT vs ROLLBACK) can be asserted.
+ */
+function poolDouble(rows: Row[], sharedLog?: string[]) {
+  const log = sharedLog ?? [];
+  const release = vi.fn();
+  const query = vi.fn().mockImplementation((sql: string) => {
+    const text = String(sql).trim();
+    if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') {
+      log.push(text);
+      return Promise.resolve({ rows: [] });
+    }
+    if (text.startsWith('SELECT')) {
+      log.push('claim');
+      return Promise.resolve({ rows });
+    }
+    if (text.startsWith('UPDATE')) {
+      log.push('mark');
+      return Promise.resolve({ rows: [] });
+    }
+    log.push('other');
+    return Promise.resolve({ rows: [] });
   });
-  const findMany = vi.fn().mockImplementation(() => {
-    calls.push('read');
-    return Promise.resolve(rows);
-  });
-  mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
-    await fn({ outboxEvent: { findMany, updateMany } });
-  });
-  return { calls, findMany, updateMany, transport };
+  const pool: QueryablePool = {
+    connect: vi.fn().mockResolvedValue({ query, release } as never),
+    end: vi.fn().mockResolvedValue(undefined),
+  };
+  return { pool, query, release, log };
 }
 
-function fakeTransport(): EventTransport & { published: OutboxRecord[][]; calls: string[] } {
+function fakeTransport(log?: string[]): EventTransport & { published: OutboxRecord[][] } {
   const published: OutboxRecord[][] = [];
-  const calls: string[] = [];
   return {
     name: 'fake',
     published,
-    calls,
     connect: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
     publish: vi.fn().mockImplementation((records: OutboxRecord[]) => {
-      calls.push('publish');
+      log?.push('publish');
       published.push(records);
       return Promise.resolve();
     }),
@@ -88,36 +86,40 @@ describe('OutboxPoller', () => {
     vi.clearAllMocks();
   });
 
-  it('publishes unpublished rows and then marks them published', async () => {
-    const transport = fakeTransport();
-    const h = harness(ROWS, transport);
-    // Share one call log so relative order is observable.
-    (transport.publish as ReturnType<typeof vi.fn>).mockImplementation((records: OutboxRecord[]) => {
-      h.calls.push('publish');
-      transport.published.push(records);
-      return Promise.resolve();
-    });
+  it('claims, publishes, marks, then commits — in that order', async () => {
+    const log: string[] = [];
+    const transport = fakeTransport(log);
+    const { pool, release } = poolDouble(ROWS, log);
 
-    await new OutboxPoller(transport, 1000, 50).pollOnce();
+    await new OutboxPoller(transport, 1000, 50, pool).pollOnce();
 
-    expect(transport.published).toHaveLength(1);
+    // Publishing must precede the mark, or a transport failure would lose the batch.
+    expect(log).toEqual(['BEGIN', 'claim', 'publish', 'mark', 'COMMIT']);
     expect(transport.published[0]).toHaveLength(2);
-    // Publish must precede the mark, or a transport failure would lose the batch.
-    expect(h.calls).toEqual(['read', 'publish', 'markPublished']);
-    expect(h.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ['evt-1', 'evt-2'] } },
-      data: { publishedAt: expect.any(Date) },
-    });
+    expect(release).toHaveBeenCalled();
+  });
+
+  it('claims with FOR UPDATE SKIP LOCKED so replicas cannot double-publish', async () => {
+    const transport = fakeTransport();
+    const { pool, query } = poolDouble(ROWS);
+
+    await new OutboxPoller(transport, 1000, 50, pool).pollOnce();
+
+    const claim = query.mock.calls.map((c) => String(c[0])).find((s) => s.includes('SELECT'));
+    expect(claim).toMatch(/FOR UPDATE SKIP LOCKED/);
+    expect(claim).toMatch(/"publishedAt" IS NULL/);
+    // Prisma created camelCase columns, so identifiers must stay quoted.
+    expect(claim).toMatch(/"aggregateType"/);
   });
 
   it('carries eventType and eventId, which the previous relay dropped', async () => {
-    // Regression: the old poller published bare `JSON.stringify(event.payload)`
-    // into a topic named only after the aggregate type, so these two rows were
+    // Regression: the old relay published bare JSON.stringify(payload) into a
+    // topic named only after the aggregate type, so these two rows were
     // indistinguishable to any consumer.
     const transport = fakeTransport();
-    harness(ROWS, transport);
+    const { pool } = poolDouble(ROWS);
 
-    await new OutboxPoller(transport, 1000, 50).pollOnce();
+    await new OutboxPoller(transport, 1000, 50, pool).pollOnce();
 
     const batch = transport.published[0]!;
     expect(batch.map((r) => r.eventType)).toEqual(['User.created', 'User.deleted']);
@@ -125,43 +127,69 @@ describe('OutboxPoller', () => {
     expect(batch[0]!.occurredAt).toEqual(new Date('2026-01-01T00:00:00.000Z'));
   });
 
-  it('does NOT mark rows published when the transport throws', async () => {
-    const transport = fakeTransport();
+  it('rolls back and does not mark when the transport throws', async () => {
+    const log: string[] = [];
+    const transport = fakeTransport(log);
     (transport.publish as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('broker down'));
-    const h = harness(ROWS, transport);
+    const { pool } = poolDouble(ROWS, log);
 
     // pollOnce swallows the error (it is a background loop) but must not mark.
-    await expect(new OutboxPoller(transport, 1000, 50).pollOnce()).resolves.toBeUndefined();
+    await expect(
+      new OutboxPoller(transport, 1000, 50, pool).pollOnce(),
+    ).resolves.toBeUndefined();
 
-    expect(h.updateMany).not.toHaveBeenCalled();
+    expect(log).toContain('ROLLBACK');
+    expect(log).not.toContain('mark');
+    expect(log).not.toContain('COMMIT');
   });
 
-  it('does nothing when there is nothing to publish', async () => {
-    const transport = fakeTransport();
-    const h = harness([], transport);
+  it('commits without publishing when there is nothing to claim', async () => {
+    const log: string[] = [];
+    const transport = fakeTransport(log);
+    const { pool } = poolDouble([], log);
 
-    await new OutboxPoller(transport, 1000, 50).pollOnce();
+    await new OutboxPoller(transport, 1000, 50, pool).pollOnce();
 
     expect(transport.publish).not.toHaveBeenCalled();
-    expect(h.updateMany).not.toHaveBeenCalled();
+    expect(log).toEqual(['BEGIN', 'claim', 'COMMIT']);
   });
 
-  it('skips an overlapping tick instead of publishing the same rows twice', async () => {
-    // A batch slower than the poll interval used to be overtaken by the next
-    // tick, which read the same still-unpublished rows.
+  it('releases the connection even when the batch fails', async () => {
     const transport = fakeTransport();
-    let release: (() => void) | undefined;
-    (transport.publish as ReturnType<typeof vi.fn>).mockImplementation(
-      () => new Promise<void>((resolve) => { release = resolve; }),
-    );
-    harness(ROWS, transport);
+    (transport.publish as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('nope'));
+    const { pool, release } = poolDouble(ROWS);
 
-    const poller = new OutboxPoller(transport, 1000, 50);
+    await new OutboxPoller(transport, 1000, 50, pool).pollOnce();
+
+    // A leaked client per failed tick would exhaust the pool within minutes.
+    expect(release).toHaveBeenCalled();
+  });
+
+  it('skips an overlapping tick instead of claiming twice', async () => {
+    const transport = fakeTransport();
+    let unblock!: () => void;
+    // `publish` is reached only after connect/BEGIN/claim have awaited, so the
+    // test must wait for it to actually be entered before releasing it —
+    // unblocking eagerly leaves the gate unset and the first tick never settles.
+    let publishEntered!: () => void;
+    const entered = new Promise<void>((resolve) => { publishEntered = resolve; });
+    (transport.publish as ReturnType<typeof vi.fn>).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          unblock = resolve;
+          publishEntered();
+        }),
+    );
+    const { pool } = poolDouble(ROWS);
+
+    const poller = new OutboxPoller(transport, 1000, 50, pool);
     const first = poller.pollOnce();
-    await poller.pollOnce(); // must return immediately, not read again
-    release?.();
+    await entered;
+    await poller.pollOnce(); // must return immediately, mid-flight
+    unblock();
     await first;
 
     expect(transport.publish).toHaveBeenCalledTimes(1);
+    expect(pool.connect).toHaveBeenCalledTimes(1);
   });
 });
