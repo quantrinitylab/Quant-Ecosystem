@@ -16,10 +16,28 @@
 #   apps/quantads       -> quantads.quantrinity.in
 #   apps/quanttrinity   -> quanttrinity.quantrinity.in
 #
-# The image tag below is the main commit these were first cut from. deploy-staging
-# rewrites it to an immutable digest on every rollout, so this value only matters
-# for the very first apply — the pods stay pending until that workflow pushes the
-# tag, which is expected.
+# IMAGES: each `image:` below pins the digest that is currently live, and that is
+# load-bearing — do not "simplify" it back to a commit tag.
+#
+# deploy-staging.yml owns the image at rollout time (`kubectl set image` to an
+# immutable digest). This file used to carry the tag
+# `:652ac6160095d2bd2a94ff2725d2f9f9ffa23191` with a comment claiming the value
+# "only matters for the very first apply". That was wrong, and it cost a debugging
+# session: that tag was never pushed for most of these apps, so every later
+# `kubectl apply -f` of this file — including an apply whose only real intent was
+# to add an env var — rewrote the pod template back to a nonexistent image. Each
+# one spawned a fresh ReplicaSet stuck in ImagePullBackOff. The Deployments still
+# reported Available because the previous good ReplicaSet kept serving under
+# `maxUnavailable: 25%`, so the breakage was invisible in `kubectl get deploy` and
+# only showed up as orphaned failing pods.
+#
+# So: to change env or probes here, apply this file and then confirm the image
+# still matches the live digest (or prefer `kubectl set env` for env-only edits).
+# After any deploy-staging rollout, update the digests here to match.
+#
+# quanttrinity is the one exception below: it still carries the old commit tag
+# because no image was ever successfully built and pushed for it, so there is no
+# digest to pin yet. Its pods stay pending/failing until deploy-staging builds one.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -40,7 +58,7 @@ spec:
     spec:
       containers:
         - name: quant-quantsync
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync@sha256:f17b2ede55a30dfdcd3d1683cebee52aa51f7055ec217d976433c8705b14f6bd
           ports:
             - containerPort: 3102
               name: http
@@ -116,7 +134,7 @@ spec:
     spec:
       containers:
         - name: quant-quantmax
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantmax:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantmax@sha256:96f27c93da339767e1df9f1af921308b7d17c8ef6c5690998828c7913f5d26fd
           ports:
             - containerPort: 3103
               name: http
@@ -194,7 +212,7 @@ spec:
     spec:
       containers:
         - name: quant-quantneon
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon@sha256:6e95267d9defe56eb251eda2e7fe4e63f1a18e88903258fab89756dda6c76faa
           ports:
             - containerPort: 3104
               name: http
@@ -272,7 +290,7 @@ spec:
     spec:
       containers:
         - name: quant-quantube
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantube:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantube@sha256:6522c4653b10fb7c0a5af5fa3a4f1d6f628b32da12e5063b573f8e311bda9e2c
           ports:
             - containerPort: 3105
               name: http
@@ -356,7 +374,7 @@ spec:
     spec:
       containers:
         - name: quant-quantedits
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantedits:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantedits@sha256:e19ff42eb4c6c63014b5b1ebfe162ce719b6d3761f4b9f47dbc47c1cbf9c0dfa
           ports:
             - containerPort: 3106
               name: http
@@ -432,7 +450,7 @@ spec:
     spec:
       containers:
         - name: quant-quantads
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads@sha256:0b74c6841db2dc10b63733d9f48e40f3a615630ebbe0df3295a91b8af69195c2
           ports:
             - containerPort: 3108
               name: http
@@ -446,6 +464,11 @@ spec:
               value: '3108'
             - name: NEXT_PUBLIC_APP_URL
               value: 'https://quantads.quantrinity.in'
+            # The route handlers proxy to the QuantAds Fastify backend Service
+            # in-cluster. The code default (localhost:3010) has the right port but
+            # the wrong host once the backend is its own pod.
+            - name: QUANTADS_BACKEND_URL
+              value: 'http://quant-quantads-backend.quant-staging.svc.cluster.local:3010'
           readinessProbe:
             httpGet:
               path: /api/health
