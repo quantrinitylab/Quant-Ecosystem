@@ -59,9 +59,15 @@ COPY --from=builder /app/packages/database/prisma/ ./packages/database/prisma/
 COPY --from=builder /app/services/cdc-relay/dist/ ./services/cdc-relay/dist/
 COPY --from=builder /app/services/cdc-relay/package.json ./services/cdc-relay/package.json
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts
-# `--prod` skips the generate script, and the generated client lives inside the
-# installed @prisma/client, so bring the builder's generated output across.
-COPY --from=builder /app/node_modules/.prisma/ ./node_modules/.prisma/
+# Generate the client HERE rather than copying it from the builder.
+#
+# Copying `node_modules/.prisma` fails on pnpm — that path only exists under npm's
+# flat layout. pnpm generates into the store, e.g.
+# `node_modules/.pnpm/@prisma+client@6.19.3_.../node_modules/@prisma/client`, and
+# this stage's `pnpm install --prod` builds its own store anyway, so the builder's
+# copy would not be resolvable even if it were copied. Generating against the
+# schema we already COPYed is both simpler and correct.
+RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
 ENV NODE_ENV=production
 ENV HEALTH_PORT=3024
 # Redis Streams, not Kafka: staging runs Redis and no Kafka. Overridable.
