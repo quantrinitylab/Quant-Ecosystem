@@ -5,7 +5,7 @@ authority: canonical
 status: active
 owner: platform-architecture
 last_verified: 2026-09-21
-verified_at_commit: e10bbb864ad023ab3f7fd464fdc90f6e5550967b
+verified_at_commit: fd6e250826468aa32c563d9e36ebe227beb79791
 review_by: 2026-10-21
 supersedes: []
 superseded_by: []
@@ -14,7 +14,7 @@ canonical_scope: current-repository-state
 
 # Current State
 
-This is the canonical repository-truth snapshot pinned to merged `main` commit `e10bbb864ad023ab3f7fd464fdc90f6e5550967b`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
+This is the canonical repository-truth snapshot pinned to merged `main` commit `fd6e250826468aa32c563d9e36ebe227beb79791`. Newer code and blocking CI evidence take precedence until this file is re-verified; the [Execution Queue](./EXECUTION_QUEUE.md) separately owns priority.
 
 ## Active direction
 
@@ -40,7 +40,8 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 | Frontend debt             | The #161 QuantMail changed boundary and production build passed. A later unmerged feature-wiring worktree is candidate evidence only until reviewed and merged.                                                                                                                                                                                                                                                             | Do not infer full feature readiness from login-proxy proof or local candidate builds.                                                                                                                    |
 | QuantMail staging runtime | Frontend image `266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-quantmail@sha256:b0574a82285f567e04d64f460db3933d847c181a0867f5f2ce372dcef78f0281` was rolled out by SSM command `bd0d69a5-c3c9-432d-98a3-f0d607f2a58a` to the `quant-staging` namespace. Internal and external `POST /auth/login` invalid-payload probes returned HTTP 400 JSON; the external proof used `https://quantmail.quantrinity.in/auth/login`. | The build-time recursive auth rewrite/plain-text 500 is fixed live in staging. This proves the login transport boundary only, not all QuantMail features.                                                |
 | Deployment/cutover        | A reversible, digest-pinned QuantMail frontend rollout occurred on the staging cluster backing the current live hostname. No production deployment gate, production EKS activation, Terraform apply, placeholder-secret write, or production DNS change was performed by this release.                                                                                                                                      | Staging login is proven; production cutover and complete product readiness remain gated.                                                                                                                 |
-| App backends on staging   | Six Fastify backends run in `quant-staging`, each `1/1` with zero restarts: quantmail (3011), quantube (3006), quantmax (3008), quantneon (3012), quantsync (3004), quantedits (3013). Each `/readyz` returned `200 {"status":"ok","checks":{"database":"ok","redis":"ok"}}` in-pod, and each app host answered `GET /api/healthz` with `200 application/json`. `GET /api/feed` on quantube, quantmax, quantgram, quantwave, and quantcooks returned `401 UNAUTHORIZED` as **JSON**, not HTML. | The "Unexpected end of JSON input" class of failure is resolved on staging: the five app frontends now reach a real backend over `/api`. Data-path behaviour beyond the auth boundary is still unproven — every probe was unauthenticated. |
+| App backends on staging   | Every app in `quant-staging` has a reachable backend and every Deployment is `1/1`: **18/18 available, no not-ready pod**. Seven run as their own Deployment — quantmail (3011), quantube (3006), quantmax (3008), quantneon (3012), quantsync (3004), quantedits (3013), quantads (3010) — and two (quantai 3004, quantchat 3002) run as a sidecar container inside the frontend pod. All nine `/readyz` probes returned `200 {"status":"ok","checks":{"database":"ok","redis":"ok"}}`. All ten app hosts returned `200` at `/` (quantmail `301` to its apex domain), the six hosts fronting a separate backend returned `200 application/json` at `/api/healthz`, and `GET /api/feed` returned `401 UNAUTHORIZED` as **JSON**, not HTML. | The "Unexpected end of JSON input" class of failure is resolved on staging, and quanttrinity is serving for the first time. Data-path behaviour beyond the auth boundary is still unproven — every probe was unauthenticated. |
+| quanttrinity root cause    | quanttrinity had `0/1` available and ~300 restarts over 18h while reporting `reason=Completed`, `exitCode=0` — no error, no OOM, no `137`. Two independent defects: the owner API gate matched `/api/:path*` and so also gated `/api/health`, the exact liveness-probe path, returning `401` until Kubernetes SIGTERMed the container (Next.js then exited gracefully, which is why the restart loop looked like a clean exit); and the image shipped no `openssl`, so Prisma could not detect libssl and defaulted to a guessed engine. Fixed in #282 and #283, the latter adding the middleware's first 11 tests. | A liveness probe behind an auth gate is indistinguishable from a healthy shutdown in `kubectl get deploy`. Health endpoints must stay unauthenticated; the test suite now pins that `/api/health` is public while every other `/api/*` path still fails closed. |
 | Legacy guidance           | The [production prompt](../.kiro/steering/PRODUCTION_READINESS_PROMPT.md) contains historical bootstrap guidance.                                                                                                                                                                                                                                                                                                           | It remains manual, non-authoritative, and must not auto-execute.                                                                                                                                         |
 
 ## Merged hardening baseline
@@ -62,6 +63,10 @@ The product strategy is depth over breadth: prove QuantMail, QuantChat, and Quan
 - #277 `bda39e15` — `@quant/media` no longer crashes the process when the ffmpeg binary is absent.
 - #278 `7a541f6a` — stopped the quantube backend listening twice (`EADDRINUSE`).
 - #279 `e10bbb86` — backends plus staging deploy wiring for quantmax, quantneon, quantsync, and quantedits.
+- #280 `b60e1976` — recorded the staging app-backend rollout as verified truth.
+- #281 `53096784` — quantads backend, openssl and `/livez` fixes for the quantai/quantchat backend images, and live digests in the frontend manifest so re-applying it no longer reverts pods to a nonexistent image.
+- #282 `a1cb9b78` — openssl in the quanttrinity image so the Prisma engine cannot take the process down.
+- #283 `fd6e2508` — exempted `/api/health` from quanttrinity's owner API gate so the liveness probe stops killing the pod; adds the middleware's first 11 tests.
 
 ## Working-tree boundary
 
