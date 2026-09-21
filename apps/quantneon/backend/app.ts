@@ -15,6 +15,7 @@ import feedRoutes from './routes/feed';
 import gamesRoutes from './routes/games';
 import dmRoutes from './routes/dm';
 import { createFeedEngines } from './lib/feed-engines';
+import { PostFeedCandidateSource } from './lib/feed-candidate-source';
 import { NeonGamesService } from './services/neon-games.service';
 
 export function getConfig(): AppConfig {
@@ -25,7 +26,7 @@ export function getConfig(): AppConfig {
   }
 
   return {
-    port: Number(process.env['PORT'] ?? 3012),
+    port: Number(process.env['PORT'] ?? 3008),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
@@ -82,7 +83,21 @@ export async function buildApp(config?: AppConfig) {
   // AS-IS and NOT de-simulated. Decorated once at boot as a singleton; routes
   // under `/feed` sit behind the global auth hook, with `feed:write` scopes on
   // mutating routes.
-  app.decorate('feed', createFeedEngines());
+  //
+  // The candidate pool is now fed from the shared Prisma `Post` table via
+  // `PostFeedCandidateSource` (see lib/feed-candidate-source.ts). Previously the pool could
+  // only be filled by `POST /feed/candidates`, so a freshly started backend served an EMPTY
+  // feed and every restart dropped the pool. The engines are unchanged — they simply now rank
+  // real posts instead of nothing.
+  const feedEngines = createFeedEngines();
+  feedEngines.setCandidateSource(
+    new PostFeedCandidateSource(
+      (app as unknown as { prisma: unknown }).prisma as ConstructorParameters<
+        typeof PostFeedCandidateSource
+      >[0],
+    ),
+  );
+  app.decorate('feed', feedEngines);
   await app.register(feedRoutes, { prefix: '/feed' });
 
   // in-feed games — per-app session host. Sessions are now DURABLE, persisted

@@ -78,6 +78,10 @@ model User {
   datingProfile      DatingProfile?
   shortVideos        ShortVideo[]
 
+  // QuantWave audio spaces
+  hostedSpaces       Space[]            @relation("SpaceHost")
+  spaceParticipation SpaceParticipant[] @relation("SpaceParticipation")
+
   // Git hosting relations
   repositories   Repository[]
   pullRequests   PullRequest[]
@@ -803,6 +807,72 @@ model PollVote {
   @@unique([pollId, userId, optionIndex])
   @@index([pollId])
   @@map("poll_votes")
+}
+
+// ==================== AUDIO SPACES (QuantWave) ====================
+//
+// Live audio rooms. Membership, speaker roles and the hand-raise queue are persisted so a
+// Space survives a backend restart and can be served by more than one instance — the UI
+// (`apps/quantsync/src/app/spaces`, `src/hooks/useSpaces.ts`) depends on this state being
+// authoritative rather than process-local.
+
+model Space {
+  id          String      @id @default(cuid())
+  hostId      String
+  title       String
+  description String?
+  status      SpaceStatus @default(LIVE)
+  isRecording Boolean     @default(false)
+  topics      Json        @default("[]")
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  endedAt     DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  host         User               @relation("SpaceHost", fields: [hostId], references: [id], onDelete: Cascade)
+  participants SpaceParticipant[]
+
+  @@index([hostId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("spaces")
+}
+
+enum SpaceStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+model SpaceParticipant {
+  id      String    @id @default(cuid())
+  spaceId String
+  userId  String
+  role    SpaceRole @default(LISTENER)
+  // Speakers start muted; listeners cannot unmute at all.
+  isMuted Boolean   @default(true)
+  // Non-null means the hand is currently raised; the value orders the queue.
+  handRaisedAt DateTime?
+  joinedAt     DateTime  @default(now())
+  leftAt       DateTime?
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  user  User  @relation("SpaceParticipation", fields: [userId], references: [id], onDelete: Cascade)
+
+  // One row per user per space: re-joining reactivates the existing row rather than
+  // accumulating duplicates.
+  @@unique([spaceId, userId])
+  @@index([spaceId])
+  @@index([userId])
+  @@index([handRaisedAt])
+  @@map("space_participants")
+}
+
+enum SpaceRole {
+  HOST
+  SPEAKER
+  LISTENER
 }
 
 // ==================== ADS (QuantAds) ====================

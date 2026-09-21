@@ -3,7 +3,7 @@
 // @quant/shared-ui - QuantSidekick / AlienAvatar tests
 // ============================================================================
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { AlienAvatar } from '../AlienAvatar';
 import { QuantSidekick, QuantSidekickProvider, useQuantSidekick } from '../QuantSidekick';
@@ -61,14 +61,33 @@ function Harness() {
 }
 
 describe('QuantSidekick widget + provider', () => {
+  // QuantSidekick renders nothing until the user has opted in (`enabled`, hydrated from
+  // `localStorage['quant_sidekick_enabled']`) or something has explicitly opened it. Tests
+  // that need the widget on screen must opt in first; see the visibility-gate tests below.
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('renders nothing until the user has enabled it', () => {
+    render(
+      <QuantSidekickProvider>
+        <QuantSidekick />
+      </QuantSidekickProvider>,
+    );
+    expect(screen.queryByTestId('quant-sidekick')).toBeNull();
+    expect(screen.queryByTestId('quant-sidekick-toggle')).toBeNull();
+  });
+
+  it('renders when opened programmatically even if not enabled', () => {
+    render(
+      <QuantSidekickProvider initialOpen>
+        <QuantSidekick />
+      </QuantSidekickProvider>,
+    );
+    expect(screen.getByTestId('quant-sidekick-panel')).toBeTruthy();
+  });
+
   it('toggles the panel open/closed via the alien button', () => {
-    // The sidekick is opt-in: QuantSidekick renders `null` while it is neither
-    // enabled nor open, so that it cannot clutter an app the user never asked it
-    // into. This test previously rendered a closed, un-enabled sidekick and then
-    // looked for its toggle, which the component is designed never to show — so
-    // it was asserting against the opposite of the intended contract. Enabling it
-    // the way a real user does (the persisted preference) is what makes "closed,
-    // but has a visible toggle" a reachable state at all.
     localStorage.setItem('quant_sidekick_enabled', 'true');
     render(
       <QuantSidekickProvider>
@@ -78,6 +97,9 @@ describe('QuantSidekick widget + provider', () => {
     expect(screen.queryByTestId('quant-sidekick-panel')).toBeNull();
     fireEvent.click(screen.getByTestId('quant-sidekick-toggle'));
     expect(screen.getByTestId('quant-sidekick-panel')).toBeTruthy();
+    // ...and back closed again, which the original assertion never actually covered.
+    fireEvent.click(screen.getByTestId('quant-sidekick-toggle'));
+    expect(screen.queryByTestId('quant-sidekick-panel')).toBeNull();
   });
 
   it('say() shows a message, opens the panel and moves to speaking', () => {

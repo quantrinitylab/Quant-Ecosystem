@@ -130,6 +130,9 @@ export default async function feedRoutes(fastify: FastifyInstance) {
       throw parsed.error;
     }
     const { feedId, page, pageSize } = parsed.data;
+    // Fill the candidate pool from the Post table before ranking. Throttled per feed inside
+    // `hydrate`, and a no-op once the pool is warm, so this is not a query per page.
+    await fastify.feed.hydrate(feedId);
     const result = fastify.feed.getComposedFeed(request.auth.userId, feedId, page, pageSize);
     return reply.send({ success: true, data: result });
   });
@@ -140,6 +143,8 @@ export default async function feedRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       throw parsed.error;
     }
+    // Same content source as `GET /feed`: retrieval over an unpopulated pool returns nothing.
+    await fastify.feed.hydrate(parsed.data.feedId);
     const candidates = fastify.feed.recommend(
       request.auth.userId,
       parsed.data.feedId,

@@ -3,7 +3,7 @@ import { createAppError } from '@quant/server-core';
 import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
-import { suppressionService, SuppressionService } from './suppression.service';
+import { SuppressionService } from './suppression.service';
 
 export interface PaginationOptions {
   page?: number;
@@ -122,6 +122,32 @@ export class EmailService {
       ): Promise<{ allowed: string[]; suppressed: string[] }>;
     },
   ) {}
+
+  /** Memoized suppression gate derived from the INJECTED prisma (see getter below). */
+  private derivedSuppression?: SuppressionService;
+
+  /**
+   * Resolve the suppression gate for this instance.
+   *
+   * An explicitly injected `suppression` always wins. Otherwise we build a
+   * `SuppressionService` over **this instance's own `prisma`** rather than falling back to the
+   * module-level `suppressionService` singleton. That singleton is constructed with no client,
+   * so it resolves `@quant/database`'s default `PrismaClient` — which meant a caller who
+   * injected a mock or tenant-scoped client still had send-path suppression checks hit the
+   * process-wide database and require `DATABASE_URL`. Deriving from `this.prisma` keeps the
+   * injection seam honest end to end.
+   */
+  private get suppressionGate(): {
+    filterAllowedRecipients(
+      recipients: string[],
+    ): Promise<{ allowed: string[]; suppressed: string[] }>;
+  } {
+    if (this.suppression) return this.suppression;
+    this.derivedSuppression ??= new SuppressionService(
+      this.prisma as unknown as ConstructorParameters<typeof SuppressionService>[0],
+    );
+    return this.derivedSuppression;
+  }
 
   async compose(input: ComposeEmailInput): Promise<Email> {
     // Stamp the sender's own QuantMail address on the message so the Sent copy
@@ -446,8 +472,7 @@ export class EmailService {
     // Gate 4: Hard-block outbound delivery if all recipients are suppressed.
     // Prune suppressed addresses to protect AWS SES reputation (< 5% bounce / 0.1% complaint).
     if (external.length > 0) {
-      const activeSuppression = this.suppression ?? suppressionService;
-      const { allowed, suppressed } = await activeSuppression.filterAllowedRecipients(external);
+      const { allowed, suppressed } = await this.suppressionGate.filterAllowedRecipients(external);
       if (suppressed.length > 0) {
         if (allowed.length === 0 && internal.length === 0) {
           throw createAppError(

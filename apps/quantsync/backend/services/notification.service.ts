@@ -81,7 +81,49 @@ export interface NotificationPrisma {
     }) => Promise<{ count: number }>;
     create?: (args: { data: Record<string, unknown> }) => Promise<any>;
   };
+  /**
+   * Optional, like `notification.create`: only the preference endpoints need it, so existing
+   * callers that inject a notification-only mock keep working.
+   */
+  user?: {
+    findUnique: (args: Record<string, unknown>) => Promise<any>;
+    update: (args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => Promise<any>;
+  };
 }
+
+/**
+ * Per-channel notification switches.
+ *
+ * Persisted inside the existing `User.preferences` JSON column under a `notifications` key,
+ * so no schema change is needed and unrelated preference namespaces are preserved on write.
+ */
+export interface NotificationPreferences {
+  push: boolean;
+  email: boolean;
+  mentions: boolean;
+  replies: boolean;
+  follows: boolean;
+  likes: boolean;
+  reposts: boolean;
+  spaces: boolean;
+}
+
+/** Opt-in by default for social signals; email stays off until explicitly enabled. */
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  push: true,
+  email: false,
+  mentions: true,
+  replies: true,
+  follows: true,
+  likes: true,
+  reposts: true,
+  spaces: true,
+};
+
+const PREFERENCES_KEY = 'notifications';
 
 const DEFAULT_PAGE_SIZE = 30;
 
@@ -169,6 +211,108 @@ export class NotificationService {
       data: { isRead: true, readAt: new Date() },
     });
     return { updated: result.count };
+  }
+
+  /**
+   * Mark a specific set of notifications read.
+   *
+   * Scoped by `userId` as well as id, so a caller cannot flip someone else's rows by guessing
+   * ids. Returns how many were actually flipped; unknown or already-read ids are ignored
+   * rather than erroring, which keeps the call idempotent.
+   */
+  async markManyRead(userId: string, notificationIds: string[]): Promise<{ updated: number }> {
+    const ids = Array.from(
+      new Set((notificationIds ?? []).filter((id) => typeof id === 'string' && id.trim())),
+    );
+    if (ids.length === 0) return { updated: 0 };
+
+    const result = await this.prisma.notification.updateMany({
+      where: { userId, id: { in: ids }, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+    return { updated: result.count };
+  }
+
+  /** Require the optional `user` delegate, with a clear error when it is absent. */
+  private userDelegate() {
+    const delegate = this.prisma.user;
+    if (!delegate) {
+      throw createAppError(
+        'Notification preferences are not available: no user delegate',
+        500,
+        'NOT_SUPPORTED',
+      );
+    }
+    return delegate;
+  }
+
+  /** Read the caller's preferences, filling any unset switch from the defaults. */
+  async getPreferences(userId: string): Promise<NotificationPreferences> {
+    const user = await this.userDelegate().findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    if (!user) {
+      throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+    return NotificationService.mergePreferences(user.preferences);
+  }
+
+  /**
+   * Update preferences with a partial patch.
+   *
+   * Reads the whole `preferences` object and writes it back with only the `notifications` key
+   * replaced, so other namespaces stored in that column are not clobbered.
+   */
+  async updatePreferences(
+    userId: string,
+    patch: Partial<NotificationPreferences>,
+  ): Promise<NotificationPreferences> {
+    const delegate = this.userDelegate();
+    const user = await delegate.findUnique({
+      where: { id: userId },
+      select: { preferences: true },
+    });
+    if (!user) {
+      throw createAppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    const current = NotificationService.mergePreferences(user.preferences);
+    const next: NotificationPreferences = { ...current };
+    for (const key of Object.keys(DEFAULT_NOTIFICATION_PREFERENCES) as Array<
+      keyof NotificationPreferences
+    >) {
+      const value = patch[key];
+      if (typeof value === 'boolean') next[key] = value;
+    }
+
+    const existing =
+      typeof user.preferences === 'object' && user.preferences !== null
+        ? (user.preferences as Record<string, unknown>)
+        : {};
+
+    await delegate.update({
+      where: { id: userId },
+      data: { preferences: { ...existing, [PREFERENCES_KEY]: next } },
+    });
+
+    return next;
+  }
+
+  /** Coerce a stored `preferences` blob into a complete, boolean-only preference set. */
+  private static mergePreferences(stored: unknown): NotificationPreferences {
+    const root =
+      typeof stored === 'object' && stored !== null ? (stored as Record<string, unknown>) : {};
+    const raw = root[PREFERENCES_KEY];
+    const saved = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+
+    const merged = { ...DEFAULT_NOTIFICATION_PREFERENCES };
+    for (const key of Object.keys(DEFAULT_NOTIFICATION_PREFERENCES) as Array<
+      keyof NotificationPreferences
+    >) {
+      if (typeof saved[key] === 'boolean') merged[key] = saved[key] as boolean;
+    }
+    return merged;
   }
 
   /**

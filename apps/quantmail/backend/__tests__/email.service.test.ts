@@ -24,6 +24,17 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    // The send path runs recipients through the Gate 4 suppression list. EmailService derives
+    // that gate from this injected client, and SuppressionService deliberately fails loudly
+    // (503 DATABASE_UNAVAILABLE) when the delegate is absent — so the mock has to model it.
+    // Default: nothing suppressed.
+    emailSuppression: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      upsert: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+    },
   };
 }
 
