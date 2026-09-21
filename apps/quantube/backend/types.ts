@@ -6,6 +6,20 @@
  * At runtime, the actual PrismaClient from @prisma/client is injected.
  */
 export interface PrismaClient {
+  /**
+   * Needed so a state change and the domain event announcing it commit together.
+   * That atomicity is the entire point of the outbox pattern (Quant Foundation
+   * Law 3): an event that can be written without its state change, or a state
+   * change that can be written without its event, is a lie either way.
+   */
+  $transaction: <T>(fn: (tx: PrismaClient) => Promise<T>) => Promise<T>;
+  /**
+   * `outbox_events`. Written only inside `$transaction`, never on its own —
+   * `services/cdc-relay` drains this table and publishes each row to a stream.
+   */
+  outboxEvent: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+  };
   video: {
     create: (args: { data: Record<string, unknown> }) => Promise<any>;
     findUnique: (args: {

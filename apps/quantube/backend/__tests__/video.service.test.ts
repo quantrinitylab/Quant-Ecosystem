@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { VideoService } from '../services/video.service';
 
 function createMockPrisma() {
-  return {
+  const client: Record<string, unknown> = {
     video: {
       create: vi.fn(),
       findUnique: vi.fn(),
@@ -25,6 +25,24 @@ function createMockPrisma() {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    // `outbox_events`: the domain event a like now writes alongside its state
+    // change, which cdc-relay drains onto the `outbox.Video` stream.
+    outboxEvent: {
+      create: vi.fn(),
+    },
+  };
+  // Run the callback against this same double, so assertions on `prisma.video`
+  // still see calls made through `tx`. A real $transaction hands back a scoped
+  // client; for these tests the distinction that matters is only that everything
+  // inside runs, and that a throw propagates (rolling back, in production).
+  client['$transaction'] = vi.fn((fn: (tx: unknown) => Promise<unknown>) => fn(client));
+  return client as typeof client & {
+    video: Record<string, ReturnType<typeof vi.fn>>;
+    videoLike: Record<string, ReturnType<typeof vi.fn>>;
+    videoComment: Record<string, ReturnType<typeof vi.fn>>;
+    videoChannel: Record<string, ReturnType<typeof vi.fn>>;
+    outboxEvent: Record<string, ReturnType<typeof vi.fn>>;
+    $transaction: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -386,6 +404,79 @@ describe('VideoService', () => {
     it('throws for a missing/deleted video', async () => {
       prisma.video.findUnique.mockResolvedValue(null);
       await expect(service.likeVideo('missing', 'user-1')).rejects.toThrow('Video not found');
+    });
+
+    // The event spine had a write side, a relay and no producer: nothing in any
+    // app emitted a domain event, so the outbox was always empty. These pin the
+    // first producer.
+    it('emits Video.liked in the same transaction as the state change', async () => {
+      prisma.video.findUnique.mockResolvedValue({
+        id: 'v1',
+        deletedAt: null,
+        userId: 'creator-9',
+        channelId: 'chan-3',
+        category: 'music',
+      });
+      prisma.videoLike.findUnique.mockResolvedValue(null);
+      prisma.videoLike.create.mockResolvedValue({});
+      prisma.videoLike.count.mockResolvedValue(1);
+      prisma.video.update.mockResolvedValue({});
+
+      await service.likeVideo('v1', 'user-1');
+
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.outboxEvent.create).toHaveBeenCalledWith({
+        data: {
+          aggregateType: 'Video',
+          aggregateId: 'v1',
+          eventType: 'Video.liked',
+          payload: {
+            videoId: 'v1',
+            userId: 'user-1',
+            creatorId: 'creator-9',
+            channelId: 'chan-3',
+            category: 'music',
+            likeCount: 1,
+          },
+        },
+      });
+    });
+
+    it('emits Video.unliked when the like is being removed', async () => {
+      prisma.video.findUnique.mockResolvedValue({
+        id: 'v1',
+        deletedAt: null,
+        userId: 'creator-9',
+        channelId: 'chan-3',
+        category: null,
+      });
+      prisma.videoLike.findUnique.mockResolvedValue({ id: 'l1' });
+      prisma.videoLike.delete.mockResolvedValue({});
+      prisma.videoLike.count.mockResolvedValue(0);
+      prisma.video.update.mockResolvedValue({});
+
+      await service.likeVideo('v1', 'user-1');
+
+      const event = prisma.outboxEvent.create.mock.calls[0]![0] as {
+        data: { eventType: string; payload: Record<string, unknown> };
+      };
+      expect(event.data.eventType).toBe('Video.unliked');
+      // A consumer must be able to build an interest signal without calling back
+      // into quantube, so the actor, the creator and the category all travel.
+      expect(event.data.payload['userId']).toBe('user-1');
+      expect(event.data.payload['creatorId']).toBe('creator-9');
+      expect(event.data.payload['category']).toBeNull();
+    });
+
+    it('writes no event when the video is missing', async () => {
+      // The throw happens inside the transaction, so in production the event and
+      // the state change roll back together. Here: nothing was written at all.
+      prisma.video.findUnique.mockResolvedValue(null);
+
+      await expect(service.likeVideo('missing', 'user-1')).rejects.toThrow('Video not found');
+
+      expect(prisma.outboxEvent.create).not.toHaveBeenCalled();
+      expect(prisma.videoLike.create).not.toHaveBeenCalled();
     });
   });
 
