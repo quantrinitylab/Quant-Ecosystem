@@ -346,38 +346,75 @@ export class VideoService {
    * Toggle the user's like on a video. Idempotent + backed by VideoLike
    * (unique per user/video), so a user can never inflate the count by liking
    * repeatedly. `likeCount` is recomputed from the real rows.
+   *
+   * Two changes from the original, both load-bearing.
+   *
+   * It runs in ONE transaction. Before, the read, the insert/delete, the recount
+   * and the counter update were four independent statements, so two concurrent
+   * likes could both count rows before either wrote `likeCount`, and the stored
+   * counter would settle on a stale number.
+   *
+   * It writes an outbox event in that same transaction. This is the first place
+   * in the codebase where an app produces a domain event: `OutboxEvent`,
+   * `OutboxPublisher` and `services/cdc-relay` all existed, but nothing emitted,
+   * so the event spine carried nothing. Emitting inside the transaction is what
+   * makes the guarantee real (Foundation Law 3) — the like and the fact of the
+   * like commit together or not at all. The relay then drains the row onto the
+   * `outbox.Video` stream, at-least-once, keyed by event id.
    */
   async likeVideo(videoId: string, userId: string): Promise<{ liked: boolean; likeCount: number }> {
-    const video = await this.prisma.video.findUnique({
-      where: { id: videoId },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const video = await tx.video.findUnique({
+        where: { id: videoId },
+      });
 
-    if (!video || video.deletedAt) {
-      throw createAppError('Video not found', 404, 'VIDEO_NOT_FOUND');
-    }
+      if (!video || video.deletedAt) {
+        throw createAppError('Video not found', 404, 'VIDEO_NOT_FOUND');
+      }
 
-    const existing = await this.prisma.videoLike.findUnique({
-      where: { userId_videoId: { userId, videoId } },
-    });
-
-    let liked: boolean;
-    if (existing) {
-      await this.prisma.videoLike.delete({
+      const existing = await tx.videoLike.findUnique({
         where: { userId_videoId: { userId, videoId } },
       });
-      liked = false;
-    } else {
-      await this.prisma.videoLike.create({ data: { userId, videoId } });
-      liked = true;
-    }
 
-    const likeCount = await this.prisma.videoLike.count({ where: { videoId } });
-    await this.prisma.video.update({
-      where: { id: videoId },
-      data: { likeCount },
+      let liked: boolean;
+      if (existing) {
+        await tx.videoLike.delete({
+          where: { userId_videoId: { userId, videoId } },
+        });
+        liked = false;
+      } else {
+        await tx.videoLike.create({ data: { userId, videoId } });
+        liked = true;
+      }
+
+      const likeCount = await tx.videoLike.count({ where: { videoId } });
+      await tx.video.update({
+        where: { id: videoId },
+        data: { likeCount },
+      });
+
+      // The payload carries who acted AND whose video it was, because a consumer
+      // building a cross-app interest signal needs both and must not have to call
+      // back into quantube to get them. An event that forces a callback is not an
+      // event, it is a notification.
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'Video',
+          aggregateId: videoId,
+          eventType: liked ? 'Video.liked' : 'Video.unliked',
+          payload: {
+            videoId,
+            userId,
+            creatorId: video.userId,
+            channelId: video.channelId,
+            category: video.category ?? null,
+            likeCount,
+          },
+        },
+      });
+
+      return { liked, likeCount };
     });
-
-    return { liked, likeCount };
   }
 
   /**
