@@ -17,6 +17,7 @@ on:
           - quantsync-backend
           - quantedits-backend
           - quantads-backend
+          - cdc-relay
           - quantchat
           - quantai
           - admin
@@ -235,6 +236,10 @@ jobs:
               repository=quant-quantads-backend; dockerfile=apps/quantads/Dockerfile.backend
               deployment=quant-quantads-backend; container=quantads-backend
               needs_cloudflare=true ;;
+            cdc-relay)
+              repository=quant-cdc-relay; dockerfile=services/cdc-relay/Dockerfile
+              deployment=quant-cdc-relay; container=cdc-relay
+              needs_cloudflare=false ;;
             quantedits)
               repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile
               deployment=quant-quantedits; container=quant-quantedits
