@@ -78,7 +78,17 @@ On 2026-09-20/21 the owner additionally authorized standing up the missing per-a
 
   Evidence: pod `1/1` with transport `redis-streams`; an inserted `outbox_events` row drained within 5s, marked `publishedAt`, and read back off stream `outbox.SpineCheck` with the full envelope; 16/16 tests covering the transaction shape (`BEGIN → claim → publish → mark → COMMIT`, `ROLLBACK` with no mark on transport failure, connection released on failure, overlapping tick skipped).
 
-  Honest limits: this carries events, it does not produce them. Only `base-repository` writes to the outbox today, and there are roughly ten domain publish sites across 340k LOC, so **apps still do not emit their own events** and no consumer reads the streams yet. Postgres TLS is on but the server certificate is unverified until `DATABASE_CA_CERT` is set — fine in-VPC on staging, not for production.
+  Honest limits at that point: the spine carried events but nothing produced them. Postgres TLS is on but the server certificate is unverified until `DATABASE_CA_CERT` is set — fine in-VPC on staging, not for production.
+
+- **EVENT-SPINE-FIRST-PRODUCER** — a grep for `BaseRepository` across `apps/` and `services/` returns nothing, so the outbox had never held an application event: the spine was plumbing with no source. `VideoService.likeVideo` is now the first producer, and it emits inside the same transaction as the state change, which is the only version of the outbox pattern that means anything — an event that can commit without its state change, or a state change without its event, is a lie either way.
+
+  The same change fixed a pre-existing race: the read, the insert/delete, the recount and the counter update were four independent statements, so two concurrent likes could both count rows before either wrote `likeCount` and the stored counter would settle on a stale number.
+
+  The payload carries the actor, the creator, the channel and the category deliberately. A consumer building a cross-app interest signal needs all of them, and an event that forces a callback into the emitting app to be useful is not an event, it is a notification.
+
+  Evidence is live, not a test double: against the deployed staging backend, an authenticated `POST /interactions/like` returned `{"liked":true,"likeCount":1}`; the row landed in `video_likes`; an `outbox_events` row `Video.liked` was written and drained (`publishedAt` set); and Redis Stream `outbox.Video` carried the full envelope, with `userId` (the liker) distinct from `creatorId` (the owner). Suite: 388/388 across 30 files, typecheck and lint clean.
+
+  Honest limits: this is one producer on one action. Every other write in every app still emits nothing, and **no consumer reads the streams**, so there is no signal graph and no cross-app personalisation yet. The consumer needs a durable signal model, which means a migration, so it ships as its own unit.
 
 ## Parallel operational-readiness boundary
 
