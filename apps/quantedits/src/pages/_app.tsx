@@ -10,6 +10,7 @@ import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
 import { BrandProvider } from '../providers/brand-provider';
 import { AuthProvider } from '../providers/auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 interface AppProps {
@@ -47,7 +48,9 @@ export default function App({ Component, pageProps }: AppProps) {
             <CommandPaletteProvider appName="QuantEdits">
               <QuantSidekickProvider>
                 <QuantEditsCommandRegistrar />
-                <Component {...pageProps} />
+                <AuthGuard>
+                  <Component {...pageProps} />
+                </AuthGuard>
                 <QuantSidekick />
               </QuantSidekickProvider>
             </CommandPaletteProvider>
