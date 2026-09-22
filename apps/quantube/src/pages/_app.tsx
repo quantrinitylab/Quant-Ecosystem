@@ -12,6 +12,7 @@ import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
 import { ThemeProvider } from '../providers/theme-provider';
 import { AuthProvider } from '../providers/auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 interface AppProps {
@@ -63,17 +64,19 @@ export default function App({ Component, pageProps }: AppProps) {
           <CommandPaletteProvider appName="QuantTube">
             <QuantSidekickProvider>
               <QuantTubeCommandRegistrar />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={Component.displayName || Component.name || 'page'}
-                  variants={variants}
-                  initial="initial"
-                  animate="animate"
-                  exit="exit"
-                >
-                  <Component {...pageProps} />
-                </motion.div>
-              </AnimatePresence>
+              <AuthGuard>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={Component.displayName || Component.name || 'page'}
+                    variants={variants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                  >
+                    <Component {...pageProps} />
+                  </motion.div>
+                </AnimatePresence>
+              </AuthGuard>
               <QuantSidekick />
             </QuantSidekickProvider>
           </CommandPaletteProvider>

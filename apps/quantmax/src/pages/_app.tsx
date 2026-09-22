@@ -13,6 +13,7 @@ import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
 import { ThemeProvider } from '../providers/theme-provider';
 import { AuthProvider } from '../providers/auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 interface AppProps {
@@ -51,20 +52,22 @@ export default function App({ Component, pageProps }: AppProps) {
           <CommandPaletteProvider appName="QuantMax">
             <QuantSidekickProvider>
               <QuantMaxCommandRegistrar />
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={router.pathname}
-                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                  transition={
-                    prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }
-                  }
-                  className="min-h-screen"
-                >
-                  <Component {...pageProps} />
-                </motion.div>
-              </AnimatePresence>
+              <AuthGuard>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={router.pathname}
+                    initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                    transition={
+                      prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }
+                    }
+                    className="min-h-screen"
+                  >
+                    <Component {...pageProps} />
+                  </motion.div>
+                </AnimatePresence>
+              </AuthGuard>
               <QuantSidekick />
             </QuantSidekickProvider>
           </CommandPaletteProvider>
