@@ -11,6 +11,7 @@ import {
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
 import { ThemeProvider } from '../providers/theme-provider';
+import { AuthProvider } from '../providers/auth-provider';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 interface AppProps {
@@ -57,6 +58,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ErrorBoundary>
       <QueryProvider>
+        <AuthProvider>
         <ThemeProvider>
           <CommandPaletteProvider appName="QuantTube">
             <QuantSidekickProvider>
@@ -76,6 +78,7 @@ export default function App({ Component, pageProps }: AppProps) {
             </QuantSidekickProvider>
           </CommandPaletteProvider>
         </ThemeProvider>
+        </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>
   );
