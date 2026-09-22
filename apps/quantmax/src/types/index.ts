@@ -36,6 +36,14 @@ export interface ShortVideo {
   visibility: 'public' | 'friends' | 'private';
 }
 
+export interface VideoComment {
+  id: string;
+  userId: string;
+  shortVideoId: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface Sound {
   id: string;
   name: string;

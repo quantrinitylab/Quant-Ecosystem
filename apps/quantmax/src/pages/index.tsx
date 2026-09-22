@@ -10,6 +10,7 @@ import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useFeed } from '../hooks/useFeed';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { CommentsSheet } from '../components/CommentsSheet';
 
 type FeedTab = 'following' | 'foryou';
 
@@ -320,29 +321,10 @@ const ForYouFeedPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Comments Panel */}
+      {/* Comments Panel — real thread backed by /api/videos/:id/comments */}
       <AnimatePresence>
-        {showComments && (
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', ...spring.stiff }}
-            className="absolute inset-x-0 bottom-0 z-40 max-h-[60vh] rounded-t-2xl bg-[var(--quant-card)] p-4"
-          >
-            <div className="flex items-center justify-between border-b border-[var(--quant-border)] pb-3">
-              <h3 className="text-base font-semibold text-[var(--quant-foreground)]">Comments</h3>
-              <button
-                className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[var(--surface-hover)]"
-                onClick={() => setShowComments(false)}
-              >
-                &#10005;
-              </button>
-            </div>
-            <div className="py-6 text-center text-sm text-[var(--quant-muted-foreground)]">
-              Comments loaded from API
-            </div>
-          </motion.div>
+        {showComments && currentVideo && (
+          <CommentsSheet videoId={currentVideo.id} onClose={() => setShowComments(false)} />
         )}
       </AnimatePresence>
 

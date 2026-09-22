@@ -1324,6 +1324,19 @@ model ShortVideoLike {
   @@map("short_video_likes")
 }
 
+model ShortVideoComment {
+  id           String    @id @default(cuid())
+  userId       String
+  shortVideoId String
+  body         String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  @@index([shortVideoId, createdAt])
+  @@index([userId])
+  @@map("short_video_comments")
+}
+
 // ==================== AI (QuantAI) ====================
 
 model AISession {
