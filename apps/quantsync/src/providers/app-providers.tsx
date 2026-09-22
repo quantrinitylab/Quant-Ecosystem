@@ -9,6 +9,7 @@ import {
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { AuthProvider } from './auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-post', label: 'New Post', shortcut: 'N', action: () => {} },
@@ -36,7 +37,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <ThemeProvider defaultTheme="system">
       <AuthProvider>
         <QuantSidekickProvider>
-          {children}
+          <AuthGuard>{children}</AuthGuard>
           <CommandPaletteUI
             isOpen={commandPaletteOpen}
             onClose={() => setCommandPaletteOpen(false)}
