@@ -88,7 +88,19 @@ On 2026-09-20/21 the owner additionally authorized standing up the missing per-a
 
   Evidence is live, not a test double: against the deployed staging backend, an authenticated `POST /interactions/like` returned `{"liked":true,"likeCount":1}`; the row landed in `video_likes`; an `outbox_events` row `Video.liked` was written and drained (`publishedAt` set); and Redis Stream `outbox.Video` carried the full envelope, with `userId` (the liker) distinct from `creatorId` (the owner). Suite: 388/388 across 30 files, typecheck and lint clean.
 
-  Honest limits: this is one producer on one action. Every other write in every app still emits nothing, and **no consumer reads the streams**, so there is no signal graph and no cross-app personalisation yet. The consumer needs a durable signal model, which means a migration, so it ships as its own unit.
+  Honest limits at that point: one producer on one action, and no consumer.
+
+- **EVENT-SPINE-SIGNAL-LOOP** — closes it. Migration 0069 adds `user_interest_signals` and `services/signal-projector` folds stream events into it, so the chain user action → domain event → stream → queryable signal now runs end to end.
+
+  Two design decisions carry the value. `category` and `creator_id` mean the same thing whichever app emitted the event, which is what makes a signal earned in QuanTube legible to another app's feed — that portability is the point, and a per-app interactions table would not have it. And `event_id` is UNIQUE, which is load-bearing rather than hygienic: spine delivery is at-least-once because the relay publishes before it marks rows published, so the projector *will* see redeliveries, and the constraint is what makes folding idempotent instead of counting one like many times.
+
+  An unlike is stored as `weight -1`, not as a deletion. "Liked then unliked" is not the same as "never liked", and Law 2 says history should not disappear: a scorer wanting net affinity sums weights, one wanting "ever engaged" counts rows, and deleting would destroy both readings. The acknowledgement policy has the same shape of reasoning — events that project to nothing ARE acked, because leaving them pending would redeliver them on every claim and one unrecognised event would stall the group forever, while failed *writes* are deliberately left unacked so redelivery retries them, which is safe precisely because of the unique `event_id`.
+
+  Evidence, live against deployed staging rather than a test double: an authenticated `POST /interactions/like` produced a `video_likes` row, an `outbox_events` `Video.liked` that was drained, a Redis Stream entry, and a `user_interest_signals` row carrying `app=quantube`, `creator_id` = the owner (distinct from the liker), `category=cooking`, `weight=1`. Toggling produced a second row at `weight -1`, giving `SUM(weight)=0` alongside `COUNT(*)=2`. `COUNT(DISTINCT event_id)` equalled the row count and `XPENDING` was 0. Suites: 24/24 projector, 16/16 relay, 388/388 quantube.
+
+  Honest limits: still one producer on one action, and **no app reads `user_interest_signals` yet**, so nothing is personalised by it — the loop exists but nothing consumes its output. Server certificate unverified until `DATABASE_CA_CERT` is set.
+
+- **BLOCKER: quantmail-backend cannot deploy.** Deploying it from main `2a6716c4` crash-looped and auto-rolled back (no outage; the pre-existing pod still serves). Not the schema change — the image fails at boot with `Object storage is not configured. Missing: CLOUDFLARE_R2_ENDPOINT | R2_ENDPOINT | S3_ENDPOINT, R2_ACCESS_KEY_ID…, R2_SECRET_ACCESS_KEY…`, plus an `ERR_SOCKET_BAD_PORT` from a NaN port. So quantmail-backend is pinned to a stale image and cannot take new code until staging has real R2/S3 credentials. It also could not carry migration 0069, which is why the migration Job used the quantube-backend image; `fix-staging.yml` hardcodes the quantmail image and would not have worked.
 
 ## Parallel operational-readiness boundary
 
