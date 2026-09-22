@@ -282,10 +282,28 @@ export async function twoFactorRoutes(fastify: FastifyInstance) {
             'That code has already been used. Wait for your authenticator to show the next one.',
           );
         }
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { twoFactorLastUsedStep: totpReplayFloorAfter(step) },
+        const nextReplayFloor = totpReplayFloorAfter(step);
+        const advanced = await prisma.user.updateMany({
+          where: {
+            id: user.id,
+            OR: [
+              { twoFactorLastUsedStep: null },
+              { twoFactorLastUsedStep: { lt: nextReplayFloor } },
+            ],
+          },
+          data: { twoFactorLastUsedStep: nextReplayFloor },
         });
+        // Compare-and-set closes the race where two requests load the same old
+        // floor, both verify the same TOTP, and would otherwise both mint a
+        // session. Exactly one request may advance the floor.
+        if (advanced.count !== 1) {
+          return fail(
+            reply,
+            401,
+            'CODE_ALREADY_USED',
+            'That code has already been used. Wait for your authenticator to show the next one.',
+          );
+        }
       } else if (looksLikeBackupCode(trimmed)) {
         if (!(await consumeBackupCode(user.id, trimmed))) {
           return fail(

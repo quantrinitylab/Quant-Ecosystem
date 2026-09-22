@@ -309,15 +309,14 @@ describe('QuantMail login two-factor gate', () => {
   });
 
   /**
-   * A flag with no secret is the state the old format-only `/auth/2fa/enable`
-   * left accounts in. Honouring it would demand a code nothing can verify, which
-   * is a lockout, so login proceeds normally instead.
+   * A flag/secret mismatch is corrupted security state. Password-only fallback
+   * would turn that corruption into a 2FA bypass, so login must fail closed and
+   * issue no browser session.
    */
-  it('ignores a half-enabled row rather than locking the account out', async () => {
-    for (const half of [
+  it('fails closed for inconsistent two-factor rows', async () => {
+    for (const inconsistent of [
       { ...protectedRow, twoFactorSecret: null },
       { ...protectedRow, twoFactorEnabled: false },
-      { ...protectedRow, twoFactorEnabled: null, twoFactorSecret: null },
     ]) {
       vi.clearAllMocks();
       mocks.generateTokenPair.mockResolvedValue({
@@ -327,11 +326,24 @@ describe('QuantMail login two-factor gate', () => {
         tokenType: 'Bearer',
       });
 
-      const reply = await login(half);
-      expect(reply.body.data.accessToken).toBe('access-token');
-      expect(reply.body.data).not.toHaveProperty('twoFactorRequired');
-      expect(reply.cookie.value).toBe('refresh-token');
+      const reply = await login(inconsistent);
+      expect(reply.statusCode).toBe(409);
+      expect(reply.body.error.code).toBe('TWO_FACTOR_STATE_INVALID');
+      expect(reply.cookie).toBeUndefined();
+      expect(mocks.generateTokenPair).not.toHaveBeenCalled();
     }
+  });
+
+  it('still issues a normal session when both two-factor fields are off', async () => {
+    const reply = await login({
+      ...protectedRow,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+    });
+
+    expect(reply.body.data.accessToken).toBe('access-token');
+    expect(reply.body.data).not.toHaveProperty('twoFactorRequired');
+    expect(reply.cookie.value).toBe('refresh-token');
   });
 
   it('still rejects a wrong password before any challenge is minted', async () => {

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
 import { POST } from '../app/auth/[action]/route';
+import { POST as verifyTwoFactor } from '../app/auth/2fa/verify/route';
 import { GET as getUserInfo } from '../app/api/oauth/userinfo/route';
 
 const BACKEND_URL = process.env['QUANTMAIL_BACKEND_URL'] ?? 'http://localhost:3010';
@@ -78,7 +79,7 @@ describe('QuantMail same-origin browser auth proxy', () => {
       method: 'POST',
       headers: {
         origin: 'http://localhost:3000',
-        cookie: 'quantmail_refresh=refresh-secret',
+        cookie: 'theme=dark; quantmail_refresh=refresh-secret; analytics=on',
         'content-type': 'application/json',
       },
     });
@@ -91,6 +92,46 @@ describe('QuantMail same-origin browser auth proxy', () => {
     expect(headers.get('origin')).toBe('http://localhost:3000');
     expect(headers.get('cookie')).toBe('quantmail_refresh=refresh-secret');
     expect(response.headers.get('set-cookie')).toBe(rotatedCookie);
+  });
+
+  it('forwards the dedicated 2FA completion route and preserves only the refresh cookie', async () => {
+    const refreshCookie =
+      'quantmail_refresh=second-leg-secret; Path=/auth; HttpOnly; SameSite=Strict; Max-Age=2592000';
+    const backendHeaders = new Headers({ 'content-type': 'application/json' });
+    backendHeaders.append('set-cookie', refreshCookie);
+    backendHeaders.append('set-cookie', 'unrelated_cookie=must-not-cross; Path=/');
+    fetchMock.mockResolvedValueOnce(
+      backendJson(
+        { success: true, data: { accessToken: 'access-after-2fa', expiresIn: 900 } },
+        { headers: backendHeaders },
+      ),
+    );
+    const body = JSON.stringify({ challenge: 'signed-challenge', code: '123456' });
+    const request = new NextRequest('http://localhost:3000/auth/2fa/verify', {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost:3000',
+        cookie: 'theme=dark; analytics=on',
+        'content-type': 'application/json',
+      },
+      body,
+    });
+
+    const response = await verifyTwoFactor(request);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(url.toString()).toBe(new URL('/auth/2fa/verify', BACKEND_URL).toString());
+    expect(init.body).toBe(body);
+    const headers = new Headers(init.headers);
+    expect(headers.get('origin')).toBe('http://localhost:3000');
+    expect(headers.get('cookie')).toBeNull();
+    expect(response.status).toBe(200);
+    expect(response.headers.getSetCookie()).toEqual([refreshCookie]);
+    expect(await response.json()).toEqual({
+      success: true,
+      data: { accessToken: 'access-after-2fa', expiresIn: 900 },
+    });
   });
 
   it('forwards the in-memory bearer for profile hydration', async () => {

@@ -17,7 +17,7 @@
  *    second factor. So success routes to `/login` rather than to the inbox.
  */
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
@@ -35,7 +35,7 @@ const DEAD_LINK_CODES = new Set(['INVALID_TOKEN', 'RESET_LINK_EXPIRED']);
 
 type Stage = 'form' | 'done';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   // Null only while prerendering, which is why a missing token is not an error
   // yet: the static HTML would otherwise ship the "broken link" panel and correct
@@ -322,5 +322,31 @@ export default function ResetPasswordPage() {
         </div>
       </AuthShell>
     </PageTransition>
+  );
+}
+
+function ResetPasswordFallback() {
+  return (
+    <AuthShell
+      brand={
+        <AuthBrandPanel
+          eyebrow="Account recovery"
+          title="Pick something only you know."
+          subtitle="Setting a new password signs out every device that was already signed in."
+        />
+      }
+    >
+      <div role="status" aria-busy="true" aria-live="polite">
+        <p className="text-sm text-[var(--quant-muted-foreground)]">Checking your reset link…</p>
+      </div>
+    </AuthShell>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }

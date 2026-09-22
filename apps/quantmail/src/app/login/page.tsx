@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
@@ -23,14 +23,13 @@ const formatCountdown = (seconds: number): string => {
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, '0')}`;
 };
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
   // Second-factor leg. `stage` is what the form renders; `secondsLeft` counts the
@@ -161,13 +160,26 @@ export default function LoginPage() {
       await completeTwoFactor(trimmed);
       router.push(destination());
     } catch (caughtError) {
-      setCode('');
-      codeInputRef.current?.focus();
-      setError(
+      const message =
         caughtError instanceof Error
           ? caughtError.message
-          : 'That code was not accepted. Try again.',
-      );
+          : 'That code was not accepted. Try again.';
+      const errorCode =
+        typeof caughtError === 'object' && caughtError !== null && 'code' in caughtError
+          ? String((caughtError as { code?: unknown }).code ?? '')
+          : '';
+
+      // An expired challenge (or a session that had to be revoked after profile
+      // hydration failed) cannot succeed by retrying another code. Return to the
+      // password step instead of trapping the user in a dead second-factor form.
+      if (errorCode === 'CHALLENGE_EXPIRED' || errorCode === 'SESSION_INITIALIZATION_FAILED') {
+        backToPassword(message);
+        return;
+      }
+
+      setCode('');
+      codeInputRef.current?.focus();
+      setError(message);
     }
   }
 
@@ -315,24 +327,6 @@ export default function LoginPage() {
                 {isLoading ? 'Signing in.' : ''}
               </p>
 
-              {/*
-              The label is the target — clicking the text toggles the box — and it
-              was 20px tall. `w-fit` keeps it from spanning the form width, so the
-              row is a 44px target rather than a full-width strip that toggles
-              "keep me signed in" on any stray tap beside it.
-            */}
-              <label className="flex w-fit min-h-[44px] cursor-pointer items-center gap-2.5 sm:min-h-0">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-[var(--quant-border)] accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0c]"
-                />
-                <span className="text-sm text-[var(--quant-muted-foreground)]">
-                  Keep me signed in
-                </span>
-              </label>
-
               <button
                 type="submit"
                 disabled={isLoading}
@@ -463,5 +457,48 @@ export default function LoginPage() {
         </div>
       </AuthShell>
     </PageTransition>
+  );
+}
+
+/** Meaningful initial HTML while the search-param-dependent form hydrates. */
+function LoginFallback() {
+  return (
+    <AuthShell
+      brand={
+        <AuthBrandPanel
+          eyebrow="Return to your workspace"
+          title="Your work, back in focus."
+          subtitle="Open your mail workspace with threads, schedules, and assisted drafting kept in one clear flow."
+        />
+      }
+    >
+      <div role="status" aria-busy="true" aria-live="polite">
+        <span className="sr-only">Loading the sign-in form…</span>
+        <div className="mb-8">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+            Account access
+          </p>
+          <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+            Sign in to QuantMail
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+            Use your QuantMail address or account handle.
+          </p>
+        </div>
+        <div aria-hidden="true" className="space-y-5">
+          <div className="h-[46px] rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]" />
+          <div className="h-[46px] rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]" />
+          <div className="h-[46px] rounded-xl bg-[var(--brand-primary)]/30" />
+        </div>
+      </div>
+    </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
