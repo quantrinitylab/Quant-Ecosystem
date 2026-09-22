@@ -11,6 +11,7 @@ import {
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
+import { AuthProvider } from '../providers/auth-provider';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { VoiceCommandHost } from '../components/VoiceCommandHost';
 import { registerQuantneonVoice } from '../voice-registration';
@@ -48,6 +49,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ErrorBoundary>
       <QueryProvider>
+        <AuthProvider>
         <MotionProvider>
           <CommandPaletteProvider appName="QuantNeon">
             <QuantSidekickProvider>
@@ -60,6 +62,7 @@ export default function App({ Component, pageProps }: AppProps) {
             </QuantSidekickProvider>
           </CommandPaletteProvider>
         </MotionProvider>
+        </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>
   );

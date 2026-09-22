@@ -8,6 +8,7 @@ import {
   QuantSidekick,
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
+import { AuthProvider } from './auth-provider';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-post', label: 'New Post', shortcut: 'N', action: () => {} },
@@ -33,15 +34,17 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider defaultTheme="system">
-      <QuantSidekickProvider>
-        {children}
-        <CommandPaletteUI
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          commands={commands}
-        />
-        <QuantSidekick />
-      </QuantSidekickProvider>
+      <AuthProvider>
+        <QuantSidekickProvider>
+          {children}
+          <CommandPaletteUI
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            commands={commands}
+          />
+          <QuantSidekick />
+        </QuantSidekickProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
