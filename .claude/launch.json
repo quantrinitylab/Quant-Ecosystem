@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@quant/quantmail", "exec", "next", "start", "-p", "3100"],
       "port": 3100
+    },
+    {
+      "name": "quantmax-dev",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@quant/quantmax", "exec", "next", "dev", "-p", "3201"],
+      "port": 3201
     }
   ]
 }

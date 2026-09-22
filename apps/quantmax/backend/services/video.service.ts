@@ -41,6 +41,20 @@ export interface VideoFeedPage {
   pageSize: number;
 }
 
+export interface PublicComment {
+  id: string;
+  userId: string;
+  shortVideoId: string;
+  body: string;
+  createdAt: Date;
+}
+
+export interface CommentPage {
+  comments: PublicComment[];
+  page: number;
+  pageSize: number;
+}
+
 export class VideoNotFoundError extends Error {
   constructor() {
     super('Video not found');
@@ -57,6 +71,7 @@ export class VideoValidationError extends Error {
 
 const MAX_CAPTION = 2200;
 const MAX_DURATION = 600; // 10 min hard cap
+const MAX_COMMENT = 1000;
 
 export class VideoService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -182,6 +197,51 @@ export class VideoService {
     const likeCount = await this.prisma.shortVideoLike.count({ where: { shortVideoId: videoId } });
     await this.prisma.shortVideo.update({ where: { id: videoId }, data: { likeCount } });
     return { liked, likeCount };
+  }
+
+  /** Post a comment on a video; keeps commentCount in sync. */
+  async addComment(userId: string, videoId: string, body: string): Promise<PublicComment> {
+    const text = body?.trim();
+    if (!text) throw new VideoValidationError('comment body is required');
+    if (text.length > MAX_COMMENT) throw new VideoValidationError('comment too long');
+
+    const video = await this.prisma.shortVideo.findUnique({ where: { id: videoId } });
+    if (!video || video.deletedAt) throw new VideoNotFoundError();
+
+    const row = await this.prisma.shortVideoComment.create({
+      data: { userId, shortVideoId: videoId, body: text },
+    });
+    const commentCount = await this.prisma.shortVideoComment.count({
+      where: { shortVideoId: videoId, deletedAt: null },
+    });
+    await this.prisma.shortVideo.update({ where: { id: videoId }, data: { commentCount } });
+    return this.toPublicComment(row);
+  }
+
+  /** List a video's comments, newest-first and paginated. Soft-deleted excluded. */
+  async listComments(
+    videoId: string,
+    options: { page?: number; pageSize?: number } = {},
+  ): Promise<CommentPage> {
+    const page = Math.max(options.page ?? 1, 1);
+    const pageSize = Math.min(Math.max(options.pageSize ?? 20, 1), 50);
+    const rows = await this.prisma.shortVideoComment.findMany({
+      where: { shortVideoId: videoId, deletedAt: null },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { createdAt: 'desc' },
+    });
+    return { comments: rows.map((r) => this.toPublicComment(r)), page, pageSize };
+  }
+
+  private toPublicComment(row: Record<string, any>): PublicComment {
+    return {
+      id: String(row.id),
+      userId: String(row.userId),
+      shortVideoId: String(row.shortVideoId),
+      body: String(row.body),
+      createdAt: (row.createdAt as Date) ?? new Date(),
+    };
   }
 
   private toPublic(row: Record<string, any>): PublicVideo {

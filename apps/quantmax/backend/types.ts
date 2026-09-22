@@ -50,6 +50,11 @@ export interface PrismaClient {
     delete: (args: { where: Record<string, unknown> }) => Promise<any>;
     count: (args: Record<string, unknown>) => Promise<number>;
   };
+  shortVideoComment: {
+    create: (args: { data: Record<string, unknown> }) => Promise<any>;
+    findMany: (args: Record<string, unknown>) => Promise<any[]>;
+    count: (args: Record<string, unknown>) => Promise<number>;
+  };
   userReport: {
     create: (args: { data: Record<string, unknown> }) => Promise<any>;
     findMany: (args: Record<string, unknown>) => Promise<any[]>;
