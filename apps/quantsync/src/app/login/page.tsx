@@ -28,7 +28,7 @@ function LoginForm() {
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
 
   const destination = useCallback(
-    () => safeReturnPath(searchParams.get('returnTo')) ?? '/',
+    () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
 
