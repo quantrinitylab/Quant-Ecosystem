@@ -80,6 +80,7 @@ model User {
 
   // Git hosting relations
   repositories   Repository[]
+  repositoryStars RepositoryStar[]
   pullRequests   PullRequest[]
   reviews        Review[]
   reviewComments ReviewComment[]
@@ -1545,12 +1546,33 @@ model Repository {
   branchProtections BranchProtection[]
   ciRuns            CiRun[]
   agentSessions     AgentSession[]
+  stars             RepositoryStar[]
 
   @@unique([ownerId, name])
   @@index([ownerId])
   @@index([visibility])
   @@index([createdAt])
   @@map("repositories")
+}
+
+/// One row per (repository, user) star. The star count on Repository is a
+/// derived cache of `count(repository_stars)`, never a blind increment: the
+/// previous implementation incremented on every POST /repos/:id/star, so a
+/// single user could inflate any repository's stars without limit and could
+/// "unstar" a repository they had never starred.
+model RepositoryStar {
+  id           String   @id @default(cuid())
+  repositoryId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([repositoryId, userId])
+  @@index([userId])
+  @@index([repositoryId])
+  @@map("repository_stars")
 }
 
 model Branch {
