@@ -14,6 +14,7 @@ export interface FtsQueryOptions {
   limit?: number;
   offset?: number;
   folder?: string;
+  prefixMatch?: boolean;
   weights?: {
     subject?: number;
     snippet?: number;

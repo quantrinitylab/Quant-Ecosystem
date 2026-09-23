@@ -136,7 +136,7 @@ function InboxToastItem({
       {toast.undoAction && (
         <button
           type="button"
-          className="inbox-toast-undo text-[#FF8C42] hover:bg-[#2B1A11] px-2 py-0.5 rounded font-bold transition-colors"
+          className="inbox-toast-undo text-[#FF8C42] hover:bg-[#FF8C42]/20 px-2 py-0.5 rounded font-semibold transition-colors"
           onClick={() => {
             // Dismiss first: clears the pending undo, so the same action
             // cannot be reversed a second time.

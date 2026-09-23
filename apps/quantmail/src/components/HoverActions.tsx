@@ -51,7 +51,9 @@ export const HoverActions = memo(function HoverActions({
         <button
           type="button"
           className={`hover-action-btn ${
-            isStarred ? 'text-[#FF8C42] bg-[#2B1A11]' : 'text-[#A1A4AC] hover:text-[#EDEDED]'
+            isStarred
+              ? 'text-[#FF8C42] bg-[#FF8C42]/12 shadow-sm'
+              : 'text-[#A1A4AC] hover:text-[#EDEDED]'
           }`}
           onClick={(e) => {
             e.stopPropagation();
@@ -76,7 +78,7 @@ export const HoverActions = memo(function HoverActions({
       {isSpam && onRescueSpam && (
         <button
           type="button"
-          className="hover-action-btn text-[#FF8C42] hover:text-[#FFA666] hover:bg-[#2B1A11]"
+          className="hover-action-btn text-[#FF8C42] hover:text-[#FFA666] hover:bg-[#FF8C42]/12"
           onClick={onRescueSpam}
           aria-label="Not spam"
           title="Not spam"

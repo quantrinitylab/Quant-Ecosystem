@@ -18,17 +18,9 @@
   --brand-primary-pressed: #E8752F;
   --brand-accent: #FFB875;
   --brand-accent-hover: #FFD1A3;
-  --brand-soft: #2B1A11;
-  /*
-   * `--brand-soft` never travels alone: the brand-soft fill and this border are
-   * written as a pair in more than twenty rules and every accent chip in the
-   * product, so the border earns a token too. Both are overridden under
-   * `[data-theme='light']` — a near-black brown fill is the correct "soft accent"
-   * on the dark canvas and completely wrong on the light one, which is how the
-   * theme picker in Settings came to sit in a black chip on a cream page.
-   */
-  --brand-soft-border: #5C3016;
-  --brand-subtle: #1D1410;
+  --brand-soft: rgba(255, 140, 66, 0.12);
+  --brand-soft-border: rgba(255, 140, 66, 0.28);
+  --brand-subtle: rgba(255, 140, 66, 0.05);
   --brand-app-color: #FF8C42;
   --app-color: #FF8C42;
 
@@ -41,13 +33,13 @@
   --quant-surface: #111318;
   --quant-surface-elevated: #16181D;
   --quant-surface-subtle: #0D0F12;
-  --quant-surface-hover: #1C1F26;
+  --quant-surface-hover: rgba(255, 255, 255, 0.04);
   --quant-muted: #16181D;
   --quant-muted-foreground: #A1A4AC;
   --quant-text-muted: #6B6E76;
-  --quant-border: #282C35;
-  --quant-border-subtle: #1C1F26;
-  --quant-border-strong: #3A404D;
+  --quant-border: rgba(255, 255, 255, 0.08);
+  --quant-border-subtle: rgba(255, 255, 255, 0.05);
+  --quant-border-strong: rgba(255, 255, 255, 0.14);
   --quant-ring: #FF8C42;
   --quant-radius: 0.5rem;
   --quant-card: #111318;
@@ -99,13 +91,16 @@
   --quant-surface: #111318;
   --quant-surface-elevated: #16181D;
   --quant-surface-subtle: #0D0F12;
-  --quant-surface-hover: #1C1F26;
+  --quant-surface-hover: rgba(255, 255, 255, 0.04);
   --quant-muted: #16181D;
   --quant-muted-foreground: #A1A4AC;
   --quant-text-muted: #6B6E76;
-  --quant-border: #282C35;
-  --quant-border-subtle: #1C1F26;
-  --quant-border-strong: #3A404D;
+  --quant-border: rgba(255, 255, 255, 0.08);
+  --quant-border-subtle: rgba(255, 255, 255, 0.05);
+  --quant-border-strong: rgba(255, 255, 255, 0.14);
+  --brand-soft: rgba(255, 140, 66, 0.12);
+  --brand-soft-border: rgba(255, 140, 66, 0.28);
+  --brand-subtle: rgba(255, 140, 66, 0.05);
   --quant-card: #111318;
   --quant-card-foreground: #F5F5F5;
   --quant-popover: #16181D;
@@ -988,7 +983,7 @@ body {
 .mail-row-swipe-pane { position: absolute; inset: 0; display: flex; align-items: center; background: #16181D; transition: background 130ms ease; }
 .mail-row-swipe-pane.is-trailing { justify-content: flex-end; padding-right: 1rem; }
 .mail-row-swipe-pane.is-leading { justify-content: flex-start; padding-left: 1rem; }
-.mail-row-swipe-pane.is-armed { background: #2B1A11; box-shadow: inset 0 0 0 1px #5C3016; }
+.mail-row-swipe-pane.is-armed { background: rgba(255, 140, 66, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 140, 66, 0.32); }
 .mail-row-swipe-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #A1A4AC; font-size: 0.688rem; font-weight: 600; white-space: nowrap; }
 .mail-row-swipe-pane.is-armed .mail-row-swipe-label { color: #FF8C42; }
 /* The release, and only the release. Absent while a finger is down, which is what
@@ -1920,9 +1915,10 @@ body {
   transition: background 120ms ease, border-color 120ms ease, transform 100ms ease;
 }
 .smart-reply-chip:hover {
-  background: #2B1A11;
-  border-color: #5C3016;
+  background: rgba(255, 140, 66, 0.12);
+  border-color: rgba(255, 140, 66, 0.32);
   color: #FF8C42;
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.15);
   transform: translateY(-1px);
 }
 .smart-reply-chip:active {
@@ -2454,18 +2450,20 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 36px;
-  border: 1px solid #5C3016;
-  background: #2B1A11;
+  border: 1px solid rgba(255, 140, 66, 0.32);
+  background: rgba(255, 140, 66, 0.12);
   color: #FF8C42;
   font-size: 0.72rem;
   font-weight: 650;
   cursor: pointer;
   padding: 0 0.6rem;
   border-radius: 0.4rem;
-  transition: background 100ms;
+  box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
+  transition: background 100ms, border-color 100ms;
 }
 .inbox-toast-undo:hover {
-  background: #3D2214;
+  background: rgba(255, 140, 66, 0.2);
+  border-color: rgba(255, 140, 66, 0.45);
 }
 .inbox-toast-dismiss {
   display: inline-grid;
@@ -4596,8 +4594,8 @@ body {
 .ide-back-btn:hover { border-color: #3A404D; background: #1C1F26; color: #F5F5F5; }
 .ide-toggle-btn { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; padding: 0 0.7rem; border-radius: 0.6rem; border: 1px solid #282C35; background: transparent; color: #A1A4AC; font-size: 0.7rem; font-weight: 550; cursor: pointer; transition: color 120ms, border-color 120ms, background-color 120ms; }
 .ide-toggle-btn:hover { border-color: #3A404D; color: #F5F5F5; }
-.ide-toggle-btn.is-active { border-color: #5C3016; background: #2B1A11; color: #FF8C42; }
-.ide-readonly-pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.75rem; border-radius: 0.6rem; border: 1px solid #5C3016; background: #2B1A11; color: #E9C9A9; font-size: 0.7rem; font-weight: 600; letter-spacing: -0.01em; }
+.ide-toggle-btn.is-active { border-color: rgba(255, 140, 66, 0.32); background: rgba(255, 140, 66, 0.12); color: #FF8C42; box-shadow: 0 0 12px rgba(255, 140, 66, 0.1); }
+.ide-readonly-pill { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.75rem; border-radius: 0.6rem; border: 1px solid rgba(255, 140, 66, 0.32); background: rgba(255, 140, 66, 0.12); color: #FF8C42; font-size: 0.7rem; font-weight: 600; letter-spacing: -0.01em; }
 .ide-back-btn:focus-visible,
 .ide-toggle-btn:focus-visible,
 .ide-terminal-header button:focus-visible { outline: none; box-shadow: 0 0 0 2px #FF8C42; }
@@ -5264,3 +5262,111 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .qty-root, .qty-root * { animation: none !important; }
 }
+
+/* ==========================================================================
+   Quant Studio Design System (QSDS) — Linear & Superhuman Grade Utilities
+   ========================================================================== */
+
+/* Linear-grade luminous micro-borders with top edge bevel */
+.linear-border {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.linear-border-subtle {
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Linear-grade card container */
+.linear-card {
+  background: #111318 !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+  transition: border-color 150ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.linear-card:hover {
+  border-color: rgba(255, 255, 255, 0.13) !important;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08), 0 6px 24px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Frosted glass surfaces for navigation and floating headers */
+.frosted-header {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(9, 10, 12, 0.85) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.frosted-dock {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(9, 10, 12, 0.88) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Superhuman-grade interactive pills */
+.action-pill-active {
+  background: rgba(255, 140, 66, 0.12) !important;
+  border: 1px solid rgba(255, 140, 66, 0.32) !important;
+  color: #FF8C42 !important;
+  box-shadow: 0 0 14px rgba(255, 140, 66, 0.12) !important;
+}
+
+.action-pill-neutral {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #A1A4AC;
+  transition: all 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.action-pill-neutral:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #F5F5F5;
+}
+
+/* Linear-grade Primary Button (passes AAA 8:1 contrast) */
+.btn-primary-quant {
+  background: #FF8C42 !important;
+  color: #090A0C !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 16px rgba(255, 140, 66, 0.25) !important;
+  transition: all 120ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.btn-primary-quant:hover {
+  background: #FF9B5A !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 24px rgba(255, 140, 66, 0.4) !important;
+  transform: translateY(-0.5px);
+}
+
+.btn-primary-quant:active {
+  background: #E8752F !important;
+  transform: translateY(0.5px) scale(0.99);
+}
+
+/* Shimmer wave skeleton for instant optimistic loading */
+@keyframes shimmer-wave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: shimmer-wave 1.6s ease-in-out infinite !important;
+  border-radius: 0.5rem;
+}
+

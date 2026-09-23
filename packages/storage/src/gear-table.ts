@@ -9,14 +9,14 @@
 // Generate deterministic pseudo-random 64-bit table using SplitMix64
 function generateGearTable(): BigUint64Array {
   const table = new BigUint64Array(256);
-  let state = 0x853c49e6748fea9bn;
+  let state = BigInt('0x853c49e6748fea9b');
 
   for (let i = 0; i < 256; i++) {
-    state = (state + 0x9e3779b97f4a7c15n) & 0xffffffffffffffffn;
+    state = (state + BigInt('0x9e3779b97f4a7c15')) & BigInt('0xffffffffffffffff');
     let z = state;
-    z = ((z ^ (z >> 30n)) * 0xbf58476d1ce4e5b9n) & 0xffffffffffffffffn;
-    z = ((z ^ (z >> 27n)) * 0x94d049bb133111ebn) & 0xffffffffffffffffn;
-    z = (z ^ (z >> 31n)) & 0xffffffffffffffffn;
+    z = ((z ^ (z >> BigInt(30))) * BigInt('0xbf58476d1ce4e5b9')) & BigInt('0xffffffffffffffff');
+    z = ((z ^ (z >> BigInt(27))) * BigInt('0x94d049bb133111eb')) & BigInt('0xffffffffffffffff');
+    z = (z ^ (z >> BigInt(31))) & BigInt('0xffffffffffffffff');
     table[i] = z;
   }
   return table;

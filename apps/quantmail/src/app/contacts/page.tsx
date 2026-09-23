@@ -569,7 +569,7 @@ export default function ContactsPage() {
                 onClick={() => handleTabChange('favorites')}
                 className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeTab === 'favorites'
-                    ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]'
+                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_12px_rgba(255,140,66,0.12)]'
                     : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
                 }`}
               >
@@ -610,8 +610,8 @@ export default function ContactsPage() {
                     }}
                     className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors ${
                       isSelected
-                        ? 'border-[#FF8C42] bg-[#2B1A11] text-[#FF8C42] font-semibold'
-                        : 'border-[#282C35] bg-[#16181D] text-[#A1A4AC] hover:border-[#3A404D] hover:text-[#F5F5F5]'
+                        ? 'border-[#FF8C42]/40 bg-[#FF8C42]/12 text-[#FF8C42] font-semibold shadow-[0_0_12px_rgba(255,140,66,0.12)]'
+                        : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:border-white/[0.15] hover:text-[#F5F5F5]'
                     }`}
                     title={`Filter by ${grp.name} (${(grp.emails || []).length} members)`}
                   >
@@ -899,7 +899,7 @@ export default function ContactsPage() {
                                     {contact.tags.slice(0, 3).map((tag) => (
                                       <span
                                         key={tag}
-                                        className="px-1.5 py-0.5 rounded-md bg-[#2B1A11] border border-[#5C3016]/60 text-[10px] font-semibold text-[#FF9B5A]"
+                                        className="px-1.5 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[#FF8C42]"
                                       >
                                         {tag}
                                       </span>
@@ -941,7 +941,7 @@ export default function ContactsPage() {
                                     e.stopPropagation();
                                     router.push(`/compose?to=${encodeURIComponent(contact.email)}`);
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF9B5A] text-xs font-semibold hover:bg-[#3D2315] transition-colors flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[#FF8C42] text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors flex items-center gap-1"
                                 >
                                   <svg
                                     className="w-3 h-3"
@@ -1231,7 +1231,7 @@ export default function ContactsPage() {
                 {inspectContact.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-md bg-[#2B1A11] border border-[#5C3016]/60 text-[10px] font-semibold text-[#FF9B5A]"
+                    className="px-2 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[#FF8C42]"
                   >
                     {tag}
                   </span>

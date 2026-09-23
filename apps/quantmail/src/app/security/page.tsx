@@ -382,7 +382,7 @@ export default function SecurityPage() {
                   {status?.enabled &&
                   !passwordPrompt &&
                   status.backupCodesRemaining <= RECOVERY_CODES_LOW ? (
-                    <p className="rounded-md border border-[#5C3016] bg-[#2B1A11] px-3 py-2 text-xs leading-5 text-[var(--quant-foreground)]">
+                    <p className="rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_12px_rgba(255,140,66,0.1)] px-3.5 py-2.5 text-xs leading-5 text-[#FFB875]">
                       {status.backupCodesRemaining === 0
                         ? 'No recovery codes left. Generate a new set now — without one, losing your authenticator means losing the account.'
                         : 'Nearly out of recovery codes. Generate a new set while you still have a way in.'}
@@ -522,7 +522,7 @@ export default function SecurityPage() {
                   ) : null}
 
                   {freshCodes ? (
-                    <div className="space-y-3 rounded-md border border-[#5C3016] bg-[#2B1A11] px-4 py-4">
+                    <div className="space-y-3 rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-4">
                       <div>
                         <h3 className="text-sm font-medium text-[var(--quant-foreground)]">
                           Save your recovery codes

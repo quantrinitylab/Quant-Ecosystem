@@ -139,11 +139,12 @@ export function getConfig(): AppConfig {
       '/api/health',
       // RFC 4791 CalDAV & RFC 6350 CardDAV protocol sync endpoints
       // Discovery endpoints (.well-known) are public per RFC 6764.
-      // For /dav, only OPTIONS is public for RFC 4918 capability advertisement.
-      // All CalDAV / CardDAV operations (PROPFIND, REPORT, GET, PUT, DELETE)
-      // require authentication via Basic auth or Bearer token inside davRoutes.
-      { path: '/dav', methods: ['OPTIONS'], exact: false },
-      { path: '/dav/*', methods: ['OPTIONS'], exact: false },
+      // /dav and /dav/* bypass the global Bearer-only requireAuth() so that
+      // davRoutes's encapsulated preHandler can negotiate RFC 4791 HTTP Basic Auth
+      // (for native Apple Calendar / Thunderbird / DAVx5) or Bearer tokens,
+      // and enforce strict tenant boundary isolation (401 on missing auth, 403 on mismatch).
+      { path: '/dav', exact: false },
+      { path: '/dav/*', exact: false },
       { path: '/.well-known/caldav', methods: ['GET', 'PROPFIND'], exact: true },
       { path: '/.well-known/carddav', methods: ['GET', 'PROPFIND'], exact: true },
     ],

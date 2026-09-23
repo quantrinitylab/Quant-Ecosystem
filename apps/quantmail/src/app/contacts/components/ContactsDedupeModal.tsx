@@ -201,8 +201,8 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                             onClick={() => handleSelectPrimary(cIdx, contact.id)}
                             className={`cursor-pointer rounded-lg border p-3 transition-all ${
                               isSelectedPrimary
-                                ? 'border-[#FF8C42] bg-[#2B1A11]/30 ring-1 ring-[#FF8C42]'
-                                : 'border-[#282C35] bg-[#16181D] hover:border-[#3A404D]'
+                                ? 'border-[#FF8C42]/50 bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]/50 shadow-[0_0_16px_rgba(255,140,66,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                                : 'border-white/[0.08] bg-[#111318] hover:border-white/[0.14] hover:bg-white/[0.03]'
                             }`}
                           >
                             <div className="flex items-start justify-between">

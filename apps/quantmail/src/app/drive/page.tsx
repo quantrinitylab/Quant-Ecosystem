@@ -891,10 +891,10 @@ export default function DrivePage() {
                 type="button"
                 onClick={() => setActiveFilter(filter.key)}
                 aria-pressed={activeFilter === filter.key}
-                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                   activeFilter === filter.key
-                    ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
-                    : 'bg-[#16181D] text-[#A1A4AC] shadow-[inset_0_0_0_1px_#282C35] hover:text-[#F5F5F5]'
+                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.06] hover:border-white/[0.14]'
                 }`}
               >
                 {filter.label}
@@ -934,7 +934,7 @@ export default function DrivePage() {
                 const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
                 router.push(`/drive/doc/${docId}`);
               }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#FF8C42] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#FF8C42] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New document"
             >
               <IconFile size={14} />
@@ -944,7 +944,7 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] shadow-[inset_0_0_0_1px_var(--quant-border)] transition-colors hover:text-[#F5F5F5] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#F5F5F5] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New folder"
             >
               <IconFolderPlus size={14} />
@@ -1181,7 +1181,7 @@ export default function DrivePage() {
                         <button
                           type="button"
                           onClick={(e) => handleRestoreItem(item.id, item.name, e)}
-                          className="px-3 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                          className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         >
                           Restore
                         </button>
@@ -1293,7 +1293,7 @@ export default function DrivePage() {
                               <button
                                 type="button"
                                 onClick={(e) => handleAcceptShare(share.id, e)}
-                                className="px-3 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                               >
                                 Accept
                               </button>
@@ -1327,7 +1327,7 @@ export default function DrivePage() {
                               <button
                                 type="button"
                                 onClick={() => downloadFile(share.file!.id, share.file!.name)}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#2B1A11] border border-[#5C3016] text-xs font-medium text-[#FF8C42] hover:bg-[#3D2214] transition-colors"
+                                className="px-2.5 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors"
                               >
                                 Download
                               </button>
@@ -1445,7 +1445,7 @@ export default function DrivePage() {
                                   className="accent-[#FF8C42] rounded cursor-pointer"
                                   aria-label={`Select folder ${folder.name}`}
                                 />
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#2B1A11] border border-[#5C3016] shrink-0 group-hover:scale-105 transition-transform">
+                                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#FF8C42]/10 border border-[#FF8C42]/25 shadow-[0_0_10px_rgba(255,140,66,0.1)] shrink-0 group-hover:scale-105 transition-transform">
                                   <svg
                                     className="w-4 h-4 text-[#FF8C42]"
                                     fill="currentColor"
@@ -1465,7 +1465,7 @@ export default function DrivePage() {
                                   onClick={(e) => handleToggleStar(folder, e)}
                                   className={`p-1.5 rounded-lg transition-colors ${
                                     folder.isStarred
-                                      ? 'text-[#FF8C42] bg-[#2B1A11]'
+                                      ? 'text-[#FF8C42] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
                                       : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
                                   }`}
                                   title={folder.isStarred ? 'Unstar' : 'Star'}
@@ -1591,7 +1591,7 @@ export default function DrivePage() {
                                       onClick={(e) => handleToggleStar(file, e)}
                                       className={`p-1.5 rounded-lg transition-colors ${
                                         file.isStarred
-                                          ? 'text-[#FF8C42] bg-[#2B1A11]'
+                                          ? 'text-[#FF8C42] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
                                           : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
                                       }`}
                                       title={file.isStarred ? 'Unstar' : 'Star'}

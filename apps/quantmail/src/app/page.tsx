@@ -533,7 +533,7 @@ function EmailRow({
         {isSpamMode && onRescueSpam && (
           <button
             type="button"
-            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-xl bg-[#2B1A11] hover:bg-[#3D2518] text-[#FF8C42] hover:text-[#FFA666] border border-[#5C3016] text-xs font-semibold transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] z-10"
+            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[#FF8C42] hover:text-[#FFB875] border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_12px_rgba(255,140,66,0.1)] text-xs font-semibold transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] z-10"
             onClick={(event) => {
               event.stopPropagation();
               onRescueSpam();
@@ -990,7 +990,7 @@ function ArchivedFolderRow({
           </span>
         </span>
       </span>
-      <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016]">
+      <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30 shadow-[0_0_10px_rgba(255,140,66,0.12)]">
         {count}
       </span>
     </button>
@@ -2456,8 +2456,8 @@ export default function InboxPage() {
                       onKeyDown={(event) => onLensKeyDown(event, index)}
                       className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                         isActive
-                          ? 'bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] font-semibold'
-                          : 'border border-transparent text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                          ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                          : 'border border-white/[0.07] bg-white/[0.02] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.05] hover:border-white/[0.12]'
                       }`}
                     >
                       <span>{lens.label}</span>
@@ -2506,8 +2506,8 @@ export default function InboxPage() {
                 }
                 className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                   narrowingCount > 0 || isFilterMenuOpen
-                    ? 'bg-[#2B1A11] text-[#FF8C42] border-[#5C3016] font-semibold'
-                    : 'bg-[#111318] text-[#A1A4AC] border-[#282C35] hover:text-[#F5F5F5] hover:bg-[#1C1F26]'
+                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'bg-[#111318] text-[#A1A4AC] border-white/[0.08] hover:text-[#F5F5F5] hover:bg-white/[0.04] hover:border-white/[0.14]'
                 }`}
               >
                 <IconFilter size={14} />
@@ -3027,7 +3027,7 @@ export default function InboxPage() {
                     </div>
                   ) : activeLens === 'snoozed' && narrowingCount === 0 ? (
                     <div className="mail-empty py-12 px-4 text-center space-y-3">
-                      <div className="size-12 rounded-full bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42] flex items-center justify-center mx-auto mb-1">
+                      <div className="size-12 rounded-full bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-[#FF8C42] shadow-[0_0_20px_rgba(255,140,66,0.15)] flex items-center justify-center mx-auto mb-1">
                         <MailIcon name="clock" className="size-6" />
                       </div>
                       <h3 className="text-base font-bold text-white">Nothing snoozed right now</h3>

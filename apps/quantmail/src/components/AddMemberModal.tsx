@@ -225,7 +225,7 @@ export function AddMemberModal({
                     key={item.email}
                     type="button"
                     onClick={() => addOne(item.email)}
-                    className="min-h-[40px] rounded-full border border-[#282C35] bg-[#16181D] px-3 text-xs text-[#A1A4AC] hover:border-[#5C3016] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="min-h-[40px] rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[#A1A4AC] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/10 hover:text-[#FF8C42] hover:shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     {item.name || item.email}
                   </button>

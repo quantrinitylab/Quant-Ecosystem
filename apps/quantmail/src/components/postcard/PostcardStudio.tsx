@@ -463,8 +463,8 @@ export function PostcardStudio() {
                         }
                         className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                           isChosen
-                            ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
-                            : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
+                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                            : 'bg-[#16181D] border-white/[0.08] text-[#A1A4AC] hover:border-white/[0.15]'
                         }`}
                       >
                         {tex.label}
@@ -533,8 +533,8 @@ export function PostcardStudio() {
                         }
                         className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
                           isChosen
-                            ? 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]'
-                            : 'bg-[#16181D] border-[#282C35] text-[#A1A4AC] hover:border-[#3E434D]'
+                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                            : 'bg-[#16181D] border-white/[0.08] text-[#A1A4AC] hover:border-white/[0.15]'
                         }`}
                       >
                         {font.label}
@@ -613,7 +613,7 @@ export function PostcardStudio() {
                     type="file"
                     accept="image/*"
                     onChange={handleUploadStampPhoto}
-                    className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border-0 file:bg-[#2B1A11] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#3D2214] sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
+                    className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                   />
                 </div>
               </div>
@@ -644,7 +644,7 @@ export function PostcardStudio() {
                   type="file"
                   accept="image/png,image/webp,image/*"
                   onChange={handleUploadSticker}
-                  className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border-0 file:bg-[#2B1A11] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#3D2214] sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
+                  className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                 />
 
                 {currentTemplate.stickers.length > 0 && (
@@ -703,7 +703,7 @@ export function PostcardStudio() {
                       setActiveTab('designer');
                       showToast({ text: `Loaded "${preset.name}" into designer!`, type: 'info' });
                     }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#2B1A11] hover:bg-[#3D2214] text-[#FF8C42] border border-[#5C3016] transition-all"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/30 shadow-sm transition-all"
                   >
                     Customize in Studio
                   </button>
@@ -741,7 +741,7 @@ export function PostcardStudio() {
                 <button
                   type="button"
                   onClick={() => setActiveTab('designer')}
-                  className="mt-4 px-4 py-2 bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] rounded-lg text-xs font-semibold hover:bg-[#3D2214] transition-colors"
+                  className="mt-4 px-4 py-2 bg-[#FF8C42]/10 text-[#FF8C42] border border-[#FF8C42]/30 rounded-lg text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-sm transition-colors"
                 >
                   Open Postcard Studio
                 </button>

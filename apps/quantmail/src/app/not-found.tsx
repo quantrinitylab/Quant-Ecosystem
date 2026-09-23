@@ -60,7 +60,7 @@ export default function NotFound() {
             <Link
               key={destination.href}
               href={destination.href}
-              className="group flex min-h-touch items-center justify-between gap-3 rounded-xl bg-[#111318] px-4 py-3 shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] motion-reduce:transition-none"
+              className="group flex min-h-touch items-center justify-between gap-3 rounded-xl bg-[#111318] px-4 py-3 border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[#FF8C42]/40 hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] motion-reduce:transition-none"
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold text-[#F5F5F5]">

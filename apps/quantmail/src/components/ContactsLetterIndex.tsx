@@ -71,8 +71,8 @@ export function ContactsLetterIndex({ groups, activeLetter, onJump }: ContactsLe
               } ${group.count === 1 ? 'contact' : 'contacts'}`}
               className={`${CHIP} ${
                 active
-                  ? 'bg-[#2B1A11] text-[#FFB875] shadow-[inset_0_0_0_1px_#5C3016]'
-                  : 'bg-[#16181D] text-[#A1A4AC] hover:bg-[#282C35]/80 hover:text-[#F5F5F5]'
+                  ? 'bg-[#FF8C42]/15 text-[#FF8C42] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.35),0_0_12px_rgba(255,140,66,0.15)] font-bold'
+                  : 'bg-white/[0.04] text-[#A1A4AC] hover:bg-white/[0.08] hover:text-[#F5F5F5] border border-white/[0.06]'
               }`}
             >
               {group.letter}

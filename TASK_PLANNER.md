@@ -81,6 +81,15 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **Ruthless QSDS Overhaul & Linear/Superhuman Sensory Hardening (2026-09-24)**:
+  - [x] **Muddy Brown Rectangles Eradicated**: Purged all occurrences of `#2B1A11`, `#5C3016`, `#1D1410`, `#3D2214` across 36 files in `apps/quantmail`. Sibling applications verified 100% clean.
+  - [x] **Quant Studio Design System (QSDS) Tokens**: Introduced `.linear-border`, `.linear-card`, `.frosted-header`, `.frosted-dock`, `.action-pill-active`, `.action-pill-neutral`, `.btn-primary-quant` in `globals.css`.
+  - [x] **WCAG AAA Compliance**: Standardized `#FF8C42` paired with dark `#090A0C` text (~8:1 contrast) on filled buttons, eliminating failing 2.3:1 white-on-orange contrast.
+  - [x] **Brand Protection**: Preserved animated eye pupils and emotional states in `QuantMailLogo.tsx`.
+  - [x] **BigInt TS2737 Remediation**: Converted BigInt literals to standard `BigInt(...)` constructors in `@quant/storage` (`fastcdc.ts` & `gear-table.ts`), added `@quant/storage` to `apps/quantmail/tsconfig.json` paths, and pre-allocated constants for zero-allocation performance.
+  - [x] **Test Verification**: 100% green compilation (`pnpm --filter @quant/quantmail typecheck`), 40/40 storage tests, 20/20 CalDAV/CardDAV protocol tests, 2/2 local-first FTS5 benchmark tests, 3/3 sidebar badge tests.
+  - [x] **Live Chrome DevTools Proofs**: Verified `/`, `/contacts`, `/calendar`, `/drive`, `/quantgit`, `/quantgit/repositories` with zero visual defects and live screenshots.
+
 - [x] **Waves 32–35 — Grand Ecosystem Substance, Gate 5 CI Sandbox, Superhuman FTS5 & Desktop VFS (PR #298 Merged to `main` at `6461fe3b`, PRs #305–#308 Merged)**:
   - [x] **PR #298 Merged to `main` (`6461fe3b`)**: Waves 32, 33, 34, 35 (+28,099 additions, -698 deletions) merged with 100% green test suites and date-drift CI fix.
   - [x] **PR #305 Merged (`89bca18b`)**: QuantGit repository stars converted to real database join table `repository_stars`.

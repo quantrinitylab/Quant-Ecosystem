@@ -99,14 +99,14 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
   };
 
   return (
-    <section className="rounded-xl border border-[#282C35] bg-[#111318]">
+    <section className="rounded-xl border border-white/[0.08] bg-[#111318] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         className="w-full min-h-[44px] flex items-center gap-3 px-4 py-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
       >
-        <span className="size-9 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] shrink-0">
+        <span className="size-9 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 shadow-[0_0_12px_rgba(255,140,66,0.15)] flex items-center justify-center text-[#FF8C42] shrink-0">
           <IconSparkle size={18} />
         </span>
         <span className="min-w-0 flex-1">

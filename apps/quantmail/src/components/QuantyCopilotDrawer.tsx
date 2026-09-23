@@ -552,8 +552,8 @@ export function QuantyCopilotDrawer({
                   onClick={() => setShowHistoryMenu(!showHistoryMenu)}
                   className={`relative p-1.5 rounded-full transition-colors before:absolute before:-inset-[7px] before:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     showHistoryMenu
-                      ? 'text-[#FF8C42] bg-[#2B1A11]'
-                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#16181D]'
+                      ? 'text-[#FF8C42] bg-[#FF8C42]/12 shadow-sm'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.04]'
                   }`}
                   title="Chat history"
                   aria-label="Chat history"
@@ -662,7 +662,7 @@ export function QuantyCopilotDrawer({
                       }
                       className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#16181D] hover:bg-[#1C1F26] border border-[#282C35] text-left transition-all active:scale-[0.99] group shadow-sm"
                     >
-                      <div className="size-8 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center text-[#FF8C42] text-sm shrink-0">
+                      <div className="size-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/25 flex items-center justify-center text-[#FF8C42] text-sm shrink-0">
                         <svg
                           className="size-4 text-[#FF8C42]"
                           viewBox="0 0 24 24"
@@ -776,8 +776,8 @@ export function QuantyCopilotDrawer({
                     <div
                       className={`max-w-[86%] rounded-xl px-3.5 py-2.5 text-xs leading-relaxed ${
                         m.role === 'user'
-                          ? 'bg-[#2B1A11] border border-[#5C3016] text-[#F5F5F5] rounded-br-none shadow-sm font-medium'
-                          : 'bg-[#16181D] border border-[#282C35] text-[#F5F5F5] rounded-bl-none shadow-sm'
+                          ? 'bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[#F5F5F5] rounded-br-none shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] font-medium'
+                          : 'bg-[#16181D] border border-white/[0.08] text-[#F5F5F5] rounded-bl-none shadow-sm'
                       }`}
                     >
                       <p className="whitespace-pre-wrap">{m.text}</p>
@@ -811,7 +811,7 @@ export function QuantyCopilotDrawer({
                             onClose();
                             showToast({ text: 'Applied draft into composer', type: 'success' });
                           }}
-                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-[#FF8C42] bg-[#2B1A11] hover:bg-[#3A2416] border border-[#5C3016] transition-all shadow-sm"
+                          className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-[#FF8C42] bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 border border-[#FF8C42]/30 transition-all shadow-sm"
                         >
                           <svg
                             className="w-3 h-3 text-[#FF8C42]"
@@ -848,7 +848,7 @@ export function QuantyCopilotDrawer({
                               onClose();
                               showToast({ text: 'Inserted draft into reply', type: 'success' });
                             }}
-                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] hover:bg-[#3A2416] border border-[#5C3016] transition-all"
+                            className="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#FF8C42] bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 border border-[#FF8C42]/30 transition-all shadow-sm"
                           >
                             <svg
                               className="w-3 h-3 text-[#FF8C42]"
@@ -912,7 +912,7 @@ export function QuantyCopilotDrawer({
                         <button
                           type="button"
                           onClick={retryLastTurn}
-                          className="mt-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg border border-[#5C3016] bg-[#2B1A11] px-2.5 text-xs font-semibold text-[#FF8C42] transition-colors hover:bg-[#3A2416] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                          className="mt-2 inline-flex min-h-touch items-center gap-1.5 rounded-lg border border-[#FF8C42]/30 bg-[#FF8C42]/10 px-2.5 text-xs font-semibold text-[#FF8C42] transition-colors hover:bg-[#FF8C42]/20 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                         >
                           <svg
                             className="size-3.5"

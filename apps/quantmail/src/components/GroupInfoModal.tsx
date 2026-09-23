@@ -292,7 +292,7 @@ function Inspector({
                     if (onAddMembers) onAddMembers();
                     else if (onEdit) onEdit();
                   }}
-                  className="mb-2 min-h-[48px] w-full rounded-xl border border-dashed border-[#3A404D] bg-[#111318] text-sm font-bold text-[#FF8C42] hover:bg-[#2B1A11]"
+                  className="mb-2 min-h-[48px] w-full rounded-xl border border-dashed border-[#FF8C42]/40 bg-[#111318] text-sm font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 hover:border-[#FF8C42]/60 hover:shadow-[0_0_14px_rgba(255,140,66,0.1)] transition-all"
                 >
                   + Add or edit members
                 </button>
@@ -376,7 +376,7 @@ function Inspector({
                       onClick={() => safeOpen(attachment.url)}
                       className="flex min-h-[64px] w-full items-center gap-3 rounded-xl border border-[#282C35] bg-[#111318] p-3 text-left hover:bg-[#16181D]"
                     >
-                      <span className="flex size-10 items-center justify-center rounded-xl bg-[#2B1A11] text-[10px] font-black text-[#FF8C42]">
+                      <span className="flex size-10 items-center justify-center rounded-xl bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-black text-[#FF8C42] shadow-[0_0_10px_rgba(255,140,66,0.12)]">
                         FILE
                       </span>
                       <span className="min-w-0 flex-1">

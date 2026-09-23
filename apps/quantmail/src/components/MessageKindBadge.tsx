@@ -19,11 +19,12 @@ import type { ThreadKindMix } from '../lib/threading';
 const TONE: Record<MessageKind, { label: string; className: string }> = {
   mail: {
     label: 'Mail',
-    className: 'bg-[#2B1A11] border-[#5C3016] text-[#FF8C42]',
+    className:
+      'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[0_0_10px_rgba(255,140,66,0.12)]',
   },
   chat: {
     label: 'Chat',
-    className: 'bg-[#16181D] border-[#282C35] text-[#A1A4AC]',
+    className: 'bg-white/[0.03] border-white/[0.08] text-[#A1A4AC]',
   },
 };
 

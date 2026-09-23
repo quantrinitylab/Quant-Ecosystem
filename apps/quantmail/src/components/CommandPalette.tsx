@@ -278,10 +278,10 @@ export function CommandPalette() {
                            not be tab stops. Arrow keys and clicks are unchanged;
                            Tab now has nowhere to go but the query field. */
                         tabIndex={-1}
-                        className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                           isActive
-                            ? 'border border-[#5C3016] bg-[#2B1A11]'
-                            : 'border border-transparent hover:bg-[#111318]'
+                            ? 'border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_16px_rgba(255,140,66,0.12)]'
+                            : 'border border-transparent hover:bg-white/[0.04]'
                         }`}
                         onClick={() => execute(command)}
                         onMouseMove={() => setActiveIndex(index)}
@@ -318,8 +318,8 @@ export function CommandPalette() {
                           <kbd
                             className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
-                                ? 'border-[#5C3016] bg-[#1D1410] text-[#FF8C42]'
-                                : 'border-[#282C35] bg-[#111318] text-[#A1A4AC]'
+                                ? 'border-[#FF8C42]/40 bg-[#FF8C42]/15 text-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.15)] font-semibold'
+                                : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC]'
                             }`}
                           >
                             {binding}

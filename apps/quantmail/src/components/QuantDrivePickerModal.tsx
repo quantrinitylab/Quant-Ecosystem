@@ -108,7 +108,7 @@ export function QuantDrivePickerModal({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-3 border-b border-[#282C35]">
             <div className="flex items-center gap-2.5">
-              <span className="grid size-7 place-items-center rounded-lg bg-[#2B1A11] border border-[#5C3016] text-[#FF8C42]">
+              <span className="grid size-7 place-items-center rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[#FF8C42] shadow-[0_0_10px_rgba(255,140,66,0.12)]">
                 <IconFolder size={15} />
               </span>
               <h3 className="text-sm font-semibold tracking-[-0.01em] text-[#F5F5F5]">
@@ -185,10 +185,10 @@ export function QuantDrivePickerModal({
                   role="tab"
                   aria-selected={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     activeTab === tab.id
-                      ? 'bg-[#2B1A11] text-[#FFB875] shadow-[inset_0_0_0_1px_#5C3016]'
-                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#111318]'
+                      ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_12px_rgba(255,140,66,0.12)] font-semibold'
+                      : 'text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.04]'
                   }`}
                 >
                   {tab.label}
@@ -219,10 +219,10 @@ export function QuantDrivePickerModal({
                       type="button"
                       onClick={() => toggleSelect(file.id)}
                       aria-pressed={isSelected}
-                      className={`relative flex min-h-touch flex-col items-start p-3 rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      className={`relative flex min-h-touch flex-col items-start p-3 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                         isSelected
-                          ? 'bg-[#2B1A11] shadow-[inset_0_0_0_1px_#FF8C42]'
-                          : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35] hover:bg-[#1C1F26]'
+                          ? 'bg-[#FF8C42]/10 border border-[#FF8C42]/50 shadow-[0_0_14px_rgba(255,140,66,0.15)] ring-1 ring-[#FF8C42]/50'
+                          : 'bg-[#111318] border border-white/[0.08] hover:border-white/[0.14] hover:bg-white/[0.02]'
                       }`}
                     >
                       <div className="flex items-center justify-between w-full mb-2">
@@ -253,8 +253,8 @@ export function QuantDrivePickerModal({
                       aria-pressed={isSelected}
                       className={`flex min-h-touch items-center justify-between w-full px-3.5 py-2 text-xs text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
                         isSelected
-                          ? 'bg-[#2B1A11] text-[#FFB875]'
-                          : 'text-[#F5F5F5] hover:bg-[#1C1F26]'
+                          ? 'bg-[#FF8C42]/12 text-[#FF8C42] font-semibold'
+                          : 'text-[#F5F5F5] hover:bg-white/[0.04]'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 truncate">

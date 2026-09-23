@@ -334,7 +334,7 @@ export function CalendarEventForm({
               {/* Account Row */}
               <div className="flex items-center justify-between py-1 border-b border-[#282C35] text-[#A1A4AC]">
                 <span className="text-xs text-[#A1A4AC]">Account</span>
-                <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#2B1A11] px-2.5 py-0.5 rounded-full border border-[#5C3016] flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold text-[#FF8C42] bg-[#FF8C42]/12 px-2.5 py-0.5 rounded-full border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] flex items-center gap-1.5">
                   <svg
                     className="w-3 h-3 text-[#FF8C42]"
                     fill="none"
@@ -608,7 +608,8 @@ export function CalendarEventForm({
                           {
                             key: 'medium',
                             label: 'Medium',
-                            color: 'text-[#FF8C42] border-[#FF8C42]/40 bg-[#2B1A11]/40',
+                            color:
+                              'text-[#FF8C42] border-[#FF8C42]/40 bg-[#FF8C42]/12 shadow-[0_0_10px_rgba(255,140,66,0.1)]',
                           },
                           {
                             key: 'urgent',

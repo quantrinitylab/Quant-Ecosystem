@@ -156,7 +156,7 @@ export function EmailReaderHeader({
         <button
           type="button"
           onClick={onOpenQuanty}
-          className="group relative flex min-h-touch items-center gap-1.5 px-2 rounded-xl text-[#FF8C42] hover:bg-[#2B1A11] transition-all cursor-pointer select-none active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="group relative flex min-h-touch items-center gap-1.5 px-2 rounded-xl text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-all cursor-pointer select-none active:scale-95 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           title="Ask Quanty AI"
         >
           <Quanty size={24} expression="happy" bob={false} />
@@ -172,8 +172,8 @@ export function EmailReaderHeader({
           onClick={onToggleStar}
           className={`${ACTION_BUTTON_CLASS} ${
             isStarred
-              ? 'text-[#FF8C42] bg-[#2B1A11]'
-              : 'text-[#A1A4AC] hover:text-[#FF9B5A] hover:bg-[#1E2128]'
+              ? 'text-[#FF8C42] bg-[#FF8C42]/10 shadow-sm'
+              : 'text-[#A1A4AC] hover:text-[#FF9B5A] hover:bg-white/[0.04]'
           }`}
           title={isStarred ? 'Unstar (S)' : 'Star (S)'}
           aria-label="Star"

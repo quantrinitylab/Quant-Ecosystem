@@ -290,8 +290,9 @@
 }
 .mark-all-read-btn:hover {
   color: #FF8C42;
-  border-color: #5C3016;
-  background: #2B1A11;
+  border-color: rgba(255, 140, 66, 0.32);
+  background: rgba(255, 140, 66, 0.12);
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.1);
 }
 
 /* Snooze: the menu is anchored by a trigger the hover bar covers, so the trigger
@@ -324,9 +325,10 @@
   flex: 0 0 auto;
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid #5C3016;
-  background: #2B1A11;
+  border: 1px solid rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
   color: #FF8C42;
+  box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -653,8 +655,9 @@
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 .inbox-ai-trigger.has-quanty:hover {
-  border-color: #5C3016;
-  background: #2B1A11;
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.12);
 }
 .inbox-ai-trigger.has-quanty svg {
   width: auto;
@@ -880,7 +883,7 @@
 }
 .qbn-item.is-active {
   color: #FF8C42;
-  background: #2B1A11;
+  background: rgba(255, 140, 66, 0.12);
 }
 @media (min-width: 1024px) {
   .quant-bottom-nav {
@@ -922,9 +925,10 @@
 .composer-quanty-chat {
   width: 100%;
   max-width: 560px;
-  border: 1px solid #5C3016;
+  border: 1px solid rgba(255, 140, 66, 0.3);
   border-radius: 16px;
   background: #16181D;
+  box-shadow: 0 0 20px rgba(255, 140, 66, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -955,9 +959,10 @@
 }
 .composer-quanty-msg.is-user {
   align-self: flex-end;
-  background: #2B1A11;
-  border: 1px solid #5C3016;
+  background: rgba(255, 140, 66, 0.12);
+  border: 1px solid rgba(255, 140, 66, 0.3);
   color: #F5F5F5;
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.1);
   max-width: 85%;
 }
 .composer-quanty-msg.is-assistant {
@@ -988,15 +993,16 @@
   margin-top: 8px;
   padding: 5px 12px;
   border-radius: 9999px;
-  border: 1px solid #5C3016;
-  background: #2B1A11;
+  border: 1px solid rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
   color: #FF8C42;
+  box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 .composer-quanty-apply:hover {
-  background: #3D2214;
+  background: rgba(255, 140, 66, 0.2);
 }
 .composer-quanty-tones {
   display: flex;
@@ -1015,7 +1021,8 @@
 }
 .composer-quanty-tones button:hover {
   color: #FF8C42;
-  border-color: #5C3016;
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.08);
 }
 .composer-quanty-input {
   display: flex;
@@ -1169,9 +1176,10 @@
 }
 .ch-msg.is-user {
   align-self: flex-end;
-  background: #2B1A11;
-  border: 1px solid #5C3016;
+  background: rgba(255, 140, 66, 0.12);
+  border: 1px solid rgba(255, 140, 66, 0.3);
   color: #F5F5F5;
+  box-shadow: 0 0 12px rgba(255, 140, 66, 0.1);
 }
 .ch-msg.is-assistant {
   align-self: flex-start;
@@ -1247,8 +1255,9 @@
 }
 .ch-quanty-quick button:hover {
   color: #FF8C42;
-  border-color: #5C3016;
-  background: #2B1A11;
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.12);
+  box-shadow: 0 0 10px rgba(255, 140, 66, 0.1);
 }
 
 /*

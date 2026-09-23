@@ -1071,7 +1071,7 @@ export function ConversationalThreadView({
               type="button"
               onClick={handleRescueSpam}
               disabled={isRescuingSpam}
-              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#2B1A11] hover:bg-[#3D2518] text-xs font-semibold text-[#FF8C42] border border-[#5C3016] transition-all disabled:opacity-50"
+              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-xs font-semibold text-[#FF8C42] border border-[#FF8C42]/30 shadow-sm transition-all disabled:opacity-50"
               title="Not spam"
             >
               <svg
@@ -1240,7 +1240,7 @@ export function ConversationalThreadView({
                 type="button"
                 onClick={handleRescueSpam}
                 disabled={isRescuingSpam}
-                className="px-3 py-1.5 rounded-xl bg-[#2B1A11] hover:bg-[#3D2518] text-[#FF8C42] border border-[#5C3016] text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30 text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 <svg
                   className="size-3.5"
@@ -1361,8 +1361,8 @@ export function ConversationalThreadView({
                     aria-expanded={false}
                     className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isOutbound
-                        ? 'border-[#3A2416] bg-[#161210] hover:border-[#5C3016]'
-                        : 'border-[#282C35] bg-[#111318] hover:bg-[#16181D] hover:border-[#3A404D]'
+                        ? 'border-[#FF8C42]/25 bg-[#FF8C42]/[0.04] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+                        : 'border-white/[0.08] bg-[#111318] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
@@ -1384,7 +1384,7 @@ export function ConversationalThreadView({
                         <span className="flex items-center gap-1.5 shrink-0">
                           {showKindBadges && <MessageKindBadge kind={messageKind} />}
                           {hasAtt && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#2B1A11] border border-[#5C3016] text-[10px] font-semibold text-[#FF8C42] flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-[#FF8C42]/10 border border-[#FF8C42]/25 text-[10px] font-semibold text-[#FF8C42] flex items-center gap-1">
                               <svg
                                 className="w-2.5 h-2.5"
                                 fill="none"
@@ -1637,8 +1637,8 @@ export function ConversationalThreadView({
                   aria-pressed={isActive}
                   className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     isActive
-                      ? 'bg-[#2B1A11] text-[#FF8C42] shadow-[inset_0_0_0_1px_#5C3016]'
-                      : 'text-[#A1A4AC] hover:bg-[#16181D] hover:text-[#A1A4AC]'
+                      ? 'bg-[#FF8C42]/10 text-[#FF8C42] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.30)]'
+                      : 'text-[#A1A4AC] hover:bg-white/[0.04] hover:text-[#EDEDED]'
                   }`}
                   title={
                     mode === 'chat'

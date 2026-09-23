@@ -47,7 +47,8 @@ export interface FabAction {
  * more value separation than `#FF8C42` did.
  */
 const TONE: Record<FabTone, string> = {
-  ember: 'bg-[#2B1A11]/90 hover:bg-[#2B1A11] text-[#FFB875] border-[#FF8C42]/50',
+  ember:
+    'bg-[#FF8C42]/15 hover:bg-[#FF8C42]/25 text-[#FF8C42] border-[#FF8C42]/40 shadow-[0_0_16px_rgba(255,140,66,0.15)]',
   emerald: 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-500/50',
   rose: 'bg-rose-950/90 hover:bg-rose-900 text-rose-200 border-rose-500/50',
 };

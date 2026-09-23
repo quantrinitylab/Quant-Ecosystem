@@ -127,7 +127,7 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   type="button"
                   onClick={handleDownload}
                   aria-label={`Download ${att.filename}`}
-                  className="group flex w-full min-h-touch items-center gap-3 rounded-xl bg-[#111318] p-3 text-left shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] hover:shadow-[inset_0_0_0_1px_#5C3016] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="group flex w-full min-h-touch items-center gap-3 rounded-xl bg-[#111318] p-3 text-left border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all hover:bg-white/[0.04] hover:border-[#FF8C42]/40 hover:shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#090A0C] text-[#A1A4AC]">
                     {isImg && att.url ? (

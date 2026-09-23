@@ -25,12 +25,16 @@ export interface Chunk {
   data: Uint8Array;
 }
 
+const BIGINT_0 = BigInt(0);
+const BIGINT_1 = BigInt(1);
+const BIGINT_64_MASK = BigInt('0xffffffffffffffff');
+
 export const DEFAULT_FASTCDC_CONFIG: Required<FastCdcConfig> = {
   minChunkSize: 16 * 1024, // 16 KB
   targetChunkSize: 64 * 1024, // 64 KB
   maxChunkSize: 128 * 1024, // 128 KB
-  maskStrict: 0x7fffn, // 15 bits
-  maskNormal: 0x3fffn, // 14 bits
+  maskStrict: BigInt(0x7fff), // 15 bits
+  maskNormal: BigInt(0x3fff), // 14 bits
 };
 
 /**
@@ -71,7 +75,7 @@ export function fastCdcChunk(buffer: Uint8Array, userConfig: FastCdcConfig = {})
       break;
     }
 
-    let fp = 0n;
+    let fp = BIGINT_0;
     let offset = config.minChunkSize;
     const maxOffset = Math.min(config.maxChunkSize, remaining);
 
@@ -81,10 +85,10 @@ export function fastCdcChunk(buffer: Uint8Array, userConfig: FastCdcConfig = {})
 
     while (offset < targetOffset) {
       const byte = buffer[chunkStart + offset] ?? 0;
-      const gearVal = GEAR_TABLE[byte] ?? 0n;
-      fp = ((fp << 1n) + gearVal) & 0xffffffffffffffffn;
+      const gearVal = GEAR_TABLE[byte] ?? BIGINT_0;
+      fp = ((fp << BIGINT_1) + gearVal) & BIGINT_64_MASK;
 
-      if ((fp & config.maskStrict) === 0n) {
+      if ((fp & config.maskStrict) === BIGINT_0) {
         cutFound = true;
         offset++;
         break;
@@ -96,10 +100,10 @@ export function fastCdcChunk(buffer: Uint8Array, userConfig: FastCdcConfig = {})
     if (!cutFound) {
       while (offset < maxOffset) {
         const byte = buffer[chunkStart + offset] ?? 0;
-        const gearVal = GEAR_TABLE[byte] ?? 0n;
-        fp = ((fp << 1n) + gearVal) & 0xffffffffffffffffn;
+        const gearVal = GEAR_TABLE[byte] ?? BIGINT_0;
+        fp = ((fp << BIGINT_1) + gearVal) & BIGINT_64_MASK;
 
-        if ((fp & config.maskNormal) === 0n) {
+        if ((fp & config.maskNormal) === BIGINT_0) {
           cutFound = true;
           offset++;
           break;

@@ -263,10 +263,10 @@ export function AccountBadge() {
                     aria-checked={isCurrent}
                     tabIndex={-1}
                     onClick={() => handleSwitchAccount(acc)}
-                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isCurrent
-                        ? 'bg-[#2B1A11] border border-[#5C3016]'
-                        : 'hover:bg-[#1C1F26] border border-transparent'
+                        ? 'bg-[#FF8C42]/10 border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                        : 'hover:bg-white/[0.04] border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -310,10 +310,10 @@ export function AccountBadge() {
               role="menuitem"
               tabIndex={-1}
               onClick={handleAddAccount}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#2B1A11] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
               <span
-                className="size-5 rounded-lg bg-[#2B1A11] border border-[#5C3016] flex items-center justify-center font-bold"
+                className="size-5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center font-bold"
                 aria-hidden="true"
               >
                 +

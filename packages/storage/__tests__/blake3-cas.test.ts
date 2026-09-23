@@ -99,9 +99,7 @@ describe('Task W35-06: BLAKE3 Content-Addressable Storage (CAS) Registry', () =>
     });
 
     expect(reconstructed.length).toBe(fileBytes.length);
-    for (let i = 0; i < size; i++) {
-      expect(reconstructed[i]).toBe(fileBytes[i]);
-    }
+    expect(Buffer.from(reconstructed).equals(Buffer.from(fileBytes))).toBe(true);
 
     // Now test deduplication across two files sharing content:
     // File B shares 90% of File A

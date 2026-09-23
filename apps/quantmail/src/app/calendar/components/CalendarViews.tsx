@@ -165,7 +165,7 @@ export function CalendarViews({
                       'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                   } else if (d.hasUrgentTask) {
                     sphereClass =
-                      'text-[#FFB875] bg-[#2B1A11]/40 border border-[#5C3016]/60 font-semibold';
+                      'text-[#FF8C42] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
                   } else if (d.hasBirthday) {
                     sphereClass =
                       'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
@@ -208,7 +208,7 @@ export function CalendarViews({
                           'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                       } else if (d.hasUrgentTask) {
                         sphereClass =
-                          'text-[#FFB875] bg-[#2B1A11]/40 border border-[#5C3016]/60 font-semibold';
+                          'text-[#FF8C42] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
                       } else if (d.hasBirthday) {
                         sphereClass =
                           'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
@@ -395,7 +395,7 @@ export function CalendarViews({
                       <span className="text-[11px] text-[#A1A4AC]">{item.weekdayName}</span>
 
                       {item.isToday && (
-                        <span className="rounded-full border border-[#5C3016] bg-[#2B1A11] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FFB875]">
+                        <span className="rounded-full border border-[#FF8C42]/35 bg-[#FF8C42]/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.1)]">
                           Today
                         </span>
                       )}
@@ -629,7 +629,7 @@ export function CalendarViews({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="px-2.5 py-1 rounded-lg bg-[#2B1A11] text-[#FF8C42] border border-[#5C3016] text-[11px] font-semibold flex items-center gap-1.5 hover:brightness-110 transition-all"
+                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.1)] text-[11px] font-semibold flex items-center gap-1.5 hover:bg-[#FF8C42]/20 transition-all"
                                 >
                                   <svg
                                     className="w-3 h-3"
