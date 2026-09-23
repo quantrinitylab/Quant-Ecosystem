@@ -81,7 +81,12 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
-- [x] **Wave 32 — Grand Ecosystem Substance & Universal Parity Sprint (PR #298 Open & Verified Green)**:
+- [x] **Waves 32–35 — Grand Ecosystem Substance, Gate 5 CI Sandbox, Superhuman FTS5 & Desktop VFS (PR #298 Merged to `main` at `6461fe3b`, PRs #305–#308 Merged)**:
+  - [x] **PR #298 Merged to `main` (`6461fe3b`)**: Waves 32, 33, 34, 35 (+28,099 additions, -698 deletions) merged with 100% green test suites and date-drift CI fix.
+  - [x] **PR #305 Merged (`89bca18b`)**: QuantGit repository stars converted to real database join table `repository_stars`.
+  - [x] **PR #306 Merged (`64e2bc4e`)**: Production secret validator rejecting insecure placeholder strings in server-core.
+  - [x] **PR #307 Merged (`32f6283c`)**: QuantTrinity `OWNER_SECRET` 503 fix and content-aware live cluster smoke check.
+  - [x] **PR #308 Merged (`1b8e8842`)**: `AuthPending` guard preventing blank page flashes during route authentication.
   - [x] **Track 1: QuantChat Dual Authentication & Email Fallback (Developer 1)**:
     - [x] Add Email & Password sign-in tab to QuantChat login page (`apps/quantchat/src/app/login/page.tsx`).
     - [x] Mount `POST /auth/login` on QuantChat backend for direct argon2id credentials validation and JWT issuance with constant-time dummy verify.
