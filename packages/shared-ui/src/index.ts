@@ -334,8 +334,14 @@ export type {
 } from './components/States';
 
 // Guards
-export { AuthGuard, RouteGuard, OnboardingGuard } from './guards';
-export type { AuthGuardProps, RouteGuardProps, OnboardingGuardProps } from './guards';
+export { AuthGuard, RouteGuard, OnboardingGuard, AuthPending } from './guards';
+export type {
+  AuthGuardProps,
+  RouteGuardProps,
+  OnboardingGuardProps,
+  AuthPendingProps,
+  AuthPendingState,
+} from './guards';
 
 // Onboarding components
 export {
