@@ -33,8 +33,11 @@ import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
 import ciRoutes from './routes/ci';
+import ciLogsRoutes from './routes/ci-logs';
+import ciHealingRoutes from './routes/ci-healing';
 import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
+import { driveSyncRoutes } from './routes/drive-sync';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
@@ -44,6 +47,9 @@ import documentRoutes from './routes/documents';
 import deliverabilityRoutes from './routes/deliverability';
 import auditLogsRoutes from './routes/audit-logs';
 import retentionRoutes from './routes/retention';
+import enterpriseDomainsRoutes from './routes/enterprise-domains';
+import davRoutes from './routes/dav';
+import wellKnownRoutes from './routes/well-known';
 import * as jose from 'jose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
 
@@ -87,34 +93,52 @@ export function getConfig(): AppConfig {
       // covers `/auth/password-reset/confirm`, which is intended — the person
       // clicking the emailed link has a single-use token, not a session.
       '/auth/password-reset',
+      '/auth/password-reset/*',
       '/oauth/token',
       '/oauth/revoke',
       '/oauth/register',
       // Public booking link availability and booking slots (CAL-03)
       '/calendar/booking',
+      '/calendar/booking/*',
       '/api/calendar/booking',
+      '/api/calendar/booking/*',
       // Invite preview (/public/invites/:token): shown to people who may not
       // have an account yet. Accepting an invite stays authenticated.
       '/public/invites',
+      '/public/invites/*',
       '/.well-known',
+      '/.well-known/*',
       // Authenticated by the AWS SNS message signature, not by a JWT — SNS
       // cannot present a bearer token. See routes/inbound-webhook.ts.
       '/webhook/inbound',
+      '/webhook/inbound/*',
       // Leaf Smart HTTP transport. It performs PAT verification itself; never
       // mount repository administration, PR, review, or issue routes below it.
       '/api/code/gitd',
+      '/api/code/gitd/*',
       // Public Drive link sharing token inspection & download (Task D04)
       '/drive/public/share',
+      '/drive/public/share/*',
       '/api/drive/public/share',
+      '/api/drive/public/share/*',
       // Public Document link sharing token inspection (Task N12 & D04)
       '/documents/public/share',
+      '/documents/public/share/*',
       '/api/documents/public/share',
+      '/api/documents/public/share/*',
       // RFC 7489 DMARC external MTA feedback report ingestion (Task X08)
       '/deliverability/dmarc-reports',
+      '/deliverability/dmarc-reports/*',
       '/api/deliverability/dmarc-reports',
+      '/api/deliverability/dmarc-reports/*',
       // Health check endpoint
       '/health',
       '/api/health',
+      // RFC 4791 CalDAV & RFC 6350 CardDAV protocol sync endpoints
+      '/dav',
+      '/dav/*',
+      '/.well-known/caldav',
+      '/.well-known/carddav',
     ],
     env,
   };
@@ -296,8 +320,11 @@ export async function buildApp(config?: AppConfig) {
   await app.register(reposRoutes, { prefix: '/api/repos' });
   await app.register(workspaceRoutes);
   await app.register(ciRoutes);
+  await app.register(ciLogsRoutes);
+  await app.register(ciHealingRoutes);
   await app.register(calendarRoutes);
   await app.register(driveRoutes);
+  await app.register(driveSyncRoutes);
   await app.register(aiComposeRoutes, { prefix: '/ai' });
   await app.register(aiChatRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });
@@ -329,5 +356,9 @@ export async function buildApp(config?: AppConfig) {
   await app.register(auditLogsRoutes, { prefix: '/api/audit-logs' });
   await app.register(retentionRoutes, { prefix: '/retention' });
   await app.register(retentionRoutes, { prefix: '/api/retention' });
+  await app.register(enterpriseDomainsRoutes, { prefix: '/domains' });
+  await app.register(enterpriseDomainsRoutes, { prefix: '/api/domains' });
+  await app.register(wellKnownRoutes);
+  await app.register(davRoutes, { prefix: '/dav' });
   return app;
 }

@@ -191,6 +191,47 @@ describe('SignalConsumer', () => {
       expect(redis.xack).not.toHaveBeenCalled();
       expect(consumer.getMetrics().writeFailures).toBe(1);
     });
+
+    it('advances autoclaim cursor across consecutive calls (W32-11)', async () => {
+      const redis = redisDouble([]);
+      redis.xautoclaim
+        .mockResolvedValueOnce(['123-0', [['1-0', fields()]]])
+        .mockResolvedValueOnce(['0-0', []]);
+      redis.xpending.mockResolvedValue([['1-0', 'consumer-1', 15000, 1]]);
+      const store = storeDouble();
+
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+      await consumer.claimPending('outbox.Video');
+      expect(redis.xautoclaim).toHaveBeenLastCalledWith(
+        'outbox.Video',
+        'signal-projector',
+        expect.any(String),
+        10000,
+        '0-0',
+        'COUNT',
+        100,
+      );
+
+      await consumer.claimPending('outbox.Video');
+      expect(redis.xautoclaim).toHaveBeenLastCalledWith(
+        'outbox.Video',
+        'signal-projector',
+        expect.any(String),
+        10000,
+        '123-0',
+        'COUNT',
+        100,
+      );
+    });
+
+    it('evaluates isReady based on running and consecutive errors (W32-11)', () => {
+      const redis = redisDouble([]);
+      const store = storeDouble();
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+
+      expect(consumer.isReady()).toBe(false);
+      expect(consumer.getMetrics().isReady).toBe(false);
+    });
   });
 
   describe('connect', () => {

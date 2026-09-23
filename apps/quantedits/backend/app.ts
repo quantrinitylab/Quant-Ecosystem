@@ -30,8 +30,12 @@ export function getConfig(): AppConfig {
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     publicPaths: [
       { path: '/templates', methods: ['GET'], exact: true },
+      { path: '/templates/:id', methods: ['GET'], exact: true },
       { path: '/effects', methods: ['GET'], exact: true },
+      { path: '/effects/categories', methods: ['GET'], exact: true },
+      { path: '/effects/:id', methods: ['GET'], exact: true },
       { path: '/assets', methods: ['GET'], exact: true },
+      { path: '/assets/project/:projectId', methods: ['GET'], exact: true },
     ],
     env,
   };

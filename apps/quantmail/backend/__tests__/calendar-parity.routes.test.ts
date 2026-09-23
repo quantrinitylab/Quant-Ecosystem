@@ -806,38 +806,45 @@ describe('Phase C Parity: C01–C04 CalendarId Suite', () => {
       });
 
       it('confirms bookings via shared handler on both /booking/links/:slug/book and /calendar/booking/:slug/book', async () => {
-        prisma.event.findMany.mockResolvedValue([]);
-        const payload1 = {
-          slot: '2026-09-22T10:00:00.000Z',
-          name: 'Bob Smith',
-          email: 'bob@example.com',
-          notes: 'Discussing project',
-        };
-        const res1 = await app.inject({
-          method: 'POST',
-          url: '/booking/links/quick-sync/book',
-          payload: payload1,
-        });
+        const nowSpy = vi
+          .spyOn(Date, 'now')
+          .mockReturnValue(new Date('2026-09-20T00:00:00.000Z').getTime());
+        try {
+          prisma.event.findMany.mockResolvedValue([]);
+          const payload1 = {
+            slot: '2026-09-22T10:00:00.000Z',
+            name: 'Bob Smith',
+            email: 'bob@example.com',
+            notes: 'Discussing project',
+          };
+          const res1 = await app.inject({
+            method: 'POST',
+            url: '/booking/links/quick-sync/book',
+            payload: payload1,
+          });
 
-        expect(res1.statusCode).toBe(201);
-        const body1 = JSON.parse(res1.body);
-        expect(body1.success).toBe(true);
+          expect(res1.statusCode).toBe(201);
+          const body1 = JSON.parse(res1.body);
+          expect(body1.success).toBe(true);
 
-        prisma.event.findMany.mockResolvedValue([]);
-        const payload2 = {
-          slot: '2026-09-22T11:00:00.000Z',
-          name: 'Alice Wonder',
-          email: 'alice@example.com',
-        };
-        const res2 = await app.inject({
-          method: 'POST',
-          url: '/calendar/booking/quick-sync/book',
-          payload: payload2,
-        });
+          prisma.event.findMany.mockResolvedValue([]);
+          const payload2 = {
+            slot: '2026-09-22T11:00:00.000Z',
+            name: 'Alice Wonder',
+            email: 'alice@example.com',
+          };
+          const res2 = await app.inject({
+            method: 'POST',
+            url: '/calendar/booking/quick-sync/book',
+            payload: payload2,
+          });
 
-        expect(res2.statusCode).toBe(201);
-        const body2 = JSON.parse(res2.body);
-        expect(body2.success).toBe(true);
+          expect(res2.statusCode).toBe(201);
+          const body2 = JSON.parse(res2.body);
+          expect(body2.success).toBe(true);
+        } finally {
+          nowSpy.mockRestore();
+        }
       });
     });
 

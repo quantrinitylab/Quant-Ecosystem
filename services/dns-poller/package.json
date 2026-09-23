@@ -1,0 +1,21 @@
+{
+  "name": "@quant/dns-poller",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Automated Enterprise Domain DNS Poller & Cryptographic Verification Worker",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.5.0",
+    "vitest": "^4.0.0"
+  }
+}

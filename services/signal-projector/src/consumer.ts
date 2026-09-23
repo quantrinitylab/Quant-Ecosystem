@@ -47,6 +47,10 @@ export class SignalConsumer {
   private writeFailures = 0;
   private dlqCount = 0;
   private running = false;
+  private stopping = false;
+  private consecutiveErrors = 0;
+  private readonly autoclaimCursors: Map<string, string> = new Map();
+  private readonly entryDeliveryCounts: Map<string, number> = new Map();
 
   constructor(store: SignalStore, options: ConsumerOptions, client?: Redis) {
     this.store = store;
@@ -87,8 +91,17 @@ export class SignalConsumer {
   }
 
   async disconnect(): Promise<void> {
+    this.stopping = true;
     this.running = false;
     await this.client.quit();
+  }
+
+  /**
+   * Health readiness signal (W32-11): ready only when actively running,
+   * not stopping, and experiencing fewer than 5 consecutive loop errors.
+   */
+  isReady(): boolean {
+    return this.running && !this.stopping && this.consecutiveErrors < 5;
   }
 
   /** Read-only metrics and readiness signal for liveness/readiness probes */
@@ -96,7 +109,8 @@ export class SignalConsumer {
     return {
       writeFailures: this.writeFailures,
       dlqCount: this.dlqCount,
-      isReady: this.running,
+      consecutiveErrors: this.consecutiveErrors,
+      isReady: this.isReady(),
     };
   }
 
@@ -109,12 +123,13 @@ export class SignalConsumer {
    */
   async claimPending(stream: string): Promise<{ claimed: number; saved: number; dlq: number }> {
     try {
+      const startCursor = this.autoclaimCursors.get(stream) ?? '0-0';
       const rawResult = await (this.client as any).xautoclaim(
         stream,
         this.group,
         this.consumerName,
         this.minIdleMs,
-        '0-0',
+        startCursor,
         'COUNT',
         this.batchSize,
       );
@@ -122,6 +137,10 @@ export class SignalConsumer {
       if (!rawResult || !Array.isArray(rawResult) || rawResult.length < 2) {
         return { claimed: 0, saved: 0, dlq: 0 };
       }
+
+      // Advance cursor to the next cursor returned by Redis (W32-11)
+      const nextCursor = typeof rawResult[0] === 'string' ? rawResult[0] : '0-0';
+      this.autoclaimCursors.set(stream, nextCursor);
 
       const entries = rawResult[1] as [string, string[]][];
       if (!entries || entries.length === 0) {
@@ -135,8 +154,8 @@ export class SignalConsumer {
       for (const [entryId, fields] of entries) {
         claimed += 1;
 
-        // Query delivery count from XPENDING
-        let deliveryCount = 1;
+        // Query delivery count from XPENDING with fallback tracker (W32-11)
+        let deliveryCount = (this.entryDeliveryCounts.get(entryId) ?? 0) + 1;
         try {
           const pendingInfo = (await (this.client as any).xpending(
             stream,
@@ -148,13 +167,15 @@ export class SignalConsumer {
           if (
             Array.isArray(pendingInfo) &&
             pendingInfo.length > 0 &&
-            Array.isArray(pendingInfo[0])
+            Array.isArray(pendingInfo[0]) &&
+            pendingInfo[0][3] != null
           ) {
-            deliveryCount = Number(pendingInfo[0][3] ?? 1);
+            deliveryCount = Math.max(deliveryCount, Number(pendingInfo[0][3]));
           }
         } catch {
-          // default delivery count to 1 if probe fails
+          // Probe error fallback: tracking delivery count ensures we advance and reach maxDeliveries
         }
+        this.entryDeliveryCounts.set(entryId, deliveryCount);
 
         if (deliveryCount > this.maxDeliveries) {
           const dlqStream = `${stream}${this.dlqStreamSuffix}`;
@@ -175,6 +196,7 @@ export class SignalConsumer {
               entryId,
             );
             await this.client.xack(stream, this.group, entryId);
+            this.entryDeliveryCounts.delete(entryId);
             this.dlqCount += 1;
             dlq += 1;
           } catch (dlqErr) {
@@ -186,11 +208,13 @@ export class SignalConsumer {
         const event = parseEntry(fields);
         if (!event) {
           await this.client.xack(stream, this.group, entryId);
+          this.entryDeliveryCounts.delete(entryId);
           continue;
         }
         const signal = projectEvent(event);
         if (!signal) {
           await this.client.xack(stream, this.group, entryId);
+          this.entryDeliveryCounts.delete(entryId);
           continue;
         }
 
@@ -198,6 +222,7 @@ export class SignalConsumer {
           const inserted = await this.store.save(signal);
           if (inserted) saved += 1;
           await this.client.xack(stream, this.group, entryId);
+          this.entryDeliveryCounts.delete(entryId);
         } catch (err) {
           this.writeFailures += 1;
           logger.error(
@@ -284,19 +309,22 @@ export class SignalConsumer {
   /** Loop until `disconnect()`. XREADGROUP's BLOCK provides the pacing. */
   async run(): Promise<void> {
     this.running = true;
+    this.stopping = false;
     logger.info(
       { streams: this.streams, group: this.group, consumer: this.consumerName },
       'Signal consumer started',
     );
-    while (this.running) {
+    while (this.running && !this.stopping) {
       try {
         await this.readOnce();
         // Periodically reclaim pending entries across configured streams
         for (const stream of this.streams) {
           await this.claimPending(stream);
         }
+        this.consecutiveErrors = 0;
       } catch (err) {
-        logger.error({ err }, 'Consumer loop error');
+        this.consecutiveErrors += 1;
+        logger.error({ err, consecutiveErrors: this.consecutiveErrors }, 'Consumer loop error');
         // Back off rather than spin on a persistent failure (Redis down, group
         // deleted) and bury the logs.
         await new Promise((resolve) => setTimeout(resolve, 1000));

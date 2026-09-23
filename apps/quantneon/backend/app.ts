@@ -37,8 +37,11 @@ export function getConfig(): AppConfig {
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     publicPaths: [
       { path: '/posts/feed', methods: ['GET'], exact: true },
+      { path: '/posts/:id', methods: ['GET'], exact: true },
       { path: '/explore', methods: ['GET'], exact: true },
+      { path: '/explore/search', methods: ['GET'], exact: true },
       { path: '/stories/feed', methods: ['GET'], exact: true },
+      { path: '/stories/:id', methods: ['GET'], exact: true },
     ],
     env,
   };

@@ -100,7 +100,6 @@ function LoginForm() {
         );
       }
 
-      const token = data.data?.token || data.data?.accessToken;
       const user = data.data?.user || {
         id: `usr_${Date.now().toString(36)}`,
         email: trimmedEmail,
@@ -108,12 +107,8 @@ function LoginForm() {
         plan: 'pro' as const,
       };
 
-      if (!token) {
-        throw new Error('No authentication token received');
-      }
-
-      // Persist in memory session and localStorage
-      setAuthToken(token, user);
+      // Session is stored in secure httpOnly cookie (Astra W32-12); save user profile
+      setAuthToken('', user);
       router.replace(returnTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to sign in. Please try again.');

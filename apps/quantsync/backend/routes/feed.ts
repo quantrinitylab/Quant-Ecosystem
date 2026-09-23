@@ -8,23 +8,21 @@ const paginationSchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
 });
 
-export default async function feedRoutes(fastify: FastifyInstance) {
+function getService(fastify: FastifyInstance): FeedService {
   const prisma = (fastify as any).prisma;
-  const feedService = new FeedService(prisma);
+  return new FeedService(prisma);
+}
 
+export default async function feedRoutes(fastify: FastifyInstance) {
   fastify.get('/', async (request, reply) => {
     const parseResult = paginationSchema.safeParse(request.query);
     if (!parseResult.success) {
       throw parseResult.error;
     }
 
-    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
-    if (!userId) {
-      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
-    }
-
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId ?? '';
     const { page = 1, pageSize = 20 } = parseResult.data;
-    const posts = await feedService.getFeed(userId, page, pageSize);
+    const posts = await getService(fastify).getFeed(userId, page, pageSize);
 
     return reply.send(posts);
   });
@@ -36,7 +34,7 @@ export default async function feedRoutes(fastify: FastifyInstance) {
     }
 
     const { pageSize = 20 } = parseResult.data;
-    const posts = await feedService.getTrendingPosts(pageSize);
+    const posts = await getService(fastify).getTrendingPosts(pageSize);
 
     return reply.send(posts);
   });

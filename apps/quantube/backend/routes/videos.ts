@@ -76,6 +76,18 @@ export default async function videosRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: result });
   });
 
+  fastify.get('/trending', async (request, reply) => {
+    const queryResult = paginationSchema.safeParse(request.query);
+    const query = queryResult.success ? queryResult.data : {};
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new VideoService(prisma as never);
+    const result = await service.listPublicVideos({
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+    return reply.send({ success: true, data: result });
+  });
+
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new VideoService(prisma as never);

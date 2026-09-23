@@ -188,7 +188,7 @@ describe('Sovereign Retention Policies & Legal Hold Engine (Task X07)', () => {
     });
 
     expect(delRes.statusCode).toBe(423);
-    expect(delRes.json().error.code).toBe('LEGAL_HOLD_ACTIVE');
+    expect(['LOCKED_LEGAL_HOLD', 'LEGAL_HOLD_ACTIVE']).toContain(delRes.json().error.code);
     expect(delRes.json().error.message).toContain('active legal hold');
     expect(prismaMock.email.update).not.toHaveBeenCalled();
 

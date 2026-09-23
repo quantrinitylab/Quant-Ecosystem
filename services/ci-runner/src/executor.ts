@@ -1,4 +1,5 @@
 import type { CIJobConfig } from './parser.js';
+import { GVisorContainerExecutor } from './gvisor-executor.js';
 
 export type JobStatus = 'pending' | 'running' | 'success' | 'failed';
 
@@ -22,6 +23,11 @@ export class CIExecutorUnavailableError extends Error {
 
 export class CIJobExecutor {
   private statusMap = new Map<string, JobStatus>();
+  private gvisor: GVisorContainerExecutor;
+
+  constructor(gvisor?: GVisorContainerExecutor) {
+    this.gvisor = gvisor ?? new GVisorContainerExecutor();
+  }
 
   getStatus(jobName: string): JobStatus {
     return this.statusMap.get(jobName) ?? 'pending';
@@ -29,13 +35,27 @@ export class CIJobExecutor {
 
   /** Check before accepting any run, including one with no executable jobs. */
   assertAvailable(): void {
-    throw new CIExecutorUnavailableError();
+    this.gvisor.assertAvailable();
   }
 
-  async executeJob(job: CIJobConfig, _variables: Record<string, string>): Promise<ExecutionResult> {
-    // Do not expand or print script variables, invent output, or claim a build
-    // succeeded. A real isolated backend must supply an actual execution result.
-    this.statusMap.set(job.name, 'failed');
-    throw new CIExecutorUnavailableError();
+  async executeJob(job: CIJobConfig, variables: Record<string, string>): Promise<ExecutionResult> {
+    // If backend is unavailable, fail closed cleanly and mark job failed without inspecting variables
+    if (!this.gvisor.isAvailable()) {
+      this.statusMap.set(job.name, 'failed');
+      throw new CIExecutorUnavailableError();
+    }
+
+    this.statusMap.set(job.name, 'running');
+
+    try {
+      const result = await this.gvisor.executeJob(job, variables);
+      this.statusMap.set(job.name, result.status);
+      return result;
+    } catch (err) {
+      this.statusMap.set(job.name, 'failed');
+      throw err;
+    }
   }
 }
+
+export { GVisorContainerExecutor };

@@ -56,7 +56,6 @@ export default async function videosRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/', async (request, reply) => {
-    getUserId(request);
     const parsed = feedSchema.safeParse(request.query);
     if (!parsed.success) throw parsed.error;
     const feed = await getService(fastify).listFeed(parsed.data);
@@ -66,7 +65,6 @@ export default async function videosRoutes(fastify: FastifyInstance) {
   fastify.get<{ Params: { userId: string }; Querystring: unknown }>(
     '/user/:userId',
     async (request, reply) => {
-      getUserId(request);
       const parsed = feedSchema.safeParse(request.query);
       if (!parsed.success) throw parsed.error;
       const result = await getService(fastify).listByUser(request.params.userId, parsed.data);
@@ -75,7 +73,6 @@ export default async function videosRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
-    getUserId(request);
     try {
       const video = await getService(fastify).getVideo(request.params.id);
       return reply.send({ success: true, data: { video } });

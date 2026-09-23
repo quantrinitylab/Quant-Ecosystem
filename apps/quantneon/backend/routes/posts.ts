@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { PostService } from '../services/post.service';
+import { ExploreService } from '../services/explore.service';
 
 const createPostSchema = z.object({
   caption: z.string().max(2200).optional(),
@@ -44,9 +45,27 @@ export default async function postsRoutes(fastify: FastifyInstance) {
   });
 
   fastify.get('/feed', async (request, reply) => {
-    const userId = getUserId(request);
+    const userId = (request as { auth?: { userId?: string } }).auth?.userId;
     const query = paginationSchema.safeParse(request.query);
     if (!query.success) throw query.error;
+
+    if (!userId) {
+      // Unauthenticated guest: return explore discovery posts
+      const exploreService = new ExploreService(
+        (fastify as unknown as { prisma: unknown }).prisma as never,
+      );
+      const discoveryPosts = await exploreService.getDiscovery('');
+      return reply.send({
+        success: true,
+        data: {
+          posts: discoveryPosts,
+          page: 1,
+          pageSize: discoveryPosts.length,
+          total: discoveryPosts.length,
+          hasMore: false,
+        },
+      });
+    }
 
     const result = await getService(fastify).getFeed(userId, query.data);
     return reply.send({ success: true, data: result });

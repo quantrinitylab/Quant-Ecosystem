@@ -140,8 +140,40 @@ export default async function feedRoutes(fastify: FastifyInstance) {
       throw parsed.error;
     }
     const { feedId, page, pageSize } = parsed.data;
-    const result = fastify.feed.getComposedFeed(request.auth.userId, feedId, page, pageSize);
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId ?? 'guest';
+    const result = fastify.feed.getComposedFeed(userId, feedId, page, pageSize);
     return reply.send({ success: true, data: result });
+  });
+
+  // GET /feed/for-you — public reels / short videos feed for unauthenticated guests & users
+  fastify.get('/for-you', async (request, reply) => {
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    if (prisma) {
+      const { VideoService } = await import('../services/video.service');
+      const service = new VideoService(prisma as never);
+      const query = request.query as {
+        page?: string;
+        pageSize?: string;
+        limit?: string;
+        offset?: string;
+      };
+      const limit = query.pageSize
+        ? Number(query.pageSize)
+        : query.limit
+          ? Number(query.limit)
+          : 20;
+      const page = query.page
+        ? Number(query.page)
+        : query.offset
+          ? Math.floor(Number(query.offset) / limit) + 1
+          : 1;
+      const feed = await service.listFeed({ page, pageSize: limit });
+      return reply.send({ success: true, data: feed });
+    }
+    return reply.send({
+      success: true,
+      data: { videos: [], page: 1, pageSize: 20 },
+    });
   });
 
   // GET /feed/recommendations — raw recommendation pipeline output for a feed.

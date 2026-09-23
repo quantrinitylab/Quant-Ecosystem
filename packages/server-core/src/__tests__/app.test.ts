@@ -198,7 +198,14 @@ describe('server-core app', () => {
     beforeAll(async () => {
       publicApp = await createApp({
         ...testConfig,
-        publicPaths: [{ path: '/videos', methods: ['GET'], exact: true }, '/auth/login'],
+        publicPaths: [
+          { path: '/videos', methods: ['GET'], exact: true },
+          { path: '/auth/login', exact: true },
+          '/public/invites',
+          '/api/code/gitd/*',
+          '/posts/:id',
+          { path: '/channels/:id', methods: ['GET'], exact: true },
+        ],
       });
 
       publicApp.get('/videos', async () => ({ success: true, data: [] }));
@@ -206,6 +213,22 @@ describe('server-core app', () => {
       publicApp.get('/videos/private-draft', async () => ({ success: true, draft: true }));
       publicApp.post('/auth/login', async () => ({ success: true, token: 'test' }));
       publicApp.get('/auth/login/secrets', async () => ({ success: true, secrets: true }));
+      publicApp.get('/public/invites/test-invite-token', async () => ({
+        success: true,
+        invite: true,
+      }));
+      publicApp.get('/api/code/gitd/owner/repo/info/refs', async () => ({
+        success: true,
+        gitd: true,
+      }));
+      publicApp.get('/posts/:id', async (req) => ({
+        success: true,
+        postId: (req.params as any).id,
+      }));
+      publicApp.get('/channels/:id', async (req) => ({
+        success: true,
+        channelId: (req.params as any).id,
+      }));
 
       await publicApp.ready();
     });
@@ -234,9 +257,37 @@ describe('server-core app', () => {
       expect(res.statusCode).toBe(200);
     });
 
-    it('rejects adjacent /auth/login/secrets with 401', async () => {
+    it('rejects adjacent /auth/login/secrets with 401 on exact rule', async () => {
       const res = await publicApp.inject({ method: 'GET', url: '/auth/login/secrets' });
       expect(res.statusCode).toBe(401);
+    });
+
+    it('allows subpath under plain string prefix /public/invites', async () => {
+      const res = await publicApp.inject({
+        method: 'GET',
+        url: '/public/invites/test-invite-token',
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('allows subpath under explicit wildcard /api/code/gitd/*', async () => {
+      const res = await publicApp.inject({
+        method: 'GET',
+        url: '/api/code/gitd/owner/repo/info/refs',
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('allows guest to access parameterized string route /posts/:id', async () => {
+      const res = await publicApp.inject({ method: 'GET', url: '/posts/post-abc-123' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().postId).toBe('post-abc-123');
+    });
+
+    it('allows guest to access parameterized object route /channels/:id', async () => {
+      const res = await publicApp.inject({ method: 'GET', url: '/channels/channel-xyz-789' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().channelId).toBe('channel-xyz-789');
     });
   });
 });

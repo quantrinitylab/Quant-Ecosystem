@@ -38,6 +38,7 @@ export function getConfig(): AppConfig {
     publicPaths: [
       { path: '/feed/for-you', methods: ['GET'], exact: true },
       { path: '/videos', methods: ['GET'], exact: true },
+      { path: '/videos/:id', methods: ['GET'], exact: true },
     ],
     env,
   };

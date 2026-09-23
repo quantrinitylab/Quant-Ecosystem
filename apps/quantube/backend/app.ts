@@ -44,9 +44,13 @@ export function getConfig(): AppConfig {
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
     publicPaths: [
       { path: '/videos', methods: ['GET'], exact: true },
+      { path: '/videos/trending', methods: ['GET'], exact: true },
+      { path: '/videos/:id', methods: ['GET'], exact: true },
       { path: '/channels', methods: ['GET'], exact: true },
+      { path: '/channels/:id', methods: ['GET'], exact: true },
       { path: '/music', methods: ['GET'], exact: true },
       { path: '/search', methods: ['GET'], exact: true },
+      { path: '/feed/trending', methods: ['GET'], exact: true },
     ],
     env,
   };

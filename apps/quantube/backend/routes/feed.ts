@@ -133,8 +133,21 @@ export default async function feedRoutes(fastify: FastifyInstance) {
       throw parsed.error;
     }
     const { feedId, page, pageSize } = parsed.data;
-    const result = fastify.feed.getComposedFeed(request.auth.userId, feedId, page, pageSize);
+    const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId ?? 'guest';
+    const result = fastify.feed.getComposedFeed(userId, feedId, page, pageSize);
     return reply.send({ success: true, data: result });
+  });
+
+  // GET /feed/trending — trending public feed for unauthenticated guests & users
+  fastify.get('/trending', async (request, reply) => {
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    if (prisma) {
+      const { VideoService } = await import('../services/video.service');
+      const service = new VideoService(prisma as never);
+      const result = await service.listPublicVideos({ page: 1, pageSize: 20 });
+      return reply.send({ success: true, data: result });
+    }
+    return reply.send({ success: true, data: { data: [], total: 0 } });
   });
 
   // GET /feed/recommendations — raw recommendation pipeline output for a feed.

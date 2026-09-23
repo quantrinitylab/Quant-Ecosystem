@@ -32,8 +32,10 @@ export function getConfig(): AppConfig {
     publicPaths: [
       { path: '/auth/sso/login', exact: true },
       { path: '/feed', methods: ['GET'], exact: true },
+      { path: '/feed/trending', methods: ['GET'], exact: true },
       { path: '/explore', methods: ['GET'], exact: true },
       { path: '/trending', methods: ['GET'], exact: true },
+      { path: '/posts/:id', methods: ['GET'], exact: true },
     ],
     env,
   };
@@ -52,6 +54,26 @@ export async function buildApp(config?: AppConfig) {
   await app.register(interactionsRoutes, { prefix: '/interactions' });
   await app.register(followRoutes, { prefix: '/follow' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });
+
+  // Public explore and trending endpoints
+  app.get('/trending', async (request, reply) => {
+    const prisma = (app as any).prisma;
+    const { FeedService } = await import('./services/feed.service');
+    const feedService = new FeedService(prisma);
+    const limit = Number((request.query as any)?.limit ?? (request.query as any)?.pageSize ?? 20);
+    const posts = await feedService.getTrendingPosts(limit);
+    return reply.send(posts);
+  });
+
+  app.get('/explore', async (request, reply) => {
+    const prisma = (app as any).prisma;
+    const { FeedService } = await import('./services/feed.service');
+    const feedService = new FeedService(prisma);
+    const page = Number((request.query as any)?.page ?? 1);
+    const pageSize = Number((request.query as any)?.pageSize ?? 20);
+    const posts = await feedService.getFeed('', page, pageSize);
+    return reply.send(posts);
+  });
 
   return app;
 }

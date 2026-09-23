@@ -4,6 +4,7 @@ import React from 'react';
 import type { FormEvent } from 'react';
 import { BubbleAvatar } from '@quant/shared-ui';
 import { BlobEditor, type CommitBlobInput } from '../../../components/BlobEditor';
+import { BuildTerminal } from './BuildTerminal';
 import type {
   ModalState,
   Repo,
@@ -721,7 +722,7 @@ export function QuantGitModals({
       {/* Action Run Detail Flowchart Modal */}
       {modalState === 'action-detail' && selectedActionRun && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-2xl p-5 text-xs space-y-4 shadow-2xl animate-in fade-in">
+          <div className="bg-[#0D1117] border border-[#30363D] rounded-xl w-full max-w-4xl p-5 text-xs space-y-4 shadow-2xl animate-in fade-in max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#21262D] pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-[#3FB950] font-bold">✓</span>
@@ -772,6 +773,21 @@ export function QuantGitModals({
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Live xterm.js Execution Terminal */}
+            <div className="space-y-1.5 pt-2">
+              <h4 className="font-bold text-white flex items-center justify-between text-xs">
+                <span>Execution Logs (xterm.js):</span>
+                <span className="text-[10px] text-[#7D8590] font-normal">
+                  Live streaming via Redis PubSub
+                </span>
+              </h4>
+              <BuildTerminal
+                buildId={selectedActionRun.id}
+                runName={selectedActionRun.name}
+                height="280px"
+              />
             </div>
           </div>
         </div>

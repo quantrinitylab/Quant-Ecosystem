@@ -43,6 +43,15 @@ export async function createApp(config: AppConfig) {
     disableRequestLogging: config.env === 'test',
   });
 
+  // Register WebDAV / CalDAV / CardDAV HTTP methods (RFC 4791 / RFC 6350)
+  for (const method of ['PROPFIND', 'REPORT', 'MKCALENDAR']) {
+    try {
+      fastify.addHttpMethod(method, { hasBody: true });
+    } catch {
+      // already registered
+    }
+  }
+
   // Set Zod as the schema validator/serializer
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
@@ -159,7 +168,7 @@ export async function createApp(config: AppConfig) {
         exact = false;
       } else {
         pattern = entry;
-        exact = true;
+        exact = false;
       }
     } else {
       pattern = entry.path;
@@ -171,16 +180,17 @@ export async function createApp(config: AppConfig) {
       return false;
     }
 
-    if (exact) {
-      if (path === pattern) return true;
-      if (pattern.includes(':')) {
-        const patternSegments = pattern.split('/').filter(Boolean);
-        const pathSegments = path.split('/').filter(Boolean);
-        if (patternSegments.length === pathSegments.length) {
-          return patternSegments.every((seg, i) => seg.startsWith(':') || seg === pathSegments[i]);
-        }
+    if (pattern.includes(':')) {
+      const patternSegments = pattern.split('/').filter(Boolean);
+      const pathSegments = path.split('/').filter(Boolean);
+      if (patternSegments.length === pathSegments.length) {
+        return patternSegments.every((seg, i) => seg.startsWith(':') || seg === pathSegments[i]);
       }
       return false;
+    }
+
+    if (exact) {
+      return path === pattern;
     }
 
     // Wildcard prefix matching ONLY when explicitly declared (e.g. pattern ends with /*)

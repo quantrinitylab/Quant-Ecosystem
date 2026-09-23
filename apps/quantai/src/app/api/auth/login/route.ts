@@ -29,18 +29,23 @@ export async function POST(request: NextRequest) {
     });
 
     if (res.ok) {
-      const data = await res.json();
-      const token = data?.data?.accessToken || data?.accessToken;
-      const response = NextResponse.json({ success: true, data }, { status: 200 });
+      const rawData = await res.json();
+      const token = rawData?.data?.accessToken || rawData?.accessToken;
+      const user = rawData?.data?.user || rawData?.user || null;
+
+      // Strip tokens completely from JSON body to prevent client-side exfiltration (Astra W32-12)
+      const response = NextResponse.json({ success: true, data: { user } }, { status: 200 });
 
       if (token) {
-        // Set httpOnly cookie for defense against XSS token exfiltration (Astra W32-3)
+        // Enforce secure cookie on production and HTTPS staging environments
+        const isSecure =
+          process.env.NODE_ENV === 'production' || request.url.startsWith('https://');
         response.cookies.set('quant_access_token', token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
+          secure: isSecure,
           sameSite: 'lax',
           path: '/',
-          maxAge: 86400 * 7,
+          maxAge: 3600, // 1 hour aligned with token expiration
         });
       }
 

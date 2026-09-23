@@ -2,25 +2,25 @@
 // Media Package - Barrel Export
 // ============================================================================
 
-export { ImageProcessor } from './services/image-processor';
+export { ImageProcessor } from './services/image-processor.js';
 export {
   VideoTranscoder,
   TranscodeOptionsSchema,
   TranscodeProfileSchema,
-} from './services/video-transcoder';
+} from './services/video-transcoder.js';
 export type {
   TranscodeOptions,
   TranscodeInput,
   TranscodeResult,
-} from './services/video-transcoder';
-export { AudioProcessor } from './services/audio-processor';
-export { UploadManager } from './services/upload-manager';
-export { CDNService, CDNConfigSchema } from './services/cdn-service';
-export type { CDNConfig, InvalidationResult } from './services/cdn-service';
-export { MetadataExtractor } from './services/metadata-extractor';
+} from './services/video-transcoder.js';
+export { AudioProcessor } from './services/audio-processor.js';
+export { UploadManager } from './services/upload-manager.js';
+export { CDNService, CDNConfigSchema } from './services/cdn-service.js';
+export type { CDNConfig, InvalidationResult } from './services/cdn-service.js';
+export { MetadataExtractor } from './services/metadata-extractor.js';
 
-export { SharedMediaPickerService } from './shared-media-picker';
-export type { MediaItem, PickerOptions, StorageInfo } from './shared-media-picker';
+export { SharedMediaPickerService } from './shared-media-picker.js';
+export type { MediaItem, PickerOptions, StorageInfo } from './shared-media-picker.js';
 
 export type {
   MediaType,
@@ -49,4 +49,4 @@ export type {
   AudioEffect,
   AudioEffectConfig,
   ResponsiveImageSet,
-} from './types';
+} from './types.js';

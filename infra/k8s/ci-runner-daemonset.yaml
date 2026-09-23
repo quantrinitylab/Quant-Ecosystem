@@ -1,0 +1,129 @@
+# ==============================================================================
+# Kubernetes CI Runner DaemonSet & RuntimeClass with gVisor runsc
+# ==============================================================================
+# Configures the gVisor RuntimeClass handler "runsc" and deploys the CI runner
+# pods to the c6i.2xlarge gVisor worker nodes with user-space kernel isolation.
+# ==============================================================================
+
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: runsc
+handler: runsc
+scheduling:
+  nodeSelector:
+    sandbox: gvisor
+    workload: ci-runner
+  tolerations:
+    - key: ci-runner
+      operator: Equal
+      value: 'true'
+      effect: NoSchedule
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: quant-ci
+  labels:
+    app.kubernetes.io/part-of: quant-ecosystem
+    pod-security.kubernetes.io/enforce: restricted
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-runner
+  namespace: quant-ci
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ci-runner-daemonset
+  namespace: quant-ci
+  labels:
+    app.kubernetes.io/name: ci-runner
+    app.kubernetes.io/component: sandbox-runner
+    app.kubernetes.io/part-of: quant-ecosystem
+spec:
+  selector:
+    matchLabels:
+      app: ci-runner
+  template:
+    metadata:
+      labels:
+        app: ci-runner
+        sandbox: gvisor
+        app.kubernetes.io/name: ci-runner
+    spec:
+      runtimeClassName: runsc
+      serviceAccountName: ci-runner
+      nodeSelector:
+        sandbox: gvisor
+        workload: ci-runner
+      tolerations:
+        - key: ci-runner
+          operator: Equal
+          value: 'true'
+          effect: NoSchedule
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: ci-runner
+          image: 266176113726.dkr.ecr.us-east-1.amazonaws.com/quant-ci-runner:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              value: 'production'
+            - name: GVISOR_PLATFORM
+              value: 'systrap'
+            - name: RUNTIME_CLASS
+              value: 'runsc'
+            - name: RUNSC_PATH
+              value: '/usr/local/bin/runsc'
+            - name: REDIS_HOST
+              value: 'redis-service.quant-production.svc.cluster.local'
+            - name: REDIS_PORT
+              value: '6379'
+            - name: HEALTH_PORT
+              value: '3021'
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: health
+              containerPort: 3021
+              protocol: TCP
+          resources:
+            requests:
+              cpu: '2000m'
+              memory: '4Gi'
+            limits:
+              cpu: '4000m'
+              memory: '8Gi'
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3021
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3021
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3

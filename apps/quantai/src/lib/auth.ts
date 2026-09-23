@@ -53,14 +53,18 @@ export function getAuthToken(): string | null {
  * Clears guest exploration flag upon successful login.
  */
 export function setAuthToken(token: string, user?: AuthUser | null): void {
-  memoryToken = token;
+  if (token) {
+    memoryToken = token;
+  }
   if (user) {
     memoryUser = user;
   }
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
-    localStorage.setItem('token', token);
-    localStorage.setItem('quant_token', token);
+    if (token) {
+      localStorage.setItem('token', token);
+      localStorage.setItem('quant_token', token);
+    }
     if (user) {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
     }

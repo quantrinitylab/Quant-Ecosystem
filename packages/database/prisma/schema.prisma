@@ -2668,6 +2668,18 @@ model Organization {
   workspaces OrgWorkspace[]
   invites    WorkspaceInvite[]
 
+  // Enterprise Governance relations (Wave 33)
+  domains            OrganizationDomain[]
+  orgUnits           OrganizationalUnit[]
+  ssoConfigs         EnterpriseSsoConfig[]
+  scimClients        ScimClient[]
+  complianceRules    EnterpriseMailComplianceRule[]
+  quarantineMessages AdminQuarantineMessage[]
+  matters            EnterpriseMatter[]
+  legalHolds         EnterpriseLegalHold[]
+  vaultExports       EnterpriseVaultExport[]
+  siemConfigs        EnterpriseSiemConfig[]
+
   @@index([slug])
   @@map("organizations")
 }
@@ -4266,4 +4278,289 @@ model UserInterestSignal {
   @@index([userId, category])
   @@index([creatorId])
   @@map("user_interest_signals")
+}
+
+// ==================== WAVE 33 — ENTERPRISE GOVERNANCE ====================
+
+enum DomainVerificationStatus {
+  PENDING
+  DNS_VERIFIED
+  MX_VERIFIED
+  SPF_VERIFIED
+  DKIM_VERIFIED
+  DMARC_VERIFIED
+  FULLY_VERIFIED
+}
+
+enum ComplianceRuleType {
+  KEYWORD
+  REGEX
+  LUHN_CREDIT_CARD
+  HIGH_ENTROPY
+}
+
+enum ComplianceAction {
+  BLOCK
+  QUARANTINE
+  ENCRYPT
+  AUDIT_LOG
+}
+
+enum MatterStatus {
+  OPEN
+  CLOSED
+  EXPORTED
+}
+
+enum LegalHoldType {
+  ACCOUNT
+  MAILBOX
+  DATE_RANGE
+}
+
+enum VaultExportFormat {
+  PST
+  MBOX
+  EML_ZIP
+}
+
+model OrganizationDomain {
+  id                 String                   @id @default(cuid())
+  organizationId     String
+  domain             String                   @unique
+  verificationStatus DomainVerificationStatus @default(PENDING)
+  dkimPublicKey      String?                  @db.Text
+  verificationToken  String
+  isPrimary          Boolean                  @default(false)
+  verifiedAt         DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([verificationStatus])
+  @@map("organization_domains")
+}
+
+model OrganizationalUnit {
+  id             String   @id @default(cuid())
+  organizationId String
+  parentId       String?
+  name           String
+  code           String?
+  description    String?
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       OrganizationalUnit?  @relation("OUHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     OrganizationalUnit[] @relation("OUHierarchy")
+
+  @@index([organizationId])
+  @@index([parentId])
+  @@map("organizational_units")
+}
+
+model EnterpriseSsoConfig {
+  id              String   @id @default(cuid())
+  organizationId  String
+  providerType    String   @default("SAML")
+  entityId        String
+  ssoUrl          String
+  certificate     String   @db.Text
+  mappingTemplate Json     @default("{}")
+  enabled         Boolean  @default(true)
+  enforceSso      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([entityId])
+  @@map("enterprise_sso_configs")
+}
+
+model ScimClient {
+  id             String    @id @default(cuid())
+  organizationId String
+  bearerToken    String
+  endpointUrl    String
+  name           String?
+  enabled        Boolean   @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([bearerToken])
+  @@map("scim_clients")
+}
+
+model EnterpriseMailComplianceRule {
+  id             String             @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  ruleType       ComplianceRuleType
+  action         ComplianceAction
+  pattern        String?            @db.Text
+  severity       String             @default("HIGH")
+  enabled        Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quarantineMessages AdminQuarantineMessage[]
+
+  @@index([organizationId])
+  @@index([ruleType])
+  @@index([action])
+  @@index([enabled])
+  @@map("enterprise_mail_compliance_rules")
+}
+
+model AdminQuarantineMessage {
+  id                String   @id @default(cuid())
+  organizationId    String
+  complianceRuleId  String?
+  sender            String
+  originalRecipient String
+  subject           String?
+  reason            String
+  releaseStatus     String   @default("QUARANTINED")
+  messageId         String?
+  rawHeaders        Json?
+  metadata          Json     @default("{}")
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization   Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  complianceRule EnterpriseMailComplianceRule? @relation(fields: [complianceRuleId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([originalRecipient])
+  @@index([releaseStatus])
+  @@index([complianceRuleId])
+  @@index([createdAt])
+  @@map("admin_quarantine_messages")
+}
+
+model EnterpriseMatter {
+  id             String       @id @default(cuid())
+  organizationId String
+  matterName     String
+  caseNumber     String?
+  description    String?
+  status         MatterStatus @default(OPEN)
+  leadAttorney   String?
+  createdById    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  legalHolds   EnterpriseLegalHold[]
+  vaultExports EnterpriseVaultExport[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([matterName])
+  @@map("enterprise_matters")
+}
+
+model EnterpriseLegalHold {
+  id             String        @id @default(cuid())
+  organizationId String
+  matterId       String
+  name           String
+  holdType       LegalHoldType
+  targetUserId   String?
+  targetMailbox  String?
+  startDate      DateTime?
+  endDate        DateTime?
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matter       EnterpriseMatter @relation(fields: [matterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([matterId])
+  @@index([targetUserId])
+  @@index([holdType])
+  @@index([isActive])
+  @@map("enterprise_legal_holds")
+}
+
+model EnterpriseVaultExport {
+  id             String            @id @default(cuid())
+  organizationId String
+  matterId       String?
+  name           String
+  exportFormat   VaultExportFormat
+  sha256Manifest String?
+  status         String            @default("PENDING")
+  downloadUrl    String?
+  fileSizeBytes  BigInt?
+  totalItems     Int               @default(0)
+  queryFilter    Json              @default("{}")
+  createdById    String?
+  expiresAt      DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matter       EnterpriseMatter? @relation(fields: [matterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([matterId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("enterprise_vault_exports")
+}
+
+model EnterpriseSiemConfig {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  webhookUrl     String
+  eventTypes     String[]
+  signingSecret  String
+  enabled        Boolean   @default(true)
+  format         String    @default("JSON")
+  lastDeliveryAt DateTime?
+  lastStatus     Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([enabled])
+  @@map("enterprise_siem_configs")
+}
+
+// ==================== LEGAL HOLDS (W33-03) ====================
+/// Enterprise Legal Holds for custodian accounts to preserve communications against deletion.
+model LegalHold {
+  id             String    @id @default(cuid())
+  custodianEmail String    @map("custodian_email")
+  matterName     String    @map("matter_name")
+  reason         String
+  placedBy       String    @map("placed_by")
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  releasedAt     DateTime? @map("released_at")
+  releaseReason  String?   @map("release_reason")
+
+  @@index([custodianEmail])
+  @@index([active])
+  @@map("legal_holds")
 }
