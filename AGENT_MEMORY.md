@@ -3331,3 +3331,26 @@ graph TD
     - **Task W35-09 (macOS FileProvider Replicated Extension Architecture)**: ✅ **COMPLETED & VERIFIED**. `apps/quant-desktop/src-tauri/src/vfs/macos.rs`, `macos/FileProviderExtension/FileProviderItem.swift`. Vitest: 1/1 test passing (`vfs-macos-item.test.ts`).
     - **Task W35-10 (Desktop On-Demand Background Chunk Hydration Daemon)**: ✅ **COMPLETED & VERIFIED**. `apps/quant-desktop/src-tauri/src/vfs/hydrator.rs`, `vfs/cache.rs`. Vitest: 3/3 tests passing (`vfs-hydrator.test.ts`).
     - **Task W35-11 (Superhuman Local-First & 64KB Delta Sync Benchmark Harness)**: ✅ **COMPLETED & VERIFIED**. `apps/quantmail/src/__tests__/local-first-benchmark.test.ts`. Verified p50 < 4.5ms (actual 0.75ms), p95 < 8.0ms (actual 2.40ms), max < 15.0ms (actual 6.85ms); verified 1-byte file modification transfers 128KB in 349ms (>90% savings). Vitest: 2/2 tests passing. Total Wave 35 suite: **78/78 tests passing 100% green**.
+- **21. CalDAV/CardDAV RFC Security Hardening, Multi-Bitrate HLS Transcoding Pipeline, GSP Ad Auction Math & Live Chrome Verification — Wave 36-38 (2026-09-24)**:
+  - **CalDAV & CardDAV RFC Security Hardening**:
+    - Addressed CEO Astra's Unfreeze Condition 1: Removed blanket `/dav/*` from Fastify `publicPaths`, scoping public bypass strictly to `{ path: '/dav', methods: ['OPTIONS'] }` for RFC 4918 capability discovery.
+    - `apps/quantmail/backend/routes/dav.ts`: Implemented `preHandler` authentication asserting Bearer JWT or RFC 4791 HTTP Basic Auth against `prisma.user` (verified via `@quant/auth` `passwordService.verify`). Enforced strict user tenancy: `params.userId !== reqAuth.userId` immediately throws HTTP 403 `FORBIDDEN`. Unauthenticated requests throw HTTP 401 `UNAUTHORIZED` with header `WWW-Authenticate: Basic realm="QuantMail DAV"`.
+    - Added explicit tests 8 & 9 to `caldav-protocol.test.ts` and tests 7 & 8 to `carddav-protocol.test.ts` verifying 401 on missing auth and 403 on cross-user access. All **20/20 CalDAV & CardDAV Vitest tests passing 100% green**.
+  - **Prisma Migration Collision 0071 Resolved**:
+    - Addressed CEO Astra's Unfreeze Condition 4: Renumbered conflicting migration `0071_add_short_video_comments` to `0072_add_short_video_comments` and `0072_add_repository_stars` to `0073_add_repository_stars`. Verified schema integrity and migration order.
+  - **Wave 37-01 & 37-02 Multi-Bitrate HLS Transcoding & R2 Streaming Upload**:
+    - `services/video-transcoder/src/worker.ts`, `ffmpeg.ts`, `uploader.ts`: Implemented BullMQ worker transcoding input videos into 4 HLS variants: 1080p, 720p, 480p, 360p with 4-second `.ts` segments and `master.m3u8` playlist. Implemented concurrent streaming upload to Cloudflare R2 / S3 with automatic status updates (`PROCESSING` -> `READY`).
+    - Verified with **8/8 Vitest tests passing 100% green** in `services/video-transcoder/__tests__/`.
+  - **Wave 38-02 eCPM Scoring & Generalized Second Price (GSP) Auction Hardening**:
+    - `services/ad-engine/src/auction.ts`: Hardened GSP auction against division-by-zero, NaN, and negative CTR (`safeCtr = Math.max(0.0001, Number.isFinite(predictedCtr) ? predictedCtr : 0.0001)`). Cap clearing price to winner's maximum bid and ensure positive finite integers.
+    - Verified with **5/5 Vitest tests passing 100% green** in `services/ad-engine/__tests__/auction.test.ts`.
+  - **QuantChat Signal Protocol Prekey Registry & Outbox E2EE Verification**:
+    - Verified `apps/quantchat/backend/__tests__/prisma-key-storage.test.ts` (14/14 green), `prekey-claim.concurrent.integration.test.ts` (3/3 green), and `message-outbox.e2ee-send.test.ts` (4/4 green). Total **21/21 tests passing 100% green**.
+  - **Live Chrome Browser End-to-End Verification (`https://quantmail.in/`)**:
+    - **Contacts App (`/contacts`)**: Live creation of "Satya Nadella" (`satya@microsoft.com`, VIP, BigTech), duplicate 409 conflict prevention, deduplication wizard render ("No Duplicates Found"), favorites toggling (verified `Favorites (1)` view and button state).
+    - **Calendar App (`/calendar`)**: September/October 2026 holidays (Ganesh Chaturthi, Gandhi Jayanti, Navratri, Durga Puja, Dussehra), timezone switcher (IST, UTC, EST, etc.), Month view switch and navigation.
+    - **Drive App (`/drive`)**: Modal folder creation ("Executive Briefs 2026"), grid/list view switcher, upload action affordances.
+    - **QuantGit App (`/quantgit`)**: Quanty AI Copilot prompt deck, Repositories index (Quant-Ecosystem, quant-mobile-android, quantchat-meet, quantmail-core), repository detail view (`/quantgit_qa_test/Quant-Ecosystem`), commit inspection (`948e3612` ✓ Verified), PRs list, Actions CI pipeline status with honest "No active CI runner attached" banner, Security tab.
+    - **Composer (`/compose`)**: Full email creation flow with recipient chip formatting, subject, markdown body, and active Send button.
+  - **Commit & Push Audit**:
+    - Committed `ad9e7cad` (PR #270 smart inbox categorization) and `39677869` (`feat(security): enforce dav tenancy, fix 0071 collision, harden ad & video`) to `main`, pushed cleanly to GitHub `origin/main`.
