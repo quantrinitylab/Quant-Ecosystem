@@ -11,7 +11,7 @@
 // ============================================================================
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@quant/shared-ui';
+import { AuthPending, useAuth } from '@quant/shared-ui';
 
 const LOGIN_PATH = '/auth/login';
 const PUBLIC_ROUTES = new Set<string>([LOGIN_PATH]);
@@ -29,6 +29,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [isLoading, isPublic, isAuthenticated, pathname, router]);
 
   if (isPublic) return <>{children}</>;
-  if (isLoading || !isAuthenticated) return null;
+  // Never `return null` here: a blank 200 is indistinguishable from a dead app
+  // to a monitor, and if the client-side redirect below never runs the visitor
+  // is stranded on an empty page. AuthPending always renders text and a real
+  // link to LOGIN_PATH.
+  if (isLoading) return <AuthPending state="verifying" loginPath={LOGIN_PATH} />;
+  if (!isAuthenticated)
+    return <AuthPending state="redirecting" loginPath={LOGIN_PATH} appName="QuantAds" />;
   return <>{children}</>;
 }

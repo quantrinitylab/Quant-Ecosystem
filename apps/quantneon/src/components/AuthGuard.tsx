@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
+import { AuthPending } from '@quant/shared-ui';
 
 const PUBLIC_ROUTES = new Set<string>(['/login']);
 
@@ -23,9 +24,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     void router.replace(`/login?returnTo=${returnTo}`);
   }, [isLoading, isPublic, isAuthenticated, router]);
 
-  // Public route: always render. Otherwise hold until the session is known, and
-  // render nothing while we redirect an unauthenticated visitor.
   if (isPublic) return <>{children}</>;
-  if (isLoading || !isAuthenticated) return null;
+  // Never `return null` here: a blank 200 is indistinguishable from a dead app
+  // to a monitor, and if the client-side redirect below never runs the visitor
+  // is stranded on an empty page. AuthPending always renders text and a real
+  // link to /login.
+  if (isLoading) return <AuthPending state="verifying" loginPath="/login" />;
+  if (!isAuthenticated)
+    return <AuthPending state="redirecting" loginPath="/login" appName="QuantNeon" />;
   return <>{children}</>;
 }
