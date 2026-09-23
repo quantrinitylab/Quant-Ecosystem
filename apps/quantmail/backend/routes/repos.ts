@@ -527,6 +527,32 @@ function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma: unknown }).prisma;
 }
 
+/**
+ * The subset of the Prisma transaction client the star endpoints use. Typed
+ * structurally because `getPrisma` is untyped here; this keeps the transaction
+ * callback free of an implicit `any` without dragging the generated client into
+ * this route module.
+ */
+type PrismaTransaction = {
+  repositoryStar: {
+    upsert: (args: {
+      where: { repositoryId_userId: { repositoryId: string; userId: string } };
+      create: { repositoryId: string; userId: string };
+      update: Record<string, never>;
+    }) => Promise<unknown>;
+    deleteMany: (args: {
+      where: { repositoryId: string; userId: string };
+    }) => Promise<{ count: number }>;
+    count: (args: { where: { repositoryId: string } }) => Promise<number>;
+  };
+  repository: {
+    update: (args: {
+      where: { id: string };
+      data: { starCount: number };
+    }) => Promise<{ starCount: number }>;
+  };
+};
+
 function requireUserId(request: unknown): string {
   const userId = (request as { auth?: { userId?: string } }).auth?.userId;
   if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
@@ -1166,29 +1192,54 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: toDto(updated) });
   });
 
+  // Starring is idempotent and backed by the `repository_stars` join table.
+  // `starCount` is a derived cache recomputed inside the same transaction, so a
+  // caller can no longer inflate it by replaying this endpoint.
   fastify.post<{ Params: { id: string } }>('/:id/star', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
+    const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    const updated = await prisma.repository.update({
-      where: { id: repo.id },
-      data: { starCount: { increment: 1 } },
+
+    const stars = await prisma.$transaction(async (tx: PrismaTransaction) => {
+      await tx.repositoryStar.upsert({
+        where: { repositoryId_userId: { repositoryId: repo.id, userId } },
+        create: { repositoryId: repo.id, userId },
+        update: {},
+      });
+      const total = await tx.repositoryStar.count({ where: { repositoryId: repo.id } });
+      const updated = await tx.repository.update({
+        where: { id: repo.id },
+        data: { starCount: total },
+      });
+      return updated.starCount;
     });
+
     return reply.send({
       success: true,
-      data: { id: updated.id, stars: updated.starCount },
+      data: { id: repo.id, stars, starred: true },
     });
   });
 
+  // Unstarring removes only the caller's row. Unstarring something the caller
+  // never starred is a no-op instead of a decrement of someone else's count.
   fastify.delete<{ Params: { id: string } }>('/:id/star', async (request, reply) => {
     const repo = await loadReadableRepo(request, request.params.id);
+    const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
-    const updated = await prisma.repository.update({
-      where: { id: repo.id },
-      data: { starCount: Math.max(0, repo.starCount - 1) },
+
+    const stars = await prisma.$transaction(async (tx: PrismaTransaction) => {
+      await tx.repositoryStar.deleteMany({ where: { repositoryId: repo.id, userId } });
+      const total = await tx.repositoryStar.count({ where: { repositoryId: repo.id } });
+      const updated = await tx.repository.update({
+        where: { id: repo.id },
+        data: { starCount: total },
+      });
+      return updated.starCount;
     });
+
     return reply.send({
       success: true,
-      data: { id: updated.id, stars: updated.starCount },
+      data: { id: repo.id, stars, starred: false },
     });
   });
 
