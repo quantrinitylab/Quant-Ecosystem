@@ -89,6 +89,24 @@ export class QuantChatApiClient {
   // Auth
   // --------------------------------------------------------------------------
 
+  async loginWithPassword(credentials: { identifier: string; password: string }): Promise<
+    ApiResponse<
+      AuthTokens & {
+        user: { id: string; email: string; username: string; displayName?: string };
+      }
+    >
+  > {
+    const response = await this.post<
+      AuthTokens & {
+        user: { id: string; email: string; username: string; displayName?: string };
+      }
+    >('/auth/login', credentials);
+    if (response.success && response.data) {
+      this.setTokens(response.data.accessToken, response.data.refreshToken);
+    }
+    return response;
+  }
+
   async requestOTP(
     request: PhoneAuthRequest,
   ): Promise<ApiResponse<{ message: string; expiresIn: number }>> {

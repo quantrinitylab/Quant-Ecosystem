@@ -71,25 +71,38 @@ export class StoryService {
   > {
     const now = new Date();
 
-    const following = await this.prisma.userRelationship.findMany({
-      where: { followerId: viewerId, type: 'FOLLOW' },
-    });
-    const candidateIds = [...new Set([viewerId, ...following.map((r: any) => r.followingId)])];
+    let candidateIds: string[];
+    let stories: any[];
 
-    const stories = await this.prisma.story.findMany({
-      where: { userId: { in: candidateIds }, expiresAt: { gt: now } },
-      orderBy: { createdAt: 'desc' },
-    });
+    if (!viewerId) {
+      stories = await this.prisma.story.findMany({
+        where: { audience: 'ALL', expiresAt: { gt: now } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+      candidateIds = [...new Set(stories.map((s: any) => s.userId))];
+    } else {
+      const following = await this.prisma.userRelationship.findMany({
+        where: { followerId: viewerId, type: 'FOLLOW' },
+      });
+      candidateIds = [...new Set([viewerId, ...following.map((r: any) => r.followingId)])];
+      stories = await this.prisma.story.findMany({
+        where: { userId: { in: candidateIds }, expiresAt: { gt: now } },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     // Audience gate: a CLOSE_FRIENDS story is only visible to viewers the AUTHOR
     // has added as a close friend (the viewer's own stories are always visible).
-    const trustEdges = await this.prisma.closeFriend.findMany({
-      where: { friendId: viewerId, userId: { in: candidateIds } },
-    });
+    const trustEdges = viewerId
+      ? await this.prisma.closeFriend.findMany({
+          where: { friendId: viewerId, userId: { in: candidateIds } },
+        })
+      : [];
     const authorsTrustingViewer = new Set(trustEdges.map((e: any) => e.userId));
     const visibleStories = stories.filter((s: any) => {
       if (s.audience !== 'CLOSE_FRIENDS') return true;
-      if (s.userId === viewerId) return true;
+      if (viewerId && s.userId === viewerId) return true;
       return authorsTrustingViewer.has(s.userId);
     });
 
@@ -98,9 +111,11 @@ export class StoryService {
 
     const [users, closeFriends] = await Promise.all([
       this.prisma.user.findMany({ where: { id: { in: usersWithStories } } }),
-      this.prisma.closeFriend.findMany({
-        where: { userId: viewerId, friendId: { in: usersWithStories } },
-      }),
+      viewerId
+        ? this.prisma.closeFriend.findMany({
+            where: { userId: viewerId, friendId: { in: usersWithStories } },
+          })
+        : Promise.resolve([]),
     ]);
 
     const byId = new Map(users.map((u: any) => [u.id, u]));

@@ -58,7 +58,10 @@ export async function POST(
     const cookie = request.headers.get('cookie') ?? '';
     if (!cookie.includes(`${REFRESH_COOKIE}=`)) {
       return NextResponse.json(
-        { success: false, error: { code: 'NO_SESSION', message: 'No active session.', statusCode: 200 } },
+        {
+          success: false,
+          error: { code: 'NO_SESSION', message: 'No active session.', statusCode: 200 },
+        },
         { status: 200, headers: { 'cache-control': 'no-store' } },
       );
     }

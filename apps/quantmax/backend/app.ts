@@ -35,6 +35,11 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantmax',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    publicPaths: [
+      { path: '/feed/for-you', methods: ['GET'], exact: true },
+      { path: '/videos', methods: ['GET'], exact: true },
+      { path: '/videos/:id', methods: ['GET'], exact: true },
+    ],
     env,
   };
 }

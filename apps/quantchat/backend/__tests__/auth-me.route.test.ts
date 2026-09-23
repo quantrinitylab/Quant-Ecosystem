@@ -52,3 +52,46 @@ describe('GET /auth/me', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('POST /auth/login (Dual Password Auth)', () => {
+  it('allows unauthenticated requests without 401 gate (public path)', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: {},
+    });
+    // Should hit route handler and fail schema validation, not hit 401 global auth gate
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'BAD_REQUEST' },
+    });
+  });
+
+  it('rejects nonexistent identifier with 401 INVALID_CREDENTIALS', async () => {
+    // Mock user.findFirst on app.prisma if unconfigured in test environment
+    const originalFindFirst = (app as any).prisma?.user?.findFirst;
+    if ((app as any).prisma?.user) {
+      (app as any).prisma.user.findFirst = async () => null;
+    }
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/login',
+      payload: {
+        identifier: 'nonexistent@example.com',
+        password: 'Password123!',
+      },
+    });
+
+    if ((app as any).prisma?.user && originalFindFirst) {
+      (app as any).prisma.user.findFirst = originalFindFirst;
+    }
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json()).toMatchObject({
+      success: false,
+      error: { code: 'INVALID_CREDENTIALS' },
+    });
+  });
+});

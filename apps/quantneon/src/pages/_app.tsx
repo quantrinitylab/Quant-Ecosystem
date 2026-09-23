@@ -51,20 +51,20 @@ export default function App({ Component, pageProps }: AppProps) {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-        <MotionProvider>
-          <CommandPaletteProvider appName="QuantNeon">
-            <QuantSidekickProvider>
-              <QuantNeonCommandRegistrar />
-              <VoiceCommandHost appId="quantneon" userId="guest" />
-              <AuthGuard>
-                <AnimatePresence mode="wait">
-                  <Component key={router.asPath} {...pageProps} />
-                </AnimatePresence>
-              </AuthGuard>
-              <QuantSidekick />
-            </QuantSidekickProvider>
-          </CommandPaletteProvider>
-        </MotionProvider>
+          <MotionProvider>
+            <CommandPaletteProvider appName="QuantNeon">
+              <QuantSidekickProvider>
+                <QuantNeonCommandRegistrar />
+                <VoiceCommandHost appId="quantneon" userId="guest" />
+                <AuthGuard>
+                  <AnimatePresence mode="wait">
+                    <Component key={router.asPath} {...pageProps} />
+                  </AnimatePresence>
+                </AuthGuard>
+                <QuantSidekick />
+              </QuantSidekickProvider>
+            </CommandPaletteProvider>
+          </MotionProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

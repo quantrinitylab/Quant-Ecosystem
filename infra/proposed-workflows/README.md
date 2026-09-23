@@ -49,13 +49,13 @@ renders each host in headless Chromium and asserts real content.
 
 Per host in the matrix (10 hosts, `mode: live | down`):
 
-| check | assertion |
-|---|---|
-| `/` | HTTP 200 |
-| rendered text | `>= MIN_RENDERED_CHARS` (150) after JS executes |
-| `/login` | HTTP 200 where `login_required` |
-| authed path | HTTP 401 (proves the auth layer is wired, not that the app is dead) |
-| `/api/health` | recorded, informational only |
+| check         | assertion                                                           |
+| ------------- | ------------------------------------------------------------------- |
+| `/`           | HTTP 200                                                            |
+| rendered text | `>= MIN_RENDERED_CHARS` (150) after JS executes                     |
+| `/login`      | HTTP 200 where `login_required`                                     |
+| authed path   | HTTP 401 (proves the auth layer is wired, not that the app is dead) |
+| `/api/health` | recorded, informational only                                        |
 
 `down` hosts are recorded without assertions so the file stays an honest
 inventory instead of a red board.

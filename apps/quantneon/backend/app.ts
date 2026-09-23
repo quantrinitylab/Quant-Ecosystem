@@ -35,6 +35,14 @@ export function getConfig(): AppConfig {
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantneon',
     jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    publicPaths: [
+      { path: '/posts/feed', methods: ['GET'], exact: true },
+      { path: '/posts/:id', methods: ['GET'], exact: true },
+      { path: '/explore', methods: ['GET'], exact: true },
+      { path: '/explore/search', methods: ['GET'], exact: true },
+      { path: '/stories/feed', methods: ['GET'], exact: true },
+      { path: '/stories/:id', methods: ['GET'], exact: true },
+    ],
     env,
   };
 }

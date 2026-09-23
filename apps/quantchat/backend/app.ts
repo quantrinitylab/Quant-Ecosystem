@@ -69,9 +69,11 @@ export function getConfig(): AppConfig {
     redisUrl: process.env['REDIS_URL'],
     jwtSecret: process.env['JWT_SECRET'] ?? 'dev-secret-change-in-production',
     jwtIssuer: process.env['JWT_ISSUER'] ?? 'quantchat',
-    jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quant-ecosystem',
+    // Scoped to quantchat so QuantChat-minted tokens cannot bypass QuantMail 2FA on sibling backends (W32-3)
+    jwtAudience: process.env['JWT_AUDIENCE'] ?? 'quantchat',
     env,
     publicPaths: [
+      '/auth/login',
       '/auth/otp/request',
       '/auth/otp/verify',
       '/meetings/webhooks/livekit',

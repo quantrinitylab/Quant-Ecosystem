@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import gitHttpRoutes from './routes/git-http.js';
 import apiRoutes from './routes/api.js';
+import lfsRoutes from './routes/lfs.js';
 
 export async function buildGitServer(_options?: { port?: number; host?: string }) {
   const app = Fastify({ logger: process.env['NODE_ENV'] !== 'test' });
@@ -15,6 +16,8 @@ export async function buildGitServer(_options?: { port?: number; host?: string }
 
   await app.register(gitHttpRoutes, { prefix: '/git' });
   await app.register(apiRoutes, { prefix: '/api' });
+  await app.register(lfsRoutes, { prefix: '/git' });
+  await app.register(lfsRoutes);
 
   return app;
 }

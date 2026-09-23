@@ -80,7 +80,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <label htmlFor="login-email" className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]">
+            <label
+              htmlFor="login-email"
+              className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]"
+            >
               Email
             </label>
             <input
@@ -98,7 +101,10 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="login-password" className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]">
+            <label
+              htmlFor="login-password"
+              className="mb-1.5 block text-[13px] font-medium text-[var(--quant-foreground)]"
+            >
               Password
             </label>
             <div className="flex overflow-hidden rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20">

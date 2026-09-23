@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
-import { getAuthToken } from '../lib/auth';
+import { getAuthToken, savePreservedChatState, loadPreservedChatState } from '../lib/auth';
 import type { ToolCall } from '../types/tool-calls';
 
 export interface ChatMessage {
@@ -148,16 +148,54 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setIsLoading(true);
       try {
         const res = await fetch(`${API_BASE}/sessions?pageSize=50`, { headers: authHeaders() });
+        const preserved = loadPreservedChatState();
         if (!res.ok) {
-          // Unauthenticated or backend offline: start with an empty workspace.
-          if (!cancelled) setConversations([]);
+          // Unauthenticated or backend offline: restore preserved conversations if available
+          if (!cancelled) {
+            if (preserved?.conversations && preserved.conversations.length > 0) {
+              setConversations(preserved.conversations);
+              if (preserved.activeConversationId) {
+                setActiveConversationId(preserved.activeConversationId);
+              }
+            } else {
+              setConversations([]);
+            }
+          }
           return;
         }
         const json = (await res.json()) as { data?: { data?: ServerSession[] } };
         const list = json.data?.data ?? [];
-        if (!cancelled) setConversations(list.map(mapServerSession));
+        const serverConvs = list.map(mapServerSession);
+
+        if (!cancelled) {
+          if (preserved?.conversations && preserved.conversations.length > 0) {
+            // Preserve guest conversations across login by merging
+            const missing = preserved.conversations.filter(
+              (pc) => !serverConvs.some((sc) => sc.id === pc.id),
+            );
+            const merged = [...missing, ...serverConvs];
+            setConversations(merged);
+            if (preserved.activeConversationId) {
+              setActiveConversationId(preserved.activeConversationId);
+            } else if (merged[0]) {
+              setActiveConversationId(merged[0].id);
+            }
+          } else {
+            setConversations(serverConvs);
+          }
+        }
       } catch {
-        if (!cancelled) setConversations([]);
+        const preserved = loadPreservedChatState();
+        if (!cancelled) {
+          if (preserved?.conversations && preserved.conversations.length > 0) {
+            setConversations(preserved.conversations);
+            if (preserved.activeConversationId) {
+              setActiveConversationId(preserved.activeConversationId);
+            }
+          } else {
+            setConversations([]);
+          }
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -166,6 +204,17 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       cancelled = true;
     };
   }, []);
+
+  // Persist conversations locally so guest chats and work-in-progress are preserved upon login
+  useEffect(() => {
+    if (conversations.length > 0) {
+      savePreservedChatState({
+        conversations,
+        activeConversationId,
+        savedAt: new Date().toISOString(),
+      });
+    }
+  }, [conversations, activeConversationId]);
 
   const patchConversation = useCallback(
     (id: string, updater: (c: ChatConversation) => ChatConversation) => {
@@ -218,9 +267,22 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setActiveConversationId(conv.id);
       setError(null);
       return conv.id;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create conversation');
-      return null;
+    } catch {
+      // Offline or guest mode fallback: create local conversation
+      const guestId = `guest-conv-${Date.now()}`;
+      const localConv: ChatConversation = {
+        id: guestId,
+        title: 'New Chat',
+        messages: [],
+        model: currentModel,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        loaded: true,
+      };
+      setConversations((prev) => [localConv, ...prev]);
+      setActiveConversationId(localConv.id);
+      setError(null);
+      return guestId;
     }
   }, [currentModel]);
 

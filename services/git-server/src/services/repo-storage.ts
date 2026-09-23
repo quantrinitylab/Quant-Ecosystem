@@ -31,7 +31,7 @@ export class RepoStorageService {
       throw new Error('Invalid repository path: path traversal detected');
     }
 
-    return repoPath;
+    return repoPath.replace(/\\/g, '/');
   }
 
   async initBareRepo(owner: string, name: string): Promise<string> {

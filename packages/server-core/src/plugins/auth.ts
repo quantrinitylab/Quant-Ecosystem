@@ -132,6 +132,70 @@ async function authPlugin(
       }
     };
   });
+
+  fastify.decorate('optionalAuth', function () {
+    return async function (request: FastifyRequest) {
+      let token: string | undefined;
+
+      const authHeader = request.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.slice(7).trim();
+      }
+
+      if (!token) {
+        const cookies = (request as any).cookies as Record<string, string | undefined> | undefined;
+        if (
+          typeof cookies?.['quant_access_token'] === 'string' &&
+          cookies['quant_access_token'].trim()
+        ) {
+          token = cookies['quant_access_token'].trim();
+        } else if (request.headers.cookie) {
+          const match = request.headers.cookie.match(/(?:^|;\s*)quant_access_token=([^;]+)/);
+          if (match?.[1]) {
+            token = decodeURIComponent(match[1].trim());
+          }
+        }
+      }
+
+      if (!token) {
+        const query = request.query as Record<string, string | undefined> | undefined;
+        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
+          token = query['token'].trim();
+        } else if (request.url && request.url.includes('?')) {
+          const queryStart = request.url.indexOf('?');
+          const params = new URLSearchParams(request.url.slice(queryStart));
+          const qToken = params.get('token');
+          if (qToken?.trim()) token = qToken.trim();
+        }
+      }
+
+      if (!token) return;
+
+      try {
+        const issuer = [opts.jwtIssuer, 'quantmail', 'https://quantrinity.in', 'https://quant.app'];
+        const audience = [opts.jwtAudience, 'quant-ecosystem'];
+        const { payload } = await jose.jwtVerify(token, secret, {
+          issuer,
+          audience,
+        });
+
+        const authContext: AuthContext = {
+          userId: payload.sub ?? '',
+          email: (payload['email'] as string) ?? '',
+          username: (payload['username'] as string) ?? '',
+          role: (payload['role'] as string) ?? '',
+          scopes: (payload['scopes'] as PermissionScope[]) ?? [],
+          sessionId: payload.jti ?? '',
+          app: (payload['app'] as QuantApp) ?? 'quantmail',
+          tokenId: payload.jti ?? '',
+        };
+
+        request.auth = authContext;
+      } catch {
+        // Ignored for optional auth
+      }
+    };
+  });
 }
 
 declare module 'fastify' {
@@ -139,6 +203,7 @@ declare module 'fastify' {
     requireAuth: (
       options?: RequireAuthOptions,
     ) => (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    optionalAuth: () => (request: FastifyRequest) => Promise<void>;
   }
 }
 

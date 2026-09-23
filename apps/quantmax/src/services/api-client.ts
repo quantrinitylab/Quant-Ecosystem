@@ -58,7 +58,10 @@ class QuantMaxApiClient {
   ): Promise<ApiResponse<{ comments: VideoComment[]; page: number; pageSize: number }>> {
     return this.request('GET', `/videos/${videoId}/comments?page=${page}`);
   }
-  async postComment(videoId: string, body: string): Promise<ApiResponse<{ comment: VideoComment }>> {
+  async postComment(
+    videoId: string,
+    body: string,
+  ): Promise<ApiResponse<{ comment: VideoComment }>> {
     return this.request('POST', `/videos/${videoId}/comments`, { body });
   }
 

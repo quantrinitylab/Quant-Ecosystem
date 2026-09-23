@@ -52,13 +52,19 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
     });
     const json = (await res.json().catch(() => null)) as SessionResult | null;
     if (!json) {
-      return { success: false, error: { code: 'INVALID_RESPONSE', message: 'Unexpected response.' } };
+      return {
+        success: false,
+        error: { code: 'INVALID_RESPONSE', message: 'Unexpected response.' },
+      };
     }
     // NO_SESSION is a clean unauthenticated state, not a hard failure.
     if (json.data?.accessToken) setAccessToken(json.data.accessToken);
     return json;
   } catch {
-    return { success: false, error: { code: 'NETWORK', message: 'Could not reach the sign-in service.' } };
+    return {
+      success: false,
+      error: { code: 'NETWORK', message: 'Could not reach the sign-in service.' },
+    };
   }
 }
 

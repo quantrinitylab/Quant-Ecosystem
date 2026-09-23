@@ -30,11 +30,21 @@ const releaseLegalHoldSchema = z.object({
   releaseReason: z.string().trim().min(1, 'Release reason is required').max(500),
 });
 
+function getPrisma(fastify: FastifyInstance): any {
+  return (fastify as unknown as { prisma?: unknown }).prisma;
+}
+
+function getService(fastify: FastifyInstance): RetentionService {
+  const prisma = getPrisma(fastify);
+  return prisma ? new RetentionService(prisma) : retentionService;
+}
+
 export default async function retentionRoutes(fastify: FastifyInstance) {
   // GET /retention/policies - List all retention policies
   fastify.get('/policies', async (request, reply) => {
     requireUserId(request);
-    const policies = await retentionService.getPolicies();
+    const service = getService(fastify);
+    const policies = await service.getPolicies();
     return reply.send({
       success: true,
       data: policies,
@@ -53,7 +63,8 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const policy = await retentionService.createPolicy(parsed.data);
+    const service = getService(fastify);
+    const policy = await service.createPolicy(parsed.data);
     return reply.status(201).send({
       success: true,
       data: policy,
@@ -65,7 +76,8 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
     requireUserId(request);
     const query = request.query as { activeOnly?: string };
     const activeOnly = query?.activeOnly === 'true';
-    const holds = await retentionService.getLegalHolds(activeOnly);
+    const service = getService(fastify);
+    const holds = await service.getLegalHolds(activeOnly);
     return reply.send({
       success: true,
       data: holds,
@@ -79,7 +91,8 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
     if (!email) {
       throw createAppError('Missing email query parameter', 400, 'MISSING_EMAIL');
     }
-    const isHeld = await retentionService.isUnderLegalHold(email);
+    const service = getService(fastify);
+    const isHeld = await service.isUnderLegalHold(email);
     return reply.send({
       success: true,
       data: { email, isHeld },
@@ -98,7 +111,8 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const hold = await retentionService.placeLegalHold({
+    const service = getService(fastify);
+    const hold = await service.placeLegalHold({
       custodianEmail: parsed.data.custodianEmail,
       matterName: parsed.data.matterName,
       reason: parsed.data.reason,
@@ -119,11 +133,8 @@ export default async function retentionRoutes(fastify: FastifyInstance) {
       ? parsed.data.releaseReason
       : 'Legal hold released by administrator';
 
-    const released = await retentionService.releaseLegalHold(
-      request.params.id,
-      releaseReason,
-      callerId,
-    );
+    const service = getService(fastify);
+    const released = await service.releaseLegalHold(request.params.id, releaseReason, callerId);
 
     return reply.send({
       success: true,

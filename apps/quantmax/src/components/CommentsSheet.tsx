@@ -117,7 +117,10 @@ export function CommentsSheet({ videoId, onClose, onCountChange }: CommentsSheet
         )}
         {comments.map((c) => (
           <div key={c.id} className="flex gap-3">
-            <div className="h-8 w-8 flex-none rounded-full bg-[var(--quant-muted)]" aria-hidden="true" />
+            <div
+              className="h-8 w-8 flex-none rounded-full bg-[var(--quant-muted)]"
+              aria-hidden="true"
+            />
             <div className="min-w-0">
               <div className="flex items-baseline gap-2">
                 <span className="truncate text-[13px] font-semibold text-[var(--quant-foreground)]">

@@ -42,7 +42,10 @@ describe('proxyToBackend cookie plumbing', () => {
 
   it('relays the backend Set-Cookie back to the client', async () => {
     const setCookie = 'quantmail_refresh=new-token; HttpOnly; Path=/auth; SameSite=Lax';
-    vi.stubGlobal('fetch', vi.fn(async () => jsonBackendResponse(setCookie)));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonBackendResponse(setCookie)),
+    );
 
     const req = new NextRequest('http://localhost/api/auth/login', {
       method: 'POST',
@@ -60,7 +63,10 @@ describe('proxyToBackend cookie plumbing', () => {
   });
 
   it('does not set a cookie header when the backend sends none', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => jsonBackendResponse()));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonBackendResponse()),
+    );
     const req = new NextRequest('http://localhost/api/auth/userinfo', { method: 'GET' });
     const res = await proxyToBackend(req, { backendUrl: 'http://backend:3010', path: '/auth/me' });
     expect(res.headers.get('set-cookie')).toBeNull();

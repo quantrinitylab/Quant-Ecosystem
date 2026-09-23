@@ -60,27 +60,27 @@ export default function App({ Component, pageProps }: AppProps) {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-        <ThemeProvider>
-          <CommandPaletteProvider appName="QuantTube">
-            <QuantSidekickProvider>
-              <QuantTubeCommandRegistrar />
-              <AuthGuard>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={Component.displayName || Component.name || 'page'}
-                    variants={variants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                  >
-                    <Component {...pageProps} />
-                  </motion.div>
-                </AnimatePresence>
-              </AuthGuard>
-              <QuantSidekick />
-            </QuantSidekickProvider>
-          </CommandPaletteProvider>
-        </ThemeProvider>
+          <ThemeProvider>
+            <CommandPaletteProvider appName="QuantTube">
+              <QuantSidekickProvider>
+                <QuantTubeCommandRegistrar />
+                <AuthGuard>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={Component.displayName || Component.name || 'page'}
+                      variants={variants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                    >
+                      <Component {...pageProps} />
+                    </motion.div>
+                  </AnimatePresence>
+                </AuthGuard>
+                <QuantSidekick />
+              </QuantSidekickProvider>
+            </CommandPaletteProvider>
+          </ThemeProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

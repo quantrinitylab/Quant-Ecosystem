@@ -17,6 +17,7 @@ import { formatEmailRecord } from '../lib/format-email';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
 import { retentionService } from './retention';
+import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
@@ -1159,16 +1160,21 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
       throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
     }
 
-    // Legal hold enforcement (Task X07)
+    // Legal hold enforcement (Task X07 & W33-03)
+    const retention = (prisma as any)?.legalHold ? new RetentionService(prisma) : retentionService;
     const sender = email.fromAddress;
     const toList = Array.isArray(email.toAddresses) ? (email.toAddresses as string[]) : [];
     const participants = [sender, ...toList].filter(Boolean);
     for (const address of participants) {
-      if (await retentionService.isUnderLegalHold(address)) {
+      if (await retention.isUnderLegalHold(address)) {
+        request.log.warn(
+          { emailId: request.params.id, custodian: address, userId },
+          'Email deletion blocked: custodian is subject to an active legal hold',
+        );
         throw createAppError(
           `Cannot delete email: participant ${address} is subject to an active legal hold`,
           423,
-          'LEGAL_HOLD_ACTIVE',
+          'LOCKED_LEGAL_HOLD',
         );
       }
     }

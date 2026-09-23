@@ -48,30 +48,32 @@ export default function App({ Component, pageProps }: AppProps) {
     <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
-        <ThemeProvider>
-          <CommandPaletteProvider appName="QuantMax">
-            <QuantSidekickProvider>
-              <QuantMaxCommandRegistrar />
-              <AuthGuard>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={router.pathname}
-                    initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                    transition={
-                      prefersReducedMotion ? { duration: 0 } : { type: 'spring', ...spring.gentle }
-                    }
-                    className="min-h-screen"
-                  >
-                    <Component {...pageProps} />
-                  </motion.div>
-                </AnimatePresence>
-              </AuthGuard>
-              <QuantSidekick />
-            </QuantSidekickProvider>
-          </CommandPaletteProvider>
-        </ThemeProvider>
+          <ThemeProvider>
+            <CommandPaletteProvider appName="QuantMax">
+              <QuantSidekickProvider>
+                <QuantMaxCommandRegistrar />
+                <AuthGuard>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={router.pathname}
+                      initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                      transition={
+                        prefersReducedMotion
+                          ? { duration: 0 }
+                          : { type: 'spring', ...spring.gentle }
+                      }
+                      className="min-h-screen"
+                    >
+                      <Component {...pageProps} />
+                    </motion.div>
+                  </AnimatePresence>
+                </AuthGuard>
+                <QuantSidekick />
+              </QuantSidekickProvider>
+            </CommandPaletteProvider>
+          </ThemeProvider>
         </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>

@@ -2525,7 +2525,14 @@ export default async function reposRoutes(fastify: FastifyInstance) {
       }
     }
     if (!commitSha) {
-      commitSha = '317ed52d';
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'COMMIT_SHA_UNAVAILABLE',
+          message: `Cannot trigger CI run: branch '${targetBranch}' has no commit head and no commitSha was provided`,
+          statusCode: 400,
+        },
+      });
     }
 
     let triggeredByName = userId;
@@ -2548,20 +2555,21 @@ export default async function reposRoutes(fastify: FastifyInstance) {
         repoId: repo.id,
         branch: targetBranch,
         commitSha,
-        status: 'RUNNING',
+        status: 'PENDING',
         triggeredBy: triggeredByName,
         jobs: {
           create: [
             {
               name: 'Validate immutable main release',
-              status: 'SUCCESS',
-              startedAt: new Date(),
-              completedAt: new Date(),
+              status: 'QUEUED',
+              startedAt: null,
+              completedAt: null,
             },
             {
               name: 'Build and deploy quantmail',
-              status: 'RUNNING',
-              startedAt: new Date(),
+              status: 'QUEUED',
+              startedAt: null,
+              completedAt: null,
             },
           ],
         },
@@ -2959,7 +2967,23 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     const tags = memoryTagsStore.get(repo.id) ?? [];
     if (!tags.some((t) => t.name === release.tagName)) {
-      const commitSha = repo.branches?.[0]?.commitSha || '317ed52d';
+      let commitSha = repo.branches?.[0]?.commitSha;
+      if (!commitSha) {
+        const repoPath = await resolveRepoPath(repo);
+        if (repoPath) {
+          commitSha = (await resolveGitRefSha(repoPath, repo.defaultBranch || 'main')) ?? undefined;
+        }
+      }
+      if (!commitSha) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'COMMIT_SHA_UNAVAILABLE',
+            message: 'Cannot create release tag: repository has no commits or branch head',
+            statusCode: 400,
+          },
+        });
+      }
       tags.push({ name: release.tagName, commitSha, createdAt: new Date() });
       memoryTagsStore.set(repo.id, tags);
     }

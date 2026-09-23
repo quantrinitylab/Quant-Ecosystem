@@ -41,7 +41,12 @@ async function main(): Promise<void> {
   await consumer.connect();
 
   const healthPort = Number(process.env['HEALTH_PORT'] ?? '3025');
-  await startHealthServer(healthPort);
+  const healthApp = await startHealthServer(healthPort, {
+    projector: async () => consumer.isReady(),
+  });
+  healthApp.get('/metrics', async (_request, reply) => {
+    return reply.status(200).send(consumer.getMetrics());
+  });
   logger.info({ streams, healthPort, projects: knownEventTypes() }, 'Signal projector started');
 
   let shuttingDown = false;

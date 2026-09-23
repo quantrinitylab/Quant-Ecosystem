@@ -50,6 +50,7 @@ export default defineConfig({
       'api-v2/**/__tests__/**/*.test.ts',
       'backend/__tests__/**/*.test.ts',
       'src/__tests__/**/*.test.ts',
+      'src/**/__tests__/**/*.{test.ts,test.tsx}',
     ],
   },
 });

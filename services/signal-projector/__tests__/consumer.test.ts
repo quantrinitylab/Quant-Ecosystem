@@ -23,9 +23,15 @@ function fields(over: Record<string, string> = {}): string[] {
 
 function redisDouble(batches: unknown[]) {
   const xack = vi.fn().mockResolvedValue(1);
+  const xautoclaim = vi.fn().mockResolvedValue(['0-0', []]);
+  const xpending = vi.fn().mockResolvedValue([]);
+  const xadd = vi.fn().mockResolvedValue('1-0');
   const queue = [...batches];
   return {
     xreadgroup: vi.fn().mockImplementation(() => Promise.resolve(queue.shift() ?? null)),
+    xautoclaim,
+    xpending,
+    xadd,
     xack,
     xgroup: vi.fn().mockResolvedValue('OK'),
     connect: vi.fn().mockResolvedValue(undefined),
@@ -119,6 +125,113 @@ describe('SignalConsumer', () => {
 
     expect(result).toEqual({ read: 1, saved: 0, skipped: 0 });
     expect(redis.xack).toHaveBeenCalled();
+  });
+
+  describe('claimPending and DLQ', () => {
+    it('claims pending unacked entries and processes them', async () => {
+      const redis = redisDouble([]);
+      redis.xautoclaim.mockResolvedValue(['0-0', [['1-0', fields()]]]);
+      redis.xpending.mockResolvedValue([['1-0', 'consumer-1', 15000, 2]]);
+      const store = storeDouble();
+
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+      const result = await consumer.claimPending('outbox.Video');
+
+      expect(result).toEqual({ claimed: 1, saved: 1, dlq: 0 });
+      expect(redis.xautoclaim).toHaveBeenCalledWith(
+        'outbox.Video',
+        'signal-projector',
+        expect.any(String),
+        10000,
+        '0-0',
+        'COUNT',
+        100,
+      );
+      expect(redis.xack).toHaveBeenCalledWith('outbox.Video', 'signal-projector', '1-0');
+      expect(consumer.getMetrics().dlqCount).toBe(0);
+    });
+
+    it('routes an entry to DLQ when delivery count exceeds maxDeliveries', async () => {
+      const redis = redisDouble([]);
+      redis.xautoclaim.mockResolvedValue(['0-0', [['1-0', fields()]]]);
+      redis.xpending.mockResolvedValue([['1-0', 'consumer-1', 50000, 6]]);
+      const store = storeDouble();
+
+      const consumer = new SignalConsumer(store, { ...OPTS, maxDeliveries: 5 }, redis as never);
+      const result = await consumer.claimPending('outbox.Video');
+
+      expect(result).toEqual({ claimed: 1, saved: 0, dlq: 1 });
+      expect(redis.xadd).toHaveBeenCalledWith(
+        'outbox.Video.DLQ',
+        '*',
+        ...fields(),
+        'dlqReason',
+        'MAX_DELIVERIES_EXCEEDED',
+        'dlqOriginalStream',
+        'outbox.Video',
+        'dlqOriginalEntryId',
+        '1-0',
+      );
+      expect(redis.xack).toHaveBeenCalledWith('outbox.Video', 'signal-projector', '1-0');
+      expect(store.save).not.toHaveBeenCalled();
+      expect(consumer.getMetrics().dlqCount).toBe(1);
+    });
+
+    it('tracks write failure metrics on save error during claim', async () => {
+      const redis = redisDouble([]);
+      redis.xautoclaim.mockResolvedValue(['0-0', [['1-0', fields()]]]);
+      redis.xpending.mockResolvedValue([['1-0', 'consumer-1', 15000, 2]]);
+      const store = storeDouble();
+      (store.save as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('db error'));
+
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+      const result = await consumer.claimPending('outbox.Video');
+
+      expect(result).toEqual({ claimed: 1, saved: 0, dlq: 0 });
+      expect(redis.xack).not.toHaveBeenCalled();
+      expect(consumer.getMetrics().writeFailures).toBe(1);
+    });
+
+    it('advances autoclaim cursor across consecutive calls (W32-11)', async () => {
+      const redis = redisDouble([]);
+      redis.xautoclaim
+        .mockResolvedValueOnce(['123-0', [['1-0', fields()]]])
+        .mockResolvedValueOnce(['0-0', []]);
+      redis.xpending.mockResolvedValue([['1-0', 'consumer-1', 15000, 1]]);
+      const store = storeDouble();
+
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+      await consumer.claimPending('outbox.Video');
+      expect(redis.xautoclaim).toHaveBeenLastCalledWith(
+        'outbox.Video',
+        'signal-projector',
+        expect.any(String),
+        10000,
+        '0-0',
+        'COUNT',
+        100,
+      );
+
+      await consumer.claimPending('outbox.Video');
+      expect(redis.xautoclaim).toHaveBeenLastCalledWith(
+        'outbox.Video',
+        'signal-projector',
+        expect.any(String),
+        10000,
+        '123-0',
+        'COUNT',
+        100,
+      );
+    });
+
+    it('evaluates isReady based on running and consecutive errors (W32-11)', () => {
+      const redis = redisDouble([]);
+      const store = storeDouble();
+      const consumer = new SignalConsumer(store, OPTS, redis as never);
+
+      expect(consumer.isReady()).toBe(false);
+      expect(consumer.getMetrics().isReady).toBe(false);
+    });
   });
 
   describe('connect', () => {

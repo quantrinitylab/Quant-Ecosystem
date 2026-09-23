@@ -17,7 +17,7 @@ export { default as metricsPlugin } from './plugins/metrics';
 export { default as requestIdPlugin } from './plugins/request-id';
 export { default as requestLoggerPlugin } from './plugins/request-logger';
 export { default as gracefulShutdownPlugin } from './plugins/graceful-shutdown';
-export type { AppConfig, AuthenticatedRequest } from './types';
+export type { AppConfig, AuthenticatedRequest, PublicPathRule, PublicPathEntry } from './types';
 export { default as observabilityPlugin } from './plugins/observability';
 export { default as errorMonitoringPlugin } from './plugins/error-monitoring';
 export type { ErrorMonitoringService } from './plugins/error-monitoring';

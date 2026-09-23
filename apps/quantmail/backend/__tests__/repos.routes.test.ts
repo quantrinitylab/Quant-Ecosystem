@@ -128,9 +128,12 @@ function fakePrisma() {
         const existed = starRows.delete(`${where.repositoryId}:${where.userId}`);
         return { count: existed ? 1 : 0 };
       }),
-      count: vi.fn().mockImplementation(async ({ where }: any) =>
-        [...starRows].filter((row) => row.startsWith(`${where.repositoryId}:`)).length,
-      ),
+      count: vi
+        .fn()
+        .mockImplementation(
+          async ({ where }: any) =>
+            [...starRows].filter((row) => row.startsWith(`${where.repositoryId}:`)).length,
+        ),
       findUnique: vi.fn().mockResolvedValue(null),
     },
     repository: {

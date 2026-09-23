@@ -147,6 +147,39 @@ export class VideoService {
     return video;
   }
 
+  async listPublicVideos(
+    options: PaginationOptions & { category?: string } = {},
+  ): Promise<PaginatedResult<Video>> {
+    const page = options.page ?? 1;
+    const pageSize = options.pageSize ?? 20;
+    const skip = (page - 1) * pageSize;
+    const where: any = { deletedAt: null, visibility: 'PUBLIC' };
+    if (options.category && options.category !== 'all' && options.category !== 'undefined') {
+      where.category = options.category;
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.video.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: [{ viewCount: 'desc' }, { createdAt: 'desc' }],
+      }),
+      this.prisma.video.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / pageSize);
+    return {
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    };
+  }
+
   async listByChannel(
     channelId: string,
     options: PaginationOptions = {},
