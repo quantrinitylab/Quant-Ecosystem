@@ -1,4 +1,11 @@
 export { createApp } from './app';
+export {
+  assertProductionSecret,
+  InsecureSecretError,
+  INSECURE_DEV_JWT_SECRET,
+  MIN_PRODUCTION_SECRET_LENGTH,
+} from './secrets';
+export type { AssertSecretOptions } from './secrets';
 export { default as errorHandlerPlugin, createAppError, isAppError } from './plugins/error-handler';
 export type { AppError } from './plugins/error-handler';
 export { default as authPlugin } from './plugins/auth';
