@@ -43,15 +43,28 @@ export class EcpmAuctionEngine {
       // GSP: Winner pays the minimum bid needed to beat the second-place AdRank
       const runnerUp = ranked[1]!;
       const winnerQuality = Math.max(0.1, Math.min(1.0, winnerItem.candidate.qualityScore / 10));
-      const minBidToBeat =
-        runnerUp.adRank / (winnerItem.candidate.predictedCtr * winnerQuality * 1000);
-      clearingPriceCents = Math.max(reservePriceCents, Math.ceil(minBidToBeat));
+      const safeCtr = Math.max(
+        0.0001,
+        Number.isFinite(winnerItem.candidate.predictedCtr)
+          ? winnerItem.candidate.predictedCtr
+          : 0.0001,
+      );
+      const minBidToBeat = runnerUp.adRank / (safeCtr * winnerQuality * 1000);
+      clearingPriceCents = Number.isFinite(minBidToBeat)
+        ? Math.max(reservePriceCents, Math.ceil(minBidToBeat))
+        : winnerItem.candidate.bidCents;
     } else {
       clearingPriceCents = reservePriceCents;
     }
 
-    // Cap clearing price to winner's maximum bid
-    clearingPriceCents = Math.min(winnerItem.candidate.bidCents, clearingPriceCents);
+    // Cap clearing price to winner's maximum bid and ensure finite positive integer
+    clearingPriceCents = Math.min(
+      winnerItem.candidate.bidCents,
+      Math.max(reservePriceCents, clearingPriceCents),
+    );
+    if (!Number.isFinite(clearingPriceCents) || clearingPriceCents <= 0) {
+      clearingPriceCents = reservePriceCents;
+    }
 
     // 70% goes directly to publisher/creator
     const creatorShareCents = Math.floor(clearingPriceCents * 0.7);

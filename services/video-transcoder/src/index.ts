@@ -3,14 +3,21 @@ import { VideoTranscoderWorker } from './worker.js';
 
 dotenv.config();
 
-const worker = new VideoTranscoderWorker();
-worker.start();
+export * from './ffmpeg.js';
+export * from './uploader.js';
+export * from './worker.js';
 
-const shutdown = async () => {
-  console.log('[VideoTranscoder] Graceful shutdown...');
-  await worker.stop();
-  process.exit(0);
-};
+// If run directly as a daemon worker process
+if (process.argv[1] && process.argv[1].endsWith('index.js')) {
+  const worker = new VideoTranscoderWorker();
+  worker.start();
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+  const shutdown = async () => {
+    console.log('[VideoTranscoder] Graceful shutdown...');
+    await worker.stop();
+    process.exit(0);
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}

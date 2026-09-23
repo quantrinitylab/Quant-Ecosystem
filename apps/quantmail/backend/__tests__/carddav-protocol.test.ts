@@ -24,16 +24,18 @@ const SAMPLE_VCARD4 =
     'END:VCARD',
   ].join('\r\n') + '\r\n';
 
-async function buildTestApp(userId: string = 'ada') {
+async function buildTestApp(userId?: string) {
   const app = fastify();
   for (const m of ['PROPFIND', 'REPORT', 'MKCALENDAR']) {
     try {
       app.addHttpMethod(m, { hasBody: true });
     } catch {}
   }
-  app.addHook('preHandler', async (req) => {
-    (req as unknown as { auth?: { userId?: string } }).auth = { userId };
-  });
+  if (userId) {
+    app.addHook('preHandler', async (req) => {
+      (req as unknown as { auth?: { userId?: string } }).auth = { userId };
+    });
+  }
   await app.register(davRoutes, { prefix: '/dav' });
   await app.ready();
   return app;
@@ -235,6 +237,27 @@ describe('Task W33-06: Fastify CardDAV RFC 6350 Route Mounting & vCard 4.0 Addre
         url: '/dav/addressbooks/ada/default/contact-123.vcf',
       });
       expect(getRes.statusCode).toBe(404);
+    });
+
+    it('7. PROPFIND /dav/addressbooks/ada without authentication returns 401 UNAUTHORIZED with WWW-Authenticate header', async () => {
+      const app = await buildTestApp(); // unauthenticated
+      const res = await app.inject({
+        method: 'PROPFIND' as any,
+        url: '/dav/addressbooks/ada',
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toContain('Basic realm="QuantMail DAV"');
+    });
+
+    it("8. Cross-user access returns 403 FORBIDDEN (ada attempting to access charles's address book)", async () => {
+      const app = await buildTestApp('ada');
+      const res = await app.inject({
+        method: 'PROPFIND' as any,
+        url: '/dav/addressbooks/charles',
+      });
+
+      expect(res.statusCode).toBe(403);
     });
   });
 });

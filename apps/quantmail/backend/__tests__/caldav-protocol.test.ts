@@ -104,16 +104,18 @@ function createMockPrisma() {
   };
 }
 
-async function buildTestApp(userId: string = 'alice') {
+async function buildTestApp(userId?: string) {
   const app = fastify();
   for (const m of ['PROPFIND', 'REPORT', 'MKCALENDAR']) {
     try {
       app.addHttpMethod(m, { hasBody: true });
     } catch {}
   }
-  app.addHook('preHandler', async (req) => {
-    (req as unknown as { auth?: { userId?: string } }).auth = { userId };
-  });
+  if (userId) {
+    app.addHook('preHandler', async (req) => {
+      (req as unknown as { auth?: { userId?: string } }).auth = { userId };
+    });
+  }
   await app.register(davRoutes, { prefix: '/dav' });
   await app.ready();
   return app;
@@ -267,5 +269,26 @@ describe('Task W33-05: Fastify CalDAV RFC 4791 Route Mounting & XML Multi-Status
       url: '/dav/calendars/alice/primary/event-123.ics',
     });
     expect(getRes.statusCode).toBe(404);
+  });
+
+  it('8. PROPFIND /dav/calendars/alice without authentication returns 401 UNAUTHORIZED with WWW-Authenticate header', async () => {
+    const app = await buildTestApp(); // unauthenticated
+    const res = await app.inject({
+      method: 'PROPFIND' as any,
+      url: '/dav/calendars/alice',
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['www-authenticate']).toContain('Basic realm="QuantMail DAV"');
+  });
+
+  it("9. Cross-user access returns 403 FORBIDDEN (alice attempting to access bob's calendar)", async () => {
+    const app = await buildTestApp('alice');
+    const res = await app.inject({
+      method: 'PROPFIND' as any,
+      url: '/dav/calendars/bob',
+    });
+
+    expect(res.statusCode).toBe(403);
   });
 });

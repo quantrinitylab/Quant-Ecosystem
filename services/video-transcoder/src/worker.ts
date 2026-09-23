@@ -1,16 +1,23 @@
+// ============================================================================
+// Multi-Bitrate HLS Transcoder Worker (Wave 37-01 & 37-02)
+// Consumes transcode-video jobs, encodes 1080p/720p/480p/360p variants via fluent-ffmpeg,
+// concurrently uploads chunks to Cloudflare R2/S3, and updates video status in PostgreSQL
+// ============================================================================
+
 import { Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
-import * as path from 'path';
-import * as fs from 'fs/promises';
-import * as os from 'os';
+import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
 import { CloudflareR2Client, createCloudflareR2Client, DEFAULT_R2_BUCKET } from '@quant/storage';
-import { VideoTranscoder } from '@quant/media';
+import { FfmpegHlsTranscoder, HlsResolution, DEFAULT_RESOLUTIONS, HLS_PROFILES } from './ffmpeg.js';
+import { HlsStorageUploader, VideoDatabaseClient } from './uploader.js';
 
 export interface TranscodeJobData {
   videoId: string;
   sourceKey: string;
-  outputPrefix: string;
-  resolutions?: Array<'360p' | '720p' | '1080p' | '4k'>;
+  outputPrefix?: string;
+  resolutions?: HlsResolution[];
   localSourcePath?: string;
 }
 
@@ -31,33 +38,38 @@ export interface TranscodeJobResult {
 
 export interface VideoTranscoderWorkerOptions {
   redisUrl?: string;
+  redisClient?: Redis;
   r2Client?: CloudflareR2Client;
   r2Bucket?: string;
   concurrency?: number;
+  prisma?: VideoDatabaseClient;
 }
-
-const BITRATE_MAP: Record<string, number> = {
-  '360p': 800000,
-  '720p': 2500000,
-  '1080p': 5000000,
-  '4k': 15000000,
-};
 
 export class VideoTranscoderWorker {
   private worker: Worker | null = null;
   private redis: Redis;
   public readonly r2Client: CloudflareR2Client;
   public readonly r2Bucket: string;
-  private readonly transcoder: VideoTranscoder;
+  public readonly transcoder: FfmpegHlsTranscoder;
+  public readonly uploader: HlsStorageUploader;
+  public readonly concurrency: number;
 
   constructor(options?: VideoTranscoderWorkerOptions | string) {
     const opts: VideoTranscoderWorkerOptions =
       typeof options === 'string' ? { redisUrl: options } : (options ?? {});
 
-    const redisUrl = opts.redisUrl || process.env.REDIS_URL || 'redis://localhost:6379';
-    this.redis = new Redis(redisUrl, {
-      maxRetriesPerRequest: null,
-    });
+    if (opts.redisClient) {
+      this.redis = opts.redisClient;
+    } else {
+      const redisUrl = opts.redisUrl || process.env.REDIS_URL || 'redis://localhost:6379';
+      this.redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        lazyConnect: true,
+        enableOfflineQueue: false,
+      });
+      // Attach no-op error handler to suppress unhandled errors in test environments
+      this.redis.on('error', () => {});
+    }
 
     this.r2Bucket = opts.r2Bucket || process.env.CLOUDFLARE_R2_BUCKET || DEFAULT_R2_BUCKET;
     this.r2Client =
@@ -66,7 +78,14 @@ export class VideoTranscoderWorker {
         bucket: this.r2Bucket,
       });
 
-    this.transcoder = new VideoTranscoder();
+    this.concurrency = opts.concurrency ?? 2;
+    this.transcoder = new FfmpegHlsTranscoder(4); // 4-second segments per Wave 37-01 spec
+    this.uploader = new HlsStorageUploader({
+      r2Client: this.r2Client,
+      bucket: this.r2Bucket,
+      concurrency: 5,
+      prisma: opts.prisma,
+    });
   }
 
   public start(): void {
@@ -77,7 +96,7 @@ export class VideoTranscoderWorker {
       },
       {
         connection: this.redis,
-        concurrency: 2,
+        concurrency: this.concurrency,
       },
     );
 
@@ -97,19 +116,21 @@ export class VideoTranscoderWorker {
   }
 
   /**
-   * Process video transcoding job and upload HLS master/variant playlists and chunks to Cloudflare R2
+   * Process video transcoding job and concurrently upload HLS master/variant playlists and chunks
    */
   public async processJob(job: Job<TranscodeJobData>): Promise<TranscodeJobResult> {
-    const { videoId, sourceKey, outputPrefix, resolutions = ['360p', '720p', '1080p'] } = job.data;
+    const { videoId, sourceKey, outputPrefix, resolutions = DEFAULT_RESOLUTIONS } = job.data;
     const cleanPrefix = (outputPrefix || `videos/${videoId}`).replace(/^\/+|\/+$/g, '');
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), `quantube-transcode-${videoId}-`));
 
     console.log(
-      `[VideoTranscoder] Processing video ${videoId} from ${sourceKey} into HLS variants [${resolutions.join(', ')}]...`,
+      `[VideoTranscoder] Transcoding video ${videoId} (source: ${sourceKey}) into variants: [${resolutions.join(', ')}]...`,
     );
 
     try {
       await job.updateProgress(10);
+      // Mark video status as PROCESSING in database
+      await this.uploader.updateVideoStatus(videoId, 'PROCESSING');
 
       // Determine or prepare input source file
       const localInputPath = path.join(tempDir, 'source-video.mp4');
@@ -117,11 +138,10 @@ export class VideoTranscoderWorker {
         try {
           await fs.copyFile(job.data.localSourcePath, localInputPath);
         } catch {
-          // If copy fails, create placeholder media container
           await fs.writeFile(localInputPath, Buffer.from('QUANTUBE_MEDIA_SOURCE'));
         }
       } else {
-        // Download source from Cloudflare R2/S3 or create working media placeholder
+        // Download source from Cloudflare R2 / S3
         try {
           const downloadStream = await this.r2Client.download(sourceKey);
           const chunks: Buffer[] = [];
@@ -131,7 +151,7 @@ export class VideoTranscoderWorker {
           await fs.writeFile(localInputPath, Buffer.concat(chunks));
         } catch (err) {
           console.warn(
-            `[VideoTranscoder] Could not fetch remote source ${sourceKey} directly, using synthetic manifest pipeline:`,
+            `[VideoTranscoder] Remote source ${sourceKey} could not be fetched directly:`,
             (err as Error).message,
           );
           await fs.writeFile(localInputPath, Buffer.from('QUANTUBE_MEDIA_CONTAINER'));
@@ -140,137 +160,67 @@ export class VideoTranscoderWorker {
 
       await job.updateProgress(30);
 
-      // Directory where HLS variants and chunks will be generated
+      // Output directory for HLS segments and playlists
       const hlsOutputDir = path.join(tempDir, 'hls');
       await fs.mkdir(hlsOutputDir, { recursive: true });
 
-      // Run transcoding or generate HLS variant files (.m3u8 master, variant playlists, and .ts chunks)
-      let transcodeSucceeded = false;
-      try {
-        await this.transcoder.transcode({
-          inputPath: localInputPath,
-          outputDir: hlsOutputDir,
-          segmentDuration: 6,
-        });
-        transcodeSucceeded = true;
-      } catch (ffmpegErr) {
-        console.warn(
-          `[VideoTranscoder] System ffmpeg transcode note (${(ffmpegErr as Error).message}). Generating direct HLS multi-bitrate structure...`,
-        );
-      }
+      // Run multi-bitrate HLS transcoding via FfmpegHlsTranscoder
+      await this.transcoder.transcode({
+        inputPath: localInputPath,
+        outputDir: hlsOutputDir,
+        resolutions,
+        segmentDuration: 4,
+        onVariantProgress: (res, percent) => {
+          const base = 30;
+          const weighted = base + Math.floor(percent * 0.3);
+          job.updateProgress(weighted).catch(() => {});
+        },
+      });
 
-      // If ffmpeg was not present in the local environment, generate the complete HLS playlist structure
-      if (!transcodeSucceeded) {
-        await this.generateHlsStructure(hlsOutputDir, resolutions);
-      }
+      await job.updateProgress(65);
 
-      await job.updateProgress(60);
-
-      // Upload all generated .m3u8 playlists and .ts video chunks directly to Cloudflare R2 bucket `quantube-media-prod`
-      console.log(
-        `[VideoTranscoder] Uploading HLS playlist manifests and .ts video chunks to Cloudflare R2 bucket: ${this.r2Bucket}...`,
-      );
-
-      const uploadedFiles = await this.r2Client.uploadHlsDirectory(
+      // Upload HLS segments and playlists concurrently to Cloudflare R2/S3
+      const uploadResult = await this.uploader.uploadHlsDirectory(
         hlsOutputDir,
         cleanPrefix,
         (uploaded, total, currentKey) => {
-          const percent = 60 + Math.floor((uploaded / Math.max(total, 1)) * 35);
-          job.updateProgress(percent).catch(() => {});
+          const progress = 65 + Math.floor((uploaded / Math.max(total, 1)) * 30);
+          job.updateProgress(progress).catch(() => {});
           console.log(`[VideoTranscoder] Uploaded [${uploaded}/${total}] -> ${currentKey}`);
         },
       );
 
-      const totalUploadedBytes = uploadedFiles.reduce((acc, f) => acc + f.bytes, 0);
+      // Atomically update PostgreSQL video status from PROCESSING to READY / COMPLETED
+      await this.uploader.updateVideoStatus(videoId, 'READY', uploadResult.masterManifestUrl);
 
       await job.updateProgress(100);
 
-      // Derive CDN streaming URLs for master manifest and variants
-      const masterManifestUrl = this.r2Client.getPublicUrl(`${cleanPrefix}/master.m3u8`);
       const variants: TranscodeVariantResult[] = resolutions.map((res) => ({
         resolution: res,
         manifestUrl: this.r2Client.getPublicUrl(`${cleanPrefix}/${res}/playlist.m3u8`),
-        bitrate: BITRATE_MAP[res] || 2500000,
+        bitrate: HLS_PROFILES[res]?.bandwidth || 2200000,
       }));
 
       console.log(
-        `[VideoTranscoder] Transcoding and R2 upload complete for video ${videoId}. Master: ${masterManifestUrl}`,
+        `[VideoTranscoder] Transcoding complete for video ${videoId}. Master playback URL: ${uploadResult.masterManifestUrl}`,
       );
 
       return {
         videoId,
-        masterManifestUrl,
+        masterManifestUrl: uploadResult.masterManifestUrl,
         variants,
         r2Bucket: this.r2Bucket,
-        totalUploadedBytes,
-        uploadedFilesCount: uploadedFiles.length,
+        totalUploadedBytes: uploadResult.totalBytes,
+        uploadedFilesCount: uploadResult.uploadedCount,
       };
     } finally {
-      // Clean up temporary local workspace
+      // Clean up temporary local directory
       try {
         await fs.rm(tempDir, { recursive: true, force: true });
       } catch {
         // Ignore cleanup failure
       }
     }
-  }
-
-  /**
-   * Helper to generate standard HLS multi-bitrate manifests and chunk segments
-   */
-  private async generateHlsStructure(
-    outputDir: string,
-    resolutions: Array<'360p' | '720p' | '1080p' | '4k'>,
-  ): Promise<void> {
-    const masterLines = ['#EXTM3U', '#EXT-X-VERSION:3'];
-
-    for (const res of resolutions) {
-      const variantDir = path.join(outputDir, res);
-      await fs.mkdir(variantDir, { recursive: true });
-
-      const bitrate = BITRATE_MAP[res] || 2500000;
-      const resolutionDimensions =
-        res === '1080p'
-          ? '1920x1080'
-          : res === '720p'
-            ? '1280x720'
-            : res === '4k'
-              ? '3840x2160'
-              : '640x360';
-
-      masterLines.push(
-        `#EXT-X-STREAM-INF:BANDWIDTH=${bitrate},RESOLUTION=${resolutionDimensions}`,
-        `${res}/playlist.m3u8`,
-      );
-
-      // Create variant playlist with initial .ts media chunks
-      const variantPlaylistLines = [
-        '#EXTM3U',
-        '#EXT-X-VERSION:3',
-        '#EXT-X-TARGETDURATION:6',
-        '#EXT-X-MEDIA-SEQUENCE:0',
-        '#EXTINF:6.000,',
-        'segment_000.ts',
-        '#EXTINF:6.000,',
-        'segment_001.ts',
-        '#EXT-X-ENDLIST',
-      ];
-
-      await fs.writeFile(
-        path.join(variantDir, 'playlist.m3u8'),
-        variantPlaylistLines.join('\n'),
-        'utf-8',
-      );
-
-      // Create video chunks with MPEG-TS sync byte headers (0x47)
-      const tsHeader = Buffer.alloc(188);
-      tsHeader[0] = 0x47; // TS Sync Byte
-      await fs.writeFile(path.join(variantDir, 'segment_000.ts'), tsHeader);
-      await fs.writeFile(path.join(variantDir, 'segment_001.ts'), tsHeader);
-    }
-
-    // Write master.m3u8
-    await fs.writeFile(path.join(outputDir, 'master.m3u8'), masterLines.join('\n'), 'utf-8');
   }
 
   public async stop(): Promise<void> {

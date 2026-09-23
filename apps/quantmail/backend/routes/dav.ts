@@ -1,4 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { createAppError } from '@quant/server-core';
+import { passwordService } from '@quant/auth';
 import {
   CalDavService,
   serializeCalDavMultiStatus,
@@ -40,24 +42,11 @@ const DAV_HEADERS = {
 };
 
 function resolveUserId(request: FastifyRequest): string {
-  const params = request.params as { userId?: string };
-  if (params?.userId) return params.userId;
-
   const auth = (request as unknown as { auth?: { userId?: string } }).auth;
-  if (auth?.userId) return auth.userId;
-
-  const header = request.headers.authorization;
-  if (header?.startsWith('Basic ')) {
-    try {
-      const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-      const [username] = decoded.split(':');
-      if (username) return username;
-    } catch {
-      // ignore
-    }
+  if (!auth?.userId) {
+    throw createAppError('Authentication required for DAV access', 401, 'UNAUTHORIZED');
   }
-
-  return 'user-primary';
+  return auth.userId;
 }
 
 function applyDavHeaders(reply: FastifyReply) {
@@ -89,10 +78,80 @@ export default async function davRoutes(fastify: FastifyInstance) {
     applyDavHeaders(reply);
   });
 
-  // OPTIONS handler
+  // OPTIONS handler — unauthenticated capability negotiation per RFC 4918
   fastify.options('/*', async (_req, reply) => {
     applyDavHeaders(reply);
     return reply.status(200).send();
+  });
+
+  // Authentication & Tenancy Guard for RFC 4791 CalDAV / RFC 6350 CardDAV
+  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (request.method === 'OPTIONS') {
+      applyDavHeaders(reply);
+      return;
+    }
+
+    const auth = (request as unknown as { auth?: { userId?: string } }).auth;
+    let authenticatedUserId = auth?.userId;
+
+    // Check HTTP Basic Auth (username:password) against Prisma user table
+    if (!authenticatedUserId) {
+      const header = request.headers.authorization;
+      if (header?.startsWith('Basic ')) {
+        try {
+          const decoded = Buffer.from(header.slice(6).trim(), 'base64').toString('utf8');
+          const sep = decoded.indexOf(':');
+          if (sep !== -1) {
+            const rawUsername = decoded.slice(0, sep).trim().toLowerCase();
+            const password = decoded.slice(sep + 1);
+            const prisma = (fastify as unknown as { prisma?: any }).prisma;
+            if (prisma?.user) {
+              const user = await prisma.user.findFirst({
+                where: {
+                  OR: [{ email: rawUsername }, { username: rawUsername }],
+                },
+              });
+              if (user && user.passwordHash) {
+                const isValid = await passwordService.verify(user.passwordHash, password);
+                if (isValid) {
+                  authenticatedUserId = user.id;
+                  (request as unknown as { auth?: { userId?: string } }).auth = { userId: user.id };
+                }
+              }
+            }
+          }
+        } catch {
+          // fall through to 401
+        }
+      }
+    }
+
+    if (!authenticatedUserId) {
+      reply.header('WWW-Authenticate', 'Basic realm="QuantMail DAV"');
+      applyDavHeaders(reply);
+      return reply.status(401).send({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required for CalDAV/CardDAV access',
+          statusCode: 401,
+        },
+      });
+    }
+
+    // Tenancy enforcement: URL userId parameter MUST match authenticated caller
+    const params = request.params as { userId?: string };
+    if (params?.userId && params.userId !== authenticatedUserId) {
+      applyDavHeaders(reply);
+      return reply.status(403).send({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Cross-user DAV access is forbidden',
+          statusCode: 403,
+        },
+      });
+    }
   });
 
   // ==========================================================================

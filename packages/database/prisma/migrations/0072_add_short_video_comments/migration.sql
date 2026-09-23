@@ -1,4 +1,4 @@
--- Migration 0071: QuantMax short-video comments (TikTok-style comment threads).
+-- Migration 0072: QuantMax short-video comments (TikTok-style comment threads).
 -- Relation-less join table matching short_video_likes (scalar userId + shortVideoId,
 -- no FK), soft-deletable, indexed for per-video chronological listing.
 

@@ -77,12 +77,10 @@ export function getConfig(): AppConfig {
     // users can sign in / sign up / run OAuth without a token. `/oauth/authorize`
     // stays protected (it needs a logged-in user for the consent screen).
     //
-    // These are matched by PREFIX (`packages/server-core/src/app.ts`), so an entry
-    // here exempts every path beneath it. Nothing may be mounted under one of
-    // these unless it is meant to be public: `/webhook/inbound/sync-all` used to
-    // exist and inherited this exemption, which is how replaying the entire
-    // inbound S3 bucket into every user's mailbox became an unauthenticated POST.
-    // It now lives at `/admin/inbound/sync-all`, outside the prefix.
+    // Matches via `matchesPublicPath()` in `packages/server-core/src/app.ts`.
+    // Entries are exact by default, wildcards require explicit `/*`, and rules can
+    // be scoped by HTTP methods. Never add unbounded blanket wildcards for data routes.
+    // Endpoints under these paths must be intentionally public.
     publicPaths: [
       '/auth/login',
       '/auth/register',
@@ -140,10 +138,14 @@ export function getConfig(): AppConfig {
       '/health',
       '/api/health',
       // RFC 4791 CalDAV & RFC 6350 CardDAV protocol sync endpoints
-      '/dav',
-      '/dav/*',
-      '/.well-known/caldav',
-      '/.well-known/carddav',
+      // Discovery endpoints (.well-known) are public per RFC 6764.
+      // For /dav, only OPTIONS is public for RFC 4918 capability advertisement.
+      // All CalDAV / CardDAV operations (PROPFIND, REPORT, GET, PUT, DELETE)
+      // require authentication via Basic auth or Bearer token inside davRoutes.
+      { path: '/dav', methods: ['OPTIONS'], exact: false },
+      { path: '/dav/*', methods: ['OPTIONS'], exact: false },
+      { path: '/.well-known/caldav', methods: ['GET', 'PROPFIND'], exact: true },
+      { path: '/.well-known/carddav', methods: ['GET', 'PROPFIND'], exact: true },
     ],
     env,
   };
