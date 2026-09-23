@@ -13,9 +13,24 @@ name: smoke-live
 #      shipped for weeks while returning 200 to every monitor.
 #   2. `/login` exists, where the app is login-gated.
 #   3. An authenticated API route answers 401 rather than 404 or 5xx.
+#   4. `/api/healthz` returns `status: ok`, for the hosts whose nginx ingress
+#      rewrites `/api(/|$)(.*)` onto a Fastify backend. Note the `z`: those
+#      backends serve `/healthz`, `/livez`, `/readyz` and never `/health`, so
+#      probing `/api/health` on them returns the backend's own 404 and tells you
+#      nothing. That single character is why three healthy backends were first
+#      recorded as "no evidence".
+#   5. The route table inside the *served* build manifest contains a route that
+#      exists in this commit. A deployed Next.js bundle publishes the pages it
+#      was built with, so this is the cheapest honest drift detector there is:
+#      when `/login` is in the repo but missing from the manifest the host is
+#      serving, the artifact is stale and no amount of code review will fix it.
 #
-# Hosts in `mode: down` are recorded, never asserted: they are the ledger of
-# what is still not live. Flip one to `mode: live` in the PR that ships it.
+# Hosts in `mode: down` have their frontend recorded, not asserted, with one
+# exception: `backend_healthz` is asserted in every mode, because a live backend
+# under a dead frontend is a deploy problem and losing the backend as well
+# should not be silent. Drift is only a warning while a host is down — it is
+# stale by definition there — and becomes a hard failure the moment the host is
+# flipped to `mode: live`, which is the commit that should also make it true.
 
 on:
   workflow_dispatch:
@@ -38,6 +53,7 @@ jobs:
             mode: live
             authed_path: /api/emails
             login_required: 'true'
+            backend_healthz: 'true'
           - host: quantchat.quantrinity.in
             mode: live
             authed_path: /api/conversations
@@ -48,12 +64,21 @@ jobs:
             login_required: 'false'
           - host: quanttrinity.quantrinity.in
             mode: down
+          # Backend live and healthy, frontend serving a pre-/login artifact.
+          # Flip to `mode: live` in the PR that redeploys it.
+          # No `expect_build_route`: quantads is App Router, which does not
+          # publish a `_buildManifest.js` route table to compare against.
           - host: quantads.quantrinity.in
             mode: down
+            backend_healthz: 'true'
           - host: quantube.quantrinity.in
             mode: down
+            backend_healthz: 'true'
+            expect_build_route: /login
           - host: quantmax.quantrinity.in
             mode: down
+            backend_healthz: 'true'
+            expect_build_route: /login
           - host: quantsync.quantrinity.in
             mode: down
           - host: quantneon.quantrinity.in
@@ -68,6 +93,8 @@ jobs:
           MODE: ${{ matrix.mode }}
           AUTHED_PATH: ${{ matrix.authed_path }}
           LOGIN_REQUIRED: ${{ matrix.login_required }}
+          BACKEND_HEALTHZ: ${{ matrix.backend_healthz }}
+          EXPECT_BUILD_ROUTE: ${{ matrix.expect_build_route }}
           MIN_RENDERED_CHARS: '150'
         run: |
           set -uo pipefail
@@ -83,8 +110,30 @@ jobs:
 
           home_code="$(probe /)"
           static_chars="$(strip_markup < /tmp/body)"
+          cp /tmp/body /tmp/home.html
           login_code="$(probe /login)"
           health_code="$(probe /api/health)"
+
+          healthz_code='skipped'
+          healthz_ok='skipped'
+          if [ "${BACKEND_HEALTHZ:-}" = 'true' ]; then
+            healthz_code="$(probe /api/healthz)"
+            healthz_ok='no'
+            grep -q '"status":"ok"' /tmp/body && healthz_ok='yes'
+          fi
+
+          # The served build manifest is the deployed artifact's own route table.
+          build_id="$(grep -o '/_next/static/[A-Za-z0-9_-]\{8,\}/_buildManifest\.js' /tmp/home.html | head -1)"
+          build_route='skipped'
+          if [ -n "${EXPECT_BUILD_ROUTE:-}" ]; then
+            build_route='no-manifest'
+            if [ -n "$build_id" ]; then
+              if curl -sf --max-time 30 "https://$HOST$build_id" -o /tmp/manifest.js; then
+                build_route='missing'
+                grep -q "\"$EXPECT_BUILD_ROUTE\"" /tmp/manifest.js && build_route='present'
+              fi
+            fi
+          fi
 
           rendered_chars='no-browser'
           if [ -n "$browser" ]; then
@@ -106,12 +155,32 @@ jobs:
             echo "| characters after render | $rendered_chars |"
             echo "| \`GET /login\` | $login_code |"
             echo "| \`GET /api/health\` | $health_code (informational) |"
+            echo "| \`GET /api/healthz\` | $healthz_code, status ok: $healthz_ok |"
             echo "| \`GET ${AUTHED_PATH:-n/a}\` | $authed_code |"
+            echo "| served route \`${EXPECT_BUILD_ROUTE:-n/a}\` | $build_route |"
           } >> "$GITHUB_STEP_SUMMARY"
 
+          # Asserted in every mode: a healthy backend behind a dead frontend is a
+          # deploy problem, and it should not become an outage without anyone noticing.
+          if [ "${BACKEND_HEALTHZ:-}" = 'true' ]; then
+            if [ "$healthz_code" != '200' ] || [ "$healthz_ok" != 'yes' ]; then
+              echo "FAIL: /api/healthz returned $healthz_code (status ok: $healthz_ok)"
+              fail=1
+            fi
+          fi
+
+          if [ "$build_route" = 'missing' ]; then
+            if [ "$MODE" = 'live' ]; then
+              echo "FAIL: this commit has $EXPECT_BUILD_ROUTE but the served build manifest does not — stale artifact"
+              fail=1
+            else
+              echo "WARNING: $HOST is serving an artifact without $EXPECT_BUILD_ROUTE — stale, as expected while down."
+            fi
+          fi
+
           if [ "$MODE" != 'live' ]; then
-            echo "$HOST is tracked as not-live; recorded without assertions."
-            exit 0
+            echo "$HOST is tracked as not-live; frontend checks recorded without assertions."
+            exit "$fail"
           fi
 
           [ "$home_code" = '200' ] || { echo "FAIL: GET / returned $home_code"; fail=1; }
