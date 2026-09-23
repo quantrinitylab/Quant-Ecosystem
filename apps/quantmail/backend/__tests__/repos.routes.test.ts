@@ -114,7 +114,28 @@ const MOCK_BRANCH_PROTECTION = {
 };
 
 function fakePrisma() {
+  // Behavioural star store: the routes must derive the count from these rows,
+  // so the fake keeps real set semantics instead of returning canned numbers.
+  const starRows = new Set<string>();
   return {
+    repositoryStar: {
+      upsert: vi.fn().mockImplementation(async ({ where }: any) => {
+        const { repositoryId, userId } = where.repositoryId_userId;
+        starRows.add(`${repositoryId}:${userId}`);
+        return { id: `star-${starRows.size}`, repositoryId, userId, createdAt: new Date() };
+      }),
+      deleteMany: vi.fn().mockImplementation(async ({ where }: any) => {
+        const existed = starRows.delete(`${where.repositoryId}:${where.userId}`);
+        return { count: existed ? 1 : 0 };
+      }),
+      count: vi
+        .fn()
+        .mockImplementation(
+          async ({ where }: any) =>
+            [...starRows].filter((row) => row.startsWith(`${where.repositoryId}:`)).length,
+        ),
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
     repository: {
       count: vi.fn().mockResolvedValue(1),
       findMany: vi.fn().mockResolvedValue([MOCK_REPO]),
@@ -807,20 +828,24 @@ describe('QuantGit Database-Backed Repos Routes', () => {
     expect(prisma.pullRequest.create).toHaveBeenCalled();
   });
 
-  it('POST /repos/:id/star increments starCount in database and returns updated total', async () => {
+  it('POST /repos/:id/star is idempotent and derives the count from the star table', async () => {
     const app = await buildApp();
-    const res = await app.inject({
-      method: 'POST',
-      url: '/repos/repo-1/star',
-    });
-    expect(res.statusCode).toBe(200);
-    const body = res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.stars).toBe(43);
-    expect(prisma.repository.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { starCount: { increment: 1 } },
-      }),
+
+    const first = await app.inject({ method: 'POST', url: '/repos/repo-1/star' });
+    expect(first.statusCode).toBe(200);
+    expect(first.json().success).toBe(true);
+    expect(first.json().data).toEqual(
+      expect.objectContaining({ id: 'repo-1', stars: 1, starred: true }),
+    );
+
+    // Replaying the request must not inflate the counter.
+    const second = await app.inject({ method: 'POST', url: '/repos/repo-1/star' });
+    expect(second.statusCode).toBe(200);
+    expect(second.json().data.stars).toBe(1);
+
+    expect(prisma.repositoryStar.upsert).toHaveBeenCalledTimes(2);
+    expect(prisma.repository.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: { starCount: 1 } }),
     );
   });
 
@@ -1792,18 +1817,10 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(issue.assignee).toBeNull();
     });
 
-    it('V24: DELETE /repos/:id/star decrements starCount and clamps at 0', async () => {
+    it('V24: DELETE /repos/:id/star removes only the caller row and cannot go negative', async () => {
       const app = await buildApp('user-1');
 
-      // 1. Normal decrement: 42 -> 41
-      prisma.repository.findUnique.mockResolvedValueOnce({
-        ...MOCK_REPO,
-        starCount: 42,
-      } as never);
-      prisma.repository.update.mockResolvedValueOnce({
-        ...MOCK_REPO,
-        starCount: 41,
-      } as never);
+      await app.inject({ method: 'POST', url: '/repos/repo-1/star' });
 
       const unstarRes = await app.inject({
         method: 'DELETE',
@@ -1814,36 +1831,21 @@ describe('QuantGit Database-Backed Repos Routes', () => {
       expect(unstarRes.json()).toEqual(
         expect.objectContaining({
           success: true,
-          data: expect.objectContaining({ id: 'repo-1', stars: 41 }),
-        }),
-      );
-      expect(prisma.repository.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { starCount: 41 },
+          data: expect.objectContaining({ id: 'repo-1', stars: 0, starred: false }),
         }),
       );
 
-      // 2. Clamped at 0: 0 -> 0
-      prisma.repository.findUnique.mockResolvedValueOnce({
-        ...MOCK_REPO,
-        starCount: 0,
-      } as never);
-      prisma.repository.update.mockResolvedValueOnce({
-        ...MOCK_REPO,
-        starCount: 0,
-      } as never);
-
-      const clampRes = await app.inject({
+      // Unstarring what the caller never starred is a no-op, not a decrement of
+      // somebody else's star.
+      const repeatRes = await app.inject({
         method: 'DELETE',
         url: '/repos/repo-1/star',
       });
 
-      expect(clampRes.statusCode).toBe(200);
-      expect(clampRes.json().data.stars).toBe(0);
-      expect(prisma.repository.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { starCount: 0 },
-        }),
+      expect(repeatRes.statusCode).toBe(200);
+      expect(repeatRes.json().data.stars).toBe(0);
+      expect(prisma.repository.update).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: { starCount: 0 } }),
       );
     });
   });

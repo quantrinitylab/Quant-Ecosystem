@@ -1,0 +1,95 @@
+diff --git a/.github/workflows/deploy-staging.yml b/.github/workflows/deploy-staging.yml
+index e129f20..ba6818b 100644
+--- a/.github/workflows/deploy-staging.yml
++++ b/.github/workflows/deploy-staging.yml
+@@ -166,6 +166,7 @@ jobs:
+           TARGET: ${{ inputs.target }}
+         run: |
+           set -euo pipefail
++          needs_owner_secret=false
+           case "$TARGET" in
+             quantmail)
+               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
+@@ -256,7 +257,7 @@ jobs:
+             quanttrinity)
+               repository=quant-quanttrinity; dockerfile=apps/quanttrinity/Dockerfile
+               deployment=quant-quanttrinity; container=quant-quanttrinity
+-              needs_cloudflare=false ;;
++              needs_cloudflare=false; needs_owner_secret=true ;;
+             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
+           esac
+           test -f "$dockerfile"
+@@ -266,6 +267,7 @@ jobs:
+             echo "deployment=$deployment"
+             echo "container=$container"
+             echo "needs_cloudflare=$needs_cloudflare"
++            echo "needs_owner_secret=$needs_owner_secret"
+             echo "registry=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+           } >> "$GITHUB_OUTPUT"
+ 
+@@ -340,6 +342,8 @@ jobs:
+           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+           IMMUTABLE_IMAGE: ${{ steps.image.outputs.uri }}
+           NEEDS_CLOUDFLARE: ${{ steps.target.outputs.needs_cloudflare }}
++          NEEDS_OWNER_SECRET: ${{ steps.target.outputs.needs_owner_secret }}
++          OWNER_SECRET: ${{ secrets.OWNER_SECRET }}
+           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+         run: |
+@@ -418,6 +422,56 @@ jobs:
+             trap - EXIT
+           fi
+ 
++          # ── QuantTrinity owner-tier gate ───────────────────────────────────
++          #
++          # The owner middleware fails closed: with no OWNER_SECRET it answers
++          # 503 to every `/api/*` path except `/api/health`. That is the correct
++          # behaviour and it is also invisible — the console renders, the health
++          # probe passes, and every owner action fails. Production ran in
++          # exactly that state. Deploying the console without the secret is
++          # therefore a failure, not a warning.
++          #
++          # Same shape as the Cloudflare token above: a Secret key bound with
++          # `--from=secret`, never a literal in the pod template.
++          if [ "${NEEDS_OWNER_SECRET:-false}" = 'true' ]; then
++            test -n "${OWNER_SECRET:-}" || {
++              echo 'OWNER_SECRET is not configured for this repository. QuantTrinity would deploy with its entire owner API returning 503.' >&2
++              exit 1
++            }
++            umask 077
++            owner_work="$(mktemp -d)"
++            trap 'rm -rf "$owner_work"' EXIT
++            printf '%s' "$OWNER_SECRET" > "$owner_work/OWNER_SECRET"
++            kubectl create secret generic quant-staging-secrets \
++              -n "$K8S_NAMESPACE" \
++              --from-file="$owner_work/OWNER_SECRET" \
++              --dry-run=client -o yaml > "$owner_work/patch.yaml"
++
++            # Merge patch, never `apply`: bootstrap-aws.yml owns DATABASE_URL,
++            # JWT_SECRET and AI_API_KEY in this same Secret.
++            kubectl create secret generic quant-staging-secrets \
++              -n "$K8S_NAMESPACE" >/dev/null 2>&1 || true
++            kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
++              --type=merge --patch-file "$owner_work/patch.yaml"
++
++            kubectl set env "deployment/$DEPLOYMENT" \
++              -c "$CONTAINER" OWNER_SECRET- -n "$K8S_NAMESPACE"
++            kubectl set env "deployment/$DEPLOYMENT" \
++              -c "$CONTAINER" \
++              --from=secret/quant-staging-secrets \
++              --keys=OWNER_SECRET \
++              -n "$K8S_NAMESPACE"
++
++            leaked_owner="$(kubectl get "deployment/$DEPLOYMENT" -n "$K8S_NAMESPACE" \
++              -o "jsonpath={.spec.template.spec.containers[?(@.name=='$CONTAINER')].env[?(@.name=='OWNER_SECRET')].value}")"
++            test -z "$leaked_owner" || {
++              echo 'OWNER_SECRET is still a literal in the pod template.' >&2
++              exit 1
++            }
++            rm -rf "$owner_work"
++            trap - EXIT
++          fi
++
+           kubectl set image "deployment/$DEPLOYMENT" \
+             "$CONTAINER=$IMMUTABLE_IMAGE" -n "$K8S_NAMESPACE"
+ 

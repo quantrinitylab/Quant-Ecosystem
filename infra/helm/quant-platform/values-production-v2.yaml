@@ -66,6 +66,9 @@ secrets:
     refreshInterval: 1h
   keys:
     - JWT_SECRET
+    # QuantTrinity's owner-tier API gate. Its middleware fails closed with 503
+    # when this is missing, so the console renders and every call fails.
+    - OWNER_SECRET
     - DATABASE_URL
     - REDIS_URL
     - AI_API_KEY

@@ -11,6 +11,8 @@ import { VideoService, VideoNotFoundError, VideoValidationError } from '../servi
 //   GET  /videos/user/:userId -> a creator's videos (paginated, excludes deleted)
 //   GET  /videos/:id        -> a video (counts a view)
 //   POST /videos/:id/like   -> toggle the caller's like
+//   GET  /videos/:id/comments -> list a video's comments (paginated, newest-first)
+//   POST /videos/:id/comments -> post a comment (keeps commentCount in sync)
 //   DELETE /videos/:id      -> soft-delete the caller's own video
 // ============================================================================
 
@@ -37,6 +39,10 @@ const createSchema = z.object({
 const feedSchema = z.object({
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(50).optional(),
+});
+
+const commentSchema = z.object({
+  body: z.string().min(1).max(1000),
 });
 
 export default async function videosRoutes(fastify: FastifyInstance) {
@@ -89,6 +95,36 @@ export default async function videosRoutes(fastify: FastifyInstance) {
       return reply.send({ success: true, data: result });
     } catch (err) {
       if (err instanceof VideoNotFoundError) throw createAppError(err.message, 404, 'NOT_FOUND');
+      throw err;
+    }
+  });
+
+  fastify.get<{ Params: { id: string }; Querystring: unknown }>(
+    '/:id/comments',
+    async (request, reply) => {
+      getUserId(request);
+      const parsed = feedSchema.safeParse(request.query);
+      if (!parsed.success) throw parsed.error;
+      const result = await getService(fastify).listComments(request.params.id, parsed.data);
+      return reply.send({ success: true, data: result });
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>('/:id/comments', async (request, reply) => {
+    const userId = getUserId(request);
+    const parsed = commentSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    try {
+      const comment = await getService(fastify).addComment(
+        userId,
+        request.params.id,
+        parsed.data.body,
+      );
+      return reply.status(201).send({ success: true, data: { comment } });
+    } catch (err) {
+      if (err instanceof VideoNotFoundError) throw createAppError(err.message, 404, 'NOT_FOUND');
+      if (err instanceof VideoValidationError)
+        throw createAppError(err.message, 422, 'VALIDATION_ERROR');
       throw err;
     }
   });

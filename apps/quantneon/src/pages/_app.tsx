@@ -11,6 +11,8 @@ import {
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
 import { QueryProvider } from '../providers/query-provider';
+import { AuthProvider } from '../providers/auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { VoiceCommandHost } from '../components/VoiceCommandHost';
 import { registerQuantneonVoice } from '../voice-registration';
@@ -48,18 +50,22 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <ErrorBoundary>
       <QueryProvider>
-        <MotionProvider>
-          <CommandPaletteProvider appName="QuantNeon">
-            <QuantSidekickProvider>
-              <QuantNeonCommandRegistrar />
-              <VoiceCommandHost appId="quantneon" userId="guest" />
-              <AnimatePresence mode="wait">
-                <Component key={router.asPath} {...pageProps} />
-              </AnimatePresence>
-              <QuantSidekick />
-            </QuantSidekickProvider>
-          </CommandPaletteProvider>
-        </MotionProvider>
+        <AuthProvider>
+          <MotionProvider>
+            <CommandPaletteProvider appName="QuantNeon">
+              <QuantSidekickProvider>
+                <QuantNeonCommandRegistrar />
+                <VoiceCommandHost appId="quantneon" userId="guest" />
+                <AuthGuard>
+                  <AnimatePresence mode="wait">
+                    <Component key={router.asPath} {...pageProps} />
+                  </AnimatePresence>
+                </AuthGuard>
+                <QuantSidekick />
+              </QuantSidekickProvider>
+            </CommandPaletteProvider>
+          </MotionProvider>
+        </AuthProvider>
       </QueryProvider>
     </ErrorBoundary>
   );

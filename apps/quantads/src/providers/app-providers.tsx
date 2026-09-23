@@ -8,6 +8,7 @@ import {
   QuantSidekick,
 } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
+import { AuthGuard } from '../components/AuthGuard';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-campaign', label: 'New Campaign', shortcut: 'N', action: () => {} },
@@ -34,7 +35,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider defaultTheme="system">
       <QuantSidekickProvider>
-        {children}
+        <AuthGuard>{children}</AuthGuard>
         <CommandPaletteUI
           isOpen={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}

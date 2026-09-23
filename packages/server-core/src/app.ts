@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import type { AppConfig, PublicPathEntry } from './types';
+import { assertProductionSecret } from './secrets';
 import errorHandler from './plugins/error-handler';
 import healthPlugin from './plugins/health';
 import authPlugin from './plugins/auth';
@@ -22,13 +23,14 @@ import teamsPlugin from './plugins/teams';
 import rateLimitPlugin from '@fastify/rate-limit';
 
 export async function createApp(config: AppConfig) {
-  // Production security validation
+  // Production security validation. The length check this replaced passed any
+  // 32-character string, so a longer placeholder would have booted; the value
+  // itself is now checked against the placeholders committed to this repo.
   if (config.env === 'production') {
-    if (!config.jwtSecret || config.jwtSecret.length < 32) {
-      throw new Error(
-        '[FATAL] jwtSecret must be at least 32 characters in production. Set a strong secret.',
-      );
-    }
+    assertProductionSecret(config.jwtSecret, {
+      name: 'JWT_SECRET',
+      provisionedBy: 'External Secrets (AWS Secrets Manager key quant/jwt)',
+    });
   }
 
   const fastify = Fastify({

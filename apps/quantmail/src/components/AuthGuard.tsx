@@ -5,17 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/quantgit'];
+/** Exact signed-out product surface. Keep this short and auditable. */
+const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/quantgit'];
 
-/**
- * Internal design labs under `/lab/…` render without a session. They read no
- * user data — a lab page is a shader and a row of sliders — and the thing that
- * actually keeps them off the live deployment is the server: those routes are
- * `force-dynamic` and call `notFound()` unless `QUANT_ENABLE_LABS` is set, so
- * this clause is unreachable in production. Kept separate from `PUBLIC_PATHS`
- * because that list is the product's sign-in surface and should stay a short,
- * exact-match, auditable set of three.
- */
 function isInternalLabPath(pathname: string): boolean {
   return pathname === '/lab' || pathname.startsWith('/lab/');
 }

@@ -31,6 +31,12 @@ export async function proxyToBackend(
   const auth = request.headers.get('Authorization');
   if (auth) headers['Authorization'] = auth;
 
+  // Forward the inbound Cookie so cookie-based auth works across the seam: the
+  // backend's /auth/refresh reads the HttpOnly refresh cookie, and logout reads
+  // it to revoke. Without this the refresh credential never reaches the backend.
+  const cookie = request.headers.get('cookie');
+  if (cookie) headers['cookie'] = cookie;
+
   // Propagate a correlation id across the seam (frontend -> proxy -> route ->
   // engine) so observability / error-monitoring can stitch a request together.
   // Reuse the inbound id when present; otherwise mint one at the proxy hop.
@@ -64,7 +70,21 @@ export async function proxyToBackend(
     }
 
     const data = await res.json();
-    return NextResponse.json(data, { status: res.status });
+    const response = NextResponse.json(data, { status: res.status });
+
+    // Relay the backend's Set-Cookie(s) to the browser so login/refresh can
+    // set and rotate the HttpOnly refresh cookie through the proxy. getSetCookie()
+    // preserves multiple cookies individually (a combined get('set-cookie') would
+    // fold them into one invalid header).
+    const withCookies = res.headers as Headers & { getSetCookie?: () => string[] };
+    const setCookies = withCookies.getSetCookie?.() ?? [];
+    if (setCookies.length > 0) {
+      for (const c of setCookies) response.headers.append('set-cookie', c);
+    } else {
+      const single = res.headers.get('set-cookie');
+      if (single) response.headers.set('set-cookie', single);
+    }
+    return response;
   } catch (error) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {

@@ -1,0 +1,75 @@
+name: ops-inspect-live
+
+# Read-only inventory of what is actually running in the staging cluster that
+# serves the public hosts. Prints deployments, their images, services, ingress
+# host -> service mappings, and the NAMES (never the values) of the environment
+# variables each container receives.
+#
+# Exists because repo manifests and live topology have drifted: the ingress
+# routes quanttrinity.quantrinity.in at the `admin` service while the
+# `quanttrinity` deploy target patches a different deployment, and the `admin`
+# build target still points at apps/admin, which no longer exists. Fixing that
+# safely needs the cluster's own answer, not a guess.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EKS_CLUSTER: ${{ vars.EKS_CLUSTER }}
+      K8S_NAMESPACE: ${{ vars.K8S_NAMESPACE }}
+    steps:
+      - name: Configure short-lived AWS credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: gha-inspect-${{ github.run_id }}
+
+      - name: Inventory namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+
+          {
+            echo '## Deployments'
+            echo ''
+            echo '| Deployment | Ready | Container | Image |'
+            echo '| --- | --- | --- | --- |'
+            kubectl get deploy -n "$K8S_NAMESPACE" -o json \
+              | jq -r '.items[] | . as $d | $d.spec.template.spec.containers[]
+                       | "| \($d.metadata.name) | \($d.status.readyReplicas // 0)/\($d.status.replicas // 0) | \(.name) | \(.image) |"'
+
+            echo ''
+            echo '## Services'
+            echo ''
+            echo '| Service | Type | Ports | Selector |'
+            echo '| --- | --- | --- | --- |'
+            kubectl get svc -n "$K8S_NAMESPACE" -o json \
+              | jq -r '.items[] | "| \(.metadata.name) | \(.spec.type) | \([.spec.ports[]? | "\(.port)->\(.targetPort)"] | join(", ")) | \(.spec.selector // {} | to_entries | map("\(.key)=\(.value)") | join(",")) |"'
+
+            echo ''
+            echo '## Ingress host -> service'
+            echo ''
+            echo '| Host | Path | Service | Port |'
+            echo '| --- | --- | --- | --- |'
+            kubectl get ingress -n "$K8S_NAMESPACE" -o json \
+              | jq -r '.items[].spec.rules[]? | .host as $h | .http.paths[]?
+                       | "| \($h) | \(.path) | \(.backend.service.name) | \(.backend.service.port.number // .backend.service.port.name) |"'
+
+            echo ''
+            echo '## Environment variable names per container (names only)'
+            echo ''
+            kubectl get deploy -n "$K8S_NAMESPACE" -o json \
+              | jq -r '.items[] | . as $d | $d.spec.template.spec.containers[]
+                       | "- **\($d.metadata.name)/\(.name)**: env=[\([.env[]?.name] | join(", "))] envFrom=[\([.envFrom[]? | (.secretRef.name // .configMapRef.name)] | join(", "))]"'
+          } >> "$GITHUB_STEP_SUMMARY"

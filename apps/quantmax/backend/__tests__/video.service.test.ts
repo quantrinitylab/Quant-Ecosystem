@@ -5,6 +5,7 @@ import type { PrismaClient } from '../types';
 function mockPrisma() {
   const videos = new Map<string, Record<string, any>>();
   const likes = new Map<string, { userId: string; shortVideoId: string }>();
+  const comments = new Map<string, Record<string, any>>();
   let seq = 0;
   const prisma = {
     shortVideo: {
@@ -51,6 +52,25 @@ function mockPrisma() {
           [...likes.values()].filter((l) => l.shortVideoId === where.shortVideoId).length,
       ),
     },
+    shortVideoComment: {
+      create: vi.fn(async ({ data }: { data: Record<string, any> }) => {
+        const id = `c${++seq}`;
+        const row = { id, deletedAt: null, createdAt: new Date(Date.now() + seq), ...data };
+        comments.set(id, row);
+        return row;
+      }),
+      findMany: vi.fn(async ({ where }: { where: { shortVideoId: string } }) =>
+        [...comments.values()]
+          .filter((c) => !c.deletedAt && c.shortVideoId === where.shortVideoId)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()),
+      ),
+      count: vi.fn(
+        async ({ where }: { where: { shortVideoId: string } }) =>
+          [...comments.values()].filter(
+            (c) => !c.deletedAt && c.shortVideoId === where.shortVideoId,
+          ).length,
+      ),
+    },
     datingProfile: {} as never,
     userRelationship: {} as never,
     swipe: {} as never,
@@ -58,7 +78,7 @@ function mockPrisma() {
     $queryRaw: vi.fn(),
     $queryRawUnsafe: vi.fn(),
   } as unknown as PrismaClient;
-  return { prisma, videos, likes };
+  return { prisma, videos, likes, comments };
 }
 
 describe('VideoService', () => {
@@ -226,6 +246,50 @@ describe('VideoService', () => {
         statusCode: 404,
         code: 'NOT_FOUND',
       });
+    });
+  });
+
+  describe('comments', () => {
+    it('adds a comment and keeps commentCount in sync', async () => {
+      const { prisma, videos } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'author', videoUrl: 'https://x' });
+
+      const c = await svc.addComment('viewer', v.id, '  first!  ');
+      expect(c.body).toBe('first!');
+      expect(c.userId).toBe('viewer');
+      expect(c.shortVideoId).toBe(v.id);
+      expect(videos.get(v.id)?.commentCount).toBe(1);
+
+      await svc.addComment('viewer2', v.id, 'nice');
+      expect(videos.get(v.id)?.commentCount).toBe(2);
+    });
+
+    it('lists comments newest-first', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'author', videoUrl: 'https://x' });
+      await svc.addComment('u', v.id, 'older');
+      await svc.addComment('u', v.id, 'newer');
+
+      const page = await svc.listComments(v.id);
+      expect(page.comments.map((c) => c.body)).toEqual(['newer', 'older']);
+      expect(page.page).toBe(1);
+    });
+
+    it('rejects an empty or over-long comment', async () => {
+      const { prisma } = mockPrisma();
+      const svc = new VideoService(prisma);
+      const v = await svc.createVideo({ userId: 'author', videoUrl: 'https://x' });
+      await expect(svc.addComment('u', v.id, '   ')).rejects.toBeInstanceOf(VideoValidationError);
+      await expect(svc.addComment('u', v.id, 'x'.repeat(1001))).rejects.toBeInstanceOf(
+        VideoValidationError,
+      );
+    });
+
+    it('throws commenting on an unknown video', async () => {
+      const svc = new VideoService(mockPrisma().prisma);
+      await expect(svc.addComment('u', 'missing', 'hi')).rejects.toBeInstanceOf(VideoNotFoundError);
     });
   });
 });

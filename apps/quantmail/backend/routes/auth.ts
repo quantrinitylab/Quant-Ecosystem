@@ -40,17 +40,28 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
 
       // A password alone is not a session for an account with a second factor.
-      // Both halves are required: the flag on its own is the state the old
-      // format-only /auth/2fa/enable left accounts in, and honouring it would
-      // demand a code that nothing can verify.
+      // The flag and secret must agree. Silently treating a half-enabled row as
+      // one-factor authentication turns data corruption into a 2FA bypass; fail
+      // closed and send the account through recovery instead.
       const protectedUser = user as unknown as {
         twoFactorEnabled?: boolean | null;
         twoFactorSecret?: string | null;
       };
-      if (protectedUser.twoFactorEnabled && protectedUser.twoFactorSecret) {
+      const twoFactorEnabled = protectedUser.twoFactorEnabled === true;
+      const hasTwoFactorSecret = Boolean(protectedUser.twoFactorSecret?.trim());
+      if (twoFactorEnabled !== hasTwoFactorSecret) {
+        return fail(
+          reply,
+          409,
+          'TWO_FACTOR_STATE_INVALID',
+          'This account security state needs recovery before sign-in.',
+        );
+      }
+      if (twoFactorEnabled && protectedUser.twoFactorSecret) {
         const { challenge, expiresIn } = await signTwoFactorChallenge(user.id);
-        // No tokens and no refresh cookie yet. The challenge names the user and
-        // nothing else, so replaying it still costs an authenticator code.
+        // No tokens and no refresh cookie yet. The challenge proves only that
+        // the password was accepted; a fresh authenticator/recovery code is
+        // still required on every successful completion.
         return reply.send({
           success: true,
           data: { twoFactorRequired: true, challenge, expiresIn },

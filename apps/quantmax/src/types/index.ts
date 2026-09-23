@@ -7,7 +7,14 @@ export type FeedType = 'for-you' | 'following' | 'trending' | 'nearby';
 export type MatchAction = 'like' | 'pass' | 'superlike' | 'boost';
 export type VerificationStatus = 'unverified' | 'pending' | 'verified' | 'rejected';
 export type ChatType = 'text' | 'video' | 'voice' | 'icebreaker';
-export type ReportReason = 'spam' | 'inappropriate' | 'harassment' | 'catfish' | 'underage' | 'violence' | 'other';
+export type ReportReason =
+  | 'spam'
+  | 'inappropriate'
+  | 'harassment'
+  | 'catfish'
+  | 'underage'
+  | 'violence'
+  | 'other';
 export type VideoChatStatus = 'searching' | 'connecting' | 'connected' | 'ended' | 'skipped';
 export type Gender = 'male' | 'female' | 'non-binary' | 'other' | 'prefer-not-to-say';
 export type RelationshipGoal = 'casual' | 'serious' | 'friendship' | 'networking' | 'open';
@@ -34,6 +41,14 @@ export interface ShortVideo {
   parentVideoId?: string;
   createdAt: string;
   visibility: 'public' | 'friends' | 'private';
+}
+
+export interface VideoComment {
+  id: string;
+  userId: string;
+  shortVideoId: string;
+  body: string;
+  createdAt: string;
 }
 
 export interface Sound {

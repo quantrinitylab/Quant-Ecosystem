@@ -12,6 +12,7 @@ import type {
   MatchAction,
   SafetyReport,
   LiveEvent,
+  VideoComment,
 } from '../types';
 
 const API_BASE = '/api';
@@ -48,6 +49,20 @@ class QuantMaxApiClient {
   }
   async recordEngagement(videoId: string, data: any): Promise<ApiResponse<void>> {
     return this.request('POST', '/feed/engagement', { videoId, ...data });
+  }
+
+  // Comments
+  async getComments(
+    videoId: string,
+    page = 1,
+  ): Promise<ApiResponse<{ comments: VideoComment[]; page: number; pageSize: number }>> {
+    return this.request('GET', `/videos/${videoId}/comments?page=${page}`);
+  }
+  async postComment(
+    videoId: string,
+    body: string,
+  ): Promise<ApiResponse<{ comment: VideoComment }>> {
+    return this.request('POST', `/videos/${videoId}/comments`, { body });
   }
 
   // Challenges

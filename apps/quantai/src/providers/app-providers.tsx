@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { ThemeProvider, CommandPaletteUI } from '@quant/shared-ui';
 import type { CommandPaletteItem } from '@quant/shared-ui';
+import { AuthProvider } from './auth-provider';
+import { AuthGuard } from '../components/AuthGuard';
 
 const commands: CommandPaletteItem[] = [
   { id: 'new-conversation', label: 'New Conversation', shortcut: 'N', action: () => {} },
@@ -25,13 +27,15 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <ThemeProvider defaultTheme="system">
-      {children}
-      <CommandPaletteUI
-        isOpen={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-        commands={commands}
-      />
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider defaultTheme="system">
+        <AuthGuard>{children}</AuthGuard>
+        <CommandPaletteUI
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          commands={commands}
+        />
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
