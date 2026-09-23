@@ -90,6 +90,7 @@ export default function QuantGitPage() {
   const [pendingRoute, setPendingRoute] = useState<QuantGitRoute | null>(null);
   const [routeHydrated, setRouteHydrated] = useState(false);
   const [selectedOfficeAgent, setSelectedOfficeAgent] = useState<DeployedAgent | null>(null);
+  const [isCopilotDrawerOpen, setIsCopilotDrawerOpen] = useState(false);
 
   // Notion AI & Quanty Studio State
   const [activeModel, setActiveModel] = useState<AIModelId>('opus-5');
@@ -440,7 +441,7 @@ export default function QuantGitPage() {
     return subscribeToQuantGitRoute(applyLocation);
   }, []);
 
-  // Fetch real repositories from backend
+  // Fetch real repositories from backend with graceful fallback
   const fetchRepos = useCallback(async () => {
     try {
       const res = await apiFetch('/api/repos');
@@ -456,27 +457,72 @@ export default function QuantGitPage() {
               | 'public'
               | 'private',
             language: r.language || 'TypeScript',
-            stars: typeof r.stars === 'number' ? r.stars : 0,
-            forks: typeof r.forks === 'number' ? r.forks : 0,
-            watching: 1,
-            cloneUrl: `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
-            sshUrl: `git@quantmail.in:${currentUsername}/${r.name}.git`,
+            stars: typeof r.stars === 'number' ? r.stars : (r.starCount ?? 0),
+            forks: typeof r.forks === 'number' ? r.forks : (r.forkCount ?? 0),
+            watching: typeof r.watching === 'number' ? r.watching : 1,
+            cloneUrl:
+              r.cloneUrl || `https://quantmail.in/quantgit/${currentUsername}/${r.name}.git`,
+            sshUrl: r.sshUrl || `git@quantmail.in:${currentUsername}/${r.name}.git`,
             defaultBranch: r.defaultBranch || 'main',
             latestCommit: r.latestCommit || 'Initial commit',
             latestCommitSha: r.latestCommitSha || '948e3612',
             latestCommitTime: r.latestCommitTime || 'recently',
             checksStatus: 'passing',
-            license: 'MIT License',
-            website: 'https://quantmail.in',
-            topics: r.topics || ['quant', 'workspace'],
+            license: r.license || 'MIT License',
+            website: r.website || 'https://quantmail.in',
+            topics:
+              Array.isArray(r.topics) && r.topics.length > 0 ? r.topics : ['quant', 'workspace'],
+            branchCount:
+              typeof r.branchCount === 'number'
+                ? r.branchCount
+                : Array.isArray(r.branches)
+                  ? r.branches.length
+                  : 4,
+            commitCount: typeof r.commitCount === 'number' ? r.commitCount : 2118,
+            branches: Array.isArray(r.branches)
+              ? r.branches.map((b: any) => (typeof b === 'string' ? b : b.name))
+              : undefined,
           }));
           setBaseRepos(mappedRepos);
+        } else {
+          setBaseRepos(INITIAL_REPOS);
         }
+      } else {
+        setBaseRepos(INITIAL_REPOS);
       }
     } catch {
-      // Retain baseRepos fallback
+      setBaseRepos(INITIAL_REPOS);
     }
   }, [currentUsername, apiFetch]);
+
+  // Fetch real file tree from backend
+  const fetchRepoTree = useCallback(
+    async (repoIdOrName: string, branch: string) => {
+      try {
+        const res = await apiFetch(
+          `/api/repos/${encodeURIComponent(repoIdOrName)}/tree?ref=${encodeURIComponent(branch)}`,
+        );
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            const mappedFiles: FileNode[] = json.data.map((item: any) => ({
+              name: item.name || item.path?.split('/').pop() || 'file',
+              path: item.path || item.name,
+              type: item.type === 'tree' || item.type === 'dir' ? 'dir' : 'file',
+              size: item.size ? `${Math.round(item.size / 1024)} KB` : undefined,
+              lastCommit: item.lastCommit || 'Update file',
+              lastCommitDate: item.lastCommitDate || 'recently',
+            }));
+            setFiles(mappedFiles);
+            return;
+          }
+        }
+      } catch {
+        // Fallback to mock files
+      }
+    },
+    [apiFetch],
+  );
 
   useEffect(() => {
     fetchRepos();
@@ -486,10 +532,8 @@ export default function QuantGitPage() {
     if (!routeHydrated || !pendingRoute) return;
 
     if (pendingRoute.kind === 'quanty') {
-      setActiveDeckTab('quanty');
-      setSelectedRepo(null);
-      setViewingFile(null);
-      setModalState('none');
+      setActiveDeckTab('repos');
+      setIsCopilotDrawerOpen(true);
       return;
     }
 
@@ -705,12 +749,21 @@ export default function QuantGitPage() {
       fetchRepoPulls(selectedRepo.id || selectedRepo.name);
       fetchRepoBranches(selectedRepo.id || selectedRepo.name);
       fetchRepoActions(selectedRepo.id || selectedRepo.name);
+      fetchRepoTree(selectedRepo.id || selectedRepo.name, currentBranch);
       setSettingsName(selectedRepo.name);
       setSettingsDesc(selectedRepo.description || '');
       setSettingsBranch(selectedRepo.defaultBranch || 'main');
       setSettingsVisibility(selectedRepo.visibility || 'public');
     }
-  }, [selectedRepo, fetchRepoIssues, fetchRepoPulls, fetchRepoBranches, fetchRepoActions]);
+  }, [
+    selectedRepo,
+    currentBranch,
+    fetchRepoIssues,
+    fetchRepoPulls,
+    fetchRepoBranches,
+    fetchRepoActions,
+    fetchRepoTree,
+  ]);
 
   useEffect(() => {
     if (modalState !== 'issue-detail' || !selectedRepo || !selectedIssue) return;
@@ -1491,6 +1544,8 @@ export default function QuantGitPage() {
         setModalState={setModalState}
         setIsPersonalizeOpen={setIsPersonalizeOpen}
         showToast={showToast}
+        isCopilotDrawerOpen={isCopilotDrawerOpen}
+        setIsCopilotDrawerOpen={setIsCopilotDrawerOpen}
       />
 
       {/* 2. Repository Sub-Navigation Bar & 10 Tabs (When in Repo view with selected repo) */}
@@ -1613,6 +1668,7 @@ export default function QuantGitPage() {
             openRepository={openRepository}
             setSelectedRepo={setSelectedRepo}
             setModalState={setModalState}
+            showToast={showToast}
           />
         )}
 
@@ -1624,9 +1680,12 @@ export default function QuantGitPage() {
                 <CodeTab
                   selectedRepo={selectedRepo}
                   currentBranch={currentBranch}
+                  repoBranches={repoBranches}
+                  currentPath={currentPath}
                   files={files}
                   setModalState={setModalState}
                   openBlobEditor={openBlobEditor}
+                  onNavigatePath={setCurrentPath}
                   showToast={showToast}
                 />
               )}
@@ -1882,14 +1941,10 @@ export default function QuantGitPage() {
         <button
           type="button"
           onClick={() => {
-            setActiveDeckTab('quanty');
-            setSelectedRepo(null);
-            setViewingFile(null);
-            setModalState('none');
-            navigateQuantGit({ kind: 'quanty' });
+            setIsCopilotDrawerOpen((prev) => !prev);
           }}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeDeckTab === 'quanty'
+            isCopilotDrawerOpen
               ? 'bg-[#FF8C42] text-black shadow-lg'
               : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
           }`}
@@ -1945,6 +2000,103 @@ export default function QuantGitPage() {
           <span>Exit</span>
         </button>
       </nav>
+
+      {/* Floating Trigger Button for Quanty Copilot */}
+      <button
+        type="button"
+        onClick={() => setIsCopilotDrawerOpen((prev) => !prev)}
+        className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs shadow-2xl transition-all hover:scale-105 active:scale-95"
+        title="Toggle Quanty AI Copilot Drawer"
+      >
+        <span className="text-sm">✨</span>
+        <span className="font-semibold">Quanty Copilot</span>
+        {isCopilotDrawerOpen ? (
+          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full">✕</span>
+        ) : (
+          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full">AI</span>
+        )}
+      </button>
+
+      {/* Collapsible Quanty Copilot Side Drawer */}
+      {isCopilotDrawerOpen && (
+        <aside
+          aria-label="Quanty AI Copilot Drawer"
+          className="fixed top-0 right-0 bottom-[72px] z-40 w-full sm:w-[500px] lg:w-[560px] bg-[#0D1117] border-l border-[#30363D] shadow-2xl flex flex-col animate-in slide-in-from-right duration-200"
+        >
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#21262D] bg-[#161B22]">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">✨</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white text-sm">Quanty Copilot</span>
+                  <span className="px-1.5 py-0.2 rounded text-[10px] bg-[#FF8C42]/20 text-[#FF8C42] font-semibold border border-[#FF8C42]/30">
+                    Sidecar
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#7D8590]">Autonomous workspace assistant</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCopilotDrawerOpen(false)}
+              className="p-1.5 rounded-md text-[#7D8590] hover:text-white hover:bg-[#21262D] transition-colors"
+              title="Close Copilot"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            <QuantyCopilotView
+              chatMessages={chatMessages}
+              setPromptInput={setPromptInput}
+              promptInput={promptInput}
+              isChatSubmitting={isChatSubmitting}
+              chatError={chatError}
+              handleChatSubmit={handleChatSubmit}
+              expandedThoughts={expandedThoughts}
+              setExpandedThoughts={setExpandedThoughts}
+              isContextOpen={isContextOpen}
+              setIsContextOpen={setIsContextOpen}
+              activeContextSubmenu={activeContextSubmenu}
+              setActiveContextSubmenu={setActiveContextSubmenu}
+              repoFileSearch={repoFileSearch}
+              setRepoFileSearch={setRepoFileSearch}
+              attachedFiles={attachedFiles}
+              setAttachedFiles={setAttachedFiles}
+              mentionSearch={mentionSearch}
+              setMentionSearch={setMentionSearch}
+              skillsSearch={skillsSearch}
+              setSkillsSearch={setSkillsSearch}
+              activeSkills={activeSkills}
+              setActiveSkills={setActiveSkills}
+              isSettingsOpen={isSettingsOpen}
+              setIsSettingsOpen={setIsSettingsOpen}
+              activeSettingsSubmenu={activeSettingsSubmenu}
+              setActiveSettingsSubmenu={setActiveSettingsSubmenu}
+              sourcesState={sourcesState}
+              setSourcesState={setSourcesState}
+              mcpServers={mcpServers}
+              setMcpServers={setMcpServers}
+              notionMode={notionMode}
+              setNotionMode={setNotionMode}
+              activeModel={activeModel}
+              setActiveModel={setActiveModel}
+              effort={effort}
+              setEffort={setEffort}
+              enableWorkersBeta={enableWorkersBeta}
+              setEnableWorkersBeta={setEnableWorkersBeta}
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+              setIsPersonalizeOpen={setIsPersonalizeOpen}
+              baseRepos={baseRepos}
+              openRepository={openRepository}
+              fetchRepos={fetchRepos}
+              setActiveDeckTab={setActiveDeckTab}
+              showToast={showToast}
+            />
+          </div>
+        </aside>
+      )}
 
       {/* Floating Toast Notification */}
       {toastMessage && (
