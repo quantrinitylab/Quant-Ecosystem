@@ -41,6 +41,11 @@ import { driveSyncRoutes } from './routes/drive-sync';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
+import { createMemoryService } from '@quant/ai';
+import { DeliverabilityAuthService } from './services/deliverability-auth.service';
+import { InboundIngestAdapter } from './services/inbound-ingest.service';
+import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-category.service';
+import { SmartInboxService } from './services/smart-inbox.service';
 import websocketPlugin from '@fastify/websocket';
 import { setupWSConnection } from './services/yjs-server';
 import documentRoutes from './routes/documents';
@@ -147,6 +152,20 @@ export function getConfig(): AppConfig {
 export async function buildApp(config?: AppConfig) {
   const appConfig = config ?? getConfig();
   const app = await createApp(appConfig);
+
+  // One process-scoped mail-intelligence graph. PostgreSQL remains the durable
+  // cross-replica authority; wrappers are reused by correction routes and every
+  // inbound path so learned sender preferences actually affect future mail.
+  const db = (app as unknown as { prisma: ConstructorParameters<typeof InboundIngestAdapter>[0] })
+    .prisma;
+  const memoryBackend = createMemoryService({ prisma: db as never });
+  const learnedCategory = new MemoryBackedLearnedInboxCategoryStore(memoryBackend);
+  const smartInbox = new SmartInboxService();
+  const inboundIngest = new InboundIngestAdapter(db, new DeliverabilityAuthService(db), {
+    learnedCategory,
+    smartInbox,
+  });
+
   app.removeContentTypeParser('application/json');
   app.addContentTypeParser(
     'application/json',
@@ -308,7 +327,11 @@ export async function buildApp(config?: AppConfig) {
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
   await app.register(phoneRoutes);
-  await app.register(emailsRoutes, { prefix: '/emails' });
+  await app.register(emailsRoutes, {
+    prefix: '/emails',
+    learnedCategory,
+    smartInbox,
+  });
   await app.register(labelsRoutes, { prefix: '/labels' });
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });
@@ -347,7 +370,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(e2eeRoutes, { prefix: '/e2ee' });
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
-  await app.register(inboundWebhookRoutes);
+  await app.register(inboundWebhookRoutes, { inboundIngest });
   await app.register(documentRoutes, { prefix: '/documents' });
   await app.register(documentRoutes, { prefix: '/api/documents' });
   await app.register(deliverabilityRoutes, { prefix: '/deliverability' });

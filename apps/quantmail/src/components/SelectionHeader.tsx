@@ -26,6 +26,16 @@
 import { AnchoredMenu } from './AnchoredMenu';
 import { EmailSnooze } from './EmailSnooze';
 import { MailIcon } from './MailIcon';
+import type { EmailCategory } from '../types';
+
+type InboxCategory = Exclude<EmailCategory, 'spam'>;
+const INBOX_CATEGORY_COMMANDS: Array<{ value: InboxCategory; label: string }> = [
+  { value: 'primary', label: 'Primary' },
+  { value: 'social', label: 'Social' },
+  { value: 'promotions', label: 'Promotions' },
+  { value: 'updates', label: 'Updates' },
+  { value: 'forums', label: 'Forums' },
+];
 
 /**
  * 36px under a mouse, 44px under a finger — gated on the pointer, never on the
@@ -49,6 +59,8 @@ export interface SelectionHeaderProps {
   onTogglePin: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
+  /** Available for one selected conversation; teaches future sender sorting. */
+  onMoveToCategory?: (category: InboxCategory) => void;
   onArchive: () => void;
   onDelete: () => void;
   onSnooze: (until: Date) => void;
@@ -63,6 +75,7 @@ export function SelectionHeader({
   onTogglePin,
   onMarkRead,
   onMarkUnread,
+  onMoveToCategory,
   onArchive,
   onDelete,
   onSnooze,
@@ -123,7 +136,7 @@ export function SelectionHeader({
           scope="selection-more"
           // Four rows plus a divider. Only used to keep the menu on screen when the
           // trigger sits near the bottom edge, which this one never does.
-          height={220}
+          height={count === 1 && onMoveToCategory ? 460 : 220}
         >
           {(close) => {
             // "Select all" is a selection command; the rest act on what is already
@@ -196,6 +209,27 @@ export function SelectionHeader({
                     </span>
                   </button>
                 </div>
+                {count === 1 && onMoveToCategory ? (
+                  <div className="mt-1 flex flex-col gap-1 border-t border-white/[0.08] pt-1.5">
+                    <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#7E8491]">
+                      Move conversation to
+                    </p>
+                    {INBOX_CATEGORY_COMMANDS.map((command) => (
+                      <button
+                        key={command.value}
+                        type="button"
+                        role="menuitem"
+                        className="snooze-option"
+                        onClick={() => {
+                          onMoveToCategory(command.value);
+                          close();
+                        }}
+                      >
+                        {command.label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </>
             );
           }}

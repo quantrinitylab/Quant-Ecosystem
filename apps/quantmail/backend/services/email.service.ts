@@ -759,22 +759,46 @@ export class EmailService {
   }
 
   /**
-   * Reassign an owned email's inbox partition (`aiCategory`). Returns the
-   * updated row so the caller can record the sender-keyed correction into the
-   * user's learned-category memory. Ownership is enforced: a user can only
-   * recategorize their own mail.
+   * Reassign every owner-local row represented by one UI conversation. The
+   * anchor must be present in the request and every requested row must belong to
+   * the same caller; the transaction rejects the whole correction otherwise.
    */
-  async setCategory(emailId: string, userId: string, category: string): Promise<Email> {
-    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
-    if (!email) {
-      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+  async setCategory(
+    anchorEmailId: string,
+    emailIds: string[],
+    userId: string,
+    category: string,
+  ): Promise<{ updated: number; emails: Email[] }> {
+    const ids = Array.from(new Set(emailIds.filter(Boolean)));
+    if (!ids.includes(anchorEmailId) || ids.length === 0) {
+      throw createAppError('Conversation email ids are invalid', 400, 'INVALID_EMAIL_IDS');
     }
-    if (email.userId !== userId) {
-      throw createAppError('Not authorized', 403, 'FORBIDDEN');
-    }
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: { aiCategory: category } as never,
+
+    return this.prisma.$transaction(async (transaction) => {
+      const emails = await transaction.email.findMany({
+        where: { id: { in: ids }, userId, deletedAt: null },
+      });
+      if (emails.length !== ids.length) {
+        // One generic answer for absent and other-tenant rows: no id oracle.
+        throw createAppError('Email conversation not found', 404, 'EMAIL_NOT_FOUND');
+      }
+
+      const result = await transaction.email.updateMany({
+        where: { id: { in: ids }, userId, deletedAt: null },
+        data: { aiCategory: category },
+      });
+      if (result.count !== ids.length) {
+        throw createAppError(
+          'Email conversation changed while it was being categorized',
+          409,
+          'CATEGORY_CONFLICT',
+        );
+      }
+
+      return {
+        updated: result.count,
+        emails: emails.map((email) => ({ ...email, aiCategory: category })),
+      };
     });
   }
 

@@ -3,9 +3,10 @@ import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
-import { createMemoryService, createInMemoryMemoryDb } from '@quant/ai';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
-import { MemoryBackedLearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
+import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
+import { SmartInboxBackfillService } from '../services/smart-inbox-backfill.service';
+import { SmartInboxService } from '../services/smart-inbox.service';
 import { ThreadService } from '../services/thread.service';
 import { ContactService } from '../services/contact.service';
 import {
@@ -21,6 +22,13 @@ import { RetentionService } from '../services/retention.service';
 import { suppressionService } from '../services/suppression.service';
 
 const notifier = new CrossAppDispatcher('quantmail');
+
+const inboxCategorySchema = z.enum(['primary', 'social', 'promotions', 'updates', 'forums']);
+
+export interface EmailsRouteOptions {
+  learnedCategory?: LearnedInboxCategoryStore;
+  smartInbox?: SmartInboxService;
+}
 
 function getPrisma(fastify: FastifyInstance): PrismaClient {
   return (fastify as unknown as { prisma: PrismaClient }).prisma;
@@ -180,7 +188,11 @@ async function recordRecipientInteractions(params: {
   }
 }
 
-export default async function emailsRoutes(fastify: FastifyInstance) {
+export default async function emailsRoutes(
+  fastify: FastifyInstance,
+  options: EmailsRouteOptions = {},
+) {
+  const smartInbox = options.smartInbox ?? new SmartInboxService();
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
   const createSendService = (prisma: PrismaClient) => {
     outboundQueue ??= OutboundDeliveryPipeline.createQueue();
@@ -971,6 +983,27 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /emails/categories/backfill — user-scoped, bounded and idempotent.
+  fastify.post('/categories/backfill', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+
+    const parsed = z
+      .object({
+        limit: z.number().int().min(1).max(100).default(50),
+        cursor: z.string().min(1).max(200).optional(),
+      })
+      .safeParse(request.body ?? {});
+    if (!parsed.success) throw parsed.error;
+
+    const service = new SmartInboxBackfillService(
+      getPrisma(fastify),
+      smartInbox,
+      options.learnedCategory,
+    );
+    return reply.send({ success: true, data: await service.run(userId, parsed.data) });
+  });
+
   // GET /emails - List emails (requires folderId or search)
   fastify.get('/', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
@@ -1223,12 +1256,9 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
-  // PATCH /emails/:id/category — reassign an email's inbox partition and LEARN
-  // from it. Beyond fixing this one message, the correction is remembered
-  // per-user and per-sender (durable @quant/ai memory), so future inbound mail
-  // from the same sender is auto-sorted the way this user prefers — sorting that
-  // adapts to the individual, which fixed tabs cannot do. Learning is
-  // best-effort: a memory write fault never fails the recategorization itself.
+  // PATCH /emails/:id/category — atomically move every stored row behind one
+  // visible conversation, then teach the user-owned sender preference. The DB
+  // correction is authoritative; memory learning is additive and best-effort.
   fastify.patch<{ Params: { id: string } }>('/:id/category', async (request, reply) => {
     const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
     if (!userId) {
@@ -1236,29 +1266,46 @@ export default async function emailsRoutes(fastify: FastifyInstance) {
     }
 
     const parsed = z
-      .object({ category: z.enum(['primary', 'social', 'promotions', 'updates', 'forums']) })
+      .object({
+        category: inboxCategorySchema,
+        emailIds: z.array(z.string().min(1)).min(1).max(500),
+      })
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
 
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
-    const email = await service.setCategory(request.params.id, userId, parsed.data.category);
+    const result = await service.setCategory(
+      request.params.id,
+      parsed.data.emailIds,
+      userId,
+      parsed.data.category,
+    );
 
-    // Learn the correction. Keyed on the sender so it generalizes to the whole
-    // relationship, not just this one message.
-    try {
-      const memoryDb = process.env['DATABASE_URL']
-        ? ((fastify as unknown as { prisma?: unknown }).prisma ?? createInMemoryMemoryDb())
-        : createInMemoryMemoryDb();
-      const memoryBackend = createMemoryService({ prisma: memoryDb as never });
-      const learned = new MemoryBackedLearnedInboxCategoryStore(memoryBackend);
-      const sender = (email as unknown as { fromAddress?: string }).fromAddress;
-      if (sender) await learned.record(userId, sender, parsed.data.category);
-    } catch {
-      // Best-effort: the message is already recategorized; learning is additive.
-    }
+    const externalSenders = Array.from(
+      new Set(
+        result.emails
+          .filter((email) => !email.isSent && !email.isDraft)
+          .map((email) => email.fromAddress?.trim().toLowerCase())
+          .filter((sender): sender is string => Boolean(sender)),
+      ),
+    );
+    const learned = options.learnedCategory
+      ? await Promise.allSettled(
+          externalSenders.map((sender) =>
+            options.learnedCategory!.record(userId, sender, parsed.data.category),
+          ),
+        )
+      : [];
 
-    return reply.send({ success: true, data: formatEmailRecord(email) });
+    return reply.send({
+      success: true,
+      data: {
+        updated: result.updated,
+        emails: result.emails.map(formatEmailRecord),
+        learnedSenders: learned.filter((entry) => entry.status === 'fulfilled').length,
+      },
+    });
   });
 
   // POST /emails/:id/move

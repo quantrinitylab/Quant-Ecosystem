@@ -732,6 +732,19 @@ describe('groupEmailsIntoThreads', () => {
 
     expect(thread.category).toBe('primary');
   });
+
+  it('honors an explicit server correction to Primary over the sender heuristic', () => {
+    const [thread] = groupEmailsIntoThreads([
+      email({
+        subject: 'A social notification',
+        from: { email: 'notifications@facebook.com', name: 'Facebook' },
+        category: 'primary',
+        aiCategory: 'primary',
+      }),
+    ]);
+
+    expect(thread.category).toBe('primary');
+  });
 });
 
 /**
