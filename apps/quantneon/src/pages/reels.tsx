@@ -16,13 +16,8 @@ import {
 import { useReels } from '../hooks/useReels';
 import { apiClient } from '../services/api-client';
 import { classifyVerticalSwipe, isDoubleTap, type GesturePoint } from '../features/reels/gesture';
-
-interface ReelCommentItem {
-  id: string;
-  username: string;
-  userAvatar: string | null;
-  content: string;
-}
+import { ReelsCommentsSheet } from '../components/ReelsCommentsSheet';
+import type { ReelComment } from '../types';
 
 interface HeartBurst {
   id: number;
@@ -47,14 +42,15 @@ const ReelsPage: React.FC = () => {
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showSoundInfo, setShowSoundInfo] = useState(false);
   const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<ReelCommentItem[]>([]);
-  const [commentText, setCommentText] = useState('');
+  const [comments, setComments] = useState<ReelComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [heartBursts, setHeartBursts] = useState<HeartBurst[]>([]);
   const [slideDirection, setSlideDirection] = useState(1);
 
   const touchStart = useRef<GesturePoint | null>(null);
   const lastTap = useRef<GesturePoint | null>(null);
+  const commentsRequestId = useRef(0);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heartBurstTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const nextHeartBurstId = useRef(0);
@@ -71,30 +67,62 @@ const ReelsPage: React.FC = () => {
   );
 
   const loadComments = useCallback(async (reelId: string) => {
+    const requestId = ++commentsRequestId.current;
     setLoadingComments(true);
+    setCommentsError(null);
     try {
       const response = await apiClient.getReelComments(reelId);
-      if (response.success && response.data?.comments) {
-        setComments(response.data.comments as unknown as ReelCommentItem[]);
+      if (requestId !== commentsRequestId.current) return;
+      if (!response.success) throw new Error(response.error?.message || 'Failed to load comments');
+      setComments(response.data?.comments ?? []);
+    } catch (error) {
+      if (requestId === commentsRequestId.current) {
+        setCommentsError(error instanceof Error ? error.message : 'Failed to load comments');
       }
     } finally {
-      setLoadingComments(false);
+      if (requestId === commentsRequestId.current) setLoadingComments(false);
     }
   }, []);
 
   useEffect(() => {
-    if (showComments && currentReel) {
-      void loadComments(currentReel.id);
-    }
-  }, [showComments, currentReel?.id]);
+    if (!showComments || !currentReel) return;
+    void loadComments(currentReel.id);
+    return () => {
+      commentsRequestId.current += 1;
+    };
+  }, [showComments, currentReel?.id, loadComments]);
 
-  const submitComment = useCallback(async () => {
-    const text = commentText.trim();
-    if (!text || !currentReel) return;
-    await actions.comment(currentReel.id, text);
-    setCommentText('');
-    await loadComments(currentReel.id);
-  }, [commentText, currentReel, actions, loadComments]);
+  const submitComment = useCallback(
+    async (text: string, parentId?: string) => {
+      const content = text.trim();
+      if (!content || !currentReel) return;
+      const response = await apiClient.commentOnReel(currentReel.id, content, parentId);
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to post comment');
+      }
+      await loadComments(currentReel.id);
+      void actions.loadMore().catch(() => undefined);
+    },
+    [currentReel, actions, loadComments],
+  );
+
+  const likeComment = useCallback(
+    async (commentId: string) => {
+      if (!currentReel) return;
+      const response = await apiClient.likeReelComment(currentReel.id, commentId);
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to update comment like');
+      }
+      const updateLike = (items: ReelComment[]): ReelComment[] =>
+        items.map((item) =>
+          item.id === commentId
+            ? { ...item, isLiked: response.data!.liked, likeCount: response.data!.likeCount }
+            : { ...item, replies: updateLike(item.replies) },
+        );
+      setComments(updateLike);
+    },
+    [currentReel],
+  );
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     touchStart.current = null;
@@ -542,75 +570,21 @@ const ReelsPage: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        {/* Comments Sheet */}
-        <AnimatePresence>
-          {showComments && currentReel && (
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', ...spring.snappy }}
-              className="absolute bottom-0 left-0 right-0 z-50 max-h-[70vh] rounded-t-2xl bg-[#1a1a1f] p-4 flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold">Comments</h2>
-                <button
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-white/70"
-                  onClick={() => setShowComments(false)}
-                  aria-label="Close comments"
-                >
-                  &#10005;
-                </button>
-              </div>
-
-              <div
-                className="flex-1 overflow-y-auto space-y-3"
-                role="list"
-                aria-label="Reel comments"
-              >
-                {loadingComments ? (
-                  <p className="text-xs text-white/50">Loading...</p>
-                ) : comments.length === 0 ? (
-                  <p className="text-xs text-white/50">No comments yet. Be the first!</p>
-                ) : (
-                  comments.map((c) => (
-                    <div key={c.id} className="flex gap-2.5" role="listitem">
-                      <img
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-                        src={c.userAvatar ?? ''}
-                        alt={c.username}
-                      />
-                      <p className="text-sm">
-                        <strong className="mr-1">{c.username}</strong>
-                        {c.content}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 pt-3 mt-2 border-t border-white/10">
-                <input
-                  className="flex-1 text-sm bg-white/10 rounded-full px-4 py-2 placeholder-white/40 focus:outline-none"
-                  placeholder="Add a comment..."
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && void submitComment()}
-                  aria-label="Add reel comment"
-                />
-                {commentText.trim() && (
-                  <button
-                    className="text-sm font-semibold text-purple-400"
-                    onClick={() => void submitComment()}
-                  >
-                    Post
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {currentReel && (
+          <ReelsCommentsSheet
+            reelId={currentReel.id}
+            isOpen={showComments}
+            comments={comments}
+            loading={loadingComments}
+            error={commentsError}
+            onClose={() => setShowComments(false)}
+            onRetry={() => {
+              if (currentReel) void loadComments(currentReel.id);
+            }}
+            onSubmit={submitComment}
+            onLike={likeComment}
+          />
+        )}
       </div>
     </PageTransition>
   );

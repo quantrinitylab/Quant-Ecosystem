@@ -24,9 +24,13 @@ export interface ShapedReelComment {
   id: string;
   reelId: string;
   userId: string;
+  parentId: string | null;
   username: string;
   userAvatar: string | null;
   content: string;
+  likeCount: number;
+  isLiked: boolean;
+  replies: ShapedReelComment[];
   createdAt: Date;
 }
 
@@ -179,14 +183,31 @@ export class ReelService {
     });
   }
 
-  async addComment(reelId: string, userId: string, content: string): Promise<ShapedReelComment> {
+  async addComment(
+    reelId: string,
+    userId: string,
+    content: string,
+    parentId?: string,
+  ): Promise<ShapedReelComment> {
     const reel = await this.prisma.reel.findUnique({ where: { id: reelId } });
     if (!reel) {
       throw createAppError('Reel not found', 404, 'REEL_NOT_FOUND');
     }
 
+    if (parentId) {
+      const parent = await this.prisma.reelComment.findUnique({ where: { id: parentId } });
+      if (!parent || parent.reelId !== reelId) {
+        throw createAppError('Parent comment not found', 404, 'PARENT_COMMENT_NOT_FOUND');
+      }
+      if (parent.parentId) {
+        throw createAppError('Replies can only be one level deep', 400, 'REPLY_DEPTH_EXCEEDED');
+      }
+    }
+
     const comment = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.reelComment.create({ data: { reelId, userId, content } });
+      const created = await tx.reelComment.create({
+        data: { reelId, userId, content, parentId: parentId ?? null },
+      });
       await tx.reel.update({
         where: { id: reelId },
         data: { commentCount: { increment: 1 } },
@@ -199,16 +220,18 @@ export class ReelService {
       id: comment.id,
       reelId: comment.reelId,
       userId: comment.userId,
+      parentId: comment.parentId ?? null,
       username: user?.username ?? 'unknown',
       userAvatar: user?.avatarUrl ?? null,
       content: comment.content,
+      likeCount: comment.likeCount ?? 0,
+      isLiked: false,
+      replies: [],
       createdAt: comment.createdAt,
     };
   }
 
-  async getComments(reelId: string): Promise<ShapedReelComment[]> {
-    // ReelComment has no `user` relation, so usernames are resolved by a
-    // batch user lookup on the comment authors.
+  async getComments(reelId: string, viewerId?: string): Promise<ShapedReelComment[]> {
     const comments = await this.prisma.reelComment.findMany({
       where: { reelId },
       orderBy: { createdAt: 'asc' },
@@ -219,17 +242,79 @@ export class ReelService {
       const users = await this.prisma.user.findMany({ where: { id: { in: userIds } } });
       byId = new Map(users.map((u: any) => [u.id, u]));
     }
-    return comments.map((c: any) => {
+
+    const commentIds = comments.map((comment: any) => comment.id);
+    let likedIds = new Set<string>();
+    if (viewerId && commentIds.length > 0) {
+      const likes = await this.prisma.reelCommentLike.findMany({
+        where: { userId: viewerId, commentId: { in: commentIds } },
+      });
+      likedIds = new Set(likes.map((like: any) => like.commentId));
+    }
+
+    const shaped = comments.map((c: any) => {
       const u = byId.get(c.userId);
       return {
         id: c.id,
         reelId: c.reelId,
         userId: c.userId,
+        parentId: c.parentId ?? null,
         username: u?.username ?? 'unknown',
         userAvatar: u?.avatarUrl ?? null,
         content: c.content,
+        likeCount: c.likeCount ?? 0,
+        isLiked: likedIds.has(c.id),
+        replies: [] as ShapedReelComment[],
         createdAt: c.createdAt,
       };
+    });
+
+    const byCommentId = new Map(shaped.map((comment) => [comment.id, comment]));
+    const roots: ShapedReelComment[] = [];
+    for (const comment of shaped) {
+      if (comment.parentId) {
+        const parent = byCommentId.get(comment.parentId);
+        if (parent) parent.replies.push(comment);
+        else roots.push(comment);
+      } else {
+        roots.push(comment);
+      }
+    }
+    return roots;
+  }
+
+  async toggleCommentLike(
+    reelId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<{ liked: boolean; likeCount: number }> {
+    const comment = await this.prisma.reelComment.findUnique({ where: { id: commentId } });
+    if (!comment || comment.reelId !== reelId) {
+      throw createAppError('Comment not found', 404, 'COMMENT_NOT_FOUND');
+    }
+
+    const existing = await this.prisma.reelCommentLike.findUnique({
+      where: { commentId_userId: { commentId, userId } },
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      if (existing) {
+        await tx.reelCommentLike.delete({
+          where: { commentId_userId: { commentId, userId } },
+        });
+        const updated = await tx.reelComment.update({
+          where: { id: commentId },
+          data: { likeCount: { decrement: 1 } },
+        });
+        return { liked: false, likeCount: updated.likeCount };
+      }
+
+      await tx.reelCommentLike.create({ data: { commentId, userId } });
+      const updated = await tx.reelComment.update({
+        where: { id: commentId },
+        data: { likeCount: { increment: 1 } },
+      });
+      return { liked: true, likeCount: updated.likeCount };
     });
   }
 }

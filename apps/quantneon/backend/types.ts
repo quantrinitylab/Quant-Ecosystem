@@ -35,6 +35,7 @@ export interface PrismaClient {
   reel: PrismaDelegate;
   reelLike: PrismaDelegate;
   reelComment: PrismaDelegate;
+  reelCommentLike: PrismaDelegate;
   userRelationship: PrismaDelegate;
   closeFriend: PrismaDelegate;
   notification: PrismaDelegate;
