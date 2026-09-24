@@ -699,18 +699,49 @@ export default function QuantGitPage() {
     [apiFetch],
   );
 
+  const fetchRepoTree = useCallback(
+    async (repoIdOrName: string, ref = currentBranch, treePath?: string) => {
+      try {
+        const query = new URLSearchParams({
+          ref,
+          ...(treePath ? { path: treePath } : {}),
+        });
+        const res = await apiFetch(
+          `/api/repos/${encodeURIComponent(repoIdOrName)}/tree?${query.toString()}`,
+        );
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+            const mappedFiles: FileNode[] = json.data.map((entry: any) => ({
+              name: entry.name || entry.path.split('/').pop() || entry.path,
+              path: entry.path,
+              type: entry.type === 'tree' ? 'dir' : 'file',
+              size: entry.size ? `${(entry.size / 1024).toFixed(1)} KB` : undefined,
+              lastCommit: entry.sha ? entry.sha.slice(0, 7) : undefined,
+            }));
+            setFiles(mappedFiles);
+          }
+        }
+      } catch {
+        // Retain existing files fallback
+      }
+    },
+    [apiFetch, currentBranch],
+  );
+
   useEffect(() => {
     if (selectedRepo) {
       fetchRepoIssues(selectedRepo.id || selectedRepo.name);
       fetchRepoPulls(selectedRepo.id || selectedRepo.name);
       fetchRepoBranches(selectedRepo.id || selectedRepo.name);
       fetchRepoActions(selectedRepo.id || selectedRepo.name);
+      fetchRepoTree(selectedRepo.id || selectedRepo.name, selectedRepo.defaultBranch || currentBranch);
       setSettingsName(selectedRepo.name);
       setSettingsDesc(selectedRepo.description || '');
       setSettingsBranch(selectedRepo.defaultBranch || 'main');
       setSettingsVisibility(selectedRepo.visibility || 'public');
     }
-  }, [selectedRepo, fetchRepoIssues, fetchRepoPulls, fetchRepoBranches, fetchRepoActions]);
+  }, [selectedRepo, currentBranch, fetchRepoIssues, fetchRepoPulls, fetchRepoBranches, fetchRepoActions, fetchRepoTree]);
 
   useEffect(() => {
     if (modalState !== 'issue-detail' || !selectedRepo || !selectedIssue) return;

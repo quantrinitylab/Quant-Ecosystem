@@ -4,6 +4,40 @@
 
 ---
 
+## 💬 TRIPARTITE LEAD NODES & 15-SUBAGENT FLEET (MAX 5 AGENTS PER NODE)
+
+> **MANDATORY WAKEUP REFLEX**: All agents check `INTER_AGENT_CHAT.md` and `AGENT_MEMORY.md` FIRST before replying to any message. Communicate in the shared chat, sync state, and deploy up to 5 subagents per node across the single shared file set.
+
+| Node | Identity | Focus & Track | Subagents (Max 5) | Active Mission |
+| :--- | :--- | :--- | :--- | :--- |
+| **Node A** | **Antigravity IDE Orchestrator** | **Track 3**: GitHub Parity (159p) & Backend Seam Wiring | **A1** (Tree Explorer), **A2** (Copilot Fleet), **A3** (Actions Streamer), **A4** (PR 3-Way Merge), **A5** (MCP Registry) | B3 Next.js Proxy Fix, B1 GitReadService wiring, zero mock files in `quantgit/page.tsx` |
+| **Node B** | **Antigravity IDE Peer Agent** | **Track 2**: ChatGPT Agent OS (131p) & Canvas | **B1** (Dual-Mode Canvas), **B2** (Cron Tasks), **B3** (Voice Orb), **B4** (Project Context), **B5** (MCP Connectors) | Streaming AI chat, tools, project context sync, `/api/v1` unblocking |
+| **Node C** | **Antigravity Dev-Worker** | **Track 1**: Instagram Killer (98p) & Terminal QA | **C1** (Reel AI Sheet), **C2** (Profile Tabs), **C3** (Masonry Grid), **C4** (DMs Bubble), **C5** (Spatial Map) | Fastify regression tests, terminal builds, browser automation verification |
+| **Astra** | **CEO Astra (Notion AI Swarm)** | Deep Code Architecture & Gateway Sign-Off | Devs 1 to 7+ (Auth, QA, Calendar, Drive, Workspaces, Repos, AI Swarm) | Deep implementations, schema migrations, security sign-off |
+
+---
+
+## ⚡ THE 5 CROSS-CUTTING ARCHITECTURAL BLOCKERS (B1–B5 REMEDIATION TRACKER)
+
+| Blocker | Domain & Description | Remediation Target | Status |
+| :--- | :--- | :--- | :--- |
+| **B3** | **Next.js Proxy First-Match-Wins & Missing Routes** | Replace `.find()` with specificity-based `matchRoute()`, allow `/api/code/**`, `/api/v1/**`, `email-signatures/:id/default`, dual-prefix Fastify registrations. | 🟢 **COMPLETED (`[x]`)** |
+| **B1** | **GitReadService & Repo Content Wiring** | Wire `fastify.repositoryInspection` (`GitInspectAdapter`) to frontend `quantgit/page.tsx` via dynamic `fetchRepoTree` hook, accept `ref` and `branch`. | 🟢 **COMPLETED (`[x]`)** |
+| **B4** | **`User.handle` & `resolveOwner()`** | Add `User.handle` (unique, case-insensitive), backfill from email prefix, resolve `:owner` through single resolver function. | 🟡 **IN PROGRESS (`[ ]`)** |
+| **B2** | **Prisma `Commit` Model & Git Projection** | Add `Commit`, `CommitParent`, `Tag`, `Release` models to `schema.prisma` as queryable read projection. | ⚪ **QUEUED (`[ ]`)** |
+| **B5** | **Unified Storage-Path Resolver** | Align `git-server` transport and product API on canonical `REPO_ROOT` path. | ⚪ **QUEUED (`[ ]`)** |
+
+- [x] **Task B3-01**: Implement longest-prefix, specificity-sorted `matchRoute` function in `apps/quantmail/backend/lib/routes-config.ts`.
+- [x] **Task B3-02**: Wire `matchRoute` into Next.js App Router catch-all proxy in `apps/quantmail/src/app/api/[...path]/route.ts`.
+- [x] **Task B3-03**: Add QuantCode module routes (`/api/code/**`, `/code/**`) and AI V1 routes (`/api/v1/**`, `/v1/**`) to allowlist.
+- [x] **Task B3-04**: Unblock `POST /email-signatures/:id/default`, `deliverability`, `audit-logs`, `retention`, and folder/filter `PATCH` methods.
+- [x] **Task B3-05**: Register dual prefixes (`/code` and `/api/code`, `/v1` and `/api/v1`) in `code/index.ts` and `backend/app.ts`.
+- [x] **Task B1-01**: Support both `ref` and `branch` query parameters in `backend/routes/repos.ts` (`/:id/tree` and `/:id/file`).
+- [x] **Task B1-02**: Implement `fetchRepoTree` hook in `apps/quantmail/src/app/quantgit/page.tsx` to dynamically fetch and display real repository files from backend.
+- [x] **Task B3-06**: Add assertions to `backend/__tests__/route-reachability.test.ts` for `matchRoute` unblocking and Fastify dual-prefix reachability.
+
+---
+
 ## 👥 SWARM ROSTER & ASSIGNMENT MATRIX
 
 | Agent            | Domain / Title                | Core Responsibility                                | Current Primary Assignment                      |
@@ -1666,3 +1700,12 @@
 - [x] **Task P06**: Refactor `MainActivity.kt` package to `com.quant.app` with `WebSettings.MIXED_CONTENT_NEVER_ALLOW`, `allowFileAccess = false`, `allowContentAccess = false`. _(Completed in commit `5b02aafc`)_.
 - [x] **Task P07**: Implement Chrome Custom Tabs (`androidx.browser:browser:1.8.0`) for OAuth login to eliminate Google `disallowed_useragent` rejection. _(Completed in commit `5b02aafc`)_.
 - [x] **Task P08**: Build comprehensive, authentic Privacy Policy & Google Play Data Safety disclosure page (`/privacy`) and Account Deletion page (`/settings/account`). _(Completed in commit `5b02aafc`)_.
+
+### 🤖 Phase T — Tripartite Swarm Bridge & Autonomous Watchdog (2026-09-24)
+
+- **Assigned to**: Antigravity Orchestrator (Node A), Antigravity IDE Peer (Node B), Antigravity CLI (Node C)
+- [x] **Task T01**: Deep repository audit across `Quant-Ecosystem` and `Quant-Ecosystem-latest` (Git status, branches, commit SHAs, worktrees).
+- [x] **Task T02**: Empirically verify Cloud Access Matrix: GitHub (`quantrinitylab`), AWS (`178313340246` / `quant-admin`), and Cloudflare R2 / Workers AI.
+- [x] **Task T03**: Establish persistent Tripartite Swarm Bridge (`.agents/TRIPARTITE_SWARM_BRIDGE.json`) connecting Node A (Orchestrator), Node B (IDE Peer), and Node C (Dev CLI `agy.exe`).
+- [x] **Task T04**: Deploy non-stopping autonomous watchdog timer via `schedule` tool (recurring cron `*/5 * * * *`, task id `task-112`) for continuous relay and 24/7 task execution.
+

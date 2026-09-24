@@ -4,6 +4,7 @@ import { createAppError } from '@quant/server-core';
 import type { PrismaClient, Repository } from '@prisma/client';
 import { GitService } from '../services/git.service';
 import { GitInspectService, RepoStorageService } from '../services/git-transport';
+import { findRepositoryByOwnerAndName, resolveOwner } from '../services/owner-resolver.service';
 
 type RepositoryAccess = Pick<Repository, 'ownerId' | 'name' | 'visibility'>;
 
@@ -85,9 +86,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     owner: string,
     name: string,
   ): Promise<Repository> {
-    const repo = await prisma.repository.findFirst({
-      where: { ownerId: owner, name, deletedAt: null },
-    });
+    const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
     if (!repo) {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     }
@@ -101,9 +100,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     name: string,
   ): Promise<Repository> {
     const userId = getUserId(request);
-    const repo = await prisma.repository.findFirst({
-      where: { ownerId: owner, name, deletedAt: null },
-    });
+    const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
     if (!repo) {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
     }
@@ -164,9 +161,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name, deletedAt: null },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
       if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to delete this repository', 403, 'FORBIDDEN');
@@ -203,9 +198,7 @@ export default async function gitRoutes(fastify: FastifyInstance) {
       const userId = getUserId(request);
       const { owner, name } = request.params;
       const body = UpdateRepoSchema.parse(request.body);
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name, deletedAt: null },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
       if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to update this repository', 403, 'FORBIDDEN');
@@ -306,7 +299,7 @@ export async function gitPurgeRoutes(fastify: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
-      const repo = await prisma.repository.findFirst({ where: { ownerId: owner, name } });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name, { deletedAt: undefined });
       if (!repo) throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
       if (repo.ownerId !== userId) {
         throw createAppError('Not authorized to purge this repository', 403, 'FORBIDDEN');

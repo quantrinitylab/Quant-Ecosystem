@@ -12,6 +12,7 @@ import { AiReviewBotService } from '../services/ai-review-bot.service';
 import { ReviewService } from '../services/review.service';
 import { GitInspectService } from '../services/git-transport/git-inspect.service';
 import { RepoStorageService } from '../services/git-transport/repo-storage.service';
+import { findRepositoryByOwnerAndName } from '../services/owner-resolver.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -42,20 +43,21 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
   const repoStorage = new RepoStorageService();
   const aiReviewBot = new AiReviewBotService(prisma, reviewService, gitInspect, repoStorage);
 
+  async function loadRepo(owner: string, name: string) {
+    const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
+    if (!repo) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+    return repo;
+  }
+
   // POST / - create PR
   fastify.post<{ Params: { owner: string; name: string } }>(
     '/:owner/:name/pulls',
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
-
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const body = CreatePRInputSchema.parse({
         ...(request.body as Record<string, unknown>),
@@ -76,13 +78,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const query = ListPRsQuerySchema.parse(request.query);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await prService.listPRs(repo.id, {
         status: query.status,
@@ -100,13 +96,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await prService.getPR(repo.id, prNumber);
       return reply.send({ success: true, data: result });
@@ -121,13 +111,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const pr = await prService.getPR(repo.id, prNumber);
       const decision = await mergeEligibilityService.evaluateMergeEligibility(pr.id);
@@ -144,13 +128,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const body = MergePRInputSchema.parse(request.body);
       const result = await prService.mergePR(repo.id, prNumber, body);
@@ -166,13 +144,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await prService.closePR(repo.id, prNumber);
       return reply.send({ success: true, data: result });
@@ -187,13 +159,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await prService.getDiff(repo.id, prNumber);
       return reply.send({ success: true, data: result });
@@ -208,13 +174,7 @@ export default async function pullRequestRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const report = await aiReviewBot.reviewPullRequest(repo.id, prNumber, userId);
       return reply.send({ success: true, data: report });

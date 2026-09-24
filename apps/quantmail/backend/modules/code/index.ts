@@ -131,10 +131,14 @@ const quantCodeRoutes: FastifyPluginAsync = async (app) => {
  */
 export async function registerQuantCodeModule(app: FastifyInstance): Promise<void> {
   await app.register(quantCodeRoutes, { prefix: '/api/code' });
+  await app.register(quantCodeRoutes, { prefix: '/code' });
   await app.register(gitPurgeRoutes, { prefix: '/api/code/git' });
+  await app.register(gitPurgeRoutes, { prefix: '/code/git' });
   await app.register(quantCodeRoutes, { prefix: '/api/v1' });
+  await app.register(quantCodeRoutes, { prefix: '/v1' });
   // Leaf transport prefix. Never mount product/admin routes beneath this path.
   await app.register(gitTransportRoutes, { prefix: '/api/code/gitd' });
+  await app.register(gitTransportRoutes, { prefix: '/code/gitd' });
 }
 
 export default registerQuantCodeModule;

@@ -302,6 +302,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(aiChatRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });
   await app.register(aiServicesRoutes, { prefix: '/api/v1' });
+  await app.register(aiServicesRoutes, { prefix: '/v1' });
   await app.register(mailFiltersRoutes, { prefix: '/mail-filters' });
   await app.register(vacationResponderRoutes, { prefix: '/vacation-responder' });
   await app.register(emailTemplatesRoutes, { prefix: '/email-templates' });
@@ -310,6 +311,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(searchRoutes, { prefix: '/search' });
   await registerQuantCodeModule(app);
   await app.register(aiDevtoolsRoutes, { prefix: '/api/v1' });
+  await app.register(aiDevtoolsRoutes, { prefix: '/v1' });
   await app.register(attachmentRoutes, { prefix: '/attachments' });
 
   const e2eeRelay = new InMemoryE2EERelay();

@@ -116,4 +116,45 @@ describe('Phase Q: Route Reachability & Proxy Invariant Suite (Task Q07)', () =>
     // Proves that anonymous caller is NOT blocked with 401 by auth hook
     expect(res.statusCode).not.toBe(401);
   });
+
+  describe('B3 Proxy Route Matcher & QuantCode Reachability Invariants', () => {
+    it('unblocks QuantCode module routes through matchRoute', async () => {
+      const { matchRoute } = await import('../lib/routes-config');
+
+      const codeTree = matchRoute('code/git/repos/owner/repo/tree/main', 'GET');
+      expect(codeTree.matched).toBe(true);
+      expect(codeTree.allowedMethods).toContain('GET');
+
+      const apiCodeCommits = matchRoute('api/code/git/repos/owner/repo/commits', 'GET');
+      expect(apiCodeCommits.matched).toBe(true);
+      expect(apiCodeCommits.allowedMethods).toContain('GET');
+
+      const aiV1 = matchRoute('api/v1/ai/models', 'GET');
+      expect(aiV1.matched).toBe(true);
+      expect(aiV1.allowedMethods).toContain('GET');
+
+      const sigDefault = matchRoute('email-signatures/sig-123/default', 'POST');
+      expect(sigDefault.matched).toBe(true);
+      expect(sigDefault.allowedMethods).toContain('POST');
+
+      const folderPatch = matchRoute('folders/fld-1', 'PATCH');
+      expect(folderPatch.matched).toBe(true);
+      expect(folderPatch.allowedMethods).toContain('PATCH');
+    });
+
+    it('QuantCode routes are registered on Fastify under both /api/code and /code (not 404)', async () => {
+      const resCode = await app.inject({
+        method: 'GET',
+        url: '/code/git/repos',
+      });
+      // Should hit auth gate (401), not 404
+      expect(resCode.statusCode).toBe(401);
+
+      const resApiCode = await app.inject({
+        method: 'GET',
+        url: '/api/code/git/repos',
+      });
+      expect(resApiCode.statusCode).toBe(401);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { proxyToBackend } from '../_lib/proxy';
-import { ALLOWED_BACKEND_ROUTES } from '../../../../backend/lib/routes-config';
+import { ALLOWED_BACKEND_ROUTES, matchRoute } from '../../../../backend/lib/routes-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +10,10 @@ const handle = async (
 ) => {
   const { path } = await params;
   const decodedPath = path.join('/');
-  const route = ALLOWED_BACKEND_ROUTES.find(({ pattern }) => pattern.test(decodedPath));
-  if (!route) {
+  const match = matchRoute(decodedPath, request.method);
+
+  if (!match.matched) {
+    console.warn(`[API Proxy] Deny by default: no route matched for path "${decodedPath}"`);
     return NextResponse.json(
       {
         success: false,
@@ -20,7 +22,11 @@ const handle = async (
       { status: 404, headers: { 'cache-control': 'no-store' } },
     );
   }
-  if (!route.methods.includes(request.method)) {
+
+  if (!match.allowedMethods.includes(request.method)) {
+    console.warn(
+      `[API Proxy] Method ${request.method} not allowed for path "${decodedPath}". Allowed: ${match.allowedMethods.join(', ')}`,
+    );
     return NextResponse.json(
       {
         success: false,
@@ -28,7 +34,7 @@ const handle = async (
       },
       {
         status: 405,
-        headers: { 'cache-control': 'no-store', allow: route.methods.join(', ') },
+        headers: { 'cache-control': 'no-store', allow: match.allowedMethods.join(', ') },
       },
     );
   }

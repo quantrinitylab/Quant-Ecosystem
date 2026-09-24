@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
 import { PipelineService } from '../services/pipeline.service';
+import { findRepositoryByOwnerAndName } from '../services/owner-resolver.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -46,9 +47,7 @@ export default async function ciRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const query = ListRunsQuerySchema.parse(request.query);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
       if (!repo) {
         throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
@@ -77,9 +76,7 @@ export default async function ciRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const body = TriggerPipelineSchema.parse(request.body);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
       if (!repo) {
         throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');

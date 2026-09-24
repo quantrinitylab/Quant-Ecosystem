@@ -4,6 +4,21 @@ export interface RouteConfig {
 }
 
 export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
+  // ── QuantCode & Git Plane (B3 Unblock: 30 endpoints) ──────────────────────
+  {
+    pattern: /^(?:api\/)?code(?:|(?:\/[^/]+)*)$/,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  },
+  {
+    pattern: /^(?:api\/)?code\/gitd(?:|(?:\/[^/]+)*)$/,
+    methods: ['GET', 'POST'],
+  },
+  // ── AI V1 Surface (B3 Unblock: 20 endpoints) ──────────────────────────────
+  {
+    pattern: /^(?:api\/)?v1(?:|(?:\/[^/]+)*)$/,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  },
+
   {
     pattern: /^auth\/(?:password-reset(?:\/confirm)?|change-password)$/,
     methods: ['POST'],
@@ -24,13 +39,16 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },
   { pattern: /^email-signatures\/default$/, methods: ['GET'] },
   { pattern: /^email-signatures\/[^/]+$/, methods: ['PUT', 'DELETE'] },
+  // Default signature toggle for specific signature ID (B3 unblock)
+  { pattern: /^email-signatures\/[^/]+\/default$/, methods: ['POST'] },
   { pattern: /^vacation-responder$/, methods: ['GET', 'PUT'] },
   { pattern: /^vacation-responder\/(?:enable|disable)$/, methods: ['POST'] },
-  // Contact groups. `/contacts` and `/contacts/:id` have their own route files;
-  // these do not, because the pattern list is the cheaper place to add a resource
-  // and every method below has an export at the bottom of this file.
+
+  // Contacts & Contact groups
+  { pattern: /^(?:api\/)?contacts(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] },
   { pattern: /^contact-groups$/, methods: ['GET', 'POST'] },
   { pattern: /^contact-groups\/[^/]+$/, methods: ['GET', 'PUT', 'DELETE'] },
+
   { pattern: /^ai\/compose$/, methods: ['POST'] },
   { pattern: /^ai\/chat$/, methods: ['POST'] },
   { pattern: /^ai\/chat\/health$/, methods: ['GET'] },
@@ -84,7 +102,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
 
   // ── Mail filters ───────────────────────────────────────────────────────────
   // Mounted at /mail-filters, not /filters (backend/app.ts).
-  { pattern: /^mail-filters(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE'] },
+  { pattern: /^mail-filters(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
 
   // ── Operator search ────────────────────────────────────────────────────────
   // searchRoutes is registered with prefix '/search', so these are correct as
@@ -106,7 +124,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   // ── Folders (Task R11) ─────────────────────────────────────────────────────
   // foldersRoutes registered with prefix '/folders' in backend/app.ts
   { pattern: /^folders$/, methods: ['GET', 'POST'] },
-  { pattern: /^folders\/[^/]+$/, methods: ['PUT', 'DELETE'] },
+  { pattern: /^folders\/[^/]+$/, methods: ['PUT', 'DELETE', 'PATCH'] },
 
   // ── Attachments (Task R11) ─────────────────────────────────────────────────
   // attachmentRoutes registered with prefix '/attachments' in backend/app.ts
@@ -124,6 +142,71 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^threads(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^emails(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^labels(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+
+  // ── Templates, Deliverability, Audit Logs & Retention (Post-Wave 25 Unblock)
+  { pattern: /^(?:api\/)?(?:email-)?templates(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^(?:api\/)?deliverability(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^(?:api\/)?audit-logs(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE'] },
+  { pattern: /^(?:api\/)?retention(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^(?:api\/)?notifications(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
+  { pattern: /^(?:api\/)?e2ee(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST'] },
+  { pattern: /^(?:api\/)?federation(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST'] },
 ];
 
 export const SUPPORTED_PROXY_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+
+export interface RouteMatchResult {
+  matched: boolean;
+  route?: RouteConfig;
+  allowedMethods: string[];
+}
+
+/**
+ * Longest-prefix / specificity-based route matching over the allowlist table.
+ * Replaces naive ordered .find() to eliminate route shadowing and unblock nested endpoints.
+ */
+export function matchRoute(path: string, method?: string): RouteMatchResult {
+  const cleanPath = path.replace(/^\/+/, '').replace(/\/+$/, '');
+  const pathWithoutApi = cleanPath.replace(/^api\//, '');
+  const pathWithApi = `api/${pathWithoutApi}`;
+
+  const matches: { route: RouteConfig; specificity: number }[] = [];
+
+  for (const route of ALLOWED_BACKEND_ROUTES) {
+    const isMatch =
+      route.pattern.test(cleanPath) ||
+      route.pattern.test(pathWithoutApi) ||
+      route.pattern.test(pathWithApi);
+
+    if (isMatch) {
+      // Calculate specificity score: longer regex source gives higher priority
+      const specificity = route.pattern.source.length;
+      matches.push({ route, specificity });
+    }
+  }
+
+  if (matches.length === 0) {
+    return { matched: false, allowedMethods: [] };
+  }
+
+  // Sort descending by specificity
+  matches.sort((a, b) => b.specificity - a.specificity);
+
+  // Collect the union of all allowed methods across all matching candidates for this path
+  const allAllowedMethods = Array.from(
+    new Set(matches.flatMap((m) => m.route.methods)),
+  );
+
+  // If a specific HTTP method is requested, find the most specific rule that permits it
+  const exactMethodMatch = method
+    ? matches.find((m) => m.route.methods.includes(method))
+    : matches[0];
+
+  const bestRoute = exactMethodMatch ? exactMethodMatch.route : matches[0].route;
+
+  return {
+    matched: true,
+    route: bestRoute,
+    allowedMethods: allAllowedMethods,
+  };
+}

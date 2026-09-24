@@ -2306,30 +2306,32 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     });
   });
 
-  fastify.get<{ Params: { id: string }; Querystring: { ref?: string; path?: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { ref?: string; branch?: string; path?: string } }>(
     '/:id/tree',
     async (request, reply) => {
       const repo = await loadReadableRepo(request, request.params.id);
+      const targetRef = request.query.ref ?? request.query.branch ?? repo.defaultBranch ?? 'HEAD';
       const tree = await inspectionPort().listTree({
         owner: repo.ownerId,
         name: repo.name,
-        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        ref: targetRef,
         path: request.query.path,
       });
       return reply.send({ success: true, data: tree });
     },
   );
 
-  fastify.get<{ Params: { id: string }; Querystring: { path?: string; ref?: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { path?: string; ref?: string; branch?: string } }>(
     '/:id/file',
     async (request, reply) => {
       const repo = await loadReadableRepo(request, request.params.id);
       const path = request.query.path;
       if (!path) throw createAppError('File path is required', 400, 'FILE_PATH_REQUIRED');
+      const targetRef = request.query.ref ?? request.query.branch ?? repo.defaultBranch ?? 'HEAD';
       const blob = await inspectionPort().readBlob({
         owner: repo.ownerId,
         name: repo.name,
-        ref: request.query.ref ?? repo.defaultBranch ?? 'HEAD',
+        ref: targetRef,
         path,
       });
       return reply.send({ success: true, data: blob });

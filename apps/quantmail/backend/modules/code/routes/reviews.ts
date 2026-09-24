@@ -7,6 +7,7 @@ import {
   SubmitReviewInputSchema,
   AddCommentInputSchema,
 } from '../services/review.service';
+import { findRepositoryByOwnerAndName } from '../services/owner-resolver.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -45,9 +46,7 @@ export default async function reviewRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
       if (!repo) {
         throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
@@ -81,9 +80,7 @@ export default async function reviewRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
       if (!repo) {
         throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
@@ -118,9 +115,7 @@ export default async function reviewRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const prNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
+      const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
       if (!repo) {
         throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');

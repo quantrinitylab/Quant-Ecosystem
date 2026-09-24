@@ -15,6 +15,7 @@ import {
   UPLOAD_PACK_CONTENT_TYPE,
   formatSmartHttpHeader,
 } from '../services/git-transport';
+import { findRepositoryByOwnerAndName } from '../services/owner-resolver.service';
 
 type GitRouteParams = { owner: string; name: string };
 type GitInfoRefsQuery = { service?: string };
@@ -154,9 +155,7 @@ export default async function gitTransportRoutes(fastify: FastifyInstance): Prom
   fastify.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, parseBuffer);
 
   async function findRepository(owner: string, name: string): Promise<Repository> {
-    const repo = await prisma.repository.findFirst({
-      where: { ownerId: owner, name, deletedAt: null },
-    });
+    const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
 
     if (!repo) {
       throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');

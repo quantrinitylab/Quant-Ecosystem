@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import type { PrismaClient } from '@prisma/client';
 import { IssueService, CreateIssueInputSchema } from '../services/issue.service';
+import { findRepositoryByOwnerAndName } from '../services/owner-resolver.service';
 
 function getUserId(request: unknown): string {
   const req = request as { auth?: { userId?: string } };
@@ -49,20 +50,21 @@ export default async function issueRoutes(fastify: FastifyInstance) {
   }
   const issueService = new IssueService(prisma);
 
+  async function loadRepo(owner: string, name: string) {
+    const repo = await findRepositoryByOwnerAndName(prisma, owner, name);
+    if (!repo) {
+      throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
+    }
+    return repo;
+  }
+
   // POST / - create issue
   fastify.post<{ Params: { owner: string; name: string } }>(
     '/:owner/:name/issues',
     async (request, reply) => {
       const userId = getUserId(request);
       const { owner, name } = request.params;
-
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const body = CreateIssueBodySchema.parse(request.body);
       const result = await issueService.createIssue({
@@ -86,13 +88,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const query = ListIssuesQuerySchema.parse(request.query);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.listIssues(repo.id, {
         status: query.status,
@@ -111,13 +107,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const issueNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.getIssue(repo.id, issueNumber);
       return reply.send({ success: true, data: result });
@@ -133,13 +123,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const issueNumber = parseInt(request.params.number, 10);
       const body = UpdateIssueBodySchema.parse(request.body);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const issue = await prisma.issue.findUnique({
         where: { repoId_number: { repoId: repo.id, number: issueNumber } },
@@ -167,13 +151,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const issueNumber = parseInt(request.params.number, 10);
       const body = SetLabelsBodySchema.parse(request.body);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.labelIssue(repo.id, issueNumber, body.labels);
       return reply.send({ success: true, data: result });
@@ -189,13 +167,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const issueNumber = parseInt(request.params.number, 10);
       const body = SetAssigneesBodySchema.parse(request.body);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.assignIssue(repo.id, issueNumber, body.assignees);
       return reply.send({ success: true, data: result });
@@ -210,13 +182,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const issueNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.closeIssue(repo.id, issueNumber);
       return reply.send({ success: true, data: result });
@@ -231,13 +197,7 @@ export default async function issueRoutes(fastify: FastifyInstance) {
       const { owner, name } = request.params;
       const issueNumber = parseInt(request.params.number, 10);
 
-      const repo = await prisma.repository.findFirst({
-        where: { ownerId: owner, name },
-      });
-
-      if (!repo) {
-        throw createAppError('Repository not found', 404, 'REPO_NOT_FOUND');
-      }
+      const repo = await loadRepo(owner, name);
 
       const result = await issueService.reopenIssue(repo.id, issueNumber);
       return reply.send({ success: true, data: result });
