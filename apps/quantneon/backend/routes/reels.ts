@@ -14,6 +14,7 @@ const createReelSchema = z.object({
 
 const commentSchema = z.object({
   text: z.string().min(1).max(2200),
+  parentId: z.string().min(1).optional(),
 });
 
 const paginationSchema = z.object({
@@ -68,14 +69,29 @@ export default async function reelsRoutes(fastify: FastifyInstance) {
       request.params.id,
       userId,
       parsed.data.text,
+      parsed.data.parentId,
     );
     return reply.status(201).send({ success: true, data: { comment } });
   });
 
   fastify.get<{ Params: { id: string } }>('/:id/comments', async (request, reply) => {
-    const comments = await getService(fastify).getComments(request.params.id);
+    const viewerId = (request as { auth?: { userId?: string } }).auth?.userId;
+    const comments = await getService(fastify).getComments(request.params.id, viewerId);
     return reply.send({ success: true, data: { comments } });
   });
+
+  fastify.post<{ Params: { id: string; commentId: string } }>(
+    '/:id/comments/:commentId/like',
+    async (request, reply) => {
+      const userId = getUserId(request);
+      const result = await getService(fastify).toggleCommentLike(
+        request.params.id,
+        request.params.commentId,
+        userId,
+      );
+      return reply.send({ success: true, data: result });
+    },
+  );
 
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const viewerId = (request as { auth?: { userId?: string } }).auth?.userId;

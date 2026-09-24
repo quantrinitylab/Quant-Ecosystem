@@ -19,7 +19,16 @@ function createMockPrisma() {
     },
     reelComment: {
       create: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    reelCommentLike: {
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
       deleteMany: vi.fn(),
     },
     user: { findUnique: vi.fn(), findMany: vi.fn() },
@@ -188,10 +197,68 @@ describe('ReelService', () => {
 
       expect(comment.content).toBe('fire');
       expect(comment.username).toBe('bob');
+      expect(comment.parentId).toBeNull();
+      expect(comment.replies).toEqual([]);
       expect(prisma.reel.update).toHaveBeenCalledWith({
         where: { id: 'r1' },
         data: { commentCount: { increment: 1 } },
       });
+    });
+
+    it('creates a one-level reply under a comment on the same reel', async () => {
+      prisma.reel.findUnique.mockResolvedValue({ id: 'r1' });
+      prisma.reelComment.findUnique.mockResolvedValue({
+        id: 'root',
+        reelId: 'r1',
+        parentId: null,
+      });
+      prisma.reelComment.create.mockResolvedValue({
+        id: 'reply',
+        reelId: 'r1',
+        userId: 'u2',
+        parentId: 'root',
+        content: 'reply',
+        createdAt: new Date(),
+      });
+      prisma.reel.update.mockResolvedValue({ id: 'r1', commentCount: 2 });
+      prisma.user.findUnique.mockResolvedValue({ username: 'sam', avatarUrl: null });
+
+      const reply = await service.addComment('r1', 'u2', 'reply', 'root');
+
+      expect(reply.parentId).toBe('root');
+      expect(prisma.reelComment.create).toHaveBeenCalledWith({
+        data: { reelId: 'r1', userId: 'u2', content: 'reply', parentId: 'root' },
+      });
+    });
+
+    it('rejects replies to a comment from another reel', async () => {
+      prisma.reel.findUnique.mockResolvedValue({ id: 'r1' });
+      prisma.reelComment.findUnique.mockResolvedValue({
+        id: 'foreign-root',
+        reelId: 'r2',
+        parentId: null,
+      });
+
+      await expect(service.addComment('r1', 'u2', 'reply', 'foreign-root')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'PARENT_COMMENT_NOT_FOUND',
+      });
+      expect(prisma.reelComment.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects replies deeper than one level', async () => {
+      prisma.reel.findUnique.mockResolvedValue({ id: 'r1' });
+      prisma.reelComment.findUnique.mockResolvedValue({
+        id: 'reply',
+        reelId: 'r1',
+        parentId: 'root',
+      });
+
+      await expect(service.addComment('r1', 'u3', 'nested', 'reply')).rejects.toMatchObject({
+        statusCode: 400,
+        code: 'REPLY_DEPTH_EXCEEDED',
+      });
+      expect(prisma.reelComment.create).not.toHaveBeenCalled();
     });
   });
 
@@ -209,6 +276,85 @@ describe('ReelService', () => {
       const comments = await service.getComments('r1');
 
       expect(comments.map((c) => c.username)).toEqual(['one', 'two']);
+    });
+
+    it('returns replies nested under their root and viewer like state', async () => {
+      prisma.reelComment.findMany.mockResolvedValue([
+        {
+          id: 'root',
+          reelId: 'r1',
+          userId: 'u1',
+          parentId: null,
+          content: 'root',
+          likeCount: 1,
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+        },
+        {
+          id: 'reply',
+          reelId: 'r1',
+          userId: 'u2',
+          parentId: 'root',
+          content: 'reply',
+          likeCount: 3,
+          createdAt: new Date('2026-01-01T00:01:00Z'),
+        },
+      ]);
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'u1', username: 'one', avatarUrl: null },
+        { id: 'u2', username: 'two', avatarUrl: null },
+      ]);
+      prisma.reelCommentLike.findMany.mockResolvedValue([{ commentId: 'reply' }]);
+
+      const comments = await service.getComments('r1', 'viewer');
+
+      expect(comments).toHaveLength(1);
+      expect(comments[0].id).toBe('root');
+      expect(comments[0].replies).toHaveLength(1);
+      expect(comments[0].replies[0]).toMatchObject({
+        id: 'reply',
+        likeCount: 3,
+        isLiked: true,
+      });
+    });
+  });
+
+  describe('toggleCommentLike', () => {
+    it('likes a reel comment and increments the count', async () => {
+      prisma.reelComment.findUnique.mockResolvedValue({ id: 'rc1', reelId: 'r1' });
+      prisma.reelCommentLike.findUnique.mockResolvedValue(null);
+      prisma.reelCommentLike.create.mockResolvedValue({ id: 'like1' });
+      prisma.reelComment.update.mockResolvedValue({ id: 'rc1', likeCount: 1 });
+
+      const result = await service.toggleCommentLike('r1', 'rc1', 'u1');
+
+      expect(result).toEqual({ liked: true, likeCount: 1 });
+      expect(prisma.reelCommentLike.create).toHaveBeenCalledWith({
+        data: { commentId: 'rc1', userId: 'u1' },
+      });
+    });
+
+    it('unlikes a reel comment and decrements the count', async () => {
+      prisma.reelComment.findUnique.mockResolvedValue({ id: 'rc1', reelId: 'r1' });
+      prisma.reelCommentLike.findUnique.mockResolvedValue({ id: 'like1' });
+      prisma.reelCommentLike.delete.mockResolvedValue({ id: 'like1' });
+      prisma.reelComment.update.mockResolvedValue({ id: 'rc1', likeCount: 0 });
+
+      const result = await service.toggleCommentLike('r1', 'rc1', 'u1');
+
+      expect(result).toEqual({ liked: false, likeCount: 0 });
+      expect(prisma.reelCommentLike.delete).toHaveBeenCalledWith({
+        where: { commentId_userId: { commentId: 'rc1', userId: 'u1' } },
+      });
+    });
+
+    it('does not like a comment from another reel', async () => {
+      prisma.reelComment.findUnique.mockResolvedValue({ id: 'rc1', reelId: 'r2' });
+
+      await expect(service.toggleCommentLike('r1', 'rc1', 'u1')).rejects.toMatchObject({
+        statusCode: 404,
+        code: 'COMMENT_NOT_FOUND',
+      });
+      expect(prisma.reelCommentLike.create).not.toHaveBeenCalled();
     });
   });
 });

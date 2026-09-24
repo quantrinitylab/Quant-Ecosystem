@@ -77,6 +77,8 @@ model User {
   campaigns          Campaign[]
   datingProfile      DatingProfile?
   shortVideos        ShortVideo[]
+  reelComments       ReelComment[]
+  reelCommentLikes   ReelCommentLike[]
 
   // Git hosting relations
   repositories   Repository[]
@@ -2808,14 +2810,36 @@ model ReelComment {
   reelId    String
   userId    String
   content   String
+  parentId  String?
+  likeCount Int      @default(0)
   createdAt DateTime @default(now())
 
-  reel Reel @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  reel    Reel          @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent  ReelComment?  @relation("ReelCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies ReelComment[] @relation("ReelCommentReplies")
+  likes   ReelCommentLike[]
 
   @@index([reelId])
   @@index([userId])
   @@index([createdAt])
+  @@index([parentId])
   @@map("reel_comments")
+}
+
+model ReelCommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  comment ReelComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([commentId])
+  @@index([userId])
+  @@map("reel_comment_likes")
 }
 
 model Call {

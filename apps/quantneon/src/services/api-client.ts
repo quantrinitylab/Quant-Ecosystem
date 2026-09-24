@@ -2,7 +2,17 @@
 // QuantNeon - Frontend API Client
 // ============================================================================
 
-import type { Post, Reel, Story, Profile, Game, Product, ARFilter, Comment } from '../types';
+import type {
+  Post,
+  Reel,
+  Story,
+  Profile,
+  Game,
+  Product,
+  ARFilter,
+  Comment,
+  ReelComment,
+} from '../types';
 
 /** Mirrors the backend DmService shapes (apps/quantneon/backend/services/dm.service.ts). */
 export interface DmParticipant {
@@ -130,14 +140,20 @@ class QuantNeonApiClient {
       method: 'POST',
     });
   }
-  async commentOnReel(id: string, text: string) {
-    return this.request<{ comment: Comment }>(`/api/reels/${id}/comment`, {
+  async commentOnReel(id: string, text: string, parentId?: string) {
+    return this.request<{ comment: ReelComment }>(`/api/reels/${id}/comment`, {
       method: 'POST',
-      body: { text },
+      body: { text, ...(parentId ? { parentId } : {}) },
     });
   }
   async getReelComments(id: string) {
-    return this.request<{ comments: Comment[] }>(`/api/reels/${id}/comments`);
+    return this.request<{ comments: ReelComment[] }>(`/api/reels/${id}/comments`);
+  }
+  async likeReelComment(reelId: string, commentId: string) {
+    return this.request<{ liked: boolean; likeCount: number }>(
+      `/api/reels/${reelId}/comments/${commentId}/like`,
+      { method: 'POST' },
+    );
   }
 
   // Stories

@@ -205,6 +205,20 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface ReelComment {
+  id: string;
+  reelId: string;
+  userId: string;
+  parentId: string | null;
+  username: string;
+  userAvatar: string | null;
+  content: string;
+  likeCount: number;
+  isLiked: boolean;
+  replies: ReelComment[];
+  createdAt: string;
+}
+
 export interface Notification {
   id: string;
   type: 'like' | 'comment' | 'follow' | 'mention' | 'tag' | 'game_invite';
