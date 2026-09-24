@@ -15,12 +15,30 @@ import {
 } from '@quant/shared-ui';
 import { useReels } from '../hooks/useReels';
 import { apiClient } from '../services/api-client';
+import { classifyVerticalSwipe, isDoubleTap, type GesturePoint } from '../features/reels/gesture';
 
 interface ReelCommentItem {
   id: string;
   username: string;
   userAvatar: string | null;
   content: string;
+}
+
+interface HeartBurst {
+  id: number;
+  reelId: string;
+  x: number;
+  y: number;
+}
+
+function isInteractiveGestureTarget(target: EventTarget | null): boolean {
+  return (
+    typeof Element !== 'undefined' &&
+    target instanceof Element &&
+    target.closest(
+      'button, a, input, textarea, select, [role="textbox"], [data-reel-gesture-ignore]',
+    ) !== null
+  );
 }
 
 const ReelsPage: React.FC = () => {
@@ -32,9 +50,25 @@ const ReelsPage: React.FC = () => {
   const [comments, setComments] = useState<ReelCommentItem[]>([]);
   const [commentText, setCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
+  const [heartBursts, setHeartBursts] = useState<HeartBurst[]>([]);
+  const [slideDirection, setSlideDirection] = useState(1);
 
-  const touchStartY = useRef<number>(0);
+  const touchStart = useRef<GesturePoint | null>(null);
+  const lastTap = useRef<GesturePoint | null>(null);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heartBurstTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const nextHeartBurstId = useRef(0);
+  const ignoreClickUntil = useRef(0);
   const currentReel = state.reels[state.currentIndex] || null;
+
+  const navigateAdjacent = useCallback(
+    (direction: 'next' | 'previous') => {
+      setSlideDirection(direction === 'next' ? 1 : -1);
+      if (direction === 'next') actions.next();
+      else actions.previous();
+    },
+    [actions],
+  );
 
   const loadComments = useCallback(async (reelId: string) => {
     setLoadingComments(true);
@@ -62,18 +96,139 @@ const ReelsPage: React.FC = () => {
     await loadComments(currentReel.id);
   }, [commentText, currentReel, actions, loadComments]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartY.current = e.touches[0].clientY;
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    touchStart.current = null;
+    if (isInteractiveGestureTarget(e.target)) return;
+
+    const touch = e.touches[0];
+    if (!touch) return;
+    touchStart.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+      at: Date.now(),
+    };
   }, []);
 
   const handleTouchEnd = useCallback(
-    (e: React.TouchEvent) => {
-      const diff = touchStartY.current - e.changedTouches[0].clientY;
-      if (diff > 80) actions.next();
-      else if (diff < -80) actions.previous();
+    (e: React.TouchEvent<HTMLDivElement>) => {
+      const start = touchStart.current;
+      touchStart.current = null;
+      const touch = e.changedTouches[0];
+      if (!start || !touch || isInteractiveGestureTarget(e.target)) return;
+
+      const direction = classifyVerticalSwipe(
+        start,
+        { x: touch.clientX, y: touch.clientY, at: Date.now() },
+        typeof window === 'undefined' ? 800 : window.innerHeight,
+      );
+      if (!direction) return;
+
+      // The following synthesized click belongs to the swipe, not a playback tap.
+      ignoreClickUntil.current = Date.now() + 400;
+      lastTap.current = null;
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
+      navigateAdjacent(direction);
     },
-    [actions],
+    [navigateAdjacent],
   );
+
+  const handlePlayerClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (
+        !currentReel ||
+        isInteractiveGestureTarget(e.target) ||
+        Date.now() < ignoreClickUntil.current
+      ) {
+        return;
+      }
+
+      const point: GesturePoint = {
+        x: e.clientX,
+        y: e.clientY,
+        at: Date.now(),
+      };
+      if (isDoubleTap(lastTap.current, point)) {
+        lastTap.current = null;
+        if (singleTapTimer.current) {
+          clearTimeout(singleTapTimer.current);
+          singleTapTimer.current = null;
+        }
+
+        // Double-tap is an idempotent like gesture: it never toggles an existing like off.
+        if (!state.liked.has(currentReel.id)) actions.like(currentReel.id);
+
+        const bounds = e.currentTarget.getBoundingClientRect();
+        const id = ++nextHeartBurstId.current;
+        const burst: HeartBurst = {
+          id,
+          reelId: currentReel.id,
+          x: point.x - bounds.left - 40,
+          y: point.y - bounds.top - 46,
+        };
+        setHeartBursts((bursts) => [...bursts, burst].slice(-3));
+        const timer = setTimeout(() => {
+          heartBurstTimers.current.delete(id);
+          setHeartBursts((bursts) => bursts.filter((item) => item.id !== id));
+        }, 850);
+        heartBurstTimers.current.set(id, timer);
+        return;
+      }
+
+      // A fast second tap at a different spot is two ordinary taps, not a heart burst.
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+        lastTap.current = null;
+        actions.togglePlay();
+      }
+
+      lastTap.current = point;
+      const reelId = currentReel.id;
+      singleTapTimer.current = setTimeout(() => {
+        singleTapTimer.current = null;
+        lastTap.current = null;
+        if (state.reels[state.currentIndex]?.id === reelId) actions.togglePlay();
+      }, 280);
+    },
+    [actions, currentReel, state.currentIndex, state.liked, state.reels],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isInteractiveGestureTarget(e.target)) return;
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        navigateAdjacent('next');
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        navigateAdjacent('previous');
+      }
+    },
+    [navigateAdjacent],
+  );
+
+  useEffect(
+    () => () => {
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      for (const timer of heartBurstTimers.current.values()) clearTimeout(timer);
+      heartBurstTimers.current.clear();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    lastTap.current = null;
+    if (singleTapTimer.current) {
+      clearTimeout(singleTapTimer.current);
+      singleTapTimer.current = null;
+    }
+    setShowCaption(false);
+    setShowSoundInfo(false);
+    setHeartBursts((bursts) => bursts.filter((burst) => burst.reelId === currentReel?.id));
+  }, [currentReel?.id]);
 
   const formatCount = useCallback((count: number): string => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
@@ -115,15 +270,15 @@ const ReelsPage: React.FC = () => {
     <PageTransition>
       <div
         className="h-[100dvh] bg-black text-white relative overflow-hidden"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
+        onKeyDown={handleKeyDown}
         role="region"
         aria-label="Reels feed"
+        tabIndex={0}
       >
         {/* Sound Toggle - Top Right */}
-        <div className="absolute top-4 right-4 z-30">
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-30 mx-auto flex w-full max-w-[56.25dvh] justify-end px-4">
           <SpringButton
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm"
+            className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm"
             onClick={() => actions.toggleMute()}
             aria-label={state.isMuted ? 'Unmute' : 'Mute'}
           >
@@ -131,16 +286,33 @@ const ReelsPage: React.FC = () => {
           </SpringButton>
         </div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" custom={slideDirection}>
           {currentReel && (
             <motion.div
               key={currentReel.id}
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -100, opacity: 0 }}
+              custom={slideDirection}
+              variants={{
+                enter: (direction: number) => ({
+                  y: direction > 0 ? '100%' : '-100%',
+                  opacity: 0.8,
+                }),
+                center: { y: 0, opacity: 1 },
+                exit: (direction: number) => ({
+                  y: direction > 0 ? '-100%' : '100%',
+                  opacity: 0.8,
+                }),
+              }}
+              initial="enter"
+              animate="center"
+              exit="exit"
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="absolute inset-0"
-              onClick={() => actions.togglePlay()}
+              className="absolute inset-0 mx-auto w-full max-w-[56.25dvh] overflow-hidden touch-none"
+              onClick={handlePlayerClick}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              role="group"
+              aria-roledescription="reel"
+              aria-label={`Reel ${state.currentIndex + 1} of ${state.reels.length}`}
             >
               <video
                 className="absolute inset-0 w-full h-full object-cover"
@@ -150,7 +322,32 @@ const ReelsPage: React.FC = () => {
                 loop
                 muted={state.isMuted}
                 playsInline
+                aria-label={`Video by ${currentReel.creator}`}
               />
+
+              {/* Double-tap heart feedback is visual only; the like request remains explicit. */}
+              <AnimatePresence>
+                {heartBursts
+                  .filter((burst) => burst.reelId === currentReel.id)
+                  .map((burst) => (
+                    <motion.span
+                      key={burst.id}
+                      className="pointer-events-none absolute z-30 w-20 select-none text-center text-7xl leading-none text-rose-500 drop-shadow-lg"
+                      style={{ left: burst.x, top: burst.y }}
+                      initial={{ scale: 0.25, opacity: 0 }}
+                      animate={{
+                        scale: [0.25, 1.35, 1],
+                        y: [0, -12, -34],
+                        opacity: [0, 1, 0.95],
+                      }}
+                      exit={{ scale: 0.8, opacity: 0 }}
+                      transition={{ duration: 0.72, ease: 'easeOut' }}
+                      aria-hidden="true"
+                    >
+                      ♥
+                    </motion.span>
+                  ))}
+              </AnimatePresence>
 
               {/* Pause Indicator */}
               {!state.isPlaying && (
@@ -240,7 +437,11 @@ const ReelsPage: React.FC = () => {
                 >
                   <motion.div
                     animate={{ rotate: state.isPlaying ? 360 : 0 }}
-                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: 'linear',
+                    }}
                     className="w-8 h-8 rounded-full border-2 border-white/50 bg-black/40 flex items-center justify-center overflow-hidden"
                   >
                     <span className="text-xs">&#127925;</span>
@@ -298,7 +499,11 @@ const ReelsPage: React.FC = () => {
                     <motion.span
                       className="text-xs whitespace-nowrap inline-block"
                       animate={{ x: state.isPlaying ? [0, -100] : 0 }}
-                      transition={{ duration: 5, repeat: Infinity, ease: 'linear' }}
+                      transition={{
+                        duration: 5,
+                        repeat: Infinity,
+                        ease: 'linear',
+                      }}
                     >
                       {currentReel.soundName || 'Original Sound'}
                     </motion.span>
