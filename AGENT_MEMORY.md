@@ -3388,3 +3388,27 @@ graph TD
       - Calendar (`/calendar`): Agenda view with September 24 highlight, IST timezone pill, clean event cards.
       - Drive (`/drive`): Grid switcher, folder cards, AI Memory panel in frosted glass.
       - QuantGit (`/quantgit` & `/quantgit/repositories`): GitHub-class repository view, Opus 5 Copilot deck, emerald green "New repository" button, glowing amber tabs.
+
+- **23. CI Gate Green Hardening (2,409 Tests Passing) & Multi-App Live Chrome DevTools Verification (2026-09-24)**:
+  - **Full Monorepo CI Gate Hardening (`1fcd784c` Pushed to `origin/main`)**:
+    - Addressed root cause of previous GitHub Actions CI failures on `main` (Run `35919421060`):
+      1. Fixed empty catch block in `apps/quantmail/backend/routes/ci-logs.ts`, satisfying Phase Q `codebase-hygiene.test.ts`.
+      2. Excised unhandled `console` statements in `apps/quantmail` (`sqlite-fts.worker.ts:187`, `local-db.ts:43,47`, `BuildTerminal.tsx:126`), passing ESLint with 0 warnings/errors.
+    - Verified entire `@quant/quantmail` test suite locally: **207/207 test suites passed, 2,409/2,409 tests passed 100% green**.
+    - TypeScript compilation (`pnpm --filter @quant/quantmail typecheck`): 0 errors across frontend and backend.
+    - GitHub Actions CI Run `35948833578`: **`gate` passed 100% green in 5m30s**, `memory-shadow-postgres` passed in 44s, `quantchat-coverage` passed in 1m4s.
+  - **Live Chrome Browser End-to-End Verification across Staging Surfaces**:
+    - **QuantChat (`https://quantchat.quantrinity.in/login`)**:
+      - Sleek charcoal UI with dual authentication: "⚡ Continue with Quant Account" (1-Click SSO) and "+91 Phone number" SMS OTP flow.
+      - Tested clicking "⚡ Continue with Quant Account" -> smoothly redirected with query param to `https://quantmail.in/login?returnTo=https%3A%2F%2Fquantchat.quantrinity.in%2F`.
+    - **QuantMail Login Root (`https://quantmail.in/login`)**:
+      - Verified brand protection: Animated `QuantMailLogo` eyes preserved and reactive, "IN / GLOBAL" pill, "ACCOUNT ACCESS" card, auto-suffix `@quantmail.in`, amber buttons.
+    - **QuantAI (`https://quantai.quantrinity.in/`)**:
+      - Verified "Meet Quanty" control plane with full model switcher: `GPT-4o`, `GPT-4`, `Claude 3.5 Sonnet`, `Claude 3 Opus`, `Llama 3 70B`, `Gemini Pro`, `Quant-1` (256K native model).
+      - Tested Chat Mode vs Agent & Code Mode toggle, split-screen canvas toggle, voice input button, and model selection.
+    - **QuanTube (`https://quantube.quantrinity.in/`) & QuantMax (`https://quantmax.quantrinity.in/`)**:
+      - Diagnosed 401 error on `/api/videos` and `/api/feed/for-you` when visited by unauthenticated guests.
+      - Traced root cause to Kubernetes staging backend pods running older pre-Wave-32 container images (`4b9f3079` and `:bootstrap`) which lacked the `publicPaths` guest bypass added in commit `6461fe3b`. With `main` CI `gate` passing 100% green, staging is unlocked for fresh rollout.
+  - **Storage Invariant Maintained**:
+    - Executed `pnpm store prune` (purged 2,017 unreferenced files / 176 packages).
+    - Verified disk free space at \*\*31.36 GB free on C:\*\* (>30 GB invariant satisfied).

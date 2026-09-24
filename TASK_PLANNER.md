@@ -81,6 +81,14 @@
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
 
+- [x] **CI Gate Green Hardening (2,409 Tests Passing) & Multi-App Live Chrome DevTools Verification (2026-09-24)**:
+  - [x] **CI Gate Green Hardening (`1fcd784c` pushed to `origin/main`)**: Resolved empty catch in `apps/quantmail/backend/routes/ci-logs.ts` (Phase Q `codebase-hygiene.test.ts`), stripped unhandled `console` logs in `sqlite-fts.worker.ts`, `local-db.ts`, and `BuildTerminal.tsx`.
+  - [x] **Full Test Suite & Typecheck Verified**: 207/207 test suites and 2,409/2,409 tests in `@quant/quantmail` passed 100% green; `pnpm --filter @quant/quantmail typecheck` passed with 0 errors.
+  - [x] **GitHub Actions CI Run `35948833578`**: `gate` passed in 5m30s, `memory-shadow-postgres` in 44s, `quantchat-coverage` in 1m4s.
+  - [x] **Multi-App Live Chrome DevTools Verification**: Verified QuantChat dual-auth (`⚡ Continue with Quant Account` 1-Click SSO + SMS OTP), QuantMail Login root (`IN / GLOBAL`, animated logo eyes preserved), QuantAI "Meet Quanty" control plane (GPT-4o, Claude 3.5 Sonnet, Quant-1 model switcher, chat/agent modes).
+  - [x] **QuanTube & QuantMax Diagnosis**: Root-caused guest 401 errors on `/api/videos` and `/api/feed/for-you` to pre-Wave-32 container images running in staging k8s (`4b9f3079` and `:bootstrap`), unblocked for deployment by clean CI gate.
+  - [x] **Storage Invariant**: Free space restored to \*\*31.36 GB free on C:\*\* via `pnpm store prune` (>30 GB satisfied).
+
 - [x] **Ruthless QSDS Overhaul & Linear/Superhuman Sensory Hardening (2026-09-24)**:
   - [x] **Muddy Brown Rectangles Eradicated**: Purged all occurrences of `#2B1A11`, `#5C3016`, `#1D1410`, `#3D2214` across 36 files in `apps/quantmail`. Sibling applications verified 100% clean.
   - [x] **Quant Studio Design System (QSDS) Tokens**: Introduced `.linear-border`, `.linear-card`, `.frosted-header`, `.frosted-dock`, `.action-pill-active`, `.action-pill-neutral`, `.btn-primary-quant` in `globals.css`.
