@@ -105,10 +105,10 @@
 - [x] **Task W39-A01**: Dual-Mode Workspace Toggle: `Chat` mode (conversational) vs `Work` mode (split-canvas doc/slide/sheet synthesis). (Verified 100% green: `WorkCanvasPanel.tsx` implemented in `apps/quantai/src/components/WorkCanvasPanel.tsx`, mounted in `apps/quantai/src/app/page.tsx` with header mode switcher pills, live drag-resizable split pane, live markdown/code live preview with copy/export/Run triggers, bi-directional sync, 0 TS errors).
 - [x] **Task W39-A02**: Autonomous Scheduled Agents & Background Cron Tasks (`Tasks / Scheduled`) with in-chat natural language setup (`Daily 8:00 AM Daily Briefing`) and execution ledger. (Verified 100% green: 35/35 tests passing in `scheduled-tasks.service.test.ts` & `scheduled-tasks-routes.test.ts`, 0 TS errors, Fastify `/agents/scheduled` API & NL trigger parser operational).
 - [/] **Task W39-A03**: Real-Time Advanced Voice Mode with 3D fluid animated audio sphere, sovereign voice personalities (`Aura`, `Vesper`, `Zenith`, `Zephyr` — renamed per CEO Astra trademark audit), and native background status bar chip. (Architecture audit & directives recorded in Notion by CEO Astra; LiveKit/Redis signaling & off-thread AudioWorklet specs established).
-- [ ] **Task W39-A04**: Projects Workspace Context & Memory Isolation (`Default memory` vs `Project-only memory` enterprise boundaries).
-- [ ] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters.
-- [ ] **Task W39-A06**: 3-Step Guided Image Creation Wizard (Idea -> Visual Style -> Mood) + Template marketplace.
-- [ ] **Task W39-A07**: Ecosystem Plugins & MCP Connectors Directory (Gmail, Drive, GitHub, Slack, Supabase, Stripe, Spotify, Figma).
+- [/] **Task W39-A04**: Projects Workspace Context & Memory Isolation (`Default memory` vs `Project-only memory` enterprise boundaries). _(In Progress: Subagent C1 `bef97744` executing deep service, Fastify routes, and UI component)_.
+- [/] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters. _(In Progress: Subagent C2 `08e6c4e0` executing `FileLibraryService`, routes, and `CentralFileLibraryModal`)_.
+- [/] **Task W39-A06**: 3-Step Guided Image Creation Wizard (Idea -> Visual Style -> Mood) + Template marketplace. _(In Progress: Subagent C3 `0f7ba747` executing prompt synthesizer, presets, and `ImageCreationWizardModal`)_.
+- [/] **Task W39-A07**: Ecosystem Plugins & MCP Connectors Directory (Gmail, Drive, GitHub, Slack, Supabase, Stripe, Spotify, Figma). _(In Progress: Subagent C4 `00ef4ee3` executing `McpConnectorsService`, routes, and `McpConnectorsDirectoryModal`)_.
 
 ### Track 3: QuantGit (CodeHub) 159-Screen GitHub Sovereign Parity (`apps/quantmail/src/app/quantgit` - Dev 6 & Agent 2)
 
