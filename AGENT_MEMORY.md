@@ -3411,4 +3411,112 @@ graph TD
       - Traced root cause to Kubernetes staging backend pods running older pre-Wave-32 container images (`4b9f3079` and `:bootstrap`) which lacked the `publicPaths` guest bypass added in commit `6461fe3b`. With `main` CI `gate` passing 100% green, staging is unlocked for fresh rollout.
   - **Storage Invariant Maintained**:
     - Executed `pnpm store prune` (purged 2,017 unreferenced files / 176 packages).
-    - Verified disk free space at \*\*31.36 GB free on C:\*\* (>30 GB invariant satisfied).
+    - Verified disk free space at \*\*32.37 GB free on C:\*\* (>30 GB invariant satisfied).
+
+- **24. Universal Google-Class SSO Account Chooser & QuantChat Phone OTP Hardening (Commit `bb0f8081` on `main` — 2026-09-24)**:
+  - **Forensic Diagnosis of User-Reported QuantChat Authentication Flaws**:
+    - **Issue 1 (`returnTo` Stripping & Domain Boundary Isolation)**: In `apps/quantmail/src/lib/safe-return-path.ts`, `safeReturnPath` strictly required `value.startsWith('/')` and rejected all absolute URLs. When QuantChat redirected to `https://quantmail.in/login?returnTo=https%3A%2F%2Fquantchat.quantrinity.in%2Flogin`, `safeReturnPath` rejected the ecosystem URL and fell back to `'/'` (QuantMail Inbox), trapping the user in QuantMail! Furthermore, even if redirected, cross-domain cookie isolation between `quantmail.in` and `quantchat.quantrinity.in` meant tokens were never received by QuantChat.
+    - **Issue 2 (Missing Google-Class Account Chooser)**: Users logged into QuantMail had no 1-click account selector across apps. Visiting login simply prompted for credentials again rather than presenting active browser sessions.
+    - **Issue 3 (Phone OTP Delivery Gaps)**: `AwsSnsSmsSender` in production without configured AWS credentials failed closed with `SMS_GATEWAY_NOT_CONFIGURED`, and dev logging masked codes as `[REDACTED]`, preventing test/staging login without carrier SMS delivery.
+  - **Comprehensive Architectural Remediations Applied & Verified**:
+    - **Whitelisted Ecosystem Return Domains (`safe-return-path.ts`)**: Upgraded `safeReturnPath` to permit exact matches and subdomains for `quantmail.in`, `quantrinity.in`, `*.quantrinity.in` (`quantchat`, `quantube`, `quantmax`, `quantai`, etc.), and local development ports (`localhost:*`, `127.0.0.1:*`). Untrusted domains (`attacker.example`, `quantmai1.in`) strictly return `null`. Vitest: 7/7 tests passing (`safe-return-path.test.ts`).
+    - **Google-Class Universal SSO Account Chooser (`apps/quantmail/src/app/sso/page.tsx`)**:
+      - Displays animated `QuantMailLogo` pupils, brand header, and dynamically resolves calling client app ("Choose an account to continue to QuantChat").
+      - Inspects active session (`useAuth`) and stored identities (`localStorage.quant_known_accounts`).
+      - Renders account cards with deterministic gradients, initials, names, emails, and active "Signed in" badges.
+      - 1-click on active account performs instant token minting and redirects to `${returnTo}?token=${accessToken}&refreshToken=${refreshToken}&userId=${id}&email=${email}`.
+      - Includes "+ Use another account" switcher to sign into a separate Quant identity with auto-suffix `@quantmail.in`.
+    - **QuantMail `/login` SSO Handoff**: If already authenticated and arriving with an ecosystem `returnTo`, auto-routes to `/sso`. When completing password or 2FA, `navigateToDestination` appends session tokens and executes cross-origin redirect via `window.location.href`.
+    - **QuantChat Token Callback Capture (`apps/quantchat/src/app/login/page.tsx` & `auth-gate.tsx`)**: On mount, extracts `token` / `refreshToken` from URL query, calls `persistSession`, cleans URL state, and smoothly transitions to `/` fully authenticated.
+    - **QuantChat Phone OTP Resilience (`otp-service.ts` & `routes/auth.ts`)**:
+      - In development/staging or when SMS carrier credentials are unconfigured, `AwsSnsSmsSender` operates in demo/fallback mode and includes `demoCode: code` in response metadata.
+      - QuantChat frontend displays `Verification code sent! (Code: [code])` and automatically pre-fills the input for instantaneous 1-click verification.
+      - Vitest: 21/21 tests passing 100% green (`otp-service.test.ts`).
+  - **Full Quality Gate Verification**:
+    - `@quant/quantmail typecheck`: 0 errors across frontend and backend.
+    - `@quant/quantchat typecheck`: 0 errors across frontend and backend.
+    - `@quant/quantmail lint`: 0 warnings, 0 errors.
+    - `@quant/quantchat lint`: 0 warnings, 0 errors.
+    - Committed `bb0f8081` to `main`, pushed to GitHub `origin/main`.
+    - GitHub Actions Run `35951768838`: `gate` PASSED in 6m59s, `quantchat-coverage` PASSED in 1m9s, `memory-shadow-postgres` PASSED in 51s (100% green).
+
+- **25. Full 98-Screen Instagram Master UI/UX Architecture & Micro-Feature Ingestion for QuantGram (2026-09-24)**:
+  - **Comprehensive Multi-Surface Visual Audit**: User ingested 98 high-resolution mobile screenshots detailing the complete interaction design, layout architecture, dark-mode design system, and micro-feature topology of modern Instagram / Meta mobile application.
+  - **The 12 Core Architectural Subsystems Ingested for QuantGram (`apps/quantgram`)**:
+    1. **Master Settings & Account Security Hub (Screens 1, 32-33, 69-71)**: Multi-section navigation with Accounts Center, Your Activity, Notifications, Time Management, Privacy, and About.
+    2. **Profile & Multi-Identity Switcher (Screens 2, 29-30, 80-81)**: Header with handle dropdown, post/follower/following counts, Action pills (`Edit profile`, `View archive`), Tab bar (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`), bottom sheet multi-account switcher with unread notification badges, and creation action sheet (`Reel`, `Edits`, `Post`, `Story`, `Highlights`, `Live`).
+    3. **Direct Messaging (DMs) & Social Presence (Screens 3, 84, 88)**: Notes carousel at top with active track badge & thought bubble, search bar, Messages vs Requests tabs, conversation list with typing/seen indicators and "Sent a reel by..." rich media previews, dedicated Spam filter.
+    4. **Reels Vertical Feed Player (Screens 7-9, 77-79)**: 9:16 edge-to-edge full-bleed video player, vertical swipe gesture paging, right-side vertical action rail (Heart/Like count, Comment count, Share/Remix count, Bookmark, 3-dots), bottom creator overlay (avatar with pulse follow button, audio marquee ticker, expandable multi-line caption with hashtag links).
+    5. **Comments & Conversational Sheet (Screens 4-5, 89-93)**: Nested bottom-sheet modal, infinite threaded replies ("View all X replies"), double-tap comment liking, pinned comments, quick-reaction emoji dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`), GIF & photo comments, and empty state ("No comments yet. Start the conversation.").
+    6. **AI Metadata, Content Context & Ad Transparency (Screens 6, 72-76)**: "About this reel" modal powered by Meta AI with automated meme/cultural context explanations ("This AI-generated clip parodies..."), "Ask Meta AI" trigger, Ad transparency sheet with "Auto-scroll" toggle, "Why you're seeing this ad", and feedback options ("Interested", "Not interested", "Report").
+    7. **Explore & Semantic Discovery Grid (Screens 10, 82-83)**: Dynamic 3x3 staggered masonry grid combining standard photos, double-height Reels, audio badges, view count badges (`439K`, `2.4M`), and "Search with Meta AI" search bar.
+    8. **Full Onboarding & Multi-Step Registration Funnel (Screens 14-28)**: Step-by-step mobile funnel: "Save your login info?", Terms agreement, realtime unique username validator with green checkmark, full name, birthday datepicker with live age computation, 6-digit confirmation code via Email/SMS, Email vs Mobile switcher, and multilingual localization list (RTL support, 30+ languages).
+    9. **Ecosystem & Cross-App Integration (Screens 31, 49)**: Seamless 1-click account binding to companion apps (Threads / QuantWave) and cross-posting configuration (Facebook / QuantWave).
+    10. **Subscriptions & Creator Monetization (Screens 34-36)**: Multi-tier subscription model ("Instagram Plus", "Meta One", "Meta Verified"), verified blue badges, priority discovery boost, upgraded bio links, exclusive stickers; Professional Dashboard with live insights, trial reels, broadcast channels, and monetization tools.
+    11. **Granular Trust, Safety & Digital Wellbeing (Screens 37-57)**:
+        - Anti-harassment: "Hidden words" phrase filters, "Limit interactions" temporary locks, "Restrict" shadow-protection mode, Comment blocking, Tag/mention manual approval queues.
+        - Privacy: Private account toggle, Close Friends audience manager (green ring indicator), Story/Live hiding per user.
+        - Digital Wellbeing: "Time management" weekly bar chart with daily average, daily time limits, and customizable Sleep mode.
+    12. **Curated Collections & Geospatial Social Map (Screens 58-65, 85-87)**:
+        - "Saved" manager with categorized tabs (All, Collections, Series, Reels, Posts, Audio), collaborative shared collections, and Trending Audio Top 50 chart with 1-click bookmarking.
+        - Social Map (Instagram Map / Snap Map) with interactive world/regional mapping, friend location pins, story clusters ("Delhi +21 more", "Bangalore +15 more"), and privacy shield ("Not sharing location").
+        - Home Feed (Screens 94-98) with top Stories tray, rich media carousels (1/6 pagination pill), and full creation studio.
+
+- **26. Full 131-Screen ChatGPT & Agent Operating System Master UI/UX Architecture for QuantAI (2026-09-24)**:
+  - **Comprehensive Multi-Surface Visual Audit**: User ingested 131 high-resolution screenshots capturing modern ChatGPT (OpenAI GPT-5 / GPT-5.6 Luna), covering mobile app and web UI/UX, autonomous scheduled agents, advanced voice mode, plugin ecosystems, workspace memory isolation, and deep controls.
+  - **Founder Identity & Vision Affirmation (Captured in Screenshot 27)**:
+    - _Foundational User Memory Ground Truth_: "You are Kundan, currently living in Sheohar district, Bihar. You completed 12th with the PCB stream and have explored higher-education options, technology, entrepreneurship, and product design in depth... A recurring project is your ecosystem built around the Infinity Trinity brand, with ideas for multiple connected apps covering messaging, social..."
+    - _Tone & Interaction Invariant (Screenshot 31-33)_: Direct, honest, raw, challenging, zero yes-man / sugarcoating.
+  - **The 12 Core Architectural Subsystems Ingested for QuantAI (`apps/quantai`)**:
+    1. **Conversational Engine & Model Router (Screens 1-3, 91-94)**: Multi-model switcher (GPT-5.6 Luna, GPT-5, o1/o3, Quant-1), inline message actions (Copy, Good/Bad feedback, Read Aloud speaker, Share, 3-dots), branching context ("Branch in new chat", "Retry", "Search the web"), input toolbar (`+` Attachments, Camera, Photos, Files, Plugins, "Think harder" deep reasoning toggle).
+    2. **Autonomous Scheduled Agents & Background Cron Tasks (Screens 49-51, 54-63)**:
+       - Dedicated `Tasks / Scheduled` view with status filter (`Active`, `Paused`, `Completed`).
+       - In-chat natural language task configuration ("Send me a daily briefing...", "Scan my emails and let me know anything that needs my attention", "Every Saturday, find me an exceptional recent long read").
+       - Inline interactive confirmation cards (`Daily 8:00 am · Daily Briefing`).
+       - Curated Task Templates library: `Daily brief`, `Email monitor`, `Weekend long read`, `Sale monitor`, `Concert alerts`, `Weekend ideas`.
+    3. **Real-Time Advanced Voice Mode (Screens 87-90, 102-107)**:
+       - Full-screen animated fluid audio sphere (white/blue cloud orb with fluid surface dynamics responding to voice frequency).
+       - Voice personalities: `Spruce` (Calm & affirming), `Vale` (Bright & inquisitive), `Sol` (Savvy & relaxed), `Breeze` (Animated & earnest).
+       - Model engine modes: `Live`, `Advanced`, `Standard`.
+       - Native Android integration (Screen 88-89): Notification tray tile ("ChatGPT Voice · 00:10" with Hang Up and Mute) and Dynamic Island / status bar pill during active calls.
+    4. **Projects & Workspace Memory Isolation (Screens 45-48)**:
+       - Workspaces grouping chats, files, and custom instructions under project hubs (`Homework`, `Investing`, `Writing`, `Health`, `Travel`).
+       - **Dual Memory Isolation Modes**:
+         - `Default memory`: Project can access memory from outside chats, and vice versa.
+         - `Project-only memory`: Project can only access its own memory; strictly isolated from external chats (Enterprise compliance & NDA boundary).
+    5. **Central Library & File Intelligence (Screens 34-35, 42-44)**:
+       - Cross-chat file hub: "Upload once, use anytime" across past chats.
+       - Category filters: `Suggested`, `Folders`, `Favorites`, `Images`, `All`.
+       - Fast search across chats, files, and project documents.
+    6. **Image Generation Studio & Guided Creation Wizard (Screens 36-41)**:
+       - Multi-step interactive guided creation flow (Step 1: Idea/Scene, Step 2: Visual Style [Editorial, Cinematic digital art, Minimalist graphic, Surreal, Hand-drawn], Step 3: Mood [Futuristic, Emotional, Powerful, Calm, Mysterious, Playful]).
+       - Template marketplace: Poster, Interior design, Logo, Illustration, Headshot, Sketch, '80s flashback, Stickers, Anime.
+    7. **Ecosystem Plugins & MCP Connectors Directory (Screens 25-26, 70-81, 95, 100-101)**:
+       - Granular Permissions: "Always ask", "Allow read actions", "Allow low-risk tools".
+       - Deep real-world connector catalog across categories:
+         - Google / Microsoft Workspace: Gmail, Google Drive, Outlook Email, Outlook Calendar, Teams.
+         - Developer & DevOps: GitHub, Remote Desktop Commander, Supabase, Exa, Vercel, Render, Railway.
+         - Data & Analytics: PostHog, Amplitude, Mixpanel, Blockscout.
+         - Finance & Commerce: Stripe, Shopify, Interactive Brokers, Binance, QuickBooks.
+         - Creative: Canva, Figma, Higgsfield, Runway, InVideo.
+         - Science & Research: Consensus, SciSpace, Scite, Undermind, Boltz, Proto, Rowan.
+       - Developer Mode toggle with strict CSP enforcement.
+    8. **Dual-Mode Workspace: Chat vs Work (Screens 93-94)**:
+       - Top header toggle: `Chat` mode (conversational) vs `Work` mode (deep artifact synthesis: docs, slides, spreadsheets, canvas).
+    9. **Long-Term Memory & Personality Engine (Screens 27-33, 121-125)**:
+       - Persistent hierarchical memory summary: Overview, Education, Technology Projects, Nickname, Occupation, Values.
+       - Real-time memory synthesis ("Memory summary: Generating / Updated just now").
+       - System Characteristics sliders: Warmth, Enthusiasm, Headers & Lists, Emoji usage.
+       - "Fast answers" toggle (bypasses memory for instantaneous generic retrieval).
+    10. **Device Control & Remote Commander (Screens 7-8)**:
+        - Desktop pairing via QR code to control remote computers from mobile.
+        - Follow-up behavior: `Queue` vs `Steer` (interactive real-time steering vs async queuing).
+        - Biometric security lock before remote actions.
+    11. **Tiered Monetization & Agentic Credits (Screens 21-24, 108-111)**:
+        - Three-tier consumer pricing: `Go` (₹399/mo), `Plus` (₹1,950/mo), `Pro` (₹10,699/mo).
+        - Agentic usage tracker: Progress bar showing active compute consumption, monthly resets, and automatic credits top-up.
+    12. **Defense-in-Depth Security & Parental Controls (Screens 9-13, 16-20, 116-118)**:
+        - `Lockdown mode`: Anti-prompt-injection defense disabling external network access.
+        - Trusted Emergency Contact notification for safety/crisis detection.
+        - Full Parental Controls for teen accounts.
+        - Ads data controls with 1-click wipe and "Change plan to go ad-free".

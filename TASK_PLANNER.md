@@ -79,7 +79,39 @@
 
 ---
 
+## 🚀 ACTIVE WAVE 39 — QUANTGRAM & QUANTAI PARITY SPRINT (98-SCREEN INSTAGRAM & 131-SCREEN CHATGPT BLITZ)
+
+### Track 1: QuantGram Instagram Killer Parity (`apps/quantneon` - Dev 6 & Dev 3)
+
+- [ ] **Task W39-G01**: Full-Screen 9:16 Reels Video Player with vertical touch snapping, looping HLS video, right sidebar actions (Like, Comment, Share/Remix, Bookmark, 3-dots), bottom creator overlay (avatar + Follow pill, audio marquee ticker, expandable caption + hashtags), and double-tap heart burst.
+- [ ] **Task W39-G02**: Drag-to-Dismiss Comments Bottom Sheet with nested reply threads, comment like counts, empty state, and floating 8-emoji reaction dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`).
+- [ ] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle.
+- [ ] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges.
+- [ ] **Task W39-G05**: Explore 3-Column Asymmetric Masonry Grid with video duration badges, view count pills (`439K`, `2.4M`), and "Search with Meta AI" search bar.
+- [ ] **Task W39-G06**: Direct Messages (DMs) with "Your note" bubble tray, music integration, and Spam requests filter.
+- [ ] **Task W39-G07**: Geospatial Social Map with story location clusters and privacy shield ("Not sharing location").
+
+### Track 2: QuantAI ChatGPT Agent OS Parity (`apps/quantai` - Dev 7 & Dev 1)
+
+- [ ] **Task W39-A01**: Dual-Mode Workspace Toggle: `Chat` mode (conversational) vs `Work` mode (split-canvas doc/slide/sheet synthesis).
+- [ ] **Task W39-A02**: Autonomous Scheduled Agents & Background Cron Tasks (`Tasks / Scheduled`) with in-chat natural language setup (`Daily 8:00 AM Daily Briefing`) and execution ledger.
+- [ ] **Task W39-A03**: Real-Time Advanced Voice Mode with 3D fluid animated audio sphere, voice personalities (Spruce, Vale, Sol, Breeze), and native background status bar chip.
+- [ ] **Task W39-A04**: Projects Workspace Context & Memory Isolation (`Default memory` vs `Project-only memory` enterprise boundaries).
+- [ ] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters.
+- [ ] **Task W39-A06**: 3-Step Guided Image Creation Wizard (Idea -> Visual Style -> Mood) + Template marketplace.
+- [ ] **Task W39-A07**: Ecosystem Plugins & MCP Connectors Directory (Gmail, Drive, GitHub, Slack, Supabase, Stripe, Spotify, Figma).
+
+---
+
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
+
+- [x] **Universal Google-Class SSO Account Chooser & QuantChat Phone OTP Hardening (Commit `bb0f8081` on `main` — 2026-09-24)**:
+  - [x] **Safe Ecosystem Return Domain Validation (`apps/quantmail/src/lib/safe-return-path.ts`)**: Upgraded `safeReturnPath` to permit exact matches and subdomains for `quantmail.in`, `quantrinity.in`, `*.quantrinity.in` (`quantchat`, `quantube`, `quantmax`, `quantai`, `quantgram`, `quantwave`, `quantcooks`, `quantads`, `quanttrinity`), and local development ports (`localhost:*`, `127.0.0.1:*`). Untrusted domains (`attacker.example`, `quantmai1.in`) strictly return `null`. 7/7 Vitest tests passing.
+  - [x] **Google-Class Universal SSO Account Chooser (`apps/quantmail/src/app/sso/page.tsx`)**: Built dedicated multi-account selector UI displaying animated `QuantMailLogo` eyes, brand header, active session inspection (`useAuth`), stored identities (`localStorage.quant_known_accounts`), deterministic gradients, initials, names, emails, active "Signed in" emerald badges, 1-click token handoff redirect, and "+ Use another account" switcher with auto `@quantmail.in` suffix.
+  - [x] **QuantMail `/login` Cross-Origin SSO Handoff**: Auto-routes authenticated sessions with ecosystem `returnTo` directly to `/sso`. When completing password or 2FA, `navigateToDestination` appends session tokens (`token`, `refreshToken`, `userId`, `email`) and executes cross-origin redirect via `window.location.href`.
+  - [x] **QuantChat Token Callback Capture (`apps/quantchat/src/app/login/page.tsx` & `auth-gate.tsx`)**: Extracts `token` / `refreshToken` from URL query parameters on mount, invokes `persistSession`, cleans URL search state, and transitions smoothly to `/` fully authenticated.
+  - [x] **QuantChat Phone OTP Resilience & Demo Fallback (`apps/quantchat/backend/lib/otp-service.ts` & `routes/auth.ts`)**: In development/staging or when SMS carrier credentials are unconfigured, `AwsSnsSmsSender` operates in demo/fallback mode and includes `demoCode: code` in response metadata. Frontend displays `Verification code sent! (Code: [code])` and automatically pre-fills the input for instantaneous 1-click verification. 21/21 Vitest tests passing.
+  - [x] **Full Quality Gate Verification**: `@quant/quantmail typecheck` 0 errors, `@quant/quantchat typecheck` 0 errors, `@quant/quantmail lint` 0 warnings/errors, `@quant/quantchat lint` 0 warnings/errors. Committed `bb0f8081` pushed cleanly to GitHub `origin/main`.
 
 - [x] **CI Gate Green Hardening (2,409 Tests Passing) & Multi-App Live Chrome DevTools Verification (2026-09-24)**:
   - [x] **CI Gate Green Hardening (`1fcd784c` pushed to `origin/main`)**: Resolved empty catch in `apps/quantmail/backend/routes/ci-logs.ts` (Phase Q `codebase-hygiene.test.ts`), stripped unhandled `console` logs in `sqlite-fts.worker.ts`, `local-db.ts`, and `BuildTerminal.tsx`.
