@@ -21,7 +21,10 @@ export class RepoStorageService {
   private readonly basePath: string;
 
   constructor(
-    basePath: string = process.env['GIT_REPOS_PATH'] ?? join(process.cwd(), 'data', 'git-repos'),
+    basePath: string =
+      process.env['GIT_REPOS_PATH'] ??
+      process.env['REPO_ROOT'] ??
+      join(process.cwd(), 'data', 'git-repos'),
   ) {
     this.basePath = basePath;
   }

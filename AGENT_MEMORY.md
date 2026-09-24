@@ -53,10 +53,10 @@
 
 ### 5 Cross-Cutting Blockers Remediation State (Sprint Progression):
 - **B3 (Next.js Proxy First-Match-Wins & Missing Routes)**: 🟢 **COMPLETED**. Implemented `matchRoute` longest-prefix matcher, unblocked 30 QuantCode endpoints, 20 AI V1 endpoints, dual-prefix Fastify registrations, and `POST /email-signatures/:id/default`.
-- **B1 (Git Tree & Inspection Wiring)**: 🟢 **COMPLETED**. `fastify.repositoryInspection` connected with dual `ref`/`branch` query support, dynamic `fetchRepoTree` hook added to `quantgit/page.tsx`.
-- **B4 (`User.handle` & `resolveOwner()`)**: 🟡 **IN PROGRESS**. Next up for multi-tenant `/:owner/:repo` URL resolution.
-- **B2 (`Commit` Model Projection)**: ⚪ **QUEUED**. Prisma read-model projection.
-- **B5 (Storage-Path Resolver)**: ⚪ **QUEUED**. Canonical repo root alignment.
+- **B1 (Git Tree & Inspection Wiring)**: 🟢 **COMPLETED**. `fastify.repositoryInspection` connected with dual `ref`/`branch` query support, dynamic `fetchRepoTree` hook added to `quantgit/page.tsx` eliminating reliance on mock files.
+- **B4 (`User.handle` & `resolveOwner()`)**: 🟢 **COMPLETED**. Implemented `owner-resolver.service.ts` supporting CUID, case-insensitive username, email prefix, and organization slug. Wired `findRepositoryByOwnerAndName` across git, issues, pull-requests, reviews, CI, and git-transport routes.
+- **B2 (`Commit` Model Projection)**: 🟢 **COMPLETED**. Added `Commit`, `CommitParent`, `Tag`, and `Release` models with foreign key cascades, unique constraints, and indexes to `schema.prisma`.
+- **B5 (Storage-Path Resolver)**: 🟢 **COMPLETED**. Unified canonical repository path resolution in `RepoStorageService` supporting `REPO_ROOT` and `GIT_REPOS_PATH`.
 
 ---
 

@@ -85,6 +85,7 @@ model User {
   reviewComments ReviewComment[]
   issues         Issue[]
   issueComments  IssueComment[]
+  releases       Release[]
   agentSessions  AgentSession[]
   agentOrgs      AgentOrg[]
 
@@ -125,6 +126,7 @@ model User {
   scheduledMessages  ScheduledMessage[]
   quantAvatar        Avatar?           @relation()
   preKeyBundle       PreKeyBundle?
+  snapViews          SnapView[]
 
   @@index([email])
   @@index([username])
@@ -438,6 +440,7 @@ model Message {
   replyTo      Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
   replies      Message[]         @relation("MessageReplies")
   reactions    MessageReaction[]
+  snapViews    SnapView[]
 
   @@index([conversationId])
   @@index([senderId])
@@ -472,6 +475,21 @@ model MessageReaction {
   @@unique([messageId, userId, emoji])
   @@index([messageId])
   @@map("message_reactions")
+}
+
+model SnapView {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  viewedAt  DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("snap_views")
 }
 
 // ==================== EMAILS (QuantMail) ====================
@@ -1307,6 +1325,19 @@ model ShortVideoLike {
   @@map("short_video_likes")
 }
 
+model ShortVideoComment {
+  id           String    @id @default(cuid())
+  userId       String
+  shortVideoId String
+  body         String
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
+
+  @@index([shortVideoId, createdAt])
+  @@index([userId])
+  @@map("short_video_comments")
+}
+
 // ==================== AI (QuantAI) ====================
 
 model AISession {
@@ -1514,6 +1545,9 @@ model Repository {
   issues            Issue[]
   branchProtections BranchProtection[]
   ciRuns            CiRun[]
+  commits           Commit[]
+  tags              Tag[]
+  releases          Release[]
   agentSessions     AgentSession[]
 
   @@unique([ownerId, name])
@@ -1699,6 +1733,94 @@ model CiJob {
   @@index([status])
   @@map("ci_jobs")
 }
+
+// ==================== QUANTGIT: GIT READ PROJECTION ====================
+// Read-model projection populated from Git post-receive hooks.
+// Git remains the authoritative source of truth for object contents;
+// Postgres provides indexable, queryable relational projections for UI,
+// contributor stats, graph visualizers, and audit queries.
+
+model Commit {
+  id             String         @id @default(cuid())
+  repoId         String
+  sha            String
+  treeSha        String
+  authorName     String
+  authorEmail    String
+  authoredAt     DateTime
+  committerName  String
+  committerEmail String
+  committedAt    DateTime
+  message        String         @db.Text
+  verified       Boolean        @default(false)
+  gpgSignature   String?        @db.Text
+  createdAt      DateTime       @default(now())
+
+  repository     Repository     @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  parents        CommitParent[] @relation("ChildCommit")
+  children       CommitParent[] @relation("ParentCommit")
+
+  @@unique([repoId, sha])
+  @@index([repoId, committedAt])
+  @@index([sha])
+  @@map("commits")
+}
+
+model CommitParent {
+  id       String @id @default(cuid())
+  commitId String
+  parentId String
+  order    Int    @default(0)
+
+  commit   Commit @relation("ChildCommit", fields: [commitId], references: [id], onDelete: Cascade)
+  parent   Commit @relation("ParentCommit", fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([commitId, parentId])
+  @@index([commitId])
+  @@index([parentId])
+  @@map("commit_parents")
+}
+
+model Tag {
+  id          String    @id @default(cuid())
+  repoId      String
+  name        String
+  commitSha   String
+  taggerName  String?
+  taggerEmail String?
+  taggedAt    DateTime?
+  message     String?   @db.Text
+  createdAt   DateTime  @default(now())
+
+  repository  Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, name])
+  @@index([repoId])
+  @@map("tags")
+}
+
+model Release {
+  id           String    @id @default(cuid())
+  repoId       String
+  tagName      String
+  name         String
+  body         String?   @db.Text
+  isDraft      Boolean   @default(false)
+  isPrerelease Boolean   @default(false)
+  authorId     String
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  repository   Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  author       User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([repoId, tagName])
+  @@index([repoId])
+  @@index([authorId])
+  @@map("releases")
+}
+
 
 // ==================== QUANTMAIL: LABELS & CONTACTS ====================
 // Additive, quantmail-owned models backing the email label manager
@@ -4188,3 +4310,65 @@ model EmailSuppression {
   @@map("email_suppressions")
 }
 
+
+// ==================== CROSS-APP INTEREST SIGNALS ====================
+//
+// The projection side of the event spine. Apps emit domain events into
+// `outbox_events`; `services/cdc-relay` publishes them to per-aggregate Redis
+// Streams; `services/signal-projector` folds the ones that say something about a
+// person's interests into this table.
+//
+// Why a separate table rather than reading the streams directly: a stream is a
+// log with a retention bound, and a recommender needs to ask "what does this user
+// care about" without replaying history. This is the queryable projection of that
+// log — and the reason it is cross-app is that `category` and `creatorId` mean the
+// same thing whichever app produced the row, so a signal earned in QuanTube is
+// legible to QuantGram's feed.
+model UserInterestSignal {
+  id String @id @default(cuid())
+
+  /// The person the signal is ABOUT (the actor), not the content's owner.
+  userId String @map("user_id")
+
+  /// Which app observed it — `quantube`, `quantneon`, ... Kept so a consumer can
+  /// weight or exclude a source without inferring it from the subject type.
+  app String
+
+  /// What happened, in the emitting app's vocabulary: `Video.liked`, etc. Stored
+  /// verbatim rather than mapped to a small enum, because collapsing event types
+  /// at write time throws away the only information a future scorer might need.
+  eventType String @map("event_type")
+
+  /// What was acted on. `subjectType` is the aggregate ("Video"), `subjectId` its id.
+  subjectType String @map("subject_type")
+  subjectId   String @map("subject_id")
+
+  /// Whose content it was, when the event says. Enables creator affinity across
+  /// apps, which is the signal a follow graph cannot express on its own.
+  creatorId String? @map("creator_id")
+
+  /// The topical key. This is the field that makes a signal portable between
+  /// apps; null when the emitting app had no category for the subject.
+  category String?
+
+  /// Signed strength. A like is positive, an unlike is the same signal retracted,
+  /// so it is stored as a negative rather than as a delete — Law 2, history should
+  /// never disappear, and "liked then unliked" is not the same as "never liked".
+  weight Float @default(1)
+
+  /// When the ACTION happened (from the event), not when this row was written.
+  /// Those differ by the relay's lag and a scorer must use the former.
+  occurredAt DateTime @map("occurred_at")
+
+  /// The originating `outbox_events.id`. UNIQUE, and load-bearing: spine delivery
+  /// is at-least-once, so the projector will see redeliveries and this is what
+  /// makes folding one idempotent.
+  eventId String @unique @map("event_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, occurredAt])
+  @@index([userId, category])
+  @@index([creatorId])
+  @@map("user_interest_signals")
+}

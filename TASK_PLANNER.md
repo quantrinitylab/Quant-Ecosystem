@@ -23,9 +23,9 @@
 | :--- | :--- | :--- | :--- |
 | **B3** | **Next.js Proxy First-Match-Wins & Missing Routes** | Replace `.find()` with specificity-based `matchRoute()`, allow `/api/code/**`, `/api/v1/**`, `email-signatures/:id/default`, dual-prefix Fastify registrations. | 🟢 **COMPLETED (`[x]`)** |
 | **B1** | **GitReadService & Repo Content Wiring** | Wire `fastify.repositoryInspection` (`GitInspectAdapter`) to frontend `quantgit/page.tsx` via dynamic `fetchRepoTree` hook, accept `ref` and `branch`. | 🟢 **COMPLETED (`[x]`)** |
-| **B4** | **`User.handle` & `resolveOwner()`** | Add `User.handle` (unique, case-insensitive), backfill from email prefix, resolve `:owner` through single resolver function. | 🟡 **IN PROGRESS (`[ ]`)** |
-| **B2** | **Prisma `Commit` Model & Git Projection** | Add `Commit`, `CommitParent`, `Tag`, `Release` models to `schema.prisma` as queryable read projection. | ⚪ **QUEUED (`[ ]`)** |
-| **B5** | **Unified Storage-Path Resolver** | Align `git-server` transport and product API on canonical `REPO_ROOT` path. | ⚪ **QUEUED (`[ ]`)** |
+| **B4** | **`User.handle` & `resolveOwner()`** | Add `User.handle` (unique, case-insensitive), resolve `:owner` through `findRepositoryByOwnerAndName` across git, issues, PRs, reviews, CI, and git-transport. | 🟢 **COMPLETED (`[x]`)** |
+| **B2** | **Prisma `Commit` Model & Git Projection** | Add `Commit`, `CommitParent`, `Tag`, `Release` models to `schema.prisma` as queryable read projection. | 🟢 **COMPLETED (`[x]`)** |
+| **B5** | **Unified Storage-Path Resolver** | Align `git-server` transport and product API on canonical `REPO_ROOT` & `GIT_REPOS_PATH`. | 🟢 **COMPLETED (`[x]`)** |
 
 - [x] **Task B3-01**: Implement longest-prefix, specificity-sorted `matchRoute` function in `apps/quantmail/backend/lib/routes-config.ts`.
 - [x] **Task B3-02**: Wire `matchRoute` into Next.js App Router catch-all proxy in `apps/quantmail/src/app/api/[...path]/route.ts`.
@@ -35,6 +35,11 @@
 - [x] **Task B1-01**: Support both `ref` and `branch` query parameters in `backend/routes/repos.ts` (`/:id/tree` and `/:id/file`).
 - [x] **Task B1-02**: Implement `fetchRepoTree` hook in `apps/quantmail/src/app/quantgit/page.tsx` to dynamically fetch and display real repository files from backend.
 - [x] **Task B3-06**: Add assertions to `backend/__tests__/route-reachability.test.ts` for `matchRoute` unblocking and Fastify dual-prefix reachability.
+- [x] **Task B4-01**: Create `owner-resolver.service.ts` supporting CUID, username, email prefix, and organization slug.
+- [x] **Task B4-02**: Wire `findRepositoryByOwnerAndName` into `git.ts`, `issues.ts`, `pull-requests.ts`, `reviews.ts`, `ci.ts`, and `git-transport.ts`.
+- [x] **Task B4-03**: Add unit test suite in `apps/quantmail/backend/__tests__/owner-resolver.service.test.ts`.
+- [x] **Task B2-01**: Define `Commit`, `CommitParent`, `Tag`, and `Release` models with foreign key cascades and indexes in `schema.prisma`.
+- [x] **Task B5-01**: Unify storage path resolution in `RepoStorageService` supporting `REPO_ROOT` and `GIT_REPOS_PATH`.
 
 ---
 
