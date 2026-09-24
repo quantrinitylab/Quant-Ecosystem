@@ -2,7 +2,9 @@
 // QuantNeon - ReelPlayer Component (Full-screen vertical video)
 // ============================================================================
 
+import React, { useState } from 'react';
 import type { Reel } from '../types';
+import { ReelsCommentsSheet } from './ReelsCommentsSheet';
 
 interface ReelPlayerProps {
   reel: Reel;
@@ -11,6 +13,8 @@ interface ReelPlayerProps {
 }
 
 export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+
   return (
     <div className="relative w-full h-full bg-black" aria-label={`Reel by ${reel.username}`}>
       {/* Video */}
@@ -34,13 +38,16 @@ export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
           <span className="text-xs font-medium">{reel.likes}</span>
         </button>
         <button
-          className="flex flex-col items-center gap-1 text-white"
+          type="button"
+          onClick={() => setIsCommentsOpen(true)}
+          className="flex flex-col items-center gap-1 text-white hover:opacity-80 transition-opacity"
           aria-label={`Comments, ${reel.comments} comments`}
         >
           <span className="text-2xl">💬</span>
           <span className="text-xs font-medium">{reel.comments}</span>
         </button>
         <button
+          type="button"
           className="flex flex-col items-center gap-1 text-white"
           aria-label={`Share, ${reel.shares} shares`}
         >
@@ -64,6 +71,14 @@ export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
           <span className="text-xs truncate">{reel.audioName}</span>
         </div>
       </div>
+
+      {/* Drag-to-Dismiss Comments Sheet */}
+      <ReelsCommentsSheet
+        isOpen={isCommentsOpen}
+        onClose={() => setIsCommentsOpen(false)}
+        reelId={reel.id}
+        initialCommentsCount={reel.comments}
+      />
     </div>
   );
 }

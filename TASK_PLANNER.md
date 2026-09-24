@@ -90,7 +90,7 @@
 ### Track 1: QuantGram Instagram Killer Parity (`apps/quantneon` - Dev 6 & Dev 3)
 
 - [x] **Task W39-G01 (PR #311 Merged)**: Full-Screen 9:16 Reels Video Player with vertical touch snapping, looping HLS video, right sidebar actions (Like, Comment, Share/Remix, Bookmark, 3-dots), bottom creator overlay (avatar + Follow pill, audio marquee ticker, expandable caption + hashtags), and double-tap heart burst. (20/20 test suites and 236/236 tests passing 100% green).
-- [ ] **Task W39-G02**: Drag-to-Dismiss Comments Bottom Sheet with nested reply threads, comment like counts, empty state, and floating 8-emoji reaction dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`).
+- [x] **Task W39-G02**: Drag-to-Dismiss Comments Bottom Sheet with nested reply threads, comment like counts, empty state, and floating 8-emoji reaction dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`). (Verified 100% green: 6/6 tests passing in `reels-comments.test.ts`, component mounted in `ReelPlayer.tsx`).
 - [ ] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle.
 - [ ] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges.
 - [ ] **Task W39-G05**: Explore 3-Column Asymmetric Masonry Grid with video duration badges, view count pills (`439K`, `2.4M`), and "Search with Meta AI" search bar.
