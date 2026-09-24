@@ -53,4 +53,22 @@ describe('safeReturnPath', () => {
     expect(safeReturnPath(undefined)).toBeNull();
     expect(safeReturnPath('')).toBeNull();
   });
+
+  it('accepts trusted Quant ecosystem URLs for seamless SSO', () => {
+    expect(safeReturnPath('https://quantchat.quantrinity.in/')).toBe(
+      'https://quantchat.quantrinity.in/',
+    );
+    expect(safeReturnPath('https://quantchat.quantrinity.in/login')).toBe(
+      'https://quantchat.quantrinity.in/login',
+    );
+    expect(safeReturnPath('https://quantube.quantrinity.in/watch?v=123')).toBe(
+      'https://quantube.quantrinity.in/watch?v=123',
+    );
+    expect(safeReturnPath('https://quantai.quantrinity.in/')).toBe(
+      'https://quantai.quantrinity.in/',
+    );
+    expect(safeReturnPath('https://quantmail.in/')).toBe('https://quantmail.in/');
+    expect(safeReturnPath('http://localhost:3001/')).toBe('http://localhost:3001/');
+    expect(safeReturnPath('http://127.0.0.1:3000/callback')).toBe('http://127.0.0.1:3000/callback');
+  });
 });

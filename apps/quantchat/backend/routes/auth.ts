@@ -202,7 +202,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
     return reply.send({
       success: true,
-      data: { message: 'Verification code sent', expiresIn: result.expiresInSec ?? 300 },
+      data: {
+        message: 'Verification code sent',
+        expiresIn: result.expiresInSec ?? 300,
+        ...(result.demoCode ? { demoCode: result.demoCode } : {}),
+      },
     });
   });
 

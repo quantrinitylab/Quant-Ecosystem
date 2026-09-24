@@ -8,7 +8,7 @@
 // Supports instant QuantMail account (Email & Password) login and SMS OTP.
 // On successful verification the issued JWTs are persisted (localStorage + apiClient).
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
@@ -31,6 +31,18 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
+  // Auto-capture SSO tokens returned from QuantMail Account Chooser
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token') || params.get('accessToken') || params.get('access_token');
+    const refreshToken = params.get('refreshToken') || params.get('refresh_token') || token || '';
+    if (token) {
+      persistSession(token, refreshToken);
+      router.replace('/');
+    }
+  }, [router]);
+
   const handleQuantSSO = useCallback(() => {
     try {
       const stored =
@@ -43,8 +55,8 @@ export default function LoginPage() {
         return;
       }
     } catch {}
-    const returnTo = encodeURIComponent(window.location.origin + '/');
-    window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
+    const returnTo = encodeURIComponent(window.location.origin + '/login');
+    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantchat`;
   }, [router]);
 
   const handlePasswordLogin = useCallback(
@@ -100,7 +112,13 @@ export default function LoginPage() {
         return;
       }
       setStep('otp');
-      setInfo('We sent a verification code to your phone.');
+      const demoCode = (res.data as { demoCode?: string })?.demoCode;
+      if (demoCode) {
+        setInfo(`Verification code sent! (Code: ${demoCode})`);
+        setOtp(demoCode);
+      } else {
+        setInfo('We sent a verification code to your phone.');
+      }
     } catch {
       setError('Network error. Please try again.');
     } finally {

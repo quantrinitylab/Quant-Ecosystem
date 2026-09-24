@@ -9,6 +9,7 @@ import { PageTransition } from '@quant/shared-ui';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
 import { safeReturnPath } from '../../lib/safe-return-path';
 import { useAuth } from '../../providers/auth-provider';
+import { browserAuthSession } from '../../services/browser-auth-session';
 
 interface LoginFieldErrors {
   identifier?: string;
@@ -26,7 +27,7 @@ const formatCountdown = (seconds: number): string => {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
+  const { user, isAuthenticated, login, completeTwoFactor, cancelTwoFactor, isLoading } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -68,12 +69,42 @@ function LoginForm() {
     setIdentifier(switchTo);
   }, [switchTo]);
 
-  const destination = () => {
+  const rawReturnTo = searchParams?.get('returnTo');
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && rawReturnTo) {
+      const safe = safeReturnPath(rawReturnTo);
+      if (safe && (safe.startsWith('http://') || safe.startsWith('https://'))) {
+        router.replace(`/sso?returnTo=${encodeURIComponent(rawReturnTo)}`);
+      }
+    }
+  }, [isAuthenticated, isLoading, rawReturnTo, router]);
+
+  const destination = useCallback(() => {
     // `returnTo` is what AuthGuard sends; `next` is kept for the invite link.
     const returnTo =
       safeReturnPath(searchParams?.get('returnTo')) ?? safeReturnPath(searchParams?.get('next'));
     return returnTo || '/';
-  };
+  }, [searchParams]);
+
+  const navigateToDestination = useCallback(() => {
+    const dest = destination();
+    if (dest.startsWith('http://') || dest.startsWith('https://')) {
+      const token = browserAuthSession.getAccessToken();
+      try {
+        const targetUrl = new URL(dest);
+        if (token) {
+          targetUrl.searchParams.set('token', token);
+          targetUrl.searchParams.set('accessToken', token);
+          targetUrl.searchParams.set('refreshToken', token);
+        }
+        window.location.href = targetUrl.toString();
+        return;
+      } catch {
+        // fallback
+      }
+    }
+    router.push(dest);
+  }, [destination, router]);
 
   const backToPassword = useCallback(
     (message: string | null) => {
@@ -136,7 +167,7 @@ function LoginForm() {
         setStage('two-factor');
         return;
       }
-      router.push(destination());
+      navigateToDestination();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : 'Sign-in failed. Try again.');
     }
@@ -158,7 +189,7 @@ function LoginForm() {
 
     try {
       await completeTwoFactor(trimmed);
-      router.push(destination());
+      navigateToDestination();
     } catch (caughtError) {
       const message =
         caughtError instanceof Error

@@ -12,10 +12,46 @@
  * Only in-app paths pass. The two forms worth naming are `//host` and `/\host`:
  * both read as a path and both resolve as an origin.
  */
+const ALLOWED_EXACT_HOSTNAMES = new Set([
+  'quantmail.in',
+  'quantrinity.in',
+  'localhost',
+  '127.0.0.1',
+]);
+
+function isAllowedEcosystemHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (ALLOWED_EXACT_HOSTNAMES.has(host)) return true;
+  if (host.endsWith('.quantrinity.in') || host.endsWith('.quantmail.in')) return true;
+  return false;
+}
+
 export function safeReturnPath(value: string | null | undefined): string | null {
-  if (!value || !value.startsWith('/')) return null;
-  if (value.startsWith('//') || value.startsWith('/\\')) return null;
-  return value;
+  if (!value) return null;
+
+  // 1. Relative path check
+  if (value.startsWith('/')) {
+    if (value.startsWith('//') || value.startsWith('/\\')) return null;
+    return value;
+  }
+
+  // 2. Absolute URL check for trusted ecosystem services
+  try {
+    const url = new URL(value);
+    const isHttps = url.protocol === 'https:';
+    const isLocalHttp =
+      url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
+
+    if (!isHttps && !isLocalHttp) return null;
+
+    if (isAllowedEcosystemHost(url.hostname)) {
+      return url.toString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 export default safeReturnPath;

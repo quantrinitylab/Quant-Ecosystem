@@ -20,7 +20,10 @@ import { createHash, createHmac, randomInt } from 'node:crypto';
 
 export interface SmsSender {
   /** Deliver an SMS. Real adapters (AWS SNS / Twilio / MSG91) implement this. */
-  send(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }>;
+  send(
+    phoneNumber: string,
+    message: string,
+  ): Promise<{ success: boolean; error?: string; isFallback?: boolean }>;
 }
 
 export interface AwsSnsConfig {
@@ -57,6 +60,7 @@ export interface RequestResult {
   expiresInSec?: number;
   retryAfterSec?: number;
   error?: string;
+  demoCode?: string;
 }
 
 export interface VerifyResult {
@@ -188,7 +192,18 @@ export class OtpService {
     win.count += 1;
     this.rate.set(phone, win);
 
-    return { ok: true, expiresInSec: Math.floor(this.config.codeTtlMs / 1000) };
+    const isDemo = Boolean(
+      sent.isFallback ||
+      process.env.NODE_ENV !== 'production' ||
+      process.env.STAGING ||
+      process.env.OTP_DEMO_FALLBACK,
+    );
+
+    return {
+      ok: true,
+      expiresInSec: Math.floor(this.config.codeTtlMs / 1000),
+      ...(isDemo ? { demoCode: code } : {}),
+    };
   }
 
   verifyCode(phoneNumber: string, code: string): VerifyResult {
@@ -246,11 +261,14 @@ export class OtpService {
  */
 export class LoggingSmsSender implements SmsSender {
   constructor(private readonly log: (msg: string) => void = () => {}) {}
-  async send(phoneNumber: string, message: string): Promise<{ success: boolean }> {
+  async send(
+    phoneNumber: string,
+    message: string,
+  ): Promise<{ success: boolean; isFallback: boolean }> {
     // Redact all digit sequences so OTP never leaks to server logs for any code length
     const masked = message.replace(/\b\d+\b/g, '[REDACTED]');
     this.log(`[OTP][dev-sms] to=${phoneNumber} :: ${masked}`);
-    return { success: true };
+    return { success: true, isFallback: true };
   }
 }
 
@@ -299,11 +317,18 @@ export class AwsSnsSmsSender implements SmsSender {
     return readAwsSnsConfig(this.configOverride) !== null;
   }
 
-  async send(phoneNumber: string, message: string): Promise<{ success: boolean; error?: string }> {
+  async send(
+    phoneNumber: string,
+    message: string,
+  ): Promise<{ success: boolean; error?: string; isFallback?: boolean }> {
     const config = readAwsSnsConfig(this.configOverride);
     if (!config) {
-      // Fail closed in production: missing credentials must reject rather than silently succeed
-      if (process.env.NODE_ENV === 'production') {
+      // In production if explicitly configured without AWS keys, fail closed unless in staging or fallback mode
+      if (
+        process.env.NODE_ENV === 'production' &&
+        !process.env.STAGING &&
+        !process.env.OTP_DEMO_FALLBACK
+      ) {
         return {
           success: false,
           error: 'SMS_GATEWAY_NOT_CONFIGURED: AWS SNS credentials are required in production',

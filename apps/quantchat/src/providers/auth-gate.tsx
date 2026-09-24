@@ -15,7 +15,7 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, LoadingState } from '@quant/shared-ui';
-import { bootstrapSession } from '../lib/auth-session';
+import { bootstrapSession, persistSession } from '../lib/auth-session';
 
 const PUBLIC_PATHS = new Set(['/login']);
 
@@ -25,8 +25,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
 
   // Re-hydrate the apiClient bearer from the stored token on first mount so
-  // authed data fetches carry the JWT after a page reload.
+  // authed data fetches carry the JWT after a page reload. If arriving from an
+  // SSO redirect with `?token=...`, persist it immediately before resolving auth.
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token') || params.get('accessToken') || params.get('access_token');
+      const refreshToken = params.get('refreshToken') || params.get('refresh_token') || token || '';
+      if (token) {
+        persistSession(token, refreshToken);
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    }
     bootstrapSession();
   }, []);
 
