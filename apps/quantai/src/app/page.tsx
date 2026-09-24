@@ -32,6 +32,19 @@ import { OnboardingHero } from '../components/OnboardingHero';
 import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
 import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
+import { WorkCanvasPanel } from '../components/WorkCanvasPanel';
+import {
+  buildWorkPrompt,
+  getWorkArtifactTitle,
+  type WorkArtifact,
+  type WorkFormat,
+} from '../lib/workspace-artifacts';
+
+interface PendingWorkRequest {
+  format: WorkFormat;
+  previousAssistantIds: Set<string>;
+  hasStarted: boolean;
+}
 
 export default function AIPage() {
   const { models, currentModel, switchModel } = useModelSelector();
@@ -63,10 +76,14 @@ export default function AIPage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
-  // QuantAI Mode: ChatGPT / Claude conversational chat vs Claude Code / Codex agentic CLI
-  const [activeMode, setActiveMode] = useState<'chat' | 'agent'>('chat');
+  // Chat keeps the familiar conversation view; Work pairs chat with a format-aware canvas.
+  const [activeMode, setActiveMode] = useState<'chat' | 'work'>('chat');
+  const [showAgentTerminal, setShowAgentTerminal] = useState(false);
   const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const [currentArtifact, setCurrentArtifact] = useState<CanvasArtifact | null>(null);
+  const [workFormat, setWorkFormat] = useState<WorkFormat>('document');
+  const [workArtifact, setWorkArtifact] = useState<WorkArtifact | null>(null);
+  const pendingWorkRequest = useRef<PendingWorkRequest | null>(null);
 
   const router = useRouter();
 
@@ -146,6 +163,52 @@ export default function AIPage() {
     switchModel(modelId);
     hookSwitchModel(modelId);
   };
+
+  const handleWorkSend = useCallback(
+    (content: string, attachments?: string[]) => {
+      if (!content.trim() || isStreaming) return;
+
+      pendingWorkRequest.current = {
+        format: workFormat,
+        previousAssistantIds: new Set(
+          messages.filter((message) => message.role === 'assistant').map((message) => message.id),
+        ),
+        hasStarted: false,
+      };
+      setIsCanvasOpen(true);
+      sendMessage(buildWorkPrompt(workFormat, content), attachments);
+    },
+    [isStreaming, messages, sendMessage, workFormat],
+  );
+
+  useEffect(() => {
+    const pending = pendingWorkRequest.current;
+    if (!pending) return;
+
+    if (isStreaming) {
+      pending.hasStarted = true;
+      return;
+    }
+    if (!pending.hasStarted) return;
+
+    const response = [...messages]
+      .reverse()
+      .find(
+        (message) => message.role === 'assistant' && !pending.previousAssistantIds.has(message.id),
+      );
+    if (response?.content.trim() && response.content !== 'Sorry, I encountered an error.') {
+      const artifact: WorkArtifact = {
+        id: response.id,
+        format: pending.format,
+        title: getWorkArtifactTitle(pending.format, response.content),
+        content: response.content,
+        updatedAt: response.timestamp,
+      };
+      setWorkArtifact(artifact);
+      if (activeMode === 'work' && !showAgentTerminal) setIsCanvasOpen(true);
+    }
+    pendingWorkRequest.current = null;
+  }, [activeMode, isStreaming, messages, showAgentTerminal]);
 
   const handlePersonaSelect = useCallback((persona: Persona) => {
     setActivePersona(persona);
@@ -396,35 +459,42 @@ export default function AIPage() {
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-lg font-semibold text-[var(--foreground)]">QuantAI</h1>
 
-              {/* Mode Switcher: 💬 Chat Mode vs ⚡ Agent / Code Mode */}
+              {/* Mode Switcher: conversation mode vs collaborative Work canvas */}
               <div className="flex items-center gap-1 bg-[var(--quant-surface-hover)] p-1 rounded-xl border border-[var(--quant-border)]">
                 <button
                   type="button"
-                  onClick={() => setActiveMode('chat')}
+                  onClick={() => {
+                    setActiveMode('chat');
+                    setShowAgentTerminal(false);
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     activeMode === 'chat'
                       ? 'bg-[var(--quant-accent)] text-white shadow-sm'
                       : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
                   }`}
                   aria-pressed={activeMode === 'chat'}
-                  title="ChatGPT / Claude Conversational Chat"
+                  title="Chat with QuantAI"
                 >
                   <span>💬</span>
-                  <span className="hidden sm:inline">Chat Mode</span>
+                  <span>Chat</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveMode('agent')}
+                  onClick={() => {
+                    setActiveMode('work');
+                    setShowAgentTerminal(false);
+                    setIsCanvasOpen(true);
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    activeMode === 'agent'
+                    activeMode === 'work'
                       ? 'bg-emerald-600 text-white shadow-sm'
                       : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
                   }`}
-                  aria-pressed={activeMode === 'agent'}
-                  title="Claude Code / Codex / Replit Agentic Terminal"
+                  aria-pressed={activeMode === 'work'}
+                  title="Create documents, slides, and sheets beside your chat"
                 >
-                  <span>⚡</span>
-                  <span className="hidden sm:inline">Agent / Code Mode</span>
+                  <span>✦</span>
+                  <span>Work</span>
                 </button>
               </div>
 
@@ -453,13 +523,23 @@ export default function AIPage() {
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm'
                       : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground)]'
                   }`}
-                  title="Toggle Split-Screen Canvas / Artifacts Panel"
+                  title={
+                    activeMode === 'work'
+                      ? 'Toggle the split-screen Work canvas'
+                      : 'Toggle the artifact panel'
+                  }
                 >
                   <span>🎨</span>
                   <span className="hidden md:inline">
-                    {isCanvasOpen ? 'Close Canvas' : 'Artifacts'}
+                    {activeMode === 'work'
+                      ? isCanvasOpen
+                        ? 'Hide canvas'
+                        : 'Show canvas'
+                      : isCanvasOpen
+                        ? 'Close Canvas'
+                        : 'Artifacts'}
                   </span>
-                  {currentArtifact && (
+                  {(currentArtifact || workArtifact) && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   )}
                 </button>
@@ -559,11 +639,11 @@ export default function AIPage() {
           </div>
 
           {/* Main Content Area: Split-Screen Canvas support */}
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-hidden lg:flex-row">
             {/* Left Panel: Chat Mode or Agent Mode Terminal */}
             <div
-              className={`flex-1 flex flex-col min-w-0 transition-all ${
-                isCanvasOpen ? 'w-full lg:w-1/2' : 'w-full'
+              className={`flex min-h-0 min-w-0 flex-col transition-all ${
+                isCanvasOpen ? 'h-1/2 w-full lg:h-full lg:w-1/2' : 'h-full w-full'
               }`}
             >
               {/* Unauthenticated Onboarding Hero prompt */}
@@ -614,7 +694,61 @@ export default function AIPage() {
                 </div>
               )}
 
-              {activeMode === 'chat' ? (
+              {activeMode === 'work' && (
+                <div className="mx-3 mb-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]/70 px-3 py-2">
+                  <div
+                    className="flex items-center gap-1 rounded-lg bg-[var(--quant-surface-hover)] p-1"
+                    role="tablist"
+                    aria-label="Work area"
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={!showAgentTerminal}
+                      onClick={() => setShowAgentTerminal(false)}
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                        !showAgentTerminal
+                          ? 'bg-[var(--quant-accent)] text-white'
+                          : 'text-[var(--foreground-secondary)]'
+                      }`}
+                    >
+                      Workspace
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={showAgentTerminal}
+                      onClick={() => {
+                        setShowAgentTerminal(true);
+                        setIsCanvasOpen(true);
+                      }}
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                        showAgentTerminal
+                          ? 'bg-[var(--quant-accent)] text-white'
+                          : 'text-[var(--foreground-secondary)]'
+                      }`}
+                    >
+                      Agent terminal
+                    </button>
+                  </div>
+                  {!showAgentTerminal && (
+                    <p className="text-[11px] text-[var(--foreground-secondary)]">
+                      Chat on the left; synthesize a document, slide deck, or sheet on the canvas.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {activeMode === 'work' && showAgentTerminal ? (
+                <AgentCodeTerminal
+                  currentModelName={currentModel.name}
+                  onArtifactGenerated={(artifact) => {
+                    setCurrentArtifact(artifact);
+                    setIsCanvasOpen(true);
+                  }}
+                  onOpenCanvas={() => setIsCanvasOpen(true)}
+                />
+              ) : (
                 <>
                   {/* Chat Messages */}
                   <ChatMessages
@@ -637,7 +771,7 @@ export default function AIPage() {
                     </div>
                   )}
                   <ChatInput
-                    onSend={sendMessage}
+                    onSend={activeMode === 'work' ? handleWorkSend : sendMessage}
                     isStreaming={isStreaming}
                     imagePreview={imagePreview}
                     attachedFile={attachedFile}
@@ -693,27 +827,28 @@ export default function AIPage() {
                     )}
                   </AnimatePresence>
                 </>
-              ) : (
-                /* Agent / Code Mode Terminal (Claude Code + Codex Parity) */
-                <AgentCodeTerminal
-                  currentModelName={currentModel.name}
-                  onArtifactGenerated={(artifact) => {
-                    setCurrentArtifact(artifact);
-                    setIsCanvasOpen(true);
-                  }}
-                  onOpenCanvas={() => setIsCanvasOpen(true)}
-                />
               )}
             </div>
 
             {/* Right Panel: Split-Screen Canvas / Artifacts Panel */}
             {isCanvasOpen && (
-              <div className="w-full lg:w-1/2 border-l border-[var(--quant-border)] h-full overflow-hidden">
-                <CanvasArtifactsPanel
-                  artifact={currentArtifact}
-                  onClose={() => setIsCanvasOpen(false)}
-                  onUpdateArtifact={(updated) => setCurrentArtifact(updated)}
-                />
+              <div className="h-1/2 w-full overflow-hidden border-t border-[var(--quant-border)] lg:h-full lg:w-1/2 lg:border-l lg:border-t-0">
+                {activeMode === 'work' && !showAgentTerminal ? (
+                  <WorkCanvasPanel
+                    content={workArtifact?.content ?? null}
+                    title={workArtifact?.title ?? null}
+                    format={workFormat}
+                    isGenerating={isStreaming}
+                    onFormatChange={setWorkFormat}
+                    onClose={() => setIsCanvasOpen(false)}
+                  />
+                ) : (
+                  <CanvasArtifactsPanel
+                    artifact={currentArtifact}
+                    onClose={() => setIsCanvasOpen(false)}
+                    onUpdateArtifact={(updated) => setCurrentArtifact(updated)}
+                  />
+                )}
               </div>
             )}
           </div>

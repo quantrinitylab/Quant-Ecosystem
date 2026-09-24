@@ -3,6 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TOOL_ICONS } from '../types/tool-calls';
 import type { CanvasArtifact } from '../types/agent-mode';
+import { parseMarkdownTable, splitMarkdownSlides } from '../lib/workspace-artifacts';
 
 // Mock framer-motion for SSR rendering
 vi.mock('framer-motion', () => ({
@@ -19,6 +20,7 @@ vi.mock('framer-motion', () => ({
 const { OnboardingHero } = await import('../components/OnboardingHero');
 const { AgentCodeTerminal } = await import('../components/AgentCodeTerminal');
 const { CanvasArtifactsPanel } = await import('../components/CanvasArtifactsPanel');
+const { WorkCanvasPanel } = await import('../components/WorkCanvasPanel');
 
 describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
   describe('OnboardingHero', () => {
@@ -115,6 +117,62 @@ describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
       );
 
       expect(html).toContain('No Artifact Selected');
+    });
+  });
+
+  describe('WorkCanvasPanel', () => {
+    it('renders the document, slides, and sheet format controls', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(WorkCanvasPanel, {
+          content: '## Slide 1 — Overview\n\n- First point\n- Second point',
+          title: 'Product overview',
+          format: 'slides',
+          isGenerating: false,
+          onFormatChange: vi.fn(),
+          onClose: vi.fn(),
+        }),
+      );
+
+      expect(html).toContain('Work canvas');
+      expect(html).toContain('Document');
+      expect(html).toContain('Slides');
+      expect(html).toContain('Sheet');
+      expect(html).toContain('Slide 1 — Overview');
+      expect(html).toContain('First point');
+    });
+
+    it('shows a useful empty state before the first Work response', () => {
+      const html = renderToStaticMarkup(
+        React.createElement(WorkCanvasPanel, {
+          content: null,
+          title: null,
+          format: 'document',
+          isGenerating: false,
+          onFormatChange: vi.fn(),
+          onClose: vi.fn(),
+        }),
+      );
+
+      expect(html).toContain('Your document will appear here');
+      expect(html).toContain('conversation stays beside it');
+    });
+  });
+
+  describe('Work artifact parsers', () => {
+    it('parses Markdown tables without rendering assistant text as HTML', () => {
+      expect(parseMarkdownTable('| Item | Count |\n| --- | --- |\n| A | 2 |')).toEqual({
+        headers: ['Item', 'Count'],
+        rows: [['A', '2']],
+      });
+    });
+
+    it('splits slide output on Markdown headings', () => {
+      expect(
+        splitMarkdownSlides('## Slide 1 — Intro\n\nHello\n\n## Slide 2 — Plan\n\nNext'),
+      ).toEqual([
+        { title: 'Slide 1 — Intro', content: 'Hello' },
+        { title: 'Slide 2 — Plan', content: 'Next' },
+      ]);
     });
   });
 
