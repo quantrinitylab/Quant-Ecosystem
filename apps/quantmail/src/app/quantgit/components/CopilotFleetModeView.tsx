@@ -337,7 +337,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
         </div>
 
         {/* Input box */}
-        <div className="relative rounded-xl bg-[#161B22] border border-[#30363D] focus-within:border-[#58A6FF] transition-all overflow-hidden p-2.5 space-y-2">
+        <div className="relative rounded-xl bg-[#161B22] border border-[#30363D] focus-within:border-[#58A6FF] transition-all p-2.5 space-y-2">
           <textarea
             value={promptText}
             onChange={(e) => setPromptText(e.target.value)}
