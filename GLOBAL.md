@@ -1,5 +1,7 @@
 # 🛡️ GLOBAL SYSTEM RULES & AUTONOMOUS SWARM ORCHESTRATION DIRECTIVE
 
+_(Mirrors GEMINI.md — Single Source of Truth for Global Rules)_
+
 ## ⚡ 1. MANDATORY WAKEUP REFLEX (FIRST ACTION ON EVERY TURN)
 
 Before generating ANY response to the user — **even if the user merely says "hii", "hello", or asks a casual question** — you MUST strictly follow this operational reflex:

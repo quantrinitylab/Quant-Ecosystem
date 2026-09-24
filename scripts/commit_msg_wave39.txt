@@ -1,0 +1,10 @@
+feat(quantgit,quantai,quantneon): real git tree, work canvas, scheduled crons & profile matrix
+
+- QuantGit (W39-GIT03): Real Git File Explorer Tree (741 lines) with folder expansion,
+  syntax-highlighted Markdown README preview (686 lines), and commit metadata.
+- QuantAI (W39-A01, W39-A02): Dual-mode WorkCanvasPanel with split preview and
+  autonomous ScheduledTasksService with BullMQ cron ledger (35/35 tests green).
+- QuantGram (W39-G03..G07): ProfileView with 4-tab matrix, ExploreGrid with 2x2 spans,
+  NotesTray, AboutReelSheet, and SocialMapView geospatial map (304/304 tests green).
+- Enshrine mandatory deep subagent deployment invariant in GEMINI.md and GLOBAL.md.
+- Full Vitest suites passing (304/304 tests green in quantgram, quantai validated).

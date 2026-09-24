@@ -6,7 +6,7 @@
   "main": "backend/app.ts",
   "scripts": {
     "dev": "next dev",
-    "dev:backend": "node --loader ts-node/esm backend/app.ts",
+    "dev:backend": "tsx backend/server.ts",
     "build": "next build",
     "build:backend": "tsc --noEmit -p tsconfig.backend.json",
     "start": "next start",

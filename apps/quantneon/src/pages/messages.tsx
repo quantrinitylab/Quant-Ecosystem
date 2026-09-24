@@ -262,6 +262,8 @@ const MessagesPage: React.FC = () => {
     // Create or find mock conversation
     const newConv: DmConversationSummary = {
       id: accepted.conversationId,
+      type: 'DIRECT',
+      memberIds: [accepted.sender.id],
       isGroup: false,
       name: accepted.sender.displayName,
       unreadCount: 0,
@@ -277,7 +279,9 @@ const MessagesPage: React.FC = () => {
         id: `msg-${Date.now()}`,
         conversationId: accepted.conversationId,
         senderId: accepted.sender.id,
+        type: 'TEXT',
         content: accepted.previewMessage,
+        mediaUrl: null,
         createdAt: accepted.receivedAt,
       },
       lastMessageAt: accepted.receivedAt,
@@ -493,13 +497,13 @@ const MessagesPage: React.FC = () => {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            req.sender.displayName[0]?.toUpperCase()
+                            (req.sender.displayName || req.sender.username || '?')[0]?.toUpperCase()
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
                             <h4 className="text-xs font-semibold text-white truncate">
-                              {req.sender.displayName}
+                              {req.sender.displayName || req.sender.username}
                             </h4>
                             <span className="text-[10px] text-gray-500">
                               {timeLabel(req.receivedAt)}

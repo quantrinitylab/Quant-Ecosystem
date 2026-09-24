@@ -12,7 +12,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../providers/auth-provider';
 import { AuthPending } from '@quant/shared-ui';
 
-const PUBLIC_ROUTES = new Set<string>(['/login']);
+const PUBLIC_ROUTES = new Set<string>(['/login', '/']);
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

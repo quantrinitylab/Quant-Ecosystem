@@ -116,6 +116,8 @@ describe('DMs Notes Tray & Spam Filter Domain Logic (Instagram 98-Screen Parity)
     const mockConversations: DmConversationSummary[] = [
       {
         id: 'c1',
+        type: 'DIRECT',
+        memberIds: [],
         isGroup: false,
         name: null,
         unreadCount: 0,
@@ -125,6 +127,8 @@ describe('DMs Notes Tray & Spam Filter Domain Logic (Instagram 98-Screen Parity)
       },
       {
         id: 'c2',
+        type: 'DIRECT',
+        memberIds: [],
         isGroup: false,
         name: null,
         unreadCount: 2,
@@ -134,6 +138,8 @@ describe('DMs Notes Tray & Spam Filter Domain Logic (Instagram 98-Screen Parity)
       },
       {
         id: 'c3',
+        type: 'DIRECT',
+        memberIds: [],
         isGroup: false,
         name: null,
         unreadCount: 1,

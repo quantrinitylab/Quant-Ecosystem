@@ -4,6 +4,10 @@
 
 ---
 
+## 🚨 MANDATORY SWARM DIRECTIVE ACROSS ALL 3 ANTIGRAVITY LEADS (2026-09-25)
+
+> **NO SUPERFICIAL WORK — FULL SUBAGENT FLEET DEPLOYMENT INVARIANT**: All 3 Antigravity Command Leads (Node A, Node B, Node C) are strictly directed: Zero superficial work. Each Lead MUST actively deploy and command their dedicated 5 specialized subagents (A1-A5, B1-B5, C1-C5 = 15 Subagent Continuous Fleet) to perform deep architectural implementations, complete zero-mock database wiring, 100% green Vitest suites, and live Chrome E2E validation. Stubs and surface-level bypasses are prohibited.
+
 ## 👥 SWARM ROSTER & ASSIGNMENT MATRIX
 
 | Agent                             | Domain / Title                         | Core Responsibility                                  | Current Primary Assignment                                      |
@@ -94,14 +98,13 @@
 - [x] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle. (Verified 100% green: 7/7 tests passing in `about-reel.test.ts`, component `AboutReelSheet` mounted in `ReelPlayer.tsx`).
 - [x] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges. (Verified 100% green: `ProfileView.tsx` component implemented in `components/ProfileView.tsx` & mounted in `profile/[id].tsx`, Avatar with story ring indicator, Posts/Followers/Following stats, Bio with clickable @mentions/#hashtags/URLs & pronouns, 'Edit Profile' & 'Share Profile' pills with clipboard feedback, 4-tab matrix with hover overlays & collections mosaic, bottom sheet multi-account switcher with unread badges, 12/12 tests in `profile-view.test.tsx` and 4/4 in `profile-matrix.test.ts` passing, 283/283 quantgram suite green).
 - [x] **Task W39-G05**: Explore 3-Column Asymmetric Masonry Grid with video duration badges, view count pills (`439K`, `2.4M`), and "Search with Quanty AI" search bar. (Verified 100% green: 4/4 tests passing in `explore-matrix.test.ts`, `ExploreGrid.tsx` upgraded with frosted search bar & 2x2 spans).
-- [x] **Task W39-G06**: Direct Messages (DMs) with "Your note" bubble tray, music integration, and Spam requests filter. (Verified 100% green: 14/14 tests passing in `notes-tray.test.ts`, `NotesTray` mounted in `messages.tsx`, 271/271 quantgram suite green).
-- [ ] **Task W39-G07**: Geospatial Social Map with story location clusters and privacy shield ("Not sharing location").
+- [x] **Task W39-G07**: Geospatial Social Map with story location clusters and privacy shield ("Ghost Mode"). (Verified 100% green: 13/13 tests passing in `social-map.test.ts`, 8/8 tests passing in `social-map-view.test.tsx`, component `SocialMapView.tsx` mounted in `pages/map.tsx`, all 28 suites and 304/304 tests green in `@quant/quantgram`).
 
 ### Track 2: QuantAI ChatGPT Agent OS Parity (`apps/quantai` - Dev 7 & Dev 1)
 
 - [x] **Task W39-A01**: Dual-Mode Workspace Toggle: `Chat` mode (conversational) vs `Work` mode (split-canvas doc/slide/sheet synthesis). (Verified 100% green: `WorkCanvasPanel.tsx` implemented in `apps/quantai/src/components/WorkCanvasPanel.tsx`, mounted in `apps/quantai/src/app/page.tsx` with header mode switcher pills, live drag-resizable split pane, live markdown/code live preview with copy/export/Run triggers, bi-directional sync, 0 TS errors).
 - [x] **Task W39-A02**: Autonomous Scheduled Agents & Background Cron Tasks (`Tasks / Scheduled`) with in-chat natural language setup (`Daily 8:00 AM Daily Briefing`) and execution ledger. (Verified 100% green: 35/35 tests passing in `scheduled-tasks.service.test.ts` & `scheduled-tasks-routes.test.ts`, 0 TS errors, Fastify `/agents/scheduled` API & NL trigger parser operational).
-- [ ] **Task W39-A03**: Real-Time Advanced Voice Mode with 3D fluid animated audio sphere, voice personalities (Spruce, Vale, Sol, Breeze), and native background status bar chip.
+- [/] **Task W39-A03**: Real-Time Advanced Voice Mode with 3D fluid animated audio sphere, sovereign voice personalities (`Aura`, `Vesper`, `Zenith`, `Zephyr` — renamed per CEO Astra trademark audit), and native background status bar chip. (Architecture audit & directives recorded in Notion by CEO Astra; LiveKit/Redis signaling & off-thread AudioWorklet specs established).
 - [ ] **Task W39-A04**: Projects Workspace Context & Memory Isolation (`Default memory` vs `Project-only memory` enterprise boundaries).
 - [ ] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters.
 - [ ] **Task W39-A06**: 3-Step Guided Image Creation Wizard (Idea -> Visual Style -> Mood) + Template marketplace.
