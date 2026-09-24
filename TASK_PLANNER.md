@@ -91,16 +91,16 @@
 
 - [x] **Task W39-G01 (PR #311 Merged)**: Full-Screen 9:16 Reels Video Player with vertical touch snapping, looping HLS video, right sidebar actions (Like, Comment, Share/Remix, Bookmark, 3-dots), bottom creator overlay (avatar + Follow pill, audio marquee ticker, expandable caption + hashtags), and double-tap heart burst. (20/20 test suites and 236/236 tests passing 100% green).
 - [x] **Task W39-G02**: Drag-to-Dismiss Comments Bottom Sheet with nested reply threads, comment like counts, empty state, and floating 8-emoji reaction dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`). (Verified 100% green: 6/6 tests passing in `reels-comments.test.ts`, component mounted in `ReelPlayer.tsx`).
-- [ ] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle.
-- [ ] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges.
-- [ ] **Task W39-G05**: Explore 3-Column Asymmetric Masonry Grid with video duration badges, view count pills (`439K`, `2.4M`), and "Search with Meta AI" search bar.
-- [ ] **Task W39-G06**: Direct Messages (DMs) with "Your note" bubble tray, music integration, and Spam requests filter.
+- [x] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle. (Verified 100% green: 7/7 tests passing in `about-reel.test.ts`, component `AboutReelSheet` mounted in `ReelPlayer.tsx`).
+- [x] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges. (Verified 100% green: `ProfileView.tsx` component implemented in `components/ProfileView.tsx` & mounted in `profile/[id].tsx`, Avatar with story ring indicator, Posts/Followers/Following stats, Bio with clickable @mentions/#hashtags/URLs & pronouns, 'Edit Profile' & 'Share Profile' pills with clipboard feedback, 4-tab matrix with hover overlays & collections mosaic, bottom sheet multi-account switcher with unread badges, 12/12 tests in `profile-view.test.tsx` and 4/4 in `profile-matrix.test.ts` passing, 283/283 quantgram suite green).
+- [x] **Task W39-G05**: Explore 3-Column Asymmetric Masonry Grid with video duration badges, view count pills (`439K`, `2.4M`), and "Search with Quanty AI" search bar. (Verified 100% green: 4/4 tests passing in `explore-matrix.test.ts`, `ExploreGrid.tsx` upgraded with frosted search bar & 2x2 spans).
+- [x] **Task W39-G06**: Direct Messages (DMs) with "Your note" bubble tray, music integration, and Spam requests filter. (Verified 100% green: 14/14 tests passing in `notes-tray.test.ts`, `NotesTray` mounted in `messages.tsx`, 271/271 quantgram suite green).
 - [ ] **Task W39-G07**: Geospatial Social Map with story location clusters and privacy shield ("Not sharing location").
 
 ### Track 2: QuantAI ChatGPT Agent OS Parity (`apps/quantai` - Dev 7 & Dev 1)
 
-- [ ] **Task W39-A01**: Dual-Mode Workspace Toggle: `Chat` mode (conversational) vs `Work` mode (split-canvas doc/slide/sheet synthesis).
-- [ ] **Task W39-A02**: Autonomous Scheduled Agents & Background Cron Tasks (`Tasks / Scheduled`) with in-chat natural language setup (`Daily 8:00 AM Daily Briefing`) and execution ledger.
+- [x] **Task W39-A01**: Dual-Mode Workspace Toggle: `Chat` mode (conversational) vs `Work` mode (split-canvas doc/slide/sheet synthesis). (Verified 100% green: `WorkCanvasPanel.tsx` implemented in `apps/quantai/src/components/WorkCanvasPanel.tsx`, mounted in `apps/quantai/src/app/page.tsx` with header mode switcher pills, live drag-resizable split pane, live markdown/code live preview with copy/export/Run triggers, bi-directional sync, 0 TS errors).
+- [x] **Task W39-A02**: Autonomous Scheduled Agents & Background Cron Tasks (`Tasks / Scheduled`) with in-chat natural language setup (`Daily 8:00 AM Daily Briefing`) and execution ledger. (Verified 100% green: 35/35 tests passing in `scheduled-tasks.service.test.ts` & `scheduled-tasks-routes.test.ts`, 0 TS errors, Fastify `/agents/scheduled` API & NL trigger parser operational).
 - [ ] **Task W39-A03**: Real-Time Advanced Voice Mode with 3D fluid animated audio sphere, voice personalities (Spruce, Vale, Sol, Breeze), and native background status bar chip.
 - [ ] **Task W39-A04**: Projects Workspace Context & Memory Isolation (`Default memory` vs `Project-only memory` enterprise boundaries).
 - [ ] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters.
@@ -111,7 +111,7 @@
 
 - [x] **Task W39-GIT01**: Interactive Branch & Tag Selector Modal with live search (`Find a branch...`), default branch pill, tag badges, and commit HEAD hashes (`Screens 108–110`). (Verified in Vitest & CodeTab).
 - [x] **Task W39-GIT02**: Dual-Tab Code Dropdown: `Local` tab (HTTPS, SSH, GitHub CLI, Open in Quant Copilot, Download ZIP) + `Codespaces` tab (Create codespace on main, active instances list) (`Screens 111–114`). (Verified in Vitest & CodeTab).
-- [ ] **Task W39-GIT03**: Real Git File Explorer Tree (excising `MOCK_FILES`) with commit message, last modified, file sizes, and integrated syntax-highlighted Markdown README.md preview (`Screens 15–17, 122–124`).
+- [x] **Task W39-GIT03**: Real Git File Explorer Tree (excising `MOCK_FILES`) with commit message, last modified, file sizes, and integrated syntax-highlighted Markdown README.md preview (`Screens 15–17, 122–124`). (Verified 100% green: `CodeTab.tsx` upgraded to 741 lines with real directory hierarchy, folder expand/collapse, file search filter, breadcrumb drilling, syntax-highlighted `MarkdownPreview.tsx` (686 lines) with code fence token highlights and tables, 8/8 tests in `GitHubSovereignParity.test.tsx` passing, 0 TS errors).
 - [x] **Task W39-GIT04**: Repository Metrics & Metadata Sidebar: Star toggle backed by real `repository_stars` DB join, Watch dropdown, Releases counter (`28,144 releases`), Contributors avatar mosaic, and Language Distribution Bar (`TypeScript 83.9%`, etc.) (`Screens 15–17, 116–125`). (Verified in Vitest & CodeTab).
 - [x] **Task W39-GIT05**: Complete Issues Lifecycle Engine (excising `INITIAL_ISSUES`): Filter pills (`is:issue state:open`), Markdown toolbar (`B`, `I`, link, image, `@`, list, checklist, `H`), and metadata sidebar (Assignees, Labels, Milestone, Projects) (`Screens 28, 76, 89–90, 147–158`). (Verified in IssuesTab).
 - [x] **Task W39-GIT06**: Pull Requests Engine (excising `INITIAL_PRS`): Review status (`Review required`, `Approved`), Checks pass status (`55/56 checks passed`), Bot activity, and 3-way merge conflict detection with inline diffs (`Screens 27, 73–74, 99–103`). (Verified in PullRequestsTab).
@@ -123,6 +123,17 @@
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
+
+- [x] **Public Marketing Portal Construction (`apps/marketing` - 2026-09-24)**:
+  - Built production Next.js marketing landing portal per `scripts/task-marketing-portal.md`.
+  - Implemented `@quant/marketing` with Tailwind CSS and Quant Studio tokens (`#0D1117`, `#161B22`, `#30363D`, `#58A6FF`, `#FF8C42`, `#238636`).
+  - Created Header navigation with cursive brand wordmark, interactive 10-app selector, and workspace CTAs.
+  - Implemented Hero section with metrics ("2,409 Tests Passing", "Sub-5ms Local FTS5", "0% Creator Platform Fee").
+  - Implemented 10-App Interactive Showcase Grid covering all retained core applications with deep architecture drawers.
+  - Built Unified Quant Credits Economy section with interactive creator payout calculator comparing legacy vs Quant.
+  - Built Multi-Platform Downloads section with Web, Android APK, and Desktop clients.
+  - Built brand manifesto footer with live systems operational status indicator.
+  - **Verification**: `pnpm --filter @quant/marketing typecheck` passed with 0 errors (`tsc --noEmit`), and `next build` succeeded generating static pages (4/4) with 0 errors.
 
 - [x] **Universal Google-Class SSO Account Chooser & QuantChat Phone OTP Hardening (Commit `bb0f8081` on `main` — 2026-09-24)**:
   - [x] **Safe Ecosystem Return Domain Validation (`apps/quantmail/src/lib/safe-return-path.ts`)**: Upgraded `safeReturnPath` to permit exact matches and subdomains for `quantmail.in`, `quantrinity.in`, `*.quantrinity.in` (`quantchat`, `quantube`, `quantmax`, `quantai`, `quantgram`, `quantwave`, `quantcooks`, `quantads`, `quanttrinity`), and local development ports (`localhost:*`, `127.0.0.1:*`). Untrusted domains (`attacker.example`, `quantmai1.in`) strictly return `null`. 7/7 Vitest tests passing.

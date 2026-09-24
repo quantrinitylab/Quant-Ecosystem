@@ -43,6 +43,8 @@ import promptTemplateRoutes from './routes/prompt-templates';
 import askRoutes from './routes/ask';
 import mcpRoutes from './routes/mcp';
 import automationsRoutes from './routes/automations';
+import scheduledTasksRoutes from './routes/scheduled-tasks';
+import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { AIEngine } from './services/ai-engine';
 import { Orchestrator } from '@quant/agent-runtime';
 import { SwarmOrchestrator } from '@quant/agent-swarm';
@@ -110,9 +112,11 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('browserAgent', new SessionManager());
   app.decorate('codeAgent', new CodeAnalyzer());
   app.decorate('userOwnedAi', new ModelRegistry());
+  app.decorate('scheduledTasksService', new ScheduledTasksService());
 
   await app.register(chatRoutes, { prefix: '/chat' });
   await app.register(askRoutes);
+  await app.register(scheduledTasksRoutes, { prefix: '/agents/scheduled' });
   await app.register(agentsRoutes, { prefix: '/agents' });
   await app.register(agentRuntimeRoutes, { prefix: '/agents' });
   await app.register(agentSwarmRoutes, { prefix: '/agents/swarm' });

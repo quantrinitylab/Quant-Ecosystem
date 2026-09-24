@@ -1,0 +1,34 @@
+{
+  "kind": "quantai-shadow-evidence",
+  "capturedAt": "2026-09-24T16:07:29.154Z",
+  "commitSha": "1314a66913a2206b8e2440eeb093dd4dbf330761",
+  "traffic": "in-process representative (NOT deployed production traffic)",
+  "seedCount": 5,
+  "observeCount": 4,
+  "recallCount": 7,
+  "aggregate": {
+    "total": 7,
+    "avgAgreement": 0.14285714285714285,
+    "severityCounts": {
+      "LOW": 1,
+      "MEDIUM": 0,
+      "HIGH": 1,
+      "CRITICAL": 5
+    },
+    "backendErrors": 0,
+    "blockingCases": [
+      "quantai_97ef89c0-884e-4bf4-8313-433fd8da6916",
+      "quantai_c9cf2407-91d6-4deb-9839-e1fe86805dab",
+      "quantai_ebbfb8a9-9a60-411e-8a1e-7e23d1c4a450",
+      "quantai_2d041200-3f8e-4111-98ab-7e4becb5e660",
+      "quantai_f4d4a2fb-9e48-4ca8-a8a4-a99b22b6fbf3",
+      "quantai_0dedff9e-38bc-4493-980b-2a87cadf1736"
+    ],
+    "avgLatencyDeltaMs": 0.07335714284896053
+  },
+  "gates": {
+    "passed": false,
+    "reasons": ["semantic agreement 14.3% < 99%", "5 critical divergences (must be 0)"]
+  },
+  "decision": "HOLD"
+}

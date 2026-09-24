@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import type { Reel } from '../types';
 import { ReelsCommentsSheet } from './ReelsCommentsSheet';
+import { AboutReelSheet } from './AboutReelSheet';
 
 interface ReelPlayerProps {
   reel: Reel;
@@ -14,6 +15,7 @@ interface ReelPlayerProps {
 
 export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   return (
     <div className="relative w-full h-full bg-black" aria-label={`Reel by ${reel.username}`}>
@@ -54,6 +56,15 @@ export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
           <span className="text-2xl">↗</span>
           <span className="text-xs font-medium">{reel.shares}</span>
         </button>
+        <button
+          type="button"
+          onClick={() => setIsAboutOpen(true)}
+          className="flex flex-col items-center gap-1 text-white hover:opacity-80 transition-opacity"
+          aria-label="About this reel"
+        >
+          <span className="text-xl">⋯</span>
+          <span className="text-[10px] font-medium">About</span>
+        </button>
         <div
           className="w-8 h-8 rounded-full border-2 border-white overflow-hidden animate-spin-slow"
           aria-label="Audio disc"
@@ -79,6 +90,9 @@ export function ReelPlayer({ reel, isActive, isMuted }: ReelPlayerProps) {
         reelId={reel.id}
         initialCommentsCount={reel.comments}
       />
+
+      {/* About this reel AI Context & Ad Transparency Sheet */}
+      <AboutReelSheet isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} reel={reel} />
     </div>
   );
 }

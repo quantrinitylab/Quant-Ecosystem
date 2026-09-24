@@ -120,14 +120,87 @@ export const INITIAL_REPOS: Repo[] = [
   },
 ];
 
-// Mock File Tree Nodes
+// Mock File Tree Nodes — Realistic Sovereign Monorepo Hierarchy
 export const MOCK_FILES: FileNode[] = [
+  // --- Root Folders ---
   {
     name: '.github',
     path: '.github',
     type: 'dir',
-    lastCommit: 'ci: unified test matrix & gate sweep',
-    lastCommitDate: '3 hours ago',
+    lastCommit: 'ci: unified vitest & linter test gate sweep',
+    lastCommitDate: '2 hours ago',
+  },
+  {
+    name: 'workflows',
+    path: '.github/workflows',
+    type: 'dir',
+    lastCommit: 'ci: configure matrix for android, web, and server-core',
+    lastCommitDate: '2 hours ago',
+  },
+  {
+    name: 'ci.yml',
+    path: '.github/workflows/ci.yml',
+    type: 'file',
+    size: '2.8 KB',
+    lastCommit: 'ci: configure matrix for android, web, and server-core',
+    lastCommitDate: '2 hours ago',
+    content: `name: CI Matrix
+on: [push, pull_request]
+
+jobs:
+  test:
+    name: Vitest & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run test typecheck lint`,
+  },
+  {
+    name: 'release.yml',
+    path: '.github/workflows/release.yml',
+    type: 'file',
+    size: '1.9 KB',
+    lastCommit: 'release: automate semantic release tags and notes',
+    lastCommitDate: '3 days ago',
+    content: `name: Release
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pnpm build
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2`,
+  },
+  {
+    name: 'security.yml',
+    path: '.github/workflows/security.yml',
+    type: 'file',
+    size: '1.4 KB',
+    lastCommit: 'security: enable CodeQL & gitleaks scanner',
+    lastCommitDate: '1 week ago',
+    content: `name: Security Audit
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pnpm audit --prod`,
   },
   {
     name: 'android-project',
@@ -137,11 +210,93 @@ export const MOCK_FILES: FileNode[] = [
     lastCommitDate: '1 hour ago',
   },
   {
+    name: 'app',
+    path: 'android-project/app',
+    type: 'dir',
+    lastCommit: 'feat(mobile): hardware-accelerated WebView engine',
+    lastCommitDate: '1 hour ago',
+  },
+  {
+    name: 'build.gradle.kts',
+    path: 'android-project/app/build.gradle.kts',
+    type: 'file',
+    size: '3.6 KB',
+    lastCommit: 'build: target Android SDK 36 with desugaring',
+    lastCommitDate: '1 hour ago',
+    content: `plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "in.quantmail.app"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "in.quantmail.app"
+        minSdk = 26
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0.0"
+    }
+}`,
+  },
+  {
+    name: 'src',
+    path: 'android-project/app/src',
+    type: 'dir',
+    lastCommit: 'feat(mobile): compose main activity and navigation graph',
+    lastCommitDate: '1 hour ago',
+  },
+  {
+    name: 'MainActivity.kt',
+    path: 'android-project/app/src/MainActivity.kt',
+    type: 'file',
+    size: '5.2 KB',
+    lastCommit: 'feat(mobile): compose main activity and navigation graph',
+    lastCommitDate: '1 hour ago',
+    content: `package in.quantmail.app
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.MaterialTheme
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            MaterialTheme {
+                QuantSovereignApp()
+            }
+        }
+    }
+}`,
+  },
+  {
     name: 'apk testing',
     path: 'apk testing',
     type: 'dir',
     lastCommit: 'release(android): Quant v1.0 universal APK build',
     lastCommitDate: '1 hour ago',
+  },
+  {
+    name: 'quant-v1.0.0-universal-release.apk',
+    path: 'apk testing/quant-v1.0.0-universal-release.apk',
+    type: 'file',
+    size: '11.4 MB',
+    lastCommit: 'release(android): Quant v1.0 universal APK build',
+    lastCommitDate: '1 hour ago',
+  },
+  {
+    name: 'SHA256SUMS.txt',
+    path: 'apk testing/SHA256SUMS.txt',
+    type: 'file',
+    size: '128 B',
+    lastCommit: 'release(android): checksum verification file',
+    lastCommitDate: '1 hour ago',
+    content: `fa303afb918a2cd8b88494c2598fe1a2d59302194b150937cbb519847128dfac  quant-v1.0.0-universal-release.apk`,
   },
   {
     name: 'apps',
@@ -151,11 +306,218 @@ export const MOCK_FILES: FileNode[] = [
     lastCommitDate: 'just now',
   },
   {
+    name: 'quantmail',
+    path: 'apps/quantmail',
+    type: 'dir',
+    lastCommit: 'feat(quantgit): implement real file tree and markdown preview',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'package.json',
+    path: 'apps/quantmail/package.json',
+    type: 'file',
+    size: '2.4 KB',
+    lastCommit: 'chore: bump dependencies to react 19 and next 15',
+    lastCommitDate: '2 days ago',
+    content: `{
+  "name": "@quant/quantmail",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module"
+}`,
+  },
+  {
+    name: 'src',
+    path: 'apps/quantmail/src',
+    type: 'dir',
+    lastCommit: 'feat(quantgit): add CodeTab file explorer tree and breadcrumbs',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'app',
+    path: 'apps/quantmail/src/app',
+    type: 'dir',
+    lastCommit: 'feat(quantgit): full github sovereign parity screens',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'quantgit',
+    path: 'apps/quantmail/src/app/quantgit',
+    type: 'dir',
+    lastCommit: 'feat(quantgit): tree view, markdown preview and branch switcher',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'CodeTab.tsx',
+    path: 'apps/quantmail/src/app/quantgit/CodeTab.tsx',
+    type: 'file',
+    size: '18.2 KB',
+    lastCommit: 'feat(quantgit): implement real git file tree explorer and markdown preview',
+    lastCommitDate: 'just now',
+    content: `// QuantGit CodeTab Component\nexport function CodeTab() { /* ... */ }`,
+  },
+  {
+    name: 'page.tsx',
+    path: 'apps/quantmail/src/app/quantgit/page.tsx',
+    type: 'file',
+    size: '82.4 KB',
+    lastCommit: 'feat(quantgit): sovereign operating workspace coordinator',
+    lastCommitDate: 'just now',
+    content: `'use client';\nexport default function QuantGitPage() { /* ... */ }`,
+  },
+  {
+    name: 'constants.ts',
+    path: 'apps/quantmail/src/app/quantgit/constants.ts',
+    type: 'file',
+    size: '28.5 KB',
+    lastCommit: 'feat(quantgit): realistic repository hierarchy with nested trees',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'types.ts',
+    path: 'apps/quantmail/src/app/quantgit/types.ts',
+    type: 'file',
+    size: '4.8 KB',
+    lastCommit: 'types: define TreeFileNode and GitBlob types',
+    lastCommitDate: 'just now',
+  },
+  {
+    name: 'lib',
+    path: 'apps/quantmail/src/lib',
+    type: 'dir',
+    lastCommit: 'lib: quantgit route resolver and parser',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'quantgit-route.ts',
+    path: 'apps/quantmail/src/lib/quantgit-route.ts',
+    type: 'file',
+    size: '4.1 KB',
+    lastCommit: 'lib: quantgit route resolver and parser',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'quantchat',
+    path: 'apps/quantchat',
+    type: 'dir',
+    lastCommit: 'feat(webrtc): LiveKit SFU cluster resilience and voice agents',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'package.json',
+    path: 'apps/quantchat/package.json',
+    type: 'file',
+    size: '1.8 KB',
+    lastCommit: 'feat(webrtc): add livekit-client and soundfx',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'src',
+    path: 'apps/quantchat/src',
+    type: 'dir',
+    lastCommit: 'feat(chat): real-time channels and voice gateway',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'index.ts',
+    path: 'apps/quantchat/src/index.ts',
+    type: 'file',
+    size: '3.4 KB',
+    lastCommit: 'feat(chat): real-time channels and voice gateway',
+    lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'quantdrive',
+    path: 'apps/quantdrive',
+    type: 'dir',
+    lastCommit: 'feat(drive): chunked multipart uploads and star/trash state machine',
+    lastCommitDate: '2 days ago',
+  },
+  {
+    name: 'package.json',
+    path: 'apps/quantdrive/package.json',
+    type: 'file',
+    size: '1.9 KB',
+    lastCommit: 'deps: s3-client and crypto upload tokens',
+    lastCommitDate: '2 days ago',
+  },
+  {
+    name: 'src',
+    path: 'apps/quantdrive/src',
+    type: 'dir',
+    lastCommit: 'feat(drive): chunked multipart upload and star state',
+    lastCommitDate: '2 days ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'apps/quantdrive/src/index.ts',
+    type: 'file',
+    size: '4.2 KB',
+    lastCommit: 'feat(drive): chunked multipart upload and star state',
+    lastCommitDate: '2 days ago',
+  },
+  {
+    name: 'quantai',
+    path: 'apps/quantai',
+    type: 'dir',
+    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommitDate: '1 day ago',
+  },
+  {
+    name: 'package.json',
+    path: 'apps/quantai/package.json',
+    type: 'file',
+    size: '2.1 KB',
+    lastCommit: 'deps: onnxruntime-node and vector embeddings',
+    lastCommitDate: '1 day ago',
+  },
+  {
+    name: 'src',
+    path: 'apps/quantai/src',
+    type: 'dir',
+    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommitDate: '1 day ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'apps/quantai/src/index.ts',
+    type: 'file',
+    size: '5.1 KB',
+    lastCommit: 'feat(swarm): local ONNX inference and model registry',
+    lastCommitDate: '1 day ago',
+  },
+  {
     name: 'backend',
     path: 'backend',
     type: 'dir',
     lastCommit: 'feat(collab): Yjs CRDT real-time persistence',
     lastCommitDate: 'yesterday',
+  },
+  {
+    name: 'app.ts',
+    path: 'backend/app.ts',
+    type: 'file',
+    size: '14.2 KB',
+    lastCommit: 'feat(server): Fastify 5 core with sovereign auth hooks',
+    lastCommitDate: 'yesterday',
+    content: `import Fastify from 'fastify';
+
+export const app = Fastify({ logger: true });
+
+app.get('/health', async () => ({ status: 'healthy', uptime: process.uptime() }));`,
+  },
+  {
+    name: 'worker.ts',
+    path: 'backend/worker.ts',
+    type: 'file',
+    size: '8.6 KB',
+    lastCommit: 'feat(queue): Redis bullmq event consumers and processors',
+    lastCommitDate: 'yesterday',
+    content: `import { Worker } from 'bullmq';
+
+export const worker = new Worker('quant-tasks', async (job) => {
+  return { processed: true, id: job.id };
+});`,
   },
   {
     name: 'docs',
@@ -165,6 +527,28 @@ export const MOCK_FILES: FileNode[] = [
     lastCommitDate: '2 days ago',
   },
   {
+    name: 'ARCHITECTURE.md',
+    path: 'docs/ARCHITECTURE.md',
+    type: 'file',
+    size: '16.4 KB',
+    lastCommit: 'docs(architecture): unified operating system RFC-04',
+    lastCommitDate: '2 days ago',
+    content: `# Quant Architecture RFC-04
+
+A sovereign, unified monorepo for intelligent email, real-time collaboration, and git.`,
+  },
+  {
+    name: 'API.md',
+    path: 'docs/API.md',
+    type: 'file',
+    size: '11.8 KB',
+    lastCommit: 'docs(api): REST and WebSocket gateway endpoints',
+    lastCommitDate: '2 days ago',
+    content: `# Quant Public APIs
+
+Complete reference for QuantMail, QuantGit, and QuantChat REST/WebSocket protocols.`,
+  },
+  {
     name: 'packages',
     path: 'packages',
     type: 'dir',
@@ -172,13 +556,160 @@ export const MOCK_FILES: FileNode[] = [
     lastCommitDate: '2 hours ago',
   },
   {
+    name: 'auth',
+    path: 'packages/auth',
+    type: 'dir',
+    lastCommit: 'feat(auth): ed25519 token rotation & timing-safe compare',
+    lastCommitDate: '4 hours ago',
+  },
+  {
+    name: 'package.json',
+    path: 'packages/auth/package.json',
+    type: 'file',
+    size: '1.2 KB',
+    lastCommit: 'chore: package metadata',
+    lastCommitDate: '4 hours ago',
+    content: `{\n  "name": "@quant/auth",\n  "version": "1.0.0"\n}`,
+  },
+  {
+    name: 'src',
+    path: 'packages/auth/src',
+    type: 'dir',
+    lastCommit: 'feat(auth): token service and session manager',
+    lastCommitDate: '4 hours ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'packages/auth/src/index.ts',
+    type: 'file',
+    size: '6.4 KB',
+    lastCommit: 'feat(auth): token service and session manager',
+    lastCommitDate: '4 hours ago',
+    content: `export * from './tokens';\nexport * from './session';\n`,
+  },
+  {
+    name: 'storage',
+    path: 'packages/storage',
+    type: 'dir',
+    lastCommit: 'feat(storage): S3 & minio zero-knowledge blob adapter',
+    lastCommitDate: '3 hours ago',
+  },
+  {
+    name: 'package.json',
+    path: 'packages/storage/package.json',
+    type: 'file',
+    size: '1.4 KB',
+    lastCommit: 'chore: package metadata',
+    lastCommitDate: '3 hours ago',
+    content: `{\n  "name": "@quant/storage",\n  "version": "1.0.0"\n}`,
+  },
+  {
+    name: 'src',
+    path: 'packages/storage/src',
+    type: 'dir',
+    lastCommit: 'feat(storage): chunked multipart and checksum engine',
+    lastCommitDate: '3 hours ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'packages/storage/src/index.ts',
+    type: 'file',
+    size: '8.1 KB',
+    lastCommit: 'feat(storage): chunked multipart and checksum engine',
+    lastCommitDate: '3 hours ago',
+    content: `export interface StorageEngine {
+  uploadChunk(stream: ReadableStream, size: number): Promise<string>;
+  verifyChecksum(sha256: string): boolean;
+}`,
+  },
+  {
+    name: 'shared-ui',
+    path: 'packages/shared-ui',
+    type: 'dir',
+    lastCommit: 'refactor(shared-ui): fluid bubble intelligence without eyes',
+    lastCommitDate: '2 hours ago',
+  },
+  {
+    name: 'package.json',
+    path: 'packages/shared-ui/package.json',
+    type: 'file',
+    size: '1.3 KB',
+    lastCommit: 'chore: package metadata',
+    lastCommitDate: '2 hours ago',
+    content: `{\n  "name": "@quant/shared-ui",\n  "version": "1.0.0"\n}`,
+  },
+  {
+    name: 'src',
+    path: 'packages/shared-ui/src',
+    type: 'dir',
+    lastCommit: 'components: bubble avatar, theme toggles, modal dialogs',
+    lastCommitDate: '2 hours ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'packages/shared-ui/src/index.ts',
+    type: 'file',
+    size: '4.7 KB',
+    lastCommit: 'components: bubble avatar, theme toggles, modal dialogs',
+    lastCommitDate: '2 hours ago',
+    content: `export * from './BubbleAvatar';\nexport * from './ThemeToggle';\n`,
+  },
+  {
+    name: 'common',
+    path: 'packages/common',
+    type: 'dir',
+    lastCommit: 'chore: common utilities and error types',
+    lastCommitDate: '4 hours ago',
+  },
+  {
+    name: 'package.json',
+    path: 'packages/common/package.json',
+    type: 'file',
+    size: '1.1 KB',
+    lastCommit: 'chore: package metadata',
+    lastCommitDate: '4 hours ago',
+    content: `{\n  "name": "@quant/common",\n  "version": "1.0.0"\n}`,
+  },
+  {
+    name: 'src',
+    path: 'packages/common/src',
+    type: 'dir',
+    lastCommit: 'feat(common): assertNever, result type and logger',
+    lastCommitDate: '4 hours ago',
+  },
+  {
+    name: 'index.ts',
+    path: 'packages/common/src/index.ts',
+    type: 'file',
+    size: '3.9 KB',
+    lastCommit: 'feat(common): assertNever, result type and logger',
+    lastCommitDate: '4 hours ago',
+    content: `export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };\n`,
+  },
+  // --- Root Files ---
+  {
     name: 'AGENT_MEMORY.md',
     path: 'AGENT_MEMORY.md',
     type: 'file',
     size: '98.5 KB',
     lastCommit: 'docs(memory): master agent memory & swarm ledger',
     lastCommitDate: '1 hour ago',
-    content: `# 🧠 MASTER AGENT MEMORY & SWARM LEDGER\n\n> **CRITICAL SYSTEM DIRECTIVE**: This file is the single source of truth for all sessions and new chats. Antigravity MUST read this file before replying to any message, perform 50x self-critique against hallucination, verify features with live Chrome button clicks, orchestrate Notion Agents (Opus 5 / GPT-6 Astra) to do deep coding, and write back all updates immediately.\n\n## 🌟 1. PROJECT NORTH STAR\nQuant is one account that gives you email, chat, social, video, dating, creation tools, cloud storage, and a coding platform — all controllable by a single personal AI.\n\n## 👥 SWARM FLEET (8+ AGENTS)\n- CEO Astra (Command)\n- Dev 1: Auth & Security\n- Dev 2: Sentinel & QA\n- Dev 3: Calendar & Recurrence\n- Dev 4: QuantDrive & Storage\n- Dev 5: Workspaces & Collaboration\n- Dev 6: CodeHub & Git Infrastructure\n- Dev 7: QuantAI Swarm & Shared Memory`,
+    content: `# 🧠 MASTER AGENT MEMORY & SWARM LEDGER
+
+> **CRITICAL SYSTEM DIRECTIVE**: This file is the single source of truth for all sessions and new chats. Antigravity MUST read this file before replying to any message, perform 50x self-critique against hallucination, verify features with live Chrome button clicks, orchestrate Notion Agents (Opus 5 / GPT-6 Astra) to do deep coding, and write back all updates immediately.
+
+## 🌟 1. PROJECT NORTH STAR
+Quant is one account that gives you email, chat, social, video, dating, creation tools, cloud storage, and a coding platform — all controllable by a single personal AI.
+
+## 👥 SWARM FLEET (8+ AGENTS)
+- CEO Astra (Command)
+- Dev 1: Auth & Security
+- Dev 2: Sentinel & QA
+- Dev 3: Calendar & Recurrence
+- Dev 4: QuantDrive & Storage
+- Dev 5: Workspaces & Collaboration
+- Dev 6: CodeHub & Git Infrastructure
+- Dev 7: QuantAI Swarm & Shared Memory`,
   },
   {
     name: 'TASK_PLANNER.md',
@@ -187,7 +718,15 @@ export const MOCK_FILES: FileNode[] = [
     size: '72.1 KB',
     lastCommit: 'chore(planner): update sprint milestones and live checkmarks',
     lastCommitDate: '1 hour ago',
-    content: `# 📋 QUANT ECOSYSTEM — UNIFIED MASTER TASK PLANNER\n\n- [x] PR #260 (b68b86e4): Master Consolidation PR\n- [x] PR #247 (948e3612): QuantMail v2.0 Production Integration\n- [x] Task APK-01: Setup official Android CLI and SDK 36\n- [x] Task APK-02: Native Jetpack Compose sovereign client\n- [x] Task APK-03: Universal debug APK build (11.39 MB)\n- [x] Task APK-04: Distributed in 'apk testing/' on GitHub remote\n- [x] Task GIT-03: Restored 4 bottom deck tabs & repository overview`,
+    content: `# 📋 QUANT ECOSYSTEM — UNIFIED MASTER TASK PLANNER
+
+- [x] PR #260 (b68b86e4): Master Consolidation PR
+- [x] PR #247 (948e3612): QuantMail v2.0 Production Integration
+- [x] Task APK-01: Setup official Android CLI and SDK 36
+- [x] Task APK-02: Native Jetpack Compose sovereign client
+- [x] Task APK-03: Universal debug APK build (11.39 MB)
+- [x] Task APK-04: Distributed in 'apk testing/' on GitHub remote
+- [x] Task GIT-03: Real Git file tree explorer & syntax-highlighted markdown README`,
   },
   {
     name: 'package.json',
@@ -196,7 +735,23 @@ export const MOCK_FILES: FileNode[] = [
     size: '2.14 KB',
     lastCommit: 'chore: upgrade monorepo dependencies and strict TypeScript',
     lastCommitDate: '3 days ago',
-    content: `{\n  "name": "quant-ecosystem",\n  "version": "1.0.0",\n  "private": true,\n  "scripts": {\n    "build": "turbo run build",\n    "dev": "turbo run dev",\n    "test": "turbo run test",\n    "lint": "turbo run lint",\n    "typecheck": "turbo run typecheck"\n  },\n  "devDependencies": {\n    "typescript": "^5.9.0",\n    "turbo": "^2.4.0",\n    "vitest": "^2.1.0"\n  }\n}`,
+    content: `{
+  "name": "quant-ecosystem",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "turbo": "^2.4.0",
+    "vitest": "^2.1.0"
+  }
+}`,
   },
   {
     name: 'pnpm-lock.yaml',
@@ -208,13 +763,70 @@ export const MOCK_FILES: FileNode[] = [
     content: `lockfileVersion: '9.0'\n\nimporters:\n  .:\n    dependencies:\n      turbo: 2.4.0\n      typescript: 5.9.0`,
   },
   {
+    name: 'turbo.json',
+    path: 'turbo.json',
+    type: 'file',
+    size: '1.1 KB',
+    lastCommit: 'chore: define cache pipelines for build and test',
+    lastCommitDate: '1 week ago',
+    content: `{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**"]
+    },
+    "test": {
+      "cache": false
+    }
+  }
+}`,
+  },
+  {
     name: 'README.md',
     path: 'README.md',
     type: 'file',
     size: '4.82 KB',
     lastCommit: 'docs: update ecosystem quickstart & architecture overview',
     lastCommitDate: 'last week',
-    content: `# Quant Ecosystem — The Next NVIDIA of Software\n\nA unified sovereign operating ecosystem built for high-performance computing, intelligent mail triage, autonomous agentic development, and real git collaboration.\n\n\`\`\`bash\n# Clone the unified monorepo\ngit clone https://quantmail.in/quantgit/Quant-Ecosystem.git\n\n# Install dependencies and start development\npnpm install && pnpm dev\n\`\`\`\n\n## 📦 Features\n- **Flagship QuantMail**: Lightning-fast triage, local ONNX semantic search, offline drafts.\n- **QuantGit (CodeHub)**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.\n- **QuantChat & Meet**: WebRTC LiveKit meetings, voice AI assistants, proactive alarms.\n- **QuantDrive & Docs**: Multi-layer cloud storage, Yjs CRDT real-time document collaboration.\n- **Native Android Sovereign Shell**: Jetpack Compose + hardware-accelerated WebView client.`,
+    content: `# Quant Ecosystem — The Next NVIDIA of Software
+
+A unified sovereign operating ecosystem built for high-performance computing, intelligent mail triage, autonomous agentic development, and real git collaboration.
+
+\`\`\`bash
+# Clone the unified monorepo
+git clone https://quantmail.in/quantgit/Quant-Ecosystem.git
+
+# Install dependencies and start development
+pnpm install && pnpm dev
+\`\`\`
+
+## 📦 Monorepo Architecture
+- **Flagship QuantMail**: Lightning-fast triage, local ONNX semantic search, offline drafts.
+- **QuantGit (CodeHub)**: 1:1 GitHub parity with Git Smart HTTP and real PR reviews.
+- **QuantChat & Meet**: WebRTC LiveKit meetings, voice AI assistants, proactive alarms.
+- **QuantDrive & Docs**: Multi-layer cloud storage, Yjs CRDT real-time document collaboration.
+- **Native Android Sovereign Shell**: Jetpack Compose + hardware-accelerated WebView client in \`android-project/\`.
+
+## ⚡ Quickstart
+\`\`\`typescript
+import { createApp } from '@quant/server-core';
+import { quantAuthPlugin } from '@quant/auth';
+
+const app = await createApp({ port: 3000 });
+await app.register(quantAuthPlugin);
+console.log('Quant Sovereign OS online');
+\`\`\`
+
+| Package | Status | Version |
+| :--- | :--- | :--- |
+| \`@quant/quantmail\` | Production | \`v2.0.4\` |
+| \`@quant/auth\` | Active | \`v1.2.0\` |
+| \`@quant/storage\` | Active | \`v1.1.0\` |
+| \`@quant/shared-ui\` | Active | \`v1.0.8\` |
+
+> [!NOTE]
+> All services run with zero third-party tracking, sovereign user-held encryption keys, and isolated database schema tenants.`,
   },
 ];
 

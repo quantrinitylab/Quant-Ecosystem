@@ -31,6 +31,7 @@ import {
 import { OnboardingHero } from '../components/OnboardingHero';
 import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
 import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
+import { WorkCanvasPanel, type WorkCanvasDocument } from '../components/WorkCanvasPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
 
 export default function AIPage() {
@@ -67,6 +68,23 @@ export default function AIPage() {
   const [activeMode, setActiveMode] = useState<'chat' | 'agent'>('chat');
   const [isCanvasOpen, setIsCanvasOpen] = useState(false);
   const [currentArtifact, setCurrentArtifact] = useState<CanvasArtifact | null>(null);
+  const [activeCanvasDoc, setActiveCanvasDoc] = useState<WorkCanvasDocument | null>(null);
+
+  // Synchronize generated artifact into active canvas document
+  useEffect(() => {
+    if (currentArtifact) {
+      setActiveCanvasDoc({
+        id: currentArtifact.id,
+        title: currentArtifact.title,
+        type: currentArtifact.type === 'markdown' ? 'doc' : 'code',
+        content: currentArtifact.markdown || currentArtifact.code,
+        language: currentArtifact.language,
+        lastModified: currentArtifact.createdAt,
+        version: 1,
+      });
+      setIsCanvasOpen(true);
+    }
+  }, [currentArtifact]);
 
   const router = useRouter();
 
@@ -457,9 +475,9 @@ export default function AIPage() {
                 >
                   <span>🎨</span>
                   <span className="hidden md:inline">
-                    {isCanvasOpen ? 'Close Canvas' : 'Artifacts'}
+                    {isCanvasOpen ? 'Close Canvas' : 'Work Canvas'}
                   </span>
-                  {currentArtifact && (
+                  {(currentArtifact || activeCanvasDoc) && (
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   )}
                 </button>
@@ -709,10 +727,18 @@ export default function AIPage() {
             {/* Right Panel: Split-Screen Canvas / Artifacts Panel */}
             {isCanvasOpen && (
               <div className="w-full lg:w-1/2 border-l border-[var(--quant-border)] h-full overflow-hidden">
-                <CanvasArtifactsPanel
-                  artifact={currentArtifact}
+                <WorkCanvasPanel
+                  workspaceMode="work"
+                  onWorkspaceModeChange={(mode) => {
+                    if (mode === 'chat') {
+                      setIsCanvasOpen(false);
+                    }
+                  }}
+                  activeDocument={activeCanvasDoc}
+                  onDocumentChange={(doc) => setActiveCanvasDoc(doc)}
+                  isStreaming={isStreaming}
+                  onSendToChat={(prompt) => sendMessage(prompt)}
                   onClose={() => setIsCanvasOpen(false)}
-                  onUpdateArtifact={(updated) => setCurrentArtifact(updated)}
                 />
               </div>
             )}
