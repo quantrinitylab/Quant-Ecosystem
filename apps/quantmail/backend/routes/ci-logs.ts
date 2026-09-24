@@ -121,10 +121,13 @@ export default async function ciLogsRoutes(fastify: FastifyInstance) {
         try {
           await subscriber.unsubscribe(channel);
           await subscriber.quit();
-        } catch {
+        } catch (quitErr) {
           try {
             subscriber.disconnect();
-          } catch {}
+          } catch (discErr) {
+            fastify.log.debug({ err: discErr }, 'Subscriber disconnect error during cleanup');
+          }
+          fastify.log.debug({ err: quitErr }, 'Subscriber quit error during cleanup');
         }
         subscriber = null;
       }

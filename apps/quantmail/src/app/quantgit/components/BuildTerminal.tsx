@@ -121,9 +121,8 @@ export function BuildTerminal({
           window.removeEventListener('resize', handleResize);
           term.dispose();
         };
-      } catch (err) {
+      } catch {
         // Fallback for headless/unsupported environments
-        console.warn('xterm initialization fallback:', err);
       }
     }
 

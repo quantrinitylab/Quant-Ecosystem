@@ -39,15 +39,10 @@ export class LocalDbService {
           type: 'module',
         });
         this.worker.onmessage = this.handleWorkerMessage.bind(this);
-        this.worker.onerror = (err) => {
-          console.error('[LocalDbService] WebWorker error, falling back to local engine:', err);
+        this.worker.onerror = () => {
           this.fallbackToLocalEngine();
         };
-      } catch (err) {
-        console.warn(
-          '[LocalDbService] Could not instantiate WebWorker, using local engine fallback:',
-          err,
-        );
+      } catch {
         this.fallbackToLocalEngine();
       }
     } else {

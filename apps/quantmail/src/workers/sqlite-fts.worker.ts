@@ -184,7 +184,7 @@ export class SqliteFtsWorkerEngine {
 // In dedicated worker scope, bind message handler
 if (typeof self !== 'undefined' && typeof (self as any).postMessage === 'function') {
   const engine = new SqliteFtsWorkerEngine();
-  engine.init().catch(console.error);
+  engine.init().catch(() => {});
 
   self.onmessage = async (event: MessageEvent<WorkerInboundMessage>) => {
     const response = engine.handleMessage(event.data);
