@@ -9,6 +9,8 @@ export const QUANTGIT_TABS = [
   'security',
   'insights',
   'settings',
+  'mcp',
+  'notifications',
 ] as const;
 
 export type QuantGitTab = (typeof QUANTGIT_TABS)[number];

@@ -10,7 +10,9 @@ export type GitHubTab =
   | 'projects'
   | 'security'
   | 'insights'
-  | 'settings';
+  | 'settings'
+  | 'mcp'
+  | 'notifications';
 
 export type BuildMode = 'plan' | 'build' | 'auto';
 export type Effort = 'fast' | 'deep';
@@ -93,7 +95,7 @@ export type PRItem = {
 };
 
 export type WorkflowRunItem = {
-  id: number;
+  id: number | string;
   name: string;
   workflow: string;
   status: 'success' | 'in_progress' | 'queued' | 'failed';
@@ -107,6 +109,9 @@ export type WorkflowRunItem = {
     status: 'success' | 'in_progress' | 'pending' | 'failed';
     duration: string;
   }[];
+  actor?: string;
+  conclusion?: string;
+  createdAt?: string;
 };
 
 export type DiscussionItem = {

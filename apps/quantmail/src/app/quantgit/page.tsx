@@ -72,6 +72,10 @@ import { InsightsTab } from './components/InsightsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { QuantyCopilotView } from './components/QuantyCopilotView';
 import { QuantGitModals } from './components/QuantGitModals';
+import { MCPRegistryTab } from './components/MCPRegistryTab';
+import { CopilotFleetModeView } from './components/CopilotFleetModeView';
+import { DeveloperAppearanceSettings } from './components/DeveloperAppearanceSettings';
+import { NotificationsInbox } from './components/NotificationsInbox';
 
 export default function QuantGitPage() {
   const router = useRouter();
@@ -1614,9 +1618,11 @@ export default function QuantGitPage() {
               { id: 'code', label: '<> Code', badge: null },
               { id: 'issues', label: '⨀ Issues', badge: openIssuesCount },
               { id: 'pulls', label: '⑂ Pull requests', badge: openPullsCount },
-              { id: 'agents', label: '✨ Agents', badge: 'Copilot' },
-              { id: 'discussions', label: '💬 Discussions', badge: discussions.length },
+              { id: 'agents', label: '✨ Copilot Fleet', badge: 'Cloud OS' },
+              { id: 'mcp', label: '🔌 MCP Registry', badge: '288+' },
               { id: 'actions', label: '▶ Actions', badge: actions.length },
+              { id: 'notifications', label: '🔔 Notifications', badge: 3 },
+              { id: 'discussions', label: '💬 Discussions', badge: discussions.length },
               { id: 'projects', label: '📊 Projects', badge: projects.length },
               { id: 'security', label: '🛡️ Security', badge: securityAlerts.length },
               { id: 'insights', label: '📈 Insights', badge: null },
@@ -1686,6 +1692,7 @@ export default function QuantGitPage() {
                   setModalState={setModalState}
                   openBlobEditor={openBlobEditor}
                   onNavigatePath={setCurrentPath}
+                  onSelectBranch={setCurrentBranch}
                   showToast={showToast}
                 />
               )}
@@ -1716,8 +1723,26 @@ export default function QuantGitPage() {
               )}
 
               {activeGitHubTab === 'agents' && (
-                <AgentsTab agents={agents} setModalState={setModalState} />
+                <div className="space-y-6">
+                  <CopilotFleetModeView
+                    repoOwner={
+                      selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'
+                    }
+                    repoName={selectedRepo.name}
+                    onDispatchTask={(prompt, model, mode) =>
+                      showToast(`Dispatched cloud agent [${mode}] with ${model}`)
+                    }
+                  />
+                  <div className="pt-6 border-t border-[#30363D]">
+                    <h4 className="text-sm font-bold text-white mb-3">Deployed Workspace Agents</h4>
+                    <AgentsTab agents={agents} setModalState={setModalState} />
+                  </div>
+                </div>
               )}
+
+              {activeGitHubTab === 'mcp' && <MCPRegistryTab />}
+
+              {activeGitHubTab === 'notifications' && <NotificationsInbox />}
 
               {activeGitHubTab === 'discussions' && (
                 <DiscussionsTab
@@ -1750,19 +1775,26 @@ export default function QuantGitPage() {
               {activeGitHubTab === 'insights' && <InsightsTab />}
 
               {activeGitHubTab === 'settings' && (
-                <SettingsTab
-                  settingsName={settingsName}
-                  setSettingsName={setSettingsName}
-                  settingsDesc={settingsDesc}
-                  setSettingsDesc={setSettingsDesc}
-                  settingsBranch={settingsBranch}
-                  setSettingsBranch={setSettingsBranch}
-                  settingsVisibility={settingsVisibility}
-                  setSettingsVisibility={setSettingsVisibility}
-                  isSavingSettings={isSavingSettings}
-                  handleSaveSettings={handleSaveSettings}
-                  handleDeleteRepo={handleDeleteRepo}
-                />
+                <div className="space-y-8">
+                  <SettingsTab
+                    settingsName={settingsName}
+                    setSettingsName={setSettingsName}
+                    settingsDesc={settingsDesc}
+                    setSettingsDesc={setSettingsDesc}
+                    settingsBranch={settingsBranch}
+                    setSettingsBranch={setSettingsBranch}
+                    settingsVisibility={settingsVisibility}
+                    setSettingsVisibility={setSettingsVisibility}
+                    isSavingSettings={isSavingSettings}
+                    handleSaveSettings={handleSaveSettings}
+                    handleDeleteRepo={handleDeleteRepo}
+                  />
+                  <div className="pt-8 border-t border-[#30363D]">
+                    <DeveloperAppearanceSettings
+                      onSave={() => showToast('Developer appearance settings saved!')}
+                    />
+                  </div>
+                </div>
               )}
             </div>
           </div>

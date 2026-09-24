@@ -533,3 +533,8 @@ export type {
   WellbeingSummary,
   RecordUsageInput,
 } from './components/EcosystemShell';
+
+// ============================================================================
+// Ecosystem Interconnection & Unified Fabric (10 Core Apps)
+// ============================================================================
+export * from './interconnection';

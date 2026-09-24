@@ -6,17 +6,23 @@
 
 ## 👥 SWARM ROSTER & ASSIGNMENT MATRIX
 
-| Agent            | Domain / Title                | Core Responsibility                                | Current Primary Assignment                      |
-| :--------------- | :---------------------------- | :------------------------------------------------- | :---------------------------------------------- |
-| **CEO Astra**    | Executive Architecture Lead   | Technical specs, PR review, security gatekeeper    | Overall Migration Oversight & Wave Sign-Off     |
-| **Developer 1**  | Auth, Security & RBAC         | SSO token integrity, session cookies, OAuth scopes | Pre-merge Security Audits & Wave I Sweeps       |
-| **Developer 2**  | QA, Testing & Sentinel        | Vitest suites, CI pipelines, regression checks     | Zero-Mock Verification & Test Gates             |
-| **Developer 3**  | Calendar, Events & Tasks      | RRULE recurrence engine, public booking locks      | **Wave B**: Calendar & Recurrence Migration     |
-| **Developer 4**  | Drive, Storage & Uploads      | Chunked multipart, 5 AI services, quota checks     | **Wave A**: Drive Consolidation & 5 AI Services |
-| **Developer 5**  | Docs & Realtime Collaboration | Yjs CRDT engine, rich text sync, versioning        | **Wave C**: Docs & Yjs Migration into Drive     |
-| **Developer 6**  | CodeHub & Git Infrastructure  | Git Smart HTTP daemon, diffs, tree browser, PRs    | **Phase 2**: Real Git Engine & GitHub Parity    |
-| **Developer 7**  | QuantAI Swarm & Shared Memory | Layered memory (Redis+Prisma+Vector), dispatcher   | **Phase 3**: Cross-App Orchestrator & Memory    |
-| **Developer 8+** | Voice & WebRTC Scale          | LiveKit SFU, TTS/STT pipelines, call triggers      | **Wave D / Phase 4**: Voice Bot & Call Alarms   |
+| Agent                             | Domain / Title                         | Core Responsibility                                  | Current Primary Assignment                                      |
+| :-------------------------------- | :------------------------------------- | :--------------------------------------------------- | :-------------------------------------------------------------- |
+| **CEO Astra (Notion Swarm)**      | Executive Architecture Lead            | Technical specs, PR review, security gatekeeper      | Overall Migration Oversight & Wave Sign-Off                     |
+| **Developer 1 (Notion Swarm)**    | Auth, Security & RBAC                  | SSO token integrity, session cookies, OAuth scopes   | Pre-merge Security Audits & Wave I Sweeps                       |
+| **Developer 2 (Notion Swarm)**    | QA, Testing & Sentinel                 | Vitest suites, CI pipelines, regression checks       | Zero-Mock Verification & Test Gates                             |
+| **Developer 3 (Notion Swarm)**    | Calendar, Events & Tasks               | RRULE recurrence engine, public booking locks        | **Wave B**: Calendar & Recurrence Migration                     |
+| **Developer 4 (Notion Swarm)**    | Drive, Storage & Uploads               | Chunked multipart, 5 AI services, quota checks       | **Wave A**: Drive Consolidation & 5 AI Services                 |
+| **Developer 5 (Notion Swarm)**    | Docs & Realtime Collaboration          | Yjs CRDT engine, rich text sync, versioning          | **Wave C**: Docs & Yjs Migration into Drive                     |
+| **Developer 6 (Notion Swarm)**    | CodeHub & Git Infrastructure           | Git Smart HTTP daemon, diffs, tree browser, PRs      | **Phase 2**: Real Git Engine & GitHub Parity                    |
+| **Developer 7 (Notion Swarm)**    | QuantAI Swarm & Shared Memory          | Layered memory (Redis+Prisma+Vector), dispatcher     | **Phase 3**: Cross-App Orchestrator & Memory                    |
+| **Developer 8+ (Notion Swarm)**   | Voice & WebRTC Scale                   | LiveKit SFU, TTS/STT pipelines, call triggers        | **Wave D / Phase 4**: Voice Bot & Call Alarms                   |
+| **Agent 1: UI/UX PDF Analyst**    | Forensic Visual & Component Extraction | PDF 1 (Instagram 98p) & PDF 2 (ChatGPT 131p) specs   | **Active**: Full Layout, Spacing & Gesture Extraction           |
+| **Agent 2: Frontend Builder**     | Lead UI/UX Frontend Architect          | QuantGram & QuantAI high-fidelity components         | **Active**: Comments Sheet, Dual-Mode Canvas, Voice Orb         |
+| **Agent 3: Backend Engineer**     | Lead Backend & Distributed Systems     | Fastify routes, Prisma schemas, BullMQ crons         | **Active**: Nested Comments Hierarchy, Scheduled Tasks Worker   |
+| **Agent 4: QA Sentinel**          | Ruthless Code Reviewer & Security Gate | 100% green Vitest suites, OWASP audit, zero-mock     | **Active**: Regression Testing, Typecheck & Security Audits     |
+| **Agent 5: Innovation Lead**      | Chief Superiority & Product Architect  | "Aur usse achha aur kya-kya kar sakte hain" strategy | **Active**: Local Wasm FTS5, Zero-Fee Credits, E2EE Notes       |
+| **Agent 6: Interconnection Lead** | Ecosystem Interconnection Architect    | "Hum log ka UI/UX sab ka interconnection kaise hoga" | **Active**: Universal App Switcher, Cmd+K Palette, Media Routes |
 
 ## 🔍 7-DOMAIN MASTER FORENSIC AUDIT & SWARM PARITY SCORECARD
 
@@ -83,7 +89,7 @@
 
 ### Track 1: QuantGram Instagram Killer Parity (`apps/quantneon` - Dev 6 & Dev 3)
 
-- [ ] **Task W39-G01**: Full-Screen 9:16 Reels Video Player with vertical touch snapping, looping HLS video, right sidebar actions (Like, Comment, Share/Remix, Bookmark, 3-dots), bottom creator overlay (avatar + Follow pill, audio marquee ticker, expandable caption + hashtags), and double-tap heart burst.
+- [x] **Task W39-G01 (PR #311 Merged)**: Full-Screen 9:16 Reels Video Player with vertical touch snapping, looping HLS video, right sidebar actions (Like, Comment, Share/Remix, Bookmark, 3-dots), bottom creator overlay (avatar + Follow pill, audio marquee ticker, expandable caption + hashtags), and double-tap heart burst. (20/20 test suites and 236/236 tests passing 100% green).
 - [ ] **Task W39-G02**: Drag-to-Dismiss Comments Bottom Sheet with nested reply threads, comment like counts, empty state, and floating 8-emoji reaction dock (`❤️`, `🙌`, `🔥`, `👏`, `😢`, `😍`, `😮`, `😂`).
 - [ ] **Task W39-G03**: "About this reel" AI Context Sheet powered by Quanty + Ad transparency sheet with auto-scroll toggle.
 - [ ] **Task W39-G04**: Profile 4-Tab Matrix (`Posts [grid]`, `Reels [play]`, `Saved [bookmark]`, `Tagged [avatar]`) + Bottom sheet multi-account switcher with unread notification badges.
@@ -100,6 +106,19 @@
 - [ ] **Task W39-A05**: Central File Library (`Upload once, use anytime`) across past chats with categorized filters.
 - [ ] **Task W39-A06**: 3-Step Guided Image Creation Wizard (Idea -> Visual Style -> Mood) + Template marketplace.
 - [ ] **Task W39-A07**: Ecosystem Plugins & MCP Connectors Directory (Gmail, Drive, GitHub, Slack, Supabase, Stripe, Spotify, Figma).
+
+### Track 3: QuantGit (CodeHub) 159-Screen GitHub Sovereign Parity (`apps/quantmail/src/app/quantgit` - Dev 6 & Agent 2)
+
+- [x] **Task W39-GIT01**: Interactive Branch & Tag Selector Modal with live search (`Find a branch...`), default branch pill, tag badges, and commit HEAD hashes (`Screens 108–110`). (Verified in Vitest & CodeTab).
+- [x] **Task W39-GIT02**: Dual-Tab Code Dropdown: `Local` tab (HTTPS, SSH, GitHub CLI, Open in Quant Copilot, Download ZIP) + `Codespaces` tab (Create codespace on main, active instances list) (`Screens 111–114`). (Verified in Vitest & CodeTab).
+- [ ] **Task W39-GIT03**: Real Git File Explorer Tree (excising `MOCK_FILES`) with commit message, last modified, file sizes, and integrated syntax-highlighted Markdown README.md preview (`Screens 15–17, 122–124`).
+- [x] **Task W39-GIT04**: Repository Metrics & Metadata Sidebar: Star toggle backed by real `repository_stars` DB join, Watch dropdown, Releases counter (`28,144 releases`), Contributors avatar mosaic, and Language Distribution Bar (`TypeScript 83.9%`, etc.) (`Screens 15–17, 116–125`). (Verified in Vitest & CodeTab).
+- [x] **Task W39-GIT05**: Complete Issues Lifecycle Engine (excising `INITIAL_ISSUES`): Filter pills (`is:issue state:open`), Markdown toolbar (`B`, `I`, link, image, `@`, list, checklist, `H`), and metadata sidebar (Assignees, Labels, Milestone, Projects) (`Screens 28, 76, 89–90, 147–158`). (Verified in IssuesTab).
+- [x] **Task W39-GIT06**: Pull Requests Engine (excising `INITIAL_PRS`): Review status (`Review required`, `Approved`), Checks pass status (`55/56 checks passed`), Bot activity, and 3-way merge conflict detection with inline diffs (`Screens 27, 73–74, 99–103`). (Verified in PullRequestsTab).
+- [x] **Task W39-GIT07**: Real Actions / CI Pipeline (excising `INITIAL_ACTIONS`): 2,500+ workflow runs table, 5-dimension filter matrix (Actor, Branch, Status, Event, Workflow), and streaming monotonic terminal logs via xterm.js (`Screens 91–98`). (Verified in ActionsTab).
+- [x] **Task W39-GIT08**: GitHub Copilot Cloud Agent & Fleet Mode: Delegate tasks to background cloud agents, Multi-Model selector (GPT-5.3 Codex, Claude Opus 5.5, Sonnet 4.5, Kimi K2, GPT-6 Luna), Token usage meter (Input/Output tokens, credits left), Context tagger (`@repo`, `@files`, `@folder`) (`Screens 1–14, 135–142`). (Verified in Vitest & page.tsx).
+- [x] **Task W39-GIT09**: Official GitHub MCP Registry (`/mcp`): "Connect models to the real world" — directory of 288+ installable MCP servers (Markitdown, Chrome DevTools MCP, Playwright, Serena, Unity, Upstash) with 1-click install (`Screens 59–60`). (Verified in Vitest & page.tsx).
+- [x] **Task W39-GIT10**: Developer Settings & Personalization: Theme preferences (System, Light, Dark, accents), Markdown editor font (monospace toggle), Tab size (2, 4, 8), Emoji skin tone, and Feature Previews modal (`Screens 39–52, 81–84`). (Verified in Vitest & page.tsx).
 
 ---
 

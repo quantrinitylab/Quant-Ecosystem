@@ -1,7 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Repo, FileNode } from '../types';
+import { RepoSidebarMetadata } from './RepoSidebarMetadata';
+import { BranchSelectorModal } from './BranchSelectorModal';
+import { CloneCodespacesMenu } from './CloneCodespacesMenu';
 
 export interface CodeTabProps {
   selectedRepo: Repo;
@@ -12,6 +15,7 @@ export interface CodeTabProps {
   setModalState: (modal: any) => void;
   openBlobEditor: (file: FileNode) => Promise<void>;
   onNavigatePath?: (path: string) => void;
+  onSelectBranch?: (branch: string) => void;
   showToast: (msg: string) => void;
 }
 
@@ -24,8 +28,12 @@ export function CodeTab({
   setModalState,
   openBlobEditor,
   onNavigatePath,
+  onSelectBranch,
   showToast,
 }: CodeTabProps) {
+  const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
+  const [isCodeMenuOpen, setIsCodeMenuOpen] = useState(false);
+
   const branchCount =
     repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount || 1;
   const commitCount = selectedRepo.commitCount || (selectedRepo.latestCommitSha ? 2118 : 1);
@@ -40,7 +48,7 @@ export function CodeTab({
             {/* Branch Switcher Button */}
             <button
               type="button"
-              onClick={() => setModalState('branch-switcher')}
+              onClick={() => setIsBranchModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
             >
               <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
@@ -78,17 +86,52 @@ export function CodeTab({
               Add file ▼
             </button>
 
-            {/* Green Code Clone Button */}
-            <button
-              type="button"
-              onClick={() => setModalState('clone')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors shadow-sm"
-            >
-              <span>&lt;&gt; Code</span>
-              <span className="text-[10px]">▼</span>
-            </button>
+            {/* Green Code Clone Button & Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsCodeMenuOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold transition-colors shadow-sm"
+              >
+                <span>&lt;&gt; Code</span>
+                <span className="text-[10px]">▼</span>
+              </button>
+              <CloneCodespacesMenu
+                isOpen={isCodeMenuOpen}
+                onClose={() => setIsCodeMenuOpen(false)}
+                repoOwner={
+                  selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'
+                }
+                repoName={selectedRepo.name}
+                currentBranch={currentBranch}
+                onLaunchCodespace={(b) => showToast(`Launching cloud Codespace on ${b}...`)}
+              />
+            </div>
           </div>
         </div>
+
+        {/* Branch Selector Modal */}
+        <BranchSelectorModal
+          isOpen={isBranchModalOpen}
+          onClose={() => setIsBranchModalOpen(false)}
+          currentBranch={currentBranch}
+          branches={
+            repoBranches && repoBranches.length > 0
+              ? repoBranches
+              : [currentBranch, 'main', 'feat/speech-telemetry', 'feat/mcp-registry']
+          }
+          tags={['v1.0.5', 'v1.0.4', 'v1.0.0']}
+          defaultBranch={selectedRepo.defaultBranch || 'main'}
+          onSelectBranch={(branch) => {
+            setIsBranchModalOpen(false);
+            onSelectBranch?.(branch);
+            showToast(`Switched to branch ${branch}`);
+          }}
+          onSelectTag={(tag) => {
+            setIsBranchModalOpen(false);
+            showToast(`Selected tag ${tag}`);
+          }}
+        />
 
         {/* Breadcrumb Path Navigator */}
         {currentPath && (
@@ -273,142 +316,31 @@ export function CodeTab({
       </div>
 
       {/* Right / Sidebar Column (25%) */}
-      <div className="space-y-6 text-xs">
-        {/* About Card */}
-        <div className="space-y-3 pb-6 border-b border-[#30363D]">
-          <h3 className="font-bold text-sm text-white">About</h3>
-          <p className="text-[#7D8590] leading-relaxed">{selectedRepo.description}</p>
-          <a
-            href={selectedRepo.website}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[#58A6FF] hover:underline font-semibold flex items-center gap-1"
-          >
-            🔗 {selectedRepo.website.replace('https://', '')}
-          </a>
-
-          {/* Topics Pills */}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {selectedRepo.topics.map((t) => (
-              <span
-                key={t}
-                className="px-2 py-0.5 rounded-full bg-[#1F242C] text-[#58A6FF] hover:bg-[#28313E] text-[10px] font-semibold cursor-pointer"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-
-          <div className="space-y-2 pt-2 text-[#7D8590]">
-            <div className="flex items-center gap-2">
-              <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                <path d="M0 1.75A.75.75 0 0 1 .75 1h4.253c1.227 0 2.317.59 3 1.501A3.743 3.743 0 0 1 11.006 1h4.245a.75.75 0 0 1 .75.75v10.5a.75.75 0 0 1-.75.75h-4.507a2.25 2.25 0 0 0-1.591.659l-.622.621a.75.75 0 0 1-1.06 0l-.622-.621A2.25 2.25 0 0 0 5.258 13H.75a.75.75 0 0 1-.75-.75Zm7.251 10.324.53-.53a3.75 3.75 0 0 1 2.65-1.094h3.57V2.5h-3.006a2.25 2.25 0 0 0-2.25 2.25v6.524ZM6.75 4.75A2.25 2.25 0 0 0 4.504 2.5H1.5v7.95h3.757a3.75 3.75 0 0 1 2.651 1.094Z" />
-              </svg>
-              <span>Readme</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <svg height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
-                <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0Zm.75 4.75a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .375.65l2.5 1.5a.75.75 0 1 0 .75-1.3L8.75 7.85V4.75Z" />
-              </svg>
-              <span>Activity</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span>★</span>
-              <span className="text-white font-semibold">{selectedRepo.stars}</span> stars
-            </div>
-            <div className="flex items-center gap-2">
-              <span>👁</span>
-              <span className="text-white font-semibold">{selectedRepo.watching}</span> watching
-            </div>
-            <div className="flex items-center gap-2">
-              <span>⑂</span>
-              <span className="text-white font-semibold">{selectedRepo.forks}</span> forks
-            </div>
-          </div>
-        </div>
-
-        {/* Releases Card (With Download Links for APK!) */}
-        <div className="space-y-3 pb-6 border-b border-[#30363D]">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-sm text-white">Releases</h3>
-            <span className="px-1.5 py-0.2 rounded-full bg-[#238636] text-white text-[10px] font-bold">
-              Latest
-            </span>
-          </div>
-
-          <div className="p-3 rounded-md bg-[#161B22] border border-[#30363D] space-y-2">
-            <div className="font-bold text-[#58A6FF]">Quant v1.0 Universal APK</div>
-            <p className="text-[11px] text-[#7D8590]">
-              Native Android release with targetSdk 36 & Compose.
-            </p>
-            <div className="space-y-1 pt-1">
-              <a
-                href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/Quant-v1.0-debug.apk"
-                className="block text-[11px] text-[#FF8C42] hover:underline font-semibold"
-              >
-                📥 Quant-v1.0-debug.apk (11.39 MB)
-              </a>
-              <a
-                href="https://raw.githubusercontent.com/quantrinitylab/Quant-Ecosystem/main/apk%20testing/quant-app.apk"
-                className="block text-[11px] text-[#7D8590] hover:underline font-mono"
-              >
-                📦 quant-app.apk (Mirror)
-              </a>
-            </div>
-          </div>
-        </div>
-
-        {/* Packages Card */}
-        <div className="space-y-2 pb-6 border-b border-[#30363D]">
-          <h3 className="font-bold text-sm text-white">Packages</h3>
-          <p className="text-[11px] text-[#7D8590]">No published packages yet in registry.</p>
-        </div>
-
-        {/* Contributors Card */}
-        <div className="space-y-3 pb-6 border-b border-[#30363D]">
-          <h3 className="font-bold text-sm text-white">
-            Contributors{' '}
-            <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
-              8
-            </span>
-          </h3>
-          <div className="flex flex-wrap gap-1.5">
-            {['K', 'A', 'S', 'F', 'R', 'P', 'L', 'D'].map((init, idx) => (
-              <span
-                key={idx}
-                className="w-6 h-6 rounded-full bg-[#21262D] border border-[#30363D] text-[#E6EDF3] font-bold flex items-center justify-center text-[10px]"
-              >
-                {init}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Languages Card */}
-        <div className="space-y-2">
-          <h3 className="font-bold text-sm text-white">Languages</h3>
-          <div className="h-2 rounded-full overflow-hidden flex">
-            <div className="bg-[#3178C6] w-[84%]" title="TypeScript 84.2%" />
-            <div className="bg-[#A97BFF] w-[8%]" title="Kotlin 8.1%" />
-            <div className="bg-[#3572A5] w-[4%]" title="Python 4.3%" />
-            <div className="bg-[#89E051] w-[2%]" title="Shell 2.1%" />
-            <div className="bg-[#F1E05A] w-[2%]" title="Other 1.3%" />
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-[#7D8590] pt-1">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#3178C6]" /> TypeScript 84.2%
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#A97BFF]" /> Kotlin 8.1%
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#3572A5]" /> Python 4.3%
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#89E051]" /> Shell 2.1%
-            </span>
-          </div>
-        </div>
+      <div className="lg:col-span-1">
+        <RepoSidebarMetadata
+          repoOwner={selectedRepo.fullName ? selectedRepo.fullName.split('/')[0] : 'quantrinitylab'}
+          repoName={selectedRepo.name}
+          description={selectedRepo.description}
+          websiteUrl={selectedRepo.website || 'https://quant.network'}
+          topics={
+            selectedRepo.topics && selectedRepo.topics.length > 0
+              ? selectedRepo.topics
+              : ['web-platform', 'enterprise', 'high-performance']
+          }
+          starsCount={selectedRepo.stars || 111000}
+          forksCount={selectedRepo.forks || 5200}
+          watchersCount={selectedRepo.watching || 146}
+          releasesCount={28144}
+          latestReleaseTag="v1.0.5"
+          latestReleaseTime="12 hours ago"
+          usedByCount="110K"
+          contributorsCount={8}
+          languages={[
+            { name: 'TypeScript', percentage: 83.9, color: '#3178c6' },
+            { name: 'MDX', percentage: 15.6, color: '#fcb32c' },
+            { name: 'JavaScript', percentage: 0.5, color: '#f7df1e' },
+          ]}
+        />
       </div>
     </div>
   );
