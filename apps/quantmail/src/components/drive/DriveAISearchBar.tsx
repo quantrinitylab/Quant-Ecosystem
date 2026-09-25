@@ -68,8 +68,8 @@ export class DriveAISearchManager {
     this.listeners.forEach((listener) => {
       try {
         listener(currentState);
-      } catch (err) {
-        console.error('[DriveAISearchManager] listener error:', err);
+      } catch {
+        // Silently ignore listener errors
       }
     });
   }

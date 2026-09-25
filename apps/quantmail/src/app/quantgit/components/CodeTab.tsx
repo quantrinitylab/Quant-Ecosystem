@@ -146,7 +146,10 @@ export function CodeTab({
 ${selectedRepo.description || 'Sovereign workspace, autonomous AI swarm, Git hub & Android client.'}
 
 \`\`\`bash
-# Clone the repository
+# Clone with Sovereign Quant CLI:
+quant repo clone ${selectedRepo.fullName || selectedRepo.name}
+
+# Or clone via Git:
 git clone ${selectedRepo.cloneUrl}
 
 # Install dependencies and start development
@@ -440,6 +443,7 @@ pnpm install && pnpm dev
                 repoName={selectedRepo.name}
                 currentBranch={currentBranch}
                 onLaunchCodespace={(b) => showToast(`Launching cloud Codespace on ${b}...`)}
+                showToast={showToast}
               />
             </div>
           </div>

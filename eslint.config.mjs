@@ -16,10 +16,10 @@ export default tseslint.config(
   },
   {
     files: [
-      'packages/*/src/**/*.ts',
-      'apps/*/src/**/*.ts',
+      'packages/*/src/**/*.{ts,tsx}',
+      'apps/*/src/**/*.{ts,tsx}',
       'apps/*/backend/**/*.ts',
-      'services/*/src/**/*.ts',
+      'services/*/src/**/*.{ts,tsx}',
     ],
     extends: [tseslint.configs.recommended],
     rules: {
@@ -38,10 +38,10 @@ export default tseslint.config(
   },
   {
     files: [
-      'packages/*/src/**/*.ts',
-      'apps/*/src/**/*.ts',
+      'packages/*/src/**/*.{ts,tsx}',
+      'apps/*/src/**/*.{ts,tsx}',
       'apps/*/backend/**/*.ts',
-      'services/*/src/**/*.ts',
+      'services/*/src/**/*.{ts,tsx}',
     ],
     ignores: [
       '**/*.test.ts',

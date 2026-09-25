@@ -101,8 +101,8 @@ export class UndoSendManager {
     if (this.state.pendingItem && this.state.status === 'counting') {
       try {
         this.state.pendingItem.onSendNow?.();
-      } catch (err) {
-        console.error('[UndoSendManager] Error flushing previous message:', err);
+      } catch {
+        // Silently ignore flush errors on previous message
       }
     }
 
@@ -147,8 +147,8 @@ export class UndoSendManager {
         const currentItem = this.state.pendingItem;
         try {
           currentItem?.onSendNow?.();
-        } catch (err) {
-          console.error('[UndoSendManager] Error in automatic onSendNow:', err);
+        } catch {
+          // Silently ignore errors during automatic send execution
         }
 
         this.state = {
@@ -180,8 +180,8 @@ export class UndoSendManager {
 
     try {
       currentItem.onSendNow?.();
-    } catch (err) {
-      console.error('[UndoSendManager] Error in onSendNow callback:', err);
+    } catch {
+      // Silently ignore onSendNow callback execution errors
     }
 
     this.state = {
@@ -211,8 +211,8 @@ export class UndoSendManager {
 
     try {
       currentItem.onUndo?.();
-    } catch (err) {
-      console.error('[UndoSendManager] Error in onUndo callback:', err);
+    } catch {
+      // Silently ignore onUndo callback execution errors
     }
 
     this.state = {

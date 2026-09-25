@@ -296,20 +296,71 @@ export function QuantGitModals({
               </button>
             </div>
 
+            {/* 1-Click Sovereign Quant CLI Terminal Command Promotion Card */}
+            <div className="rounded-lg border border-[#238636]/40 bg-[#238636]/10 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-[#3FB950]">
+                  <span className="w-2 h-2 rounded-full bg-[#3FB950] animate-pulse" />
+                  <span>Sovereign @quant/cli</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#238636]/30 text-[#3FB950] border border-[#238636]/50">
+                    Recommended
+                  </span>
+                </div>
+                <span className="text-[10px] text-[#8D96A0]">1-Click clone</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-2.5 font-mono text-[11px] text-[#E6EDF3] select-all truncate">
+                  quant repo clone {selectedRepo.fullName || selectedRepo.name}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                      navigator.clipboard.writeText(
+                        `quant repo clone ${selectedRepo.fullName || selectedRepo.name}`,
+                      );
+                    }
+                    showToast('Copied to clipboard!');
+                  }}
+                  className="px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 shadow-sm"
+                  title="Copy 1-click quant repo clone command"
+                >
+                  <svg
+                    className="w-3.5 h-3.5 text-white"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span>1-Click Copy</span>
+                </button>
+              </div>
+            </div>
+
             {/* Protocol Tabs */}
-            <div className="flex items-center gap-2 border-b border-[#21262D] pb-2">
-              {(['https', 'ssh', 'cli'] as const).map((proto) => (
+            <div className="flex items-center gap-1.5 border-b border-[#21262D] pb-2">
+              {(['https', 'ssh', 'cli', 'quant'] as const).map((proto) => (
                 <button
                   key={proto}
                   type="button"
                   onClick={() => setCloneProtocol(proto)}
-                  className={`px-3 py-1 rounded font-bold uppercase text-[11px] ${
+                  className={`px-3 py-1 rounded font-bold text-[11px] transition-colors ${
                     cloneProtocol === proto
                       ? 'bg-[#21262D] text-white border border-[#30363D]'
-                      : 'text-[#7D8590]'
+                      : 'text-[#7D8590] hover:text-white'
                   }`}
                 >
-                  {proto}
+                  {proto === 'cli'
+                    ? 'GitHub CLI'
+                    : proto === 'quant'
+                      ? 'Quant CLI'
+                      : proto.toUpperCase()}
                 </button>
               ))}
             </div>
@@ -323,20 +374,26 @@ export function QuantGitModals({
                     ? selectedRepo.cloneUrl
                     : cloneProtocol === 'ssh'
                       ? selectedRepo.sshUrl
-                      : `gh repo clone ${selectedRepo.fullName}`
+                      : cloneProtocol === 'quant'
+                        ? `quant repo clone ${selectedRepo.fullName || selectedRepo.name}`
+                        : `gh repo clone ${selectedRepo.fullName || selectedRepo.name}`
                 }
-                className="flex-1 bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-[11px] font-mono text-white"
+                className="flex-1 bg-[#0D1117] border border-[#30363D] rounded px-3 py-1.5 text-[11px] font-mono text-white select-all"
               />
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(
+                  const copyVal =
                     cloneProtocol === 'https'
                       ? selectedRepo.cloneUrl
                       : cloneProtocol === 'ssh'
                         ? selectedRepo.sshUrl
-                        : `gh repo clone ${selectedRepo.fullName}`,
-                  );
+                        : cloneProtocol === 'quant'
+                          ? `quant repo clone ${selectedRepo.fullName || selectedRepo.name}`
+                          : `gh repo clone ${selectedRepo.fullName || selectedRepo.name}`;
+                  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                    navigator.clipboard.writeText(copyVal);
+                  }
                   showToast('Copied to clipboard!');
                 }}
                 className="px-3 py-1.5 rounded bg-[#21262D] hover:bg-[#30363D] font-bold text-white border border-[#30363D]"

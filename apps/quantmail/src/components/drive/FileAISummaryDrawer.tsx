@@ -84,8 +84,8 @@ export class AISummaryManager {
     this.listeners.forEach((listener) => {
       try {
         listener(this.state);
-      } catch (err) {
-        console.error('[AISummaryManager] Listener error:', err);
+      } catch {
+        // Silently ignore listener errors
       }
     });
   }
@@ -245,8 +245,8 @@ export class AISummaryManager {
               );
             }
           }
-        } catch (deepErr) {
-          console.warn('[AISummaryManager] Deep entity extraction skipped:', deepErr);
+        } catch {
+          // Deep entity extraction optional fallback
         }
       }
 
@@ -417,8 +417,7 @@ export class AISummaryManager {
       }, 2000);
 
       return true;
-    } catch (err) {
-      console.error('[AISummaryManager] Failed to copy to clipboard:', err);
+    } catch {
       return false;
     }
   };

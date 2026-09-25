@@ -67,10 +67,30 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
       expect(html).toContain('Codespaces');
       expect(html).toContain('HTTPS');
       expect(html).toContain('SSH');
+      expect(html).toContain('GitHub CLI');
       expect(html).toContain('Quant CLI');
+      expect(html).toContain('Sovereign @quant/cli');
+      expect(html).toContain('quant repo clone quantrinitylab/Quant-Ecosystem');
+      expect(html).toContain('1-Click Copy');
       expect(html).toContain('https://quantmail.in/git/quantrinitylab/Quant-Ecosystem.git');
       expect(html).toContain('Download ZIP');
       expect(html).toContain('Open in Quant Copilot App');
+    });
+
+    it('renders 1-click sovereign quant repo clone terminal copy command and feedback', () => {
+      const html = renderToStaticMarkup(
+        <CloneCodespacesMenu
+          isOpen={true}
+          onClose={vi.fn()}
+          repoOwner="quantrinitylab"
+          repoName="Quant-Ecosystem"
+          currentBranch="main"
+        />,
+      );
+
+      expect(html).toContain('quant repo clone quantrinitylab/Quant-Ecosystem');
+      expect(html).toContain('1-Click Copy');
+      expect(html).toContain('Sovereign @quant/cli');
     });
   });
 

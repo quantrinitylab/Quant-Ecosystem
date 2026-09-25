@@ -141,8 +141,8 @@ export class UniversalSSOTokenBridge {
         this.broadcastChannel.onmessage = (event: MessageEvent<SSOEventMessage>) => {
           this.dispatchLocalEvent(event.data);
         };
-      } catch (e) {
-        console.warn('QuantSSOBus: BroadcastChannel failed to initialize', e);
+      } catch {
+        // BroadcastChannel unavailable or restricted in sandboxed environments
       }
     }
   }

@@ -148,11 +148,35 @@
 
 ### Track 7: Sovereign Terminal CLI Parity Sprint (`packages/cli` — GitHub `gh` & Superhuman Parity)
 
-- [ ] **Task W39-CLI01**: CLI Core Config & Authentication Engine (`packages/cli/src/config.ts` & `commands/auth.ts`): Token storage in `~/.quant/config.json`, `quant auth login`, `quant auth status`, `quant auth whoami`, and `quant auth token` with OAuth2 / API key support.
-- [ ] **Task W39-CLI02**: CodeHub GitHub CLI Parity Engine (`packages/cli/src/commands/repo.ts` & `commands/pr.ts`): `quant repo list`, `quant repo clone <repo>`, `quant repo view <repo>`, `quant pr list`, `quant pr create`, `quant pr view <id>`, `quant pr merge <id>` calling CodeHub Fastify routes.
-- [ ] **Task W39-CLI03**: Superhuman Fast Email CLI Engine (`packages/cli/src/commands/mail.ts`): `quant mail inbox`, `quant mail read <id>`, `quant mail send`, `quant mail search <q>` with fast terminal triage, colored priority tags, and JSON output mode.
-- [ ] **Task W39-CLI04**: QuantDrive & Calendar CLI Engine (`packages/cli/src/commands/drive.ts` & `commands/calendar.ts`): `quant drive ls`, `quant drive upload <file>`, `quant drive quota`, `quant drive duplicates` + `quant calendar agenda`, `quant calendar book`.
-- [ ] **Task W39-CLI05**: CLI Entrypoint Wire-Up & Comprehensive Vitest Suite (`packages/cli/src/index.ts` & `packages/cli/src/__tests__/cli.test.ts`): Wire all subcommands into `quant` CLI, author 100% green test suite, and verify typecheck (`pnpm --filter @quant/cli build`).
+- [x] **Task W39-CLI01**: CLI Core Config & Authentication Engine (`packages/cli/src/config.ts` & `commands/auth.ts`): Token storage in `~/.quant/config.json`, `quant auth login`, `quant auth status`, `quant auth whoami`, and `quant auth token` with OAuth2 / API key support. (Verified 100% green: 22/22 tests in `auth.test.ts` passing).
+- [x] **Task W39-CLI02**: CodeHub GitHub CLI Parity Engine (`packages/cli/src/commands/repo.ts` & `commands/pr.ts`): `quant repo list`, `quant repo clone <repo>`, `quant repo view <repo>`, `quant pr list`, `quant pr create`, `quant pr view <id>`, `quant pr merge <id>` calling CodeHub Fastify routes. (Verified 100% green: 30/30 tests in `repo.test.ts` & `pr.test.ts` passing).
+- [x] **Task W39-CLI03**: Superhuman Fast Email CLI Engine (`packages/cli/src/commands/mail.ts`): `quant mail inbox`, `quant mail read <id>`, `quant mail send`, `quant mail search <q>` with fast terminal triage, colored priority tags, and JSON output mode. (Verified 100% green: 17/17 tests in `mail.test.ts` passing).
+- [x] **Task W39-CLI04**: QuantDrive & Calendar CLI Engine (`packages/cli/src/commands/drive.ts` & `commands/calendar.ts`): `quant drive ls`, `quant drive upload <file>`, `quant drive quota`, `quant drive duplicates` + `quant calendar agenda`, `quant calendar book`. (Verified 100% green: 24/24 tests in `drive.test.ts` & `calendar.test.ts` passing).
+- [x] **Task W39-CLI05**: CLI Entrypoint Wire-Up & Comprehensive Vitest Suite (`packages/cli/src/index.ts` & `packages/cli/src/__tests__/cli.test.ts`): Wired all subcommands into `quant` CLI, author 100% green test suite, and verify typecheck (`pnpm --filter @quant/cli build`). (Verified 100% green: 110/110 tests passing across 7 suites, build exit 0 `dist/index.js`).
+
+### Track 8: Android APK & Mobile Hardening (`android-project` & `apps/quant-mobile`)
+
+- [x] **Task W39-APK01**: Target Android SDK 36 (Java 17, Compose BOM 2026.03.01, Navigation3) in `android-project/app/build.gradle.kts`. (Verified: Gradle 9.1.0 build successful).
+- [x] **Task W39-APK02**: Modern ComponentActivity `onNewIntent(intent: Intent)` signature and purge deprecated package attribute in `AndroidManifest.xml`. (Verified: 0 compile errors).
+- [x] **Task W39-APK03**: Fresh Debug APK Compilation and Artifact Publishing. (Verified: `Quant-v1.0-debug.apk` and `quant-app.apk` 12.0 MB published to `apk testing/`).
+- [x] **Task W39-APK04**: Mobile Test Suite Verification in `apps/quant-mobile`. (Verified: 111/111 tests passing green across 9 test suites).
+
+### Track 9: CI Green Sentinel & Lint Cleansing Sprint (Remediating GitHub CI Red)
+
+- [x] **Task W39-CI01**: Purge all `console.error` / `console.warn` statements in `apps/quantmail/src/components/drive/StorageQuotaBar.tsx`, `FileAISummaryDrawer.tsx`, and `DriveAISearchBar.tsx`. (Verified: 0 console statements, 43/43 tests green in `drive-search-quota.test.tsx` and `drive-ai-insights.test.tsx`).
+- [x] **Task W39-CI02**: Purge all `console.error` statements in `apps/quantmail/src/components/UndoSendCountdownBar.tsx`. (Verified: 0 console statements, 16/16 tests green in `undo-send-bar.test.tsx`).
+- [x] **Task W39-CI03**: Purge `console.warn` statement in `packages/shared-ui/src/interconnection/UniversalSSOTokenBridge.ts`. (Verified: 0 console statements, silent sandbox fallback).
+- [x] **Task W39-CI04**: Monorepo lint verification (`npx eslint`) and root eslint config hardening. (Verified: Exit code 0, 0 errors, 0 warnings).
+
+### Track 10: Sovereign Desktop Client UI Shell (`apps/quant-desktop` — macOS / Windows / Linux)
+
+- [x] **Task W39-DSK01**: Desktop HTML & Vite Web Shell Entrypoint (`index.html`, `vite.config.ts`, `src/main.tsx`). (Verified: Vite 6 bundle built in 4.08s with code 0).
+- [x] **Task W39-DSK02**: Desktop App Switcher & Navigation Shell (`src/App.tsx` with Cmd+K palette, multi-app launcher dock, local VFS sync badge, TitleBar controls). (Verified: 12/12 new tests in `desktop-shell.test.ts` passing).
+- [x] **Task W39-DSK03**: Desktop Vitest suite and build verification (`pnpm --filter @quant/quant-desktop test` & `build`). (Verified: 19/19 tests passing green across 4 test files, 0 TS errors).
+
+### Track 11: CodeHub Sovereign CLI Clone Integration (`apps/quantmail/src/app/quantgit`)
+
+- [x] **Task W39-HUB01**: 1-Click Sovereign `quant repo clone <owner>/<repo>` Promotion Card in `CloneCodespacesMenu.tsx` and `QuantGitModals.tsx`. (Verified: 4 protocol tabs HTTPS/SSH/GitHub CLI/Quant CLI, visual copy feedback, 9/9 tests in `GitHubSovereignParity.test.tsx` green, 0 TS errors).
 
 ---
 

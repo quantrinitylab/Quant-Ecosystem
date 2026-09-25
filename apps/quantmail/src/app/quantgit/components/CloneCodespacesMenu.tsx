@@ -13,6 +13,7 @@ export interface CloneCodespacesMenuProps {
   repoName: string;
   currentBranch: string;
   onLaunchCodespace?: (branch: string) => void;
+  showToast?: (msg: string) => void;
 }
 
 export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
@@ -22,23 +23,35 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
   repoName,
   currentBranch,
   onLaunchCodespace,
+  showToast,
 }) => {
   const [activeTab, setActiveTab] = useState<'local' | 'codespaces'>('local');
-  const [cloneProtocol, setCloneProtocol] = useState<'https' | 'ssh' | 'cli'>('https');
+  const [cloneProtocol, setCloneProtocol] = useState<'https' | 'ssh' | 'gh' | 'cli'>('https');
   const [copied, setCopied] = useState(false);
+  const [copiedFeedback, setCopiedFeedback] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const quantCloneCommand = `quant repo clone ${repoOwner}/${repoName}`;
 
   const cloneUrls = {
     https: `https://quantmail.in/git/${repoOwner}/${repoName}.git`,
     ssh: `git@quantmail.in:${repoOwner}/${repoName}.git`,
-    cli: `quant repo clone ${repoOwner}/${repoName}`,
+    gh: `gh repo clone ${repoOwner}/${repoName}`,
+    cli: quantCloneCommand,
   };
 
   const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+    }
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedFeedback('Copied to clipboard!');
+    showToast?.('Copied to clipboard!');
+    setTimeout(() => {
+      setCopied(false);
+      setCopiedFeedback(null);
+    }, 2000);
   };
 
   const handleDownloadZip = () => {
@@ -55,6 +68,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
         {/* Top Tabs: Local vs Codespaces */}
         <div className="flex border-b border-[#30363D] bg-[#0D1117]">
           <button
+            type="button"
             onClick={() => setActiveTab('local')}
             className={`flex-1 py-2.5 font-semibold text-center border-b-2 transition-colors ${
               activeTab === 'local'
@@ -65,6 +79,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
             Local
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('codespaces')}
             className={`flex-1 py-2.5 font-semibold text-center border-b-2 transition-colors ${
               activeTab === 'codespaces'
@@ -101,9 +116,71 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
               </span>
             </div>
 
-            {/* Protocol Tabs (HTTPS, SSH, CLI) */}
-            <div className="flex gap-1.5 bg-[#0D1117] p-1 rounded-lg border border-[#30363D]">
+            {/* 1-Click Sovereign Quant CLI Terminal Command Promotion Card */}
+            <div className="rounded-lg border border-[#238636]/40 bg-[#238636]/10 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-semibold text-xs text-[#3FB950]">
+                  <span className="w-2 h-2 rounded-full bg-[#3FB950] animate-pulse" />
+                  <span>Sovereign @quant/cli</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#238636]/30 text-[#3FB950] border border-[#238636]/50">
+                    Recommended
+                  </span>
+                </div>
+                <span className="text-[10px] text-[#8D96A0]">1-Click clone</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 px-2.5 font-mono text-[11px] text-[#E6EDF3] select-all truncate">
+                  {quantCloneCommand}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(quantCloneCommand)}
+                  className="px-3 py-1.5 rounded-md bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 shadow-sm"
+                  title="Copy 1-click quant repo clone command"
+                >
+                  {copiedFeedback && copied ? (
+                    <>
+                      <svg
+                        className="w-3.5 h-3.5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      <span>1-Click Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Protocol Tabs (HTTPS, SSH, GitHub CLI, Quant CLI) */}
+            <div className="flex gap-1 bg-[#0D1117] p-1 rounded-lg border border-[#30363D]">
               <button
+                type="button"
                 onClick={() => setCloneProtocol('https')}
                 className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
                   cloneProtocol === 'https'
@@ -114,6 +191,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
                 HTTPS
               </button>
               <button
+                type="button"
                 onClick={() => setCloneProtocol('ssh')}
                 className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
                   cloneProtocol === 'ssh'
@@ -124,6 +202,18 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
                 SSH
               </button>
               <button
+                type="button"
+                onClick={() => setCloneProtocol('gh')}
+                className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
+                  cloneProtocol === 'gh'
+                    ? 'bg-[#21262D] text-[#E6EDF3] shadow-sm'
+                    : 'text-[#8D96A0] hover:text-[#E6EDF3]'
+                }`}
+              >
+                GitHub CLI
+              </button>
+              <button
+                type="button"
                 onClick={() => setCloneProtocol('cli')}
                 className={`flex-1 py-1 rounded text-center font-medium transition-colors ${
                   cloneProtocol === 'cli'
@@ -144,6 +234,7 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
                 className="w-full bg-[#0D1117] border border-[#30363D] rounded-md py-1.5 pl-3 pr-10 text-[11px] font-mono text-[#E6EDF3] outline-none select-all"
               />
               <button
+                type="button"
                 onClick={() => handleCopy(cloneUrls[cloneProtocol])}
                 className="absolute right-1.5 p-1 rounded hover:bg-[#21262D] text-[#8D96A0] hover:text-[#E6EDF3] transition-colors"
                 title="Copy to clipboard"
@@ -179,10 +270,32 @@ export const CloneCodespacesMenu: React.FC<CloneCodespacesMenuProps> = ({
                 )}
               </button>
             </div>
+
+            {/* Visual Feedback Banner */}
+            {copiedFeedback && (
+              <div className="flex items-center gap-1.5 text-[11px] text-[#3FB950] font-medium bg-[#3FB950]/10 border border-[#3FB950]/30 px-2.5 py-1 rounded-md animate-in fade-in transition-all">
+                <svg
+                  className="w-3.5 h-3.5 text-[#3FB950]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2.5}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span>Copied to clipboard!</span>
+              </div>
+            )}
+
             <p className="text-[11px] text-[#8D96A0]">
               {cloneProtocol === 'https' && 'Clone using the web URL.'}
               {cloneProtocol === 'ssh' && 'Use a password-protected SSH key.'}
-              {cloneProtocol === 'cli' && 'Use the Quant official CLI.'}
+              {cloneProtocol === 'gh' && 'Work fast with GitHub CLI.'}
+              {cloneProtocol === 'cli' && 'Use the sovereign @quant/cli.'}
             </p>
 
             <div className="pt-2 border-t border-[#30363D] space-y-1.5">

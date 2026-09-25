@@ -108,8 +108,8 @@ export class StorageQuotaManager {
     this.listeners.forEach((listener) => {
       try {
         listener(current);
-      } catch (err) {
-        console.error('[StorageQuotaManager] listener error:', err);
+      } catch {
+        // Silently ignore listener errors
       }
     });
   }

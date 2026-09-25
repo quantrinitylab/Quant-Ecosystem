@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build"
   },

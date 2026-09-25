@@ -16,7 +16,7 @@ export type GitHubTab =
 
 export type BuildMode = 'plan' | 'build' | 'auto';
 export type Effort = 'fast' | 'deep';
-export type CloneProtocol = 'https' | 'ssh' | 'cli';
+export type CloneProtocol = 'https' | 'ssh' | 'cli' | 'quant';
 
 export type Repo = {
   id: string;
