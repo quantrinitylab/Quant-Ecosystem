@@ -693,6 +693,7 @@ export function AppShell({
                 aria-modal={isDrawerPresented || undefined}
                 aria-label="Navigation"
                 aria-hidden={!isDrawerPresented}
+                inert={!isDrawerPresented ? '' : undefined}
                 onClickCapture={(event) => {
                   if (
                     (event.target as HTMLElement).closest('.sidebar-nav-item, .sidebar-compose')

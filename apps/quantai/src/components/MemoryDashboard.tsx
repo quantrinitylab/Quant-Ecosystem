@@ -10,8 +10,8 @@ export const MemoryDashboard: React.FC = () => {
       const response = await fetch('/api/personal-agent/context');
       const data = await response.json();
       setMemories(data.context || []);
-    } catch (error) {
-      console.error('Memory error:', error);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }

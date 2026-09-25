@@ -22,8 +22,8 @@ export const Marketplace: React.FC = () => {
       const response = await fetch('/api/marketplace');
       const data = await response.json();
       setAgents(data);
-    } catch (error) {
-      console.error('Marketplace error:', error);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }

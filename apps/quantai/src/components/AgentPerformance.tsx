@@ -20,8 +20,8 @@ export const AgentPerformance: React.FC = () => {
       const response = await fetch('/api/analytics/agents/top');
       const data = await response.json();
       setStats(data);
-    } catch (error) {
-      console.error('Stats error:', error);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }

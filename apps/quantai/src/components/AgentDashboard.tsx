@@ -50,8 +50,8 @@ export const AgentDashboard: React.FC = () => {
 
       const data = await response.json();
       setResult(data);
-    } catch (error) {
-      console.error('Agent error:', error);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }

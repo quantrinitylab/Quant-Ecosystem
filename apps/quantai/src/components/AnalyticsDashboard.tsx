@@ -61,25 +61,25 @@ export const AnalyticsDashboard: React.FC = () => {
           {[
             {
               label: 'TOTAL USERS',
-              value: data?.totalUsers.toLocaleString(),
+              value: (data?.totalUsers ?? 0).toLocaleString(),
               change: '+142k',
               color: 'emerald',
             },
             {
               label: 'ACTIVE TODAY',
-              value: data?.activeUsers.toLocaleString(),
+              value: (data?.activeUsers ?? 0).toLocaleString(),
               change: '+89k',
               color: 'amber',
             },
             {
               label: 'AGENT RUNS',
-              value: (data?.agentRuns! / 1000000).toFixed(1) + 'M',
+              value: ((data?.agentRuns ?? 0) / 1000000).toFixed(1) + 'M',
               change: '+2.4M',
               color: 'purple',
             },
             {
               label: 'REVENUE',
-              value: '$' + (data?.revenue! / 1000000).toFixed(1) + 'M',
+              value: '$' + ((data?.revenue ?? 0) / 1000000).toFixed(1) + 'M',
               change: '+$1.2M',
               color: 'rose',
             },
@@ -132,6 +132,3 @@ export const AnalyticsDashboard: React.FC = () => {
     </div>
   );
 };
-
-
-

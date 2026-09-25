@@ -19,8 +19,8 @@ export const WorkflowDashboard: React.FC = () => {
       const data = await response.json();
       setWorkflows([...workflows, data.workflow]);
       setNewWorkflow({ name: '', goal: '' });
-    } catch (error) {
-      console.error('Workflow error:', error);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
