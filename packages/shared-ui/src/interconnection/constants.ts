@@ -4,7 +4,8 @@
 
 import type { QuantAppDescriptor, CoreQuantAppId } from './types';
 
-export const QUANT_ROOT_DOMAIN = 'quant.network';
+export const QUANT_ROOT_DOMAIN = 'quantrinity.in';
+export const QUANT_MAIL_DOMAIN = 'quantmail.in';
 
 export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
   quantmail: {
@@ -17,7 +18,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'mail',
     defaultPort: 3000,
     subdomain: 'mail',
-    productionUrl: 'https://mail.quant.network',
+    productionUrl: 'https://quantmail.in',
     defaultRoute: '/inbox',
     status: 'active',
   },
@@ -32,7 +33,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'message-square',
     defaultPort: 3001,
     subdomain: 'chat',
-    productionUrl: 'https://chat.quant.network',
+    productionUrl: 'https://quantchat.quantrinity.in',
     defaultRoute: '/dms',
     status: 'active',
   },
@@ -46,7 +47,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'camera',
     defaultPort: 3002,
     subdomain: 'gram',
-    productionUrl: 'https://gram.quant.network',
+    productionUrl: 'https://quantgram.quantrinity.in',
     defaultRoute: '/feed',
     status: 'active',
   },
@@ -61,7 +62,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'sparkles',
     defaultPort: 3003,
     subdomain: 'ai',
-    productionUrl: 'https://ai.quant.network',
+    productionUrl: 'https://quantai.quantrinity.in',
     defaultRoute: '/canvas',
     status: 'active',
   },
@@ -76,7 +77,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'video',
     defaultPort: 3004,
     subdomain: 'tube',
-    productionUrl: 'https://tube.quant.network',
+    productionUrl: 'https://quantube.quantrinity.in',
     defaultRoute: '/watch',
     status: 'active',
   },
@@ -91,7 +92,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'radio',
     defaultPort: 3005,
     subdomain: 'wave',
-    productionUrl: 'https://wave.quant.network',
+    productionUrl: 'https://quantwave.quantrinity.in',
     defaultRoute: '/explore',
     status: 'active',
   },
@@ -106,7 +107,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'table',
     defaultPort: 3006,
     subdomain: 'max',
-    productionUrl: 'https://max.quant.network',
+    productionUrl: 'https://quantmax.quantrinity.in',
     defaultRoute: '/workspaces',
     status: 'active',
   },
@@ -121,7 +122,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'utensils',
     defaultPort: 3007,
     subdomain: 'cooks',
-    productionUrl: 'https://cooks.quant.network',
+    productionUrl: 'https://quantcooks.quantrinity.in',
     defaultRoute: '/kitchen',
     status: 'active',
   },
@@ -136,7 +137,7 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'bar-chart-3',
     defaultPort: 3008,
     subdomain: 'ads',
-    productionUrl: 'https://ads.quant.network',
+    productionUrl: 'https://quantads.quantrinity.in',
     defaultRoute: '/campaigns',
     status: 'active',
   },
@@ -151,11 +152,26 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
     icon: 'shield-check',
     defaultPort: 3009,
     subdomain: 'trinity',
-    productionUrl: 'https://trinity.quant.network',
+    productionUrl: 'https://quanttrinity.quantrinity.in',
     defaultRoute: '/vault',
     status: 'active',
   },
 };
+
+/**
+ * Authorized Sibling Domains for Seamless SSO Propagation
+ */
+export const SIBLING_SSO_DOMAINS = [
+  'https://quantchat.quantrinity.in',
+  'https://quantube.quantrinity.in',
+  'https://quantmax.quantrinity.in',
+  'https://quantgram.quantrinity.in',
+  'https://quantai.quantrinity.in',
+  'https://quantwave.quantrinity.in',
+  'https://quantcooks.quantrinity.in',
+  'https://quantads.quantrinity.in',
+  'https://quanttrinity.quantrinity.in',
+] as const;
 
 /**
  * Ecosystem Safe Domain Allowlist Patterns
@@ -163,12 +179,12 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
 export const SAFE_DOMAIN_PATTERNS: RegExp[] = [
   // Production Quant domains and subdomains
   /^https:\/\/([a-z0-9-]+\.)?quantmail\.in(:\d+)?(\/.*)?$/i,
-  /^https:\/\/([a-z0-9-]+\.)?quantrinity\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)?quantt?rinity\.in(:\d+)?(\/.*)?$/i,
   /^https:\/\/([a-z0-9-]+\.)?quant\.network(:\d+)?(\/.*)?$/i,
-  // Local development ports 3000 to 3009
-  /^http:\/\/localhost:(3000|3001|3002|3003|3004|3005|3006|3007|3008|3009)(\/.*)?$/i,
+  // Local development ports (3000 to 3015, Vite 5173/4173, etc.)
+  /^http:\/\/localhost(:\d+)?(\/.*)?$/i,
   // 127.0.0.1 equivalents
-  /^http:\/\/127\.0\.0\.1:(3000|3001|3002|3003|3004|3005|3006|3007|3008|3009)(\/.*)?$/i,
+  /^http:\/\/127\.0\.0\.1(:\d+)?(\/.*)?$/i,
 ];
 
 export const CATEGORY_LABELS: Record<string, string> = {

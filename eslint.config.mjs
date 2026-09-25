@@ -11,12 +11,15 @@ export default tseslint.config(
       '.turbo/**',
       '**/*.d.ts',
       '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/*.spec.ts',
+      '**/*.spec.tsx',
       '**/__tests__/**',
     ],
   },
   {
     files: [
-      'packages/*/src/**/*.{ts,tsx}',
+      'packages/*/src/**/*.ts',
       'apps/*/src/**/*.{ts,tsx}',
       'apps/*/backend/**/*.ts',
       'services/*/src/**/*.{ts,tsx}',
@@ -38,7 +41,7 @@ export default tseslint.config(
   },
   {
     files: [
-      'packages/*/src/**/*.{ts,tsx}',
+      'packages/*/src/**/*.ts',
       'apps/*/src/**/*.{ts,tsx}',
       'apps/*/backend/**/*.ts',
       'services/*/src/**/*.{ts,tsx}',

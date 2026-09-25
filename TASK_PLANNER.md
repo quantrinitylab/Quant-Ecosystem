@@ -178,6 +178,12 @@
 
 - [x] **Task W39-HUB01**: 1-Click Sovereign `quant repo clone <owner>/<repo>` Promotion Card in `CloneCodespacesMenu.tsx` and `QuantGitModals.tsx`. (Verified: 4 protocol tabs HTTPS/SSH/GitHub CLI/Quant CLI, visual copy feedback, 9/9 tests in `GitHubSovereignParity.test.tsx` green, 0 TS errors).
 
+### Track 12: Universal SSO & Ecosystem Interconnection Hardening (`packages/shared-ui` & `apps/quantmail`)
+
+- [x] **Task W39-SSO01**: Universal SSO Token Bridge Hardening (`packages/shared-ui/src/interconnection/UniversalSSOTokenBridge.ts`): Wrapped storage access with sandboxed iframe immunity (handling `SecurityError` and missing BroadcastChannel gracefully). Implemented `generateHandoffTicket` and `consumeHandoffTicket` with 5-minute TTL. (Verified: 17/17 tests in `InterconnectionFabric.test.tsx` green).
+- [x] **Task W39-SSO02**: 10 Retained Core Apps Canonical URLs & Sibling SSO Domains Allowlist (`packages/shared-ui/src/interconnection/constants.ts` & `apps/quantmail/src/lib/safe-return-path.ts`): Configured canonical domains (`https://quantmail.in`, `quantchat.quantrinity.in`, etc.) and hardened return paths to support `quantrinity.in` and `quanttrinity.in`. (Verified: 7/7 tests in `safe-return-path.test.ts` green).
+- [x] **Task W39-SSO03**: Dynamic Cross-App Jump URL Generation & `useAuth` SSO Hydration (`UniversalAppSwitcher.tsx` & `useAuth.ts`): Wired `bridge.buildCrossAppJumpUrl` for 1-click token handoff redirects, and added mount detection for automatic token hydration from URL query params. (Verified: 23/23 shared-ui interconnection/auth tests green, 0 TS errors).
+
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)

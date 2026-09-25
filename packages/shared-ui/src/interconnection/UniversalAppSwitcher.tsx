@@ -70,6 +70,9 @@ export const UniversalAppSwitcher: React.FC<UniversalAppSwitcherProps> = ({
     }
 
     const bridge = UniversalSSOTokenBridge.getInstance();
+    if (user && !bridge.getCurrentSession()) {
+      bridge.setCurrentSession(user, 3600);
+    }
     const jumpUrl = bridge.buildCrossAppJumpUrl(appId);
     setIsOpen(false);
     window.location.href = jumpUrl;
@@ -290,10 +293,14 @@ export const UniversalAppSwitcher: React.FC<UniversalAppSwitcherProps> = ({
                     const isActive = app.id === currentApp;
                     const unread = badgeMap.get(app.id) || 0;
 
+                    const jumpUrl = UniversalSSOTokenBridge.getInstance().buildCrossAppJumpUrl(
+                      app.id,
+                    );
+
                     return (
                       <a
                         key={app.id}
-                        href={CORE_QUANT_APPS[app.id].productionUrl}
+                        href={jumpUrl}
                         onClick={(e) => handleLaunchApp(app.id, e)}
                         className={`group relative flex items-center gap-3 p-2.5 rounded-xl border transition-all duration-150 ${
                           isActive

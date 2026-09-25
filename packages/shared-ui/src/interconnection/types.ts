@@ -45,14 +45,23 @@ export interface QuantUserSession {
   userId: string;
   email: string;
   displayName: string;
+  username?: string;
   avatarUrl?: string;
-  tier: 'free' | 'pro' | 'ultra' | 'enterprise';
+  tier?: 'free' | 'pro' | 'ultra' | 'enterprise';
   organizationId?: string;
-  currentApp: CoreQuantAppId;
-  activeSessions: {
+  currentApp?: CoreQuantAppId;
+  activeSessions?: {
     appId: CoreQuantAppId;
     lastActiveAt: number;
   }[];
+  creditsBalance?: number;
+  token?: string;
+}
+
+export interface ConsumedSSOTicket {
+  ticket: string;
+  session?: Partial<QuantUserSession>;
+  returnPath: string | null;
 }
 
 export interface SSOTokenHandoffPayload {

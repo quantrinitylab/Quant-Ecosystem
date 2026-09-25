@@ -13,6 +13,7 @@
 // unauthenticated (we never invent a `user_<timestamp>` or a `mock_token`).
 
 import { useState, useCallback, useEffect } from 'react';
+import { UniversalSSOTokenBridge } from '../interconnection/UniversalSSOTokenBridge';
 
 export interface AuthUser {
   id: string;
@@ -90,7 +91,20 @@ export function useAuth(): UseAuthReturn {
   useEffect(() => {
     let cancelled = false;
     const checkAuth = async () => {
-      const token = getStoredToken();
+      let token = getStoredToken();
+      if (!token) {
+        try {
+          const bridge = UniversalSSOTokenBridge.getInstance();
+          const consumed = bridge.consumeHandoffTicket();
+          if (consumed?.ticket) {
+            token = consumed.session?.token || consumed.ticket;
+            storeTokens({ accessToken: token });
+          }
+        } catch {
+          // Sandboxed environment
+        }
+      }
+
       if (!token) {
         if (!cancelled) setIsLoading(false);
         return;
@@ -255,26 +269,43 @@ async function postForTokens(url: string, body: unknown): Promise<TokenResponse>
 }
 
 function browserStorage(): Storage | null {
-  if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
-    return (globalThis as unknown as { localStorage: Storage }).localStorage;
+  try {
+    if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
+      return (globalThis as unknown as { localStorage: Storage }).localStorage;
+    }
+  } catch {
+    // Sandboxed iframe without same-origin permission throws SecurityError
+    return null;
   }
   return null;
 }
 
 function getStoredToken(): string | null {
-  return browserStorage()?.getItem(ACCESS_TOKEN_KEY) ?? null;
+  try {
+    return browserStorage()?.getItem(ACCESS_TOKEN_KEY) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function storeTokens(tokens: TokenResponse): void {
-  const storage = browserStorage();
-  if (!storage) return;
-  storage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  if (tokens.refreshToken) storage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+  try {
+    const storage = browserStorage();
+    if (!storage) return;
+    storage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+    if (tokens.refreshToken) storage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+  } catch {
+    // Sandboxed iframe or quota restrictions
+  }
 }
 
 function clearStoredTokens(): void {
-  const storage = browserStorage();
-  if (!storage) return;
-  storage.removeItem(ACCESS_TOKEN_KEY);
-  storage.removeItem(REFRESH_TOKEN_KEY);
+  try {
+    const storage = browserStorage();
+    if (!storage) return;
+    storage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(REFRESH_TOKEN_KEY);
+  } catch {
+    // Sandboxed iframe restrictions
+  }
 }

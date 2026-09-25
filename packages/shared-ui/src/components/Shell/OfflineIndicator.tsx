@@ -4,7 +4,7 @@
 // Shared UI - Offline/Online Status Indicator Component
 // ============================================================================
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type FC } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export type ConnectionStatus = 'online' | 'offline' | 'syncing';
@@ -16,7 +16,7 @@ export interface OfflineIndicatorProps {
   isSyncing?: boolean;
 }
 
-export const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
+export const OfflineIndicator: FC<OfflineIndicatorProps> = ({
   onStatusChange,
   syncMessage = 'Syncing changes...',
   isSyncing,
@@ -44,7 +44,7 @@ export const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
       setStatus('online');
       onStatusChange?.('online');
     }
-  }, [isSyncing]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isSyncing]);
 
   const handleOnline = useCallback(() => {
     setStatus('syncing');
@@ -89,7 +89,7 @@ export const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
   */
   useEffect(() => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) handleOffline();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     /*

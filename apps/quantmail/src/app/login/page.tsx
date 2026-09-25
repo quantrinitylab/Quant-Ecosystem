@@ -96,6 +96,7 @@ function LoginForm() {
           targetUrl.searchParams.set('token', token);
           targetUrl.searchParams.set('accessToken', token);
           targetUrl.searchParams.set('refreshToken', token);
+          targetUrl.searchParams.set('__quant_sso_ticket', token);
         }
         window.location.href = targetUrl.toString();
         return;

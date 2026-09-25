@@ -136,6 +136,7 @@ function SsoChooserContent() {
           targetUrl.searchParams.set('token', token);
           targetUrl.searchParams.set('accessToken', token);
           targetUrl.searchParams.set('refreshToken', token);
+          targetUrl.searchParams.set('__quant_sso_ticket', token);
           if (user) {
             targetUrl.searchParams.set('userId', user.id);
             targetUrl.searchParams.set('email', user.email);
