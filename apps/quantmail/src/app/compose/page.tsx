@@ -11,6 +11,7 @@ import { showToast } from '../../components/InboxToast';
 import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
+import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
 
 export default function ComposePage() {
   const router = useRouter();
@@ -30,6 +31,21 @@ export default function ComposePage() {
     body?: string;
   } | null>(null);
   const [draftLoading, setDraftLoading] = useState(Boolean(draftId));
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem('quant_undo_draft');
+      if (saved) {
+        sessionStorage.removeItem('quant_undo_draft');
+        const parsed = JSON.parse(saved);
+        setDraftData({
+          to: parsed.toRecipients || (parsed.to ? [{ email: parsed.to }] : []),
+          subject: parsed.subject || '',
+          body: parsed.body || '',
+        });
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!draftId) return;
@@ -225,23 +241,25 @@ export default function ComposePage() {
   }
 
   return (
-    <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
-      <EmailComposer
-        // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
-        // can carry a whole group's members, and the composer is the thing that
-        // knows how to cut a list of addresses into one chip each.
-        initialTo={draftData?.to ?? prefillTo ?? undefined}
-        initialSubject={
-          draftData?.subject ??
-          (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
-        }
-        initialBody={draftData?.body ?? prefillBody ?? undefined}
-        inReplyTo={replyTo || undefined}
-        onSend={handleSend}
-        onSaveDraft={handleSaveDraft}
-        onDiscard={handleDiscard}
-        onAIAssist={handleAIAssist}
-      />
-    </div>
+    <UndoSendProvider>
+      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
+        <EmailComposer
+          // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
+          // can carry a whole group's members, and the composer is the thing that
+          // knows how to cut a list of addresses into one chip each.
+          initialTo={draftData?.to ?? prefillTo ?? undefined}
+          initialSubject={
+            draftData?.subject ??
+            (prefillSubject ? prefillSubject.replace(/^(Re:\s*)+/i, '').trim() : '')
+          }
+          initialBody={draftData?.body ?? prefillBody ?? undefined}
+          inReplyTo={replyTo || undefined}
+          onSend={handleSend}
+          onSaveDraft={handleSaveDraft}
+          onDiscard={handleDiscard}
+          onAIAssist={handleAIAssist}
+        />
+      </div>
+    </UndoSendProvider>
   );
 }

@@ -37,6 +37,8 @@ import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadDot } from '../components/UnreadDot';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
+import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { useKeyboardSurfaces } from '../components/KeyboardProvider';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
 import {
   filterThreadsByQuery,
@@ -1001,19 +1003,35 @@ export default function InboxPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const { openPalette } = useKeyboardSurfaces();
   const lensParam = searchParams?.get('lens');
+  const isValidLens = (p: string | null): p is InboxLens => {
+    return (
+      p === 'all' ||
+      p === 'primary' ||
+      p === 'unread' ||
+      p === 'updates' ||
+      p === 'social' ||
+      p === 'promotions' ||
+      p === 'forums' ||
+      p === 'contacts' ||
+      p === 'groups' ||
+      p === 'snoozed' ||
+      p === 'spam'
+    );
+  };
+
   const [activeLens, setActiveLens] = useState<InboxLens>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('lens');
-      if (p === 'unread' || p === 'contacts' || p === 'groups' || p === 'snoozed' || p === 'spam')
-        return p;
+      if (isValidLens(p) && p !== 'all') return p;
     }
     return 'all';
   });
 
   useEffect(() => {
     const p = searchParams?.get('lens');
-    if (p === 'unread' || p === 'contacts' || p === 'groups' || p === 'snoozed' || p === 'spam') {
+    if (isValidLens(p) && p !== 'all') {
       setActiveLens(p);
     } else {
       setActiveLens('all');
@@ -1628,14 +1646,32 @@ export default function InboxPage() {
     const basePool = showArchivedView ? allArchivedThreads : (threads ?? []);
     const pool = narrowThreads(basePool, 'all', activeTurn, activeFilters);
     let allUnread = 0;
+    let allTotal = 0;
     let primaryUnread = 0;
+    let primaryTotal = 0;
     let updatesUnread = 0;
+    let updatesTotal = 0;
     let socialUnread = 0;
+    let socialTotal = 0;
     let promotionsUnread = 0;
+    let promotionsTotal = 0;
     let forumsUnread = 0;
+    let forumsTotal = 0;
     let groupsUnread = 0;
+    let groupsTotal = 0;
     let contactsUnread: number | null = isDirectoryPending ? null : 0;
+    let contactsTotal: number | null = isDirectoryPending ? null : 0;
+
     for (const t of pool) {
+      allTotal += 1;
+      if (t.category === 'primary') primaryTotal += 1;
+      else if (t.category === 'updates') updatesTotal += 1;
+      else if (t.category === 'social') socialTotal += 1;
+      else if (t.category === 'promotions') promotionsTotal += 1;
+      else if (t.category === 'forums') forumsTotal += 1;
+      if (isGroupThread(t)) groupsTotal += 1;
+      if (contactsTotal !== null && isContactThread(t)) contactsTotal += 1;
+
       if (!t.isRead) {
         allUnread += 1;
         if (t.category === 'primary') primaryUnread += 1;
@@ -1648,8 +1684,14 @@ export default function InboxPage() {
       }
     }
     const spamUnread = allSpamThreads.filter((t) => !t.isRead).length;
+    const spamTotal = allSpamThreads.length;
     const snoozedUnread = allSnoozedThreads.filter((t) => !t.isRead).length;
-    const counts: Record<InboxLens, number | null> = {
+    const snoozedTotal = allSnoozedThreads.length;
+
+    const counts: Record<InboxLens, number | null> & {
+      unreadCounts: Record<InboxLens, number | null>;
+      totalCounts: Record<InboxLens, number | null>;
+    } = {
       all: allUnread,
       primary: primaryUnread,
       unread: allUnread,
@@ -1661,6 +1703,32 @@ export default function InboxPage() {
       groups: groupsUnread,
       snoozed: snoozedUnread,
       spam: spamUnread,
+      unreadCounts: {
+        all: allUnread,
+        primary: primaryUnread,
+        unread: allUnread,
+        updates: updatesUnread,
+        social: socialUnread,
+        promotions: promotionsUnread,
+        forums: forumsUnread,
+        contacts: contactsUnread,
+        groups: groupsUnread,
+        snoozed: snoozedUnread,
+        spam: spamUnread,
+      },
+      totalCounts: {
+        all: allTotal,
+        primary: primaryTotal,
+        unread: allUnread,
+        updates: updatesTotal,
+        social: socialTotal,
+        promotions: promotionsTotal,
+        forums: forumsTotal,
+        contacts: contactsTotal,
+        groups: groupsTotal,
+        snoozed: snoozedTotal,
+        spam: spamTotal,
+      },
     };
     return counts;
   }, [
@@ -1721,10 +1789,6 @@ export default function InboxPage() {
 
   /** What the archived shelf calls the population it is counting. */
   const viewLabel = useMemo(() => {
-    // Named off the controls. These read `conversations needing you` / `conversations
-    // you are waiting on` when the tabs still said `Needs you` / `Waiting`, and kept
-    // saying it after the relabel — so the shelf described a partition by a name
-    // that appeared nowhere on screen.
     const turnPart =
       activeTurn === 'needs_you'
         ? 'conversations on your turn'
@@ -1734,11 +1798,21 @@ export default function InboxPage() {
     const lensPart =
       activeLens === 'unread'
         ? `unread ${turnPart}`
-        : activeLens === 'contacts'
-          ? `${turnPart} with your contacts`
-          : activeLens === 'groups'
-            ? `group ${turnPart}`
-            : turnPart;
+        : activeLens === 'primary'
+          ? `primary ${turnPart}`
+          : activeLens === 'updates'
+            ? `update ${turnPart}`
+            : activeLens === 'social'
+              ? `social ${turnPart}`
+              : activeLens === 'promotions'
+                ? `promotional ${turnPart}`
+                : activeLens === 'forums'
+                  ? `forum ${turnPart}`
+                  : activeLens === 'contacts'
+                    ? `${turnPart} with your contacts`
+                    : activeLens === 'groups'
+                      ? `group ${turnPart}`
+                      : turnPart;
     return activeFilters.size > 0 ? `filtered ${lensPart}` : lensPart;
   }, [activeLens, activeTurn, activeFilters]);
 
@@ -2254,26 +2328,27 @@ export default function InboxPage() {
    * be handed the flat, differently-ordered `emails` array. That mismatch is why
    * `j`/`k` highlighted one conversation while `e` archived another.
    */
-  const { focusedIndex, focusedId, focusRow } = useInboxKeyboard({
-    rows: displayThreads,
-    selectedId: selectedEmail?.id ?? null,
-    onOpen: (thread) => openEmail(thread.latestEmail, thread),
-    onClose: () => {
-      setSelectedEmail(null);
-      setSelectedThread(null);
-    },
-    onToggleSelect: (id) => toggleSelect(id),
-    // Escape's innermost layer. The selection bar replaces the shell's own header
-    // and is the loudest thing on screen, so it is what Escape has to answer to
-    // before it closes a reader — which is what the bar's tooltip has always
-    // promised. See `inbox.close`.
-    selectionCount: selectedIds.size,
-    onClearSelection: () => setSelectedIds(new Set()),
-    mutations,
-    // `e` and `#` act on the conversation the cursor is on, all of it.
-    expandIds: threadMessageIds,
-    scrollToIndex: virtualizer.scrollToIndex,
-  });
+  const { focusedIndex, focusedId, focusRow, lastArchivedThread, undoLastArchive } =
+    useInboxKeyboard({
+      rows: displayThreads,
+      selectedId: selectedEmail?.id ?? null,
+      onOpen: (thread) => openEmail(thread.latestEmail, thread),
+      onClose: () => {
+        setSelectedEmail(null);
+        setSelectedThread(null);
+      },
+      onToggleSelect: (id) => toggleSelect(id),
+      // Escape's innermost layer. The selection bar replaces the shell's own header
+      // and is the loudest thing on screen, so it is what Escape has to answer to
+      // before it closes a reader — which is what the bar's tooltip has always
+      // promised. See `inbox.close`.
+      selectionCount: selectedIds.size,
+      onClearSelection: () => setSelectedIds(new Set()),
+      mutations,
+      // `e` and `#` act on the conversation the cursor is on, all of it.
+      expandIds: threadMessageIds,
+      scrollToIndex: virtualizer.scrollToIndex,
+    });
 
   /**
    * The `j`/`k` cursor, said out loud.
@@ -2437,6 +2512,12 @@ export default function InboxPage() {
                 {INBOX_LENSES.map((lens, index) => {
                   const isActive = activeLens === lens.key;
                   const count = lensCounts[lens.key];
+                  const unreadCount = lensCounts.unreadCounts[lens.key];
+                  const totalCount = lensCounts.totalCounts[lens.key];
+                  const hasUnread = typeof unreadCount === 'number' && unreadCount > 0;
+                  const hasTotal = typeof totalCount === 'number' && totalCount > 0;
+                  const badgeCount = hasUnread ? unreadCount : hasTotal ? totalCount : null;
+
                   return (
                     <button
                       key={lens.key}
@@ -2451,7 +2532,12 @@ export default function InboxPage() {
                       ref={(node) => {
                         lensChipRefs.current[index] = node;
                       }}
-                      title={lens.hint}
+                      title={`${lens.hint}${
+                        typeof totalCount === 'number'
+                          ? ` (${unreadCount ?? 0} unread, ${totalCount} total)`
+                          : ''
+                      }`}
+                      aria-label={`${lens.label}${badgeCount !== null ? ` (${badgeCount})` : ''}`}
                       onClick={() => selectLens(lens.key)}
                       onKeyDown={(event) => onLensKeyDown(event, index)}
                       className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
@@ -2461,20 +2547,17 @@ export default function InboxPage() {
                       }`}
                     >
                       <span>{lens.label}</span>
-                      {typeof count === 'number' && count > 0 && (
+                      {badgeCount !== null && (
                         <span
-                          /*
-                            The unselected count was `#6B6E76` on `#090A0C` — 3.88:1,
-                            under the floor, on the one glyph in the pill that carries
-                            information rather than a label.
-                          */
                           className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
                             isActive
                               ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
-                              : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
+                              : hasUnread
+                                ? 'bg-[#FF8C42]/15 text-[#FF9B5A] border border-[#FF8C42]/30'
+                                : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
                           }`}
                         >
-                          {count}
+                          {badgeCount}
                         </span>
                       )}
                     </button>
@@ -3453,6 +3536,8 @@ export default function InboxPage() {
           </div>
         </div>
       )}
+      {/* Superhuman Shortcut Dock (Floating at bottom center) */}
+      <SuperhumanShortcutDock onCommandPalette={openPalette} onUndo={undoLastArchive} />
     </AppShell>
   );
 }

@@ -572,9 +572,14 @@ function collapseDuplicateSends(messages: Email[]): Email[] {
  * - 'primary': Direct human correspondence and personal email
  */
 export function classifyEmailCategory(email: Email): EmailCategory {
+  // 1. Explicit server annotations take precedence
+  if (email.aiCategory) {
+    return email.aiCategory;
+  }
   if (email.category && email.category !== 'primary') {
     return email.category;
   }
+
   const from = (
     email.from?.email ||
     (email as { fromAddress?: string }).fromAddress ||
@@ -582,54 +587,206 @@ export function classifyEmailCategory(email: Email): EmailCategory {
   ).toLowerCase();
   const subject = (email.subject || '').toLowerCase();
   const snippet = (email.snippet || '').toLowerCase();
+  const bodyText = (
+    email.bodyText ||
+    (email as { bodyPlain?: string }).bodyPlain ||
+    (email as { body?: string }).body ||
+    ''
+  ).toLowerCase();
+  const bodyHtml = (email.bodyHtml || '').toLowerCase();
+  const content = `${subject} ${snippet} ${bodyText} ${bodyHtml}`;
 
-  // 1. Social
+  // 2. Mailing list headers or [group] -> 'forums'
+  const headers = (email.headers || {}) as Record<string, string>;
+  const hasMailingListHeader = Object.keys(headers).some((key) => {
+    const k = key.toLowerCase();
+    return (
+      k === 'list-id' ||
+      k === 'list-post' ||
+      k === 'list-archive' ||
+      k === 'list-help' ||
+      k === 'list-owner' ||
+      k === 'mailing-list' ||
+      k === 'x-mailing-list' ||
+      k === 'x-loop'
+    );
+  });
   if (
-    /twitter\.com|x\.com|linkedin\.com|facebookmail\.com|instagram\.com|youtube\.com|reddit\.com|discord\.com|tiktok\.com|pinterest\.com|threads\.net|bsky\.app/i.test(
-      from,
-    ) ||
-    /new follower|connected with you|tagged you|mentioned you in a|sent you a message on|invitation to connect|subscribed to your channel/i.test(
-      subject,
-    )
-  ) {
-    return 'social';
-  }
-
-  // 2. Forums
-  if (
+    hasMailingListHeader ||
+    /\[group\]|\[.*-list\]|\[.*-dev\]|\[.*-users\]|\[discuss\]/i.test(subject) ||
+    /\[.*\]\s*(digest|weekly|announcement|discussion)/i.test(subject) ||
     /google-groups|discourse|yahoogroups|groups\.io|forum|community|group-announcement/i.test(
       from,
     ) ||
-    /\[.*\]\s*(digest|weekly|announcement|discussion)/i.test(subject) ||
     (email as { isGroup?: boolean }).isGroup === true
   ) {
     return 'forums';
   }
 
-  // 3. Promotions
+  // 3. Senders with facebook.com, twitter.com, instagram.com, linkedin.com or social keywords -> 'social'
   if (
-    /promo|marketing|sales@|deals?@|offers?@|store@|shop@|rewards?@|discounts?@/i.test(from) ||
-    /% off|discount|sale|clearance|save \$\d+|special offer|exclusive deal|coupon|promo code|black friday|cyber monday/i.test(
-      subject,
-    ) ||
-    /unsubscribe|view in browser|privacy policy.*opt-?out/i.test(snippet)
-  ) {
-    return 'promotions';
-  }
-
-  // 4. Updates
-  if (
-    /github\.com|gitlab\.com|aws|stripe\.com|paypal\.com|bank|receipt|billing|invoice|shipping|tracking|order|statement|verification code|security alert|password reset|login alert|no-?reply|notification|notice/i.test(
+    /facebook\.com|facebookmail\.com|twitter\.com|x\.com|instagram\.com|linkedin\.com|youtube\.com|reddit\.com|discord\.com|tiktok\.com|pinterest\.com|threads\.net|bsky\.app/i.test(
       from,
     ) ||
-    /your receipt|order confirmation|shipping update|tracking number|invoice|statement|security alert|action required|verify your|password reset/i.test(
-      subject,
+    /new follower|connected with you|tagged you|mentioned you in a|sent you a message on|invitation to connect|subscribed to your channel/i.test(
+      content,
     )
   ) {
+    return 'social';
+  }
+
+  // 4. Updates: Senders with github, gitlab, stripe, aws, etc. OR subject/body keywords with receipt, shipping, order confirmation, invoice, tracking, security alert
+  const hasUpdatesSender =
+    /github|gitlab|aws|stripe\.com|paypal\.com|bank|receipt|billing|invoice|shipping|tracking|order|statement|verification code|security alert|password reset|login alert|no-?reply|notification|notice/i.test(
+      from,
+    );
+  const hasUpdatesKeywords =
+    /receipt|shipping|order confirmation|invoice|tracking|security alert|password reset|verification code|login alert|statement|action required|verify your account|delivery status|package delivered/i.test(
+      content,
+    );
+  if (hasUpdatesSender || hasUpdatesKeywords) {
     return 'updates';
   }
 
+  // 5. Promotions: Senders with promo, deals, sales OR subject/body with newsletter, deal, discount, sale, promo, unsubscribe
+  const hasPromoSender =
+    /promo|marketing|sales@|deals?@|offers?@|store@|shop@|rewards?@|discounts?@/i.test(from);
+  const hasPromoKeywords =
+    /newsletter|deal|discount|sale|promo|unsubscribe|% off|clearance|special offer|exclusive deal|coupon|promo code|black friday|cyber monday|opt-?out|view in browser/i.test(
+      content,
+    );
+  if (hasPromoSender || hasPromoKeywords) {
+    return 'promotions';
+  }
+
   return 'primary';
+}
+
+/**
+ * Classifies a conversation thread into a canonical category bucket based on its messages,
+ * server annotations, and heuristic categorization.
+ */
+export function classifyThreadCategory(
+  messages: Email[] = [],
+  latest?: Email,
+  currentEmail?: string,
+): EmailCategory {
+  const latestMsg = latest ?? messages[messages.length - 1];
+  if (!latestMsg) return 'primary';
+
+  // Server AI category explicitly takes precedence
+  if (latestMsg.aiCategory) return latestMsg.aiCategory;
+  if (latestMsg.category && latestMsg.category !== 'primary') return latestMsg.category;
+
+  const latestCat = classifyEmailCategory(latestMsg);
+  if (latestCat !== 'primary') {
+    return latestCat;
+  }
+
+  // If latest message is a reply from the signed-in user or has fallen back to primary,
+  // check whether any incoming messages in the thread carry a categorized context (updates, promotions, social, forums).
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.aiCategory) return msg.aiCategory;
+    if (msg.category && msg.category !== 'primary') return msg.category;
+    const cat = classifyEmailCategory(msg);
+    if (cat !== 'primary') return cat;
+  }
+
+  return 'primary';
+}
+
+export interface SplitInboxCounts {
+  primary: number;
+  updates: number;
+  promotions: number;
+  social: number;
+  forums: number;
+  all: number;
+  unread: {
+    primary: number;
+    updates: number;
+    promotions: number;
+    social: number;
+    forums: number;
+    all: number;
+  };
+  total: {
+    primary: number;
+    updates: number;
+    promotions: number;
+    social: number;
+    forums: number;
+    all: number;
+  };
+}
+
+/**
+ * Computes live categorized thread distribution counts across Primary, Updates,
+ * Promotions, Social, and Forums lenses.
+ */
+export function computeSplitInboxCounts(
+  threads: ConversationThread[] = [],
+  options?: { countMode?: 'unread' | 'total' },
+): SplitInboxCounts {
+  let allUnread = 0;
+  let allTotal = 0;
+  let primaryUnread = 0;
+  let primaryTotal = 0;
+  let updatesUnread = 0;
+  let updatesTotal = 0;
+  let socialUnread = 0;
+  let socialTotal = 0;
+  let promotionsUnread = 0;
+  let promotionsTotal = 0;
+  let forumsUnread = 0;
+  let forumsTotal = 0;
+
+  for (const t of threads) {
+    allTotal++;
+    const cat = t.category;
+    if (cat === 'updates') updatesTotal++;
+    else if (cat === 'social') socialTotal++;
+    else if (cat === 'promotions') promotionsTotal++;
+    else if (cat === 'forums') forumsTotal++;
+    else primaryTotal++;
+
+    if (!t.isRead) {
+      allUnread++;
+      if (cat === 'updates') updatesUnread++;
+      else if (cat === 'social') socialUnread++;
+      else if (cat === 'promotions') promotionsUnread++;
+      else if (cat === 'forums') forumsUnread++;
+      else primaryUnread++;
+    }
+  }
+
+  const isTotal = options?.countMode === 'total';
+
+  return {
+    primary: isTotal ? primaryTotal : primaryUnread,
+    updates: isTotal ? updatesTotal : updatesUnread,
+    promotions: isTotal ? promotionsTotal : promotionsUnread,
+    social: isTotal ? socialTotal : socialUnread,
+    forums: isTotal ? forumsTotal : forumsUnread,
+    all: isTotal ? allTotal : allUnread,
+    unread: {
+      primary: primaryUnread,
+      updates: updatesUnread,
+      promotions: promotionsUnread,
+      social: socialUnread,
+      forums: forumsUnread,
+      all: allUnread,
+    },
+    total: {
+      primary: primaryTotal,
+      updates: updatesTotal,
+      promotions: promotionsTotal,
+      social: socialTotal,
+      forums: forumsTotal,
+      all: allTotal,
+    },
+  };
 }
 
 /**
@@ -689,13 +846,8 @@ export function groupEmailsIntoThreads(
     const normalizedLatest = normalizeSubject(latest.subject);
 
     // An explicit server-side correction wins even when it is `primary`.
-    // `category` alone cannot tell that apart from the formatter's fallback, so
-    // only `aiCategory` may override the local heuristic with Primary.
-    const category =
-      latest.aiCategory ??
-      (latest.category && latest.category !== 'primary'
-        ? latest.category
-        : classifyEmailCategory(latest));
+    // Thread categorization evaluates server AI categories, explicit categories, and smart heuristics.
+    const category = classifyThreadCategory(messages, latest, currentEmail);
 
     threads.push({
       id: latest.id,

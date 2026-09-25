@@ -106,7 +106,8 @@ export type InboxCommandId =
   | 'inbox.toggleRead'
   | 'inbox.reply'
   | 'inbox.forward'
-  | 'inbox.toggleSelect';
+  | 'inbox.toggleSelect'
+  | 'inbox.undo';
 
 /**
  * Every binding the thread list owns, in the order the sheet should read them.
@@ -147,6 +148,13 @@ export const INBOX_COMMAND_REFERENCE: Array<CommandReference & { id: InboxComman
   { id: 'inbox.reply', label: 'Reply to conversation', group: 'Compose', keys: 'r' },
   { id: 'inbox.forward', label: 'Forward conversation', group: 'Compose', keys: 'f' },
   { id: 'inbox.toggleSelect', label: 'Select conversation', group: 'Selection', keys: 'x' },
+  {
+    id: 'inbox.undo',
+    label: 'Undo archive',
+    group: 'Conversation',
+    keys: 'z',
+    description: 'Undo the last conversation archive or done action',
+  },
 ];
 
 const inboxReferenceById = new Map(INBOX_COMMAND_REFERENCE.map((entry) => [entry.id, entry]));

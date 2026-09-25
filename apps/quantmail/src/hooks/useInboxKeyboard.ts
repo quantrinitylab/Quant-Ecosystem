@@ -36,6 +36,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
 import { inboxCommand, type Command } from '../lib/keyboard/command-registry';
+import { showToast } from '../lib/toast-bus';
 import type { MailMutations } from './useMailMutations';
 
 const SCOPE = 'inbox';
@@ -53,6 +54,7 @@ export interface InboxKeyboardRow {
   threadId: string;
   isRead: boolean;
   isStarred: boolean;
+  messages?: unknown[];
 }
 
 export interface UseInboxKeyboardOptions<Row extends InboxKeyboardRow> {
@@ -95,6 +97,106 @@ export interface InboxKeyboardState {
   /** Move the cursor to a row, e.g. from a click or a swipe. */
   focusRow: (id: string) => void;
   clearFocus: () => void;
+  /** Last archived conversation thread for instant undo */
+  lastArchivedThread: { id: string; threadId: string; messages: unknown[] } | null;
+  /** Revert the last archived conversation */
+  undoLastArchive: () => void;
+}
+
+/**
+ * Pure controller backing useInboxKeyboard triaging, focus management,
+ * archive capture, and instant Z undo restoration.
+ */
+export class InboxKeyboardController<Row extends InboxKeyboardRow> {
+  public options: UseInboxKeyboardOptions<Row>;
+  public focusedId: string | null = null;
+  public lastIndex: number = -1;
+  public lastArchivedThread: { id: string; threadId: string; messages: unknown[] } | null = null;
+
+  constructor(options: UseInboxKeyboardOptions<Row>) {
+    this.options = options;
+  }
+
+  public updateOptions(options: UseInboxKeyboardOptions<Row>) {
+    this.options = options;
+  }
+
+  public get focusedIndex(): number {
+    if (this.focusedId === null) return -1;
+    return this.options.rows.findIndex((row) => row.id === this.focusedId);
+  }
+
+  public get focusedRow(): Row | null {
+    const idx = this.focusedIndex;
+    return idx >= 0 ? this.options.rows[idx] : null;
+  }
+
+  public focusRow(id: string) {
+    const index = this.options.rows.findIndex((row) => row.id === id);
+    if (index >= 0) this.lastIndex = index;
+    this.focusedId = id;
+  }
+
+  public clearFocus() {
+    this.focusedId = null;
+    this.lastIndex = -1;
+  }
+
+  public move(delta: number) {
+    const { rows, selectedId, onOpen, scrollToIndex } = this.options;
+    if (rows.length === 0) return;
+    const currentIdx = this.focusedIndex;
+    const next =
+      currentIdx < 0
+        ? delta > 0
+          ? 0
+          : rows.length - 1
+        : Math.min(Math.max(currentIdx + delta, 0), rows.length - 1);
+
+    const row = rows[next];
+    if (!row) return;
+
+    this.lastIndex = next;
+    this.focusedId = row.id;
+    scrollToIndex?.(next);
+    if (selectedId !== null) onOpen(row);
+  }
+
+  public idsOf(row: Row): string[] {
+    const ids = this.options.expandIds?.(row) ?? [];
+    return ids.length > 0 ? ids : [row.id];
+  }
+
+  public archiveFocused(): boolean {
+    const row = this.focusedRow;
+    if (!row) return false;
+
+    const threadToArchive = {
+      id: row.id,
+      threadId: row.threadId,
+      messages: (row as unknown as { messages?: unknown[] }).messages ?? [],
+    };
+    this.lastArchivedThread = threadToArchive;
+    void this.options.mutations.archive(this.idsOf(row));
+    showToast({
+      text: 'Conversation marked done. [Undo (Z)]',
+      type: 'info',
+      undoAction: () => this.undoLastArchive(),
+    });
+    return true;
+  }
+
+  public undoLastArchive(): boolean {
+    const thread = this.lastArchivedThread;
+    if (!thread) return false;
+    this.lastArchivedThread = null;
+    void this.options.mutations.unarchive(thread.id);
+    showToast({
+      text: 'Action undone',
+      type: 'success',
+    });
+    return true;
+  }
 }
 
 export function useInboxKeyboard<Row extends InboxKeyboardRow>(
@@ -116,6 +218,28 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
 
   const router = useRouter();
   const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [lastArchivedThread, setLastArchivedThread] = useState<{
+    id: string;
+    threadId: string;
+    messages: unknown[];
+  } | null>(null);
+  const lastArchivedThreadRef = useRef<{
+    id: string;
+    threadId: string;
+    messages: unknown[];
+  } | null>(null);
+
+  const undoLastArchive = useCallback(() => {
+    const thread = lastArchivedThreadRef.current;
+    if (!thread) return;
+    lastArchivedThreadRef.current = null;
+    setLastArchivedThread(null);
+    void mutations.unarchive(thread.id);
+    showToast({
+      text: 'Action undone',
+      type: 'success',
+    });
+  }, [mutations]);
 
   /** Where the focused row last sat, so a removal can hand focus to its successor. */
   const lastIndexRef = useRef(-1);
@@ -265,7 +389,47 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       run: () => {
         // No explicit advance: the row leaves `rows`, and the re-seat effect
         // hands focus to whatever takes its index.
-        if (focusedRow) void mutations.archive(idsOf(focusedRow));
+        if (!focusedRow) return;
+        const threadToArchive = {
+          id: focusedRow.id,
+          threadId: focusedRow.threadId,
+          messages: (focusedRow as unknown as { messages?: unknown[] }).messages ?? [],
+        };
+        lastArchivedThreadRef.current = threadToArchive;
+        setLastArchivedThread(threadToArchive);
+        void mutations.archive(idsOf(focusedRow));
+        showToast({
+          text: 'Conversation marked done. [Undo (Z)]',
+          type: 'info',
+          undoAction: undoLastArchive,
+        });
+      },
+    },
+    {
+      ...inboxCommand('inbox.undo'),
+      scope: SCOPE,
+      icon: 'undo',
+      keywords: ['undo', 'restore', 'revert'],
+      enabled: () => {
+        if (lastArchivedThreadRef.current === null) return false;
+        if (typeof document !== 'undefined') {
+          const el = document.activeElement;
+          if (el) {
+            const tag = el.tagName;
+            if (
+              tag === 'INPUT' ||
+              tag === 'TEXTAREA' ||
+              tag === 'SELECT' ||
+              (el as HTMLElement).isContentEditable
+            ) {
+              return false;
+            }
+          }
+        }
+        return true;
+      },
+      run: () => {
+        undoLastArchive();
       },
     },
     {
@@ -337,5 +501,12 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
 
   useRegisterCommands(commands);
 
-  return { focusedIndex, focusedId, focusRow, clearFocus };
+  return {
+    focusedIndex,
+    focusedId,
+    focusRow,
+    clearFocus,
+    lastArchivedThread,
+    undoLastArchive,
+  };
 }
