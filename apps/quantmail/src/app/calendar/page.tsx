@@ -33,6 +33,7 @@ import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
+import { BookingLinksModal } from './components/BookingLinksModal';
 
 const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
   title: '',
@@ -102,6 +103,7 @@ export default function CalendarPage() {
   const [isRecurrenceModalOpen, setIsRecurrenceModalOpen] = useState(false);
   const [isNotificationSliderOpen, setIsNotificationSliderOpen] = useState(false);
   const [notifSliderIndex, setNotifSliderIndex] = useState(3);
+  const [isBookingLinksOpen, setIsBookingLinksOpen] = useState(false);
   const [activeTimezone, setActiveTimezone] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('quant_calendar_timezone') || 'Asia/Kolkata';
@@ -642,6 +644,7 @@ export default function CalendarPage() {
       isTimezoneModalOpen ||
       isRecurrenceModalOpen ||
       isNotificationSliderOpen ||
+      isBookingLinksOpen ||
       isQuantyDrawerOpen ||
       Boolean(selectedEvent);
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -656,6 +659,7 @@ export default function CalendarPage() {
     isTimezoneModalOpen,
     isRecurrenceModalOpen,
     isNotificationSliderOpen,
+    isBookingLinksOpen,
     isQuantyDrawerOpen,
     selectedEvent,
     closeSheet,
@@ -898,6 +902,7 @@ export default function CalendarPage() {
           openDedicatedSheet={openDedicatedSheet}
           activeTimezone={activeTimezone}
           onChangeTimezone={handleTimezoneChange}
+          onOpenBookingLinks={() => setIsBookingLinksOpen(true)}
         />
 
         <CalendarViews
@@ -1000,6 +1005,12 @@ export default function CalendarPage() {
           setSelectedEvent={setSelectedEvent}
           openEditSheet={openEditSheet}
           handleDeleteEvent={(id) => void handleDeleteEvent(id)}
+        />
+
+        <BookingLinksModal
+          isOpen={isBookingLinksOpen}
+          onClose={() => setIsBookingLinksOpen(false)}
+          userEmail={currentUserEmail}
         />
 
         {dialog}

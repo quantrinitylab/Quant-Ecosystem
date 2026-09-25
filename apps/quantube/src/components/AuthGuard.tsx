@@ -12,7 +12,19 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 import { AuthPending } from '@quant/shared-ui';
 
-const PUBLIC_ROUTES = new Set<string>(['/login']);
+const PUBLIC_ROUTES = new Set<string>([
+  '/',
+  '/login',
+  '/watch',
+  '/watch/[id]',
+  '/shorts',
+  '/search',
+  '/explore',
+  '/trending',
+  '/music',
+  '/podcasts',
+  '/shows',
+]);
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();

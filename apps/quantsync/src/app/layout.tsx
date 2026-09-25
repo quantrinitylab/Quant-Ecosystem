@@ -13,8 +13,9 @@ registerQuantsyncVoice();
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'QuantSync | Quant',
-  description: 'Twitter/X + Threads + Reddit hybrid with anonymous feeds and live spaces',
+  title: 'QuantWave | Quant',
+  description:
+    'QuantWave - Twitter/X + Threads + Reddit hybrid with real-time threads, communities, and live spaces',
   icons: {
     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="%231DA1F2"/><text x="16" y="22" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Q</text></svg>',
   },

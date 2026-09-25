@@ -14,6 +14,7 @@ export interface CalendarHeaderProps {
   openDedicatedSheet: (type: EntryType) => void;
   activeTimezone?: string;
   onChangeTimezone?: (tz: string) => void;
+  onOpenBookingLinks?: () => void;
 }
 
 export function CalendarHeader({
@@ -26,6 +27,7 @@ export function CalendarHeader({
   openDedicatedSheet,
   activeTimezone,
   onChangeTimezone,
+  onOpenBookingLinks,
 }: CalendarHeaderProps) {
   return (
     <>
@@ -107,6 +109,19 @@ export function CalendarHeader({
             ))}
           </div>
 
+          {onOpenBookingLinks && (
+            <button
+              type="button"
+              onClick={onOpenBookingLinks}
+              aria-label="Booking Links"
+              className="px-3 py-1.5 rounded-lg font-medium text-xs text-[#F5F5F5] bg-[#16181D] hover:bg-[#20232B] border border-[#282C35] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              title="Share Booking Links"
+            >
+              <span className="text-[#FF8C42]">🔗</span>
+              <span>Booking Links</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => openDedicatedSheet('event')}
@@ -157,6 +172,17 @@ export function CalendarHeader({
             >
               Today
             </button>
+            {onOpenBookingLinks && (
+              <button
+                type="button"
+                onClick={onOpenBookingLinks}
+                aria-label="Booking Links"
+                className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-2.5 text-xs font-medium text-[#FF8C42] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                title="Share Booking Links"
+              >
+                🔗
+              </button>
+            )}
           </div>
         </div>
 

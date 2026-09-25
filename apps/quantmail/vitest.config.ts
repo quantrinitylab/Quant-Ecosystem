@@ -49,7 +49,7 @@ export default defineConfig({
     include: [
       'api-v2/**/__tests__/**/*.test.ts',
       'backend/__tests__/**/*.test.ts',
-      'src/__tests__/**/*.test.ts',
+      'src/__tests__/**/*.{test.ts,test.tsx}',
       'src/**/__tests__/**/*.{test.ts,test.tsx}',
     ],
   },

@@ -21,7 +21,8 @@
       "@quant/server-core": ["../../packages/server-core/src/index.ts"],
       "@quant/server-core/*": ["../../packages/server-core/src/*"],
       "@quant/ai": ["../../packages/ai/src/index.ts"],
-      "@quant/ai/*": ["../../packages/ai/src/*"]
+      "@quant/ai/*": ["../../packages/ai/src/*"],
+      "zod": ["./node_modules/zod", "../../packages/ai/node_modules/zod"]
     }
   },
   "include": ["backend/**/*.ts", "src/**/*.ts"],

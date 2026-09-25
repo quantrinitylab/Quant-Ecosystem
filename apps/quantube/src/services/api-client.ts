@@ -55,12 +55,43 @@ class QuantTubeApiClient {
     const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json', ...headers };
     if (this.token) reqHeaders['Authorization'] = `Bearer ${this.token}`;
 
-    const response = await fetch(url, {
-      method,
-      headers: reqHeaders,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return response.json() as Promise<ApiResponse<T>>;
+    try {
+      const response = await fetch(url, {
+        method,
+        headers: reqHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+
+      if (response.status === 401) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Unauthorized access', statusCode: 401 },
+        };
+      }
+
+      if (!response.ok) {
+        let errMessage = `HTTP error ${response.status}`;
+        try {
+          const errBody = await response.json();
+          errMessage = errBody?.error?.message || errBody?.message || errMessage;
+        } catch {
+          // ignore non-json error
+        }
+        return {
+          success: false,
+          error: { code: 'HTTP_ERROR', message: errMessage, statusCode: response.status },
+        };
+      }
+
+      const data = await response.json();
+      return data as ApiResponse<T>;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network request failed';
+      return {
+        success: false,
+        error: { code: 'NETWORK_ERROR', message, statusCode: 500 },
+      };
+    }
   }
 
   // Videos

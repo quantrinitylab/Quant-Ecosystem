@@ -39,8 +39,104 @@ function FeedSkeleton() {
   );
 }
 
+import { useAuth } from '../providers/auth-provider';
+import Link from 'next/link';
+
+function GuestHeroBanner() {
+  return (
+    <div className="mb-6 rounded-2xl bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-amber-500/10 border border-pink-500/20 p-5 text-center shadow-lg">
+      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-pink-500 via-red-500 to-amber-500 shadow-md shadow-pink-500/30">
+        <span className="text-2xl font-black text-white">Q</span>
+      </div>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+        See what's happening on QuantGram
+      </h2>
+      <p className="mt-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
+        Watch trending reels, explore creator stories, and share photos with one unified Quant
+        Account.
+      </p>
+      <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+        <Link
+          href="/login?returnTo=/"
+          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-full font-bold text-xs sm:text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 active:scale-95 transition-all"
+        >
+          <span>⚡ Continue with Quant Account</span>
+        </Link>
+        <Link
+          href="/explore"
+          className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-full font-medium text-xs sm:text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+        >
+          Explore Trending
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function GuestStickyPrompt() {
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#121218]/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-2xl">
+      <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            Experience full QuantGram
+          </p>
+          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+            Sign in to follow creators, like, comment, and post reels
+          </p>
+        </div>
+        <Link
+          href="/login?returnTo=/"
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-semibold text-xs sm:text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-md active:scale-95 transition-all"
+        >
+          <span>⚡ Continue with Quant Account</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function GuestEmptyLanding() {
+  return (
+    <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-8">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-pink-500 via-red-500 to-amber-500 shadow-xl shadow-pink-500/30">
+        <span className="text-3xl font-black text-white">Q</span>
+      </div>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Welcome to QuantGram</h1>
+      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-sm">
+        The creator social platform with high-octane reels, visual stories, and interactive games.
+      </p>
+
+      <div className="mt-6 w-full max-w-xs space-y-3">
+        <Link
+          href="/login?returnTo=/"
+          className="w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-lg shadow-pink-500/25 hover:opacity-95 active:scale-95 transition-all"
+        >
+          <span>⚡ Continue with Quant Account</span>
+        </Link>
+        <div className="grid grid-cols-2 gap-2 text-xs font-medium">
+          <Link
+            href="/explore"
+            className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            🔥 Explore Grid
+          </Link>
+          <Link
+            href="/reels"
+            className="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            🎬 Watch Reels
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const FeedPage: React.FC = () => {
   const [state, actions] = useFeed();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const isGuest = (!isAuthenticated && !authLoading) || Boolean(state.isGuest);
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -52,7 +148,8 @@ const FeedPage: React.FC = () => {
     [actions],
   );
 
-  if (state.loading && state.posts.length === 0 && state.stories.length === 0) {
+  // Authenticated users with empty feed and currently loading show skeletons
+  if (state.loading && state.posts.length === 0 && state.stories.length === 0 && !isGuest) {
     return (
       <PageTransition>
         <div className="min-h-screen bg-white dark:bg-[#0F0F14] px-4 py-6 max-w-lg mx-auto">
@@ -62,11 +159,24 @@ const FeedPage: React.FC = () => {
     );
   }
 
-  if (state.error && state.posts.length === 0) {
+  // Error state for authenticated users
+  if (state.error && state.posts.length === 0 && !isGuest) {
     return (
       <PageTransition>
         <div className="min-h-screen bg-white dark:bg-[#0F0F14] flex items-center justify-center px-4">
           <ErrorState message={state.error} onRetry={() => void actions.refresh()} />
+        </div>
+      </PageTransition>
+    );
+  }
+
+  // Unauthenticated guests with no posts: render Instagram-style guest landing
+  if (isGuest && state.posts.length === 0) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen bg-white dark:bg-[#0F0F14]">
+          <GuestEmptyLanding />
+          <GuestStickyPrompt />
         </div>
       </PageTransition>
     );
@@ -91,7 +201,10 @@ const FeedPage: React.FC = () => {
         className="min-h-screen bg-white dark:bg-[#0F0F14] text-gray-900 dark:text-gray-100"
         onScroll={handleScroll}
       >
-        <div className="max-w-lg mx-auto px-4 py-4">
+        <div className="max-w-lg mx-auto px-4 py-4 pb-20">
+          {/* Guest Hero Banner */}
+          {isGuest && <GuestHeroBanner />}
+
           {/* Stories Bar */}
           {state.stories.length > 0 && (
             <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide">
@@ -209,6 +322,7 @@ const FeedPage: React.FC = () => {
           )}
         </div>
       </div>
+      {isGuest && <GuestStickyPrompt />}
     </PageTransition>
   );
 };

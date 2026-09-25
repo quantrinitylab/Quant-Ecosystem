@@ -26,6 +26,7 @@ interface FeedState {
   error: string | null;
   likeAnimation: string | null;
   page: number;
+  isGuest?: boolean;
 }
 
 interface FeedActions {
@@ -50,32 +51,74 @@ export function useFeed(): [FeedState, FeedActions] {
   const feedQuery = useInfiniteQuery({
     queryKey: ['neon-feed'],
     queryFn: async ({ pageParam = 1 }) => {
-      const response = await apiClient.getFeed(pageParam);
-      if (!response.success) {
-        throw new Error(response.error?.message || 'Failed to load feed');
+      try {
+        const response = await apiClient.getFeed(pageParam);
+        if (response.success && response.data?.posts && response.data.posts.length > 0) {
+          return {
+            posts: response.data.posts,
+            page: pageParam,
+            isGuest: false,
+          };
+        }
+        // Fallback for unauthenticated guests (e.g. 401 response) or empty feed: explore feed
+        const exploreRes = await apiClient.getExploreFeed();
+        if (exploreRes.success && exploreRes.data?.posts && exploreRes.data.posts.length > 0) {
+          return {
+            posts: exploreRes.data.posts,
+            page: pageParam,
+            isGuest: true,
+          };
+        }
+        return {
+          posts: response.data?.posts ?? [],
+          page: pageParam,
+          isGuest: !response.success,
+        };
+      } catch {
+        // Network or 401 error: graceful fallback to explore feed so guests never hang
+        try {
+          const exploreRes = await apiClient.getExploreFeed();
+          if (exploreRes.success && exploreRes.data?.posts && exploreRes.data.posts.length > 0) {
+            return {
+              posts: exploreRes.data.posts,
+              page: pageParam,
+              isGuest: true,
+            };
+          }
+        } catch {}
+        return {
+          posts: [],
+          page: pageParam,
+          isGuest: true,
+        };
       }
-      return {
-        posts: response.data?.posts ?? [],
-        page: pageParam,
-      };
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
-      if (lastPage.posts.length === 0) return undefined;
+      if (!lastPage || lastPage.posts.length === 0 || lastPage.isGuest) return undefined;
       return lastPage.page + 1;
     },
+    retry: 1,
   });
 
   const storiesQuery = useInfiniteQuery({
     queryKey: ['neon-stories-feed'],
     queryFn: async () => {
-      const response = await apiClient.getStoriesFeed();
-      return {
-        stories: (Array.isArray(response.data) ? response.data : []) as StoryUser[],
-      };
+      try {
+        const response = await apiClient.getStoriesFeed();
+        if (!response.success) {
+          return { stories: [] };
+        }
+        return {
+          stories: (Array.isArray(response.data) ? response.data : []) as StoryUser[],
+        };
+      } catch {
+        return { stories: [] };
+      }
     },
     initialPageParam: 0,
     getNextPageParam: () => undefined,
+    retry: false,
   });
 
   const likeMutation = useMutation({
@@ -100,6 +143,7 @@ export function useFeed(): [FeedState, FeedActions] {
     .map((s: StoryUser) => (seenStories.has(s.id) ? { ...s, hasUnseenStory: false } : s));
 
   const currentPage = feedQuery.data?.pages?.length ?? 0;
+  const isGuest = Boolean(feedQuery.data?.pages?.[0]?.isGuest);
 
   const state: FeedState = {
     posts: allPosts,
@@ -110,6 +154,7 @@ export function useFeed(): [FeedState, FeedActions] {
     error: feedQuery.error?.message ?? null,
     likeAnimation,
     page: currentPage,
+    isGuest,
   };
 
   const loadMore = useCallback(async () => {

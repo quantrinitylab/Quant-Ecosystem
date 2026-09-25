@@ -11,12 +11,18 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 import { AuthPending } from '@quant/shared-ui';
 
-const PUBLIC_ROUTES = new Set<string>(['/login']);
+const PUBLIC_ROUTES = new Set<string>(['/login', '/', '/explore', '/reels', '/map', '/shop']);
+
+function isPublicRoute(pathname: string): boolean {
+  if (PUBLIC_ROUTES.has(pathname)) return true;
+  if (pathname.startsWith('/post/') || pathname.startsWith('/profile/')) return true;
+  return false;
+}
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const isPublic = PUBLIC_ROUTES.has(router.pathname);
+  const isPublic = isPublicRoute(router.pathname);
 
   useEffect(() => {
     if (isLoading || isPublic || isAuthenticated) return;
@@ -31,6 +37,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // link to /login.
   if (isLoading) return <AuthPending state="verifying" loginPath="/login" />;
   if (!isAuthenticated)
-    return <AuthPending state="redirecting" loginPath="/login" appName="QuantNeon" />;
+    return <AuthPending state="redirecting" loginPath="/login" appName="QuantGram" />;
   return <>{children}</>;
 }

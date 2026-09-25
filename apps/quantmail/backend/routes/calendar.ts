@@ -84,11 +84,16 @@ const bookingLinkSchema = z.object({
   startHour: z.number().int().min(0).max(23).optional(),
   endHour: z.number().int().min(1).max(24).optional(),
 });
+const lockSlotSchema = z.object({
+  slot: z.string(),
+  email: z.string().email(),
+});
 const confirmBookingSchema = z.object({
   slot: z.string(),
   name: z.string().min(1),
   email: z.string().email(),
   notes: z.string().optional(),
+  lockId: z.string().optional(),
 });
 
 type AttendeeInput = z.infer<typeof attendeeInput>;
@@ -2011,7 +2016,7 @@ export default async function calendarRoutes(
     return reply.send({ success: true, data: { ...toEventDto(updated), attendees } });
   });
 
-  fastify.post('/booking/links', async (request, reply) => {
+  const handleCreateBookingLink = async (request: FastifyRequest, reply: FastifyReply) => {
     const parsed = bookingLinkSchema.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
     return reply.status(201).send({
@@ -2021,7 +2026,25 @@ export default async function calendarRoutes(
         userId: requireUserId(request),
       }),
     });
-  });
+  };
+
+  const handleListBookingLinks = async (request: FastifyRequest, reply: FastifyReply) => {
+    const userId = requireUserId(request);
+    return reply.send({
+      success: true,
+      data: await bookingService().listBookings(userId),
+    });
+  };
+
+  const handleDeleteBookingLink = async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const userId = requireUserId(request);
+    await bookingService().deleteBookingLink(request.params.id, userId);
+    return reply.send({ success: true, data: { message: 'Booking link deleted' } });
+  };
+
   const handleGetBookingLink = async (
     request: FastifyRequest<{ Params: { slug: string } }>,
     reply: FastifyReply,
@@ -2048,6 +2071,25 @@ export default async function calendarRoutes(
     });
   };
 
+  const handleLockSlot = async (
+    request: FastifyRequest<{ Params: { slug: string } }>,
+    reply: FastifyReply,
+  ) => {
+    const parsed = lockSlotSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const lock = await bookingService().lockSlot(
+      request.params.slug,
+      toDate(parsed.data.slot, 'slot'),
+      parsed.data.email,
+    );
+    return reply.status(200).send({
+      success: true,
+      lockId: lock.lockId,
+      expiresAt: lock.expiresAt,
+      data: lock,
+    });
+  };
+
   const handlePostBooking = async (
     request: FastifyRequest<{ Params: { slug: string } }>,
     reply: FastifyReply,
@@ -2058,10 +2100,23 @@ export default async function calendarRoutes(
       request.params.slug,
       toDate(parsed.data.slot, 'slot'),
       { name: parsed.data.name, email: parsed.data.email, notes: parsed.data.notes },
+      parsed.data.lockId,
     );
     return reply.status(201).send({ success: true, data });
   };
 
+  // Host authenticated routes (mounted before /:slug)
+  fastify.post('/booking/links', handleCreateBookingLink);
+  fastify.post('/calendar/booking/links', handleCreateBookingLink);
+  fastify.get('/booking/links', handleListBookingLinks);
+  fastify.get('/calendar/booking/links', handleListBookingLinks);
+  fastify.delete<{ Params: { id: string } }>('/booking/links/:id', handleDeleteBookingLink);
+  fastify.delete<{ Params: { id: string } }>(
+    '/calendar/booking/links/:id',
+    handleDeleteBookingLink,
+  );
+
+  // Public booking link routes
   fastify.get<{ Params: { slug: string } }>('/booking/links/:slug', handleGetBookingLink);
   fastify.get<{ Params: { slug: string } }>('/calendar/booking/:slug', handleGetBookingLink);
 
@@ -2073,6 +2128,9 @@ export default async function calendarRoutes(
     '/calendar/booking/:slug/slots',
     handleGetBookingSlots,
   );
+
+  fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/lock', handleLockSlot);
+  fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/lock', handleLockSlot);
 
   fastify.post<{ Params: { slug: string } }>('/booking/links/:slug/book', handlePostBooking);
   fastify.post<{ Params: { slug: string } }>('/calendar/booking/:slug/book', handlePostBooking);

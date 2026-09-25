@@ -6,9 +6,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
-import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
+import { LoadingState, EmptyState } from '@quant/shared-ui';
 import { useVideos } from '../hooks/useVideos';
+import { useAuth } from '../providers/auth-provider';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { getGuestFeaturedVideos } from '../data/public-videos';
 
 interface Category {
   id: string;
@@ -47,15 +49,24 @@ const itemVariants = {
 };
 
 const HomePage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categoryParam = activeCategory === 'all' ? undefined : activeCategory;
-  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage, refetch } =
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useVideos(categoryParam);
 
   const videos = useMemo(() => {
-    return data?.pages?.flatMap((page) => page.videos) ?? [];
-  }, [data]);
+    const list = data?.pages?.flatMap((page) => page.videos) ?? [];
+    if (list.length === 0 && !isLoading) {
+      return getGuestFeaturedVideos(categoryParam);
+    }
+    return list;
+  }, [data, isLoading, categoryParam]);
+
+  const isGuestMode = useMemo(() => {
+    return !isAuthenticated || data?.pages?.some((p) => p.isGuestFallback) || Boolean(error);
+  }, [isAuthenticated, data, error]);
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -105,16 +116,49 @@ const HomePage: React.FC = () => {
     );
   }
 
-  if (error && videos.length === 0) {
-    return <ErrorState message={error.message} onRetry={() => void refetch()} />;
-  }
-
   return (
     <div
       className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] overflow-y-auto"
       onScroll={handleScroll}
     >
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6">
+        {/* Engaging Guest / Unauthenticated Welcome Banner */}
+        {isGuestMode && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 md:p-6 rounded-2xl bg-gradient-to-r from-[var(--brand-primary)]/15 via-[var(--surface-elevated)] to-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm"
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-[var(--brand-primary)] text-white flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
+                ▶
+              </div>
+              <div>
+                <h2 className="text-lg md:text-xl font-bold text-[var(--quant-foreground)] tracking-tight">
+                  Welcome to QuanTube — Stream Videos &amp; Music
+                </h2>
+                <p className="text-sm text-[var(--quant-muted-foreground)] mt-0.5">
+                  Sign in with Quant Account to subscribe and like, follow creators, and save your
+                  favorites.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <button
+                onClick={() => {
+                  const returnTo = encodeURIComponent(
+                    typeof window !== 'undefined' ? window.location.pathname : '/',
+                  );
+                  window.location.href = `/login?returnTo=${returnTo}`;
+                }}
+                className="px-6 py-2.5 rounded-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white font-medium text-sm transition-all shadow hover:shadow-md whitespace-nowrap w-full md:w-auto text-center"
+              >
+                Sign In
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* Category Tabs */}
         <nav
           className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-none"
@@ -162,60 +206,83 @@ const HomePage: React.FC = () => {
                   id: string;
                   title?: string;
                   thumbnail?: string;
+                  thumbnailUrl?: string;
                   channelName?: string;
                   channelAvatar?: string;
                   views?: number;
+                  viewCount?: number;
                   uploadedAt?: string;
+                  publishedAt?: string;
                   duration?: number;
                   isLive?: boolean;
-                }) => (
-                  <motion.div
-                    key={video.id}
-                    variants={itemVariants}
-                    whileHover={{ scale: 1.02, transition: { type: 'spring', ...spring.snappy } }}
-                    className="flex flex-col rounded-xl overflow-hidden bg-[var(--quant-card)] border border-[var(--quant-border)] cursor-pointer group"
-                    onClick={() => {
-                      window.location.href = `/watch/${video.id}`;
-                    }}
-                    role="listitem"
-                  >
-                    <div className="relative aspect-video overflow-hidden">
-                      <img
-                        src={video.thumbnail}
-                        alt={video.title}
-                        loading="lazy"
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                      {video.isLive ? (
-                        <span className="absolute bottom-2 left-2 bg-[var(--brand-primary)] text-white text-xs font-bold px-2 py-0.5 rounded">
-                          LIVE
-                        </span>
-                      ) : (
-                        <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                          {formatDuration(video.duration || 0)}
-                        </span>
-                      )}
-                    </div>
-                    <div className="p-3 flex gap-3">
-                      <img
-                        className="w-9 h-9 rounded-full flex-shrink-0 object-cover"
-                        src={video.channelAvatar}
-                        alt={video.channelName}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-medium text-[var(--quant-foreground)] line-clamp-2 leading-tight">
-                          {video.title}
-                        </h3>
-                        <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
-                          {video.channelName}
-                        </p>
-                        <p className="text-xs text-[var(--quant-muted-foreground)]">
-                          {formatViews(video.views || 0)} &middot; {video.uploadedAt}
-                        </p>
+                }) => {
+                  const thumbnailSrc =
+                    video.thumbnail ||
+                    video.thumbnailUrl ||
+                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                  const avatarSrc =
+                    video.channelAvatar ||
+                    `https://api.dicebear.com/7.x/identicon/svg?seed=${video.channelName || 'creator'}`;
+                  const displayViews = video.views ?? video.viewCount ?? 0;
+                  const displayDate = video.uploadedAt || video.publishedAt || 'Recently';
+
+                  return (
+                    <motion.div
+                      key={video.id}
+                      variants={itemVariants}
+                      whileHover={{ scale: 1.02, transition: { type: 'spring', ...spring.snappy } }}
+                      className="flex flex-col rounded-xl overflow-hidden bg-[var(--quant-card)] border border-[var(--quant-border)] cursor-pointer group"
+                      onClick={() => {
+                        window.location.href = `/watch/${video.id}`;
+                      }}
+                      role="listitem"
+                    >
+                      <div className="relative aspect-video overflow-hidden bg-black/10">
+                        <img
+                          src={thumbnailSrc}
+                          alt={video.title || 'Video'}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                          }}
+                        />
+                        {video.isLive ? (
+                          <span className="absolute bottom-2 left-2 bg-[var(--brand-primary)] text-white text-xs font-bold px-2 py-0.5 rounded">
+                            LIVE
+                          </span>
+                        ) : (
+                          <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                            {formatDuration(video.duration || 0)}
+                          </span>
+                        )}
                       </div>
-                    </div>
-                  </motion.div>
-                ),
+                      <div className="p-3 flex gap-3">
+                        <img
+                          className="w-9 h-9 rounded-full flex-shrink-0 object-cover bg-gray-700/20"
+                          src={avatarSrc}
+                          alt={video.channelName || 'Channel'}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              `https://api.dicebear.com/7.x/identicon/svg?seed=${video.channelName || 'creator'}`;
+                          }}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium text-[var(--quant-foreground)] line-clamp-2 leading-tight">
+                            {video.title}
+                          </h3>
+                          <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                            {video.channelName || 'Quant Creator'}
+                          </p>
+                          <p className="text-xs text-[var(--quant-muted-foreground)]">
+                            {formatViews(displayViews)} &middot; {displayDate}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                },
               )}
             </motion.div>
           )}
