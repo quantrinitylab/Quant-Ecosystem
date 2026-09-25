@@ -28,11 +28,15 @@ function storage(): Storage | null {
   }
 }
 
-/** Persist OTP-issued tokens and prime the apiClient for the current session. */
+/** Persist OTP-issued or SSO-ingested tokens and prime the apiClient for the current session. */
 export function persistSession(accessToken: string, refreshToken: string): void {
   const s = storage();
   if (s) {
     s.setItem(ACCESS_TOKEN_KEY, accessToken);
+    s.setItem('quant_auth_token', accessToken);
+    s.setItem('token', accessToken);
+    s.setItem('quant_token', accessToken);
+    s.setItem('quantchat_access_token', accessToken);
     if (refreshToken) s.setItem(REFRESH_TOKEN_KEY, refreshToken);
   }
   apiClient.setTokens(accessToken, refreshToken);
@@ -42,9 +46,15 @@ export function persistSession(accessToken: string, refreshToken: string): void 
 export function bootstrapSession(): boolean {
   const s = storage();
   if (!s) return false;
-  const accessToken = s.getItem(ACCESS_TOKEN_KEY);
+  const accessToken =
+    s.getItem(ACCESS_TOKEN_KEY) ||
+    s.getItem('quant_auth_token') ||
+    s.getItem('token') ||
+    s.getItem('quant_token') ||
+    s.getItem('quantchat_access_token');
   if (!accessToken) return false;
-  apiClient.setTokens(accessToken, s.getItem(REFRESH_TOKEN_KEY) ?? '');
+  const refreshToken = s.getItem(REFRESH_TOKEN_KEY) ?? accessToken;
+  apiClient.setTokens(accessToken, refreshToken);
   return true;
 }
 
@@ -53,5 +63,9 @@ export function clearSession(): void {
   const s = storage();
   if (!s) return;
   s.removeItem(ACCESS_TOKEN_KEY);
+  s.removeItem('quant_auth_token');
+  s.removeItem('token');
+  s.removeItem('quant_token');
+  s.removeItem('quantchat_access_token');
   s.removeItem(REFRESH_TOKEN_KEY);
 }

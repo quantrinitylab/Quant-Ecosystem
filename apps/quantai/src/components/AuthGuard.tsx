@@ -22,6 +22,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading || isPublic || isAuthenticated) return;
+    if (typeof window !== 'undefined') {
+      const search = window.location.search;
+      if (search.includes('__quant_sso_ticket') || search.includes('token=')) {
+        // If SSO ticket/token is present in URL, let AuthProvider mount effect ingest it without flashing /login
+        return;
+      }
+    }
     const returnTo = encodeURIComponent(pathname ?? '/');
     router.replace(`/login?returnTo=${returnTo}`);
   }, [isLoading, isPublic, isAuthenticated, pathname, router]);

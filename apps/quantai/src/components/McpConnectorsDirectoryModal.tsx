@@ -966,16 +966,41 @@ export function McpConnectorsDirectoryModal({
     }
   };
 
+  // Global keyboard shortcuts: Escape to dismiss, Cmd/Ctrl+Enter to save config
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedConnector) {
+          closeConfigModal();
+        } else {
+          onClose();
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        if (selectedConnector) {
+          e.preventDefault();
+          handleSaveConfig();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, selectedConnector, onClose, handleSaveConfig]);
+
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto cursor-pointer animate-fadeIn"
       role="dialog"
       aria-modal="true"
       aria-labelledby="mcp-directory-title"
+      onClick={onClose}
     >
-      <div className="relative w-full max-w-5xl max-h-[92vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-gray-100">
+      <div
+        className="relative w-full max-w-5xl max-h-[92vh] bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-gray-100 cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between bg-gray-950/60 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -1346,12 +1371,13 @@ export function McpConnectorsDirectoryModal({
         {/* Configuration Modal Drawer / Overlay */}
         {selectedConnector && (
           <div
-            className="absolute inset-0 z-20 bg-gray-950/95 backdrop-blur-md flex flex-col justify-between p-6 sm:p-8 overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+            className="absolute inset-0 z-20 bg-gray-950/95 backdrop-blur-md flex flex-col justify-between p-6 sm:p-8 overflow-y-auto animate-in fade-in zoom-in-95 duration-150 cursor-pointer"
             role="dialog"
             aria-modal="true"
             aria-labelledby="config-modal-title"
+            onClick={closeConfigModal}
           >
-            <div>
+            <div className="cursor-default" onClick={(e) => e.stopPropagation()}>
               {/* Config Header */}
               <div className="flex items-start justify-between pb-4 border-b border-gray-800 mb-6">
                 <div className="flex items-center gap-3">
@@ -1513,7 +1539,10 @@ export function McpConnectorsDirectoryModal({
             </div>
 
             {/* Config Action Buttons */}
-            <div className="pt-6 border-t border-gray-800 flex items-center justify-between mt-6">
+            <div
+              className="pt-6 border-t border-gray-800 flex items-center justify-between mt-6 cursor-default"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 type="button"
                 disabled={testStatus?.loading}

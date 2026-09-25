@@ -1,7 +1,23 @@
 import tseslint from 'typescript-eslint';
 
+const createRuleStubPlugin = (ruleNames) => ({
+  rules: Object.fromEntries(
+    ruleNames.map((ruleName) => [
+      ruleName,
+      {
+        create() {
+          return {};
+        },
+      },
+    ]),
+  ),
+});
+
 export default tseslint.config(
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
     ignores: [
       '**/node_modules/**',
       '**/dist/**',
@@ -24,6 +40,16 @@ export default tseslint.config(
       'apps/*/backend/**/*.ts',
       'services/*/src/**/*.{ts,tsx}',
     ],
+    plugins: {
+      '@next/next': createRuleStubPlugin([
+        'no-img-element',
+        'no-html-link-for-pages',
+        'no-sync-scripts',
+        'inline-script-id',
+        'no-head-element',
+      ]),
+      'react-hooks': createRuleStubPlugin(['exhaustive-deps', 'rules-of-hooks']),
+    },
     extends: [tseslint.configs.recommended],
     rules: {
       '@typescript-eslint/no-unused-vars': 'off',

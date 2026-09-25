@@ -167,6 +167,7 @@
 - [x] **Task W39-CI02**: Purge all `console.error` statements in `apps/quantmail/src/components/UndoSendCountdownBar.tsx`. (Verified: 0 console statements, 16/16 tests green in `undo-send-bar.test.tsx`).
 - [x] **Task W39-CI03**: Purge `console.warn` statement in `packages/shared-ui/src/interconnection/UniversalSSOTokenBridge.ts`. (Verified: 0 console statements, silent sandbox fallback).
 - [x] **Task W39-CI04**: Monorepo lint verification (`npx eslint`) and root eslint config hardening. (Verified: Exit code 0, 0 errors, 0 warnings).
+- [x] **Task W39-CI05**: Next.js 15 App Router Exports Constraint & Root ESLint v9 Framework Stubs: Extracted calendar helpers into `booking-utils.ts` and normalized `PageProps` to Promise type (`next build` 71/71 static pages compiled code 0); added `@next/next` and `react-hooks` stub plugins with `reportUnusedDisableDirectives: 'off'` in root `eslint.config.mjs` (0 errors, 0 warnings).
 
 ### Track 10: Sovereign Desktop Client UI Shell (`apps/quant-desktop` — macOS / Windows / Linux)
 
@@ -183,6 +184,7 @@
 - [x] **Task W39-SSO01**: Universal SSO Token Bridge Hardening (`packages/shared-ui/src/interconnection/UniversalSSOTokenBridge.ts`): Wrapped storage access with sandboxed iframe immunity (handling `SecurityError` and missing BroadcastChannel gracefully). Implemented `generateHandoffTicket` and `consumeHandoffTicket` with 5-minute TTL. (Verified: 17/17 tests in `InterconnectionFabric.test.tsx` green).
 - [x] **Task W39-SSO02**: 10 Retained Core Apps Canonical URLs & Sibling SSO Domains Allowlist (`packages/shared-ui/src/interconnection/constants.ts` & `apps/quantmail/src/lib/safe-return-path.ts`): Configured canonical domains (`https://quantmail.in`, `quantchat.quantrinity.in`, etc.) and hardened return paths to support `quantrinity.in` and `quanttrinity.in`. (Verified: 7/7 tests in `safe-return-path.test.ts` green).
 - [x] **Task W39-SSO03**: Dynamic Cross-App Jump URL Generation & `useAuth` SSO Hydration (`UniversalAppSwitcher.tsx` & `useAuth.ts`): Wired `bridge.buildCrossAppJumpUrl` for 1-click token handoff redirects, and added mount detection for automatic token hydration from URL query params. (Verified: 23/23 shared-ui interconnection/auth tests green, 0 TS errors).
+- [x] **Task W39-SSO04**: Sibling Apps Auto SSO Token Ingestion & URL Cleaning (`quantai`, `quantchat`, `quantmax`, `quantube`): Built automatic capture of `__quant_sso_ticket` and legacy tokens on login and auth-guard mount with `window.history.replaceState` clean URLs. (Verified: 5/5 quantai tests green, 3/3 quantchat tests green, 0 TS errors).
 
 ---
 

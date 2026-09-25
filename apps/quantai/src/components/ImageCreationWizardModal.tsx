@@ -594,17 +594,6 @@ export function ImageCreationWizardModal({
     if (defaultTab) setActiveTab(defaultTab);
   }, [defaultTab]);
 
-  // Handle escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
   // Find active style, mood, and aspect ratio objects
   const activeStyleObj = useMemo(() => {
     return (
@@ -706,6 +695,21 @@ export function ImageCreationWizardModal({
     onClose();
   }, [onGenerate, synthesizedResult, activeStyleObj, activeMoodObj, activeAspectObj, onClose]);
 
+  // Keyboard shortcut listener: Escape to close, Cmd/Ctrl+Enter to generate
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
+        onClose();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleGenerate();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, handleGenerate]);
+
   const handleUseTemplate = useCallback((tpl: TemplateItem) => {
     setIdea(tpl.idea);
     setSelectedStyle(tpl.style);
@@ -732,12 +736,16 @@ export function ImageCreationWizardModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn cursor-pointer"
       role="dialog"
       aria-modal="true"
       aria-labelledby="image-wizard-title"
+      onClick={onClose}
     >
-      <div className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-[#0D1117] border border-[#30363D] rounded-2xl shadow-2xl overflow-hidden text-slate-100">
+      <div
+        className="relative w-full max-w-4xl max-h-[90vh] flex flex-col bg-[#0D1117] border border-[#30363D] rounded-2xl shadow-2xl overflow-hidden text-slate-100 cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#30363D] bg-[#161B22]/80">
           <div className="flex items-center gap-3">

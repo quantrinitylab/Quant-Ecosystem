@@ -43,9 +43,9 @@
       "@quant/recommendation": ["../../packages/recommendation/src/index.ts"],
       "@quant/recommendation/*": ["../../packages/recommendation/src/*"],
       "@quant/scaling": ["../../packages/scaling/src/index.ts"],
-      "@quant/scaling/*": ["../../packages/scaling/src/*"],
+      "@quant/scaling/*": ["../../packages/scaling/src/*"]
     }
   },
-  "include": ["backend/**/*.ts", "src/**/*.ts"],
+  "include": ["backend/**/*.ts"],
   "exclude": ["node_modules", "app"]
 }

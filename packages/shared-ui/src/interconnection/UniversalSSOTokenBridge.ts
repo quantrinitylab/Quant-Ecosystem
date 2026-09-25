@@ -526,7 +526,7 @@ export class UniversalSSOTokenBridge {
   /**
    * 4. Session Setup and Token Refresh Management
    */
-  public setCurrentSession(session: QuantUserSession, tokenExpiresInSeconds: number): void {
+  public setCurrentSession(session: QuantUserSession, tokenExpiresInSeconds: number = 3600): void {
     this.currentSession = session;
 
     if (this.refreshTimer) {

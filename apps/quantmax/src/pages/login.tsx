@@ -4,8 +4,9 @@
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
 // ============================================================================
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
@@ -29,6 +30,51 @@ export default function LoginPage() {
     () => safeReturnPath(router.query.returnTo) ?? '/',
     [router.query.returnTo],
   );
+
+  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = bridge.consumeHandoffTicket();
+      const params = new URLSearchParams(window.location.search);
+      const ticketParam = params.get('__quant_sso_ticket');
+      const tokenParam =
+        params.get('token') || params.get('accessToken') || params.get('access_token');
+      const rawReturn =
+        consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+
+      const resolvedToken =
+        consumed?.session?.token ||
+        consumed?.ticket ||
+        (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+        tokenParam;
+
+      if (resolvedToken) {
+        try {
+          localStorage.setItem('quant_access_token', resolvedToken);
+          localStorage.setItem('quant_auth_token', resolvedToken);
+          localStorage.setItem('token', resolvedToken);
+          document.cookie = `quant_access_token=${encodeURIComponent(resolvedToken)}; path=/; SameSite=Lax`;
+        } catch {}
+
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        let targetDestination = destination();
+        if (rawReturn) {
+          const decoded = decodeURIComponent(rawReturn);
+          const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+          if (validation.isSafe && validation.sanitizedUrl !== '/login') {
+            targetDestination = validation.sanitizedUrl;
+          }
+        }
+        void router.replace(targetDestination);
+      }
+    } catch {
+      // Sandboxed environment
+    }
+  }, [router, destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

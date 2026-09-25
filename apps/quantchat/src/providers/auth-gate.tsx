@@ -14,7 +14,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth, LoadingState } from '@quant/shared-ui';
+import { useAuth, LoadingState, UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { bootstrapSession, persistSession } from '../lib/auth-session';
 
 const PUBLIC_PATHS = new Set(['/login']);
@@ -26,16 +26,32 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
   // Re-hydrate the apiClient bearer from the stored token on first mount so
   // authed data fetches carry the JWT after a page reload. If arriving from an
-  // SSO redirect with `?token=...`, persist it immediately before resolving auth.
+  // SSO redirect with `?__quant_sso_ticket=...` or `?token=...`, persist it immediately before resolving auth.
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('token') || params.get('accessToken') || params.get('access_token');
-      const refreshToken = params.get('refreshToken') || params.get('refresh_token') || token || '';
-      if (token) {
-        persistSession(token, refreshToken);
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, '', cleanUrl);
+      try {
+        const bridge = UniversalSSOTokenBridge.getInstance();
+        const consumed = bridge.consumeHandoffTicket();
+        const params = new URLSearchParams(window.location.search);
+        const ticketParam = params.get('__quant_sso_ticket');
+        const tokenParam =
+          params.get('token') || params.get('accessToken') || params.get('access_token');
+        const refreshToken =
+          params.get('refreshToken') || params.get('refresh_token') || tokenParam || '';
+
+        const resolvedToken =
+          consumed?.session?.token ||
+          consumed?.ticket ||
+          (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+          tokenParam;
+
+        if (resolvedToken) {
+          persistSession(resolvedToken, refreshToken || resolvedToken);
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      } catch {
+        // Sandboxed environment
       }
     }
     bootstrapSession();

@@ -6,9 +6,11 @@
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
 // ============================================================================
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
+import { ingestSSOToken } from '../../services/auth-session';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -31,6 +33,63 @@ function LoginForm() {
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = bridge.consumeHandoffTicket();
+      const params = new URLSearchParams(window.location.search);
+      const ticketParam = params.get('__quant_sso_ticket');
+      const tokenParam =
+        params.get('token') || params.get('accessToken') || params.get('access_token');
+      const rawReturn =
+        consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+
+      const resolvedToken =
+        consumed?.session?.token ||
+        consumed?.ticket ||
+        (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+        tokenParam;
+
+      if (resolvedToken) {
+        ingestSSOToken(resolvedToken);
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        let targetDestination = destination();
+        if (rawReturn) {
+          const decoded = decodeURIComponent(rawReturn);
+          const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+          if (validation.isSafe && validation.sanitizedUrl !== '/login') {
+            targetDestination = validation.sanitizedUrl;
+          }
+        }
+        router.replace(targetDestination);
+      }
+    } catch {
+      // Sandboxed environment
+    }
+  }, [router, destination]);
+
+  const handleQuantSSO = useCallback(() => {
+    try {
+      const stored =
+        localStorage.getItem('quant_access_token') ||
+        localStorage.getItem('quant_auth_token') ||
+        localStorage.getItem('token') ||
+        localStorage.getItem('quant_token') ||
+        localStorage.getItem('quantchat_access_token');
+      if (stored) {
+        ingestSSOToken(stored);
+        router.replace(destination());
+        return;
+      }
+    } catch {}
+    const returnTo = encodeURIComponent(window.location.origin + '/login');
+    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantai`;
+  }, [router, destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,6 +206,21 @@ function LoginForm() {
             className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition-[opacity,transform] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? 'Signing in…' : 'Sign in'}
+          </button>
+
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="w-full border-t border-[var(--quant-border)]" />
+            <span className="absolute bg-[var(--quant-background)] px-2 text-xs uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+              or
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleQuantSSO}
+            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px"
+          >
+            ⚡ Continue with Quant SSO
           </button>
         </form>
 

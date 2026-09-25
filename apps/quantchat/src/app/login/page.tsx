@@ -10,6 +10,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 
@@ -31,21 +32,52 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // Auto-capture SSO tokens returned from QuantMail Account Chooser
+  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token') || params.get('accessToken') || params.get('access_token');
-    const refreshToken = params.get('refreshToken') || params.get('refresh_token') || token || '';
-    if (token) {
-      persistSession(token, refreshToken);
-      router.replace('/');
+    try {
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = bridge.consumeHandoffTicket();
+      const params = new URLSearchParams(window.location.search);
+      const ticketParam = params.get('__quant_sso_ticket');
+      const tokenParam =
+        params.get('token') || params.get('accessToken') || params.get('access_token');
+      const refreshToken =
+        params.get('refreshToken') || params.get('refresh_token') || tokenParam || '';
+      const rawReturn =
+        consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+
+      const resolvedToken =
+        consumed?.session?.token ||
+        consumed?.ticket ||
+        (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+        tokenParam;
+
+      if (resolvedToken) {
+        persistSession(resolvedToken, refreshToken || resolvedToken);
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+
+        let targetDestination = '/';
+        if (rawReturn) {
+          const decoded = decodeURIComponent(rawReturn);
+          const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+          if (validation.isSafe && validation.sanitizedUrl !== '/login') {
+            targetDestination = validation.sanitizedUrl;
+          }
+        }
+        router.replace(targetDestination);
+      }
+    } catch {
+      // Sandboxed environment
     }
   }, [router]);
 
   const handleQuantSSO = useCallback(() => {
     try {
       const stored =
+        localStorage.getItem('quant_access_token') ||
+        localStorage.getItem('quant_auth_token') ||
         localStorage.getItem('token') ||
         localStorage.getItem('quant_token') ||
         localStorage.getItem('quantchat_access_token');

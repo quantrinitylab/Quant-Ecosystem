@@ -15,7 +15,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 import { AuthPending } from '@quant/shared-ui';
 
-const PUBLIC_ROUTES = new Set<string>(['/login']);
+const PUBLIC_ROUTES = new Set<string>(['/', '/login', '/discover', '/live', '/trending']);
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -24,6 +24,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isLoading || isPublic || isAuthenticated) return;
+    if (typeof window !== 'undefined') {
+      const search = window.location.search;
+      if (search.includes('__quant_sso_ticket') || search.includes('token=')) {
+        return;
+      }
+    }
     const returnTo = encodeURIComponent(router.asPath);
     void router.replace(`/login?returnTo=${returnTo}`);
   }, [isLoading, isPublic, isAuthenticated, router]);

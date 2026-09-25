@@ -28,7 +28,7 @@ let memoryUser: AuthUser | null = null;
 
 /**
  * Reads the auth token from memory session or localStorage.
- * Checks 'token', 'quant_token', and 'quantchat_access_token'.
+ * Checks 'quant_access_token', 'quant_auth_token', 'token', 'quant_token', and 'quantchat_access_token'.
  * Returns null if no token is stored or environment is not browser.
  */
 export function getAuthToken(): string | null {
@@ -36,6 +36,8 @@ export function getAuthToken(): string | null {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
   try {
     const token =
+      localStorage.getItem('quant_access_token') ||
+      localStorage.getItem('quant_auth_token') ||
       localStorage.getItem('token') ||
       localStorage.getItem('quant_token') ||
       localStorage.getItem('quantchat_access_token');
@@ -49,7 +51,7 @@ export function getAuthToken(): string | null {
 }
 
 /**
- * Persists auth token and user in memory session and localStorage.
+ * Persists auth token and user in memory session, localStorage, and cookie.
  * Clears guest exploration flag upon successful login.
  */
 export function setAuthToken(token: string, user?: AuthUser | null): void {
@@ -62,8 +64,13 @@ export function setAuthToken(token: string, user?: AuthUser | null): void {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
     if (token) {
+      localStorage.setItem('quant_access_token', token);
+      localStorage.setItem('quant_auth_token', token);
       localStorage.setItem('token', token);
       localStorage.setItem('quant_token', token);
+      try {
+        document.cookie = `quant_access_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+      } catch {}
     }
     if (user) {
       localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -109,10 +116,15 @@ export function clearAuthSession(): void {
   memoryUser = null;
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
   try {
+    localStorage.removeItem('quant_access_token');
+    localStorage.removeItem('quant_auth_token');
     localStorage.removeItem('token');
     localStorage.removeItem('quant_token');
     localStorage.removeItem('quantchat_access_token');
     localStorage.removeItem(USER_KEY);
+    try {
+      document.cookie = 'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    } catch {}
   } catch {}
 }
 

@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
+import {
+  authSession,
+  clearAccessToken,
+  isTwoFactorChallenge,
+  ingestSSOToken,
+} from '../services/auth-session';
+import { getAuthToken } from '../lib/auth';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -27,12 +34,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(false);
   }, []);
 
-  // Restore a session on load from the HttpOnly refresh cookie. Fail closed and
-  // never hang: a 5s cap means a wedged identity service drops us to logged-out,
-  // not to a spinner forever.
+  // Restore a session on load: first check for incoming SSO tickets/tokens,
+  // then check stored tokens in localStorage/cookies, and finally check the HttpOnly refresh cookie.
   useEffect(() => {
     let active = true;
     (async () => {
+      // 1. Check for incoming SSO ticket or token in URL or UniversalSSOTokenBridge
+      if (typeof window !== 'undefined') {
+        try {
+          const bridge = UniversalSSOTokenBridge.getInstance();
+          const consumed = bridge.consumeHandoffTicket();
+          const params = new URLSearchParams(window.location.search);
+          const ticketParam = params.get('__quant_sso_ticket');
+          const tokenParam =
+            params.get('token') || params.get('accessToken') || params.get('access_token');
+
+          const resolvedToken =
+            consumed?.session?.token ||
+            consumed?.ticket ||
+            (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+            tokenParam;
+
+          if (resolvedToken) {
+            ingestSSOToken(resolvedToken);
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+            if (active) {
+              setIsAuthenticated(true);
+              setIsLoading(false);
+            }
+            return;
+          }
+        } catch {
+          // Sandboxed environment
+        }
+      }
+
+      // 2. Check if a valid token is already cached in localStorage / cookie
+      const existingToken = getAuthToken();
+      if (existingToken) {
+        ingestSSOToken(existingToken);
+        if (active) {
+          setIsAuthenticated(true);
+          setIsLoading(false);
+        }
+        // Background verify/refresh
+        authSession.refresh().catch(() => null);
+        return;
+      }
+
+      // 3. Fall back to refresh endpoint with 5s timeout
       try {
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('auth-timeout')), 5000),

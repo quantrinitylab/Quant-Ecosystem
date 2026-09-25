@@ -6,6 +6,7 @@
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
 import { apiClient } from './api-client';
+import { getAuthToken, setAuthToken, clearAuthSession } from '../lib/auth';
 
 export interface SessionData {
   accessToken?: string;
@@ -23,16 +24,23 @@ export interface SessionResult {
 let accessToken: string | null = null;
 
 export function getAccessToken(): string | null {
-  return accessToken;
+  return accessToken || getAuthToken();
 }
 
-function setAccessToken(token: string | null): void {
+export function setAccessToken(token: string | null): void {
   accessToken = token;
   apiClient.setToken(token ?? '');
 }
 
 export function clearAccessToken(): void {
   setAccessToken(null);
+  clearAuthSession();
+}
+
+/** Ingests an SSO ticket/token, syncing memory, apiClient, and localStorage. */
+export function ingestSSOToken(token: string): void {
+  setAccessToken(token);
+  setAuthToken(token);
 }
 
 export function isTwoFactorChallenge(
@@ -58,7 +66,10 @@ async function postAuth(action: string, body?: unknown): Promise<SessionResult> 
       };
     }
     // NO_SESSION is a clean unauthenticated state, not a hard failure.
-    if (json.data?.accessToken) setAccessToken(json.data.accessToken);
+    if (json.data?.accessToken) {
+      setAccessToken(json.data.accessToken);
+      setAuthToken(json.data.accessToken);
+    }
     return json;
   } catch {
     return {
@@ -72,8 +83,18 @@ export const authSession = {
   login(email: string, password: string): Promise<SessionResult> {
     return postAuth('login', { email, password });
   },
-  refresh(): Promise<SessionResult> {
-    return postAuth('refresh');
+  async refresh(): Promise<SessionResult> {
+    const res = await postAuth('refresh');
+    if (res.success && res.data?.accessToken) {
+      return res;
+    }
+    // Fallback: If an SSO token is stored in localStorage or cookie, re-hydrate from it
+    const stored = getAuthToken();
+    if (stored) {
+      setAccessToken(stored);
+      return { success: true, data: { accessToken: stored } };
+    }
+    return res;
   },
   async logout(): Promise<void> {
     await postAuth('logout').catch(() => undefined);

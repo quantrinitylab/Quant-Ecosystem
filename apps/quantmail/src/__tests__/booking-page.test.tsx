@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import PublicBookingPage, {
+import PublicBookingPage from '../app/calendar/booking/[slug]/page';
+import {
   generateIcsContent,
   generateGoogleCalendarUrl,
-} from '../app/calendar/booking/[slug]/page';
+} from '../app/calendar/booking/[slug]/booking-utils';
 import {
   BookingLinksModal,
   slugify,
@@ -23,7 +24,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
   describe('PublicBookingPage Component (/calendar/booking/[slug])', () => {
     it('renders the completely public booking page with 2-column layout (no auth gate required)', () => {
       const html = renderToStaticMarkup(
-        <PublicBookingPage params={{ slug: '30-min-strategy-session' }} />,
+        <PublicBookingPage params={Promise.resolve({ slug: '30-min-strategy-session' })} />,
       );
 
       // Verify Brand & Public Header
@@ -64,7 +65,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
 
     it('renders multiple timezone options in the timezone selector', () => {
       const html = renderToStaticMarkup(
-        <PublicBookingPage params={{ slug: 'strategy-session' }} />,
+        <PublicBookingPage params={Promise.resolve({ slug: 'strategy-session' })} />,
       );
 
       expect(html).toContain('Asia/Kolkata');

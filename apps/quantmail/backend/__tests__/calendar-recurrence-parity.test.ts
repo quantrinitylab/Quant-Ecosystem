@@ -1020,7 +1020,8 @@ describe('Wave 6 (Phase C) Calendar Recurrence Parity & Exceptions Suite', () =>
       expect(res.statusCode).toBe(201);
       const json = res.json();
       expect(json.success).toBe(true);
-      expect(json.data.title).toContain('Founder Office Hours');
+      const eventTitle = json.data.event?.title || json.data.title;
+      expect(eventTitle).toContain('Founder Office Hours');
     });
   });
 });
