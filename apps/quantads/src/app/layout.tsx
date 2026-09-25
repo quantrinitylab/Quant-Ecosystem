@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '../providers/query-provider';
+import { AuthProvider } from '../providers/auth-provider';
 import { AppProviders } from '../providers/app-providers';
 import { AppLayout } from '../components/AppLayout';
 import { quantads, generateFaviconSvg } from '@quant/brand';
@@ -29,9 +30,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className={inter.className}>
         <QueryProvider>
-          <AppProviders>
-            <AppLayout>{children}</AppLayout>
-          </AppProviders>
+          {/* One session for the whole tree; AuthGuard inside AppProviders reads it. */}
+          <AuthProvider>
+            <AppProviders>
+              <AppLayout>{children}</AppLayout>
+            </AppProviders>
+          </AuthProvider>
         </QueryProvider>
       </body>
     </html>

@@ -88,7 +88,7 @@ export default function WalletPage() {
           title="Sign in to view your wallet"
           description="Sign in with your Quant account."
         />
-        <Link href="/auth/login">
+        <Link href="/login">
           <Button variant="primary" className="mt-4">
             Sign in
           </Button>

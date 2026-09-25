@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { AppShell, Sidebar } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
+import { PUBLIC_PATHS } from '../lib/return-path';
 
 const NAV_ITEMS: { id: string; label: string; href: string }[] = [
   { id: 'dashboard', label: 'Dashboard', href: '/' },
@@ -16,6 +17,10 @@ const NAV_ITEMS: { id: string; label: string; href: string }[] = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Sign-in renders standalone: a signed-out visitor should not see campaign
+  // navigation they cannot use sitting behind the sign-in form.
+  if (pathname && PUBLIC_PATHS.has(pathname)) return <>{children}</>;
 
   const sidebarItems: SidebarItem[] = NAV_ITEMS.map((item) => ({
     id: item.id,

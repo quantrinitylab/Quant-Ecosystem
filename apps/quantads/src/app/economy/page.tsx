@@ -57,7 +57,7 @@ export default function EconomyOverviewPage() {
           title="Sign in to your economy"
           description="Sign in with your Quant account."
         />
-        <Link href="/auth/login">
+        <Link href="/login">
           <Button variant="primary" className="mt-4">
             Sign in
           </Button>

@@ -132,7 +132,7 @@ export default function CreatorPage() {
           title="Sign in to the Creator Marketplace"
           description="Sign in with your Quant account to browse, buy, and track your creator earnings."
         />
-        <Link href="/auth/login">
+        <Link href="/login">
           <Button variant="primary" className="mt-4">
             Sign in
           </Button>
