@@ -137,6 +137,15 @@
 - [x] **Task W39-SH05**: Instant Done/Archive Undo Sentinel (`apps/quantmail/src/hooks/useInboxKeyboard.ts`): Instant `Z` keystroke undo-archive restoration with zero text-input typing conflicts. (Verified 100% green: 10/10 tests in `use-inbox-keyboard.test.ts` passing, `lastArchivedThread` tracked, `mutations.unarchive` invoked with toast feedback).
 - [x] **Task W39-SH06**: Comprehensive Vitest Suites: 100% green tests in `superhuman-dock.test.tsx`, `undo-send-bar.test.tsx`, `split-inbox-heuristics.test.ts`, and `use-inbox-keyboard.test.ts`. (Verified 100% green: 73/73 tests passing across 4 dedicated suites, 0 TS compiler errors).
 
+### Track 6: QuantDrive Google Drive & Dropbox Competitor Superiority Sprint (`apps/quantmail/src/app/drive`)
+
+- [x] **Task W39-DRV01**: File Version History & 1-Click Rollback Modal (`apps/quantmail/src/components/drive/FileVersionHistoryModal.tsx`): Slide-over/modal showing version list (version number, size, date, author), version diff comparison, and 1-click "Restore this version" calling `/api/drive/files/:id/versions/:versionId/restore`. (Verified 100% green: 18/18 tests passing in `drive-version-history.test.tsx`).
+- [x] **Task W39-DRV02**: Drive AI Insights & Entity Extraction Drawer (`apps/quantmail/src/components/drive/FileAISummaryDrawer.tsx`): Drawer for selected documents/spreadsheets showing AI-generated summary, key entity extraction (tables, dates, amounts, contacts), and copyable text backed by `/api/drive/ai/summarize` and `/api/drive/ai/extract-invoice`. (Verified 100% green: 18/18 tests passing in `drive-ai-insights.test.tsx`).
+- [x] **Task W39-DRV03**: Drive AI Duplicate File Cleaner Modal (`apps/quantmail/src/components/drive/AIDuplicateCleanerModal.tsx`): Visual diff scanner showing identical/near-identical files with hash matching, size savings counter, and 1-click batch delete/archive backed by `/api/drive/ai/duplicates`. (Verified 100% green: 27/27 tests passing in `drive-duplicate-cleaner.test.tsx`).
+- [x] **Task W39-DRV04**: In-File Semantic Search & Storage Quota Meter (`apps/quantmail/src/components/drive/DriveAISearchBar.tsx` & `StorageQuotaBar.tsx`): In-content semantic search with snippet highlights & match scores (`/api/drive/ai/search`) + real-time storage quota bar with tier limits (`/api/drive/quota`). (Verified 100% green: 25/25 tests passing in `drive-search-quota.test.tsx`).
+- [x] **Task W39-DRV05**: QuantDrive Page Integration & Wire-Up (`apps/quantmail/src/app/drive/page.tsx` & `hooks/useDrive.ts`): Wired all modals/drawers into Drive table/grid views, added action buttons in toolbar and row actions, mounted storage meter and semantic search header. (Verified: 0 TypeScript errors, `tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` clean).
+- [x] **Task W39-DRV06**: Comprehensive Drive Vitest Suites: 100% green tests across all 4 dedicated suites: `drive-version-history.test.tsx` (18), `drive-ai-insights.test.tsx` (18), `drive-duplicate-cleaner.test.tsx` (27), and `drive-search-quota.test.tsx` (25) -> 88/88 tests passing 100% green.
+
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)

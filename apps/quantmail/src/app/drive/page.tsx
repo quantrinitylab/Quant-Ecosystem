@@ -22,6 +22,11 @@ import {
   IconStarFilled,
   IconUpload,
 } from '../../components/icons';
+import { FileVersionHistoryModal } from '../../components/drive/FileVersionHistoryModal';
+import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
+import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
+import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
+import { DriveAISearchBar } from '../../components/drive/DriveAISearchBar';
 
 type DriveItem = {
   id: string;
@@ -360,6 +365,10 @@ export default function DrivePage() {
   const [loadingSpecial, setLoadingSpecial] = useState<boolean>(false);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [versionHistoryFile, setVersionHistoryFile] = useState<DriveItem | null>(null);
+  const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
+  const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
 
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
@@ -951,6 +960,28 @@ export default function DrivePage() {
               <span className="hidden md:inline">New Folder</span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setIsDuplicateCleanerOpen(true)}
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#F5F5F5] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              aria-label="Find and clean duplicate files"
+            >
+              <svg
+                className="size-3.5 text-[#FF8C42]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+                />
+              </svg>
+              <span className="hidden md:inline">Duplicates</span>
+            </button>
+
             {/* Desktop only: on mobile this action belongs to the FAB alone. */}
             <button
               type="button"
@@ -960,6 +991,32 @@ export default function DrivePage() {
               <IconUpload size={14} />
               <span>Upload</span>
             </button>
+          </div>
+        </div>
+
+        {/* Storage Quota & Semantic Search Header Bar */}
+        <div className="border-b border-[var(--quant-border)] bg-[#0C0D11] px-4 py-3 sm:px-8 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+          <div className="w-full lg:max-w-xl">
+            <DriveAISearchBar
+              onSelectFile={(selectedFileId) => {
+                const target = files.find((f) => f.id === selectedFileId);
+                if (target) {
+                  setPreviewItem(target);
+                } else {
+                  downloadFile(selectedFileId, 'file');
+                }
+              }}
+            />
+          </div>
+          <div className="w-full lg:max-w-md shrink-0">
+            <StorageQuotaBar
+              onUpgradeClick={() =>
+                showToast({
+                  text: 'Storage upgrade options: contact enterprise admin or visit settings.',
+                  type: 'info',
+                })
+              }
+            />
           </div>
         </div>
 
@@ -1638,6 +1695,54 @@ export default function DrivePage() {
                                     </button>
                                     <button
                                       type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setVersionHistoryFile(file);
+                                      }}
+                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#60A5FA] hover:bg-white/5 transition-colors"
+                                      title="Versions"
+                                      aria-label={`Version history for ${file.name}`}
+                                    >
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.8}
+                                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                                        />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAiSummaryFile(file);
+                                      }}
+                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#FF8C42] hover:bg-white/5 transition-colors"
+                                      title="AI Insights"
+                                      aria-label={`AI insights for ${file.name}`}
+                                    >
+                                      <svg
+                                        className="w-3.5 h-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={1.8}
+                                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                                        />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
                                       className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
                                       title="Delete"
@@ -1840,6 +1945,20 @@ export default function DrivePage() {
                                           className="text-xs text-[#A1A4AC] hover:text-white font-semibold"
                                         >
                                           Rename
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setVersionHistoryFile(file)}
+                                          className="text-xs text-[#A1A4AC] hover:text-[#60A5FA] font-semibold"
+                                        >
+                                          Versions
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setAiSummaryFile(file)}
+                                          className="text-xs text-[#A1A4AC] hover:text-[#FF8C42] font-semibold"
+                                        >
+                                          AI Insights
                                         </button>
                                         <button
                                           type="button"
@@ -2071,7 +2190,27 @@ export default function DrivePage() {
                 </p>
               </div>
             )}
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              {previewItem && (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setVersionHistoryFile(previewItem);
+                    }}
+                  >
+                    Version History
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setAiSummaryFile(previewItem);
+                    }}
+                  >
+                    AI Insights
+                  </Button>
+                </>
+              )}
               <Button variant="secondary" onClick={() => setPreviewItem(null)}>
                 Close
               </Button>
@@ -2172,6 +2311,30 @@ export default function DrivePage() {
             </div>
           </div>
         </Modal>
+
+        {/* Drive File Version History Modal */}
+        <FileVersionHistoryModal
+          isOpen={!!versionHistoryFile}
+          fileId={versionHistoryFile?.id ?? ''}
+          fileName={versionHistoryFile?.name ?? ''}
+          onClose={() => setVersionHistoryFile(null)}
+          onRestoreSuccess={() => fetchFiles(currentFolderId)}
+        />
+
+        {/* QuantDrive File AI Insights Drawer */}
+        <FileAISummaryDrawer
+          isOpen={!!aiSummaryFile}
+          file={aiSummaryFile}
+          onClose={() => setAiSummaryFile(null)}
+        />
+
+        {/* QuantDrive AI Duplicate Cleaner Modal */}
+        <AIDuplicateCleanerModal
+          isOpen={isDuplicateCleanerOpen}
+          onClose={() => setIsDuplicateCleanerOpen(false)}
+          onCleanupComplete={() => fetchFiles(currentFolderId)}
+        />
+
         {dialog}
       </div>
     </AppShell>

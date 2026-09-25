@@ -36,7 +36,7 @@ const MEMORY_APP_LABELS: Record<string, string> = {
 const MEMORY_SHARED_SESSIONS = new Set(['user-style', 'user-contacts']);
 const AI_FILE_SCHEMA = z.object({ fileId: z.string().min(1) });
 const AI_SEARCH_SCHEMA = z.object({
-  fileId: z.string().min(1),
+  fileId: z.string().min(1).optional(),
   query: z.string().trim().min(1).max(500),
   limit: z.number().int().min(1).max(100).optional(),
 });
@@ -495,8 +495,11 @@ export default async function driveRoutes(fastify: FastifyInstance) {
   fastify.post('/drive/ai/search', async (request, reply) => {
     const parsed = AI_SEARCH_SCHEMA.safeParse(request.body);
     if (!parsed.success) throw parsed.error;
-    const { userId, file, content } = await aiFile(request, { fileId: parsed.data.fileId });
-    await searchService.indexFile(file.id, file.name, content, file.mimeType, userId);
+    const userId = requireUserId(request);
+    if (parsed.data.fileId) {
+      const { file, content } = await aiFile(request, { fileId: parsed.data.fileId });
+      await searchService.indexFile(file.id, file.name, content, file.mimeType, userId);
+    }
     const results = await searchService.searchContent(parsed.data.query, userId, {
       limit: parsed.data.limit,
     });
