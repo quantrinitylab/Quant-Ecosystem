@@ -5,55 +5,65 @@
  */
 
 import { Command } from 'commander';
+import { registerAuthCommands } from './commands/auth.js';
+import { registerRepoCommands } from './commands/repo.js';
+import { registerPrCommands } from './commands/pr.js';
+import { registerMailCommands } from './commands/mail.js';
+import { registerDriveCommands } from './commands/drive.js';
+import { registerCalendarCommands } from './commands/calendar.js';
 
-const program = new Command();
+export * from './config.js';
+export * from './client.js';
+export * from './git-utils.js';
+export * from './commands/auth.js';
+export * from './commands/repo.js';
+export * from './commands/pr.js';
+export * from './commands/mail.js';
+export * from './commands/drive.js';
+export * from './commands/calendar.js';
 
-program
-  .name('quant')
-  .description('The official terminal CLI for the Quant Ecosystem (Mail, CodeHub, Drive, Calendar)')
-  .version('1.0.0');
+export function createCli(): Command {
+  const program = new Command();
 
-// Subcommands
-program
-  .command('auth')
-  .description('Manage Quant account authentication and API tokens')
-  .action(() => {
-    console.log('Run `quant auth login` to authenticate with your Quant account.');
-  });
+  program
+    .name('quant')
+    .description(
+      'The official terminal CLI for the Quant Ecosystem (Mail, CodeHub, Drive, Calendar)',
+    )
+    .version('1.0.0')
+    .option('--json', 'Output machine-readable JSON')
+    .option('--api-url <url>', 'Override default API endpoint URL')
+    .action(() => {});
 
-program
-  .command('mail')
-  .description('Inspect, triage, and send emails')
-  .action(() => {
-    console.log('Run `quant mail inbox` to view unread messages.');
-  });
+  // Register commands
+  registerAuthCommands(program);
+  registerRepoCommands(program);
+  registerPrCommands(program);
+  registerMailCommands(program);
+  registerDriveCommands(program);
+  registerCalendarCommands(program);
 
-program
-  .command('repo')
-  .description('CodeHub repository management (clone, fork, view branches)')
-  .action(() => {
-    console.log('Run `quant repo clone <owner>/<repo>` to clone a CodeHub repository.');
-  });
+  return program;
+}
 
-program
-  .command('pr')
-  .description('Create, list, and review CodeHub Pull Requests')
-  .action(() => {
-    console.log('Run `quant pr create` to submit a pull request.');
-  });
+const program = createCli();
 
-program
-  .command('drive')
-  .description('QuantDrive file uploads, downloads, and directory sync')
-  .action(() => {
-    console.log('Run `quant drive ls` to list stored files.');
-  });
+if (
+  !process.env.VITEST &&
+  typeof process !== 'undefined' &&
+  process.argv &&
+  process.argv.length > 1
+) {
+  const scriptPath = process.argv[1]?.replace(/\\/g, '/');
+  if (
+    scriptPath &&
+    (scriptPath.endsWith('/quant') ||
+      scriptPath.endsWith('/index.js') ||
+      scriptPath.endsWith('/index.ts') ||
+      scriptPath.endsWith('/quant.js'))
+  ) {
+    program.parse(process.argv);
+  }
+}
 
-program
-  .command('calendar')
-  .description('Inspect schedule and create booking slots')
-  .action(() => {
-    console.log('Run `quant calendar agenda` to inspect upcoming events.');
-  });
-
-program.parse(process.argv);
+export { program };

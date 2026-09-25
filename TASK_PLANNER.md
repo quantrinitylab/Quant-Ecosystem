@@ -146,6 +146,14 @@
 - [x] **Task W39-DRV05**: QuantDrive Page Integration & Wire-Up (`apps/quantmail/src/app/drive/page.tsx` & `hooks/useDrive.ts`): Wired all modals/drawers into Drive table/grid views, added action buttons in toolbar and row actions, mounted storage meter and semantic search header. (Verified: 0 TypeScript errors, `tsc --noEmit` and `tsc --noEmit -p tsconfig.backend.json` clean).
 - [x] **Task W39-DRV06**: Comprehensive Drive Vitest Suites: 100% green tests across all 4 dedicated suites: `drive-version-history.test.tsx` (18), `drive-ai-insights.test.tsx` (18), `drive-duplicate-cleaner.test.tsx` (27), and `drive-search-quota.test.tsx` (25) -> 88/88 tests passing 100% green.
 
+### Track 7: Sovereign Terminal CLI Parity Sprint (`packages/cli` — GitHub `gh` & Superhuman Parity)
+
+- [ ] **Task W39-CLI01**: CLI Core Config & Authentication Engine (`packages/cli/src/config.ts` & `commands/auth.ts`): Token storage in `~/.quant/config.json`, `quant auth login`, `quant auth status`, `quant auth whoami`, and `quant auth token` with OAuth2 / API key support.
+- [ ] **Task W39-CLI02**: CodeHub GitHub CLI Parity Engine (`packages/cli/src/commands/repo.ts` & `commands/pr.ts`): `quant repo list`, `quant repo clone <repo>`, `quant repo view <repo>`, `quant pr list`, `quant pr create`, `quant pr view <id>`, `quant pr merge <id>` calling CodeHub Fastify routes.
+- [ ] **Task W39-CLI03**: Superhuman Fast Email CLI Engine (`packages/cli/src/commands/mail.ts`): `quant mail inbox`, `quant mail read <id>`, `quant mail send`, `quant mail search <q>` with fast terminal triage, colored priority tags, and JSON output mode.
+- [ ] **Task W39-CLI04**: QuantDrive & Calendar CLI Engine (`packages/cli/src/commands/drive.ts` & `commands/calendar.ts`): `quant drive ls`, `quant drive upload <file>`, `quant drive quota`, `quant drive duplicates` + `quant calendar agenda`, `quant calendar book`.
+- [ ] **Task W39-CLI05**: CLI Entrypoint Wire-Up & Comprehensive Vitest Suite (`packages/cli/src/index.ts` & `packages/cli/src/__tests__/cli.test.ts`): Wire all subcommands into `quant` CLI, author 100% green test suite, and verify typecheck (`pnpm --filter @quant/cli build`).
+
 ---
 
 ## 🏆 COMPLETED MILESTONES (VERIFIED IN MAIN)
@@ -2299,3 +2307,36 @@
   - **Assigned Developer Agent**: Developer 2 (QA Sentinel Lead) & Developer 7 (QuantAI Swarm Lead)
   - **Exact Acceptance Criteria**: End-to-end integration test verifying full cross-app automated pipeline: (1) `quantmail.read` extracts bug report; (2) `quantgit.create_pr` commits fix; (3) `quantcooks.render_video` generates changelog video; (4) `quantwave.create_post` posts announcement; (5) `quantcredits.transfer` rewards contributor. All 5 steps execute sequentially with 0 manual interventions.
   - **Vitest Test Suite Requirement**: `tests/integration/ecosystem-flywheel.test.ts`
+
+---
+
+### 🌐 Omnichannel Cross-Platform Sovereign Sprints (Terminal CLI, Android APK, Desktop, Web)
+
+- [x] **Track 7: Sovereign Terminal CLI Parity (`packages/cli`)**
+  - **Target Files**: `packages/cli/src/config.ts`, `packages/cli/src/client.ts`, `packages/cli/src/git-utils.ts`, `packages/cli/src/commands/*.ts`, `packages/cli/src/index.ts`
+  - **Assigned Subagents**: Subagents C1–C5 (Node C Fleet)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (110/110 Vitest tests passing across 7 suites, 0 TS compiler errors, exit code 0 build)
+  - **Capabilities**:
+    - `quant auth login`, `logout`, `status`, `whoami`, `token` (Bearer token auth & `~/.quant/config.json`)
+    - `quant repo list`, `clone`, `view`, `create` (GitHub `gh repo` parity)
+    - `quant pr list`, `create`, `view`, `merge` (GitHub `gh pr` parity with 3-way merge)
+    - `quant mail inbox`, `read`, `send`, `search`, `archive`, `restore`, `star` (Superhuman-fast terminal triaging)
+    - `quant drive ls`, `upload`, `download`, `quota`, `duplicates` (Google Drive & Dropbox CLI parity)
+    - `quant calendar agenda`, `book <slug>` (Google Calendar agenda & Calendly booking parity)
+    - Global flags `--json` and `--api-url <url>`
+
+- [ ] **Track 8: Android APK & Mobile App Hardening (`apps/quant-mobile` & `android-project`)**
+  - **Target Files**: `apps/quant-mobile/src/`, `android-project/`, `apk testing/`
+  - **Assigned Subagents**: Subagents M1–M5
+  - **Exact Acceptance Criteria**: Verify and run Android Gradle build (`./gradlew assembleDebug`), ensure native biometrics, FCM push notifications, offline CRDT sync, and WebRTC audio/video call bridges are functional and deliver fresh installable APK in `apk testing/`.
+  - **Vitest Suite**: `apps/quant-mobile` (111/111 passing green)
+
+- [ ] **Track 9: Desktop Client Parity (`apps/quant-desktop` - Tauri v2 + Rust)**
+  - **Target Files**: `apps/quant-desktop/src/`, `apps/quant-desktop/src-tauri/`
+  - **Assigned Subagents**: Subagents D1–D5
+  - **Exact Acceptance Criteria**: Tauri 2.0 system tray integration, native global hotkey `Cmd+K` / `Ctrl+K`, offline SQLite / VFS cache, and background notification listener.
+
+- [ ] **Track 10: Web Unauthenticated Public Feeds (`apps/quantube` & `apps/quantmax`)**
+  - **Target Files**: `apps/quantube/src/app/api/videos/route.ts`, `apps/quantmax/src/app/api/feed/for-you/route.ts`
+  - **Assigned Subagents**: Subagents W1–W5
+  - **Exact Acceptance Criteria**: Eliminate 401 Unauthorized errors on public video and reels feeds for non-logged-in visitors, matching YouTube and TikTok open discoverability.
