@@ -408,6 +408,39 @@ export default function QuantGitPage() {
         const payload = await response.json().catch(() => null);
 
         if (!response.ok || !payload?.success) {
+          if (response.status === 404) {
+            const fileName = file.path.split('/').pop() || file.name || 'file.txt';
+            let template = '';
+            if (fileName.toLowerCase() === 'package.json') {
+              template = JSON.stringify(
+                {
+                  name: repo.name,
+                  version: '1.0.0',
+                  private: true,
+                  dependencies: {},
+                },
+                null,
+                2,
+              );
+            } else if (fileName.toLowerCase().endsWith('.md')) {
+              template = `# ${fileName}\n\nSovereign workspace documentation.`;
+            } else if (
+              fileName.toLowerCase().endsWith('.ts') ||
+              fileName.toLowerCase().endsWith('.tsx')
+            ) {
+              template = `export function sovereignModule() {\n  return 'Quant Sovereign';\n}\n`;
+            } else if (fileName.toLowerCase().endsWith('.json')) {
+              template = `{\n  "name": "${repo.name}"\n}\n`;
+            } else {
+              template = file.content || '';
+            }
+            setViewingFile({
+              ...file,
+              content: template,
+            });
+            setViewingBlobSha('');
+            return;
+          }
           throw new Error(
             payload?.error?.message || payload?.message || 'Failed to load file content.',
           );
@@ -1478,10 +1511,6 @@ export default function QuantGitPage() {
         throw new Error('No repository is selected.');
       }
 
-      if (!input.expectedBlobSha) {
-        throw new Error('The file has no blob SHA. Reload it before committing.');
-      }
-
       const repoTarget = selectedRepo.id || selectedRepo.name;
       const response = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/file`, {
         method: 'PATCH',
@@ -1493,7 +1522,7 @@ export default function QuantGitPage() {
           branch: input.branch,
           content: input.content,
           message: input.message,
-          parentSha: input.expectedBlobSha,
+          parentSha: input.expectedBlobSha || null,
         }),
       });
       const payload = await response.json().catch(() => null);
@@ -1517,6 +1546,28 @@ export default function QuantGitPage() {
           : current,
       );
       setViewingBlobSha(payload.data?.blobSha || payload.data?.sha || '');
+
+      setFiles((currentFiles) => {
+        const path = input.path;
+        const exists = currentFiles.some((f) => f.path === path);
+        if (exists) {
+          return currentFiles.map((f) => (f.path === path ? { ...f, content: input.content } : f));
+        } else {
+          const parts = path.split('/');
+          const name = parts[parts.length - 1];
+          return [
+            ...currentFiles,
+            {
+              path,
+              name,
+              type: 'file',
+              content: input.content,
+              size: `${input.content.length} B`,
+            },
+          ];
+        }
+      });
+
       showToast(`Committed ${input.path} at ${String(payload.data?.commitSha || '').slice(0, 8)}`);
       closeBlobEditor();
       await fetchRepos();
@@ -1694,6 +1745,7 @@ export default function QuantGitPage() {
                   onNavigatePath={setCurrentPath}
                   onSelectBranch={setCurrentBranch}
                   showToast={showToast}
+                  onCommitBlob={handleCommitBlob}
                 />
               )}
 

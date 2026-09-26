@@ -7,6 +7,14 @@ import { BranchSelectorModal } from './BranchSelectorModal';
 import { CloneCodespacesMenu } from './CloneCodespacesMenu';
 import { MarkdownPreview } from './MarkdownPreview';
 
+export type CommitBlobInput = {
+  path: string;
+  branch: string;
+  content: string;
+  message: string;
+  expectedBlobSha: string;
+};
+
 export interface CodeTabProps {
   selectedRepo: Repo;
   currentBranch: string;
@@ -18,6 +26,7 @@ export interface CodeTabProps {
   onNavigatePath?: (path: string) => void;
   onSelectBranch?: (branch: string) => void;
   showToast: (msg: string) => void;
+  onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
 }
 
 // Helper to determine specialized file icons
@@ -87,11 +96,22 @@ export function CodeTab({
   onNavigatePath,
   onSelectBranch,
   showToast,
+  onCommitBlob,
 }: CodeTabProps) {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isCodeMenuOpen, setIsCodeMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'directory' | 'tree'>('directory');
   const [filterQuery, setFilterQuery] = useState('');
+  const [editingFile, setEditingFile] = useState<FileNode | null>(null);
+  const [isAddFileOpen, setIsAddFileOpen] = useState(false);
+  const [editorTheme, setEditorTheme] = useState<'github-dark' | 'github-light'>('github-dark');
+  const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit');
+  const [commitMessage, setCommitMessage] = useState('');
+  const [commitDescription, setCommitDescription] = useState('');
+  const [branchAction, setBranchAction] = useState<'direct' | 'pr'>('direct');
+  const [isCommitting, setIsCommitting] = useState(false);
+  const uploadInputRef = React.useRef<HTMLInputElement>(null);
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
     // Expand root dirs or active path by default
     const set = new Set<string>();
@@ -308,6 +328,248 @@ pnpm install && pnpm dev
     showToast(`Copied path: ${fullPath}`);
   };
 
+  if (editingFile) {
+    const isMarkdown =
+      editingFile.name.toLowerCase().endsWith('.md') ||
+      editingFile.path.toLowerCase().endsWith('.md');
+    const lines = editingFile.content ? editingFile.content.split('\n') : [''];
+
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div
+          className={`lg:col-span-4 flex flex-col rounded-xl border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3] border-[#30363D]' : 'bg-white text-[#1F2328] border-[#D0D7DE]'}`}
+        >
+          {/* Breadcrumb path bar */}
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D]' : 'bg-[#F6F8FA] border-[#D0D7DE]'}`}
+          >
+            <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+              <span className="text-xs font-mono text-[#7D8590]">{selectedRepo.name} /</span>
+              <input
+                type="text"
+                value={editingFile.path}
+                onChange={(e) =>
+                  setEditingFile({
+                    ...editingFile,
+                    path: e.target.value,
+                    name: e.target.value.split('/').pop() || editingFile.name,
+                  })
+                }
+                placeholder="Name your file..."
+                className={`flex-1 px-3 py-1 rounded font-mono text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+              />
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#21262D] text-[#58A6FF] border border-[#30363D]">
+                {currentBranch}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex rounded border border-[#30363D] overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setEditorMode('edit')}
+                  className={`px-3 py-1 text-xs font-semibold ${editorMode === 'edit' ? 'bg-[#238636] text-white' : 'bg-[#21262D] text-[#7D8590]'}`}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorMode('preview')}
+                  className={`px-3 py-1 text-xs font-semibold ${editorMode === 'preview' ? 'bg-[#238636] text-white' : 'bg-[#21262D] text-[#7D8590]'}`}
+                >
+                  Preview
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setEditorTheme((t) => (t === 'github-dark' ? 'github-light' : 'github-dark'))
+                }
+                className="px-2.5 py-1 rounded border border-[#30363D] text-xs bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]"
+              >
+                {editorTheme === 'github-dark' ? '☀️ Light' : '🌙 Dark'}
+              </button>
+            </div>
+          </div>
+
+          {/* Editor Body */}
+          <div className="flex-1 min-h-[350px] relative flex flex-col overflow-hidden">
+            {editorMode === 'preview' && isMarkdown ? (
+              <div className="flex-1 p-6 overflow-y-auto">
+                <MarkdownPreview
+                  content={editingFile.content || ''}
+                  repoName={selectedRepo.name}
+                  cloneUrl={selectedRepo.cloneUrl}
+                  defaultBranch={currentBranch}
+                  onEdit={() => setEditorMode('edit')}
+                />
+              </div>
+            ) : (
+              <div
+                className={`flex flex-1 min-h-0 font-mono text-xs ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3]' : 'bg-white text-[#1F2328]'}`}
+              >
+                <div
+                  aria-hidden="true"
+                  className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]' : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'}`}
+                >
+                  {lines.map((_, idx) => (
+                    <div key={idx}>{idx + 1}</div>
+                  ))}
+                </div>
+
+                <textarea
+                  ref={textareaRef}
+                  value={editingFile.content || ''}
+                  onChange={(e) => setEditingFile({ ...editingFile, content: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Tab') {
+                      e.preventDefault();
+                      const target = e.currentTarget;
+                      const start = target.selectionStart;
+                      const end = target.selectionEnd;
+                      const val = editingFile.content || '';
+                      const updated = `${val.slice(0, start)}  ${val.slice(end)}`;
+                      setEditingFile({ ...editingFile, content: updated });
+                      requestAnimationFrame(() => {
+                        target.selectionStart = start + 2;
+                        target.selectionEnd = start + 2;
+                      });
+                    }
+                  }}
+                  spellCheck={false}
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3]' : 'bg-white text-[#1F2328]'}`}
+                  placeholder="Type your code or markdown content here..."
+                />
+              </div>
+            )}
+
+            <div
+              className={`flex items-center justify-between px-4 py-1.5 text-[11px] border-t ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D] text-[#7D8590]' : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'}`}
+            >
+              <span>
+                {lines.length} lines · {(editingFile.content || '').length} characters
+              </span>
+              <span>Tab size: 2 spaces</span>
+            </div>
+          </div>
+
+          {/* GitHub-Parity Commit Changes Box */}
+          <div
+            className={`p-4 border-t space-y-3 ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D]' : 'bg-[#F6F8FA] border-[#D0D7DE]'}`}
+          >
+            <h3 className="font-bold text-sm">Commit changes</h3>
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                placeholder={`Create ${editingFile.name || 'file'}`}
+                className={`w-full px-3 py-1.5 rounded text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+              />
+              <textarea
+                value={commitDescription}
+                onChange={(e) => setCommitDescription(e.target.value)}
+                placeholder="Add an optional extended description..."
+                rows={2}
+                className={`w-full px-3 py-1.5 rounded text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+              />
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="branchingOption"
+                  checked={branchAction === 'direct'}
+                  onChange={() => setBranchAction('direct')}
+                  className="text-[#238636]"
+                />
+                <span>
+                  Commit directly to the{' '}
+                  <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="branchingOption"
+                  checked={branchAction === 'pr'}
+                  onChange={() => setBranchAction('pr')}
+                  className="text-[#238636]"
+                />
+                <span>
+                  Create a <strong className="font-mono text-[#58A6FF]">new branch</strong> for this
+                  commit and start a pull request
+                </span>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingFile(null)}
+                className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isCommitting || !commitMessage.trim()}
+                onClick={async () => {
+                  if (!onCommitBlob) {
+                    showToast('Commit handler not connected.');
+                    return;
+                  }
+                  setIsCommitting(true);
+                  try {
+                    await onCommitBlob({
+                      path: editingFile.path,
+                      branch: currentBranch,
+                      content: editingFile.content || '',
+                      message: `${commitMessage.trim()}${commitDescription ? `\n\n${commitDescription.trim()}` : ''}`,
+                      expectedBlobSha:
+                        (editingFile as any).sha || (editingFile as any).blobSha || '',
+                    });
+                    setEditingFile(null);
+                  } catch (err) {
+                    showToast(err instanceof Error ? err.message : 'Failed to commit changes.');
+                  } finally {
+                    setIsCommitting(false);
+                  }
+                }}
+                className="px-4 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
+              >
+                {isCommitting && (
+                  <svg
+                    className="animate-spin h-3.5 w-3.5 text-white"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                )}
+                <span>Commit changes</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
       {/* Left / Main Column (75%) */}
@@ -416,13 +678,90 @@ pnpm install && pnpm dev
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => showToast('Create/Upload file action')}
-              className="px-2.5 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
-            >
-              Add file ▼
-            </button>
+            {/* Interactive Add File Dropdown & Upload */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsAddFileOpen((prev) => !prev)}
+                className="px-2.5 py-1.5 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold flex items-center gap-1"
+              >
+                <span>Add file</span>
+                <span className="text-[10px]">▼</span>
+              </button>
+
+              {isAddFileOpen && (
+                <div className="absolute right-0 mt-1 w-48 rounded-md bg-[#161B22] border border-[#30363D] shadow-xl z-50 py-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddFileOpen(false);
+                      const newPath = currentPath ? `${currentPath}/new-file.ts` : 'new-file.ts';
+                      setEditingFile({
+                        path: newPath,
+                        name: 'new-file.ts',
+                        type: 'file',
+                        content: 'export function newModule() {\n  return true;\n}\n',
+                      });
+                      setCommitMessage(`Create new-file.ts`);
+                      setEditorMode('edit');
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium"
+                  >
+                    <span className="text-[#3FB950] font-bold">+</span>
+                    <span>Create new file</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddFileOpen(false);
+                      uploadInputRef.current?.click();
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium border-t border-[#21262D]"
+                  >
+                    <span className="text-[#58A6FF]">↑</span>
+                    <span>Upload files</span>
+                  </button>
+                </div>
+              )}
+
+              <input
+                type="file"
+                multiple
+                ref={uploadInputRef}
+                className="hidden"
+                onChange={async (e) => {
+                  const filesList = e.target.files;
+                  if (!filesList || filesList.length === 0) return;
+                  for (let i = 0; i < filesList.length; i++) {
+                    const uploadedFile = filesList[i];
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                      const textContent =
+                        typeof event.target?.result === 'string' ? event.target.result : '';
+                      const filePath = currentPath
+                        ? `${currentPath}/${uploadedFile.name}`
+                        : uploadedFile.name;
+                      if (onCommitBlob) {
+                        try {
+                          await onCommitBlob({
+                            path: filePath,
+                            branch: currentBranch,
+                            content: textContent,
+                            message: `Upload ${uploadedFile.name}`,
+                            expectedBlobSha: '',
+                          });
+                        } catch (err) {
+                          showToast(`Failed to upload ${uploadedFile.name}`);
+                        }
+                      }
+                    };
+                    reader.readAsText(uploadedFile);
+                  }
+                  showToast(`Uploaded ${filesList.length} file(s) successfully`);
+                  e.target.value = '';
+                }}
+              />
+            </div>
 
             {/* Green Code Clone Button & Popover */}
             <div className="relative">
@@ -621,7 +960,12 @@ pnpm install && pnpm dev
                       }
                     }
                   } else {
-                    void openBlobEditor(file);
+                    setEditingFile({
+                      ...file,
+                      content: file.content || '',
+                    });
+                    setCommitMessage(`Update ${file.path}`);
+                    setEditorMode('edit');
                   }
                 }}
               >

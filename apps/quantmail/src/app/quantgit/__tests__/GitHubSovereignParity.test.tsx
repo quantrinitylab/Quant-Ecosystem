@@ -8,6 +8,7 @@ import { MCPRegistryTab } from '../components/MCPRegistryTab';
 import { CopilotFleetModeView } from '../components/CopilotFleetModeView';
 import { DeveloperAppearanceSettings } from '../components/DeveloperAppearanceSettings';
 import { NotificationsInbox } from '../components/NotificationsInbox';
+import { CodeTab } from '../components/CodeTab';
 
 describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
   describe('BranchSelectorModal (Screens 108–110)', () => {
@@ -190,6 +191,36 @@ describe('QuantGit 159-Screen GitHub Sovereign Parity Components', () => {
       expect(html).toContain('Unread');
       expect(html).toContain('smart inbox categorization');
       expect(html).toContain('quantrinitylab / Quant-Ecosystem');
+    });
+  });
+
+  describe('CodeTab & Sovereign Code Editor & File Creator', () => {
+    it('renders Add file dropdown trigger and file explorer tree', () => {
+      const mockRepo = {
+        id: 'repo-1',
+        name: 'Quant-Ecosystem',
+        description: 'Test repo',
+        defaultBranch: 'main',
+      };
+      const mockFiles = [
+        { path: 'README.md', name: 'README.md', type: 'file', content: '# Hello Quant' },
+        { path: 'src', name: 'src', type: 'dir' },
+      ];
+      const html = renderToStaticMarkup(
+        <CodeTab
+          selectedRepo={mockRepo as any}
+          currentBranch="main"
+          files={mockFiles as any}
+          setModalState={vi.fn()}
+          openBlobEditor={vi.fn()}
+          showToast={vi.fn()}
+        />,
+      );
+
+      expect(html).toContain('Add file');
+      expect(html).toContain('README.md');
+      expect(html).toContain('src');
+      expect(html).toContain('Go to file');
     });
   });
 });
