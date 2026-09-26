@@ -1,4 +1,5 @@
 import { Server } from 'ssh2';
+import crypto from 'crypto';
 
 export interface GitSshdOptions {
   port?: number;
@@ -11,9 +12,17 @@ export class GitSshServer {
 
   constructor(options: GitSshdOptions = {}) {
     this.port = options.port ?? 2222;
+    const hostKey =
+      options.hostKey ??
+      crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      }).privateKey;
+
     this.server = new Server(
       {
-        hostKeys: [options.hostKey ? (options.hostKey as any) : Buffer.from('dummy-key-data')],
+        hostKeys: [hostKey],
       } as any,
       (client) => {
         client.on('authentication', (ctx) => {
@@ -62,7 +71,9 @@ export function createGitSshServer(options?: GitSshdOptions): GitSshServer {
   return new GitSshServer(options);
 }
 
-if (process.env.NODE_ENV !== 'test') {
+const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+
+if (isMain && process.env.NODE_ENV !== 'test') {
   const server = createGitSshServer({ port: Number(process.env.PORT) || 2222 });
   server.start().catch((err) => {
     console.error('Failed to start git-sshd server:', err);
