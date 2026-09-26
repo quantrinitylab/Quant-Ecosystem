@@ -122,6 +122,8 @@ const WatchPage: React.FC = () => {
   const [likeCount, setLikeCount] = useState(0);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [activeChapter, setActiveChapter] = useState<string | null>(null);
+  const [isTheaterMode, setIsTheaterMode] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   // --- Smart segment-skip (server skip-plan + "teach me X") wired to the real
   // <video> element's currentTime seek handle. ---
@@ -271,11 +273,21 @@ const WatchPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)]">
-      <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row gap-6 p-4 md:p-6">
+      <div
+        className={`max-w-[1800px] mx-auto flex flex-col ${
+          isTheaterMode ? 'gap-6' : 'lg:flex-row gap-6'
+        } p-4 md:p-6`}
+      >
         {/* Main content */}
         <div className="flex-1 min-w-0">
           {/* Video Player */}
-          <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden">
+          <div
+            className={`relative bg-black transition-all duration-300 overflow-hidden ${
+              isTheaterMode
+                ? 'w-full aspect-[21/9] md:h-[72vh] rounded-none md:rounded-xl shadow-2xl'
+                : 'w-full aspect-video rounded-xl shadow-lg'
+            }`}
+          >
             <video
               ref={videoRef}
               src={v.url}
@@ -289,8 +301,19 @@ const WatchPage: React.FC = () => {
               }}
               onTimeUpdate={handleTimeUpdate}
             />
-            {/* Quality selector overlay */}
-            <div className="absolute top-3 right-3">
+            {/* Controls overlay: Theater toggle & Quality selector */}
+            <div className="absolute top-3 right-3 flex items-center gap-2">
+              <button
+                onClick={() => setIsTheaterMode(!isTheaterMode)}
+                className={`px-2.5 py-1.5 bg-black/70 text-white text-xs font-medium rounded-lg hover:bg-black/90 min-h-[44px] min-w-[44px] flex items-center gap-1 transition-colors ${
+                  isTheaterMode ? 'text-emerald-400 border border-emerald-400/50' : ''
+                }`}
+                aria-label="Toggle theater mode"
+                title={isTheaterMode ? 'Exit theater mode' : 'Theater mode'}
+              >
+                &#x25A2;
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setShowQualityMenu(!showQualityMenu)}
@@ -313,7 +336,11 @@ const WatchPage: React.FC = () => {
                             setQuality(q);
                             setShowQualityMenu(false);
                           }}
-                          className={`w-full text-left px-3 py-2 text-sm min-h-[44px] ${quality === q ? 'text-blue-400 font-medium' : 'text-gray-300 hover:text-white hover:bg-gray-800'}`}
+                          className={`w-full text-left px-3 py-2 text-sm min-h-[44px] ${
+                            quality === q
+                              ? 'text-blue-400 font-medium'
+                              : 'text-gray-300 hover:text-white hover:bg-gray-800'
+                          }`}
                         >
                           {q}
                         </button>

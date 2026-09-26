@@ -14,6 +14,8 @@ import { ThemeProvider } from '../providers/theme-provider';
 import { AuthProvider } from '../providers/auth-provider';
 import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { AudioPlayerProvider } from '../components/audio/AudioPlayerContext';
+import { GlobalAudioPlayerDock } from '../components/audio/GlobalAudioPlayerDock';
 
 interface AppProps {
   Component: React.ComponentType<Record<string, unknown>>;
@@ -37,6 +39,12 @@ const QUANTUBE_COMMANDS: CommandPaletteItem[] = [
   { id: 'upload-video', label: 'Upload video', group: 'QuantTube', action: () => {} },
   { id: 'go-to-music', label: 'Go to Music', group: 'QuantTube', action: () => {} },
   { id: 'go-to-library', label: 'Go to Library', group: 'QuantTube', action: () => {} },
+  {
+    id: 'toggle-audio-player',
+    label: 'Toggle Audio Player Dock',
+    group: 'Audio',
+    action: () => {},
+  },
   { id: 'toggle-dark-mode', label: 'Toggle Dark Mode', group: 'Settings', action: () => {} },
   { id: 'ask-quant', label: 'Ask Quant', group: 'AI', action: () => {} },
 ];
@@ -61,25 +69,28 @@ export default function App({ Component, pageProps }: AppProps) {
       <QueryProvider>
         <AuthProvider>
           <ThemeProvider>
-            <CommandPaletteProvider appName="QuantTube">
-              <QuantSidekickProvider>
-                <QuantTubeCommandRegistrar />
-                <AuthGuard>
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={Component.displayName || Component.name || 'page'}
-                      variants={variants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                    >
-                      <Component {...pageProps} />
-                    </motion.div>
-                  </AnimatePresence>
-                </AuthGuard>
-                <QuantSidekick />
-              </QuantSidekickProvider>
-            </CommandPaletteProvider>
+            <AudioPlayerProvider>
+              <CommandPaletteProvider appName="QuantTube">
+                <QuantSidekickProvider>
+                  <QuantTubeCommandRegistrar />
+                  <AuthGuard>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={Component.displayName || Component.name || 'page'}
+                        variants={variants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                      >
+                        <Component {...pageProps} />
+                      </motion.div>
+                    </AnimatePresence>
+                  </AuthGuard>
+                  <GlobalAudioPlayerDock />
+                  <QuantSidekick />
+                </QuantSidekickProvider>
+              </CommandPaletteProvider>
+            </AudioPlayerProvider>
           </ThemeProvider>
         </AuthProvider>
       </QueryProvider>

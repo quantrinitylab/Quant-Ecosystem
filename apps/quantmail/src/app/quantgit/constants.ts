@@ -8,6 +8,8 @@ import type {
   ProjectCard,
   SecurityAlert,
   DeployedAgent,
+  CommitItem,
+  BranchItem,
 } from './types';
 
 // Initial Mock Repositories
@@ -1226,5 +1228,291 @@ export const AGENT_FLEET_CATALOG: DeployedAgent[] = [
       'Prisma client generated',
     ],
     thoughts: 'All issue numbers and PR numbers must increment deterministically.',
+  },
+];
+
+export const INITIAL_COMMITS: CommitItem[] = [
+  {
+    sha: 'c4e6121980a34b2f81907de415b3901a81234567',
+    shortSha: 'c4e6121',
+    message: 'feat(quantgit): implement full GitHub commits history tree and branch parity',
+    body: 'Added date-grouped timeline, diff viewer with additions and deletions, and branch creation modal.',
+    author: {
+      name: 'kundansinghrajput31980',
+      username: 'kundansinghrajput31980',
+      email: 'kundan@quantmail.in',
+      avatarUrl: '',
+    },
+    date: 'Sep 26, 2026',
+    relativeTime: '2 hours ago',
+    verified: true,
+    verificationReason: 'GPG Key ID: 4A8B9C0D (Quant Sovereign Vault)',
+    stats: {
+      totalFiles: 3,
+      additions: 42,
+      deletions: 12,
+    },
+    files: [
+      {
+        filename: 'apps/quantmail/src/app/quantgit/components/CommitsTab.tsx',
+        status: 'added',
+        additions: 28,
+        deletions: 4,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 1,
+            newLineNumber: 1,
+            content: "import React, { useState } from 'react';",
+          },
+          {
+            type: 'addition',
+            newLineNumber: 2,
+            content: '+export function CommitsTab({ repo, commits }: CommitsTabProps) {',
+          },
+          {
+            type: 'addition',
+            newLineNumber: 3,
+            content:
+              '+  const [selectedCommit, setSelectedCommit] = useState<CommitItem | null>(null);',
+          },
+          { type: 'deletion', oldLineNumber: 2, content: '-// legacy commits placeholder' },
+          { type: 'context', oldLineNumber: 3, newLineNumber: 4, content: '  return (' },
+          {
+            type: 'addition',
+            newLineNumber: 5,
+            content: '+    <div data-testid="commits-timeline" className="space-y-6">',
+          },
+        ],
+      },
+      {
+        filename: 'apps/quantmail/src/app/quantgit/components/BranchesTab.tsx',
+        status: 'added',
+        additions: 12,
+        deletions: 6,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 1,
+            newLineNumber: 1,
+            content: "import React, { useState } from 'react';",
+          },
+          {
+            type: 'addition',
+            newLineNumber: 2,
+            content: '+export function BranchesTab({ repo, branches }: BranchesTabProps) {',
+          },
+          { type: 'deletion', oldLineNumber: 2, content: '-// legacy branches placeholder' },
+          {
+            type: 'addition',
+            newLineNumber: 3,
+            content: '+  const [searchQuery, setSearchQuery] = useState("");',
+          },
+        ],
+      },
+      {
+        filename: 'apps/quantmail/src/app/quantgit/page.tsx',
+        status: 'modified',
+        additions: 2,
+        deletions: 2,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 88,
+            newLineNumber: 88,
+            content: '  const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>("code");',
+          },
+          {
+            type: 'deletion',
+            oldLineNumber: 1675,
+            content: '-            { id: "code", label: "<> Code", badge: null },',
+          },
+          {
+            type: 'addition',
+            newLineNumber: 1675,
+            content: '+            { id: "code", label: "<> Code", badge: null },',
+          },
+          {
+            type: 'addition',
+            newLineNumber: 1676,
+            content: '+            { id: "commits", label: "⎇ Commits", badge: 4 },',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    sha: 'a91f3c80e123456789abcdef0123456789abcdef',
+    shortSha: 'a91f3c8',
+    message: 'fix(auth): harden git smart http token validation',
+    body: 'Enforce constant-time token comparison and session expiry checks.',
+    author: {
+      name: 'Developer 6',
+      username: 'dev6',
+      email: 'dev6@quantmail.in',
+    },
+    date: 'Sep 26, 2026',
+    relativeTime: '5 hours ago',
+    verified: true,
+    verificationReason: 'GPG Key ID: 7E6F5D4C (Quant Sovereign Vault)',
+    stats: {
+      totalFiles: 1,
+      additions: 15,
+      deletions: 3,
+    },
+    files: [
+      {
+        filename: 'apps/quantmail/backend/routes/repos.ts',
+        status: 'modified',
+        additions: 15,
+        deletions: 3,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 760,
+            newLineNumber: 760,
+            content: 'async function loadReadableRepo(request, idOrName) {',
+          },
+          {
+            type: 'addition',
+            newLineNumber: 761,
+            content: '+  const safeCompare = crypto.timingSafeEqual;',
+          },
+          { type: 'deletion', oldLineNumber: 761, content: '-  if (token === expected) {' },
+          {
+            type: 'addition',
+            newLineNumber: 762,
+            content: '+  if (safeCompare(Buffer.from(token), Buffer.from(expected))) {',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    sha: '8b72d140e123456789abcdef0123456789abcdef',
+    shortSha: '8b72d14',
+    message: 'perf(git): optimize AST tree traversal for monorepo roots',
+    body: 'Use indexed bloom filters to eliminate redundant stat operations on bare git repos.',
+    author: {
+      name: 'CEO Astra',
+      username: 'astra',
+      email: 'astra@quantmail.in',
+    },
+    date: 'Sep 25, 2026',
+    relativeTime: 'Yesterday',
+    verified: true,
+    verificationReason: 'GPG Key ID: 1A2B3C4D (Quant Sovereign Vault)',
+    stats: {
+      totalFiles: 2,
+      additions: 35,
+      deletions: 18,
+    },
+    files: [
+      {
+        filename: 'packages/git-engine/src/tree.ts',
+        status: 'modified',
+        additions: 35,
+        deletions: 18,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 12,
+            newLineNumber: 12,
+            content: 'export async function traverseTree(sha: string) {',
+          },
+          { type: 'addition', newLineNumber: 13, content: '+  const cached = treeCache.get(sha);' },
+          { type: 'addition', newLineNumber: 14, content: '+  if (cached) return cached;' },
+        ],
+      },
+    ],
+  },
+  {
+    sha: '20af80f8e123456789abcdef0123456789abcdef',
+    shortSha: '20af80f',
+    message: 'feat(core): Wave 39 core monorepo parity rollout',
+    body: 'Complete delivery of 98-screen Instagram, 131-screen ChatGPT, and 159-screen GitHub parity.',
+    author: {
+      name: 'kundansinghrajput31980',
+      username: 'kundansinghrajput31980',
+      email: 'kundan@quantmail.in',
+    },
+    date: 'Sep 25, 2026',
+    relativeTime: 'Yesterday',
+    verified: true,
+    verificationReason: 'GPG Key ID: 4A8B9C0D (Quant Sovereign Vault)',
+    stats: {
+      totalFiles: 4,
+      additions: 84,
+      deletions: 22,
+    },
+    files: [
+      {
+        filename: 'apps/quantmail/src/app/quantgit/constants.ts',
+        status: 'modified',
+        additions: 84,
+        deletions: 22,
+        lines: [
+          {
+            type: 'context',
+            oldLineNumber: 40,
+            newLineNumber: 40,
+            content: 'export const INITIAL_REPOS = [',
+          },
+          { type: 'addition', newLineNumber: 41, content: '+  // Wave 39 ratified constants' },
+        ],
+      },
+    ],
+  },
+];
+
+export const INITIAL_BRANCHES: BranchItem[] = [
+  {
+    name: 'main',
+    sha: 'c4e6121980a34b2f81907de415b3901a81234567',
+    isDefault: true,
+    isProtected: true,
+    protection: 'require_reviews',
+    aheadBy: 0,
+    behindBy: 0,
+    lastCommitAuthor: 'kundansinghrajput31980',
+    lastCommitMessage:
+      'feat(quantgit): implement full GitHub commits history tree and branch parity',
+    lastCommitTime: '2 hours ago',
+  },
+  {
+    name: 'feat/sprint-7-github-parity',
+    sha: 'a91f3c80e123456789abcdef0123456789abcdef',
+    isDefault: false,
+    isProtected: false,
+    protection: 'none',
+    aheadBy: 2,
+    behindBy: 0,
+    lastCommitAuthor: 'Developer 6',
+    lastCommitMessage: 'fix(auth): harden git smart http token validation',
+    lastCommitTime: '5 hours ago',
+  },
+  {
+    name: 'fix/core-astra-audit',
+    sha: '8b72d140e123456789abcdef0123456789abcdef',
+    isDefault: false,
+    isProtected: false,
+    protection: 'none',
+    aheadBy: 1,
+    behindBy: 3,
+    lastCommitAuthor: 'CEO Astra',
+    lastCommitMessage: 'perf(git): optimize AST tree traversal for monorepo roots',
+    lastCommitTime: 'Yesterday',
+  },
+  {
+    name: 'release/v1.0.0-apk',
+    sha: '20af80f8e123456789abcdef0123456789abcdef',
+    isDefault: false,
+    isProtected: false,
+    protection: 'none',
+    aheadBy: 0,
+    behindBy: 1,
+    lastCommitAuthor: 'kundansinghrajput31980',
+    lastCommitMessage: 'feat(core): Wave 39 core monorepo parity rollout',
+    lastCommitTime: '2 days ago',
   },
 ];

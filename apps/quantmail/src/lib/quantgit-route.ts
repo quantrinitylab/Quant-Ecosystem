@@ -1,5 +1,7 @@
 export const QUANTGIT_TABS = [
   'code',
+  'commits',
+  'branches',
   'issues',
   'pulls',
   'agents',

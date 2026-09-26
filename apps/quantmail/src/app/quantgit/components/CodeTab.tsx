@@ -13,7 +13,579 @@ export type CommitBlobInput = {
   content: string;
   message: string;
   expectedBlobSha: string;
+  originalPath?: string;
+  isDelete?: boolean;
 };
+
+export type TokenType =
+  | 'keyword'
+  | 'string'
+  | 'number'
+  | 'comment'
+  | 'function'
+  | 'boolean'
+  | 'plain';
+
+export interface CodeToken {
+  type: TokenType;
+  text: string;
+}
+
+export function detectLanguage(pathOrName: string): string {
+  const ext = pathOrName.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'ts':
+    case 'tsx':
+      return 'typescript';
+    case 'js':
+    case 'jsx':
+      return 'javascript';
+    case 'py':
+      return 'python';
+    case 'json':
+      return 'json';
+    case 'md':
+      return 'markdown';
+    case 'html':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'sql':
+      return 'sql';
+    case 'rs':
+      return 'rust';
+    case 'go':
+      return 'go';
+    case 'sh':
+      return 'shell';
+    default:
+      return 'plaintext';
+  }
+}
+
+export function tokenizeLine(line: string, language: string): CodeToken[] {
+  if (!line) return [{ type: 'plain', text: '' }];
+
+  const tokens: CodeToken[] = [];
+  let i = 0;
+  const len = line.length;
+
+  const isCommentStart = (idx: number): boolean => {
+    if (
+      (language === 'typescript' ||
+        language === 'javascript' ||
+        language === 'rust' ||
+        language === 'go') &&
+      line.startsWith('//', idx)
+    )
+      return true;
+    if ((language === 'python' || language === 'shell') && line[idx] === '#') return true;
+    if (language === 'sql' && line.startsWith('--', idx)) return true;
+    return false;
+  };
+
+  const getKeywords = (lang: string): Set<string> => {
+    switch (lang) {
+      case 'typescript':
+      case 'javascript':
+        return new Set([
+          'const',
+          'let',
+          'var',
+          'function',
+          'return',
+          'if',
+          'else',
+          'for',
+          'while',
+          'do',
+          'switch',
+          'case',
+          'default',
+          'break',
+          'continue',
+          'import',
+          'export',
+          'from',
+          'class',
+          'interface',
+          'type',
+          'extends',
+          'implements',
+          'new',
+          'this',
+          'super',
+          'typeof',
+          'instanceof',
+          'void',
+          'delete',
+          'try',
+          'catch',
+          'finally',
+          'throw',
+          'async',
+          'await',
+          'yield',
+          'in',
+          'of',
+          'as',
+        ]);
+      case 'python':
+        return new Set([
+          'def',
+          'class',
+          'return',
+          'if',
+          'elif',
+          'else',
+          'for',
+          'while',
+          'try',
+          'except',
+          'finally',
+          'with',
+          'as',
+          'import',
+          'from',
+          'in',
+          'is',
+          'not',
+          'and',
+          'or',
+          'lambda',
+          'pass',
+          'yield',
+          'raise',
+          'async',
+          'await',
+          'global',
+          'nonlocal',
+          'assert',
+          'del',
+        ]);
+      case 'sql':
+        return new Set([
+          'select',
+          'from',
+          'where',
+          'insert',
+          'into',
+          'update',
+          'delete',
+          'join',
+          'left',
+          'right',
+          'inner',
+          'outer',
+          'full',
+          'on',
+          'group',
+          'by',
+          'order',
+          'having',
+          'limit',
+          'offset',
+          'create',
+          'table',
+          'drop',
+          'alter',
+          'index',
+          'view',
+          'and',
+          'or',
+          'not',
+          'in',
+          'is',
+          'as',
+          'union',
+          'all',
+          'set',
+          'values',
+          'primary',
+          'key',
+          'foreign',
+          'references',
+          'distinct',
+          'case',
+          'when',
+          'then',
+          'end',
+          'else',
+          'asc',
+          'desc',
+          'between',
+          'like',
+          'exists',
+          'default',
+        ]);
+      case 'rust':
+        return new Set([
+          'fn',
+          'let',
+          'mut',
+          'const',
+          'pub',
+          'struct',
+          'enum',
+          'impl',
+          'trait',
+          'use',
+          'mod',
+          'match',
+          'if',
+          'else',
+          'loop',
+          'while',
+          'for',
+          'in',
+          'return',
+          'async',
+          'await',
+          'where',
+          'type',
+          'self',
+          'Self',
+          'move',
+          'unsafe',
+          'ref',
+          'crate',
+        ]);
+      case 'go':
+        return new Set([
+          'func',
+          'package',
+          'import',
+          'var',
+          'const',
+          'type',
+          'struct',
+          'interface',
+          'return',
+          'if',
+          'else',
+          'for',
+          'range',
+          'switch',
+          'case',
+          'default',
+          'select',
+          'go',
+          'defer',
+          'chan',
+          'map',
+          'break',
+          'continue',
+          'fallthrough',
+        ]);
+      case 'shell':
+        return new Set([
+          'if',
+          'then',
+          'else',
+          'elif',
+          'fi',
+          'for',
+          'in',
+          'do',
+          'done',
+          'while',
+          'until',
+          'case',
+          'esac',
+          'function',
+          'return',
+          'exit',
+          'echo',
+          'export',
+          'set',
+          'local',
+          'source',
+        ]);
+      default:
+        return new Set();
+    }
+  };
+
+  const keywords = getKeywords(language);
+  const booleans = new Set([
+    'true',
+    'false',
+    'null',
+    'undefined',
+    'None',
+    'True',
+    'False',
+    'nil',
+    'NULL',
+  ]);
+
+  while (i < len) {
+    if (isCommentStart(i)) {
+      tokens.push({ type: 'comment', text: line.slice(i) });
+      break;
+    }
+
+    const char = line[i];
+
+    if (char === '"' || char === "'" || char === '`') {
+      const quote = char;
+      let str = quote;
+      i++;
+      while (i < len) {
+        if (line[i] === '\\') {
+          str += line[i];
+          i++;
+          if (i < len) {
+            str += line[i];
+            i++;
+          }
+        } else if (line[i] === quote) {
+          str += line[i];
+          i++;
+          break;
+        } else {
+          str += line[i];
+          i++;
+        }
+      }
+      tokens.push({ type: 'string', text: str });
+      continue;
+    }
+
+    if (/\d/.test(char) && (i === 0 || !/[a-zA-Z0-9_$]/.test(line[i - 1]))) {
+      let num = '';
+      while (i < len && /[0-9.xXa-fA-F_]/.test(line[i])) {
+        num += line[i];
+        i++;
+      }
+      tokens.push({ type: 'number', text: num });
+      continue;
+    }
+
+    if (/[a-zA-Z_$]/.test(char)) {
+      let word = '';
+      while (i < len && /[a-zA-Z0-9_$]/.test(line[i])) {
+        word += line[i];
+        i++;
+      }
+
+      const lower = word.toLowerCase();
+      if (keywords.has(language === 'sql' ? lower : word)) {
+        tokens.push({ type: 'keyword', text: word });
+      } else if (booleans.has(word)) {
+        tokens.push({ type: 'boolean', text: word });
+      } else {
+        let nextIdx = i;
+        while (nextIdx < len && /\s/.test(line[nextIdx])) nextIdx++;
+        if (nextIdx < len && line[nextIdx] === '(') {
+          tokens.push({ type: 'function', text: word });
+        } else {
+          tokens.push({ type: 'plain', text: word });
+        }
+      }
+      continue;
+    }
+
+    tokens.push({ type: 'plain', text: char });
+    i++;
+  }
+
+  return tokens;
+}
+
+export function renderSyntaxHighlightedLine(
+  line: string,
+  language: string,
+  theme: 'github-dark' | 'github-light',
+): React.ReactNode {
+  const tokens = tokenizeLine(line, language);
+  return tokens.map((token, i) => {
+    let colorClass = '';
+    if (theme === 'github-dark') {
+      switch (token.type) {
+        case 'keyword':
+          colorClass = 'text-[#FF7B72] font-semibold';
+          break;
+        case 'string':
+          colorClass = 'text-[#A5D6FF]';
+          break;
+        case 'number':
+          colorClass = 'text-[#79C0FF]';
+          break;
+        case 'comment':
+          colorClass = 'text-[#8B949E] italic';
+          break;
+        case 'function':
+          colorClass = 'text-[#D2A8FF]';
+          break;
+        case 'boolean':
+          colorClass = 'text-[#79C0FF] font-semibold';
+          break;
+        default:
+          colorClass = 'text-[#E6EDF3]';
+      }
+    } else {
+      switch (token.type) {
+        case 'keyword':
+          colorClass = 'text-[#CF222E] font-semibold';
+          break;
+        case 'string':
+          colorClass = 'text-[#0A3069]';
+          break;
+        case 'number':
+          colorClass = 'text-[#0550AE]';
+          break;
+        case 'comment':
+          colorClass = 'text-[#6E7781] italic';
+          break;
+        case 'function':
+          colorClass = 'text-[#8250DF]';
+          break;
+        case 'boolean':
+          colorClass = 'text-[#0550AE] font-semibold';
+          break;
+        default:
+          colorClass = 'text-[#1F2328]';
+      }
+    }
+
+    return (
+      <span key={i} className={`token token-${token.type} ${colorClass}`}>
+        {token.text}
+      </span>
+    );
+  });
+}
+
+export type DiffLineType = 'added' | 'removed' | 'unchanged';
+
+export interface DiffLine {
+  type: DiffLineType;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  text: string;
+}
+
+export function computeLineDiff(original: string, current: string): DiffLine[] {
+  const orig = original ? original.split('\n') : [];
+  const curr = current ? current.split('\n') : [];
+
+  const n = orig.length;
+  const m = curr.length;
+
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < m; j++) {
+      if (orig[i] === curr[j]) {
+        dp[i + 1][j + 1] = dp[i][j] + 1;
+      } else {
+        dp[i + 1][j + 1] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+  }
+
+  const backtrack: DiffLine[] = [];
+  let i = n;
+  let j = m;
+
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && orig[i - 1] === curr[j - 1]) {
+      backtrack.push({
+        type: 'unchanged',
+        oldLineNumber: i,
+        newLineNumber: j,
+        text: orig[i - 1],
+      });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      backtrack.push({
+        type: 'added',
+        newLineNumber: j,
+        text: curr[j - 1],
+      });
+      j--;
+    } else if (i > 0 && (j === 0 || dp[i][j - 1] < dp[i - 1][j])) {
+      backtrack.push({
+        type: 'removed',
+        oldLineNumber: i,
+        text: orig[i - 1],
+      });
+      i--;
+    }
+  }
+
+  return backtrack.reverse();
+}
+
+export interface BlameLineInfo {
+  sha: string;
+  author: string;
+  date: string;
+  message: string;
+}
+
+export function getMockBlame(lineNumber: number, filePath: string): BlameLineInfo {
+  if (lineNumber % 3 === 1) {
+    return {
+      sha: '948e3612',
+      author: 'Developer 6',
+      date: '2 hours ago',
+      message: `feat(core): sovereign IDE enhancement in ${filePath.split('/').pop() || filePath}`,
+    };
+  } else if (lineNumber % 3 === 2) {
+    return {
+      sha: 'a710bc4e',
+      author: 'Developer 2',
+      date: 'Yesterday',
+      message: 'test(qa): add regression coverage sentinel',
+    };
+  } else {
+    return {
+      sha: 'f189d230',
+      author: 'CEO Astra',
+      date: '3 days ago',
+      message: 'refactor(arch): zero external tracking signature',
+    };
+  }
+}
+
+export interface CommitHistoryItem {
+  sha: string;
+  author: string;
+  date: string;
+  message: string;
+}
+
+export function getMockFileHistory(filePath: string): CommitHistoryItem[] {
+  const name = filePath.split('/').pop() || 'file';
+  return [
+    {
+      sha: '948e3612a4b8',
+      author: 'Developer 6',
+      date: '2 hours ago',
+      message: `feat: implement sovereign in-browser IDE parity for ${name}`,
+    },
+    {
+      sha: 'a710bc4e921d',
+      author: 'Developer 2',
+      date: 'Yesterday',
+      message: `test: add Vitest QA sentinel coverage for ${name}`,
+    },
+    {
+      sha: 'f189d23081ca',
+      author: 'CEO Astra',
+      date: '3 days ago',
+      message: `refactor: harden architecture and security boundaries`,
+    },
+    {
+      sha: 'c3d4e5f67890',
+      author: 'Developer 1',
+      date: '5 days ago',
+      message: `Initial commit for ${name}`,
+    },
+  ];
+}
 
 export interface CodeTabProps {
   selectedRepo: Repo;
@@ -27,6 +599,15 @@ export interface CodeTabProps {
   onSelectBranch?: (branch: string) => void;
   showToast: (msg: string) => void;
   onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
+  onDeleteBlob?: (path: string, message: string, branch: string) => Promise<void>;
+  initialEditingFile?: FileNode | null;
+  initialEditorMode?: 'edit' | 'preview' | 'diff';
+  initialIsBlameActive?: boolean;
+  initialIsRawActive?: boolean;
+  initialIsSearchOpen?: boolean;
+  initialIsDeleteModalOpen?: boolean;
+  initialSearchQuery?: string;
+  initialReplaceQuery?: string;
 }
 
 // Helper to determine specialized file icons
@@ -97,19 +678,51 @@ export function CodeTab({
   onSelectBranch,
   showToast,
   onCommitBlob,
+  onDeleteBlob,
+  initialEditingFile = null,
+  initialEditorMode = 'edit',
+  initialIsBlameActive = false,
+  initialIsRawActive = false,
+  initialIsSearchOpen = false,
+  initialIsDeleteModalOpen = false,
+  initialSearchQuery = '',
+  initialReplaceQuery = '',
 }: CodeTabProps) {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isCodeMenuOpen, setIsCodeMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'directory' | 'tree'>('directory');
   const [filterQuery, setFilterQuery] = useState('');
-  const [editingFile, setEditingFile] = useState<FileNode | null>(null);
+  const [editingFile, setEditingFile] = useState<FileNode | null>(initialEditingFile);
+  const [originalFileContent, setOriginalFileContent] = useState<string>(
+    initialEditingFile?.content || '',
+  );
+  const [originalPath, setOriginalPath] = useState<string>(initialEditingFile?.path || '');
   const [isAddFileOpen, setIsAddFileOpen] = useState(false);
   const [editorTheme, setEditorTheme] = useState<'github-dark' | 'github-light'>('github-dark');
-  const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit');
+  const [editorMode, setEditorMode] = useState<'edit' | 'preview' | 'diff'>(initialEditorMode);
+  const [diffViewStyle, setDiffViewStyle] = useState<'split' | 'unified'>('split');
+  const [isBlameActive, setIsBlameActive] = useState(initialIsBlameActive);
+  const [isRawActive, setIsRawActive] = useState(initialIsRawActive);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(initialIsDeleteModalOpen);
+  const [isSearchOpen, setIsSearchOpen] = useState(initialIsSearchOpen);
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [replaceQuery, setReplaceQuery] = useState(initialReplaceQuery);
+  const [matchCase, setMatchCase] = useState(false);
+  const [activeMatchIdx, setActiveMatchIdx] = useState(0);
+
   const [commitMessage, setCommitMessage] = useState('');
   const [commitDescription, setCommitDescription] = useState('');
   const [branchAction, setBranchAction] = useState<'direct' | 'pr'>('direct');
   const [isCommitting, setIsCommitting] = useState(false);
+
+  const [deleteCommitMessage, setDeleteCommitMessage] = useState(
+    initialEditingFile ? `Delete ${initialEditingFile.name}` : '',
+  );
+  const [deleteCommitDescription, setDeleteCommitDescription] = useState('');
+  const [deleteBranchAction, setDeleteBranchAction] = useState<'direct' | 'pr'>('direct');
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const uploadInputRef = React.useRef<HTMLInputElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => {
@@ -127,6 +740,126 @@ export function CodeTab({
   const branchCount =
     repoBranches?.length || selectedRepo.branches?.length || selectedRepo.branchCount || 1;
   const commitCount = selectedRepo.commitCount || (selectedRepo.latestCommitSha ? 2118 : 1);
+
+  // Search occurrences in editingFile
+  const searchMatches = useMemo(() => {
+    if (!searchQuery || !editingFile?.content) return [];
+    const text = editingFile.content;
+    const q = matchCase ? searchQuery : searchQuery.toLowerCase();
+    const target = matchCase ? text : text.toLowerCase();
+    const indices: number[] = [];
+    let pos = 0;
+    while ((pos = target.indexOf(q, pos)) !== -1) {
+      indices.push(pos);
+      pos += Math.max(1, q.length);
+    }
+    return indices;
+  }, [searchQuery, editingFile?.content, matchCase]);
+
+  const searchMatchesCount = searchMatches.length;
+
+  const handleNextMatch = () => {
+    if (searchMatchesCount === 0) return;
+    setActiveMatchIdx((prev) => (prev + 1) % searchMatchesCount);
+  };
+
+  const handlePrevMatch = () => {
+    if (searchMatchesCount === 0) return;
+    setActiveMatchIdx((prev) => (prev - 1 + searchMatchesCount) % searchMatchesCount);
+  };
+
+  const handleReplaceOne = () => {
+    if (searchMatchesCount === 0 || !editingFile) return;
+    const currentContent = editingFile.content || '';
+    const matchPos = searchMatches[activeMatchIdx] ?? searchMatches[0];
+    if (matchPos === undefined) return;
+    const before = currentContent.slice(0, matchPos);
+    const after = currentContent.slice(matchPos + searchQuery.length);
+    const newContent = `${before}${replaceQuery}${after}`;
+    setEditingFile({ ...editingFile, content: newContent });
+    showToast('Replaced occurrence');
+  };
+
+  const handleReplaceAll = () => {
+    if (searchMatchesCount === 0 || !editingFile) return;
+    const currentContent = editingFile.content || '';
+    let newContent = '';
+    if (matchCase) {
+      newContent = currentContent.split(searchQuery).join(replaceQuery);
+    } else {
+      const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      newContent = currentContent.replace(new RegExp(escaped, 'gi'), replaceQuery);
+    }
+    setEditingFile({ ...editingFile, content: newContent });
+    showToast(`Replaced ${searchMatchesCount} occurrences`);
+    setActiveMatchIdx(0);
+  };
+
+  // Diff computation between original and current content
+  const diffLines = useMemo(() => {
+    return computeLineDiff(originalFileContent, editingFile?.content || '');
+  }, [originalFileContent, editingFile?.content]);
+
+  const diffSummary = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    for (const l of diffLines) {
+      if (l.type === 'added') additions++;
+      if (l.type === 'removed') deletions++;
+    }
+    return { additions, deletions };
+  }, [diffLines]);
+
+  // Keyboard shortcut listener for Ctrl+F and Escape
+  React.useEffect(() => {
+    const onKeyDown = (e: globalThis.KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        if (editingFile) {
+          e.preventDefault();
+          setIsSearchOpen(true);
+        }
+      } else if (e.key === 'Escape') {
+        if (isSearchOpen) setIsSearchOpen(false);
+        if (isDeleteModalOpen) setIsDeleteModalOpen(false);
+        if (isHistoryOpen) setIsHistoryOpen(false);
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }
+  }, [editingFile, isSearchOpen, isDeleteModalOpen, isHistoryOpen]);
+
+  // Handle Delete File commit
+  const handleConfirmDelete = async () => {
+    if (!editingFile) return;
+    setIsDeleting(true);
+    try {
+      const finalMsg = `${deleteCommitMessage.trim()}${
+        deleteCommitDescription ? `\n\n${deleteCommitDescription.trim()}` : ''
+      }`;
+      if (onDeleteBlob) {
+        await onDeleteBlob(editingFile.path, finalMsg, currentBranch);
+      } else if (onCommitBlob) {
+        await onCommitBlob({
+          path: editingFile.path,
+          branch: currentBranch,
+          content: '',
+          message: finalMsg,
+          expectedBlobSha: (editingFile as any).sha || (editingFile as any).blobSha || '',
+          isDelete: true,
+        });
+      } else {
+        showToast(`Deleted ${editingFile.path}`);
+      }
+      setIsDeleteModalOpen(false);
+      setEditingFile(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete file.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Toggle directory inline expansion in tree view
   const toggleDirExpand = (dirPath: string, e?: React.MouseEvent) => {
@@ -217,16 +950,13 @@ pnpm install && pnpm dev
     }
 
     if (viewMode === 'tree') {
-      // Tree Mode: render hierarchical tree with expansion
       const result: Array<FileNode & { depth: number; isExpanded?: boolean }> = [];
 
-      // Sort files by path depth and directories first
       const sorted = [...files].sort((a, b) => {
         if (a.path === b.path) return 0;
         return a.path.localeCompare(b.path);
       });
 
-      // Recursive or iterative tree display
       const addChildren = (parentPath: string, depth: number) => {
         const directChildren = sorted.filter((f) => {
           if (!parentPath) {
@@ -237,7 +967,6 @@ pnpm install && pnpm dev
           return !rest.includes('/');
         });
 
-        // Sort directories first, then alphabetically
         directChildren.sort((a, b) => {
           if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
           return a.name.localeCompare(b.name);
@@ -256,8 +985,7 @@ pnpm install && pnpm dev
       return result;
     }
 
-    // Directory Drill Mode:
-    // Show direct children of currentPath
+    // Directory Drill Mode
     const prefix = currentPath ? `${currentPath}/` : '';
     const directChildren = files.filter((f) => {
       if (!currentPath) {
@@ -268,10 +996,8 @@ pnpm install && pnpm dev
       return !rest.includes('/');
     });
 
-    // If currentPath is pointing to a directory that has expanded subdirectories inline
     const result: Array<FileNode & { depth: number; isExpanded?: boolean }> = [];
 
-    // Sort directories first
     directChildren.sort((a, b) => {
       if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
       return a.name.localeCompare(b.name);
@@ -281,7 +1007,6 @@ pnpm install && pnpm dev
       const isExpanded = expandedDirs.has(child.path);
       result.push({ ...child, depth: 0, isExpanded });
 
-      // If expanded inline in directory view, show immediate children indented
       if (child.type === 'dir' && isExpanded) {
         const subChildren = files.filter((sub) => {
           if (!sub.path.startsWith(`${child.path}/`)) return false;
@@ -329,58 +1054,210 @@ pnpm install && pnpm dev
   };
 
   if (editingFile) {
-    const isMarkdown =
-      editingFile.name.toLowerCase().endsWith('.md') ||
-      editingFile.path.toLowerCase().endsWith('.md');
-    const lines = editingFile.content ? editingFile.content.split('\n') : [''];
+    const detectedLang = detectLanguage(editingFile.path || editingFile.name);
+    const isMarkdown = detectedLang === 'markdown';
+    const lines = editingFile.content !== undefined ? editingFile.content.split('\n') : [''];
+    const isRenamed = Boolean(originalPath && editingFile.path !== originalPath);
+    const isNewFile = !originalPath;
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div
-          className={`lg:col-span-4 flex flex-col rounded-xl border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3] border-[#30363D]' : 'bg-white text-[#1F2328] border-[#D0D7DE]'}`}
+          className={`lg:col-span-4 flex flex-col rounded-xl border ${
+            editorTheme === 'github-dark'
+              ? 'bg-[#0D1117] text-[#E6EDF3] border-[#30363D]'
+              : 'bg-white text-[#1F2328] border-[#D0D7DE]'
+          }`}
         >
-          {/* Breadcrumb path bar */}
+          {/* Breadcrumb Path Bar & In-Editor Toolbar */}
           <div
-            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D]' : 'bg-[#F6F8FA] border-[#D0D7DE]'}`}
+            className={`flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 ${
+              editorTheme === 'github-dark'
+                ? 'bg-[#161B22] border-[#30363D]'
+                : 'bg-[#F6F8FA] border-[#D0D7DE]'
+            }`}
           >
+            {/* File Path Renaming & Branch Indicator */}
             <div className="flex items-center gap-2 flex-1 min-w-[280px]">
               <span className="text-xs font-mono text-[#7D8590]">{selectedRepo.name} /</span>
               <input
                 type="text"
+                data-testid="file-path-input"
                 value={editingFile.path}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const newPath = e.target.value;
+                  const newName = newPath.split('/').pop() || editingFile.name;
                   setEditingFile({
                     ...editingFile,
-                    path: e.target.value,
-                    name: e.target.value.split('/').pop() || editingFile.name,
-                  })
-                }
+                    path: newPath,
+                    name: newName,
+                  });
+                  if (originalPath && newPath !== originalPath) {
+                    setCommitMessage(`Rename ${originalPath} to ${newPath}`);
+                  }
+                }}
                 placeholder="Name your file..."
-                className={`flex-1 px-3 py-1 rounded font-mono text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+                className={`flex-1 px-3 py-1 rounded font-mono text-xs border ${
+                  editorTheme === 'github-dark'
+                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                } focus:outline-none`}
               />
+              {isRenamed && (
+                <span
+                  data-testid="file-renamed-pill"
+                  className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#E3B341]/20 text-[#E3B341] border border-[#E3B341]/40 flex items-center gap-1"
+                  title={`File moved from ${originalPath}`}
+                >
+                  <span>Renamed</span>
+                </span>
+              )}
               <span className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#21262D] text-[#58A6FF] border border-[#30363D]">
                 {currentBranch}
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* In-Editor Toolbar Actions & Mode Toggles */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Mode Switcher: Edit vs Preview vs Split Diff */}
               <div className="flex rounded border border-[#30363D] overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => setEditorMode('edit')}
-                  className={`px-3 py-1 text-xs font-semibold ${editorMode === 'edit' ? 'bg-[#238636] text-white' : 'bg-[#21262D] text-[#7D8590]'}`}
+                  data-testid="mode-edit-button"
+                  onClick={() => {
+                    setEditorMode('edit');
+                    setIsRawActive(false);
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold ${
+                    editorMode === 'edit' && !isRawActive
+                      ? 'bg-[#238636] text-white'
+                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                  }`}
                 >
                   Edit
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEditorMode('preview')}
-                  className={`px-3 py-1 text-xs font-semibold ${editorMode === 'preview' ? 'bg-[#238636] text-white' : 'bg-[#21262D] text-[#7D8590]'}`}
+                  data-testid="mode-preview-button"
+                  onClick={() => {
+                    setEditorMode('preview');
+                    setIsRawActive(false);
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold ${
+                    editorMode === 'preview' && !isRawActive
+                      ? 'bg-[#238636] text-white'
+                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                  }`}
                 >
                   Preview
                 </button>
+                <button
+                  type="button"
+                  data-testid="mode-diff-button"
+                  onClick={() => {
+                    setEditorMode('diff');
+                    setIsRawActive(false);
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold flex items-center gap-1.5 ${
+                    editorMode === 'diff' && !isRawActive
+                      ? 'bg-[#238636] text-white'
+                      : 'bg-[#21262D] text-[#7D8590] hover:text-white'
+                  }`}
+                  title="Split Diff view comparing original vs edits"
+                >
+                  <span>Split Diff</span>
+                  {diffSummary.additions > 0 && (
+                    <span className="text-[#3FB950] text-[10px] font-mono">
+                      +{diffSummary.additions}
+                    </span>
+                  )}
+                  {diffSummary.deletions > 0 && (
+                    <span className="text-[#F85149] text-[10px] font-mono">
+                      -{diffSummary.deletions}
+                    </span>
+                  )}
+                </button>
               </div>
 
+              {/* In-Editor Search & Replace Trigger */}
+              <button
+                type="button"
+                data-testid="search-toggle-button"
+                onClick={() => setIsSearchOpen((prev) => !prev)}
+                className={`px-2.5 py-1 rounded border text-xs flex items-center gap-1 font-semibold transition-colors ${
+                  isSearchOpen
+                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
+                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
+                }`}
+                title="Search and Replace (Ctrl+F)"
+              >
+                <svg height="13" viewBox="0 0 16 16" width="13" fill="currentColor">
+                  <path d="M10.68 11.74a6 6 0 0 1-7.922-8.982 6 6 0 0 1 8.982 7.922l3.04 3.04a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215ZM11.5 7a4.499 4.499 0 1 0-8.997 0A4.499 4.499 0 0 0 11.5 7Z" />
+                </svg>
+                <span>Find</span>
+              </button>
+
+              {/* Raw View Button */}
+              <button
+                type="button"
+                data-testid="raw-code-button"
+                onClick={() => setIsRawActive((prev) => !prev)}
+                className={`px-2.5 py-1 rounded border text-xs font-semibold ${
+                  isRawActive
+                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
+                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
+                }`}
+                title="Open plain unformatted code view"
+              >
+                Raw
+              </button>
+
+              {/* Blame Toggle */}
+              <button
+                type="button"
+                data-testid="blame-toggle-button"
+                onClick={() => setIsBlameActive((prev) => !prev)}
+                className={`px-2.5 py-1 rounded border text-xs font-semibold ${
+                  isBlameActive
+                    ? 'bg-[#388BFD]/20 border-[#388BFD] text-[#58A6FF]'
+                    : 'border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D]'
+                }`}
+                title="Toggle git commit blame author annotations"
+              >
+                Blame
+              </button>
+
+              {/* History Button */}
+              <button
+                type="button"
+                data-testid="file-history-button"
+                onClick={() => setIsHistoryOpen(true)}
+                className="px-2.5 py-1 rounded border border-[#30363D] bg-[#21262D] text-[#E6EDF3] hover:bg-[#30363D] text-xs font-semibold"
+                title="Open file commit history"
+              >
+                History
+              </button>
+
+              {/* Delete File Button (for existing files) */}
+              {!isNewFile && (
+                <button
+                  type="button"
+                  data-testid="delete-file-button"
+                  onClick={() => {
+                    setDeleteCommitMessage(`Delete ${editingFile.name}`);
+                    setIsDeleteModalOpen(true);
+                  }}
+                  className="px-2.5 py-1 rounded border border-[#DA3633] text-xs bg-[#DA3633]/10 text-[#F85149] hover:bg-[#DA3633]/20 flex items-center gap-1 font-semibold"
+                  title="Delete this file"
+                >
+                  <svg height="13" viewBox="0 0 16 16" width="13" fill="currentColor">
+                    <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.15l-.66 6.6A1.75 1.75 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z" />
+                  </svg>
+                  <span>Delete</span>
+                </button>
+              )}
+
+              {/* Theme Switcher */}
               <button
                 type="button"
                 onClick={() =>
@@ -393,33 +1270,387 @@ pnpm install && pnpm dev
             </div>
           </div>
 
+          {/* Search & Replace Widget */}
+          {isSearchOpen && (
+            <div
+              data-testid="search-replace-widget"
+              className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2 border-b text-xs ${
+                editorTheme === 'github-dark'
+                  ? 'bg-[#161B22] border-[#30363D]'
+                  : 'bg-[#F6F8FA] border-[#D0D7DE]'
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-2 flex-1">
+                {/* Search Input */}
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    data-testid="search-input"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setActiveMatchIdx(0);
+                    }}
+                    placeholder="Find in file..."
+                    className={`px-2.5 py-1 rounded border font-mono text-xs w-48 ${
+                      editorTheme === 'github-dark'
+                        ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                    } focus:outline-none`}
+                  />
+                  <span
+                    data-testid="search-match-count"
+                    className="text-[11px] text-[#7D8590] font-mono px-1.5"
+                  >
+                    {searchMatchesCount === 0
+                      ? searchQuery
+                        ? '0 of 0'
+                        : 'no matches'
+                      : `${activeMatchIdx + 1} of ${searchMatchesCount}`}
+                  </span>
+                  <button
+                    type="button"
+                    data-testid="search-prev-button"
+                    onClick={handlePrevMatch}
+                    disabled={searchMatchesCount === 0}
+                    className="p-1 rounded hover:bg-[#30363D] disabled:opacity-40 text-[#7D8590] hover:text-white"
+                    title="Previous match (Shift+Enter)"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="search-next-button"
+                    onClick={handleNextMatch}
+                    disabled={searchMatchesCount === 0}
+                    className="p-1 rounded hover:bg-[#30363D] disabled:opacity-40 text-[#7D8590] hover:text-white"
+                    title="Next match (Enter)"
+                  >
+                    ▼
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="match-case-button"
+                    onClick={() => setMatchCase((prev) => !prev)}
+                    className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold ${
+                      matchCase
+                        ? 'bg-[#388BFD]/30 text-[#58A6FF] border border-[#388BFD]'
+                        : 'text-[#7D8590] hover:text-white'
+                    }`}
+                    title="Match Case"
+                  >
+                    Aa
+                  </button>
+                </div>
+
+                {/* Replace Input & Controls */}
+                <div className="flex items-center gap-1.5 pl-2 border-l border-[#30363D]">
+                  <input
+                    type="text"
+                    data-testid="replace-input"
+                    value={replaceQuery}
+                    onChange={(e) => setReplaceQuery(e.target.value)}
+                    placeholder="Replace with..."
+                    className={`px-2.5 py-1 rounded border font-mono text-xs w-44 ${
+                      editorTheme === 'github-dark'
+                        ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                        : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                    } focus:outline-none`}
+                  />
+                  <button
+                    type="button"
+                    data-testid="replace-one-button"
+                    onClick={handleReplaceOne}
+                    disabled={searchMatchesCount === 0}
+                    className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    Replace
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="replace-all-button"
+                    onClick={handleReplaceAll}
+                    disabled={searchMatchesCount === 0}
+                    className="px-2 py-1 rounded bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] text-[11px] font-semibold disabled:opacity-40"
+                  >
+                    Replace all
+                  </button>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                type="button"
+                data-testid="search-close-button"
+                onClick={() => setIsSearchOpen(false)}
+                className="text-[#7D8590] hover:text-white px-2 py-1 text-xs"
+                title="Close search (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Editor Body */}
           <div className="flex-1 min-h-[350px] relative flex flex-col overflow-hidden">
-            {editorMode === 'preview' && isMarkdown ? (
-              <div className="flex-1 p-6 overflow-y-auto">
-                <MarkdownPreview
-                  content={editingFile.content || ''}
-                  repoName={selectedRepo.name}
-                  cloneUrl={selectedRepo.cloneUrl}
-                  defaultBranch={currentBranch}
-                  onEdit={() => setEditorMode('edit')}
-                />
+            {isRawActive ? (
+              /* 1. Raw Plain Unformatted View */
+              <div
+                data-testid="raw-code-view"
+                className={`flex-1 p-4 overflow-auto font-mono text-xs ${
+                  editorTheme === 'github-dark'
+                    ? 'bg-[#0D1117] text-[#E6EDF3]'
+                    : 'bg-white text-[#1F2328]'
+                }`}
+              >
+                <div className="flex items-center justify-between pb-2 mb-3 border-b border-[#30363D] text-[11px] text-[#7D8590]">
+                  <span>Viewing raw source</span>
+                  <button
+                    type="button"
+                    data-testid="copy-raw-button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(editingFile.content || '');
+                      showToast('Copied raw contents to clipboard');
+                    }}
+                    className="px-2.5 py-1 rounded bg-[#21262D] text-white hover:bg-[#30363D] transition-colors"
+                  >
+                    Copy raw
+                  </button>
+                </div>
+                <pre className="whitespace-pre overflow-x-auto leading-5">
+                  {editingFile.content || ''}
+                </pre>
+              </div>
+            ) : editorMode === 'preview' ? (
+              /* 2. Preview Mode: MarkdownPreview for .md, Syntax Highlighted for Code */
+              isMarkdown ? (
+                <div className="flex-1 p-6 overflow-y-auto">
+                  <MarkdownPreview
+                    content={editingFile.content || ''}
+                    repoName={selectedRepo.name}
+                    cloneUrl={selectedRepo.cloneUrl}
+                    defaultBranch={currentBranch}
+                    onEdit={() => setEditorMode('edit')}
+                  />
+                </div>
+              ) : (
+                <div
+                  data-testid="syntax-highlighted-preview"
+                  className={`flex flex-1 min-h-0 font-mono text-xs overflow-auto ${
+                    editorTheme === 'github-dark'
+                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      : 'bg-white text-[#1F2328]'
+                  }`}
+                >
+                  {/* Line numbers gutter */}
+                  <div
+                    aria-hidden="true"
+                    className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 shrink-0 ${
+                      editorTheme === 'github-dark'
+                        ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]'
+                        : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'
+                    }`}
+                  >
+                    {lines.map((_, idx) => (
+                      <div key={idx}>{idx + 1}</div>
+                    ))}
+                  </div>
+
+                  {/* Tokenized Lines */}
+                  <div className="p-3 flex-1 overflow-x-auto leading-6 whitespace-pre">
+                    {lines.map((line, idx) => (
+                      <div key={idx} className="hover:bg-[#161B22]/60 px-1 rounded">
+                        {renderSyntaxHighlightedLine(line, detectedLang, editorTheme)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            ) : editorMode === 'diff' ? (
+              /* 3. Split Diff Mode: Side-by-side or Unified Diff View */
+              <div
+                data-testid="split-diff-view"
+                className="flex-1 flex flex-col min-h-[350px] overflow-hidden"
+              >
+                {/* Diff Sub-Header */}
+                <div
+                  className={`flex items-center justify-between px-4 py-2 border-b text-xs ${
+                    editorTheme === 'github-dark'
+                      ? 'bg-[#161B22] border-[#30363D]'
+                      : 'bg-[#F6F8FA] border-[#D0D7DE]'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-white">Diff Comparison</span>
+                    <span className="text-[11px] text-[#7D8590]">
+                      Comparing base ({originalPath || editingFile.path}) vs working edits
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      data-testid="diff-additions-badge"
+                      className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#238636]/20 text-[#3FB950] border border-[#238636]/40 font-bold"
+                    >
+                      +{diffSummary.additions}
+                    </span>
+                    <span
+                      data-testid="diff-deletions-badge"
+                      className="px-2 py-0.5 rounded text-[11px] font-mono bg-[#DA3633]/20 text-[#F85149] border border-[#DA3633]/40 font-bold"
+                    >
+                      -{diffSummary.deletions}
+                    </span>
+                    <div className="flex rounded border border-[#30363D] overflow-hidden text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setDiffViewStyle('split')}
+                        className={`px-2 py-0.5 ${
+                          diffViewStyle === 'split' ? 'bg-[#21262D] text-white' : 'text-[#7D8590]'
+                        }`}
+                      >
+                        Split
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiffViewStyle('unified')}
+                        className={`px-2 py-0.5 ${
+                          diffViewStyle === 'unified' ? 'bg-[#21262D] text-white' : 'text-[#7D8590]'
+                        }`}
+                      >
+                        Unified
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Diff Body */}
+                <div
+                  className={`flex-1 overflow-auto font-mono text-xs ${
+                    editorTheme === 'github-dark'
+                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      : 'bg-white text-[#1F2328]'
+                  }`}
+                >
+                  {diffViewStyle === 'split' ? (
+                    <div className="grid grid-cols-2 divide-x divide-[#30363D] min-w-full">
+                      {/* Left: Original Base */}
+                      <div className="p-2 space-y-0.5">
+                        <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 border-b border-[#30363D] mb-1">
+                          Original Base (
+                          {originalFileContent ? originalFileContent.split('\n').length : 0} lines)
+                        </div>
+                        {originalFileContent.split('\n').map((line, idx) => (
+                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[#161B22]/50">
+                            <span className="w-8 text-right text-[#484F58] select-none text-[11px] shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="whitespace-pre overflow-x-auto">{line || ' '}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Right: Current Edits */}
+                      <div className="p-2 space-y-0.5">
+                        <div className="text-[10px] text-[#7D8590] uppercase tracking-wider font-bold pb-1 border-b border-[#30363D] mb-1">
+                          Current Edits ({lines.length} lines)
+                        </div>
+                        {lines.map((line, idx) => (
+                          <div key={idx} className="flex gap-2 leading-5 hover:bg-[#161B22]/50">
+                            <span className="w-8 text-right text-[#484F58] select-none text-[11px] shrink-0">
+                              {idx + 1}
+                            </span>
+                            <span className="whitespace-pre overflow-x-auto">{line || ' '}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Unified Diff */
+                    <div className="divide-y divide-[#21262D]">
+                      {diffLines.map((line, idx) => {
+                        const isAdd = line.type === 'added';
+                        const isDel = line.type === 'removed';
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-start text-xs font-mono leading-5 ${
+                              isAdd
+                                ? 'bg-[#238636]/15 text-[#3FB950] border-l-2 border-[#238636]'
+                                : isDel
+                                  ? 'bg-[#DA3633]/15 text-[#F85149] border-l-2 border-[#DA3633]'
+                                  : 'text-[#E6EDF3]'
+                            }`}
+                          >
+                            <div className="flex shrink-0 select-none text-[11px] text-[#484F58] border-r border-[#30363D] w-16 justify-between px-2">
+                              <span className="w-6 text-right">{line.oldLineNumber ?? ''}</span>
+                              <span className="w-6 text-right">{line.newLineNumber ?? ''}</span>
+                            </div>
+                            <span className="w-5 text-center select-none font-bold shrink-0">
+                              {isAdd ? '+' : isDel ? '-' : ' '}
+                            </span>
+                            <span className="whitespace-pre overflow-x-auto py-0.5 pr-2 flex-1">
+                              {line.text || ' '}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
+              /* 4. Edit Mode: Interactive Code Editor with Blame column and line numbers */
               <div
-                className={`flex flex-1 min-h-0 font-mono text-xs ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3]' : 'bg-white text-[#1F2328]'}`}
+                className={`flex flex-1 min-h-0 font-mono text-xs ${
+                  editorTheme === 'github-dark'
+                    ? 'bg-[#0D1117] text-[#E6EDF3]'
+                    : 'bg-white text-[#1F2328]'
+                }`}
               >
+                {/* Line numbers gutter */}
                 <div
                   aria-hidden="true"
-                  className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]' : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'}`}
+                  className={`select-none py-3 px-3 text-right border-r font-mono text-[11px] leading-6 shrink-0 ${
+                    editorTheme === 'github-dark'
+                      ? 'bg-[#0D1117] text-[#484F58] border-[#30363D]'
+                      : 'bg-[#F6F8FA] text-[#8C959F] border-[#D0D7DE]'
+                  }`}
                 >
                   {lines.map((_, idx) => (
                     <div key={idx}>{idx + 1}</div>
                   ))}
                 </div>
 
+                {/* Optional Git Blame column */}
+                {isBlameActive && (
+                  <div
+                    data-testid="blame-gutter"
+                    className={`select-none py-3 px-2 border-r font-mono text-[11px] leading-6 shrink-0 divide-y divide-[#21262D]/60 ${
+                      editorTheme === 'github-dark'
+                        ? 'bg-[#161B22]/40 text-[#7D8590] border-[#30363D]'
+                        : 'bg-[#F6F8FA] text-[#57606A] border-[#D0D7DE]'
+                    }`}
+                  >
+                    {lines.map((_, idx) => {
+                      const commit = getMockBlame(idx + 1, editingFile.path);
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 truncate px-1 text-[10px]"
+                          title={`${commit.sha}: ${commit.message} (${commit.author})`}
+                        >
+                          <span className="font-mono text-[#58A6FF]">{commit.sha.slice(0, 7)}</span>
+                          <span className="truncate max-w-[80px]">{commit.author}</span>
+                          <span className="text-[#8B949E] text-[9px]">{commit.date}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Textarea Code Input */}
                 <textarea
                   ref={textareaRef}
+                  data-testid="code-editor-textarea"
                   value={editingFile.content || ''}
                   onChange={(e) => setEditingFile({ ...editingFile, content: e.target.value })}
                   onKeyDown={(e) => {
@@ -438,41 +1669,71 @@ pnpm install && pnpm dev
                     }
                   }}
                   spellCheck={false}
-                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-[#E6EDF3]' : 'bg-white text-[#1F2328]'}`}
+                  className={`flex-1 p-3 font-mono text-xs leading-6 resize-none focus:outline-none ${
+                    editorTheme === 'github-dark'
+                      ? 'bg-[#0D1117] text-[#E6EDF3]'
+                      : 'bg-white text-[#1F2328]'
+                  }`}
                   placeholder="Type your code or markdown content here..."
                 />
               </div>
             )}
 
+            {/* Bottom Status Bar */}
             <div
-              className={`flex items-center justify-between px-4 py-1.5 text-[11px] border-t ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D] text-[#7D8590]' : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'}`}
+              className={`flex items-center justify-between px-4 py-1.5 text-[11px] border-t ${
+                editorTheme === 'github-dark'
+                  ? 'bg-[#161B22] border-[#30363D] text-[#7D8590]'
+                  : 'bg-[#F6F8FA] border-[#D0D7DE] text-[#656D76]'
+              }`}
             >
               <span>
                 {lines.length} lines · {(editingFile.content || '').length} characters
               </span>
-              <span>Tab size: 2 spaces</span>
+              <div className="flex items-center gap-3">
+                <span className="capitalize">{detectedLang}</span>
+                <span>Tab size: 2 spaces</span>
+              </div>
             </div>
           </div>
 
           {/* GitHub-Parity Commit Changes Box */}
           <div
-            className={`p-4 border-t space-y-3 ${editorTheme === 'github-dark' ? 'bg-[#161B22] border-[#30363D]' : 'bg-[#F6F8FA] border-[#D0D7DE]'}`}
+            className={`p-4 border-t space-y-3 ${
+              editorTheme === 'github-dark'
+                ? 'bg-[#161B22] border-[#30363D]'
+                : 'bg-[#F6F8FA] border-[#D0D7DE]'
+            }`}
           >
             <h3 className="font-bold text-sm">Commit changes</h3>
             <div className="space-y-2">
               <input
                 type="text"
+                data-testid="commit-message-input"
                 value={commitMessage}
                 onChange={(e) => setCommitMessage(e.target.value)}
-                placeholder={`Create ${editingFile.name || 'file'}`}
-                className={`w-full px-3 py-1.5 rounded text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+                placeholder={
+                  isRenamed
+                    ? `Rename ${originalPath} to ${editingFile.path}`
+                    : `Update ${editingFile.name || 'file'}`
+                }
+                className={`w-full px-3 py-1.5 rounded text-xs border ${
+                  editorTheme === 'github-dark'
+                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                } focus:outline-none`}
               />
               <textarea
+                data-testid="commit-description-input"
                 value={commitDescription}
                 onChange={(e) => setCommitDescription(e.target.value)}
                 placeholder="Add an optional extended description..."
                 rows={2}
-                className={`w-full px-3 py-1.5 rounded text-xs border ${editorTheme === 'github-dark' ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]' : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'} focus:outline-none`}
+                className={`w-full px-3 py-1.5 rounded text-xs border ${
+                  editorTheme === 'github-dark'
+                    ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                    : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                } focus:outline-none`}
               />
             </div>
 
@@ -508,6 +1769,7 @@ pnpm install && pnpm dev
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
+                data-testid="cancel-edit-button"
                 onClick={() => setEditingFile(null)}
                 className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold text-xs"
               >
@@ -515,6 +1777,7 @@ pnpm install && pnpm dev
               </button>
               <button
                 type="button"
+                data-testid="commit-changes-button"
                 disabled={isCommitting || !commitMessage.trim()}
                 onClick={async () => {
                   if (!onCommitBlob) {
@@ -527,9 +1790,12 @@ pnpm install && pnpm dev
                       path: editingFile.path,
                       branch: currentBranch,
                       content: editingFile.content || '',
-                      message: `${commitMessage.trim()}${commitDescription ? `\n\n${commitDescription.trim()}` : ''}`,
+                      message: `${commitMessage.trim()}${
+                        commitDescription ? `\n\n${commitDescription.trim()}` : ''
+                      }`,
                       expectedBlobSha:
                         (editingFile as any).sha || (editingFile as any).blobSha || '',
+                      originalPath: isRenamed ? originalPath : undefined,
                     });
                     setEditingFile(null);
                   } catch (err) {
@@ -566,6 +1832,193 @@ pnpm install && pnpm dev
             </div>
           </div>
         </div>
+
+        {/* Delete File Dedicated Modal */}
+        {isDeleteModalOpen && (
+          <div
+            data-testid="delete-file-modal"
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          >
+            <div className="bg-[#161B22] border border-[#30363D] rounded-xl max-w-lg w-full p-6 space-y-4 shadow-2xl text-left">
+              <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span className="text-[#F85149]">🗑️</span>
+                  <span>Delete {editingFile.name}</span>
+                </h3>
+                <button
+                  type="button"
+                  data-testid="close-delete-modal"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="text-[#7D8590] hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-[#E6EDF3]">
+                Are you sure you want to delete{' '}
+                <strong className="font-mono text-[#58A6FF]">{editingFile.path}</strong> from the{' '}
+                <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch?
+              </p>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-[#7D8590]">Commit message</label>
+                <input
+                  type="text"
+                  data-testid="delete-commit-message-input"
+                  value={deleteCommitMessage}
+                  onChange={(e) => setDeleteCommitMessage(e.target.value)}
+                  placeholder={`Delete ${editingFile.name}`}
+                  className="w-full px-3 py-1.5 rounded text-xs bg-[#0D1117] text-white border border-[#30363D] focus:border-[#58A6FF] focus:outline-none"
+                />
+                <textarea
+                  data-testid="delete-commit-desc-input"
+                  value={deleteCommitDescription}
+                  onChange={(e) => setDeleteCommitDescription(e.target.value)}
+                  placeholder="Add an optional extended description..."
+                  rows={2}
+                  className="w-full px-3 py-1.5 rounded text-xs bg-[#0D1117] text-white border border-[#30363D] focus:border-[#58A6FF] focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deleteBranchingOption"
+                    checked={deleteBranchAction === 'direct'}
+                    onChange={() => setDeleteBranchAction('direct')}
+                    className="text-[#DA3633]"
+                  />
+                  <span>
+                    Commit directly to the{' '}
+                    <strong className="font-mono text-[#58A6FF]">{currentBranch}</strong> branch
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deleteBranchingOption"
+                    checked={deleteBranchAction === 'pr'}
+                    onChange={() => setDeleteBranchAction('pr')}
+                    className="text-[#DA3633]"
+                  />
+                  <span>
+                    Create a <strong className="font-mono text-[#58A6FF]">new branch</strong> for
+                    this commit and start a pull request
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#30363D]">
+                <button
+                  type="button"
+                  data-testid="cancel-delete-modal-button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] font-semibold text-xs"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-delete-button"
+                  disabled={isDeleting || !deleteCommitMessage.trim()}
+                  onClick={handleConfirmDelete}
+                  className="px-4 py-1.5 rounded bg-[#DA3633] hover:bg-[#B62324] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
+                >
+                  {isDeleting && (
+                    <svg
+                      className="animate-spin h-3.5 w-3.5 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                  )}
+                  <span>Commit changes / Delete file</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* History Modal */}
+        {isHistoryOpen && (
+          <div
+            data-testid="file-history-modal"
+            className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          >
+            <div className="bg-[#161B22] border border-[#30363D] rounded-xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-[#30363D]">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>History for</span>
+                  <span className="font-mono text-[#58A6FF]">{editingFile.path}</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="text-[#7D8590] hover:text-white"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                {getMockFileHistory(editingFile.path).map((hist) => (
+                  <div
+                    key={hist.sha}
+                    className="p-3 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white truncate">{hist.message}</p>
+                      <p className="text-[11px] text-[#7D8590]">
+                        {hist.author} committed {hist.date}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#21262D] text-[#58A6FF] border border-[#30363D]">
+                        {hist.sha.slice(0, 7)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(hist.sha);
+                          showToast(`Copied commit SHA: ${hist.sha}`);
+                        }}
+                        className="hover:text-white text-[#7D8590] p-1"
+                        title="Copy full SHA"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-[#30363D]">
+                <button
+                  type="button"
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="px-4 py-1.5 rounded border border-[#30363D] bg-[#21262D] hover:bg-[#30363D] text-[#E6EDF3] text-xs font-semibold"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -696,14 +2149,23 @@ pnpm install && pnpm dev
                     onClick={() => {
                       setIsAddFileOpen(false);
                       const newPath = currentPath ? `${currentPath}/new-file.ts` : 'new-file.ts';
+                      const defaultContent = 'export function newModule() {\n  return true;\n}\n';
                       setEditingFile({
                         path: newPath,
                         name: 'new-file.ts',
                         type: 'file',
-                        content: 'export function newModule() {\n  return true;\n}\n',
+                        content: defaultContent,
                       });
-                      setCommitMessage(`Create new-file.ts`);
+                      setOriginalFileContent('');
+                      setOriginalPath('');
+                      setCommitMessage('Create new-file.ts');
+                      setDeleteCommitMessage('');
                       setEditorMode('edit');
+                      setIsBlameActive(false);
+                      setIsRawActive(false);
+                      setIsSearchOpen(false);
+                      setIsDeleteModalOpen(false);
+                      setIsHistoryOpen(false);
                     }}
                     className="w-full text-left px-3 py-2 hover:bg-[#21262D] text-[#E6EDF3] flex items-center gap-2 font-medium"
                   >
@@ -964,8 +2426,16 @@ pnpm install && pnpm dev
                       ...file,
                       content: file.content || '',
                     });
+                    setOriginalFileContent(file.content || '');
+                    setOriginalPath(file.path);
                     setCommitMessage(`Update ${file.path}`);
+                    setDeleteCommitMessage(`Delete ${file.name}`);
                     setEditorMode('edit');
+                    setIsBlameActive(false);
+                    setIsRawActive(false);
+                    setIsSearchOpen(false);
+                    setIsDeleteModalOpen(false);
+                    setIsHistoryOpen(false);
                   }
                 }}
               >

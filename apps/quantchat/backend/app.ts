@@ -7,6 +7,7 @@ import searchRoutes from './routes/search';
 import encryptionRoutes from './routes/encryption';
 import e2eeRoutes from './routes/e2ee';
 import e2eePreKeyRoutes from './routes/e2ee-prekeys';
+import prekeysRoutes from './routes/prekeys';
 import federationRoutes, { createFederationService } from './routes/federation';
 import arLensesRoutes, { createArLensesService } from './routes/ar-lenses';
 import mediaRoutes from './routes/media';
@@ -168,6 +169,7 @@ export async function buildApp(config?: AppConfig) {
   });
   await app.register(e2eeRoutes, { prefix: '/e2ee' });
   await app.register(e2eePreKeyRoutes, { prefix: '/e2ee' });
+  await app.register(prekeysRoutes);
 
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });

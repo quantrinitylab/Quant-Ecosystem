@@ -2,6 +2,8 @@ export type MainDeckTab = 'quanty' | 'repos' | 'code' | 'lab';
 
 export type GitHubTab =
   | 'code'
+  | 'commits'
+  | 'branches'
   | 'issues'
   | 'pulls'
   | 'agents'
@@ -41,6 +43,63 @@ export type Repo = {
   branchCount?: number;
   commitCount?: number;
   branches?: string[];
+};
+
+export type CommitDiffLine = {
+  type: 'addition' | 'deletion' | 'context';
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  content: string;
+};
+
+export type CommitFileDiff = {
+  filename: string;
+  status: 'modified' | 'added' | 'deleted';
+  additions: number;
+  deletions: number;
+  patch?: string;
+  lines?: CommitDiffLine[];
+};
+
+export type CommitItem = {
+  sha: string;
+  shortSha?: string;
+  message: string;
+  body?: string;
+  author: {
+    name: string;
+    email?: string;
+    avatarUrl?: string;
+    username?: string;
+  };
+  committer?: {
+    name: string;
+    email?: string;
+  };
+  date: string;
+  relativeTime: string;
+  verified: boolean;
+  verificationReason?: string;
+  stats?: {
+    totalFiles: number;
+    additions: number;
+    deletions: number;
+  };
+  files?: CommitFileDiff[];
+  parents?: string[];
+};
+
+export type BranchItem = {
+  name: string;
+  sha: string;
+  isDefault: boolean;
+  isProtected: boolean;
+  protection?: string;
+  aheadBy: number;
+  behindBy: number;
+  lastCommitAuthor?: string;
+  lastCommitMessage?: string;
+  lastCommitTime?: string;
 };
 
 export type FileNode = {

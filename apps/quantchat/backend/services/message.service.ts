@@ -603,7 +603,32 @@ export class MessageService {
 
     // SEC-4: Mint an authentic SigV4 short-lived presigned view URL (60-second TTL) fail-closed
     // so raw media cannot be retained or fetched indefinitely from storage after consumption.
-    const ephemeralMediaUrl = await mintPresignedSnapUrl(message.mediaUrl ?? '');
+    const rawMediaUrl = message.mediaUrl ?? '';
+    const ephemeralMediaUrl = await mintPresignedSnapUrl(rawMediaUrl);
+
+    // Hard delete media payload from S3/storage and mark consumed
+    const storageKey = extractStorageKey(rawMediaUrl);
+    if (storageKey) {
+      try {
+        await this.storage.delete(storageKey);
+      } catch {
+        // ignore deletion errors if already removed
+      }
+    }
+
+    const updatedMetadata = {
+      ...metadata,
+      consumedAt: new Date().toISOString(),
+      consumedBy: userId,
+    };
+
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: {
+        mediaUrl: null,
+        metadata: updatedMetadata,
+      },
+    });
 
     return {
       mediaUrl: ephemeralMediaUrl,
