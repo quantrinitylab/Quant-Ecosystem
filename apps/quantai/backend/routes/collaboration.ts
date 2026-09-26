@@ -10,7 +10,7 @@ const collaborationSchema = z.object({
 
 export default async function collaborationRoutes(fastify: FastifyInstance) {
   // Note: In production, inject the orchestrator
-  const collaboration = new (require('@quant/agentic').AgentCollaboration)(null as any);
+  const collaboration = new AgentCollaboration(null as any);
 
   fastify.post('/', async (request, reply) => {
     const parseResult = collaborationSchema.safeParse(request.body);

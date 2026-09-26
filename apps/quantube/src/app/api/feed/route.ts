@@ -6,10 +6,17 @@ import { getGuestFeaturedVideos } from '../../../data/public-videos';
 // paginated via ?feedId=&page=&pageSize=. Fallback to curated public featured
 // videos for unauthenticated guests.
 export async function GET(request: NextRequest) {
+  const hasAuth = Boolean(request.headers.get('authorization'));
   try {
     const res = await proxyEngineRequest(request, '/feed', {
       searchParams: request.nextUrl.searchParams,
     });
+
+    // Preserve 403 (Forbidden) and non-2xx responses for authenticated callers
+    if (res.status === 403 || (hasAuth && !res.ok)) {
+      return res;
+    }
+
     if (res.status === 401 || !res.ok) {
       const fallback = getGuestFeaturedVideos();
       return NextResponse.json(
@@ -38,6 +45,9 @@ export async function GET(request: NextRequest) {
     }
     return res;
   } catch (_err) {
+    if (hasAuth) {
+      return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
+    }
     const fallback = getGuestFeaturedVideos();
     return NextResponse.json(
       {

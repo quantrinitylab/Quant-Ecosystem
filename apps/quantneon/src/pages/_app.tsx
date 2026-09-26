@@ -15,9 +15,7 @@ import { AuthProvider } from '../providers/auth-provider';
 import { AuthGuard } from '../components/AuthGuard';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { VoiceCommandHost } from '../components/VoiceCommandHost';
-import { registerQuantneonVoice } from '../voice-registration';
-
-registerQuantneonVoice();
+// registerQuantneonVoice is initialized client-side inside App
 
 interface AppProps {
   Component: React.ComponentType<Record<string, unknown>>;
@@ -46,6 +44,12 @@ function QuantNeonCommandRegistrar() {
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+
+  useEffect(() => {
+    void import('../voice-registration').then(({ registerQuantneonVoice }) => {
+      registerQuantneonVoice();
+    });
+  }, []);
 
   return (
     <ErrorBoundary>

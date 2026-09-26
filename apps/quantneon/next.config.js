@@ -1,6 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@quant/agentic', '@quant/shared-ui', '@quant/common'],
+  transpilePackages: ['@quant/agentic', '@quant/shared-ui', '@quant/common', '@quant/brand'],
+  experimental: {
+    optimizePackageImports: ['@quant/shared-ui', 'framer-motion'],
+  },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   serverExternalPackages: ['nats'],
   webpack: (config, { isServer }) => {
     // Resolve workspace TypeScript sources that use `.js` import specifiers

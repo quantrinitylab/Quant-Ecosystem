@@ -6,6 +6,9 @@ export async function GET(request: NextRequest) {
   const category = request.nextUrl.searchParams.get('category') || undefined;
   try {
     const res = await proxyToBackend(request, '/videos');
+    if (res.status === 403) {
+      return res;
+    }
     if (res.status === 401 || !res.ok) {
       const fallback = getGuestFeaturedVideos(category);
       return NextResponse.json(

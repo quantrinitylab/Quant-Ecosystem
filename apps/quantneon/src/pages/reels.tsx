@@ -399,9 +399,11 @@ const ReelsPage: React.FC = () => {
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     requireAuth('like', () => {
-                      state.liked.has(currentReel.id)
-                        ? actions.unlike(currentReel.id)
-                        : actions.like(currentReel.id);
+                      if (state.liked.has(currentReel.id)) {
+                        actions.unlike(currentReel.id);
+                      } else {
+                        actions.like(currentReel.id);
+                      }
                     });
                   }}
                   aria-label={`Like, ${formatCount(currentReel.likeCount)}`}

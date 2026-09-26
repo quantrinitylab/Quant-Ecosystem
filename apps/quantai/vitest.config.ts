@@ -55,10 +55,11 @@ export default defineConfig({
     // Registering `tsx` as a Node import hook in each test worker reproduces the production
     // loader exactly: Node natively resolves the `.ts` sources and maps the `.js` specifiers
     // onto them, for BOTH the externalized import path and the literal `require(...)`. This is a
-    // test-tooling change only — no product source is touched, and no assertion is relaxed.
-    // pool: 'forks',
-    // execArgv: ['--import', 'tsx'],
-    // Booting the full Fastify app (createApp substrate + ~36 route plugins + engine
+    server: {
+      deps: {
+        inline: [/@quant\//],
+      },
+    },
     // construction) through the tsx loader is heavier than a unit test, so give the boot
     // suites headroom over the 5s default when the whole suite runs in parallel.
     testTimeout: 60000,
