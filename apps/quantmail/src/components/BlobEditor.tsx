@@ -12,6 +12,7 @@ export type CommitBlobInput = {
   expectedBlobSha: string;
   originalPath?: string;
   isDelete?: boolean;
+  newBranch?: string;
 };
 
 export type BlobEditorProps = {

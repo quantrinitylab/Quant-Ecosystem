@@ -239,14 +239,70 @@ export type ProjectCard = {
   assignee: string;
 };
 
+export type SecuritySeverity = 'critical' | 'high' | 'moderate' | 'low';
+export type SecurityAlertState = 'open' | 'resolved' | 'dismissed' | 'closed';
+
 export type SecurityAlert = {
   id: string;
   package: string;
-  severity: 'critical' | 'high' | 'moderate' | 'low';
+  severity: SecuritySeverity;
   cve: string;
   title: string;
-  state: 'open' | 'resolved';
+  state: SecurityAlertState;
+  vulnerableRange?: string;
+  patchedVersion?: string;
+  cvss?: number;
+  cweTitle?: string;
+  createdAt?: string;
+  dismissedReason?: string;
+  fixPrId?: number;
 };
+
+export type SecretType =
+  | 'AWS Access Key'
+  | 'GitHub Personal Access Token'
+  | 'GitLab Personal Access Token'
+  | 'OpenAI API Key'
+  | 'RSA Private Key'
+  | 'Database Connection String';
+
+export type SecretAlertStatus = 'active' | 'revoked' | 'false_positive';
+
+export type SecretScanningAlert = {
+  id: string;
+  secretType: SecretType;
+  rawMatch?: string;
+  maskedSecret: string;
+  filePath: string;
+  lineNumber: number;
+  detectedAt: string;
+  status: SecretAlertStatus;
+  commitSha?: string;
+};
+
+export type CodeQLSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+export type CodeQLAlert = {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  severity: CodeQLSeverity;
+  filePath: string;
+  lineStart: number;
+  lineEnd: number;
+  description: string;
+  codeSnippet: string;
+  recommendedFix: string;
+  state: 'open' | 'fixed' | 'dismissed';
+};
+
+export type BranchSecurityRules = {
+  requirePullRequestReviews: boolean;
+  requireStatusChecks: boolean;
+  requireCleanSecretScanning: boolean;
+};
+
+export type SecurityTabSubTab = 'dependabot' | 'secrets' | 'codeql' | 'policy';
 
 export type DeployedAgent = {
   id: string;
@@ -293,6 +349,7 @@ export type ModalState =
   | 'new-issue'
   | 'new-pr'
   | 'new-repo'
+  | 'repo-import'
   | 'deploy-agent'
   | 'action-detail'
   | 'pr-detail'

@@ -58,6 +58,7 @@ export function QuantGitHeader({
 }: QuantGitHeaderProps) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
 
   return (
     <>
@@ -219,14 +220,74 @@ export function QuantGitHeader({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setModalState('new-repo')}
-              className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
-              title="Create New..."
-            >
-              <span className="text-[#7D8590]">+</span> ▼
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                data-testid="create-new-dropdown-btn"
+                onClick={() => setIsCreateMenuOpen((prev) => !prev)}
+                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
+                title="Create New..."
+              >
+                <span className="text-[#7D8590]">+</span> ▼
+              </button>
+
+              {isCreateMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsCreateMenuOpen(false)} />
+                  <div
+                    data-testid="create-new-dropdown-menu"
+                    className="absolute right-0 mt-1.5 w-48 rounded-lg bg-[#161B22] border border-[#30363D] shadow-xl py-1 z-50 text-xs text-[#E6EDF3] divide-y divide-[#21262D] animate-in fade-in"
+                  >
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        data-testid="dropdown-new-repo-btn"
+                        onClick={() => {
+                          setIsCreateMenuOpen(false);
+                          setModalState('new-repo');
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white flex items-center gap-2"
+                      >
+                        <span className="text-[#7D8590]">+</span> New repository
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="dropdown-import-repo-btn"
+                        onClick={() => {
+                          setIsCreateMenuOpen(false);
+                          setModalState('repo-import');
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white flex items-center gap-2"
+                      >
+                        <span className="text-[#58A6FF]">↓</span> Import repository
+                      </button>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreateMenuOpen(false);
+                          setModalState('new-pr');
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white"
+                      >
+                        New pull request
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreateMenuOpen(false);
+                          setModalState('new-issue');
+                        }}
+                        className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white"
+                      >
+                        New issue
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             <button
               type="button"

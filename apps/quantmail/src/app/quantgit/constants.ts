@@ -7,6 +7,9 @@ import type {
   WorkflowRunItem,
   ProjectCard,
   SecurityAlert,
+  SecretScanningAlert,
+  CodeQLAlert,
+  BranchSecurityRules,
   DeployedAgent,
   CommitItem,
   BranchItem,
@@ -1087,40 +1090,242 @@ export const INITIAL_PROJECT_CARDS: ProjectCard[] = [
 ];
 
 // Initial Security Alerts
+// Initial Security Alerts (Dependabot Parity)
 export const INITIAL_SECURITY_ALERTS: SecurityAlert[] = [
   {
-    id: 'sec-1',
-    package: 'tar < 6.2.1',
-    severity: 'moderate',
-    cve: 'CVE-2024-37890',
-    title: 'Arbitrary File Overwrite via symlink directory traversal',
+    id: 'sec-0',
+    package: 'express',
+    severity: 'critical',
+    cve: 'CVE-2026-3849',
+    cvss: 9.8,
+    title: 'Remote Code Execution via Prototype Pollution in nested query parser',
+    cweTitle: "CWE-94: Improper Control of Generation of Code ('Code Injection')",
+    vulnerableRange: '< 4.18.2',
+    patchedVersion: '4.18.2',
     state: 'open',
+    createdAt: '1 hour ago',
+  },
+  {
+    id: 'sec-1',
+    package: 'tar',
+    severity: 'high',
+    cve: 'CVE-2024-37890',
+    cvss: 7.5,
+    title: 'Arbitrary File Overwrite via symlink directory traversal',
+    cweTitle:
+      "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+    vulnerableRange: '< 6.2.1',
+    patchedVersion: '6.2.1',
+    state: 'open',
+    createdAt: '2 days ago',
   },
   {
     id: 'sec-2',
-    package: 'micromatch < 4.0.8',
+    package: 'micromatch',
     severity: 'moderate',
     cve: 'CVE-2024-4067',
+    cvss: 5.3,
     title: 'Regular Expression Denial of Service (ReDoS) in glob parsing',
+    cweTitle: 'CWE-1333: Inefficient Regular Expression Complexity',
+    vulnerableRange: '< 4.0.8',
+    patchedVersion: '4.0.8',
     state: 'open',
+    createdAt: '3 days ago',
   },
   {
     id: 'sec-3',
-    package: 'ws < 8.17.1',
+    package: 'ws',
     severity: 'low',
     cve: 'CVE-2024-37891',
+    cvss: 3.7,
     title: 'WebSocket payload framing timing side-channel',
+    cweTitle: 'CWE-208: Observable Timing Discrepancy',
+    vulnerableRange: '< 8.17.1',
+    patchedVersion: '8.17.1',
     state: 'open',
+    createdAt: '1 week ago',
   },
   {
     id: 'sec-4',
-    package: 'braces < 3.0.3',
+    package: 'braces',
     severity: 'low',
     cve: 'CVE-2024-4068',
+    cvss: 3.7,
     title: 'Uncontrolled resource consumption in string expansion',
+    cweTitle: 'CWE-400: Uncontrolled Resource Consumption',
+    vulnerableRange: '< 3.0.3',
+    patchedVersion: '3.0.3',
+    state: 'open',
+    createdAt: '2 weeks ago',
+  },
+];
+
+// Initial Secret Scanning Alerts
+export const INITIAL_SECRET_ALERTS: SecretScanningAlert[] = [
+  {
+    id: 'secret-1',
+    secretType: 'AWS Access Key',
+    maskedSecret: 'AKIA************',
+    rawMatch: 'AKIAIOSFODNN7EXAMPLE',
+    filePath: 'config/aws-credentials.env',
+    lineNumber: 14,
+    detectedAt: '12 minutes ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-2',
+    secretType: 'GitHub Personal Access Token',
+    maskedSecret: 'ghp_************',
+    rawMatch: 'ghp_1234567890abcdefghijklmnopqrstuvwxyz',
+    filePath: 'scripts/deploy-staging.sh',
+    lineNumber: 28,
+    detectedAt: '1 hour ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-3',
+    secretType: 'GitLab Personal Access Token',
+    maskedSecret: 'glpat-************',
+    rawMatch: 'glpat-xxxxxxxxxxxxxxxxxxxx',
+    filePath: '.gitlab-ci.yml',
+    lineNumber: 45,
+    detectedAt: '3 hours ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-4',
+    secretType: 'OpenAI API Key',
+    maskedSecret: 'sk-************',
+    rawMatch: 'sk-proj-1234567890abcdefghijklmnopqrstuvwxyz',
+    filePath: 'backend/services/ai.ts',
+    lineNumber: 9,
+    detectedAt: 'Yesterday',
+    status: 'revoked',
+  },
+  {
+    id: 'secret-5',
+    secretType: 'RSA Private Key',
+    maskedSecret: '-----BEGIN RSA PRIVATE KEY-----************',
+    rawMatch: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0...',
+    filePath: 'certs/server.key',
+    lineNumber: 1,
+    detectedAt: '3 days ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-6',
+    secretType: 'Database Connection String',
+    maskedSecret: 'postgres://quant_admin:************@db.quant.local:5432/quantmail',
+    rawMatch: 'postgres://quant_admin:SuperSecretPass123!@db.quant.local:5432/quantmail',
+    filePath: 'prisma/.env',
+    lineNumber: 2,
+    detectedAt: '5 days ago',
+    status: 'active',
+  },
+];
+
+// Initial CodeQL / SAST Alerts
+export const INITIAL_CODEQL_ALERTS: CodeQLAlert[] = [
+  {
+    id: 'codeql-1',
+    ruleId: 'js/sql-injection',
+    ruleName: 'SQL Injection',
+    severity: 'critical',
+    filePath: 'apps/quantmail/backend/routes/repos.ts',
+    lineStart: 42,
+    lineEnd: 48,
+    description:
+      'Database query built from user-controlled string concatenation without parameterization.',
+    codeSnippet: "const query = `SELECT * FROM repos WHERE name = '${req.query.name}'`;",
+    recommendedFix:
+      'const repo = await prisma.repository.findFirst({ where: { name: req.query.name } });',
+    state: 'open',
+  },
+  {
+    id: 'codeql-2',
+    ruleId: 'js/xss',
+    ruleName: 'Cross-Site Scripting (XSS)',
+    severity: 'high',
+    filePath: 'apps/quantmail/src/components/MarkdownPreview.tsx',
+    lineStart: 115,
+    lineEnd: 118,
+    description: 'Raw HTML rendered into DOM tree without DOMPurify or HTML sanitization defense.',
+    codeSnippet: '<div dangerouslySetInnerHTML={{ __html: rawHtml }} />',
+    recommendedFix: '<div dangerouslySetInnerHTML={{ __html: sanitizeHtml(rawHtml) }} />',
+    state: 'open',
+  },
+  {
+    id: 'codeql-3',
+    ruleId: 'js/path-traversal',
+    ruleName: 'Path Traversal',
+    severity: 'high',
+    filePath: 'backend/services/storage.ts',
+    lineStart: 88,
+    lineEnd: 92,
+    description:
+      'Untrusted user input used directly in file system path resolution without basename guard.',
+    codeSnippet: 'const fullPath = path.join(uploadDir, req.body.fileName);',
+    recommendedFix: 'const safePath = path.resolve(uploadDir, path.basename(req.body.fileName));',
+    state: 'open',
+  },
+  {
+    id: 'codeql-4',
+    ruleId: 'js/insecure-randomness',
+    ruleName: 'Insecure Randomness',
+    severity: 'medium',
+    filePath: 'packages/auth/src/tokens.ts',
+    lineStart: 25,
+    lineEnd: 27,
+    description:
+      'Cryptographically weak pseudorandom generator Math.random() used for security token generation.',
+    codeSnippet: 'const token = Math.random().toString(36).substring(2);',
+    recommendedFix: "const token = crypto.randomBytes(32).toString('hex');",
+    state: 'open',
+  },
+  {
+    id: 'codeql-5',
+    ruleId: 'js/missing-auth-guard',
+    ruleName: 'Missing Auth Guard',
+    severity: 'critical',
+    filePath: 'apps/quantmail/backend/routes/admin.ts',
+    lineStart: 30,
+    lineEnd: 38,
+    description:
+      'Privileged admin endpoint does not verify caller RBAC authorization or session token.',
+    codeSnippet: "fastify.post('/api/admin/purge', async (req, reply) => { ... });",
+    recommendedFix:
+      "fastify.post('/api/admin/purge', { preHandler: [requireAdminRole] }, async (req, reply) => { ... });",
     state: 'open',
   },
 ];
+
+// Initial Branch Security Rules
+export const INITIAL_BRANCH_SECURITY_RULES: BranchSecurityRules = {
+  requirePullRequestReviews: true,
+  requireStatusChecks: true,
+  requireCleanSecretScanning: true,
+};
+
+// Default SECURITY.md Template
+export const DEFAULT_SECURITY_POLICY = `# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+| 0.9.x   | :x:                |
+
+## Reporting a Vulnerability
+
+The Quant team takes security seriously. If you discover a security vulnerability within Quant Ecosystem, please report it privately:
+
+1. **Email**: security@quantrinity.in
+2. **PGP Key**: Fingerprint \`E48B 3291 94F8 1A09 B762\`
+3. **Response SLA**: Initial triage within 24 hours. Critical CVE remediations patched within 72 hours.
+
+Please do not disclose security issues publicly until a fix has been released.
+`;
 
 // Swarm Fleet Catalog
 export const AGENT_FLEET_CATALOG: DeployedAgent[] = [

@@ -700,6 +700,17 @@ export function QuantGitModals({
                 <span>Private</span>
               </label>
             </div>
+            <div className="p-2.5 rounded-lg bg-[#21262D]/60 border border-[#30363D] flex items-center justify-between">
+              <span className="text-[11px] text-[#7D8590]">Importing an existing project?</span>
+              <button
+                type="button"
+                data-testid="switch-to-import-repo-btn"
+                onClick={() => setModalState('repo-import')}
+                className="text-xs text-[#58A6FF] hover:underline font-semibold flex items-center gap-1"
+              >
+                Import repository from GitHub / GitLab →
+              </button>
+            </div>
             <div className="flex justify-end pt-2">
               <button
                 type="submit"

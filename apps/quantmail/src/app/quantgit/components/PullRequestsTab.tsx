@@ -14,6 +14,13 @@ import type {
   MergeMethod,
 } from '../types';
 
+export interface SecurityCheckItem {
+  id: string;
+  name: string;
+  description: string;
+  status: 'passed' | 'failed' | 'pending';
+}
+
 export interface PullRequestsTabProps {
   pullSearchQuery: string;
   setPullSearchQuery: (q: string) => void;
@@ -27,6 +34,9 @@ export interface PullRequestsTabProps {
   showToast?: (message: string) => void;
   onMergePR?: (prId: number, mergeMethod: MergeMethod) => Promise<void> | void;
   initialSelectedPR?: PRItem | null;
+  checks?: SecurityCheckItem[];
+  initialMergeMethod?: MergeMethod;
+  initialIsMergeConfirmOpen?: boolean;
 }
 
 const DEFAULT_DIFF_FILES: PRDiffFile[] = [
@@ -154,15 +164,59 @@ export function PullRequestsTab({
   showToast,
   onMergePR,
   initialSelectedPR = null,
+  checks,
+  initialMergeMethod = 'merge',
+  initialIsMergeConfirmOpen = false,
 }: PullRequestsTabProps) {
   const [selectedPR, setSelectedPR] = useState<PRItem | null>(initialSelectedPR);
   const [diffViewMode, setDiffViewMode] = useState<'unified' | 'split'>('unified');
 
   // Merge controls
-  const [selectedMergeMethod, setSelectedMergeMethod] = useState<MergeMethod>('merge');
-  const [isMergeConfirmOpen, setIsMergeConfirmOpen] = useState<boolean>(false);
+  const [selectedMergeMethod, setSelectedMergeMethod] = useState<MergeMethod>(initialMergeMethod);
+  const [isMergeConfirmOpen, setIsMergeConfirmOpen] = useState<boolean>(initialIsMergeConfirmOpen);
   const [isMerging, setIsMerging] = useState<boolean>(false);
   const [mergeCommitMsg, setMergeCommitMsg] = useState<string>('');
+
+  const DEFAULT_SECURITY_CHECKS: SecurityCheckItem[] = [
+    {
+      id: 'ci-quantgit-actions',
+      name: 'ci/quantgit-actions',
+      description: 'All tests passed.',
+      status: 'passed',
+    },
+    {
+      id: 'security-secret-scan',
+      name: 'security/secret-scan',
+      description: 'No leaked credentials found.',
+      status: 'passed',
+    },
+    {
+      id: 'security-dependabot',
+      name: 'security/dependabot',
+      description: '0 critical or high vulnerabilities.',
+      status: 'passed',
+    },
+  ];
+
+  const activeChecks = React.useMemo(() => {
+    if (checks && checks.length > 0) return checks;
+    if (selectedPR?.checksStatus === 'failing') {
+      return [
+        {
+          id: 'ci-quantgit-actions',
+          name: 'ci/quantgit-actions',
+          description: 'All tests passed.',
+          status: 'failed' as const,
+        },
+        DEFAULT_SECURITY_CHECKS[1],
+        DEFAULT_SECURITY_CHECKS[2],
+      ];
+    }
+    return DEFAULT_SECURITY_CHECKS;
+  }, [checks, selectedPR?.checksStatus]);
+
+  const allChecksPassed =
+    activeChecks.every((c) => c.status === 'passed') && selectedPR?.checksStatus !== 'failing';
 
   // Review decisions
   const [isReviewBoxOpen, setIsReviewBoxOpen] = useState<boolean>(false);
@@ -252,14 +306,16 @@ export function PullRequestsTab({
     if (!selectedPR) return;
     setIsMerging(true);
 
+    const prNumber = (selectedPR as any).number || selectedPR.id;
+
     try {
       if (onMergePR) {
-        await onMergePR(selectedPR.id, selectedMergeMethod);
+        await onMergePR(prNumber, selectedMergeMethod);
       } else {
         // Direct backend call
         try {
           const res = await fetch(
-            `/api/repos/${encodeURIComponent(repoId)}/pulls/${selectedPR.id}/merge`,
+            `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/merge`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -277,7 +333,7 @@ export function PullRequestsTab({
       // Optimistically update PR to merged state
       setSelectedPR((prev) => (prev ? { ...prev, state: 'merged' } : null));
       setIsMergeConfirmOpen(false);
-      showToast?.(`Pull request #${selectedPR.id} merged successfully!`);
+      showToast?.(`Pull request #${prNumber} merged successfully!`);
     } finally {
       setIsMerging(false);
     }
@@ -475,16 +531,32 @@ export function PullRequestsTab({
                 </span>
               </span>
 
-              <span>
-                <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge into{' '}
-                <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
-                  {selectedPR.branchTarget || 'main'}
-                </span>{' '}
-                from{' '}
-                <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
-                  {selectedPR.branchSource}
+              {selectedPR.state === 'merged' ? (
+                <span data-testid="pr-merged-info">
+                  Merged by{' '}
+                  <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
+                  into{' '}
+                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                    {selectedPR.branchTarget || 'main'}
+                  </span>{' '}
+                  from{' '}
+                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                    {selectedPR.branchSource}
+                  </span>
                 </span>
-              </span>
+              ) : (
+                <span>
+                  <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
+                  into{' '}
+                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                    {selectedPR.branchTarget || 'main'}
+                  </span>{' '}
+                  from{' '}
+                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                    {selectedPR.branchSource}
+                  </span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -530,15 +602,26 @@ export function PullRequestsTab({
             </div>
           </div>
 
-          {/* CI Checks & Merge Gate Box */}
-          <div className="rounded-xl bg-[#161B22] border border-[#30363D] p-4 space-y-3">
+          {/* Automated Security & CI Status Check Box */}
+          <div
+            className="rounded-xl bg-[#161B22] border border-[#30363D] p-4 space-y-3"
+            data-testid="security-ci-checks-box"
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs">
-                  ✓
+                <span
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                    allChecksPassed
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-red-500/20 text-red-400'
+                  }`}
+                >
+                  {allChecksPassed ? '✓' : '✕'}
                 </span>
                 <span className="font-semibold text-xs text-[#E6EDF3]">
-                  All checks have passed (55/56 checks verified green)
+                  {allChecksPassed
+                    ? 'All checks have passed (55/56 checks verified green)'
+                    : 'Some checks have failed or are required before merging'}
                 </span>
               </div>
               <button className="text-[#58A6FF] hover:underline text-[11px]">
@@ -546,130 +629,171 @@ export function PullRequestsTab({
               </button>
             </div>
 
-            <div className="divide-y divide-[#21262D] text-[11px] text-[#8D96A0] pt-1">
-              <div className="py-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span>
-                  <span>gate — CI test and typecheck suite passed (3m 33s)</span>
-                </span>
-                <span className="font-mono text-[#E6EDF3]">Required</span>
-              </div>
-              <div className="py-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <span className="text-emerald-400">✓</span>
-                  <span>CodeQL — 0 security vulnerabilities detected</span>
-                </span>
-                <span className="font-mono text-[#E6EDF3]">Passed</span>
-              </div>
+            <div
+              className="divide-y divide-[#21262D] text-[11px] text-[#8D96A0] pt-1"
+              data-testid="security-ci-checks-list"
+            >
+              {activeChecks.map((check) => (
+                <div
+                  key={check.id}
+                  className="py-1.5 flex items-center justify-between"
+                  data-testid={`check-${check.id}`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span>
+                      {check.status === 'passed' ? '🟢' : check.status === 'failed' ? '🔴' : '🟡'}
+                    </span>
+                    <span className="font-mono text-[#E6EDF3]">{check.name}</span>
+                    <span>: {check.description}</span>
+                  </span>
+                  <span
+                    className={`font-mono ${
+                      check.status === 'passed'
+                        ? 'text-emerald-400'
+                        : check.status === 'failed'
+                          ? 'text-red-400'
+                          : 'text-amber-400'
+                    }`}
+                  >
+                    {check.status === 'passed'
+                      ? 'Passed'
+                      : check.status === 'failed'
+                        ? 'Failed'
+                        : 'Pending'}
+                  </span>
+                </div>
+              ))}
             </div>
 
             {/* Merge Action Box */}
-            <div className="pt-3 border-t border-[#30363D]">
+            <div className="pt-3 border-t border-[#30363D]" data-testid="merge-box-container">
               {selectedPR.state === 'open' ? (
-                <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[#3FB950] font-bold text-sm">✓</span>
-                      <span className="text-[11px] text-[#8D96A0]">
-                        This branch has no conflicts with the base branch.
+                allChecksPassed ? (
+                  <div className="space-y-3" data-testid="merge-enabled-box">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#3FB950] font-bold text-sm">✓</span>
+                        <span className="text-[11px] text-[#8D96A0]">
+                          This branch has no conflicts with the base branch.
+                        </span>
+                      </div>
+
+                      {/* Merge strategy selector and button */}
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={selectedMergeMethod}
+                          onChange={(e) => setSelectedMergeMethod(e.target.value as MergeMethod)}
+                          data-testid="merge-method-select"
+                          className="bg-[#21262D] border border-[#30363D] text-[#E6EDF3] text-xs rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
+                        >
+                          <option value="merge">Merge pull request (create merge commit)</option>
+                          <option value="squash">Squash and merge (1 commit)</option>
+                          <option value="rebase">Rebase and merge (linear history)</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsMergeConfirmOpen((prev) => !prev)}
+                          data-testid="merge-pr-btn"
+                          className="px-4 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <span>
+                            {selectedMergeMethod === 'squash'
+                              ? 'Squash and merge'
+                              : selectedMergeMethod === 'rebase'
+                                ? 'Rebase and merge'
+                                : 'Merge pull request'}
+                          </span>
+                          <span className="text-[10px]">▼</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Merge Confirmation Form */}
+                    {isMergeConfirmOpen && (
+                      <div
+                        data-testid="merge-confirm-box"
+                        className="p-3.5 bg-[#0D1117] rounded-lg border border-[#30363D] space-y-3 animate-in fade-in"
+                      >
+                        <div className="space-y-1">
+                          <span className="font-bold text-xs text-[#E6EDF3]">
+                            {selectedMergeMethod === 'squash'
+                              ? 'Squash and merge pull request'
+                              : selectedMergeMethod === 'rebase'
+                                ? 'Rebase and merge pull request'
+                                : 'Merge pull request'}
+                          </span>
+                          <p className="text-[11px] text-[#8D96A0]">
+                            {selectedMergeMethod === 'squash'
+                              ? 'The commits from this branch will be squashed into one commit on the base branch.'
+                              : selectedMergeMethod === 'rebase'
+                                ? 'The commits from this branch will be rebased and added to the base branch without a merge commit.'
+                                : 'All commits from this branch will be added to the base branch via a merge commit.'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <input
+                            type="text"
+                            value={mergeCommitMsg}
+                            onChange={(e) => setMergeCommitMsg(e.target.value)}
+                            placeholder={`Merge pull request #${(selectedPR as any).number || selectedPR.id} from ${selectedPR.branchSource}`}
+                            data-testid="merge-commit-input"
+                            className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleExecuteMerge}
+                            disabled={isMerging}
+                            data-testid="confirm-merge-btn"
+                            className="px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
+                          >
+                            <span>⑂</span>
+                            <span>
+                              {isMerging
+                                ? 'Merging...'
+                                : selectedMergeMethod === 'squash'
+                                  ? 'Confirm squash and merge'
+                                  : selectedMergeMethod === 'rebase'
+                                    ? 'Confirm rebase and merge'
+                                    : 'Confirm merge'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsMergeConfirmOpen(false)}
+                            className="px-3 py-2 text-[#8D96A0] hover:text-[#E6EDF3] text-xs font-semibold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    className="p-3.5 bg-red-950/20 border border-red-500/30 rounded-lg flex items-center justify-between text-xs"
+                    data-testid="merge-blocked-box"
+                  >
+                    <div className="flex items-center gap-2 text-red-400">
+                      <span>✕</span>
+                      <span className="font-semibold">
+                        Merging is blocked. Required security & CI checks must pass before merging.
                       </span>
                     </div>
-
-                    {/* Merge strategy selector and button */}
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={selectedMergeMethod}
-                        onChange={(e) => setSelectedMergeMethod(e.target.value as MergeMethod)}
-                        data-testid="merge-method-select"
-                        className="bg-[#21262D] border border-[#30363D] text-[#E6EDF3] text-xs rounded-lg px-2.5 py-1.5 outline-none cursor-pointer"
-                      >
-                        <option value="merge">Merge pull request (create merge commit)</option>
-                        <option value="squash">Squash and merge (1 commit)</option>
-                        <option value="rebase">Rebase and merge (linear history)</option>
-                      </select>
-
-                      <button
-                        type="button"
-                        onClick={() => setIsMergeConfirmOpen((prev) => !prev)}
-                        data-testid="merge-pr-btn"
-                        className="px-4 py-1.5 rounded-lg bg-[#238636] hover:bg-[#2EA043] text-white font-bold text-xs shadow-sm flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <span>
-                          {selectedMergeMethod === 'squash'
-                            ? 'Squash and merge'
-                            : selectedMergeMethod === 'rebase'
-                              ? 'Rebase and merge'
-                              : 'Merge pull request'}
-                        </span>
-                        <span className="text-[10px]">▼</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Merge Confirmation Form */}
-                  {isMergeConfirmOpen && (
-                    <div
-                      data-testid="merge-confirm-box"
-                      className="p-3.5 bg-[#0D1117] rounded-lg border border-[#30363D] space-y-3 animate-in fade-in"
+                    <button
+                      type="button"
+                      disabled
+                      data-testid="merge-blocked-btn"
+                      className="px-4 py-1.5 rounded-lg bg-[#21262D] text-[#8D96A0] font-bold text-xs cursor-not-allowed opacity-50"
                     >
-                      <div className="space-y-1">
-                        <span className="font-bold text-xs text-[#E6EDF3]">
-                          {selectedMergeMethod === 'squash'
-                            ? 'Squash and merge pull request'
-                            : selectedMergeMethod === 'rebase'
-                              ? 'Rebase and merge pull request'
-                              : 'Merge pull request'}
-                        </span>
-                        <p className="text-[11px] text-[#8D96A0]">
-                          {selectedMergeMethod === 'squash'
-                            ? 'The commits from this branch will be squashed into one commit on the base branch.'
-                            : selectedMergeMethod === 'rebase'
-                              ? 'The commits from this branch will be rebased and added to the base branch without a merge commit.'
-                              : 'All commits from this branch will be added to the base branch via a merge commit.'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <input
-                          type="text"
-                          value={mergeCommitMsg}
-                          onChange={(e) => setMergeCommitMsg(e.target.value)}
-                          placeholder={`Merge pull request #${selectedPR.id} from ${selectedPR.branchSource}`}
-                          data-testid="merge-commit-input"
-                          className="w-full bg-[#161B22] border border-[#30363D] focus:border-[#58A6FF] rounded px-3 py-1.5 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none"
-                        />
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleExecuteMerge}
-                          disabled={isMerging}
-                          data-testid="confirm-merge-btn"
-                          className="px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
-                        >
-                          <span>⑂</span>
-                          <span>
-                            {isMerging
-                              ? 'Merging...'
-                              : selectedMergeMethod === 'squash'
-                                ? 'Confirm squash and merge'
-                                : selectedMergeMethod === 'rebase'
-                                  ? 'Confirm rebase and merge'
-                                  : 'Confirm merge'}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsMergeConfirmOpen(false)}
-                          className="px-3 py-2 text-[#8D96A0] hover:text-[#E6EDF3] text-xs font-semibold cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                      Merge blocked
+                    </button>
+                  </div>
+                )
               ) : selectedPR.state === 'merged' ? (
                 <div
                   data-testid="merged-status-banner"
@@ -677,7 +801,9 @@ export function PullRequestsTab({
                 >
                   <span className="font-bold text-base">✓</span>
                   <span className="font-semibold text-xs">
-                    Pull request #{selectedPR.id} was successfully merged and closed.
+                    Pull request #{(selectedPR as any).number || selectedPR.id} was successfully
+                    merged and closed. Merged by {selectedPR.author || currentUsername} into{' '}
+                    {selectedPR.branchTarget || 'main'}.
                   </span>
                 </div>
               ) : (

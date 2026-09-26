@@ -15,6 +15,7 @@ export type CommitBlobInput = {
   expectedBlobSha: string;
   originalPath?: string;
   isDelete?: boolean;
+  newBranch?: string;
 };
 
 export type TokenType =
@@ -600,6 +601,12 @@ export interface CodeTabProps {
   showToast: (msg: string) => void;
   onCommitBlob?: (input: CommitBlobInput) => Promise<void>;
   onDeleteBlob?: (path: string, message: string, branch: string) => Promise<void>;
+  onStartPullRequest?: (params: {
+    sourceBranch: string;
+    targetBranch: string;
+    title: string;
+    body: string;
+  }) => Promise<any> | any;
   initialEditingFile?: FileNode | null;
   initialEditorMode?: 'edit' | 'preview' | 'diff';
   initialIsBlameActive?: boolean;
@@ -608,6 +615,10 @@ export interface CodeTabProps {
   initialIsDeleteModalOpen?: boolean;
   initialSearchQuery?: string;
   initialReplaceQuery?: string;
+  initialBranchAction?: 'direct' | 'pr';
+  initialNewBranchName?: string;
+  initialCommitMessage?: string;
+  initialCommitDescription?: string;
 }
 
 // Helper to determine specialized file icons
@@ -679,6 +690,7 @@ export function CodeTab({
   showToast,
   onCommitBlob,
   onDeleteBlob,
+  onStartPullRequest,
   initialEditingFile = null,
   initialEditorMode = 'edit',
   initialIsBlameActive = false,
@@ -687,6 +699,10 @@ export function CodeTab({
   initialIsDeleteModalOpen = false,
   initialSearchQuery = '',
   initialReplaceQuery = '',
+  initialBranchAction = 'direct',
+  initialNewBranchName = '',
+  initialCommitMessage = '',
+  initialCommitDescription = '',
 }: CodeTabProps) {
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isCodeMenuOpen, setIsCodeMenuOpen] = useState(false);
@@ -711,10 +727,28 @@ export function CodeTab({
   const [matchCase, setMatchCase] = useState(false);
   const [activeMatchIdx, setActiveMatchIdx] = useState(0);
 
-  const [commitMessage, setCommitMessage] = useState('');
-  const [commitDescription, setCommitDescription] = useState('');
-  const [branchAction, setBranchAction] = useState<'direct' | 'pr'>('direct');
+  const defaultBranchName = useMemo(() => {
+    if (editingFile?.name) {
+      const slug = editingFile.name
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '-')
+        .toLowerCase();
+      return `feature/${slug || 'patch-1'}`;
+    }
+    return 'patch-1';
+  }, [editingFile?.name]);
+
+  const [commitMessage, setCommitMessage] = useState(initialCommitMessage);
+  const [commitDescription, setCommitDescription] = useState(initialCommitDescription);
+  const [branchAction, setBranchAction] = useState<'direct' | 'pr'>(initialBranchAction);
+  const [newBranchName, setNewBranchName] = useState(initialNewBranchName || defaultBranchName);
   const [isCommitting, setIsCommitting] = useState(false);
+
+  React.useEffect(() => {
+    if (!newBranchName && defaultBranchName) {
+      setNewBranchName(defaultBranchName);
+    }
+  }, [defaultBranchName, newBranchName]);
 
   const [deleteCommitMessage, setDeleteCommitMessage] = useState(
     initialEditingFile ? `Delete ${initialEditingFile.name}` : '',
@@ -1742,6 +1776,7 @@ pnpm install && pnpm dev
                 <input
                   type="radio"
                   name="branchingOption"
+                  data-testid="branch-action-direct-radio"
                   checked={branchAction === 'direct'}
                   onChange={() => setBranchAction('direct')}
                   className="text-[#238636]"
@@ -1755,8 +1790,14 @@ pnpm install && pnpm dev
                 <input
                   type="radio"
                   name="branchingOption"
+                  data-testid="branch-action-pr-radio"
                   checked={branchAction === 'pr'}
-                  onChange={() => setBranchAction('pr')}
+                  onChange={() => {
+                    setBranchAction('pr');
+                    if (!newBranchName) {
+                      setNewBranchName(defaultBranchName);
+                    }
+                  }}
                   className="text-[#238636]"
                 />
                 <span>
@@ -1764,6 +1805,29 @@ pnpm install && pnpm dev
                   commit and start a pull request
                 </span>
               </label>
+
+              {branchAction === 'pr' && (
+                <div className="pl-6 pt-1.5 space-y-1" data-testid="new-branch-input-container">
+                  <label className="text-[11px] text-[#8D96A0] font-medium flex items-center gap-1">
+                    <span>Branch name:</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[#8D96A0] font-mono text-xs">⑂</span>
+                    <input
+                      type="text"
+                      data-testid="new-branch-name-input"
+                      value={newBranchName}
+                      onChange={(e) => setNewBranchName(e.target.value)}
+                      placeholder={defaultBranchName}
+                      className={`w-full max-w-xs px-3 py-1 rounded text-xs border font-mono ${
+                        editorTheme === 'github-dark'
+                          ? 'bg-[#0D1117] text-white border-[#30363D] focus:border-[#58A6FF]'
+                          : 'bg-white text-black border-[#D0D7DE] focus:border-[#0969DA]'
+                      } focus:outline-none`}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -1778,6 +1842,7 @@ pnpm install && pnpm dev
               <button
                 type="button"
                 data-testid="commit-changes-button"
+                data-action={branchAction === 'pr' ? 'propose' : 'commit'}
                 disabled={isCommitting || !commitMessage.trim()}
                 onClick={async () => {
                   if (!onCommitBlob) {
@@ -1786,17 +1851,36 @@ pnpm install && pnpm dev
                   }
                   setIsCommitting(true);
                   try {
+                    const isNewBranchPR = branchAction === 'pr';
+                    const targetBranch = currentBranch;
+                    const chosenNewBranch = isNewBranchPR
+                      ? newBranchName.trim() || defaultBranchName || 'patch-1'
+                      : undefined;
+
+                    const finalMsg = `${commitMessage.trim()}${
+                      commitDescription ? `\n\n${commitDescription.trim()}` : ''
+                    }`;
+
                     await onCommitBlob({
                       path: editingFile.path,
-                      branch: currentBranch,
+                      branch: chosenNewBranch || currentBranch,
+                      newBranch: chosenNewBranch,
                       content: editingFile.content || '',
-                      message: `${commitMessage.trim()}${
-                        commitDescription ? `\n\n${commitDescription.trim()}` : ''
-                      }`,
+                      message: finalMsg,
                       expectedBlobSha:
                         (editingFile as any).sha || (editingFile as any).blobSha || '',
                       originalPath: isRenamed ? originalPath : undefined,
                     });
+
+                    if (isNewBranchPR && onStartPullRequest && chosenNewBranch) {
+                      await onStartPullRequest({
+                        sourceBranch: chosenNewBranch,
+                        targetBranch: targetBranch,
+                        title: commitMessage.trim(),
+                        body: commitDescription.trim(),
+                      });
+                    }
+
                     setEditingFile(null);
                   } catch (err) {
                     showToast(err instanceof Error ? err.message : 'Failed to commit changes.');
@@ -1804,7 +1888,7 @@ pnpm install && pnpm dev
                     setIsCommitting(false);
                   }
                 }}
-                className="px-4 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm"
+                className="px-4 py-1.5 rounded bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm cursor-pointer"
               >
                 {isCommitting && (
                   <svg
@@ -1827,7 +1911,7 @@ pnpm install && pnpm dev
                     ></path>
                   </svg>
                 )}
-                <span>Commit changes</span>
+                <span>{branchAction === 'pr' ? 'Propose changes' : 'Commit changes'}</span>
               </button>
             </div>
           </div>

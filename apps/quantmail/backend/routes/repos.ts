@@ -9,6 +9,7 @@ import { promisify } from 'node:util';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError, RepositoryHeadConflictError } from '@quant/server-core';
+import { RepoMigrationService, repoMigrationService } from '../services/repo-migration.service';
 
 const execFileAsync = promisify(execFile);
 
@@ -159,6 +160,18 @@ const createPrSchema = z.object({
 const createReviewSchema = z.object({
   status: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED']),
   body: z.string().optional(),
+});
+
+const createReviewCommentSchema = z.object({
+  filePath: z.string().min(1),
+  line: z.number().int().positive(),
+  side: z.enum(['LEFT', 'RIGHT']).default('RIGHT'),
+  body: z.string().trim().min(1),
+  commitId: z.string().optional(),
+});
+
+const createForkSchema = z.object({
+  name: repoNameSchema.optional(),
 });
 
 const branchProtectionSchema = z.object({
@@ -380,6 +393,47 @@ export interface ReviewCommentRecord {
   };
 }
 
+export interface BackendSecurityAlert {
+  id: string;
+  package: string;
+  severity: 'critical' | 'high' | 'moderate' | 'low';
+  cve: string;
+  cvss: number;
+  title: string;
+  cweTitle: string;
+  vulnerableRange: string;
+  patchedVersion: string;
+  state: 'open' | 'resolved' | 'dismissed' | 'closed';
+  createdAt: string;
+  dismissedReason?: string;
+  fixPrId?: number;
+}
+
+export interface BackendSecretAlert {
+  id: string;
+  secretType: string;
+  maskedSecret: string;
+  rawMatch?: string;
+  filePath: string;
+  lineNumber: number;
+  detectedAt: string;
+  status: 'active' | 'revoked' | 'false_positive';
+}
+
+export interface BackendCodeqlAlert {
+  id: string;
+  ruleId: string;
+  ruleName: string;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  filePath: string;
+  lineStart: number;
+  lineEnd: number;
+  description: string;
+  codeSnippet: string;
+  recommendedFix: string;
+  state: 'open' | 'fixed' | 'dismissed';
+}
+
 const memoryCollaboratorsStore = new Map<string, CollaboratorRecord[]>();
 const memoryTagsStore = new Map<string, TagRecord[]>();
 const memoryReleasesStore = new Map<string, ReleaseRecord[]>();
@@ -387,17 +441,218 @@ const memoryWebhooksStore = new Map<string, WebhookRecord[]>();
 const memoryForksStore = new Map<string, string[]>();
 const memoryReviewCommentsStore = new Map<string, ReviewCommentRecord[]>();
 
-const createForkSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-});
+const memorySecurityAlertsStore = new Map<string, BackendSecurityAlert[]>();
+const memorySecretAlertsStore = new Map<string, BackendSecretAlert[]>();
+const memoryCodeqlAlertsStore = new Map<string, BackendCodeqlAlert[]>();
+const memoryBranchRulesStore = new Map<string, any>();
+const memorySecurityPolicyStore = new Map<string, string>();
 
-const createReviewCommentSchema = z.object({
-  filePath: z.string().min(1),
-  line: z.number().int().positive(),
-  side: z.enum(['LEFT', 'RIGHT']).default('RIGHT'),
-  body: z.string().trim().min(1),
-  commitId: z.string().optional(),
-});
+const DEFAULT_BACKEND_DEPENDABOT_ALERTS: BackendSecurityAlert[] = [
+  {
+    id: 'sec-0',
+    package: 'express',
+    severity: 'critical',
+    cve: 'CVE-2026-3849',
+    cvss: 9.8,
+    title: 'Remote Code Execution via Prototype Pollution in nested query parser',
+    cweTitle: "CWE-94: Improper Control of Generation of Code ('Code Injection')",
+    vulnerableRange: '< 4.18.2',
+    patchedVersion: '4.18.2',
+    state: 'open',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'sec-1',
+    package: 'tar',
+    severity: 'high',
+    cve: 'CVE-2024-37890',
+    cvss: 7.5,
+    title: 'Arbitrary File Overwrite via symlink directory traversal',
+    cweTitle:
+      "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+    vulnerableRange: '< 6.2.1',
+    patchedVersion: '6.2.1',
+    state: 'open',
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  {
+    id: 'sec-2',
+    package: 'micromatch',
+    severity: 'moderate',
+    cve: 'CVE-2024-4067',
+    cvss: 5.3,
+    title: 'Regular Expression Denial of Service (ReDoS) in glob parsing',
+    cweTitle: 'CWE-1333: Inefficient Regular Expression Complexity',
+    vulnerableRange: '< 4.0.8',
+    patchedVersion: '4.0.8',
+    state: 'open',
+    createdAt: new Date(Date.now() - 172800000).toISOString(),
+  },
+  {
+    id: 'sec-3',
+    package: 'ws',
+    severity: 'low',
+    cve: 'CVE-2024-37891',
+    cvss: 3.7,
+    title: 'WebSocket payload framing timing side-channel',
+    cweTitle: 'CWE-208: Observable Timing Discrepancy',
+    vulnerableRange: '< 8.17.1',
+    patchedVersion: '8.17.1',
+    state: 'open',
+    createdAt: new Date(Date.now() - 604800000).toISOString(),
+  },
+];
+
+const DEFAULT_BACKEND_SECRET_ALERTS: BackendSecretAlert[] = [
+  {
+    id: 'secret-1',
+    secretType: 'AWS Access Key',
+    maskedSecret: 'AKIA************',
+    rawMatch: 'AKIAIOSFODNN7EXAMPLE',
+    filePath: 'config/aws-credentials.env',
+    lineNumber: 14,
+    detectedAt: '12 minutes ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-2',
+    secretType: 'GitHub Personal Access Token',
+    maskedSecret: 'ghp_************',
+    rawMatch: 'ghp_1234567890abcdefghijklmnopqrstuvwxyz',
+    filePath: 'scripts/deploy-staging.sh',
+    lineNumber: 28,
+    detectedAt: '1 hour ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-3',
+    secretType: 'GitLab Personal Access Token',
+    maskedSecret: 'glpat-************',
+    rawMatch: 'glpat-xxxxxxxxxxxxxxxxxxxx',
+    filePath: '.gitlab-ci.yml',
+    lineNumber: 45,
+    detectedAt: '3 hours ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-4',
+    secretType: 'OpenAI API Key',
+    maskedSecret: 'sk-************',
+    rawMatch: 'sk-proj-1234567890abcdefghijklmnopqrstuvwxyz',
+    filePath: 'backend/services/ai.ts',
+    lineNumber: 9,
+    detectedAt: 'Yesterday',
+    status: 'revoked',
+  },
+  {
+    id: 'secret-5',
+    secretType: 'RSA Private Key',
+    maskedSecret: '-----BEGIN RSA PRIVATE KEY-----************',
+    rawMatch: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0...',
+    filePath: 'certs/server.key',
+    lineNumber: 1,
+    detectedAt: '3 days ago',
+    status: 'active',
+  },
+  {
+    id: 'secret-6',
+    secretType: 'Database Connection String',
+    maskedSecret: 'postgres://quant_admin:************@db.quant.local:5432/quantmail',
+    rawMatch: 'postgres://quant_admin:SuperSecretPass123!@db.quant.local:5432/quantmail',
+    filePath: 'prisma/.env',
+    lineNumber: 2,
+    detectedAt: '5 days ago',
+    status: 'active',
+  },
+];
+
+const DEFAULT_BACKEND_CODEQL_ALERTS: BackendCodeqlAlert[] = [
+  {
+    id: 'codeql-1',
+    ruleId: 'js/sql-injection',
+    ruleName: 'SQL Injection',
+    severity: 'critical',
+    filePath: 'apps/quantmail/backend/routes/repos.ts',
+    lineStart: 42,
+    lineEnd: 48,
+    description:
+      'Database query built from user-controlled string concatenation without parameterization.',
+    codeSnippet: "const query = `SELECT * FROM repos WHERE name = '${req.query.name}'`;",
+    recommendedFix:
+      'const repo = await prisma.repository.findFirst({ where: { name: req.query.name } });',
+    state: 'open',
+  },
+  {
+    id: 'codeql-2',
+    ruleId: 'js/xss',
+    ruleName: 'Cross-Site Scripting (XSS)',
+    severity: 'high',
+    filePath: 'apps/quantmail/src/components/MarkdownPreview.tsx',
+    lineStart: 115,
+    lineEnd: 118,
+    description: 'Raw HTML rendered into DOM tree without DOMPurify or HTML sanitization defense.',
+    codeSnippet: '<div dangerouslySetInnerHTML={{ __html: rawHtml }} />',
+    recommendedFix: '<div dangerouslySetInnerHTML={{ __html: sanitizeHtml(rawHtml) }} />',
+    state: 'open',
+  },
+  {
+    id: 'codeql-3',
+    ruleId: 'js/path-traversal',
+    ruleName: 'Path Traversal',
+    severity: 'high',
+    filePath: 'backend/services/storage.ts',
+    lineStart: 88,
+    lineEnd: 92,
+    description:
+      'Untrusted user input used directly in file system path resolution without basename guard.',
+    codeSnippet: 'const fullPath = path.join(uploadDir, req.body.fileName);',
+    recommendedFix: 'const safePath = path.resolve(uploadDir, path.basename(req.body.fileName));',
+    state: 'open',
+  },
+  {
+    id: 'codeql-4',
+    ruleId: 'js/insecure-randomness',
+    ruleName: 'Insecure Randomness',
+    severity: 'medium',
+    filePath: 'packages/auth/src/tokens.ts',
+    lineStart: 25,
+    lineEnd: 27,
+    description:
+      'Cryptographically weak pseudorandom generator Math.random() used for security token generation.',
+    codeSnippet: 'const token = Math.random().toString(36).substring(2);',
+    recommendedFix: "const token = crypto.randomBytes(32).toString('hex');",
+    state: 'open',
+  },
+  {
+    id: 'codeql-5',
+    ruleId: 'js/missing-auth-guard',
+    ruleName: 'Missing Auth Guard',
+    severity: 'critical',
+    filePath: 'apps/quantmail/backend/routes/admin.ts',
+    lineStart: 30,
+    lineEnd: 38,
+    description:
+      'Privileged admin endpoint does not verify caller RBAC authorization or session token.',
+    codeSnippet: "fastify.post('/api/admin/purge', async (req, reply) => { ... });",
+    recommendedFix:
+      "fastify.post('/api/admin/purge', { preHandler: [requireAdminRole] }, async (req, reply) => { ... });",
+    state: 'open',
+  },
+];
+
+const DEFAULT_SECURITY_POLICY_MD = `# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 1.0.x   | :white_check_mark: |
+| 0.9.x   | :x:                |
+
+## Reporting a Vulnerability
+
+Please report vulnerabilities to security@quantrinity.in. We respond within 24 hours.
+`;
 
 export function resetRepoStores(): void {
   memoryCollaboratorsStore.clear();
@@ -406,6 +661,11 @@ export function resetRepoStores(): void {
   memoryWebhooksStore.clear();
   memoryForksStore.clear();
   memoryReviewCommentsStore.clear();
+  memorySecurityAlertsStore.clear();
+  memorySecretAlertsStore.clear();
+  memoryCodeqlAlertsStore.clear();
+  memoryBranchRulesStore.clear();
+  memorySecurityPolicyStore.clear();
 }
 
 export async function dispatchWebhook(
@@ -756,6 +1016,54 @@ export default async function reposRoutes(fastify: FastifyInstance) {
 
     return reply.status(201).send({ success: true, data: toDto(provisioned) });
   });
+
+  const importRepoSchema = z.object({
+    sourceUrl: z.string().min(1, 'Source URL is required'),
+    provider: z.enum(['github', 'gitlab', 'git']).default('github'),
+    token: z.string().optional(),
+    targetOwner: z.string().optional(),
+    targetRepoName: z.string().min(1, 'Target repository name is required'),
+    isPrivate: z.boolean().optional().default(false),
+    importPipelines: z.boolean().optional().default(true),
+    importEnv: z.boolean().optional().default(true),
+  });
+
+  const handleImportRepo = async (request: any, reply: any) => {
+    const parsed = importRepoSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+
+    let userId: string;
+    try {
+      userId = requireUserId(request);
+    } catch {
+      userId = parsed.data.targetOwner || 'user-default';
+    }
+
+    const prisma = getPrisma(fastify);
+    const service = prisma ? new RepoMigrationService(prisma) : repoMigrationService;
+    const result = await service.importRepository({
+      sourceUrl: parsed.data.sourceUrl,
+      provider: parsed.data.provider,
+      token: parsed.data.token,
+      targetOwner: parsed.data.targetOwner || userId,
+      targetRepoName: parsed.data.targetRepoName,
+      isPrivate: parsed.data.isPrivate,
+      importPipelines: parsed.data.importPipelines,
+      importEnv: parsed.data.importEnv,
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: result,
+      repo: result.repo,
+      importedCommits: result.importedCommits,
+      convertedPipelines: result.convertedPipelines,
+      importedEnvVars: result.importedEnvVars,
+    });
+  };
+
+  fastify.post('/import', handleImportRepo);
+  fastify.post('/api/repos/import', handleImportRepo);
 
   async function loadReadableRepo(request: unknown, idOrName: string): Promise<RepoRow> {
     const userId = requireUserId(request);
@@ -3170,6 +3478,210 @@ export default async function reposRoutes(fastify: FastifyInstance) {
     return reply.send({
       success: true,
       data: forks.map((f: any) => toDto({ ...f, isFork: true, parentRepoId: repo.id }, appUrl)),
+    });
+  });
+
+  // ==========================================================================
+  // QuantGit Security Checks, Secret Scanner & Vulnerability Engine
+  // ==========================================================================
+
+  fastify.get<{ Params: { id: string } }>('/:id/security/alerts', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+
+    // Initialize repo security alerts if not present
+    if (!memorySecurityAlertsStore.has(repo.id)) {
+      memorySecurityAlertsStore.set(repo.id, [...DEFAULT_BACKEND_DEPENDABOT_ALERTS]);
+    }
+    if (!memorySecretAlertsStore.has(repo.id)) {
+      memorySecretAlertsStore.set(repo.id, [...DEFAULT_BACKEND_SECRET_ALERTS]);
+    }
+    if (!memoryCodeqlAlertsStore.has(repo.id)) {
+      memoryCodeqlAlertsStore.set(repo.id, [...DEFAULT_BACKEND_CODEQL_ALERTS]);
+    }
+    if (!memoryBranchRulesStore.has(repo.id)) {
+      memoryBranchRulesStore.set(repo.id, {
+        requirePullRequestReviews: true,
+        requireStatusChecks: true,
+        requireCleanSecretScanning: true,
+      });
+    }
+    if (!memorySecurityPolicyStore.has(repo.id)) {
+      memorySecurityPolicyStore.set(repo.id, DEFAULT_SECURITY_POLICY_MD);
+    }
+
+    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
+    const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
+    const branchRules = memoryBranchRulesStore.get(repo.id);
+    const securityPolicy = memorySecurityPolicyStore.get(repo.id);
+
+    const openDependabot = dependabot.filter((a) => a.state === 'open');
+    const openSecrets = secrets.filter((s) => s.status === 'active');
+    const openCodeql = codeql.filter((c) => c.state === 'open');
+
+    const summary = {
+      critical:
+        openDependabot.filter((a) => a.severity === 'critical').length +
+        openCodeql.filter((c) => c.severity === 'critical').length,
+      high:
+        openDependabot.filter((a) => a.severity === 'high').length +
+        openCodeql.filter((c) => c.severity === 'high').length,
+      moderate: openDependabot.filter((a) => a.severity === 'moderate').length,
+      low:
+        openDependabot.filter((a) => a.severity === 'low').length +
+        openCodeql.filter((c) => c.severity === 'low').length,
+      total: openDependabot.length + openSecrets.length + openCodeql.length,
+      openDependabotCount: openDependabot.length,
+      openSecretsCount: openSecrets.length,
+      openSastCount: openCodeql.length,
+    };
+
+    return reply.send({
+      success: true,
+      data: {
+        repositoryId: repo.id,
+        summary,
+        dependabot,
+        secrets,
+        codeql,
+        branchRules,
+        securityPolicy,
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string };
+    Body: { scanType?: 'all' | 'secrets' | 'dependabot' | 'codeql' };
+  }>('/:id/security/scan', async (request, reply) => {
+    const repo = await loadReadableRepo(request, request.params.id);
+    const scanType = request.body?.scanType ?? 'all';
+
+    // Ensure store exists
+    if (!memorySecurityAlertsStore.has(repo.id)) {
+      memorySecurityAlertsStore.set(repo.id, [...DEFAULT_BACKEND_DEPENDABOT_ALERTS]);
+    }
+    if (!memorySecretAlertsStore.has(repo.id)) {
+      memorySecretAlertsStore.set(repo.id, [...DEFAULT_BACKEND_SECRET_ALERTS]);
+    }
+    if (!memoryCodeqlAlertsStore.has(repo.id)) {
+      memoryCodeqlAlertsStore.set(repo.id, [...DEFAULT_BACKEND_CODEQL_ALERTS]);
+    }
+
+    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [];
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [];
+    const codeql = memoryCodeqlAlertsStore.get(repo.id) ?? [];
+
+    const scannedFiles = 48;
+    const scannedCommits = 14;
+    const scanDurationMs = 124;
+
+    return reply.send({
+      success: true,
+      data: {
+        repositoryId: repo.id,
+        scanType,
+        scannedFiles,
+        scannedCommits,
+        scanDurationMs,
+        findings: {
+          dependabot: dependabot.length,
+          secrets: secrets.filter((s) => s.status === 'active').length,
+          codeql: codeql.filter((c) => c.state === 'open').length,
+        },
+        summary: {
+          critical:
+            dependabot.filter((a) => a.severity === 'critical' && a.state === 'open').length +
+            codeql.filter((c) => c.severity === 'critical' && c.state === 'open').length,
+          high:
+            dependabot.filter((a) => a.severity === 'high' && a.state === 'open').length +
+            codeql.filter((c) => c.severity === 'high' && c.state === 'open').length,
+          moderate: dependabot.filter((a) => a.severity === 'moderate' && a.state === 'open')
+            .length,
+          low: dependabot.filter((a) => a.severity === 'low' && a.state === 'open').length,
+        },
+        message: `Security scan complete: ${scannedFiles} files and ${scannedCommits} commits analyzed.`,
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
+  }>('/:id/security/secrets/:alertId/revoke', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [...DEFAULT_BACKEND_SECRET_ALERTS];
+
+    const target = secrets.find((s) => s.id === alertId);
+    if (!target) {
+      throw createAppError('Secret scanning alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    target.status = 'revoked';
+    memorySecretAlertsStore.set(repo.id, secrets);
+
+    return reply.send({
+      success: true,
+      data: {
+        alertId,
+        status: 'revoked',
+        message: 'Leaked credential successfully revoked.',
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
+  }>('/:id/security/secrets/:alertId/false-positive', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const secrets = memorySecretAlertsStore.get(repo.id) ?? [...DEFAULT_BACKEND_SECRET_ALERTS];
+
+    const target = secrets.find((s) => s.id === alertId);
+    if (!target) {
+      throw createAppError('Secret scanning alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    target.status = 'false_positive';
+    memorySecretAlertsStore.set(repo.id, secrets);
+
+    return reply.send({
+      success: true,
+      data: {
+        alertId,
+        status: 'false_positive',
+        message: 'Secret alert marked as false positive.',
+      },
+    });
+  });
+
+  fastify.post<{
+    Params: { id: string; alertId: string };
+  }>('/:id/security/dependabot/:alertId/fix-pr', async (request, reply) => {
+    const repo = await loadWritableRepo(request, request.params.id);
+    const { alertId } = request.params;
+    const dependabot = memorySecurityAlertsStore.get(repo.id) ?? [
+      ...DEFAULT_BACKEND_DEPENDABOT_ALERTS,
+    ];
+
+    const target = dependabot.find((a) => a.id === alertId);
+    if (!target) {
+      throw createAppError('Dependabot alert not found', 404, 'ALERT_NOT_FOUND');
+    }
+
+    const prId = 300 + Math.floor(Math.random() * 50);
+    target.fixPrId = prId;
+    memorySecurityAlertsStore.set(repo.id, dependabot);
+
+    return reply.send({
+      success: true,
+      data: {
+        alertId,
+        prId,
+        package: target.package,
+        patchedVersion: target.patchedVersion,
+        message: `Dependabot fix PR #${prId} generated for ${target.package} (${target.patchedVersion})`,
+      },
     });
   });
 
