@@ -10,6 +10,7 @@ import { LoadingState, EmptyState } from '@quant/shared-ui';
 import { useVideos } from '../hooks/useVideos';
 import { useAuth } from '../providers/auth-provider';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { GuestHeroBanner } from '../components/GuestHeroBanner';
 import { getGuestFeaturedVideos } from '../data/public-videos';
 
 interface Category {
@@ -123,41 +124,7 @@ const HomePage: React.FC = () => {
     >
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6">
         {/* Engaging Guest / Unauthenticated Welcome Banner */}
-        {isGuestMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 md:p-6 rounded-2xl bg-gradient-to-r from-[var(--brand-primary)]/15 via-[var(--surface-elevated)] to-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[var(--brand-primary)] text-white flex items-center justify-center font-bold text-xl shadow-md flex-shrink-0">
-                ▶
-              </div>
-              <div>
-                <h2 className="text-lg md:text-xl font-bold text-[var(--quant-foreground)] tracking-tight">
-                  Welcome to QuanTube — Stream Videos &amp; Music
-                </h2>
-                <p className="text-sm text-[var(--quant-muted-foreground)] mt-0.5">
-                  Sign in with Quant Account to subscribe and like, follow creators, and save your
-                  favorites.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 w-full md:w-auto">
-              <button
-                onClick={() => {
-                  const returnTo = encodeURIComponent(
-                    typeof window !== 'undefined' ? window.location.pathname : '/',
-                  );
-                  window.location.href = `/login?returnTo=${returnTo}`;
-                }}
-                className="px-6 py-2.5 rounded-full bg-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/90 text-white font-medium text-sm transition-all shadow hover:shadow-md whitespace-nowrap w-full md:w-auto text-center"
-              >
-                Sign In
-              </button>
-            </div>
-          </motion.div>
-        )}
+        {isGuestMode && <GuestHeroBanner />}
 
         {/* Category Tabs */}
         <nav

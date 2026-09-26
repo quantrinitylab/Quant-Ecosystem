@@ -14,6 +14,7 @@ import { useUsageStats } from '../hooks/useUsageStats';
 import { useConversationSearch } from '../hooks/useConversationSearch';
 import { ModelSelector } from '../components/ModelSelector';
 import { VoiceToggle } from '../components/VoiceToggle';
+import { VoiceModeModal } from '../components/voice';
 import { ExportMenu } from '../components/ExportMenu';
 import { AgenticMessage } from '../components/AgenticMessage';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -560,6 +561,31 @@ export default function AIPage() {
                 )}
 
                 <ExportMenu conversation={activeConversation} messages={messages} />
+
+                {/* Prominent Start Voice (Waveform Microphone) Button — Advanced Voice Mode */}
+                <button
+                  type="button"
+                  onClick={() => setVoiceActive(true)}
+                  aria-label={voiceActive ? 'Voice mode active' : 'Start Voice Mode'}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer shadow-sm ${
+                    voiceActive
+                      ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-rose-950/30'
+                      : 'bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white border-violet-400/30 shadow-violet-950/20'
+                  }`}
+                  title="Real-Time Advanced Voice Mode (ChatGPT Parity)"
+                >
+                  <span className="flex items-center gap-0.5 h-3.5" aria-hidden="true">
+                    <span className="w-0.5 h-2 rounded-full bg-current animate-pulse" />
+                    <span className="w-0.5 h-3.5 rounded-full bg-current animate-pulse" />
+                    <span className="w-0.5 h-2.5 rounded-full bg-current animate-pulse" />
+                    <span className="w-0.5 h-1.5 rounded-full bg-current" />
+                  </span>
+                  <span className="text-xs">🎙️</span>
+                  <span className="hidden sm:inline font-semibold">
+                    {voiceActive ? 'Voice Active' : 'Start Voice'}
+                  </span>
+                </button>
+
                 <VoiceToggle isActive={voiceActive} onToggle={() => setVoiceActive(!voiceActive)} />
               </div>
             </div>
@@ -743,6 +769,13 @@ export default function AIPage() {
               </div>
             )}
           </div>
+
+          {/* Real-Time Advanced Voice Mode Parity (Sovereign Personas + 3D Animated Orb) */}
+          <VoiceModeModal
+            isOpen={voiceActive}
+            onClose={() => setVoiceActive(false)}
+            onSendMessage={(text) => sendMessage(text)}
+          />
         </motion.div>
       </AnimatedPage>
     </AppShell>

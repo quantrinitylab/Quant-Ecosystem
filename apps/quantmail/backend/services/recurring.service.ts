@@ -22,6 +22,9 @@ export interface CreateRecurringInput {
 export interface CalendarEvent {
   id: string;
   parentId?: string;
+  recurrenceParentId?: string;
+  originalStartTime?: Date | string;
+  exdates?: Date[];
   calendarId?: string | null;
   title: string;
   description: string;
@@ -109,9 +112,21 @@ export class RecurringService {
     }
     const occurrences: CalendarEvent[] = [];
     const duration = Math.max(0, event.endTime.getTime() - event.startTime.getTime());
-    const exceptionSet = new Set(
-      (rule.exceptions ?? []).map((value) => value.toISOString().slice(0, 10)),
-    );
+    const exceptionSet = new Set<string>();
+    const allExceptions = [...(rule.exceptions ?? []), ...((event as any).exdates ?? [])];
+    for (const ex of allExceptions) {
+      try {
+        const exDate = ex instanceof Date ? ex : this.parseRRuleDate(ex);
+        if (!Number.isNaN(exDate.getTime())) {
+          exceptionSet.add(exDate.toISOString().slice(0, 10));
+          exceptionSet.add(this.formatRRuleDate(exDate));
+          exceptionSet.add(this.formatRRuleDate(exDate).slice(0, 8));
+          exceptionSet.add(String(exDate.getTime()));
+        }
+      } catch {
+        // ignore parse failure
+      }
+    }
     let current = this.fastForward(event.startTime, startRange, duration, rule);
     let generatedCount = 0;
     const effectiveCount = Math.min(rule.count ?? Number.POSITIVE_INFINITY, MAX_OCCURRENCES);
@@ -119,7 +134,15 @@ export class RecurringService {
       if (generatedCount >= effectiveCount) break;
       if (rule.until && current > rule.until) break;
       if (this.matchesRule(current, rule, event.startTime)) {
-        const excluded = exceptionSet.has(current.toISOString().slice(0, 10));
+        const isoDay = current.toISOString().slice(0, 10);
+        const rruleDate = this.formatRRuleDate(current);
+        const dateOnly = rruleDate.slice(0, 8);
+        const timeKey = String(current.getTime());
+        const excluded =
+          exceptionSet.has(isoDay) ||
+          exceptionSet.has(rruleDate) ||
+          exceptionSet.has(dateOnly) ||
+          exceptionSet.has(timeKey);
         if (!excluded) {
           generatedCount += 1;
           const occurrenceEnd = new Date(current.getTime() + duration);
@@ -127,6 +150,7 @@ export class RecurringService {
             occurrences.push({
               ...event,
               parentId: event.parentId ?? event.id,
+              recurrenceParentId: event.recurrenceParentId ?? event.parentId ?? event.id,
               id: `${event.id}_${current.toISOString()}`,
               startTime: new Date(current),
               endTime: occurrenceEnd,
@@ -141,45 +165,190 @@ export class RecurringService {
     return occurrences;
   }
 
-  addException(
-    eventId: string,
-    _userId: string,
-    exceptionDate: Date,
-  ): { eventId: string; exceptionDate: Date } {
-    return { eventId, exceptionDate };
+  async deleteOccurrence(
+    eventIdOrEvent: string | CalendarEvent,
+    occurrenceDate: Date | string,
+    userId?: string,
+  ): Promise<{ event: CalendarEvent; excludedDate: string }> {
+    const occDate =
+      occurrenceDate instanceof Date ? occurrenceDate : this.parseRRuleDate(occurrenceDate);
+    const formattedExDate = this.formatRRuleDate(occDate);
+    const isoDateOnly = occDate.toISOString().slice(0, 10);
+
+    if (typeof eventIdOrEvent !== 'string') {
+      const event = eventIdOrEvent;
+      const rule: RecurrenceRule = event.recurrenceRule
+        ? this.parseRRule(event.recurrenceRule)
+        : { frequency: 'weekly', interval: 1 };
+      rule.exceptions = rule.exceptions ?? [];
+      const alreadyHas = rule.exceptions.some(
+        (e) => e.getTime() === occDate.getTime() || e.toISOString().slice(0, 10) === isoDateOnly,
+      );
+      if (!alreadyHas) {
+        rule.exceptions.push(occDate);
+      }
+      const updatedRule = this.serializeRRule(rule);
+      const updatedEvent: CalendarEvent = {
+        ...event,
+        recurrenceRule: updatedRule,
+        exdates: [...(event.exdates ?? []), occDate],
+        updatedAt: new Date(),
+      };
+      return { event: updatedEvent, excludedDate: formattedExDate };
+    }
+
+    if (!this.prisma) {
+      throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
+    }
+
+    const parentId = eventIdOrEvent.includes('_') ? eventIdOrEvent.split('_')[0]! : eventIdOrEvent;
+    const parentRecord = await this.prisma.event.findUnique({ where: { id: parentId } });
+    if (!parentRecord) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
+    const record = parentRecord as Record<string, unknown>;
+    if (userId && record['userId'] !== userId) {
+      throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
+    }
+
+    const currentRRule = (record['recurrenceRule'] as string | null) || '';
+    let updatedRule = currentRRule;
+    if (currentRRule) {
+      const rule = this.parseRRule(currentRRule);
+      rule.exceptions = rule.exceptions ?? [];
+      const alreadyHas = rule.exceptions.some(
+        (e) => e.getTime() === occDate.getTime() || e.toISOString().slice(0, 10) === isoDateOnly,
+      );
+      if (!alreadyHas) {
+        rule.exceptions.push(occDate);
+      }
+      updatedRule = this.serializeRRule(rule);
+    }
+
+    const updated = await this.prisma.event.update({
+      where: { id: parentId },
+      data: {
+        recurrenceRule: updatedRule,
+        updatedAt: new Date(),
+      },
+    });
+
+    const calendarEvent = this.toCalendarEvent(updated);
+    if (!calendarEvent.exdates) {
+      calendarEvent.exdates = [occDate];
+    }
+    return { event: calendarEvent, excludedDate: formattedExDate };
   }
 
-  async updateSingle(
-    occurrenceId: string,
-    userId: string,
-    data: { title?: string; description?: string; startTime?: Date; endTime?: Date },
-  ): Promise<CalendarEvent> {
-    if (!this.prisma) throw createAppError('Prisma client not available', 500, 'INTERNAL_ERROR');
-    const parentId = occurrenceId.split('_')[0];
-    if (!parentId) throw createAppError('Invalid occurrence ID', 400, 'INVALID_OCCURRENCE_ID');
-    const parent = await this.prisma.event.findUnique({ where: { id: parentId } });
-    if (!parent) throw createAppError('Event not found', 404, 'EVENT_NOT_FOUND');
-    const record = parent as Record<string, unknown>;
-    if (record['userId'] !== userId) throw createAppError('Not authorized', 403, 'UNAUTHORIZED');
+  async editOccurrence(
+    eventIdOrEvent: string | CalendarEvent,
+    occurrenceDate: Date | string,
+    patch: {
+      title?: string;
+      description?: string;
+      startTime?: Date | string;
+      endTime?: Date | string;
+      location?: string;
+      allDay?: boolean;
+      status?: 'confirmed' | 'tentative' | 'cancelled';
+      color?: string;
+      attendees?: unknown[];
+      reminders?: unknown[];
+      recurrenceParentId?: string;
+      originalStartTime?: Date | string;
+    },
+    userId?: string,
+  ): Promise<{ parentEvent: CalendarEvent; detachedInstance: CalendarEvent }> {
+    const occDate =
+      occurrenceDate instanceof Date ? occurrenceDate : this.parseRRuleDate(occurrenceDate);
+
+    // 1. Exclude from parent via deleteOccurrence
+    const { event: parentEvent } = await this.deleteOccurrence(eventIdOrEvent, occDate, userId);
+
+    // 2. Determine timestamps for detached instance
+    const newStart = patch.startTime
+      ? patch.startTime instanceof Date
+        ? patch.startTime
+        : new Date(patch.startTime)
+      : occDate;
+    const parentDuration = parentEvent.endTime.getTime() - parentEvent.startTime.getTime();
+    const newEnd = patch.endTime
+      ? patch.endTime instanceof Date
+        ? patch.endTime
+        : new Date(patch.endTime)
+      : new Date(newStart.getTime() + (parentDuration > 0 ? parentDuration : 3600000));
+
+    // Construct metadata header to preserve recurrenceParentId and originalStartTime
+    const metaObj = {
+      recurrenceParentId: parentEvent.id,
+      originalStartTime: occDate.toISOString(),
+    };
+    const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
+    const cleanDescription = (patch.description ?? parentEvent.description ?? '')
+      .replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '')
+      .trim();
+    const finalDescription = metaHeader + cleanDescription;
+
+    if (typeof eventIdOrEvent !== 'string' || !this.prisma) {
+      // In-memory detached instance
+      const now = new Date();
+      const detachedInstance: CalendarEvent = {
+        id: `detached_${parentEvent.id}_${occDate.toISOString()}`,
+        calendarId: parentEvent.calendarId,
+        title: patch.title ?? parentEvent.title,
+        description: finalDescription,
+        startTime: newStart,
+        endTime: newEnd,
+        allDay: patch.allDay ?? parentEvent.allDay,
+        location: patch.location ?? parentEvent.location,
+        userId: parentEvent.userId,
+        attendees: patch.attendees ?? parentEvent.attendees,
+        recurrenceRule: null,
+        status: patch.status ?? parentEvent.status,
+        reminders: patch.reminders ?? parentEvent.reminders,
+        recurrenceParentId: parentEvent.id,
+        originalStartTime: occDate,
+        createdAt: now,
+        updatedAt: now,
+      };
+      return { parentEvent, detachedInstance };
+    }
+
     const now = new Date();
     const created = await this.prisma.event.create({
       data: {
-        title: data.title ?? record['title'],
-        description: data.description ?? record['description'] ?? '',
-        startTime: data.startTime ?? record['startTime'],
-        endTime: data.endTime ?? record['endTime'],
-        allDay: record['allDay'] ?? false,
-        location: record['location'] ?? '',
-        userId,
-        attendees: record['attendees'] ?? JSON.stringify([]),
+        title: patch.title ?? parentEvent.title,
+        description: finalDescription,
+        startTime: newStart,
+        endTime: newEnd,
+        allDay: patch.allDay ?? parentEvent.allDay,
+        location: patch.location ?? parentEvent.location,
+        userId: parentEvent.userId,
+        calendarId: parentEvent.calendarId,
+        attendees: JSON.stringify(patch.attendees ?? parentEvent.attendees),
         recurrenceRule: null,
-        status: record['status'] ?? 'confirmed',
-        reminders: record['reminders'] ?? JSON.stringify([]),
+        status: patch.status ?? parentEvent.status,
+        reminders: JSON.stringify(patch.reminders ?? parentEvent.reminders),
         createdAt: now,
         updatedAt: now,
       },
     });
-    return this.toCalendarEvent(created);
+
+    const detachedEvent = this.toCalendarEvent(created);
+    detachedEvent.recurrenceParentId = parentEvent.id;
+    detachedEvent.originalStartTime = occDate;
+    return { parentEvent, detachedInstance: detachedEvent };
+  }
+
+  async addException(
+    eventId: string,
+    userId: string,
+    exceptionDate: Date | string,
+  ): Promise<{ eventId: string; exceptionDate: Date }> {
+    const occDate =
+      exceptionDate instanceof Date ? exceptionDate : this.parseRRuleDate(exceptionDate);
+    if (this.prisma) {
+      await this.deleteOccurrence(eventId, occDate, userId);
+    }
+    return { eventId, exceptionDate: occDate };
   }
 
   async updateAll(
@@ -392,21 +561,33 @@ export class RecurringService {
     return result;
   }
 
-  private parseRRuleDate(value: string): Date {
-    const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})Z)?$/.exec(value);
-    if (!match) return this.invalidRule();
-    const date = new Date(
-      Date.UTC(
-        Number(match[1]),
-        Number(match[2]) - 1,
-        Number(match[3]),
-        Number(match[4] ?? 0),
-        Number(match[5] ?? 0),
-        Number(match[6] ?? 0),
-      ),
-    );
-    if (Number.isNaN(date.getTime())) return this.invalidRule();
-    return date;
+  parseRRuleDate(value: string | Date): Date {
+    if (value instanceof Date) {
+      if (Number.isNaN(value.getTime())) return this.invalidRule();
+      return value;
+    }
+    const clean = String(value).trim();
+    if (clean.includes('-')) {
+      const d = new Date(clean);
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    const match = /^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})Z)?$/i.exec(clean);
+    if (match) {
+      const date = new Date(
+        Date.UTC(
+          Number(match[1]),
+          Number(match[2]) - 1,
+          Number(match[3]),
+          Number(match[4] ?? 0),
+          Number(match[5] ?? 0),
+          Number(match[6] ?? 0),
+        ),
+      );
+      if (!Number.isNaN(date.getTime())) return date;
+    }
+    const fallback = new Date(clean);
+    if (!Number.isNaN(fallback.getTime())) return fallback;
+    return this.invalidRule();
   }
 
   private formatRRuleDate(date: Date): string {
@@ -434,18 +615,50 @@ export class RecurringService {
 
   private toCalendarEvent(raw: unknown): CalendarEvent {
     const record = raw as Record<string, unknown>;
+    const desc = String(record['description'] ?? '');
+    let recurrenceParentId: string | undefined =
+      (record['recurrenceParentId'] as string | undefined) ??
+      (record['parentId'] as string | undefined);
+    let originalStartTime: Date | string | undefined = record['originalStartTime'] as
+      | Date
+      | string
+      | undefined;
+    const metaMatch = desc.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
+    if (metaMatch) {
+      try {
+        const meta = JSON.parse(metaMatch[1]);
+        if (meta.recurrenceParentId) recurrenceParentId = meta.recurrenceParentId;
+        if (meta.originalStartTime) originalStartTime = new Date(meta.originalStartTime);
+      } catch {
+        // ignore
+      }
+    }
+    const rrule = (record['recurrenceRule'] as string | null) ?? null;
+    let exdates: Date[] | undefined;
+    if (rrule && rrule.includes('EXDATE=')) {
+      try {
+        const rule = this.parseRRule(rrule);
+        exdates = rule.exceptions;
+      } catch {
+        // ignore
+      }
+    }
     return {
       id: String(record['id']),
+      parentId: (record['parentId'] as string | undefined) ?? recurrenceParentId,
+      recurrenceParentId,
+      originalStartTime,
+      exdates,
       calendarId: (record['calendarId'] as string | null | undefined) ?? null,
       title: String(record['title']),
-      description: String(record['description'] ?? ''),
+      description: desc,
       startTime: new Date(record['startTime'] as string | Date),
       endTime: new Date(record['endTime'] as string | Date),
       allDay: Boolean(record['allDay']),
       location: String(record['location'] ?? ''),
       userId: String(record['userId']),
       attendees: this.parseArray(record['attendees']),
-      recurrenceRule: (record['recurrenceRule'] as string | null) ?? null,
+      recurrenceRule: rrule,
       status: (record['status'] as CalendarEvent['status']) ?? 'confirmed',
       reminders: this.parseArray(record['reminders']),
       timeZone: (record['timeZone'] as string) || (record['timezone'] as string) || 'UTC',

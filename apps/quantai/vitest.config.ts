@@ -2,7 +2,12 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
-  oxc: false,
+  oxc: {
+    jsx: {
+      runtime: 'automatic',
+      importSource: 'react',
+    },
+  },
   // The app's tsconfig sets jsx:"preserve" (required by Next.js), which leaves JSX
   // untransformed and breaks vitest's import analysis on .tsx test suites. Overriding
   // the esbuild JSX transform here compiles JSX during tests without touching the
@@ -51,8 +56,8 @@ export default defineConfig({
     // loader exactly: Node natively resolves the `.ts` sources and maps the `.js` specifiers
     // onto them, for BOTH the externalized import path and the literal `require(...)`. This is a
     // test-tooling change only — no product source is touched, and no assertion is relaxed.
-    pool: 'forks',
-    execArgv: ['--import', 'tsx'],
+    // pool: 'forks',
+    // execArgv: ['--import', 'tsx'],
     // Booting the full Fastify app (createApp substrate + ~36 route plugins + engine
     // construction) through the tsx loader is heavier than a unit test, so give the boot
     // suites headroom over the 5s default when the whole suite runs in parallel.
@@ -61,6 +66,10 @@ export default defineConfig({
     include: [
       'src/__tests__/**/*.test.ts',
       'src/__tests__/**/*.test.tsx',
+      'src/components/**/__tests__/**/*.test.ts',
+      'src/components/**/__tests__/**/*.test.tsx',
+      'apps/**/__tests__/**/*.test.ts',
+      'apps/**/__tests__/**/*.test.tsx',
       'backend/__tests__/**/*.test.ts',
     ],
   },

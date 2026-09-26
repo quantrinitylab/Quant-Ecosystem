@@ -68,6 +68,8 @@ export function useUpdateEvent() {
         endTime?: string;
         description?: string;
         calendarId?: string;
+        scope?: string;
+        [key: string]: unknown;
       };
     }) => {
       // Mirror createEvent: some calendar routes validate start/end instead of
@@ -94,8 +96,10 @@ export function useUpdateEvent() {
 export function useDeleteEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiClient.deleteEvent(id);
+    mutationFn: async (args: string | { id: string; scope?: string }) => {
+      const id = typeof args === 'string' ? args : args.id;
+      const options = typeof args === 'string' ? undefined : { scope: args.scope };
+      const response = await apiClient.deleteEvent(id, options);
       if (!response.success) throw new Error(response.error?.message || 'Failed to delete event');
       return response.data;
     },

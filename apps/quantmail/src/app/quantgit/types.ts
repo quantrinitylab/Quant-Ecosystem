@@ -94,11 +94,58 @@ export type PRItem = {
   changedFiles?: number;
 };
 
+export type PRReviewDecision = 'approve' | 'request_changes' | 'comment';
+
+export type PRReviewItem = {
+  id: string;
+  author: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED';
+  body: string;
+  createdAt: string;
+};
+
+export type PRDiffLine = {
+  id: string;
+  type: 'addition' | 'deletion' | 'context';
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  content: string;
+};
+
+export type PRDiffFile = {
+  filename: string;
+  status: 'modified' | 'added' | 'deleted';
+  additions: number;
+  deletions: number;
+  hunks: {
+    header: string;
+    lines: PRDiffLine[];
+  }[];
+};
+
+export type PRDiffComment = {
+  id: string;
+  lineId: string;
+  author: string;
+  body: string;
+  createdAt: string;
+};
+
+export type MergeMethod = 'merge' | 'squash' | 'rebase';
+
+export type WorkflowStepItem = {
+  id: string;
+  name: string;
+  status: 'queued' | 'in_progress' | 'completed' | 'failed' | 'success';
+  duration: string;
+  logs: string[];
+};
+
 export type WorkflowRunItem = {
   id: number | string;
   name: string;
   workflow: string;
-  status: 'success' | 'in_progress' | 'queued' | 'failed';
+  status: 'success' | 'in_progress' | 'queued' | 'failed' | 'completed';
   branch: string;
   event: string;
   commitSha: string;

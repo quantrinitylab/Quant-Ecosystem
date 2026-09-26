@@ -719,12 +719,21 @@ export class QuantMailApiClient {
     return this.post('/events', payload);
   }
 
-  async updateEvent(id: string, data: Partial<CalendarEvent>): Promise<ApiResponse<CalendarEvent>> {
+  async updateEvent(
+    id: string,
+    data: Partial<CalendarEvent> & { scope?: string },
+  ): Promise<ApiResponse<CalendarEvent>> {
     return this.put(`/events/${id}`, data);
   }
 
-  async deleteEvent(id: string): Promise<ApiResponse<{ message: string }>> {
-    return this.delete(`/events/${id}`);
+  async deleteEvent(
+    id: string,
+    options?: { scope?: string },
+  ): Promise<ApiResponse<{ message: string }>> {
+    const url = options?.scope
+      ? `/events/${id}?scope=${encodeURIComponent(options.scope)}`
+      : `/events/${id}`;
+    return this.delete(url);
   }
 
   async findAvailableSlots(

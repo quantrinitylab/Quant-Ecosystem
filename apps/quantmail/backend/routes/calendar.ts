@@ -268,11 +268,49 @@ function toCalendarEvent(row: EventRow): CalendarEvent {
   };
 }
 function toEventDto(event: EventRow | CalendarEvent) {
+  let recurrenceParentId: string | undefined =
+    (event as CalendarEvent).recurrenceParentId ??
+    (event as CalendarEvent).parentId ??
+    (event.id.includes('_') ? event.id.split('_')[0] : undefined);
+  let originalStartTime: string | undefined =
+    (event as CalendarEvent).originalStartTime instanceof Date
+      ? ((event as CalendarEvent).originalStartTime as Date).toISOString()
+      : typeof (event as CalendarEvent).originalStartTime === 'string'
+        ? ((event as CalendarEvent).originalStartTime as string)
+        : undefined;
+
+  const desc = event.description || '';
+  const metaMatch = desc.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
+  if (metaMatch) {
+    try {
+      const meta = JSON.parse(metaMatch[1]);
+      if (meta.recurrenceParentId) recurrenceParentId = meta.recurrenceParentId;
+      if (meta.originalStartTime) originalStartTime = meta.originalStartTime;
+    } catch {
+      // ignore
+    }
+  }
+
+  let exdates: string[] | undefined;
+  if (event.recurrenceRule && event.recurrenceRule.includes('EXDATE=')) {
+    const exMatch = /EXDATE=([^;]+)/i.exec(event.recurrenceRule);
+    if (exMatch) {
+      exdates = exMatch[1]!
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+
   return {
     id: event.id,
     parentId:
       (event as CalendarEvent).parentId ??
+      recurrenceParentId ??
       (event.id.includes('_') ? event.id.split('_')[0] : event.id),
+    recurrenceParentId,
+    originalStartTime,
+    exdates,
     calendarId: (event as EventRow).calendarId ?? (event as CalendarEvent).calendarId ?? null,
     title: event.title,
     description: event.description,
@@ -1650,6 +1688,32 @@ export default async function calendarRoutes(
         }
       }
 
+      if (scope === 'all') {
+        const updateData: Record<string, unknown> = { updatedAt: new Date() };
+        for (const key of ['title', 'description', 'allDay', 'location', 'status'] as const) {
+          if (parsed.data[key] !== undefined) updateData[key] = parsed.data[key];
+        }
+        if (parsed.data.calendarId !== undefined) updateData.calendarId = parsed.data.calendarId;
+        const tzToUpdate = parsed.data.timeZone ?? (parsed.data as any).timezone;
+        if (tzToUpdate !== undefined) updateData.timeZone = tzToUpdate;
+        if (start) updateData.startTime = start;
+        if (end) updateData.endTime = end;
+        if (parsed.data.attendees !== undefined)
+          updateData.attendees = JSON.stringify(toStoredAttendees(parsed.data.attendees));
+        if (parsed.data.reminders !== undefined)
+          updateData.reminders = JSON.stringify(toStoredReminders(parsed.data.reminders));
+        const recurrence = pickRecurrence(parsed.data);
+        if (recurrence !== undefined)
+          updateData.recurrenceRule = normalizeRecurrenceRule(recurrence, recurringService);
+
+        const updatedMaster = (await prisma.event.update({
+          where: { id: parentId },
+          data: updateData,
+        })) as EventRow;
+
+        return reply.send({ success: true, data: toEventDto(updatedMaster) });
+      }
+
       if (scope === 'this_and_following') {
         let newSeriesRecurrence: string | null = null;
         if (parent.recurrenceRule) {
@@ -1769,10 +1833,19 @@ export default async function calendarRoutes(
         });
       }
 
+      const metaObj = {
+        recurrenceParentId: parentId,
+        originalStartTime: occDate.toISOString(),
+      };
+      const metaHeader = `__QUANT_META__:${JSON.stringify(metaObj)}:__END_QUANT_META__\n`;
+      const userDesc = parsed.data.description ?? parent.description ?? '';
+      const finalDesc =
+        metaHeader + userDesc.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
+
       const now = new Date();
       const createPayload: Record<string, unknown> = {
         title: parsed.data.title ?? parent.title,
-        description: parsed.data.description ?? parent.description ?? '',
+        description: finalDesc,
         startTime: eventStartTime,
         endTime: eventEndTime,
         allDay: parsed.data.allDay ?? parent.allDay ?? false,
@@ -1821,6 +1894,9 @@ export default async function calendarRoutes(
       if (targetTz && !created.timeZone) {
         created.timeZone = targetTz;
       }
+
+      (created as any).recurrenceParentId = parentId;
+      (created as any).originalStartTime = occDate;
 
       await callAlertService
         .scheduleAlertsForEvent({
@@ -1938,6 +2014,14 @@ export default async function calendarRoutes(
       }
 
       const scope = request.query?.scope || request.body?.scope;
+      if (scope === 'all') {
+        await prisma.event.delete({ where: { id: parentId } });
+        await callAlertService.cancelAlertsForEvent(parentId).catch((err) => {
+          request.log.warn({ err }, 'Failed to schedule event call alert');
+        });
+        return reply.send({ success: true, data: { message: 'All events in series deleted' } });
+      }
+
       if (scope === 'this_and_following') {
         let until: Date = new Date(occDate.getTime() - 1000);
         if (parent.recurrenceRule) {
@@ -1956,23 +2040,7 @@ export default async function calendarRoutes(
         });
       }
 
-      if (parent.recurrenceRule) {
-        const rule = recurringService.parseRRule(parent.recurrenceRule);
-        rule.exceptions = rule.exceptions ?? [];
-        const hasDate = rule.exceptions.some(
-          (existing) =>
-            existing.getTime() === occDate.getTime() ||
-            existing.toISOString().slice(0, 10) === occDate.toISOString().slice(0, 10),
-        );
-        if (!hasDate) {
-          rule.exceptions.push(occDate);
-        }
-        const updatedRule = recurringService.serializeRRule(rule);
-        await prisma.event.update({
-          where: { id: parentId },
-          data: { recurrenceRule: updatedRule, updatedAt: new Date() },
-        });
-      }
+      await recurringService.deleteOccurrence(parentId, occDate, userId);
 
       return reply.send({
         success: true,

@@ -14,6 +14,7 @@
 
 import type { Email } from '../../types';
 import { mailDatabase, STORE_EMAILS, STORE_MAILBOXES } from './client';
+import { getFts5Indexer } from '../sqlite-fts5';
 
 /** Ordered id list for one mailbox view. */
 interface MailboxRecord {
@@ -32,11 +33,13 @@ const MAX_CACHED_EMAILS = 5000;
  * Stable cache key for a mailbox view. Mirrors the React Query key so the two
  * layers can never disagree about which list they are talking about.
  */
-export function mailboxKey(options: {
-  label?: string;
-  category?: string;
-  folderType?: string;
-} = {}): string {
+export function mailboxKey(
+  options: {
+    label?: string;
+    category?: string;
+    folderType?: string;
+  } = {},
+): string {
   return [options.folderType ?? 'INBOX', options.label ?? '', options.category ?? ''].join('|');
 }
 
@@ -57,6 +60,10 @@ export async function readMailbox(key: string): Promise<Email[] | null> {
     .map((id) => byId.get(id))
     .filter((email): email is Email => email !== undefined);
 
+  if (emails.length > 0) {
+    getFts5Indexer().indexEmails(emails);
+  }
+
   return emails.length > 0 ? emails : null;
 }
 
@@ -67,6 +74,11 @@ export async function writeMailbox(key: string, emails: Email[]): Promise<void> 
     emailIds: emails.map((email) => email.id),
     updatedAt: Date.now(),
   };
+
+  if (emails.length > 0) {
+    getFts5Indexer().indexEmails(emails);
+  }
+
   await Promise.all([
     mailDatabase.putMany(STORE_EMAILS, emails),
     mailDatabase.put(STORE_MAILBOXES, record),
@@ -82,7 +94,9 @@ export async function writeMailbox(key: string, emails: Email[]): Promise<void> 
 export async function patchEmail(id: string, patch: Partial<Email>): Promise<void> {
   const existing = await mailDatabase.get<Email>(STORE_EMAILS, id);
   if (!existing) return;
-  await mailDatabase.put(STORE_EMAILS, { ...existing, ...patch });
+  const updated = { ...existing, ...patch };
+  getFts5Indexer().indexEmails([updated]);
+  await mailDatabase.put(STORE_EMAILS, updated);
 }
 
 /** Remove an email from one mailbox's ordering without deleting the message. */
@@ -96,10 +110,8 @@ export async function removeFromMailbox(key: string, id: string): Promise<void> 
 
 /** Drop everything. Called on sign-out so cached mail never outlives a session. */
 export async function clearMailCache(): Promise<void> {
-  await Promise.all([
-    mailDatabase.clear(STORE_EMAILS),
-    mailDatabase.clear(STORE_MAILBOXES),
-  ]);
+  getFts5Indexer().clear();
+  await Promise.all([mailDatabase.clear(STORE_EMAILS), mailDatabase.clear(STORE_MAILBOXES)]);
 }
 
 /**

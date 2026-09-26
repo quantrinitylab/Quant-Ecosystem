@@ -1281,7 +1281,10 @@ export default function QuantGitPage() {
     }
   };
 
-  const handleMergePR = async (prNumber: number) => {
+  const handleMergePR = async (
+    prNumber: number,
+    mergeMethod: 'merge' | 'squash' | 'rebase' = 'merge',
+  ) => {
     if (!selectedRepo) return;
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
@@ -1289,6 +1292,8 @@ export default function QuantGitPage() {
         `/api/repos/${encodeURIComponent(repoTarget)}/pulls/${prNumber}/merge`,
         {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method: mergeMethod }),
         },
       );
       if (res.ok) {
@@ -1296,7 +1301,9 @@ export default function QuantGitPage() {
         if (selectedPr && selectedPr.id === prNumber) {
           setSelectedPr((prev) => (prev ? { ...prev, state: 'merged' } : null));
         }
-        showToast(`Pull request #${prNumber} merged into ${selectedRepo.defaultBranch}!`);
+        showToast(
+          `Pull request #${prNumber} merged into ${selectedRepo.defaultBranch} via ${mergeMethod}!`,
+        );
       } else {
         showToast('Failed to merge pull request');
       }
@@ -1771,6 +1778,10 @@ export default function QuantGitPage() {
                   closedPullsCount={closedPullsCount}
                   setModalState={setModalState}
                   openPullDetail={openPullDetail}
+                  repoId={selectedRepo?.id || selectedRepo?.name}
+                  currentUsername={currentUsername}
+                  showToast={showToast}
+                  onMergePR={handleMergePR}
                 />
               )}
 

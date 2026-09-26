@@ -14,6 +14,8 @@ import {
   PageTransition,
 } from '@quant/shared-ui';
 import { useReels } from '../hooks/useReels';
+import { useAuth } from '../providers/auth-provider';
+import { GuestInteractionGate } from '../components/GuestInteractionGate';
 import { apiClient } from '../services/api-client';
 import { classifyVerticalSwipe, isDoubleTap, type GesturePoint } from '../features/reels/gesture';
 
@@ -42,6 +44,7 @@ function isInteractiveGestureTarget(target: EventTarget | null): boolean {
 }
 
 const ReelsPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [state, actions] = useReels();
   const [showCaption, setShowCaption] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -52,6 +55,20 @@ const ReelsPage: React.FC = () => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [heartBursts, setHeartBursts] = useState<HeartBurst[]>([]);
   const [slideDirection, setSlideDirection] = useState(1);
+  const [guestGateOpen, setGuestGateOpen] = useState(false);
+  const [guestGateAction, setGuestGateAction] = useState<string>('interact');
+
+  const requireAuth = useCallback(
+    (action: string, callback: () => void) => {
+      if (!isAuthenticated) {
+        setGuestGateAction(action);
+        setGuestGateOpen(true);
+        return;
+      }
+      callback();
+    },
+    [isAuthenticated],
+  );
 
   const touchStart = useRef<GesturePoint | null>(null);
   const lastTap = useRef<GesturePoint | null>(null);
@@ -91,10 +108,15 @@ const ReelsPage: React.FC = () => {
   const submitComment = useCallback(async () => {
     const text = commentText.trim();
     if (!text || !currentReel) return;
+    if (!isAuthenticated) {
+      setGuestGateAction('comment');
+      setGuestGateOpen(true);
+      return;
+    }
     await actions.comment(currentReel.id, text);
     setCommentText('');
     await loadComments(currentReel.id);
-  }, [commentText, currentReel, actions, loadComments]);
+  }, [commentText, currentReel, actions, loadComments, isAuthenticated]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     touchStart.current = null;
@@ -157,6 +179,12 @@ const ReelsPage: React.FC = () => {
           singleTapTimer.current = null;
         }
 
+        if (!isAuthenticated) {
+          setGuestGateAction('like');
+          setGuestGateOpen(true);
+          return;
+        }
+
         // Double-tap is an idempotent like gesture: it never toggles an existing like off.
         if (!state.liked.has(currentReel.id)) actions.like(currentReel.id);
 
@@ -193,7 +221,7 @@ const ReelsPage: React.FC = () => {
         if (state.reels[state.currentIndex]?.id === reelId) actions.togglePlay();
       }, 280);
     },
-    [actions, currentReel, state.currentIndex, state.liked, state.reels],
+    [actions, currentReel, state.currentIndex, state.liked, state.reels, isAuthenticated],
   );
 
   const handleKeyDown = useCallback(
@@ -370,9 +398,11 @@ const ReelsPage: React.FC = () => {
                   className={`min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1 ${state.liked.has(currentReel.id) ? 'text-red-500' : 'text-white'}`}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    state.liked.has(currentReel.id)
-                      ? actions.unlike(currentReel.id)
-                      : actions.like(currentReel.id);
+                    requireAuth('like', () => {
+                      state.liked.has(currentReel.id)
+                        ? actions.unlike(currentReel.id)
+                        : actions.like(currentReel.id);
+                    });
                   }}
                   aria-label={`Like, ${formatCount(currentReel.likeCount)}`}
                   aria-pressed={state.liked.has(currentReel.id)}
@@ -392,7 +422,9 @@ const ReelsPage: React.FC = () => {
                   className="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1 text-white"
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    setShowComments(true);
+                    requireAuth('comment', () => {
+                      setShowComments(true);
+                    });
                   }}
                   aria-label={`Comments, ${formatCount(currentReel.commentCount)}`}
                 >
@@ -418,7 +450,9 @@ const ReelsPage: React.FC = () => {
                   className={`min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1 ${isBookmarked ? 'text-yellow-400' : 'text-white'}`}
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    setIsBookmarked(!isBookmarked);
+                    requireAuth('bookmark', () => {
+                      setIsBookmarked(!isBookmarked);
+                    });
                   }}
                   aria-label={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                   aria-pressed={isBookmarked}
@@ -461,7 +495,10 @@ const ReelsPage: React.FC = () => {
                   <span className="font-semibold text-sm">@{currentReel.creator}</span>
                   <button
                     className="ml-2 px-3 py-1 rounded border border-white/60 text-xs font-medium"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      requireAuth('follow', () => {});
+                    }}
                     aria-label="Follow creator"
                   >
                     Follow
@@ -611,6 +648,13 @@ const ReelsPage: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Guest Interaction Gate Modal */}
+        <GuestInteractionGate
+          isOpen={guestGateOpen}
+          onClose={() => setGuestGateOpen(false)}
+          action={guestGateAction}
+        />
       </div>
     </PageTransition>
   );

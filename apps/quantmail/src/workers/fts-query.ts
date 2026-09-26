@@ -181,30 +181,39 @@ export class InMemoryFts5Engine {
         recipient: recipientTokens.length,
       });
 
-      const allUniqueTerms = new Set([
-        ...subjectTokens,
-        ...snippetTokens,
-        ...senderTokens,
-        ...recipientTokens,
-      ]);
+      // Count term frequencies in single pass
+      const termCounts = new Map<
+        string,
+        { subject: number; snippet: number; sender: number; recipient: number }
+      >();
 
-      for (const term of allUniqueTerms) {
-        if (!this.invertedIndex.has(term)) {
-          this.invertedIndex.set(term, new Map());
+      const countTokens = (
+        tokens: string[],
+        field: 'subject' | 'snippet' | 'sender' | 'recipient',
+      ) => {
+        for (let i = 0; i < tokens.length; i++) {
+          const t = tokens[i];
+          let entry = termCounts.get(t);
+          if (!entry) {
+            entry = { subject: 0, snippet: 0, sender: 0, recipient: 0 };
+            termCounts.set(t, entry);
+          }
+          entry[field]++;
         }
-        const termPostings = this.invertedIndex.get(term)!;
+      };
 
-        const subCount = subjectTokens.filter((t) => t === term).length;
-        const snipCount = snippetTokens.filter((t) => t === term).length;
-        const sendCount = senderTokens.filter((t) => t === term).length;
-        const recCount = recipientTokens.filter((t) => t === term).length;
+      countTokens(subjectTokens, 'subject');
+      countTokens(snippetTokens, 'snippet');
+      countTokens(senderTokens, 'sender');
+      countTokens(recipientTokens, 'recipient');
 
-        termPostings.set(record.id, {
-          subject: subCount,
-          snippet: snipCount,
-          sender: sendCount,
-          recipient: recCount,
-        });
+      for (const [term, counts] of termCounts.entries()) {
+        let termPostings = this.invertedIndex.get(term);
+        if (!termPostings) {
+          termPostings = new Map();
+          this.invertedIndex.set(term, termPostings);
+        }
+        termPostings.set(record.id, counts);
       }
     }
 
@@ -290,6 +299,15 @@ export class InMemoryFts5Engine {
     const offset = options.offset || 0;
     const paged = sortedDocIds.slice(offset, offset + limit);
 
+    const validTokens = cleanTokens.filter((t) => t.length >= 2);
+    const highlightRegex =
+      validTokens.length > 0
+        ? new RegExp(
+            `(${validTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+            'gi',
+          )
+        : null;
+
     const results: FtsSearchResult[] = paged.map(([docId, score]) => {
       const email = this.emails.get(docId)!;
       return {
@@ -304,7 +322,7 @@ export class InMemoryFts5Engine {
         read: email.read,
         starred: email.starred,
         bm25_rank: -score, // Negative for SQLite bm25() ordering parity (lower is better in SQLite)
-        highlighted_snippet: this.highlightSnippet(email.snippet, cleanTokens),
+        highlighted_snippet: this.highlightSnippet(email.snippet, highlightRegex),
       };
     });
 
@@ -359,14 +377,8 @@ export class InMemoryFts5Engine {
       .filter((t) => t.length > 0);
   }
 
-  private highlightSnippet(text: string, tokens: string[]): string {
-    if (!text) return '';
-    let result = text;
-    for (const token of tokens) {
-      if (token.length < 2) continue;
-      const regex = new RegExp(`(${token})`, 'gi');
-      result = result.replace(regex, '<mark>$1</mark>');
-    }
-    return result;
+  private highlightSnippet(text: string, regex: RegExp | null): string {
+    if (!text || !regex) return text || '';
+    return text.replace(regex, '<mark>$1</mark>');
   }
 }

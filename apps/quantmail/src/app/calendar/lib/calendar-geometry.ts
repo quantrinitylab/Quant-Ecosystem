@@ -32,6 +32,19 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
   let cycleDay: number | undefined = undefined;
   let subtasks: Array<{ text: string; done: boolean }> | undefined = undefined;
   let birthYear: string | undefined = undefined;
+  let recurrenceParentId: string | undefined = raw.recurrenceParentId || raw.parentId;
+  let originalStartTime: string | Date | undefined = raw.originalStartTime;
+  let exdates: string[] | undefined = raw.exdates;
+  const rawRrule: string = raw.recurrence || raw.recurrenceRule || '';
+  if (!exdates && rawRrule.includes('EXDATE=')) {
+    const m = /EXDATE=([^;]+)/i.exec(rawRrule);
+    if (m) {
+      exdates = m[1]!
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
 
   // Extract structured metadata if present
   const metaMatch = description.match(/__QUANT_META__:([\s\S]*?):__END_QUANT_META__/);
@@ -45,6 +58,9 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
       if (parsed.cycleDay) cycleDay = parsed.cycleDay;
       if (parsed.subtasks) subtasks = parsed.subtasks;
       if (parsed.birthYear) birthYear = parsed.birthYear;
+      if (parsed.recurrenceParentId) recurrenceParentId = parsed.recurrenceParentId;
+      if (parsed.originalStartTime) originalStartTime = parsed.originalStartTime;
+      if (parsed.exdates) exdates = parsed.exdates;
       description = description.replace(/__QUANT_META__:[\s\S]*?:__END_QUANT_META__\n?/, '').trim();
     } catch {
       // ignore JSON parse failure
@@ -89,6 +105,10 @@ export function parseCalendarEvent(raw: any): CalendarEventLike {
 
   return {
     ...raw,
+    parentId: raw.parentId ?? recurrenceParentId,
+    recurrenceParentId,
+    originalStartTime,
+    exdates,
     title,
     description,
     type,

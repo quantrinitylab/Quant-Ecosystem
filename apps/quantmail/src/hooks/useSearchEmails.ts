@@ -5,5 +5,5 @@
 // Canonical implementation now lives in ./useMail with prefix ['inbox', 'search']
 // ============================================================================
 
-export { useSearchEmails, useSearchEmails as default } from './useMail';
+export { useSearchEmails, useLocalFts5Search, useSearchEmails as default } from './useMail';
 export type { SearchEmailRequest } from '../types';

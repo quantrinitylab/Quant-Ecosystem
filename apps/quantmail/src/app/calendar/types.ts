@@ -59,6 +59,10 @@ export type EntryType = 'event' | 'task' | 'birthday' | 'period';
 
 export interface CalendarEventLike {
   id: string;
+  parentId?: string;
+  recurrenceParentId?: string;
+  originalStartTime?: string | Date;
+  exdates?: string[];
   title: string;
   startTime?: string | Date;
   endTime?: string | Date;
