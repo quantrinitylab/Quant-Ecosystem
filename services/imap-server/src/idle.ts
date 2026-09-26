@@ -68,7 +68,7 @@ export class IdleHandler {
         seq: nextSeq,
         subject: '(New Message)',
         from: 'unknown@quantmail.in',
-        to: [this.session.user.email],
+        to: [this.session.user?.email ?? 'unknown@quantmail.in'],
         cc: [],
         bcc: [],
         date: new Date(),

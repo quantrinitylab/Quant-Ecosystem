@@ -125,6 +125,6 @@ describe('LlmExtractionModel.extract → storable candidates', () => {
     ]);
     const out = await model(fetch).extract('user_1', 's1', 'user', 'I am visiting Patna this week');
     expect(out[0]?.expiresAt).toBeTypeOf('number');
-    expect(out[0]?.expiresAt! > Date.now()).toBe(true);
+    expect((out[0]?.expiresAt ?? 0) > Date.now()).toBe(true);
   });
 });

@@ -53,7 +53,7 @@ export default async function feedRoutes(fastify: FastifyInstance) {
 
     const { tag } = request.params as { tag: string };
     const { page = 1, pageSize = 20 } = parseResult.data;
-    const posts = await feedService.getPostsByHashtag(tag, page, pageSize);
+    const posts = await getService(fastify).getPostsByHashtag(tag, page, pageSize);
 
     return reply.send(posts);
   });
@@ -72,7 +72,7 @@ export default async function feedRoutes(fastify: FastifyInstance) {
     }
 
     const { page = 1, pageSize = 20 } = parseResult.data;
-    const posts = await feedService.getFeed(userId, page, pageSize, 'verified');
+    const posts = await getService(fastify).getFeed(userId, page, pageSize, 'verified');
 
     return reply.send(posts);
   });
