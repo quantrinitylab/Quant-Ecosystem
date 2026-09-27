@@ -2716,3 +2716,37 @@
   - **Assigned Developer Agent**: Subagent C5 (GameMint Party Games Architect)
   - **Status**: 🟢 **100% COMPLETE & VERIFIED** (13/13 Vitest tests passing, `pnpm --filter @quant/quantchat typecheck` exit code 0)
   - **Capabilities**: Real-time multiplayer game session, move validation, turn switching, 8 winning lines detection, draw detection, and ratings ledger.
+
+---
+
+### 🌊 Wave 52: Commercial Extractions Phase 2 (Grupo, Vizion, EventON, Backuply, Flirtzy) (ACTIVE)
+
+- [x] **Task W52-01**: Grupo Chat Custom Sticker Pack Engine & Voice Broadcasting (`apps/quantchat`)
+  - **Target Files**: `apps/quantchat/backend/services/sticker-pack.service.ts`, `apps/quantchat/backend/__tests__/grupo-stickers-and-broadcast.test.ts`
+  - **Assigned Developer Agent**: Subagent C1 (`6d2d3857` - Grupo Stickers & Broadcast Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (10/10 Vitest tests passing, `pnpm --filter @quant/quantchat typecheck` exit code 0)
+  - **Capabilities**: Community custom sticker packs, animated/static sticker parsing, live audio voice broadcast channel state machine, speaker roles, listener count tracking.
+
+- [x] **Task W52-02**: Vizion AI Video Generation & Camera Motion Control Engine (`apps/quantai`)
+  - **Target Files**: `apps/quantai/backend/services/ai-video-generation.service.ts`, `apps/quantai/backend/routes/video-generation.ts`, `apps/quantai/backend/__tests__/vizion-video-generation.test.ts`
+  - **Assigned Developer Agent**: Subagent C2 (`75b6d7ff` - Vizion AI Video Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (25/25 Vitest tests passing, `pnpm --filter @quant/quantai typecheck` exit code 0)
+  - **Capabilities**: AI Video generation (16:9, 9:16, 1:1, 4:3), 6-axis camera motion controls (Pan, Tilt, Zoom, Roll), prompt keyframing & interpolation, rendering job state machine.
+
+- [x] **Task W52-03**: EventON Multi-Day Event Spans & Attendee RSVP Matrix (`apps/quantmail`)
+  - **Target Files**: `apps/quantmail/backend/services/eventon-calendar.service.ts`, `apps/quantmail/backend/__tests__/eventon-calendar.test.ts`
+  - **Assigned Developer Agent**: Subagent C3 (`564b40fc` - EventON Calendar Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (18/18 Vitest tests passing, `pnpm --filter @quant/quantmail typecheck` exit code 0)
+  - **Capabilities**: Multi-day event spanning and date bands, attendee RSVP matrix (attending, maybe, declined, waitlist), auto-waitlist capacity caps, guest counts, and event color badge themes.
+
+- [x] **Task W52-04**: Backuply Cloud Snapshot Backup & Restore Manager (`apps/quantmail`)
+  - **Target Files**: `apps/quantmail/backend/services/drive-backup.service.ts`, `apps/quantmail/backend/__tests__/backuply-drive-backup.test.ts`
+  - **Assigned Developer Agent**: Subagent C4 (`b099cb8b` - Backuply Drive Snapshot Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (18/18 Vitest tests passing, `pnpm --filter @quant/quantmail typecheck` exit code 0)
+  - **Capabilities**: Full & incremental drive backup snapshots, S3 / Cloudflare R2 / Local destinations, SHA-256 integrity checksums, automated retention pruning, and restore verification gate.
+
+- [x] **Task W52-05**: Flirtzy Dating Matchmaking & Elo Radar Scoring Engine (`apps/quantsync`)
+  - **Target Files**: `apps/quantsync/backend/services/matchmaking.service.ts`, `apps/quantsync/backend/__tests__/flirtzy-matchmaking.test.ts`
+  - **Assigned Developer Agent**: Subagent C5 (`bccda360` - Flirtzy Matchmaking Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (13/13 Vitest tests passing, full 245/245 suite green, `typecheck` exit code 0)
+  - **Capabilities**: Haversine geographic proximity radar, Elo-based match recommendation, mutual swipe matching with icebreaker question generation, SuperLike support, and selfie pose challenge verification.
