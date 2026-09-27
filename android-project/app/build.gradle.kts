@@ -16,6 +16,140 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["appName"] = "Quant"
+        manifestPlaceholders["deepLinkScheme"] = "quant"
+        manifestPlaceholders["appHost"] = "quantmail.in"
+    }
+
+    flavorDimensions += "app"
+    productFlavors {
+        create("quantmail") {
+            dimension = "app"
+            applicationId = "com.quant.mail"
+            manifestPlaceholders["appName"] = "QuantMail"
+            manifestPlaceholders["deepLinkScheme"] = "quantmail"
+            manifestPlaceholders["appHost"] = "quantmail.in"
+            resValue("string", "app_name", "QuantMail")
+            resValue("string", "default_app_url", "https://quantmail.in/")
+            resValue("string", "deep_link_scheme", "quantmail")
+            buildConfigField("String", "APP_NAME", "\"QuantMail\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantmail.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantmail\"")
+            buildConfigField("String", "APP_HOST", "\"quantmail.in\"")
+        }
+        create("quantchat") {
+            dimension = "app"
+            applicationId = "com.quant.chat"
+            manifestPlaceholders["appName"] = "QuantChat"
+            manifestPlaceholders["deepLinkScheme"] = "quantchat"
+            manifestPlaceholders["appHost"] = "quantchat.quantrinity.in"
+            resValue("string", "app_name", "QuantChat")
+            resValue("string", "default_app_url", "https://quantchat.quantrinity.in/")
+            resValue("string", "deep_link_scheme", "quantchat")
+            buildConfigField("String", "APP_NAME", "\"QuantChat\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantchat.quantrinity.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantchat\"")
+            buildConfigField("String", "APP_HOST", "\"quantchat.quantrinity.in\"")
+        }
+        create("quantgram") {
+            dimension = "app"
+            applicationId = "com.quant.gram"
+            manifestPlaceholders["appName"] = "QuantGram"
+            manifestPlaceholders["deepLinkScheme"] = "quantgram"
+            manifestPlaceholders["appHost"] = "quantgram.quantrinity.in"
+            resValue("string", "app_name", "QuantGram")
+            resValue("string", "default_app_url", "https://quantgram.quantrinity.in/")
+            resValue("string", "deep_link_scheme", "quantgram")
+            buildConfigField("String", "APP_NAME", "\"QuantGram\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantgram.quantrinity.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantgram\"")
+            buildConfigField("String", "APP_HOST", "\"quantgram.quantrinity.in\"")
+        }
+        create("quantube") {
+            dimension = "app"
+            applicationId = "com.quant.tube"
+            manifestPlaceholders["appName"] = "QuanTube"
+            manifestPlaceholders["deepLinkScheme"] = "quantube"
+            manifestPlaceholders["appHost"] = "quantube.quantrinity.in"
+            resValue("string", "app_name", "QuanTube")
+            resValue("string", "default_app_url", "https://quantube.quantrinity.in/")
+            resValue("string", "deep_link_scheme", "quantube")
+            buildConfigField("String", "APP_NAME", "\"QuanTube\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantube.quantrinity.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantube\"")
+            buildConfigField("String", "APP_HOST", "\"quantube.quantrinity.in\"")
+        }
+        create("quantai") {
+            dimension = "app"
+            applicationId = "com.quant.ai"
+            manifestPlaceholders["appName"] = "QuantAI"
+            manifestPlaceholders["deepLinkScheme"] = "quantai"
+            manifestPlaceholders["appHost"] = "quantai.quantrinity.in"
+            resValue("string", "app_name", "QuantAI")
+            resValue("string", "default_app_url", "https://quantai.quantrinity.in/")
+            resValue("string", "deep_link_scheme", "quantai")
+            buildConfigField("String", "APP_NAME", "\"QuantAI\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantai.quantrinity.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantai\"")
+            buildConfigField("String", "APP_HOST", "\"quantai.quantrinity.in\"")
+        }
+        create("quantdrive") {
+            dimension = "app"
+            applicationId = "com.quant.drive"
+            manifestPlaceholders["appName"] = "QuantDrive"
+            manifestPlaceholders["deepLinkScheme"] = "quantdrive"
+            manifestPlaceholders["appHost"] = "quantmail.in"
+            resValue("string", "app_name", "QuantDrive")
+            resValue("string", "default_app_url", "https://quantmail.in/drive")
+            resValue("string", "deep_link_scheme", "quantdrive")
+            buildConfigField("String", "APP_NAME", "\"QuantDrive\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantmail.in/drive\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantdrive\"")
+            buildConfigField("String", "APP_HOST", "\"quantmail.in\"")
+        }
+        create("quantcalendar") {
+            dimension = "app"
+            applicationId = "com.quant.calendar"
+            manifestPlaceholders["appName"] = "QuantCalendar"
+            manifestPlaceholders["deepLinkScheme"] = "quantcalendar"
+            manifestPlaceholders["appHost"] = "quantmail.in"
+            resValue("string", "app_name", "QuantCalendar")
+            resValue("string", "default_app_url", "https://quantmail.in/calendar")
+            resValue("string", "deep_link_scheme", "quantcalendar")
+            buildConfigField("String", "APP_NAME", "\"QuantCalendar\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantmail.in/calendar\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantcalendar\"")
+            buildConfigField("String", "APP_HOST", "\"quantmail.in\"")
+        }
+        create("codehub") {
+            dimension = "app"
+            applicationId = "com.quant.git"
+            manifestPlaceholders["appName"] = "CodeHub"
+            manifestPlaceholders["deepLinkScheme"] = "quantgit"
+            manifestPlaceholders["appHost"] = "quantmail.in"
+            resValue("string", "app_name", "CodeHub")
+            resValue("string", "default_app_url", "https://quantmail.in/quantgit")
+            resValue("string", "deep_link_scheme", "quantgit")
+            buildConfigField("String", "APP_NAME", "\"CodeHub\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantmail.in/quantgit\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quantgit\"")
+            buildConfigField("String", "APP_HOST", "\"quantmail.in\"")
+        }
+        create("quantapp") {
+            dimension = "app"
+            applicationId = "com.quant.app"
+            manifestPlaceholders["appName"] = "Quant"
+            manifestPlaceholders["deepLinkScheme"] = "quant"
+            manifestPlaceholders["appHost"] = "quantmail.in"
+            resValue("string", "app_name", "Quant")
+            resValue("string", "default_app_url", "https://quantmail.in/")
+            resValue("string", "deep_link_scheme", "quant")
+            buildConfigField("String", "APP_NAME", "\"Quant\"")
+            buildConfigField("String", "DEFAULT_APP_URL", "\"https://quantmail.in/\"")
+            buildConfigField("String", "DEEP_LINK_SCHEME", "\"quant\"")
+            buildConfigField("String", "APP_HOST", "\"quantmail.in\"")
+        }
     }
 
     signingConfigs {
@@ -63,7 +197,8 @@ android {
     buildFeatures {
       compose = true
       aidl = false
-      buildConfig = false
+      buildConfig = true
+      resValues = true
       shaders = false
     }
 

@@ -78,18 +78,45 @@ class MainActivity : ComponentActivity() {
      */
     fun resolveDeepLinkUrl(urlString: String): String? {
       val trimmed = urlString.trim()
-      if (trimmed.startsWith("quantmail://oauth/callback", ignoreCase = true)) {
+      val scheme = BuildConfig.DEEP_LINK_SCHEME
+      val defaultUrl = BuildConfig.DEFAULT_APP_URL
+      val host = BuildConfig.APP_HOST
+
+      // 1. Custom Scheme OAuth callback: <scheme>://oauth/callback?code=...
+      if (trimmed.startsWith("$scheme://oauth/callback", ignoreCase = true) ||
+          trimmed.startsWith("quantmail://oauth/callback", ignoreCase = true)) {
         val queryIndex = trimmed.indexOf('?')
+        val callbackBase = if (defaultUrl.endsWith("/")) "${defaultUrl}auth/callback" else "$defaultUrl/auth/callback"
         return if (queryIndex != -1 && queryIndex + 1 < trimmed.length) {
           val query = trimmed.substring(queryIndex + 1)
-          "https://quantmail.in/auth/callback?$query"
+          "$callbackBase?$query"
         } else {
-          "https://quantmail.in/auth/callback"
+          callbackBase
         }
       }
-      if (trimmed.startsWith("https://quantmail.in/auth/callback", ignoreCase = true)) {
+
+      // 2. Custom Scheme root or path deep link: <scheme>://...
+      if (trimmed.startsWith("$scheme://", ignoreCase = true)) {
+        val pathAndQuery = trimmed.substring("$scheme://".length)
+        val base = if (defaultUrl.endsWith("/")) defaultUrl else "$defaultUrl/"
+        return if (pathAndQuery.isNotBlank() && pathAndQuery != "oauth/callback") {
+          base + pathAndQuery.removePrefix("/")
+        } else {
+          defaultUrl
+        }
+      }
+
+      // 3. App Links: https://<host>/auth/callback or https://quantmail.in/auth/callback
+      if (trimmed.startsWith("https://$host/auth/callback", ignoreCase = true) ||
+          trimmed.startsWith("https://quantmail.in/auth/callback", ignoreCase = true)) {
         return trimmed
       }
+
+      // 4. Direct https deep links to this app's domain
+      if (trimmed.startsWith("https://$host", ignoreCase = true)) {
+        return trimmed
+      }
+
       return null
     }
 
@@ -152,7 +179,7 @@ class MainActivity : ComponentActivity() {
         useWideViewPort = true
         loadWithOverviewMode = true
         mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-        userAgentString = "${userAgentString} QuantApp/1.0"
+        userAgentString = "${userAgentString} Quant/${BuildConfig.VERSION_NAME} (${BuildConfig.APP_NAME})"
       }
     }
   }

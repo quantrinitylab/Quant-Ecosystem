@@ -4,7 +4,15 @@ import type React from 'react';
  * Quant Desktop Sovereign Architecture Types
  */
 
-export type AppId = 'quantmail' | 'codehub' | 'quantdrive' | 'quantchat' | 'quantube' | 'quantai';
+export type AppId =
+  | 'quantmail'
+  | 'codehub'
+  | 'quantdrive'
+  | 'quantchat'
+  | 'quantube'
+  | 'quantai'
+  | 'quantgram'
+  | 'quantcalendar';
 
 export type DesktopTab = 'dashboard' | 'overview' | AppId;
 

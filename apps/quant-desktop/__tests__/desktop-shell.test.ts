@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import React from 'react';
 import { renderToString } from 'react-dom/server';
-import { QUANT_SOVEREIGN_APPS } from '../src/constants/apps';
+import { QUANT_SOVEREIGN_APPS, QUANT_APPS } from '../src/constants/apps';
 import { DesktopVfsService, vfsService } from '../src/services/vfs-bridge';
 import {
   isTauriEnvironment,
@@ -25,7 +25,7 @@ import type { CommandItem, BentoItem, FaqItem } from '../src/types';
 
 describe('Desktop UI Shell - Sovereign Client Suite', () => {
   describe('Sovereign App Catalog', () => {
-    it('contains all 6 sovereign applications with valid configuration', () => {
+    it('contains all 8 sovereign applications with valid configuration', () => {
       const appIds = QUANT_SOVEREIGN_APPS.map((a) => a.id);
       expect(appIds).toEqual([
         'quantmail',
@@ -34,6 +34,8 @@ describe('Desktop UI Shell - Sovereign Client Suite', () => {
         'quantchat',
         'quantube',
         'quantai',
+        'quantgram',
+        'quantcalendar',
       ]);
 
       for (const app of QUANT_SOVEREIGN_APPS) {
@@ -45,6 +47,54 @@ describe('Desktop UI Shell - Sovereign Client Suite', () => {
         expect(app.accentColor.startsWith('#')).toBe(true);
         expect(app.features.length).toBeGreaterThanOrEqual(4);
       }
+    });
+
+    it('verifies QUANT_APPS contains all 8 app IDs with complete definitions', () => {
+      expect(QUANT_APPS).toBeDefined();
+      expect(QUANT_APPS).toHaveLength(8);
+      const appIds = QUANT_APPS.map((a) => a.id);
+      expect(appIds).toEqual([
+        'quantmail',
+        'codehub',
+        'quantdrive',
+        'quantchat',
+        'quantube',
+        'quantai',
+        'quantgram',
+        'quantcalendar',
+      ]);
+    });
+
+    it('verifies QuantGram and QuantCalendar configurations match specification', () => {
+      const gramApp = QUANT_SOVEREIGN_APPS.find((a) => a.id === 'quantgram')!;
+      expect(gramApp).toBeDefined();
+      expect(gramApp.name).toBe('QuantGram');
+      expect(gramApp.tagline).toBe('Social, Stories, Reels & Creator Economy');
+      expect(gramApp.defaultPort).toBe(3004);
+      expect(gramApp.route).toBe('/feed');
+      expect(gramApp.icon).toBe('📸');
+      expect(gramApp.accentColor).toBe('#E1306C');
+      expect(gramApp.features).toEqual([
+        '9:16 Shorties',
+        '24h Stories',
+        'Virtual Gifts',
+        'Creator Payouts',
+      ]);
+
+      const calApp = QUANT_SOVEREIGN_APPS.find((a) => a.id === 'quantcalendar')!;
+      expect(calApp).toBeDefined();
+      expect(calApp.name).toBe('QuantCalendar');
+      expect(calApp.tagline).toBe('Sovereign Scheduling & Public Booking Links');
+      expect(calApp.defaultPort).toBe(3000);
+      expect(calApp.route).toBe('/calendar');
+      expect(calApp.icon).toBe('📅');
+      expect(calApp.accentColor).toBe('#38BDF8');
+      expect(calApp.features).toEqual([
+        'Public Booking Pages',
+        'RFC 5545 Recurrence',
+        'Timezone Math',
+        'Slot Locks',
+      ]);
     });
 
     it('verifies QuantDrive has FastCDC 64KB CAS and ProjFS features', () => {
@@ -153,7 +203,7 @@ describe('Desktop UI Shell - Sovereign Client Suite', () => {
       expect(html).toContain('VFS: Synchronized');
     });
 
-    it('renders Frosted Glass Multi-App Switcher Dock with all 6 apps', () => {
+    it('renders Frosted Glass Multi-App Switcher Dock with all 8 apps', () => {
       const html = renderToString(
         React.createElement(Dock, {
           apps: QUANT_SOVEREIGN_APPS,
@@ -169,7 +219,35 @@ describe('Desktop UI Shell - Sovereign Client Suite', () => {
       expect(html).toContain('QuantChat');
       expect(html).toContain('QuanTube');
       expect(html).toContain('QuantAI');
+      expect(html).toContain('QuantGram');
+      expect(html).toContain('QuantCalendar');
       expect(html).toContain('⌘K');
+    });
+
+    it('renders AppFrame preview widget for QuantGram and QuantCalendar', () => {
+      const gramApp = QUANT_SOVEREIGN_APPS.find((a) => a.id === 'quantgram')!;
+      const gramHtml = renderToString(React.createElement(AppFrame, { app: gramApp }));
+      expect(gramHtml).toContain('quant://quantgram.local/feed');
+      expect(gramHtml).toContain('QuantGram');
+      expect(gramHtml).toContain('9:16 Shorties, 24h Stories &amp; Creator Economy');
+
+      const calApp = QUANT_SOVEREIGN_APPS.find((a) => a.id === 'quantcalendar')!;
+      const calHtml = renderToString(React.createElement(AppFrame, { app: calApp }));
+      expect(calHtml).toContain('quant://quantcalendar.local/calendar');
+      expect(calHtml).toContain('QuantCalendar');
+      expect(calHtml).toContain('RFC 5545 Sovereign Scheduling &amp; Booking Links');
+    });
+
+    it('verifies all 8 standalone apps are individually renderable in Desktop AppFrame', () => {
+      for (const app of QUANT_SOVEREIGN_APPS) {
+        const html = renderToString(React.createElement(AppFrame, { app }));
+        expect(html).toContain(`quant://${app.id}.local${app.route}`);
+        expect(html).toContain(app.name);
+        expect(html).toContain(`Port ${app.defaultPort}`);
+        for (const feature of app.features) {
+          expect(html).toContain(feature);
+        }
+      }
     });
 
     it('renders AppFrame with sovereign navigation address bar and preview cards', () => {

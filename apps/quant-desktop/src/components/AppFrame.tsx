@@ -49,7 +49,7 @@ export function AppFrame({ app }: AppFrameProps): React.ReactElement {
           </span>
           <span style={{ color: app.accentColor }}>{sovereignUrl}</span>
           <span style={{ color: 'var(--text-subtle)', marginLeft: 'auto' }}>
-            Port {app.defaultPort}
+            {`Port ${app.defaultPort}`}
           </span>
         </div>
 
@@ -303,6 +303,92 @@ function renderAppSpecificWidget(app: QuantAppDefinition): React.ReactElement {
               <div style={{ fontWeight: 600, color: '#10b981' }}>Active (C1-C5)</div>
             </div>
           </div>
+        </div>
+      );
+
+    case 'quantgram':
+      return (
+        <div className="preview-feature-card" style={{ marginTop: '12px' }}>
+          <div className="preview-card-title">📸 9:16 Shorties, 24h Stories & Creator Economy</div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+            <span
+              style={{
+                padding: '4px 8px',
+                background: 'rgba(225, 48, 108, 0.15)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#f43f5e',
+              }}
+            >
+              🎥 9:16 Preloaded Feed
+            </span>
+            <span
+              style={{
+                padding: '4px 8px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#fbbf24',
+              }}
+            >
+              💎 Diamond Payout Escrow
+            </span>
+            <span
+              style={{
+                padding: '4px 8px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#34d399',
+              }}
+            >
+              ⏱️ 24h Stories Active
+            </span>
+          </div>
+        </div>
+      );
+
+    case 'quantcalendar':
+      return (
+        <div className="preview-feature-card" style={{ marginTop: '12px' }}>
+          <div className="preview-card-title">📅 RFC 5545 Sovereign Scheduling & Booking Links</div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '10px',
+              marginTop: '10px',
+            }}
+          >
+            <div
+              style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-subtle)' }}>BOOKING ENGINE</div>
+              <div style={{ fontWeight: 600, color: '#38bdf8' }}>Calendly Parity</div>
+            </div>
+            <div
+              style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-subtle)' }}>CONCURRENCY</div>
+              <div style={{ fontWeight: 600, color: '#10b981' }}>Mutex Slot Locks</div>
+            </div>
+            <div
+              style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px' }}
+            >
+              <div style={{ fontSize: '10px', color: 'var(--text-subtle)' }}>RECURRENCE</div>
+              <div style={{ fontWeight: 600, color: '#f59e0b' }}>RFC 5545 Exceptions</div>
+            </div>
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <div className="preview-feature-card" style={{ marginTop: '12px' }}>
+          <div className="preview-card-title">✨ Sovereign Engine Connected</div>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Standalone desktop client initialized and ready.
+          </p>
         </div>
       );
   }

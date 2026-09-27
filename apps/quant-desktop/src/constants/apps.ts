@@ -92,4 +92,31 @@ export const QUANT_SOVEREIGN_APPS: QuantAppDefinition[] = [
       'Real-time Tool Dispatch',
     ],
   },
+  {
+    id: 'quantgram',
+    name: 'QuantGram',
+    tagline: 'Social, Stories, Reels & Creator Economy',
+    defaultPort: 3004,
+    route: '/feed',
+    icon: '📸',
+    accentColor: '#E1306C',
+    badge: 'Shorties & Reels',
+    description:
+      'Short-form 9:16 reels, 24h disappearing stories, virtual gifts, and creator payouts.',
+    features: ['9:16 Shorties', '24h Stories', 'Virtual Gifts', 'Creator Payouts'],
+  },
+  {
+    id: 'quantcalendar',
+    name: 'QuantCalendar',
+    tagline: 'Sovereign Scheduling & Public Booking Links',
+    defaultPort: 3000,
+    route: '/calendar',
+    icon: '📅',
+    accentColor: '#38BDF8',
+    badge: 'RFC 5545 Booking',
+    description: 'Calendly-grade public booking links, slot locks, and RFC 5545 recurrence engine.',
+    features: ['Public Booking Pages', 'RFC 5545 Recurrence', 'Timezone Math', 'Slot Locks'],
+  },
 ];
+
+export const QUANT_APPS = QUANT_SOVEREIGN_APPS;

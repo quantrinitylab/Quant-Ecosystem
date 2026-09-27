@@ -153,6 +153,26 @@ export const App: React.FC<AppProps> = ({
         icon: '✉️',
         onClick: () => selectApp('quantmail'),
       },
+      {
+        id: 'creator-economy',
+        title: '9:16 Shorties & Creator Economy',
+        description:
+          'Fast sliding preloader, 24h disappearing stories, virtual gifts, and creator payouts.',
+        span: '1x1',
+        badge: 'QuantGram',
+        icon: '📸',
+        onClick: () => selectApp('quantgram'),
+      },
+      {
+        id: 'sovereign-booking',
+        title: 'RFC 5545 Public Booking Links',
+        description:
+          'Calendly-grade public booking links, slot mutex locks, and timezone math engine.',
+        span: '1x1',
+        badge: 'QuantCalendar',
+        icon: '📅',
+        onClick: () => selectApp('quantcalendar'),
+      },
     ],
     [selectApp],
   );
@@ -183,7 +203,7 @@ export const App: React.FC<AppProps> = ({
       },
       {
         id: 'faq-offline',
-        question: 'Can I run all 6 sovereign applications completely offline?',
+        question: 'Can I run all 8 sovereign applications completely offline?',
         answer:
           'Yes! Quant Desktop packages local SQLite, cached VFS chunks, and sovereign daemons, allowing complete local-first productivity even when completely disconnected from the cloud.',
         category: 'Architecture',

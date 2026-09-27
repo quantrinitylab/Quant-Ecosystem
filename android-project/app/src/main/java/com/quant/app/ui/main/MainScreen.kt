@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation3.runtime.NavKey
+import com.quant.app.BuildConfig
 import com.quant.app.MainActivity
 
 data class NavigationTab(
@@ -69,6 +70,19 @@ val NAV_TABS = listOf(
   NavigationTab("Contacts", "👥", "https://quantmail.in/contacts")
 )
 
+fun getAppAccentColor(): Color {
+  return when (BuildConfig.FLAVOR) {
+    "quantchat" -> Color(0xFF10, 0xB9, 0x81) // Emerald Green
+    "quantgram" -> Color(0xFFE1, 0x30, 0x6C) // Instagram Pink / Rose
+    "quantube" -> Color(0xFFFF, 0x22, 0x22) // YouTube Red
+    "quantai" -> Color(0xFF8B, 0x5C, 0xF6) // Purple / Violet
+    "quantdrive" -> Color(0xFF0E, 0xA5, 0xE9) // Sky Blue
+    "quantcalendar" -> Color(0xFFF5, 0x9E, 0x0B) // Amber
+    "codehub" -> Color(0xFF10, 0xB9, 0x81) // GitHub Green
+    else -> Color(0xFFFF, 0x8C, 0x42) // Sovereign Orange (QuantMail & QuantApp)
+  }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MainScreen(
@@ -77,12 +91,13 @@ fun MainScreen(
   onWebViewAttached: (WebView) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
+  val accentColor = remember { getAppAccentColor() }
   var webViewRef by remember { mutableStateOf<WebView?>(null) }
   var selectedTabIndex by remember { mutableIntStateOf(0) }
   var isLoading by remember { mutableStateOf(true) }
   var loadProgress by remember { mutableIntStateOf(0) }
   var isError by remember { mutableStateOf(false) }
-  var currentUrl by remember { mutableStateOf("https://quantmail.in/") }
+  var currentUrl by remember { mutableStateOf(BuildConfig.DEFAULT_APP_URL) }
 
   // Handle deep link restoration in active WebView
   LaunchedEffect(deepLinkUrl) {
@@ -116,7 +131,7 @@ fun MainScreen(
                 modifier = Modifier
                   .size(28.dp)
                   .clip(CircleShape)
-                  .background(Color(0xFFFF, 0x8C, 0x42)),
+                  .background(accentColor),
                 contentAlignment = Alignment.Center
               ) {
                 Box(
@@ -128,14 +143,14 @@ fun MainScreen(
               }
               Spacer(modifier = Modifier.width(10.dp))
               Text(
-                text = "Quant",
+                text = BuildConfig.APP_NAME,
                 color = Color.White,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
               )
               Text(
                 text = " Sovereign",
-                color = Color(0xFFFF, 0x8C, 0x42),
+                color = accentColor,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold
               )
@@ -186,7 +201,7 @@ fun MainScreen(
             LinearProgressIndicator(
               progress = { loadProgress / 100f },
               modifier = Modifier.fillMaxWidth().height(2.dp),
-              color = Color(0xFFFF, 0x8C, 0x42),
+              color = accentColor,
               trackColor = Color(0xFF28, 0x2C, 0x35)
             )
           }
@@ -194,44 +209,46 @@ fun MainScreen(
       }
     },
     bottomBar = {
-      NavigationBar(
-        containerColor = Color(0xFF0B, 0x0C, 0x0E),
-        tonalElevation = 8.dp,
-        modifier = Modifier.height(64.dp)
-      ) {
-        NAV_TABS.forEachIndexed { index, tab ->
-          val isSelected = selectedTabIndex == index
-          NavigationBarItem(
-            selected = isSelected,
-            onClick = {
-              selectedTabIndex = index
-              currentUrl = tab.url
-              isError = false
-              webViewRef?.loadUrl(tab.url)
-            },
-            icon = {
-              Text(
-                text = tab.icon,
-                fontSize = 18.sp,
-                color = if (isSelected) Color(0xFFFF, 0x8C, 0x42) else Color(0xFF6B, 0x72, 0x80)
+      if (BuildConfig.FLAVOR == "quantapp" || BuildConfig.FLAVOR.isEmpty()) {
+        NavigationBar(
+          containerColor = Color(0xFF0B, 0x0C, 0x0E),
+          tonalElevation = 8.dp,
+          modifier = Modifier.height(64.dp)
+        ) {
+          NAV_TABS.forEachIndexed { index, tab ->
+            val isSelected = selectedTabIndex == index
+            NavigationBarItem(
+              selected = isSelected,
+              onClick = {
+                selectedTabIndex = index
+                currentUrl = tab.url
+                isError = false
+                webViewRef?.loadUrl(tab.url)
+              },
+              icon = {
+                Text(
+                  text = tab.icon,
+                  fontSize = 18.sp,
+                  color = if (isSelected) accentColor else Color(0xFF6B, 0x72, 0x80)
+                )
+              },
+              label = {
+                Text(
+                  text = tab.title,
+                  fontSize = 11.sp,
+                  fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                  color = if (isSelected) accentColor else Color(0xFF6B, 0x72, 0x80)
+                )
+              },
+              colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = accentColor,
+                selectedTextColor = accentColor,
+                indicatorColor = accentColor.copy(alpha = 0.15f),
+                unselectedIconColor = Color(0xFF6B, 0x72, 0x80),
+                unselectedTextColor = Color(0xFF6B, 0x72, 0x80)
               )
-            },
-            label = {
-              Text(
-                text = tab.title,
-                fontSize = 11.sp,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (isSelected) Color(0xFFFF, 0x8C, 0x42) else Color(0xFF6B, 0x72, 0x80)
-              )
-            },
-            colors = NavigationBarItemDefaults.colors(
-              selectedIconColor = Color(0xFFFF, 0x8C, 0x42),
-              selectedTextColor = Color(0xFFFF, 0x8C, 0x42),
-              indicatorColor = Color(0x1A, 0xFF, 0x8C, 0x42),
-              unselectedIconColor = Color(0xFF6B, 0x72, 0x80),
-              unselectedTextColor = Color(0xFF6B, 0x72, 0x80)
             )
-          )
+          }
         }
       }
     }
@@ -263,7 +280,7 @@ fun MainScreen(
             modifier = Modifier.padding(bottom = 8.dp)
           )
           Text(
-            text = "Unable to connect to Quant sovereign server. Please check your network connection and retry.",
+            text = "Unable to connect to ${BuildConfig.APP_NAME} sovereign server. Please check your network connection and retry.",
             color = Color(0xFF9C, 0xA3, 0xAF),
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
@@ -276,7 +293,7 @@ fun MainScreen(
               webViewRef?.loadUrl(currentUrl)
             },
             colors = ButtonDefaults.buttonColors(
-              containerColor = Color(0xFFFF, 0x8C, 0x42),
+              containerColor = accentColor,
               contentColor = Color.Black
             ),
             shape = RoundedCornerShape(12.dp)
@@ -345,10 +362,18 @@ fun MainScreen(
                     return true
                   }
 
-                  // 2. Internal app navigation to quantmail.in stays inside WebView
+                  // 2. Internal app navigation: current app host or Quant ecosystem domain stays inside WebView
                   val parsedUri = try { Uri.parse(url) } catch (e: Exception) { null }
-                  val host = parsedUri?.host?.lowercase()
-                  if (host == "quantmail.in" || host == "www.quantmail.in") {
+                  val host = parsedUri?.host?.lowercase() ?: ""
+                  val appHost = BuildConfig.APP_HOST.lowercase()
+
+                  val isInternalHost = host == appHost ||
+                                       host == "www.$appHost" ||
+                                       host == "quantmail.in" ||
+                                       host == "www.quantmail.in" ||
+                                       host.endsWith(".quantrinity.in")
+
+                  if (isInternalHost) {
                     return false
                   }
 
