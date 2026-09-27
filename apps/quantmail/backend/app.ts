@@ -32,6 +32,7 @@ import { passwordResetRoutes } from './routes/password-reset';
 import settingsTokenRoutes from './routes/settings-tokens';
 import reposRoutes from './routes/repos';
 import workspaceRoutes from './routes/workspaces';
+import invoicesRoutes from './routes/invoices';
 import ciRoutes from './routes/ci';
 import ciLogsRoutes from './routes/ci-logs';
 import ciHealingRoutes from './routes/ci-healing';
@@ -345,6 +346,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(reposRoutes, { prefix: '/repos' });
   await app.register(reposRoutes, { prefix: '/api/repos' });
   await app.register(workspaceRoutes);
+  await app.register(invoicesRoutes);
   await app.register(ciRoutes);
   await app.register(ciLogsRoutes);
   await app.register(ciHealingRoutes);

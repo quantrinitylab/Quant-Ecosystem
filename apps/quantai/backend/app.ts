@@ -23,6 +23,7 @@ import federationRoutes from './routes/federation';
 import agentHealthRoutes from './routes/agent-health';
 import agentLogsRoutes from './routes/agent-logs';
 import voiceRoutes from './routes/voice';
+import voiceFlowsRoutes from './routes/voice-flows';
 import swarmRoutes from './routes/swarm';
 import recommendationRoutes from './routes/recommendations';
 import moderationRoutes from './routes/moderation';
@@ -178,6 +179,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(mlRoutes, { prefix: '/ml' });
   await app.register(abTestingRoutes, { prefix: '/ab-testing' });
   await app.register(eventsRoutes, { prefix: '/events' });
+  await app.register(voiceFlowsRoutes, { prefix: '/api/voice-flows' });
 
   await app.register(automationsRoutes, { prefix: '/automations' });
   await app.register(mcpRoutes, { prefix: '/mcp' });
