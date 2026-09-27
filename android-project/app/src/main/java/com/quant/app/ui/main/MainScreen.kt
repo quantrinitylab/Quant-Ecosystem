@@ -209,7 +209,7 @@ fun MainScreen(
       }
     },
     bottomBar = {
-      if (BuildConfig.FLAVOR == "quantapp" || BuildConfig.FLAVOR.isEmpty()) {
+      if (BuildConfig.FLAVOR == "quantapp" || BuildConfig.FLAVOR == "quantmail" || BuildConfig.FLAVOR.isEmpty()) {
         NavigationBar(
           containerColor = Color(0xFF0B, 0x0C, 0x0E),
           tonalElevation = 8.dp,
