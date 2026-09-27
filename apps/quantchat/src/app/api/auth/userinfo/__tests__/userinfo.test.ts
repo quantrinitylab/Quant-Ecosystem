@@ -93,7 +93,7 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     expect(json.data.isFallback).toBe(true);
   });
 
-  it('returns 200 with fallback user object for non-qchat bearer token when backend is offline', async () => {
+  it('returns 502 for non-qchat bearer token when backend is offline', async () => {
     const token = 'header.payload.signature_jwt_token';
 
     const req = new Request('http://localhost:3000/api/auth/userinfo', {
@@ -104,14 +104,13 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(502);
 
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.id).toBe('user_fallback');
-    expect(json.data.username).toBe('QuantChat User');
-    expect(json.data.role).toBe('USER');
-    expect(json.data.isFallback).toBe(true);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(json.error.message).toBe('Auth backend is unavailable');
+    expect(json.error.statusCode).toBe(502);
   });
 
   it('handles upstream 502/503/504 status by falling back to resilient userinfo', async () => {
