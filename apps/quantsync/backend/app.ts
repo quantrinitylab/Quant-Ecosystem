@@ -10,6 +10,7 @@ import interactionsRoutes from './routes/interactions';
 import followRoutes from './routes/follow';
 import notificationsRoutes from './routes/notifications';
 import radarRoutes from './routes/radar';
+import pkBattleRoutes from './routes/pk-battle';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
@@ -57,6 +58,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(notificationsRoutes, { prefix: '/notifications' });
   await app.register(radarRoutes, { prefix: '/radar' });
   await app.register(radarRoutes, { prefix: '/api/radar' });
+  await app.register(pkBattleRoutes, { prefix: '/pk-battles' });
+  await app.register(pkBattleRoutes, { prefix: '/api/pk-battles' });
 
   // Public explore and trending endpoints
   app.get('/trending', async (request, reply) => {

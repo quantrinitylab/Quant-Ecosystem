@@ -11,6 +11,8 @@ import { registerPrCommands } from './commands/pr.js';
 import { registerMailCommands } from './commands/mail.js';
 import { registerDriveCommands } from './commands/drive.js';
 import { registerCalendarCommands } from './commands/calendar.js';
+import { registerInvoiceCommands } from './commands/invoice.js';
+import { registerRoomCommands } from './commands/room.js';
 
 export * from './config.js';
 export * from './client.js';
@@ -21,6 +23,8 @@ export * from './commands/pr.js';
 export * from './commands/mail.js';
 export * from './commands/drive.js';
 export * from './commands/calendar.js';
+export * from './commands/invoice.js';
+export * from './commands/room.js';
 
 export function createCli(): Command {
   const program = new Command();
@@ -28,7 +32,7 @@ export function createCli(): Command {
   program
     .name('quant')
     .description(
-      'The official terminal CLI for the Quant Ecosystem (Mail, CodeHub, Drive, Calendar)',
+      'The official terminal CLI for the Quant Ecosystem (Mail, CodeHub, Drive, Calendar, ERPGo Invoices, Chatter Rooms)',
     )
     .version('1.0.0')
     .option('--json', 'Output machine-readable JSON')
@@ -42,6 +46,8 @@ export function createCli(): Command {
   registerMailCommands(program);
   registerDriveCommands(program);
   registerCalendarCommands(program);
+  registerInvoiceCommands(program);
+  registerRoomCommands(program);
 
   return program;
 }

@@ -2501,3 +2501,64 @@
     - Coin wallet management with deposit validation and insufficient balance checks (`INSUFFICIENT_COINS`).
     - Creator revenue share model: 80% credited as diamonds to creator wallet, 20% platform commission.
     - Creator cashout / payout estimation at $0.01 per diamond with minimum payout thresholds.
+
+---
+
+### 🌊 Wave 46: Omnichannel Terminal Parity & Interactive Realtime Engagement Sprint
+
+- [x] **Task W46-01**: Sovereign CLI Invoicing & Audio Rooms Omnichannel Commands
+  - **Target Files**: `packages/cli/src/commands/invoice.ts`, `packages/cli/src/commands/room.ts`, `packages/cli/src/index.ts`, `packages/cli/src/__tests__/cli-invoice-and-room.test.ts`
+  - **Assigned Developer Agent**: Subagent C1 (Sovereign CLI Parity Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (5/5 Vitest tests passing, tsc --noEmit & build 0 errors)
+  - **Capabilities**:
+    - `quant invoice list`, `quant invoice view <id>`, `quant invoice create`.
+    - `quant room list`, `quant room create <title>`, `quant room join <id>`.
+    - ANSI formatted table viewers for invoices and live audio rooms.
+
+- [x] **Task W46-02**: Orange Live Stream PK Battle Scoring Engine & Tug-of-War Split Bar
+  - **Target Files**: `apps/quantsync/backend/services/pk-battle.service.ts`, `apps/quantsync/backend/routes/pk-battle.ts`, `apps/quantsync/backend/app.ts`, `apps/quantsync/backend/__tests__/orange-pk-battle.test.ts`
+  - **Assigned Developer Agent**: Subagent C2 (Orange PK Battle Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (4/4 Vitest tests passing, 0 TS compiler errors)
+  - **Capabilities**:
+    - Realtime PK Battle point contribution between 2 competing creators.
+    - Dynamic tug-of-war ratio calculation (e.g. 50/50 baseline, 75% vs 25% split).
+    - Battle completion: winner determination and MVP supporter recognition.
+    - Mounted Fastify routes under `/pk-battles` and `/api/pk-battles`.
+
+- [x] **Task W46-03**: Whoxa Audio Waveform Voice Note Player & Scrubber
+  - **Target Files**: `apps/quantchat/src/components/voice/AudioWaveformMessage.tsx`, `apps/quantchat/src/__tests__/whoxa-waveform-message.test.tsx`
+  - **Assigned Developer Agent**: Subagent C3 (Whoxa Waveform Architect)
+  - **Status**: 🟢 **100% COMPLETE & VERIFIED** (5/5 Vitest tests passing, 0 TS compiler errors)
+  - **Capabilities**:
+    - Dynamic normalized audio waveform visualizer (28 amplitude bars, `[0.15, 1.0]`).
+    - Playback progress fill, duration counter (`m:ss`), and speed switcher (`1.0x`, `1.5x`, `2.0x`).
+    - Whoxa-grade delivery & read receipt double ticks integration (`sent`, `delivered`, `read`).
+
+---
+
+### 🌊 Wave 47: Cross-Platform Android APK, Shared-UI & MagicAI Document Extraction Sprint
+
+- [ ] **Task W47-01**: Shared-UI Nexsas Animated FAQ Accordion & Testimonial Showcase Carousel
+  - **Target Files**: `packages/shared-ui/src/bento/FaqAccordion.tsx`, `packages/shared-ui/src/bento/TestimonialShowcase.tsx`, `packages/shared-ui/src/index.ts`, `packages/shared-ui/src/__tests__/nexsas-faq-and-testimonials.test.tsx`
+  - **Assigned Developer Agent**: Subagent C1 (Shared-UI Component Architect)
+  - **Status**: 🟡 **QUEUED FOR EXECUTION**
+  - **Capabilities**:
+    - Interactive FAQ Accordion with smooth expanding/collapsing animations, search filter, and category pills.
+    - Testimonial Showcase carousel with star ratings, verified customer badges, company logos, and autoplay toggle.
+
+- [ ] **Task W47-02**: QuantAI MagicAI Document & Spreadsheet Data Extractor Engine
+  - **Target Files**: `apps/quantai/backend/services/document-extractor.service.ts`, `apps/quantai/backend/routes/extractor.ts`, `apps/quantai/backend/__tests__/magicai-document-extractor.test.ts`
+  - **Assigned Developer Agent**: Subagent C2 (QuantAI Extraction Architect)
+  - **Status**: 🟡 **QUEUED FOR EXECUTION**
+  - **Capabilities**:
+    - Automated OCR & table extraction from PDFs, CSVs, and Excel sheets.
+    - Key-value schema mapping (Invoice extraction, financial ledger parsing, tabular summary).
+    - Mounted Fastify endpoints: `POST /api/ai/extract/document`, `POST /api/ai/extract/table`.
+
+- [ ] **Task W47-03**: Android APK Jetpack Compose Virtual Gifts Overlay & Audio Stage
+  - **Target Files**: `android-project/app/src/main/java/com/quant/app/ui/VirtualGiftOverlay.kt`, `android-project/app/src/main/java/com/quant/app/ui/AudioRoomStage.kt`
+  - **Assigned Developer Agent**: Subagent C3 (Android Mobile Kotlin Architect)
+  - **Status**: 🟡 **QUEUED FOR EXECUTION**
+  - **Capabilities**:
+    - Floating animated virtual gifts overlay (Rose, Heart, Rocket, Sports Car) with Compose Canvas animations.
+    - Social audio room stage with host badge, speaker grid, and raise-hand FAB.
