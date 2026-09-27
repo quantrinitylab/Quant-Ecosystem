@@ -49,6 +49,7 @@ import projectContextRoutes from './routes/project-context';
 import projectMemoryRoutes from './routes/project-memory';
 import imageWizardRoutes from './routes/image-wizard';
 import mcpConnectorsRoutes from './routes/mcp-connectors';
+import engineRoutes from './routes/engine';
 import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { FileLibraryService } from './services/file-library.service';
 import { ProjectContextService, projectContextService } from './services/project-context.service';
@@ -180,6 +181,7 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(automationsRoutes, { prefix: '/automations' });
   await app.register(mcpRoutes, { prefix: '/mcp' });
+  await app.register(engineRoutes, { prefix: '/api/ai' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([

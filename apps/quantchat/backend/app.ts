@@ -14,6 +14,8 @@ import mediaRoutes from './routes/media';
 import callsRoutes from './routes/calls';
 import aiRoutes from './routes/ai';
 import aiAgentRoutes from './routes/ai-agent';
+import receiptsRoutes from './routes/receipts';
+import pollsRoutes from './routes/polls';
 import reelsRoutes from './routes/reels';
 import avatarRoutes from './routes/avatar';
 import memoriesRoutes from './routes/memories';
@@ -121,6 +123,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(voiceBotRoutes, { prefix: '/voice-bot' });
   await app.register(aiRoutes, { prefix: '/ai' });
   await app.register(meetingsRoutes, { prefix: '/meetings' });
+  await app.register(receiptsRoutes, { prefix: '/receipts' });
+  await app.register(pollsRoutes, { prefix: '/polls' });
 
   const voiceBotServices = createVoiceBotServices(app);
   const proactiveCallWorker = new ProactiveCallWorker({

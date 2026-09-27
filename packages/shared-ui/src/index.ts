@@ -538,3 +538,6 @@ export type {
 // Ecosystem Interconnection & Unified Fabric (10 Core Apps)
 // ============================================================================
 export * from './interconnection';
+
+// Nexsas Bento Grid, KPI Metric Cards & Pricing Tables
+export * from './bento';
