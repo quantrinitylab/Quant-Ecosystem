@@ -33,6 +33,20 @@ export const DEFAULT_GIFTS: VirtualGift[] = [
   { id: 'gift_car', name: 'Sports Car', icon: '🏎️', coinCost: 500, animationType: 'fullscreen' },
 ];
 
+export interface ReelGiftOption {
+  id: string;
+  name: string;
+  icon: string;
+  coins: number;
+  animationType: 'pulse' | 'float' | 'burst' | 'fullscreen';
+}
+
+export const REEL_GIFT_OPTIONS: ReelGiftOption[] = [
+  { id: 'rose', name: 'Rose', icon: '🌹', coins: 10, animationType: 'pulse' },
+  { id: 'diamond', name: 'Diamond', icon: '💎', coins: 100, animationType: 'burst' },
+  { id: 'rocket', name: 'Rocket', icon: '🚀', coins: 500, animationType: 'fullscreen' },
+];
+
 export const CREATOR_SHARE_PERCENTAGE = 0.8; // 80% to creator
 export const DIAMOND_TO_USD_RATE = 0.01; // 1 diamond = $0.01
 
@@ -42,6 +56,10 @@ const transactions: GiftTransaction[] = [];
 
 export function getVirtualGiftsCatalogue(): VirtualGift[] {
   return DEFAULT_GIFTS;
+}
+
+export function getReelGiftsCatalogue(): ReelGiftOption[] {
+  return REEL_GIFT_OPTIONS;
 }
 
 export function getUserWallet(userId: string): UserWallet {
@@ -82,7 +100,21 @@ export function sendVirtualGift(
   giftId: string,
   contextId?: string,
 ): GiftTransaction {
-  const gift = DEFAULT_GIFTS.find((g) => g.id === giftId);
+  let gift = DEFAULT_GIFTS.find((g) => g.id === giftId);
+  if (!gift) {
+    const reelOption = REEL_GIFT_OPTIONS.find(
+      (g) => g.id === giftId || g.name.toLowerCase() === giftId.toLowerCase(),
+    );
+    if (reelOption) {
+      gift = {
+        id: reelOption.id,
+        name: reelOption.name,
+        icon: reelOption.icon,
+        coinCost: reelOption.coins,
+        animationType: reelOption.animationType,
+      };
+    }
+  }
   if (!gift) {
     throw new Error(`Gift with id ${giftId} not found`);
   }
@@ -126,6 +158,15 @@ export function sendVirtualGift(
 
   transactions.push(transaction);
   return transaction;
+}
+
+export function sendReelGift(
+  senderId: string,
+  creatorId: string,
+  giftOptionId: string,
+  contextId?: string,
+): GiftTransaction {
+  return sendVirtualGift(senderId, creatorId, giftOptionId, contextId);
 }
 
 export function calculateCreatorPayout(creatorId: string): {

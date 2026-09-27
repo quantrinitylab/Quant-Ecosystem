@@ -97,6 +97,20 @@ const HomePage: React.FC = () => {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }, []);
 
+  const getResolutionBadgeClass = useCallback((resolution?: string): string => {
+    if (!resolution) return 'text-emerald-400 border-emerald-500/30 bg-black/80';
+    if (resolution.includes('1080p') || resolution.includes('4K')) {
+      return 'text-emerald-400 border-emerald-500/30 bg-black/80';
+    }
+    if (resolution.includes('720p')) {
+      return 'text-cyan-400 border-cyan-500/30 bg-black/80';
+    }
+    if (resolution.includes('480p') || resolution.includes('360p')) {
+      return 'text-amber-400 border-amber-500/30 bg-black/80';
+    }
+    return 'text-emerald-400 border-emerald-500/30 bg-black/80';
+  }, []);
+
   if (isLoading && videos.length === 0) {
     return (
       <div className="min-h-screen bg-[var(--quant-background)] p-4 md:p-6 lg:p-8">
@@ -182,6 +196,7 @@ const HomePage: React.FC = () => {
                   publishedAt?: string;
                   duration?: number;
                   isLive?: boolean;
+                  resolution?: string;
                 }) => {
                   const thumbnailSrc =
                     video.thumbnail ||
@@ -224,6 +239,12 @@ const HomePage: React.FC = () => {
                             {formatDuration(video.duration || 0)}
                           </span>
                         )}
+                        <span
+                          className={`absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded border ${getResolutionBadgeClass(video.resolution)}`}
+                          data-testid="dttube-resolution-badge"
+                        >
+                          {video.resolution || '1080p Full HD'}
+                        </span>
                       </div>
                       <div className="p-3 flex gap-3">
                         <img

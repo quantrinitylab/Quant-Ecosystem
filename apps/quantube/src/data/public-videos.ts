@@ -19,6 +19,7 @@ export interface PublicFeaturedVideo {
   duration: number;
   isLive?: boolean;
   category: string;
+  resolution?: string;
 }
 
 export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
@@ -40,6 +41,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '2 days ago',
     duration: 1845,
     category: 'tech',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-2',
@@ -61,6 +63,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     duration: 0,
     isLive: true,
     category: 'music',
+    resolution: '720p HD',
   },
   {
     id: 'guest-vid-3',
@@ -81,6 +84,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '5 days ago',
     duration: 2460,
     category: 'education',
+    resolution: '480p SD',
   },
   {
     id: 'guest-vid-4',
@@ -101,6 +105,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '1 week ago',
     duration: 1120,
     category: 'gaming',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-5',
@@ -120,6 +125,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '3 days ago',
     duration: 890,
     category: 'news',
+    resolution: '720p HD',
   },
   {
     id: 'guest-vid-6',
@@ -140,6 +146,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '4 days ago',
     duration: 1540,
     category: 'tech',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-7',
@@ -159,6 +166,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '6 days ago',
     duration: 3600,
     category: 'music',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-8',
@@ -179,6 +187,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '2 days ago',
     duration: 1240,
     category: 'sports',
+    resolution: '720p HD',
   },
   {
     id: 'guest-vid-9',
@@ -199,6 +208,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '4 days ago',
     duration: 780,
     category: 'sports',
+    resolution: '480p SD',
   },
   {
     id: 'guest-vid-10',
@@ -218,6 +228,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '1 week ago',
     duration: 1450,
     category: 'gaming',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-11',
@@ -238,6 +249,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '3 days ago',
     duration: 1980,
     category: 'education',
+    resolution: '1080p Full HD',
   },
   {
     id: 'guest-vid-12',
@@ -258,6 +270,7 @@ export const PUBLIC_FEATURED_VIDEOS: PublicFeaturedVideo[] = [
     uploadedAt: '5 days ago',
     duration: 2100,
     category: 'entertainment',
+    resolution: '1080p Full HD',
   },
 ];
 

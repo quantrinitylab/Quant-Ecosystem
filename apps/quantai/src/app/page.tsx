@@ -34,6 +34,7 @@ import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
 import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
 import { WorkCanvasPanel, type WorkCanvasDocument } from '../components/WorkCanvasPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
+import { HeroPromptBento } from '../components/chat/HeroPromptBento';
 
 export default function AIPage() {
   const { models, currentModel, switchModel } = useModelSelector();
@@ -96,6 +97,16 @@ export default function AIPage() {
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [dismissGuestBanner, setDismissGuestBanner] = useState(false);
+  const [forceShowUI, setForceShowUI] = useState(false);
+  const [ignoreError, setIgnoreError] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (isLoading) {
+      timer = setTimeout(() => setForceShowUI(true), 2000);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   useEffect(() => {
     try {
@@ -159,6 +170,7 @@ export default function AIPage() {
   const handleContinueAsGuest = useCallback(() => {
     setGuestMode(true);
     setIsGuest(true);
+    setIgnoreError(true);
   }, []);
 
   const handleModelSwitch = (modelId: string) => {
@@ -312,7 +324,7 @@ export default function AIPage() {
     isSearchingConversations,
   ]);
 
-  if (isLoading) {
+  if (isLoading && !forceShowUI) {
     return (
       <AppShell
         sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />}
@@ -329,7 +341,24 @@ export default function AIPage() {
     );
   }
 
-  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
+  if (error && !ignoreError) {
+    return (
+      <AppShell
+        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />}
+      >
+        <div className="flex flex-col items-center justify-center h-full space-y-4">
+          <ErrorState message={error} onRetry={() => window.location.reload()} />
+          <button
+            type="button"
+            onClick={handleContinueAsGuest}
+            className="px-4 py-2 rounded-lg bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-sm hover:bg-[var(--quant-surface)] transition-colors"
+          >
+            Continue as Guest
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
@@ -666,6 +695,10 @@ export default function AIPage() {
                     isStreaming={isStreaming}
                     onFeedback={setFeedback}
                     onRegenerate={retryLastMessage}
+                    onSelectPrompt={(text) => sendMessage(text)}
+                    onStartVoice={() => setVoiceActive(true)}
+                    onOpenCanvas={() => setIsCanvasOpen(true)}
+                    onAttachFile={() => fileInputRef.current?.click()}
                   />
 
                   {/* Multi-modal input area */}
@@ -789,6 +822,10 @@ function ChatMessages({
   isStreaming,
   onFeedback,
   onRegenerate,
+  onSelectPrompt,
+  onStartVoice,
+  onOpenCanvas,
+  onAttachFile,
 }: {
   messages: Array<{
     id: string;
@@ -802,16 +839,16 @@ function ChatMessages({
   isStreaming: boolean;
   onFeedback?: (messageId: string, value: 'POSITIVE' | 'NEGATIVE') => void;
   onRegenerate?: () => void;
+  onSelectPrompt?: (text: string) => void;
+  onStartVoice?: () => void;
+  onOpenCanvas?: () => void;
+  onAttachFile?: () => void;
 }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Whether the reader is still following the tail. Autoscroll used to be
-  // unconditional, so scrolling up to re-read something mid-stream yanked you
-  // back down on the next token — the transcript fought the reader.
   const isPinnedToBottomRef = useRef(true);
   const prefersReducedMotion = useReducedMotion();
 
-  // Id of the last assistant message — only it offers "Regenerate".
   const lastAssistantId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i]!.role === 'assistant') return messages[i]!.id;
@@ -822,9 +859,6 @@ function ChatMessages({
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // 48px of slack: "near the bottom" rather than "exactly at it", so a
-    // fractional scroll position or a half-rendered code block does not read as
-    // the reader having scrolled away.
     isPinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   }, []);
 
@@ -838,25 +872,12 @@ function ChatMessages({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', ...spring.gentle }}
-          className="w-full max-w-xl"
-        >
-          {/* No mascot and no gradient tile. The empty state is the product's
-              first sentence, so it carries a specific explanation rather than
-              decoration — QUANT_DESIGN_OS §6: "no low-contrast decorative
-              filler". */}
-          <h2 className="text-[1.375rem] font-semibold tracking-[-0.01em] text-[var(--foreground)]">
-            What can I help with?
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-[var(--foreground-secondary)]">
-            Ask a question, paste code to review, or describe a task across your Quant apps.
-          </p>
-        </motion.div>
-      </div>
+      <HeroPromptBento
+        onSelectPrompt={onSelectPrompt || (() => {})}
+        onStartVoice={onStartVoice || (() => {})}
+        onOpenCanvas={onOpenCanvas || (() => {})}
+        onAttachFile={onAttachFile || (() => {})}
+      />
     );
   }
 

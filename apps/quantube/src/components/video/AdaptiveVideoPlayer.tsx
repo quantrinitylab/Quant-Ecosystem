@@ -6,9 +6,10 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AudioWaveformBeatsService } from '../../services/AudioWaveformBeatsService';
 
 export type VideoSpeed = 0.5 | 0.75 | 1 | 1.25 | 1.5 | 2;
-export type VideoResolution = 'Auto' | '1080p' | '720p' | '480p' | '360p';
+export type VideoResolution = 'Auto' | '1080p Full HD' | '720p HD' | '480p SD' | '360p';
 
 export interface VideoChapter {
   id: string;
@@ -48,7 +49,13 @@ export interface AdaptiveVideoPlayerProps {
 }
 
 export const SPEED_OPTIONS: VideoSpeed[] = [0.5, 0.75, 1, 1.25, 1.5, 2];
-export const QUALITY_OPTIONS: VideoResolution[] = ['Auto', '1080p', '720p', '480p', '360p'];
+export const QUALITY_OPTIONS: VideoResolution[] = [
+  'Auto',
+  '1080p Full HD',
+  '720p HD',
+  '480p SD',
+  '360p',
+];
 
 export function formatVideoTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -108,6 +115,10 @@ export const AdaptiveVideoPlayer: React.FC<AdaptiveVideoPlayerProps> = ({
   }, [video.chapters, currentTime]);
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const waveformPoints = useMemo(() => {
+    return AudioWaveformBeatsService.getWaveformPoints(duration, 150);
+  }, [duration]);
 
   // Auto-hide controls timer
   const resetControlsTimer = useCallback(() => {
@@ -399,7 +410,7 @@ export const AdaptiveVideoPlayer: React.FC<AdaptiveVideoPlayerProps> = ({
             <div
               ref={progressBarRef}
               onClick={handleProgressClick}
-              className="relative h-1.5 hover:h-2.5 bg-white/20 rounded-full cursor-pointer transition-all group"
+              className="relative h-1.5 hover:h-8 bg-white/20 rounded-full cursor-pointer transition-all group flex items-end overflow-hidden"
               role="slider"
               aria-label="Seek time"
               aria-valuenow={currentTime}
@@ -407,6 +418,21 @@ export const AdaptiveVideoPlayer: React.FC<AdaptiveVideoPlayerProps> = ({
               aria-valuemax={duration}
               tabIndex={0}
             >
+              {/* Waveform Visualization */}
+              <div
+                className="absolute inset-0 flex items-end gap-[1px] opacity-0 group-hover:opacity-100 transition-opacity"
+                data-testid="audio-waveform-visualizer"
+                aria-label="Audio waveform indicator"
+              >
+                {waveformPoints.map((h, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 bg-white/40 rounded-t-sm transition-all"
+                    style={{ height: `${h * 100}%` }}
+                  />
+                ))}
+              </div>
+
               {/* Skip segment markers highlighted */}
               {skipSegments.map((seg, idx) => {
                 const segLeft = duration > 0 ? (seg.startSec / duration) * 100 : 0;
@@ -423,13 +449,13 @@ export const AdaptiveVideoPlayer: React.FC<AdaptiveVideoPlayerProps> = ({
 
               {/* Progress Played Fill */}
               <div
-                className="h-full bg-emerald-500 rounded-full transition-all"
+                className="absolute left-0 top-0 bottom-0 bg-emerald-500 rounded-full transition-all z-10"
                 style={{ width: `${progressPercent}%` }}
               />
 
               {/* Scrubber thumb */}
               <div
-                className="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3.5 h-3.5 bg-white rounded-full shadow-md scale-0 group-hover:scale-100 transition-transform"
+                className="absolute top-1/2 -translate-y-1/2 -ml-1.5 w-3.5 h-3.5 bg-white rounded-full shadow-md scale-0 group-hover:scale-100 transition-transform z-20"
                 style={{ left: `${progressPercent}%` }}
               />
             </div>

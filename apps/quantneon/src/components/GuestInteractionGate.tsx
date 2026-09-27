@@ -10,7 +10,7 @@ import { spring } from '@quant/brand';
 export interface GuestInteractionGateProps {
   isOpen: boolean;
   onClose: () => void;
-  action?: 'like' | 'comment' | 'bookmark' | 'follow' | string;
+  action?: 'like' | 'comment' | 'bookmark' | 'follow' | 'gift' | string;
 }
 
 export const GuestInteractionGate: React.FC<GuestInteractionGateProps> = ({
@@ -37,6 +37,8 @@ export const GuestInteractionGate: React.FC<GuestInteractionGateProps> = ({
         return 'Save to your collection';
       case 'follow':
         return 'Follow this creator';
+      case 'gift':
+        return 'Send a virtual gift';
       default:
         return 'Interact with creators';
     }
@@ -79,7 +81,8 @@ export const GuestInteractionGate: React.FC<GuestInteractionGateProps> = ({
             {action === 'comment' && '💬'}
             {action === 'bookmark' && '🔖'}
             {action === 'follow' && '✨'}
-            {!['like', 'comment', 'bookmark', 'follow'].includes(action) && '⚡'}
+            {action === 'gift' && '🎁'}
+            {!['like', 'comment', 'bookmark', 'follow', 'gift'].includes(action) && '⚡'}
           </div>
 
           <h3
@@ -94,8 +97,8 @@ export const GuestInteractionGate: React.FC<GuestInteractionGateProps> = ({
           </p>
 
           <p className="text-xs text-white/60 leading-relaxed mb-6">
-            Free guests can explore and watch everything. To like, comment, bookmark, and follow
-            creators with your sovereign profile, connect your Quant Account.
+            Free guests can explore and watch everything. To like, comment, bookmark, follow, and
+            send gifts to creators with your sovereign profile, connect your Quant Account.
           </p>
 
           <div className="space-y-3">

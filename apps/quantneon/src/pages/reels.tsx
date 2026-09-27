@@ -18,6 +18,13 @@ import { useAuth } from '../providers/auth-provider';
 import { GuestInteractionGate } from '../components/GuestInteractionGate';
 import { apiClient } from '../services/api-client';
 import { classifyVerticalSwipe, isDoubleTap, type GesturePoint } from '../features/reels/gesture';
+import { useVideoPreloader } from '../hooks/useVideoPreloader';
+import {
+  REEL_GIFT_OPTIONS,
+  sendVirtualGift,
+  depositCoins,
+  type ReelGiftOption,
+} from '../services/virtual-gifts.service';
 
 interface ReelCommentItem {
   id: string;
@@ -57,6 +64,17 @@ const ReelsPage: React.FC = () => {
   const [slideDirection, setSlideDirection] = useState(1);
   const [guestGateOpen, setGuestGateOpen] = useState(false);
   const [guestGateAction, setGuestGateAction] = useState<string>('interact');
+
+  // Virtual Gifts State
+  const [isGiftTrayOpen, setIsGiftTrayOpen] = useState(false);
+  const [selectedGiftId, setSelectedGiftId] = useState<string>('rose');
+  const [isSendingGift, setIsSendingGift] = useState(false);
+  const [giftToast, setGiftToast] = useState<string | null>(null);
+  const [userCoins, setUserCoins] = useState<number>(200);
+
+  // Shortie 4-Page Sliding Video Preloader integration
+  const videoUrls = state.reels.map((r) => r.videoUrl);
+  const { preloadedIndices, isPreloaded } = useVideoPreloader(videoUrls, state.currentIndex);
 
   const requireAuth = useCallback(
     (action: string, callback: () => void) => {
@@ -303,8 +321,19 @@ const ReelsPage: React.FC = () => {
         aria-label="Reels feed"
         tabIndex={0}
       >
-        {/* Sound Toggle - Top Right */}
-        <div className="pointer-events-none absolute inset-x-0 top-4 z-30 mx-auto flex w-full max-w-[56.25dvh] justify-end px-4">
+        {/* Top Header: Shortie Sliding Video Preloader Indicator & Sound Toggle */}
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-30 mx-auto flex w-full max-w-[56.25dvh] items-center justify-between px-4">
+          <div
+            className="pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-xs font-medium text-white/90"
+            data-testid="video-preloader-indicator"
+            aria-label={`Preloaded ${preloadedIndices.size} of ${state.reels.length} reels`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="tracking-wide">
+              Preloaded {preloadedIndices.size}/{state.reels.length}
+            </span>
+          </div>
+
           <SpringButton
             className="pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-black/30 backdrop-blur-sm"
             onClick={() => actions.toggleMute()}
@@ -447,6 +476,22 @@ const ReelsPage: React.FC = () => {
                   <span className="text-xs">{formatCount(currentReel.shareCount)}</span>
                 </SpringButton>
 
+                {/* Virtual Gift */}
+                <SpringButton
+                  className="min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1 text-white hover:text-pink-400 transition-colors"
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    requireAuth('gift', () => {
+                      setIsGiftTrayOpen(true);
+                    });
+                  }}
+                  aria-label="Send Virtual Gift"
+                  data-testid="gift-floating-btn"
+                >
+                  <span className="text-2xl">🎁</span>
+                  <span className="text-xs">Gift</span>
+                </SpringButton>
+
                 {/* Bookmark */}
                 <SpringButton
                   className={`min-w-[44px] min-h-[44px] flex flex-col items-center justify-center gap-1 ${isBookmarked ? 'text-yellow-400' : 'text-white'}`}
@@ -550,10 +595,23 @@ const ReelsPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Progress Bar */}
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/20">
+              {/* Progress Bar & Sliding Preloader Buffer */}
+              <div
+                className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20"
+                data-testid="reels-timeline"
+              >
+                {isPreloaded(state.currentIndex) && (
+                  <div
+                    className="absolute inset-y-0 bg-emerald-400/40"
+                    style={{
+                      left: `${(state.currentIndex / Math.max(state.reels.length, 1)) * 100}%`,
+                      width: `${(1 / Math.max(state.reels.length, 1)) * 100}%`,
+                    }}
+                    data-testid="preloaded-buffer-indicator"
+                  />
+                )}
                 <motion.div
-                  className="h-full bg-white"
+                  className="h-full bg-white relative z-10"
                   style={{ width: `${state.progress}%` }}
                   transition={{ duration: 0.1 }}
                 />
@@ -647,6 +705,147 @@ const ReelsPage: React.FC = () => {
                   </button>
                 )}
               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Virtual Gifts Sheet */}
+        <AnimatePresence>
+          {isGiftTrayOpen && currentReel && (
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', ...spring.snappy }}
+              className="absolute bottom-0 left-0 right-0 z-50 rounded-t-3xl bg-[#141419]/95 backdrop-blur-xl border-t border-white/10 p-5 flex flex-col shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              data-testid="virtual-gift-tray"
+              role="dialog"
+              aria-label="Send Virtual Gift Tray"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🎁</span>
+                  <div>
+                    <h2 className="text-sm font-bold text-white">
+                      Send Gift to @{currentReel.creator}
+                    </h2>
+                    <p className="text-[11px] text-white/50">
+                      Support the creator with sovereign coins
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="min-w-[36px] min-h-[36px] rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 hover:text-white transition-colors"
+                  onClick={() => setIsGiftTrayOpen(false)}
+                  aria-label="Close gift tray"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Gift Options: Rose 10, Diamond 100, Rocket 500 */}
+              <div
+                className="grid grid-cols-3 gap-3 my-3"
+                role="radiogroup"
+                aria-label="Virtual gifts options"
+              >
+                {REEL_GIFT_OPTIONS.map((gift) => {
+                  const isSelected = selectedGiftId === gift.id;
+                  return (
+                    <button
+                      key={gift.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setSelectedGiftId(gift.id)}
+                      className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all ${
+                        isSelected
+                          ? 'border-purple-500 bg-purple-500/20 shadow-lg shadow-purple-500/20 scale-105'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                      data-testid={`gift-option-${gift.id}`}
+                      aria-label={`${gift.name} ${gift.coins} coins`}
+                    >
+                      <span className="text-3xl mb-1">{gift.icon}</span>
+                      <span className="text-xs font-semibold text-white">{gift.name}</span>
+                      <span className="text-[11px] text-amber-400 font-medium mt-0.5">
+                        🪙 {gift.coins}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Wallet Info & Send Button */}
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
+                <div className="flex items-center gap-1.5 text-xs text-white/70">
+                  <span>Balance:</span>
+                  <span className="font-semibold text-amber-400" data-testid="user-coin-balance">
+                    {userCoins} 🪙
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      depositCoins('viewer_user', 500);
+                      setUserCoins((prev) => prev + 500);
+                    }}
+                    className="ml-2 text-[10px] text-purple-400 hover:text-purple-300 underline"
+                  >
+                    + Add Coins
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSendingGift}
+                  onClick={() => {
+                    const selectedGift = REEL_GIFT_OPTIONS.find((g) => g.id === selectedGiftId);
+                    if (!selectedGift) return;
+                    if (userCoins < selectedGift.coins) {
+                      setGiftToast(`Insufficient coins! Need ${selectedGift.coins} 🪙`);
+                      setTimeout(() => setGiftToast(null), 2500);
+                      return;
+                    }
+                    setIsSendingGift(true);
+                    try {
+                      depositCoins('viewer_user', selectedGift.coins);
+                      const tx = sendVirtualGift(
+                        'viewer_user',
+                        currentReel.creator,
+                        selectedGift.id,
+                        currentReel.id,
+                      );
+                      setUserCoins((prev) => Math.max(0, prev - selectedGift.coins));
+                      setGiftToast(
+                        `Sent ${tx.gift.name} ${tx.gift.icon} to @${currentReel.creator}!`,
+                      );
+                      setTimeout(() => {
+                        setGiftToast(null);
+                        setIsGiftTrayOpen(false);
+                      }, 1800);
+                    } catch (e: any) {
+                      setGiftToast(e.message || 'Error sending gift');
+                      setTimeout(() => setGiftToast(null), 2500);
+                    } finally {
+                      setIsSendingGift(false);
+                    }
+                  }}
+                  className="py-2 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-rose-500 hover:from-purple-500 hover:to-rose-400 font-semibold text-xs text-white shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                  data-testid="send-gift-btn"
+                >
+                  {isSendingGift ? 'Sending...' : 'Send Gift'}
+                </button>
+              </div>
+
+              {/* Toast Notification */}
+              {giftToast && (
+                <div
+                  className="mt-3 py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs text-center font-medium animate-fadeIn"
+                  data-testid="gift-toast"
+                >
+                  {giftToast}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

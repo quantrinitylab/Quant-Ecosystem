@@ -54,7 +54,7 @@ describe('QuantTube Audio & Video Players Unit Suite (Task W37-03 & W37-04)', ()
 
   it('defines valid speed and quality options for adaptive video player', () => {
     expect(SPEED_OPTIONS).toEqual([0.5, 0.75, 1, 1.25, 1.5, 2]);
-    expect(QUALITY_OPTIONS).toEqual(['Auto', '1080p', '720p', '480p', '360p']);
+    expect(QUALITY_OPTIONS).toEqual(['Auto', '1080p Full HD', '720p HD', '480p SD', '360p']);
   });
 
   it('provides audio player state and actions via context', () => {
