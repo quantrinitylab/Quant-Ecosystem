@@ -28,6 +28,7 @@ import channelsRoutes from './routes/channels';
 import voiceNoteRoutes from './routes/voice-notes';
 import mapRoutes from './routes/map';
 import meetingsRoutes from './routes/meetings';
+import audioRoomsRoutes from './routes/audio-rooms';
 import voiceBotRoutes, { createVoiceBotServices } from './routes/voice-bot';
 import { ProactiveCallWorker } from './services/proactive-call-worker.service';
 import { websocketRoutes } from './routes/websocket';
@@ -165,6 +166,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(spotlightRoutes, { prefix: '/spotlight' });
   await app.register(mapRoutes, { prefix: '/map' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });
+  await app.register(audioRoomsRoutes, { prefix: '/audio-rooms' });
+  await app.register(audioRoomsRoutes, { prefix: '/api/audio-rooms' });
 
   const e2eeRelay = new InMemoryE2EERelay();
   app.decorate('e2ee', e2eeRelay);
