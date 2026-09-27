@@ -16,8 +16,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "fastify": "^5.2.1",
-    "typescript": "~5.5.0",
+    "fastify": "^5.12.5",
+    "typescript": "~5.9.3",
     "vitest": "^4.1.0"
   }
 }

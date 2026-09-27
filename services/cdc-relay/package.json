@@ -13,7 +13,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "ioredis": "^5.6.1",
+    "ioredis": "^5.11.1",
     "kafkajs": "^2.2.4",
     "pg": "^8.13.1",
     "@quant/health-server": "workspace:*",
@@ -25,7 +25,7 @@
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.10",
     "vitest": "^4",
-    "typescript": "~5.5.0",
+    "typescript": "~5.9.3",
     "ts-node": "^10.9.0"
   }
 }

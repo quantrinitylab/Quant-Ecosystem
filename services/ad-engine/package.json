@@ -13,15 +13,15 @@
     "@quant/credits": "workspace:*",
     "@quant/database": "workspace:*",
     "@quant/queue": "workspace:*",
-    "bullmq": "^5.1.0",
+    "bullmq": "^5.81.5",
     "dotenv": "^16.4.5",
-    "fastify": "^4.26.2",
-    "ioredis": "^5.4.1",
+    "fastify": "^5.12.5",
+    "ioredis": "^5.11.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
-    "typescript": "^5.4.5",
+    "typescript": "^5.9.3",
     "vitest": "^4"
   }
 }

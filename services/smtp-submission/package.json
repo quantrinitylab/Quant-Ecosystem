@@ -15,16 +15,16 @@
     "@quant/auth": "workspace:*",
     "@quant/database": "workspace:*",
     "@quant/queue": "workspace:*",
-    "smtp-server": "^3.13.4",
-    "mailparser": "^3.7.1",
-    "argon2": "^0.41.1",
+    "smtp-server": "^3.19.13",
+    "mailparser": "^3.9.28",
+    "argon2": "^0.45.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/smtp-server": "^3.5.10",
     "@types/mailparser": "^3.4.4",
-    "typescript": "~5.5.0",
+    "typescript": "~5.9.3",
     "vitest": "^4.0.0"
   }
 }
