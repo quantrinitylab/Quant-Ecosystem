@@ -55,6 +55,7 @@ import extractorRoutes from './routes/extractor';
 import videoGenerationRoutes from './routes/video-generation';
 import codeAssistantRoutes from './routes/code-assistant';
 import imageInpaintingRoutes from './routes/image-inpainting';
+import fluxStylesRoutes from './routes/flux-styles';
 import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { FileLibraryService } from './services/file-library.service';
 import { ProjectContextService, projectContextService } from './services/project-context.service';
@@ -65,6 +66,7 @@ import {
   DocumentExtractorService,
   documentExtractorService,
 } from './services/document-extractor.service';
+import { fluxStylesService } from './services/flux-styles.service';
 import { AIEngine } from './services/ai-engine';
 import { Orchestrator } from '@quant/agent-runtime';
 import { SwarmOrchestrator } from '@quant/agent-swarm';
@@ -140,6 +142,7 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('imageWizardService', new ImageWizardService());
   app.decorate('mcpConnectorsService', new McpConnectorsService());
   app.decorate('documentExtractorService', documentExtractorService);
+  app.decorate('fluxStylesService', fluxStylesService);
 
   await app.register(chatRoutes, { prefix: '/chat' });
   await app.register(askRoutes);
@@ -198,6 +201,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(videoGenerationRoutes, { prefix: '/api/ai' });
   await app.register(codeAssistantRoutes, { prefix: '/api/ai' });
   await app.register(imageInpaintingRoutes, { prefix: '/api/ai' });
+  await app.register(fluxStylesRoutes, { prefix: '/api/ai' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([
