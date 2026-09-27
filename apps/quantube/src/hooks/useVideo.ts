@@ -9,7 +9,7 @@ export function useVideo(id: string) {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to load video');
       }
-      return response.data?.video;
+      return (response.data as any)?.video ?? response.data;
     },
     enabled: !!id,
   });

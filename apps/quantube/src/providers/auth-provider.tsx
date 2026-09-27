@@ -1,3 +1,5 @@
+'use client';
+
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
 

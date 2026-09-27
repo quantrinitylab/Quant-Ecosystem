@@ -1,3 +1,5 @@
+'use client';
+
 // ============================================================================
 // QuantTube - Spotify-Class Global Audio Player Dock
 // Task W37-04: Persistent floating frosted bottom dock (#0D1117 glassmorphism),

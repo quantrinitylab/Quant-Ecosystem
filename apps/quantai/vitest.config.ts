@@ -69,6 +69,8 @@ export default defineConfig({
       'src/__tests__/**/*.test.tsx',
       'src/components/**/__tests__/**/*.test.ts',
       'src/components/**/__tests__/**/*.test.tsx',
+      'src/app/**/__tests__/**/*.test.ts',
+      'src/app/**/__tests__/**/*.test.tsx',
       'apps/**/__tests__/**/*.test.ts',
       'apps/**/__tests__/**/*.test.tsx',
       'backend/__tests__/**/*.test.ts',

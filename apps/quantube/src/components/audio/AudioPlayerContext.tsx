@@ -1,3 +1,5 @@
+'use client';
+
 // ============================================================================
 // QuantTube - Spotify-Class Singleton Audio Player Context
 // Task W37-04: Persistent singleton audio state with Web Audio & MediaSession API

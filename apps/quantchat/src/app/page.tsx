@@ -245,23 +245,33 @@ export default function ChatListPage() {
   };
 
   const enhancedItems: EnhancedConversation[] = conversationList
-    .map((conv) => ({
-      id: conv.id,
-      name: conv.name || 'Chat',
-      lastMessage: conv.lastMessage?.content || 'Tap to start chatting',
-      timestamp: formatRelativeTime(
-        conv.lastActivityAt
-          ? conv.lastActivityAt instanceof Date
-            ? conv.lastActivityAt.toISOString()
-            : String(conv.lastActivityAt)
-          : '',
-      ),
-      unreadCount: conv.unreadCount || 0,
-      presence: presenceForConversation((conv.participants ?? []).map((p) => p.userId)),
-      isPinned: pinnedIds.has(conv.id),
-      isArchived: archivedIds.has(conv.id),
-      avatarInitial: (conv.name || 'C').charAt(0).toUpperCase(),
-    }))
+    .map((conv) => {
+      const fallback = conv as unknown as Partial<EnhancedConversation>;
+      const rawMsg = conv.lastMessage as unknown;
+      const lastMsgText =
+        typeof rawMsg === 'string'
+          ? rawMsg
+          : (rawMsg as { content?: string } | undefined)?.content || 'Tap to start chatting';
+      const rawTimestamp = conv.lastActivityAt
+        ? conv.lastActivityAt instanceof Date
+          ? conv.lastActivityAt.toISOString()
+          : String(conv.lastActivityAt)
+        : fallback.timestamp || '';
+
+      return {
+        id: conv.id,
+        name: conv.name || 'Chat',
+        lastMessage: lastMsgText,
+        timestamp: formatRelativeTime(rawTimestamp),
+        unreadCount: conv.unreadCount || 0,
+        presence:
+          fallback.presence ||
+          presenceForConversation((conv.participants ?? []).map((p) => p.userId)),
+        isPinned: pinnedIds.has(conv.id) || Boolean(fallback.isPinned),
+        isArchived: archivedIds.has(conv.id) || Boolean(fallback.isArchived),
+        avatarInitial: fallback.avatarInitial || (conv.name || 'C').charAt(0).toUpperCase(),
+      };
+    })
     .filter((item) => !item.isArchived)
     .sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;

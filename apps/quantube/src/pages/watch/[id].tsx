@@ -26,8 +26,10 @@ interface Chapter {
 interface CommentItem {
   id: string;
   username?: string;
+  author?: string;
   avatar?: string;
   text?: string;
+  content?: string;
   likes?: number;
   timestamp?: string;
   replies?: CommentItem[];
@@ -268,7 +270,12 @@ const WatchPage: React.FC = () => {
   };
 
   const chapters: Chapter[] = v.chapters && v.chapters.length > 0 ? v.chapters : FALLBACK_CHAPTERS;
-  const commentList: CommentItem[] = (comments ?? []) as CommentItem[];
+  const rawComments = comments as any;
+  const commentList: CommentItem[] = Array.isArray(rawComments)
+    ? rawComments
+    : Array.isArray(rawComments?.comments)
+      ? rawComments.comments
+      : [];
   const currentLikeCount = likeCount || (v.likes ?? 0);
 
   return (
@@ -488,13 +495,15 @@ const WatchPage: React.FC = () => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-[var(--quant-foreground)]">
-                        {comment.username || 'Anonymous'}
+                        {comment.username || comment.author || 'Anonymous'}
                       </span>
                       <span className="text-xs text-[var(--quant-muted-foreground)]">
                         {comment.timestamp || ''}
                       </span>
                     </div>
-                    <p className="text-sm text-[var(--quant-foreground)] mt-0.5">{comment.text}</p>
+                    <p className="text-sm text-[var(--quant-foreground)] mt-0.5">
+                      {comment.text || comment.content}
+                    </p>
                     <div className="flex items-center gap-3 mt-1">
                       <button className="min-h-[44px] text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] flex items-center gap-1">
                         <span>\uD83D\uDC4D</span>
