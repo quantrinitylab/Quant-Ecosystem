@@ -78,15 +78,14 @@ function handleFallback(authHeader: string | null): NextResponse {
   // For any other bearer token (e.g. JWT or test token), if backend is offline:
   return NextResponse.json(
     {
-      success: true,
-      data: {
-        id: 'user_fallback',
-        username: 'QuantChat User',
-        role: 'USER',
-        isFallback: true,
+      success: false,
+      error: {
+        code: 'UPSTREAM_UNAVAILABLE',
+        message: 'Auth backend is unavailable',
+        statusCode: 502,
       },
     },
-    { status: 200 },
+    { status: 502 },
   );
 }
 
