@@ -26,7 +26,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
     it('returns the complete standard voice catalog without filters', () => {
       const voices = listAvailableVoices();
       expect(voices).toBeDefined();
-      expect(voices.length).toBe(13); // 6 OpenAI + 5 ElevenLabs + 2 Google
+      expect(voices.length).toBe(19); // 6 OpenAI + 5 ElevenLabs + 2 Google + 6 Davinci
 
       const openaiVoices = voices.filter((v) => v.provider === 'openai');
       const elevenlabsVoices = voices.filter((v) => v.provider === 'elevenlabs');
@@ -64,7 +64,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       expect(hindiVoices[0].language).toBe('hi-IN');
 
       const englishVoices = listAvailableVoices({ language: 'en-US' });
-      expect(englishVoices.length).toBe(12);
+      expect(englishVoices.length).toBe(15);
       expect(englishVoices.every((v) => v.language === 'en-US')).toBe(true);
     });
 
@@ -79,16 +79,16 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
 
     it('filters voices by gender', () => {
       const maleVoices = listAvailableVoices({ gender: 'male' });
-      expect(maleVoices.length).toBe(5); // echo, fable, onyx, antoni, adam
+      expect(maleVoices.length).toBe(8); // echo, fable, onyx, antoni, adam, vesper, zephyr, sol
       expect(maleVoices.every((v) => v.gender === 'male')).toBe(true);
 
       const femaleVoices = listAvailableVoices({ gender: 'female' });
-      expect(femaleVoices.length).toBe(7); // nova, shimmer, rachel, domi, bella, en-US-Neural2-F, hi-IN-Neural2-A
+      expect(femaleVoices.length).toBe(9); // nova, shimmer, rachel, domi, bella, en-US-Neural2-F, hi-IN-Neural2-A
       expect(femaleVoices.every((v) => v.gender === 'female')).toBe(true);
 
       const neutralVoices = listAvailableVoices({ gender: 'neutral' });
-      expect(neutralVoices.length).toBe(1); // alloy
-      expect(neutralVoices[0].id).toBe('alloy');
+      expect(neutralVoices.length).toBe(2);
+      expect(neutralVoices.some((v) => v.id === 'alloy')).toBe(true);
     });
   });
 
@@ -258,7 +258,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
 
     it('supports voiceoverTTSService class methods interchangeably', async () => {
       const voices = voiceoverTTSService.listAvailableVoices();
-      expect(voices.length).toBe(13);
+      expect(voices.length).toBe(19);
 
       const ssml = voiceoverTTSService.generateSsml('Class test', { speed: 1.0 });
       expect(ssml).toContain('<speak>');
@@ -292,7 +292,7 @@ describe('MagicAI Multi-Provider Voiceover & TTS Synthesis Engine', () => {
       expect(response.statusCode).toBe(200);
       const data = response.json();
       expect(data.success).toBe(true);
-      expect(data.count).toBe(13);
+      expect(data.count).toBe(19);
       expect(Array.isArray(data.voices)).toBe(true);
     });
 

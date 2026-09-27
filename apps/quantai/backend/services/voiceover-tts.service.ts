@@ -1,10 +1,8 @@
-// ============================================================================
-// QuantAI — MagicAI Multi-Provider Voiceover & Text-to-Speech (TTS) Engine
-// ============================================================================
-
 import crypto from 'crypto';
 
-export type TTSProvider = 'openai' | 'elevenlabs' | 'google';
+export type TTSProvider = 'openai' | 'elevenlabs' | 'google' | 'davinci';
+
+export type VoiceTone = 'cheerful' | 'serious' | 'whisper' | 'excited' | 'neutral' | 'dramatic';
 
 export interface VoiceProfile {
   id: string;
@@ -13,7 +11,9 @@ export interface VoiceProfile {
   gender: 'male' | 'female' | 'neutral';
   language: string; // e.g. 'en-US', 'hi-IN'
   previewAudioUrl?: string;
-  tags: string[];
+  tags?: string[];
+  supportedTones?: VoiceTone[];
+  sampleAudioUrl?: string;
 }
 
 export interface SynthesizeSpeechRequest {
@@ -33,9 +33,34 @@ export interface SynthesizeSpeechResult {
   synthesizedAt: string;
 }
 
-// ----------------------------------------------------------------------------
-// Standard Voice Catalog
-// ----------------------------------------------------------------------------
+export interface TtsSynthesisParams {
+  voiceId: string;
+  text: string;
+  tone?: VoiceTone;
+  speedMultiplier?: number; // 0.5 to 2.0, default 1.0
+  pitchPercentage?: number; // -50 to +50, default 0
+}
+
+export interface WordTimestampMarker {
+  word: string;
+  startMs: number;
+  endMs: number;
+}
+
+export interface TtsSynthesisResult {
+  id: string;
+  userId: string;
+  params: TtsSynthesisParams;
+  status: 'QUEUED' | 'SYNTHESIZING' | 'COMPLETED' | 'FAILED';
+  audioUrl?: string;
+  estimatedDurationMs: number;
+  wordMarkers: WordTimestampMarker[];
+  createdAt: string;
+  completedAt?: string;
+}
+
+const ALL_TONES: VoiceTone[] = ['cheerful', 'serious', 'whisper', 'excited', 'neutral', 'dramatic'];
+
 export const STANDARD_VOICE_CATALOG: VoiceProfile[] = [
   // OpenAI Voices
   {
@@ -92,7 +117,6 @@ export const STANDARD_VOICE_CATALOG: VoiceProfile[] = [
     previewAudioUrl: 'https://cdn.quantmail.in/voice/previews/openai-shimmer.mp3',
     tags: ['clear', 'expressive', 'crisp'],
   },
-
   // ElevenLabs Voices
   {
     id: 'rachel',
@@ -139,7 +163,6 @@ export const STANDARD_VOICE_CATALOG: VoiceProfile[] = [
     previewAudioUrl: 'https://cdn.quantmail.in/voice/previews/elevenlabs-adam.mp3',
     tags: ['deep', 'warm', 'audiobook'],
   },
-
   // Google Cloud Voices
   {
     id: 'en-US-Neural2-F',
@@ -159,71 +182,99 @@ export const STANDARD_VOICE_CATALOG: VoiceProfile[] = [
     previewAudioUrl: 'https://cdn.quantmail.in/voice/previews/google-hi-in-neural2-a.mp3',
     tags: ['hindi', 'multilingual', 'neural', 'expressive'],
   },
+
+  // Davinci AI Voices
+  {
+    id: 'aura',
+    name: 'Aura',
+    provider: 'davinci',
+    language: 'en-US',
+    gender: 'female',
+    supportedTones: ALL_TONES,
+  },
+  {
+    id: 'vesper',
+    name: 'Vesper',
+    provider: 'davinci',
+    language: 'en-US',
+    gender: 'male',
+    supportedTones: ALL_TONES,
+  },
+  {
+    id: 'zenith',
+    name: 'Zenith',
+    provider: 'davinci',
+    language: 'en-US',
+    gender: 'neutral',
+    supportedTones: ALL_TONES,
+  },
+  {
+    id: 'zephyr',
+    name: 'Zephyr',
+    provider: 'davinci',
+    language: 'fr-FR',
+    gender: 'male',
+    supportedTones: ALL_TONES,
+  },
+  {
+    id: 'echo',
+    name: 'Echo',
+    provider: 'davinci',
+    language: 'de-DE',
+    gender: 'female',
+    supportedTones: ALL_TONES,
+  },
+  {
+    id: 'sol',
+    name: 'Sol',
+    provider: 'davinci',
+    language: 'es-ES',
+    gender: 'male',
+    supportedTones: ALL_TONES,
+  },
 ];
 
-// ----------------------------------------------------------------------------
-// Internal In-Memory Synthesis Cache
-// ----------------------------------------------------------------------------
+let synthesisJobs: TtsSynthesisResult[] = [];
 const synthesisCache = new Map<string, SynthesizeSpeechResult>();
 
-// ----------------------------------------------------------------------------
-// Helper Functions
-// ----------------------------------------------------------------------------
 export function clampSpeed(speed?: number): number {
-  if (speed === undefined || speed === null || isNaN(speed)) {
-    return 1.0;
-  }
+  if (speed === undefined || speed === null || isNaN(speed)) return 1.0;
   if (speed < 0.25) return 0.25;
   if (speed > 4.0) return 4.0;
   return Number(speed.toFixed(2));
 }
 
 export function clampPitch(pitch?: number): number {
-  if (pitch === undefined || pitch === null || isNaN(pitch)) {
-    return 0;
-  }
+  if (pitch === undefined || pitch === null || isNaN(pitch)) return 0;
   if (pitch < -20) return -20;
   if (pitch > 20) return 20;
   return Number(pitch.toFixed(1));
 }
 
-// ----------------------------------------------------------------------------
-// Service Functions
-// ----------------------------------------------------------------------------
-
-/**
- * Lists available voices with optional filtering by provider, language, and gender.
- */
-export function listAvailableVoices(filter?: {
-  provider?: TTSProvider;
-  language?: string;
-  gender?: string;
-}): VoiceProfile[] {
-  if (!filter) {
-    return [...STANDARD_VOICE_CATALOG];
+export function listAvailableVoices(
+  filterOrLanguage?: string | { provider?: TTSProvider; language?: string; gender?: string },
+): VoiceProfile[] {
+  let filter: { provider?: TTSProvider; language?: string; gender?: string } | undefined;
+  if (typeof filterOrLanguage === 'string') {
+    filter = { language: filterOrLanguage };
+  } else {
+    filter = filterOrLanguage;
   }
 
+  if (!filter) return [...STANDARD_VOICE_CATALOG];
+
   return STANDARD_VOICE_CATALOG.filter((voice) => {
-    if (filter.provider && voice.provider !== filter.provider) {
-      return false;
-    }
-    if (filter.language) {
-      const targetLang = filter.language.toLowerCase();
+    if (filter!.provider && voice.provider !== filter!.provider) return false;
+    if (filter!.language) {
+      const targetLang = filter!.language.toLowerCase();
       const voiceLang = voice.language.toLowerCase();
-      if (voiceLang !== targetLang && !voiceLang.startsWith(targetLang + '-')) {
-        return false;
-      }
+      if (voiceLang !== targetLang && !voiceLang.startsWith(targetLang + '-')) return false;
     }
-    if (filter.gender && voice.gender.toLowerCase() !== filter.gender.toLowerCase()) {
-      return false;
-    }
+    if (filter!.gender && voice.gender.toLowerCase() !== filter!.gender.toLowerCase()) return false;
     return true;
   });
 }
 
-/**
- * Computes a deterministic SHA-256 hex cache key for a speech synthesis request.
- */
 export function generateSpeechCacheKey(request: SynthesizeSpeechRequest): string {
   const speed = clampSpeed(request.speed);
   const pitch = clampPitch(request.pitch);
@@ -251,78 +302,141 @@ export function generateSpeechCacheKey(request: SynthesizeSpeechRequest): string
   return crypto.createHash('sha256').update(canonicalPayload).digest('hex');
 }
 
-/**
- * Wraps text in SSML prosody tags with rate and pitch settings.
- */
 export function generateSsml(text: string, options?: { speed?: number; pitch?: number }): string {
   const speed = clampSpeed(options?.speed);
   const pitch = clampPitch(options?.pitch);
-
   const rateAttr = `${speed}`;
   const pitchAttr = pitch >= 0 ? `+${pitch}%` : `${pitch}%`;
-
   return `<speak><prosody rate="${rateAttr}" pitch="${pitchAttr}">${text}</prosody></speak>`;
 }
 
-/**
- * Synthesizes speech with caching, speed/pitch clamping, and duration estimation.
- */
-export async function synthesizeSpeech(
-  request: SynthesizeSpeechRequest,
-): Promise<SynthesizeSpeechResult> {
-  const speed = clampSpeed(request.speed);
-  const pitch = clampPitch(request.pitch);
-  const format = request.audioFormat || 'mp3';
-  const characterCount = request.text.length;
-  const durationSeconds = Math.ceil(characterCount / 15);
-
-  const cacheKey = generateSpeechCacheKey({
-    text: request.text,
-    voiceId: request.voiceId,
-    speed,
-    pitch,
-    audioFormat: format,
-  });
-
-  const cached = synthesisCache.get(cacheKey);
-  if (cached) {
-    return {
-      ...cached,
-      cacheHit: true,
-    };
-  }
-
-  // Simulated audio payload URL (base64 audio data payload)
-  const simulatedPayload = Buffer.from(
-    `QUANT_VOICEOVER_${request.voiceId}_${cacheKey}`,
-    'utf-8',
-  ).toString('base64');
-  const audioUrl = `data:audio/${format};base64,${simulatedPayload}`;
-  const synthesizedAt = new Date().toISOString();
-
-  const result: SynthesizeSpeechResult = {
-    audioUrl,
-    format,
-    durationSeconds,
-    characterCount,
-    cacheHit: false,
-    synthesizedAt,
-  };
-
-  synthesisCache.set(cacheKey, result);
-  return result;
+export function estimateSpeechDuration(wordCount: number, speedMultiplier: number = 1.0): number {
+  const wordsPerMinute = 150;
+  const msPerWord = 60000 / wordsPerMinute;
+  return (wordCount * msPerWord) / speedMultiplier;
 }
 
-/**
- * Clears the in-memory synthesis cache for test isolation.
- */
+export function generateWordMarkers(
+  text: string,
+  speedMultiplier: number = 1.0,
+): WordTimestampMarker[] {
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  const markers: WordTimestampMarker[] = [];
+  let currentMs = 0;
+
+  for (const word of words) {
+    const wordDuration = 400 / speedMultiplier;
+    markers.push({
+      word,
+      startMs: currentMs,
+      endMs: currentMs + wordDuration,
+    });
+    currentMs += wordDuration;
+  }
+
+  return markers;
+}
+
+export function synthesizeSpeech(request: SynthesizeSpeechRequest): Promise<SynthesizeSpeechResult>;
+export function synthesizeSpeech(userId: string, params: TtsSynthesisParams): TtsSynthesisResult;
+export function synthesizeSpeech(
+  arg1: string | SynthesizeSpeechRequest,
+  arg2?: TtsSynthesisParams,
+): any {
+  if (typeof arg1 === 'string' && arg2) {
+    const userId = arg1;
+    const params = arg2;
+    const voice = STANDARD_VOICE_CATALOG.find(
+      (v) => v.id === params.voiceId && v.provider === 'davinci',
+    );
+    if (!voice) {
+      throw new Error('VOICE_NOT_FOUND');
+    }
+
+    if (!params.text || params.text.trim().length === 0) {
+      throw new Error('Text must be non-empty');
+    }
+
+    const speedMultiplier = Math.max(0.5, Math.min(2.0, params.speedMultiplier ?? 1.0));
+    const pitchPercentage = Math.max(-50, Math.min(50, params.pitchPercentage ?? 0));
+
+    const words = params.text.split(/\s+/).filter((w) => w.length > 0);
+    const estimatedDurationMs = estimateSpeechDuration(words.length, speedMultiplier);
+    const wordMarkers = generateWordMarkers(params.text, speedMultiplier);
+
+    const result: TtsSynthesisResult = {
+      id: `job_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      userId,
+      params: {
+        ...params,
+        speedMultiplier,
+        pitchPercentage,
+      },
+      status: 'COMPLETED',
+      audioUrl: `https://cdn.quantai.com/tts/${userId}/audio.mp3`,
+      estimatedDurationMs,
+      wordMarkers,
+      createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    };
+
+    synthesisJobs.push(result);
+    return result;
+  } else if (typeof arg1 === 'object') {
+    const request = arg1 as SynthesizeSpeechRequest;
+    return (async () => {
+      const speed = clampSpeed(request.speed);
+      const pitch = clampPitch(request.pitch);
+      const format = request.audioFormat || 'mp3';
+      const characterCount = request.text.length;
+      const durationSeconds = Math.ceil(characterCount / 15);
+
+      const cacheKey = generateSpeechCacheKey({
+        text: request.text,
+        voiceId: request.voiceId,
+        speed,
+        pitch,
+        audioFormat: format,
+      });
+
+      const cached = synthesisCache.get(cacheKey);
+      if (cached) {
+        return {
+          ...cached,
+          cacheHit: true,
+        };
+      }
+
+      const simulatedPayload = Buffer.from(
+        `QUANT_VOICEOVER_${request.voiceId}_${cacheKey}`,
+        'utf-8',
+      ).toString('base64');
+      const audioUrl = `data:audio/${format};base64,${simulatedPayload}`;
+      const synthesizedAt = new Date().toISOString();
+
+      const result: SynthesizeSpeechResult = {
+        audioUrl,
+        format,
+        durationSeconds,
+        characterCount,
+        cacheHit: false,
+        synthesizedAt,
+      };
+
+      synthesisCache.set(cacheKey, result);
+      return result;
+    })();
+  }
+}
+
+export function clearTtsForTesting(): void {
+  synthesisJobs = [];
+}
+
 export function clearCacheForTesting(): void {
   synthesisCache.clear();
 }
 
-// ----------------------------------------------------------------------------
-// VoiceoverTTSService Singleton Class
-// ----------------------------------------------------------------------------
 export class VoiceoverTTSService {
   listAvailableVoices(filter?: {
     provider?: TTSProvider;
@@ -331,19 +445,15 @@ export class VoiceoverTTSService {
   }): VoiceProfile[] {
     return listAvailableVoices(filter);
   }
-
   generateSpeechCacheKey(request: SynthesizeSpeechRequest): string {
     return generateSpeechCacheKey(request);
   }
-
   generateSsml(text: string, options?: { speed?: number; pitch?: number }): string {
     return generateSsml(text, options);
   }
-
   async synthesizeSpeech(request: SynthesizeSpeechRequest): Promise<SynthesizeSpeechResult> {
-    return synthesizeSpeech(request);
+    return synthesizeSpeech(request) as Promise<SynthesizeSpeechResult>;
   }
-
   clearCacheForTesting(): void {
     clearCacheForTesting();
   }
