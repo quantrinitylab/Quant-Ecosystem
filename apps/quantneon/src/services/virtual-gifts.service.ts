@@ -145,6 +145,41 @@ export function calculateCreatorPayout(creatorId: string): {
   };
 }
 
+export function deductCreatorDiamonds(creatorId: string, diamonds: number): void {
+  if (diamonds <= 0) {
+    throw new Error('Diamonds amount must be positive');
+  }
+  const wallet = wallets.get(creatorId);
+  if (!wallet || wallet.diamondsBalance < diamonds) {
+    throw new Error('INSUFFICIENT_DIAMONDS');
+  }
+  wallet.diamondsBalance -= diamonds;
+}
+
+export function creditCreatorDiamonds(
+  creatorId: string,
+  diamonds: number,
+  isNewEarning: boolean = false,
+): void {
+  if (diamonds <= 0) {
+    throw new Error('Diamonds amount must be positive');
+  }
+  let wallet = wallets.get(creatorId);
+  if (!wallet) {
+    wallet = {
+      userId: creatorId,
+      coinBalance: 0,
+      diamondsBalance: 0,
+      totalEarnedDiamonds: 0,
+    };
+    wallets.set(creatorId, wallet);
+  }
+  wallet.diamondsBalance += diamonds;
+  if (isNewEarning) {
+    wallet.totalEarnedDiamonds += diamonds;
+  }
+}
+
 export function clearWalletsForTesting(): void {
   wallets.clear();
   transactions.length = 0;

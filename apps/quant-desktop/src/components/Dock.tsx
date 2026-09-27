@@ -1,11 +1,12 @@
 import React from 'react';
-import type { QuantAppDefinition, AppId } from '../types';
+import type { QuantAppDefinition, AppId, DesktopTab } from '../types';
 
 interface DockProps {
   apps: QuantAppDefinition[];
-  activeAppId: AppId;
+  activeAppId: AppId | DesktopTab;
   onSelectApp: (appId: AppId) => void;
   onOpenCommandPalette: () => void;
+  onSelectDashboard?: () => void;
 }
 
 export function Dock({
@@ -13,6 +14,7 @@ export function Dock({
   activeAppId,
   onSelectApp,
   onOpenCommandPalette,
+  onSelectDashboard,
 }: DockProps): React.ReactElement {
   return (
     <div className="desktop-dock-container">
@@ -42,6 +44,28 @@ export function Dock({
             </button>
           );
         })}
+
+        {onSelectDashboard && (
+          <button
+            className={`dock-item ${activeAppId === 'dashboard' || activeAppId === 'overview' ? 'dock-item-active' : ''}`}
+            onClick={onSelectDashboard}
+            style={
+              activeAppId === 'dashboard' || activeAppId === 'overview'
+                ? ({ '--dock-accent-glow': 'rgba(56, 189, 248, 0.4)' } as React.CSSProperties)
+                : undefined
+            }
+            aria-label="Switch to Ecosystem Overview & Nexsas Bento Dashboard"
+            data-testid="dock-item-dashboard"
+          >
+            <span className="dock-item-icon">📊</span>
+            {(activeAppId === 'dashboard' || activeAppId === 'overview') && (
+              <span className="dock-active-dot" style={{ backgroundColor: '#38bdf8' }} />
+            )}
+            <span className="dock-tooltip">
+              Overview <span style={{ opacity: 0.6, fontSize: '10px' }}>(Bento)</span>
+            </span>
+          </button>
+        )}
 
         <div className="dock-separator" />
 
