@@ -53,6 +53,8 @@ import mcpConnectorsRoutes from './routes/mcp-connectors';
 import engineRoutes from './routes/engine';
 import extractorRoutes from './routes/extractor';
 import videoGenerationRoutes from './routes/video-generation';
+import codeAssistantRoutes from './routes/code-assistant';
+import imageInpaintingRoutes from './routes/image-inpainting';
 import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { FileLibraryService } from './services/file-library.service';
 import { ProjectContextService, projectContextService } from './services/project-context.service';
@@ -194,6 +196,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(extractorRoutes, { prefix: '/api/ai' });
   await app.register(promptTemplateRoutes, { prefix: '/api/ai' });
   await app.register(videoGenerationRoutes, { prefix: '/api/ai' });
+  await app.register(codeAssistantRoutes, { prefix: '/api/ai' });
+  await app.register(imageInpaintingRoutes, { prefix: '/api/ai' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([
