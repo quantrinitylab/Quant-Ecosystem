@@ -541,3 +541,6 @@ export * from './interconnection';
 
 // Nexsas Bento Grid, KPI Metric Cards, Pricing Tables, Animated FAQ Accordion & Testimonial Showcase
 export * from './bento';
+
+// Appy v1.1.2 Offline Resilience, Network Quality Monitor & Mutation Queue
+export * from './resilience';
