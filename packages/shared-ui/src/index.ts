@@ -539,5 +539,5 @@ export type {
 // ============================================================================
 export * from './interconnection';
 
-// Nexsas Bento Grid, KPI Metric Cards & Pricing Tables
+// Nexsas Bento Grid, KPI Metric Cards, Pricing Tables, Animated FAQ Accordion & Testimonial Showcase
 export * from './bento';

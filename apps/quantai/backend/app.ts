@@ -51,12 +51,17 @@ import projectMemoryRoutes from './routes/project-memory';
 import imageWizardRoutes from './routes/image-wizard';
 import mcpConnectorsRoutes from './routes/mcp-connectors';
 import engineRoutes from './routes/engine';
+import extractorRoutes from './routes/extractor';
 import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { FileLibraryService } from './services/file-library.service';
 import { ProjectContextService, projectContextService } from './services/project-context.service';
 import { ProjectMemoryService } from './services/project-memory.service';
 import { ImageWizardService } from './services/image-wizard.service';
 import { McpConnectorsService } from './services/mcp-connectors.service';
+import {
+  DocumentExtractorService,
+  documentExtractorService,
+} from './services/document-extractor.service';
 import { AIEngine } from './services/ai-engine';
 import { Orchestrator } from '@quant/agent-runtime';
 import { SwarmOrchestrator } from '@quant/agent-swarm';
@@ -131,6 +136,7 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('projectMemoryService', new ProjectMemoryService());
   app.decorate('imageWizardService', new ImageWizardService());
   app.decorate('mcpConnectorsService', new McpConnectorsService());
+  app.decorate('documentExtractorService', documentExtractorService);
 
   await app.register(chatRoutes, { prefix: '/chat' });
   await app.register(askRoutes);
@@ -184,6 +190,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(automationsRoutes, { prefix: '/automations' });
   await app.register(mcpRoutes, { prefix: '/mcp' });
   await app.register(engineRoutes, { prefix: '/api/ai' });
+  await app.register(extractorRoutes, { prefix: '/api/ai' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([
