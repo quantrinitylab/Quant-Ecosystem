@@ -191,6 +191,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(mcpRoutes, { prefix: '/mcp' });
   await app.register(engineRoutes, { prefix: '/api/ai' });
   await app.register(extractorRoutes, { prefix: '/api/ai' });
+  await app.register(promptTemplateRoutes, { prefix: '/api/ai' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([

@@ -1,6 +1,7 @@
 package com.quant.app
 
 import android.webkit.WebView
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
@@ -28,7 +29,7 @@ fun MainNavigation(
             onItemClick = { navKey -> backStack.add(navKey) },
             deepLinkUrl = deepLinkUrl,
             onWebViewAttached = onWebViewAttached,
-            modifier = Modifier.safeDrawingPadding().padding(16.dp)
+            modifier = Modifier.fillMaxSize()
           )
         }
       },

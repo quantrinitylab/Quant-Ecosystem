@@ -39,6 +39,7 @@ import ciHealingRoutes from './routes/ci-healing';
 import calendarRoutes from './routes/calendar';
 import driveRoutes from './routes/drive';
 import { driveSyncRoutes } from './routes/drive-sync';
+import { chunkedUploadRoutes } from './routes/chunked-upload';
 import aiComposeRoutes from './routes/ai-compose';
 import aiChatRoutes from './routes/ai-chat';
 import inboundWebhookRoutes from './routes/inbound-webhook';
@@ -353,6 +354,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(calendarRoutes);
   await app.register(driveRoutes);
   await app.register(driveSyncRoutes);
+  await app.register(chunkedUploadRoutes);
   await app.register(aiComposeRoutes, { prefix: '/ai' });
   await app.register(aiChatRoutes, { prefix: '/ai' });
   await app.register(aiRoutes, { prefix: '/emails' });

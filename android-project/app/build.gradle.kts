@@ -254,4 +254,8 @@ dependencies {
 
   // Chrome Custom Tabs for OAuth
   implementation("androidx.browser:browser:1.8.0")
+
+  // Native Pull to Refresh
+  implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 }
+
