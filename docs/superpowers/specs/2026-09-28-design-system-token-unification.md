@@ -144,7 +144,8 @@ each hand-writes `theme.extend`. 10 of the 14 app dirs have a `tailwind.config.t
   (`:6` comment, `:11`); `--quant-primary`/`--primary` then alias the indigo (`:15,:43`).
 - **quantgram** (`tailwind.config.ts:9-14`): fully hardcoded `neon.primary #a855f7` (purple),
   `accent #ec4899` (pink), `background #0F0F14`, `surface #1a1a24`. No variables at all. This
-  disagrees with **both** `apps.quantgram.color = #EC4899` (`apps.ts:78`) **and** the `neon` theme's
+  disagrees with **both** the `apps.ts:78` registry accent `#EC4899` (keyed `quantneon` today →
+  `quantgram` after the Wave-0 rename, §6.3) **and** the `neon` theme's
   `primary #00FF88` green (`themes.ts:66`).
 - **marketing** (`tailwind.config.ts:9-22`): GitHub-dark hardcoded — `background #0D1117`,
   `card-bg #161B22`, `border #30363D`, `accent-blue #58A6FF`, `accent-orange #FF8C42`,
@@ -372,9 +373,13 @@ This deletes the hand-written `colors` blocks and the inlined `emerald/indigo/am
 
 - `generateRootCss(appId)`: emits `:root { … }` with **primitive scales** (`--quant-primary-50..950`,
   `--quant-neutral-*`, semantic scales), typography, motion, radius, **and** the per-app layer
-  `--quant-app-color: <apps[appId].color>; --quant-app-hue: <apps[appId].hue>;`. Every color var holds a
-  **raw space-separated "R G B" channel triplet** (not a `#hex`/`rgb()` string) so the preset's
-  `rgb(var(--…) / <alpha-value>)` wrappers (§5) let Tailwind opacity utilities work. This replaces the
+  `--quant-app-color: <hexToTriplet(apps[appId].color)>; --quant-app-hue: <apps[appId].hue>;`. Every color
+  var holds a **raw space-separated "R G B" channel triplet** (not a `#hex`/`rgb()` string) so the preset's
+  `rgb(var(--…) / <alpha-value>)` wrappers (§5) let Tailwind opacity utilities work. Because
+  `apps[appId].color` is a `#hex` in `apps.ts` (e.g. `#EC4899`), `generateRootCss` **must** hex→triplet
+  convert it — the same conversion the primitive scales use — before emitting `--quant-app-color`, and
+  never pass the raw hex through: a raw hex makes the `rgb(var(--quant-app-color) / <alpha-value>)` wrapper
+  and the `bg-app`/`text-app` utilities emit invalid CSS. This replaces the
   three hand-maintained `--brand-primary/-hover/-accent/-app-color` lines each app currently copies
   (`quantchat/globals.css:7-12`, `quantai/globals.css:7-12`, `quantube/globals.css:7-12`).
 - `generateThemeCss()`: for **each of the 6 themes** emit `:root[data-theme="<name>"] { --quant-<slot>: <R G B>; }`
@@ -396,11 +401,19 @@ The static CSS file is safe (no user input) and cacheable; the existing "TRUST B
 
 ### 6.3 Per-app accent through tokens (not hardcode)
 
-`buildQuantPreset('quantgram')` + `generateRootCss('quantgram')` set `--quant-app-color: #EC4899`
-from `apps.ts:78`. quantgram's hardcoded `#a855f7/#ec4899` (`tailwind.config.ts:9-14`) is deleted; the
-app references `bg-app`/`text-app`. If the neon _theme_ is desired as the app's default look, the app
-ships `data-theme="neon"` (see §7) rather than hardcoding — resolving the current three-way
-disagreement between `apps.quantgram`, the `neon` theme, and the app config.
+`buildQuantPreset('quantgram')` + `generateRootCss('quantgram')` set `--quant-app-color: 236 72 153` —
+the "R G B" channel triplet for `#EC4899` at `apps.ts:78`, hex→triplet-converted per §6.1 (emitting the
+raw `#EC4899` would make the `rgb(var(--quant-app-color) / <alpha-value>)` wrapper and `bg-app`/`text-app`
+produce invalid CSS). **Ordering caveat:** both functions look the id up in `apps.ts` and **throw on an
+unknown id** (asserted by the brand unit test, §8), yet `apps.ts:78` still keys this app `quantneon` until
+the §2.6 reconciliation. So the three physically-renamed apps' registry keys
+(`quantneon→quantgram`, `quantsync→quantwave`, `quantedits→quantcooks`) are renamed **early, in Wave 0**
+as a cheap mechanical prerequisite — ahead of each app's Wave-3/4 `buildQuantPreset(newId)` call — while
+the full §2.6 reconciliation (the 16↔14 dir mismatch + dead entries) stays in Wave 6. quantgram's
+hardcoded `#a855f7/#ec4899` (`tailwind.config.ts:9-14`) is deleted; the app references `bg-app`/`text-app`.
+If the neon _theme_ is desired as the app's default look, the app ships `data-theme="neon"` (see §7) rather
+than hardcoding — resolving the current three-way disagreement between the `apps.ts:78` accent (keyed
+`quantneon` today → `quantgram` after the Wave-0 rename), the `neon` theme, and the app config.
 
 ---
 
@@ -539,15 +552,15 @@ color props, plus CSS via `stylelint`'s `color-no-hex` for `*.css`:
 Foundational steps ship the preset + tokens _with back-compat aliases_ so nothing breaks before apps
 migrate. Each app is a separate PR gated on `turbo run build typecheck lint test` + visual-regression.
 
-| Wave  | Work                                                                                                                                                                                                                                                                                    | Green-keeping guarantee                                                                                                                           |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0** | Add `@quant/brand/preset`, `generateRootCss`/`generateThemeCss` (`--quant-*`), **alias block** for `--brand-*`/`--primary`/`--color-*`. Add ESLint rule as `warn` everywhere. `stylelint` added.                                                                                        | Aliases mean existing hardcoded vars still resolve; rule is non-blocking. No behavior change.                                                     |
-| **1** | Migrate `shared-ui` primitives to role classes (Button, Badge, Card, Input, Toast, Modal, Shell/_, bento/_). Delete `themes/tokens.ts`, `theme/theme-tokens.ts`; demote `theme-engine.ts`. Flip `quant/no-raw-hex` to `error` for `shared-ui/src`.                                      | shared-ui compiled by every app; roles resolve via aliases even in un-migrated apps' vars. Visual-regression on a Storybook/host confirms parity. |
-| **2** | Extend `ThemeProvider` to 6 themes + single store; wire pre-hydration script; add `<ThemeSwitcher/>`.                                                                                                                                                                                   | Additive; default remains `system`→dark/light, so current look is unchanged until a user picks a new theme.                                       |
-| **3** | Pilot apps **quantchat, quantai** (highest drift): replace config with `presets:[buildQuantPreset(id)]`, `globals.css` → `@import` tokens, delete `BrandProvider`. Flip rule to `error` for these apps.                                                                                 | Two-app blast radius; visual-regression diff reviewed before merge.                                                                               |
-| **4** | Remaining Next apps in dependency order: `quantube, quantmax, quantmail, quantcooks, quantads, quanttrinity, quantwave, marketing, admin-enterprise`. One PR each; flip rule to `error` per app on merge. `marketing` (GitHub-dark) maps to `data-theme="dark"` + its own accent token. | Per-app isolation; a failing app blocks only its own PR.                                                                                          |
-| **5** | `quant-mobile`, `quant-desktop` (RN/Electron — no Tailwind config): consume `@quant/brand` tokens directly via a JS theme object exported from brand.                                                                                                                                   | Separate toolchain; not gated on the web preset.                                                                                                  |
-| **6** | Remove the alias block; reconcile `apps.ts` registry (§2.6); delete dead generators; `quant/no-raw-hex` = `error` repo-wide; CI blocks new hex.                                                                                                                                         | Only after all consumers migrated — verified by a repo-wide `rg` returning 0 outside brand token files.                                           |
+| Wave  | Work                                                                                                                                                                                                                                                                                                                                                                                                                                       | Green-keeping guarantee                                                                                                                           |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0** | Add `@quant/brand/preset`, `generateRootCss`/`generateThemeCss` (`--quant-*`), **alias block** for `--brand-*`/`--primary`/`--color-*`. Add ESLint rule as `warn` everywhere. `stylelint` added. Rename the 3 physically-renamed apps' `apps.ts` registry keys (`quantneon→quantgram`, `quantsync→quantwave`, `quantedits→quantcooks`) so later `buildQuantPreset(id)` calls resolve (§6.3); the full §2.6 reconciliation stays in Wave 6. | Aliases mean existing hardcoded vars still resolve; rule is non-blocking. No behavior change.                                                     |
+| **1** | Migrate `shared-ui` primitives to role classes (Button, Badge, Card, Input, Toast, Modal, Shell/_, bento/_). Delete `themes/tokens.ts`, `theme/theme-tokens.ts`; demote `theme-engine.ts`. Flip `quant/no-raw-hex` to `error` for `shared-ui/src`.                                                                                                                                                                                         | shared-ui compiled by every app; roles resolve via aliases even in un-migrated apps' vars. Visual-regression on a Storybook/host confirms parity. |
+| **2** | Extend `ThemeProvider` to 6 themes + single store; wire pre-hydration script; add `<ThemeSwitcher/>`.                                                                                                                                                                                                                                                                                                                                      | Additive; default remains `system`→dark/light, so current look is unchanged until a user picks a new theme.                                       |
+| **3** | Pilot apps **quantchat, quantai** (highest drift): replace config with `presets:[buildQuantPreset(id)]`, `globals.css` → `@import` tokens, delete `BrandProvider`. Flip rule to `error` for these apps.                                                                                                                                                                                                                                    | Two-app blast radius; visual-regression diff reviewed before merge.                                                                               |
+| **4** | Remaining Next apps in dependency order: `quantube, quantmax, quantmail, quantcooks, quantads, quanttrinity, quantwave, quantgram, marketing, admin-enterprise`. One PR each; flip rule to `error` per app on merge. `marketing` (GitHub-dark) maps to `data-theme="dark"` + its own accent token. Each renamed app relies on its Wave-0 `apps.ts` key rename (above) so `buildQuantPreset(id)` resolves.                                  | Per-app isolation; a failing app blocks only its own PR.                                                                                          |
+| **5** | `quant-mobile`, `quant-desktop` (RN/Electron — no Tailwind config): consume `@quant/brand` tokens directly via a JS theme object exported from brand.                                                                                                                                                                                                                                                                                      | Separate toolchain; not gated on the web preset.                                                                                                  |
+| **6** | Remove the alias block; reconcile `apps.ts` registry (§2.6); delete dead generators; `quant/no-raw-hex` = `error` repo-wide; CI blocks new hex.                                                                                                                                                                                                                                                                                            | Only after all consumers migrated — verified by a repo-wide `rg` returning 0 outside brand token files.                                           |
 
 Rollback: each wave is a revertable PR; the alias block (Waves 0–5) means reverting one app never
 breaks others.

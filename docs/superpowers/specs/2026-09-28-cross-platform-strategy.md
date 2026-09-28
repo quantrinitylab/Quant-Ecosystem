@@ -125,7 +125,11 @@ version bump + reinstall, not a rewrite, and it removes a skew that already exis
   **17 entries**: the 10 canonical post-rename ids (`quantmail`, `quantchat`, `quantwave`, `quantgram`,
   `quantcooks`, `quantads`, `quantube`, `quantmax`, `quantai`, `quanttrinity`) **plus 7 deprecated
   aliases** (`quantsync`, `quantneon`, `quantedits`, `quantdocs`, `quantdrive`, `quantcalendar`,
-  `quantmeet`) retained for back-compat with persisted rows/tokens (migration 0061). This is the id
+  `quantmeet`). These aliases are **type/API back-compat only**: the `QuantApp` union keeps accepting a
+  legacy id so old clients and already-issued tokens still typecheck and are accepted at the API
+  boundary. They are **not** retained in persisted data — migration 0061 **backfills** existing
+  `sourceApp`/`activeApp`/`appId`/`appSource` rows from alias → canonical, so the database converges on
+  the 10 canonical ids. This is the id
   set deep links, notifications (`Notification.sourceApp`), and the launcher must use — but consumers
   must **filter to the 10 canonical ids first** (via a `deprecated` flag or an explicit allowlist), so
   no surface ever renders or routes a legacy alias.
