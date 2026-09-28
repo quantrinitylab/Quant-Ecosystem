@@ -168,7 +168,8 @@ surfaceElevated, primary, primaryForeground, accent, accentForeground, border, m
 destructive, destructiveForeground, ring`): `dark:21`, `light:42`, `neon:60`, `bharat:78`,
   `highContrast:96`, `colorblindSafe:114`.
 - `apps.ts` — 16 `AppBrandConfig` entries (`id, name, color, hue, description, iconRef`), e.g.
-  quantchat `#10B981` (`:21`), quantai `#8B5CF6` (`:30`), quantgram `#EC4899` (`:75`).
+  quantchat `#10B981` (`:21`), quantai `#8B5CF6` (`:30`), `quantneon` `#EC4899` (`:75`) — the
+  entry the Wave-0 rename re-keys to `quantgram` (§6.3).
 - `tokens.ts` — generators: `generateBrandCSS()` → `--brand-*` shaded (`:16`); `generateAppCSS(id)` →
   `--app-color/name/hue` (`:106`); `generateThemeCSS(name)` → unprefixed `:root[data-theme]` (`:119`).
 - `index.ts` — exports all of the above (`:51-52`). Package is `@quant/brand`, `type: module`,
@@ -597,12 +598,12 @@ Assumes one engineer familiar with the monorepo; ranges account for review + vis
 | 1    | Codemod build + de-hardcode `shared-ui` (54 files, ~445 lines) + role mapping + VR baseline | 5–8 d    |
 | 2    | `ThemeProvider` 6-theme rework + single store + pre-hydration + `<ThemeSwitcher/>`          | 2–3 d    |
 | 3    | Pilot quantchat + quantai (config + globals + delete BrandProvider)                         | 2–3 d    |
-| 4    | 9 remaining web apps (~0.5–1 d each incl. VR review)                                        | 6–9 d    |
+| 4    | 10 remaining web apps (~0.5–1 d each incl. VR review)                                       | 6–10 d   |
 | 5    | quant-mobile + quant-desktop token bridge                                                   | 2–3 d    |
 | 6    | Remove aliases, registry reconcile, repo-wide `error`, dead-code deletion                   | 2–3 d    |
 | —    | Storybook/VR harness setup (parallelisable, front-loaded)                                   | 3–4 d    |
 
-**Total ≈ 5–7 engineer-weeks** (~25–37 working days), front-loaded on Waves 0–1 (the preset and the
+**Total ≈ 5–7 engineer-weeks** (~25–38 working days), front-loaded on Waves 0–1 (the preset and the
 `shared-ui` de-hardcode are the real work; per-app waves are largely mechanical once the codemod exists).
 
 ---
