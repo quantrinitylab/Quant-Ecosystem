@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useId } from 'react';
 
 export interface FaqItem {
