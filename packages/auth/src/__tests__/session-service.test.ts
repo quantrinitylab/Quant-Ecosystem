@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SessionService } from '../services/session-service';
 import type { AuthConfig, DeviceLoginInfo } from '../types';
+import { prisma } from '../lib/prisma';
 
 const TEST_CONFIG: AuthConfig = {
   jwtSecret: 'test-secret-key-for-unit-tests-minimum-length',
@@ -109,7 +110,10 @@ describe('SessionService', () => {
         app: 'quantmail',
       });
 
-      session.expiresAt = new Date(Date.now() - 1000);
+      await prisma.session.update({
+        where: { id: session.id },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
 
       const found = await service.getSession(session.id);
       expect(found).toBeNull();
@@ -161,7 +165,10 @@ describe('SessionService', () => {
         app: 'quantchat',
       });
 
-      s1.lastActivityAt = new Date(Date.now() + 10000);
+      await prisma.session.update({
+        where: { id: s1.id },
+        data: { lastActivityAt: new Date(Date.now() + 10000) },
+      });
 
       const sessions = await service.getUserSessions('user-1');
       expect(sessions[0]!.id).toBe(s1.id);
@@ -183,7 +190,8 @@ describe('SessionService', () => {
       await new Promise((r) => setTimeout(r, 10));
       await service.touchSession(session.id);
 
-      expect(session.lastActivityAt.getTime()).toBeGreaterThan(originalTime);
+      const touched = await service.getSession(session.id);
+      expect(touched!.lastActivityAt.getTime()).toBeGreaterThan(originalTime);
     });
 
     it('should not update inactive sessions', async () => {
@@ -195,10 +203,14 @@ describe('SessionService', () => {
         app: 'quantmail',
       });
 
-      session.isActive = false;
-      const timeBefore = session.lastActivityAt.getTime();
+      await prisma.session.updateMany({
+        where: { id: session.id },
+        data: { isActive: false },
+      });
+      const before = await prisma.session.findUnique({ where: { id: session.id } });
       await service.touchSession(session.id);
-      expect(session.lastActivityAt.getTime()).toBe(timeBefore);
+      const after = await prisma.session.findUnique({ where: { id: session.id } });
+      expect(after!.lastActivityAt).toEqual(before!.lastActivityAt);
     });
   });
 
@@ -214,7 +226,6 @@ describe('SessionService', () => {
 
       const result = await service.revokeSession(session.id);
       expect(result).toBe(true);
-      expect(session.isActive).toBe(false);
 
       const found = await service.getSession(session.id);
       expect(found).toBeNull();
@@ -456,8 +467,14 @@ describe('SessionService', () => {
         app: 'quantchat',
       });
 
-      s1.expiresAt = new Date(Date.now() - 1000);
-      s2.isActive = false;
+      await prisma.session.update({
+        where: { id: s1.id },
+        data: { expiresAt: new Date(Date.now() - 1000) },
+      });
+      await prisma.session.updateMany({
+        where: { id: s2.id },
+        data: { isActive: false },
+      });
 
       const cleaned = await service.cleanup();
       expect(cleaned).toBe(2);
@@ -493,6 +510,27 @@ describe('SessionService', () => {
 
       const active = await service.getUserSessions('user-1');
       expect(active.length).toBeLessThanOrEqual(10);
+    });
+  });
+
+  describe('persistence', () => {
+    it('persists sessions across SessionService instances (survives restart)', async () => {
+      const first = new SessionService(TEST_CONFIG);
+      const created = await first.createSession({
+        userId: 'user-persist',
+        tokenId: 'tok-p',
+        refreshTokenFamily: 'fam-p',
+        deviceInfo,
+        app: 'quantmail',
+      });
+
+      // A brand-new instance models a fresh process/instance reading the store.
+      const second = new SessionService(TEST_CONFIG);
+      const found = await second.getSession(created.id);
+      expect(found).not.toBeNull();
+      expect(found!.id).toBe(created.id);
+      expect(found!.userId).toBe('user-persist');
+      expect(await second.getUserSessions('user-persist')).toHaveLength(1);
     });
   });
 });

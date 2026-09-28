@@ -1,7 +1,8 @@
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 
 vi.mock('@prisma/client', () => {
   const store = new Map<string, any>();
+  const sessionStore = new Map<string, any>();
 
   const mockPrisma = {
     refreshToken: {
@@ -107,17 +108,82 @@ vi.mock('@prisma/client', () => {
       update: vi.fn().mockResolvedValue({ id: 'user-123' }),
       findMany: vi.fn().mockResolvedValue([]),
     },
-    session: {
-      findUnique: vi.fn().mockResolvedValue(null),
-      findFirst: vi.fn().mockResolvedValue(null),
-      findMany: vi.fn().mockResolvedValue([]),
-      create: vi.fn().mockImplementation((args: { data: any }) => Promise.resolve(args.data)),
-      update: vi.fn().mockResolvedValue({ id: 'sess-123' }),
-      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-      delete: vi.fn().mockResolvedValue(undefined),
-      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-      count: vi.fn().mockResolvedValue(0),
-    },
+    session: (() => {
+      const time = (x: any) => (x instanceof Date ? x.getTime() : x);
+      const matches = (rec: any, where: Record<string, any> = {}): boolean => {
+        for (const [key, cond] of Object.entries(where)) {
+          const val = rec[key];
+          if (cond !== null && typeof cond === 'object' && !(cond instanceof Date)) {
+            if ('gt' in cond && !(time(val) > time(cond.gt))) return false;
+            if ('gte' in cond && !(time(val) >= time(cond.gte))) return false;
+            if ('lt' in cond && !(time(val) < time(cond.lt))) return false;
+            if ('lte' in cond && !(time(val) <= time(cond.lte))) return false;
+            if ('not' in cond && val === cond.not) return false;
+          } else if (val !== cond) {
+            return false;
+          }
+        }
+        return true;
+      };
+      // Live references (for update/delete); readers get copies.
+      const live = (where?: Record<string, any>) =>
+        Array.from(sessionStore.values()).filter((r) => matches(r, where));
+      return {
+        create: vi.fn().mockImplementation((args: { data: any }) => {
+          sessionStore.set(args.data.id, { ...args.data });
+          return Promise.resolve({ ...sessionStore.get(args.data.id) });
+        }),
+        findUnique: vi
+          .fn()
+          .mockImplementation((args: { where: { id: string } }) =>
+            Promise.resolve(
+              sessionStore.has(args.where.id) ? { ...sessionStore.get(args.where.id) } : null,
+            ),
+          ),
+        findFirst: vi.fn().mockImplementation((args: { where?: any }) => {
+          const hit = live(args?.where)[0];
+          return Promise.resolve(hit ? { ...hit } : null);
+        }),
+        findMany: vi.fn().mockImplementation((args: { where?: any; orderBy?: any }) => {
+          let rows = live(args?.where);
+          if (args?.orderBy) {
+            const [field, dir] = Object.entries(args.orderBy)[0] as [string, 'asc' | 'desc'];
+            rows = [...rows].sort((a, b) =>
+              dir === 'desc' ? time(b[field]) - time(a[field]) : time(a[field]) - time(b[field]),
+            );
+          }
+          return Promise.resolve(rows.map((r) => ({ ...r })));
+        }),
+        update: vi.fn().mockImplementation((args: { where: { id: string }; data: any }) => {
+          const rec = sessionStore.get(args.where.id);
+          if (!rec) return Promise.reject(new Error('Record not found'));
+          Object.assign(rec, args.data);
+          return Promise.resolve({ ...rec });
+        }),
+        updateMany: vi.fn().mockImplementation((args: { where?: any; data: any }) => {
+          let count = 0;
+          for (const rec of live(args?.where)) {
+            Object.assign(rec, args.data);
+            count++;
+          }
+          return Promise.resolve({ count });
+        }),
+        delete: vi.fn().mockImplementation((args: { where: { id: string } }) => {
+          sessionStore.delete(args.where.id);
+          return Promise.resolve(undefined);
+        }),
+        deleteMany: vi.fn().mockImplementation((args: { where?: any }) => {
+          const victims = live(args?.where);
+          for (const rec of victims) sessionStore.delete(rec.id);
+          return Promise.resolve({ count: victims.length });
+        }),
+        count: vi
+          .fn()
+          .mockImplementation((args?: { where?: any }) =>
+            Promise.resolve(live(args?.where).length),
+          ),
+      };
+    })(),
     loginAttempt: {
       findFirst: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation((args: { data: any }) => Promise.resolve(args.data)),
@@ -138,4 +204,18 @@ vi.mock('@prisma/client', () => {
       return mockPrisma;
     }),
   };
+});
+
+// Clear the shared session store before every test so persisted-session state
+// never leaks between tests. `new PrismaClient()` returns the same closed-over
+// mock, so this drives the reset through the public mock API and touches no
+// other model's store.
+import { PrismaClient } from '@prisma/client';
+const __mockPrismaForReset = new PrismaClient();
+beforeEach(async () => {
+  await (
+    __mockPrismaForReset as unknown as {
+      session: { deleteMany(a: { where: Record<string, unknown> }): Promise<{ count: number }> };
+    }
+  ).session.deleteMany({ where: {} });
 });
