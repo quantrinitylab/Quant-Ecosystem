@@ -103,7 +103,10 @@ ALTER TABLE "sessions" ALTER COLUMN "token" DROP NOT NULL;
 ALTER TABLE "sessions" ADD COLUMN "tokenId" TEXT;
 ALTER TABLE "sessions" ADD COLUMN "refreshTokenFamily" TEXT;
 ALTER TABLE "sessions" ADD COLUMN "app" TEXT;
-ALTER TABLE "sessions" ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT true;
+-- New rows set isActive explicitly in createSession; the column DEFAULTs to false so that
+-- legacy pre-existing rows (which lack tokenId/refreshTokenFamily/app) are NOT treated as live
+-- sessions — otherwise getDeviceList would surface them and can throw on a missing userAgent.
+ALTER TABLE "sessions" ADD COLUMN "isActive" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "sessions" ADD COLUMN "lastActivityAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 -- CreateIndex
@@ -399,6 +402,15 @@ export class SessionService {
   }
 
   async createSession(options: CreateSessionOptions): Promise<AuthSession> {
+    // Enforce+insert must be atomic across instances: on a shared Postgres store two concurrent
+    // createSession calls can each read <10 active sessions and both insert, exceeding the max-10
+    // cap. Take a transaction-scoped advisory lock keyed on the user, then run enforceSessionLimit
+    // AND the INSERT inside that same transaction so the check and the insert cannot interleave:
+    //   await this.prisma.$transaction(async (tx) => {
+    //     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${options.userId}))`;
+    //     await this.enforceSessionLimit(options.userId, tx);
+    //     ... INSERT ...
+    //   });
     await this.enforceSessionLimit(options.userId);
     const now = new Date();
     const row: SessionRow = {

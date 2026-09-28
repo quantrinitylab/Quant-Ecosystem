@@ -15,8 +15,8 @@ Therefore this spec is framed as a **hardening / finish-line design**, not a gre
 
 Two nuances that change the risk picture:
 
-1. **QuantGit is a deliberate "breakout" module.** Unlike Mail/Drive/Calendar/Contacts (which mount the shared `AppShell`), `/quantgit` renders its own full-screen GitHub-dark chrome and its own bottom-nav dock with an explicit "Exit → `/`" button (`apps/quantmail/src/app/quantgit/page.tsx:1925`, `:2494-2560`). It is linked *from* the unified shell but does not live *inside* it.
-2. **The CI "theatre" is no longer theatre — but it is not wired either.** The old always-green CI stub is replaced by a real gVisor sandbox executor that *fails closed* when no isolated backend is configured (`services/ci-runner/src/executor.ts:41-58`, `gvisor-executor.ts:40-52`). It just isn't deployed/connected, so the product surface honestly shows "runner not connected" (`quantgit/page.tsx:2241`).
+1. **QuantGit is a deliberate "breakout" module.** Unlike Mail/Drive/Calendar/Contacts (which mount the shared `AppShell`), `/quantgit` renders its own full-screen GitHub-dark chrome and its own bottom-nav dock with an explicit "Exit → `/`" button (`apps/quantmail/src/app/quantgit/page.tsx:1925`, `:2494-2560`). It is linked _from_ the unified shell but does not live _inside_ it.
+2. **The CI "theatre" is no longer theatre — but it is not wired either.** The old always-green CI stub is replaced by a real gVisor sandbox executor that _fails closed_ when no isolated backend is configured (`services/ci-runner/src/executor.ts:41-58`, `gvisor-executor.ts:40-52`). It just isn't deployed/connected, so the product surface honestly shows "runner not connected" (`quantgit/page.tsx:2241`).
 
 ---
 
@@ -46,22 +46,22 @@ The Google-Workspace-style shell already exists as bespoke local components: `ap
 
 **QuantGit opts out on purpose.** `/quantgit` does **not** import `AppShell`; `apps/quantmail/src/app/quantgit/page.tsx:1924-1925` renders its own `<main class="h-dvh ... bg-[#0D1117]">` and its own bottom-nav dock (`:2494-2560`) with Quanty / Repos / Agent Lab / Exit. This is the correct call for an IDE-class surface, but it must be modeled explicitly in the navigation design (Section 3.2) rather than treated as an oversight.
 
-### 2.3 Registry renames — landed at the type level, folders lag
+### 2.3 Registry renames — landed at the type level and on disk
 
-`packages/common/src/types.ts:152-170` has the `QuantApp` union with the renames LANDED (quantwave/quantgram/quantcooks primary; quantsync/quantneon/quantedits/quantdocs/quantdrive/quantcalendar/quantmeet retained as deprecated aliases). `packages/common/src/constants.ts` still carries all 17 `QUANT_APPS` entries (10 primary + 7 legacy). The app *folders* `quantsync`/`quantneon`/`quantedits` are not yet renamed on disk, and two apps exist that the APP_MAP never approved: `admin-enterprise` and `quant-desktop`.
+`packages/common/src/types.ts:152-170` has the `QuantApp` union with the renames LANDED (quantwave/quantgram/quantcooks primary; quantsync/quantneon/quantedits/quantdocs/quantdrive/quantcalendar/quantmeet retained as deprecated aliases). `packages/common/src/constants.ts` still carries all 17 `QUANT_APPS` entries (10 primary + 7 legacy). The app _folders_ have now been renamed on disk (`quantsync`→`quantwave`, `quantneon`→`quantgram`, `quantedits`→`quantcooks`); two apps still exist that the APP_MAP never approved: `admin-enterprise` and `quant-desktop`.
 
 ### 2.4 Module-by-module: landed vs. gap
 
 The APP_MAP documented six gap clusters at planning time. Verified status today:
 
-| Module | APP_MAP "gap" | Verified status | Evidence |
-|---|---|---|---|
-| **Drive** | Missing `ai-organize`, `ai-extract-data`, `ai-search-content`, `ai-summarize-file`, `ai-duplicate`, `storage-quota` (unbounded uploads) | **CLOSED.** All six imported and wired. Quota is a real tiered service (FREE 15 GB via `DRIVE_QUOTA_BYTES`, STANDARD 100 GB, PREMIUM 2 TB) with reservations. | `backend/routes/drive.ts` imports (top of file); `backend/services/storage-quota.service.ts` `STORAGE_TIERS` |
-| **Calendar** | No calendar/alarm/booking/recurrence/availability service (only a route) | **CLOSED.** Route imports local `CalendarService`, `AlarmService`, `BookingLinkService`, `RecurringService`, `CalendarCallAlertService`. Two-writer conflict resolved (quantcalendar deleted → single writer). | `backend/routes/calendar.ts` imports; allowlist `routes-config.ts:59-83` |
-| **Documents** | Yjs collab / version / suggestions stack | **Largely CLOSED.** Real Yjs server (sync + awareness + compaction) backed by collab persistence; collab WS gateway with per-doc tenancy check. Docs live under Drive per rule 3. | `backend/services/yjs-server.ts`; `app.ts:216-323` `/collab/:docId` |
-| **Contacts** | (survivor, no gap) | Present; dual-mounted at `/contacts` and `/api/contacts`. | `app.ts:343-346` |
-| **Mail** | (flagship, no gap) | Present; emails/threads/labels/folders/filters/signatures/templates/vacation all registered. | `app.ts:335-366` |
-| **QuantGit** | CI/sandbox theatre; engine placement | **Partial** — see Section 5. Repo/PR/issue/branch/commit CRUD is real over `/api/repos/*`; sandbox executor now fails-closed real gVisor; CI runner not deployed. | `quantgit/page.tsx:491-923`; `services/ci-runner/*` |
+| Module        | APP_MAP "gap"                                                                                                                           | Verified status                                                                                                                                                                                                | Evidence                                                                                                     |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Drive**     | Missing `ai-organize`, `ai-extract-data`, `ai-search-content`, `ai-summarize-file`, `ai-duplicate`, `storage-quota` (unbounded uploads) | **CLOSED.** All six imported and wired. Quota is a real tiered service (FREE 15 GB via `DRIVE_QUOTA_BYTES`, STANDARD 100 GB, PREMIUM 2 TB) with reservations.                                                  | `backend/routes/drive.ts` imports (top of file); `backend/services/storage-quota.service.ts` `STORAGE_TIERS` |
+| **Calendar**  | No calendar/alarm/booking/recurrence/availability service (only a route)                                                                | **CLOSED.** Route imports local `CalendarService`, `AlarmService`, `BookingLinkService`, `RecurringService`, `CalendarCallAlertService`. Two-writer conflict resolved (quantcalendar deleted → single writer). | `backend/routes/calendar.ts` imports; allowlist `routes-config.ts:59-83`                                     |
+| **Documents** | Yjs collab / version / suggestions stack                                                                                                | **Largely CLOSED.** Real Yjs server (sync + awareness + compaction) backed by collab persistence; collab WS gateway with per-doc tenancy check. Docs live under Drive per rule 3.                              | `backend/services/yjs-server.ts`; `app.ts:216-323` `/collab/:docId`                                          |
+| **Contacts**  | (survivor, no gap)                                                                                                                      | Present; dual-mounted at `/contacts` and `/api/contacts`.                                                                                                                                                      | `app.ts:343-346`                                                                                             |
+| **Mail**      | (flagship, no gap)                                                                                                                      | Present; emails/threads/labels/folders/filters/signatures/templates/vacation all registered.                                                                                                                   | `app.ts:335-366`                                                                                             |
+| **QuantGit**  | CI/sandbox theatre; engine placement                                                                                                    | **Partial** — see Section 5. Repo/PR/issue/branch/commit CRUD is real over `/api/repos/*`; sandbox executor now fails-closed real gVisor; CI runner not deployed.                                              | `quantgit/page.tsx:491-923`; `services/ci-runner/*`                                                          |
 
 ### 2.5 CI / sandbox honesty check
 
@@ -70,7 +70,7 @@ The QUANTGIT_ARCHITECTURE doc listed CI as "theatre" (T1 always-green executor, 
 - **T1/T2/T3 are resolved in code.** `services/ci-runner/src/executor.ts:41-58` no longer returns green unconditionally — it delegates to `GVisorContainerExecutor` and, if no isolated backend is available, sets the job `failed` and throws `CIExecutorUnavailableError` (`:14-22`). The comment is explicit: "Never falls back to host execution" (`gvisor-executor.ts:50`). The gVisor executor is a real design: `runsc` syscall interception, cgroups (memory/cpu/pids to stop fork-bombs), fs isolation, process-group kill (`gvisor-executor.ts:40-58`). Sibling real modules exist: `network-sandbox.ts`, `log-streamer.ts`, `parser.ts`, `artifact-uploader.ts`, plus `gate5-verification` and `gvisor-executor` tests.
 - **T7 is still true.** The runner is a standalone microservice under `services/ci-runner/` and is **not** wired into the QuantMail backend, and the product surface honestly reflects this: the Actions tab is rendered with `runnerConnected={false}` (`quantgit/page.tsx:2241`), and the product `/ci` route only lists builds from the `CiRun` model, returning **empty lists** for workflows/deployments because "there is no workflow-definition or deployment model yet" (`backend/routes/ci.ts:1-10`).
 
-**Bottom line:** CI moved from *dishonest-green* to *honest-unavailable*. That is a real improvement and a safe base to wire up, but end-to-end CI is still non-functional in staging.
+**Bottom line:** CI moved from _dishonest-green_ to _honest-unavailable_. That is a real improvement and a safe base to wire up, but end-to-end CI is still non-functional in staging.
 
 ### 2.6 Dead code behind redirects
 
@@ -109,20 +109,20 @@ One origin, one JWT identity, one backend process. Everything below the proxy is
 **Two shell tiers, made explicit.**
 
 - **Tier 1 — Workspace shell (`AppShell` + `AppSidebar`).** Wraps Mail, Drive, Calendar, Contacts, and Documents (Docs open inside Drive at `/drive/doc/[docId]`). It owns: the module-switcher (desktop sidebar Workspace group + mobile bottom-nav 5 slots), the per-module logo/wordmark swap driven by `currentApp` (pathname-derived), the shared Quanty AI drawer, the context-aware FAB, and the storage-quota readout. **Target refinement:** hoist the per-page `AppShell` import into a **route-group layout** (`app/(workspace)/layout.tsx`) so the shell mounts once and survives cross-module navigation, instead of 30+ pages each importing it. This is the single highest-leverage structural cleanup.
-- **Tier 2 — Breakout modules (QuantGit today).** Full-viewport surfaces that render their own chrome and provide an explicit "Exit → `/`" affordance back to Tier 1. They are *entered from* the Tier-1 switcher but do not nest inside it. The contract: a breakout module MUST (a) accept the same JWT/session, (b) offer a labelled exit, and (c) keep the Quanty AI entry point available.
+- **Tier 2 — Breakout modules (QuantGit today).** Full-viewport surfaces that render their own chrome and provide an explicit "Exit → `/`" affordance back to Tier 1. They are _entered from_ the Tier-1 switcher but do not nest inside it. The contract: a breakout module MUST (a) accept the same JWT/session, (b) offer a labelled exit, and (c) keep the Quanty AI entry point available.
 
 **App-switcher UX.** Keep the current dual affordance: desktop = `AppSidebar` Workspace group; mobile = `MobileBottomNav` 5 slots (Mail `/`, Calendar, Drive, Contacts, QuantGit). Documents intentionally has **no** top-level nav slot — it is reached through Drive (matches APP_MAP rule 3). Recommended addition: a Google-style 3×3 "waffle" launcher in the top bar that lists all six modules with icon + label, so discoverability does not depend on knowing the sidebar groups. It should render the same `currentApp` metadata the shell already derives.
 
 ### 3.3 Routing map (canonical)
 
-| Module | Canonical route(s) | Notes |
-|---|---|---|
-| Mail | `/` and folder routes `/sent /drafts /trash /spam /archive /snoozed /starred /labels /search /thread/[id]` | Flagship; root is the inbox. |
-| Drive | `/drive`, `/drive/doc/[docId]` | Docs are a Drive sub-surface. |
-| Calendar | `/calendar`, `/calendar/booking/[slug]` (public) | Booking slug is a public path. |
-| Contacts | `/contacts` | Dual API mount `/contacts` + `/api/contacts`. |
-| Documents | (under Drive) `/drive/doc/[docId]` | No standalone nav entry. |
-| QuantGit | `/quantgit` (+ `/quantgit/repositories`, `/quantgit/agentlab`, `/quantgit/[owner]/[repo]/[[...rest]]`) | `/codehub` and `/repos` 308-redirect here. |
+| Module    | Canonical route(s)                                                                                         | Notes                                         |
+| --------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Mail      | `/` and folder routes `/sent /drafts /trash /spam /archive /snoozed /starred /labels /search /thread/[id]` | Flagship; root is the inbox.                  |
+| Drive     | `/drive`, `/drive/doc/[docId]`                                                                             | Docs are a Drive sub-surface.                 |
+| Calendar  | `/calendar`, `/calendar/booking/[slug]` (public)                                                           | Booking slug is a public path.                |
+| Contacts  | `/contacts`                                                                                                | Dual API mount `/contacts` + `/api/contacts`. |
+| Documents | (under Drive) `/drive/doc/[docId]`                                                                         | No standalone nav entry.                      |
+| QuantGit  | `/quantgit` (+ `/quantgit/repositories`, `/quantgit/agentlab`, `/quantgit/[owner]/[repo]/[[...rest]]`)     | `/codehub` and `/repos` 308-redirect here.    |
 
 **Rule:** `/quantgit` is the one canonical code surface. `/codehub` and `/repos` remain permanent redirects (`next.config.js:47-70`); their leftover page files are dead code slated for deletion.
 
@@ -247,9 +247,9 @@ The envelope shape `{ success, data, error:{ code, message } }` is consistent ac
 
 **Module surfaces.**
 
-- *Mail/Drive/Calendar/Contacts:* page-level route components that mount `AppShell` and render module content. Target: move the mount into a `(workspace)` route-group layout.
-- *Documents:* rendered inside Drive at `/drive/doc/[docId]`, wired to the collab WS.
-- *QuantGit:* a self-contained component tree — `QuantGitHeader`, `ReposDirectoryView`, the 14 tab components (`CodeTab`, `CommitsTab`, `BranchesTab`, `IssuesTab`, `PullRequestsTab`, `AgentsTab`/`CopilotFleetModeView`, `MCPRegistryTab`, `ActionsTab`, `NotificationsInbox`, `DiscussionsTab`, `ProjectsTab`, `SecurityTab`, `InsightsTab`, `SettingsTab`), `QuantyCopilotView`, `QuantGitModals`, `RepoImportModal`, and `AgentOfficeCanvas`. Route parsing is centralized in `lib/quantgit-route` (`navigateQuantGit`/`parseQuantGitRoute`/`subscribeToQuantGitRoute`).
+- _Mail/Drive/Calendar/Contacts:_ page-level route components that mount `AppShell` and render module content. Target: move the mount into a `(workspace)` route-group layout.
+- _Documents:_ rendered inside Drive at `/drive/doc/[docId]`, wired to the collab WS.
+- _QuantGit:_ a self-contained component tree — `QuantGitHeader`, `ReposDirectoryView`, the 14 tab components (`CodeTab`, `CommitsTab`, `BranchesTab`, `IssuesTab`, `PullRequestsTab`, `AgentsTab`/`CopilotFleetModeView`, `MCPRegistryTab`, `ActionsTab`, `NotificationsInbox`, `DiscussionsTab`, `ProjectsTab`, `SecurityTab`, `InsightsTab`, `SettingsTab`), `QuantyCopilotView`, `QuantGitModals`, `RepoImportModal`, and `AgentOfficeCanvas`. Route parsing is centralized in `lib/quantgit-route` (`navigateQuantGit`/`parseQuantGitRoute`/`subscribeToQuantGitRoute`).
 
 **Backend plugins.** One Fastify plugin per module in `backend/routes/*`, services in `backend/services/*`, shared error/env/auth helpers from `@quant/server-core`.
 
@@ -269,7 +269,7 @@ The envelope shape `{ success, data, error:{ code, message } }` is consistent ac
 ## 9. Security (cross-cutting)
 
 - **Single JWT, verified server-side**, forwarded by the proxy; issuer/audience sets are explicit in the collab verifier (`app.ts:269-277`). `JWT_SECRET` is mandatory in production (`app.ts:65-66`).
-- **`publicPaths` discipline:** exact paths or method-scoped rules only; the file already annotates *why* each entry is public and warns against blanket wildcards for data routes (`app.ts:78-152`). New modules follow this or they leak.
+- **`publicPaths` discipline:** exact paths or method-scoped rules only; the file already annotates _why_ each entry is public and warns against blanket wildcards for data routes (`app.ts:78-152`). New modules follow this or they leak.
 - **CSP / headers:** strict CSP with `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`, HSTS preload, `X-Frame-Options: DENY`, and `Permissions-Policy: camera=(), microphone=(self), geolocation=()` (`next.config.js:18-128`). Inbound mail HTML is DOMPurify-sanitized behind this CSP.
 - **Tenancy isolation:** enforced at the module layer (collab per-doc gate; DAV strict tenant boundary; repo ownership scoping in `ci.ts:57-60`). Cross-tenant reads must go through the owning service, never a direct table read.
 - **New network-exposed surfaces** (e.g. wiring the CI runner) MUST ship with auth from day one — the git-smart-http PAT model and the runner's fail-closed executor are the templates.
@@ -292,22 +292,27 @@ The envelope shape `{ success, data, error:{ code, message } }` is consistent ac
 The original W-A..W-I waves assumed a pending migration. Re-baselined against reality:
 
 **Phase 0 — Reconcile the plan with reality (docs/registry, no runtime risk).**
-- Mark APP_MAP waves W-A (Drive), W-B (Calendar), W-C (Documents), W-E (registry renames) as *landed* with the evidence in Section 2.
+
+- Mark APP_MAP waves W-A (Drive), W-B (Calendar), W-C (Documents), W-E (registry renames) as _landed_ with the evidence in Section 2.
 - Resolve the `EXECUTION_QUEUE.md` conflict (only `M11D-SHADOW-CANARY` is currently allowed active) with an owner-approved queue edit before starting any code wave. **This is a gating prerequisite.**
 
 **Phase 1 — Shell structural cleanup (low risk, high leverage).**
+
 - Introduce `app/(workspace)/layout.tsx` and move the per-page `AppShell` mount into it; delete 30+ redundant imports incrementally, one route at a time, keeping build green.
 - Add the waffle app-launcher to the top bar (pure additive UI).
 
 **Phase 2 — Dead-code & registry hygiene (low risk).**
+
 - Delete `codehub/page.tsx` and `repos/page.tsx` (dead behind 308s); keep the redirects.
 - Decide + act on the two unapproved apps (`admin-enterprise`, `quant-desktop`) — see Section 12.
-- Rename lagging app folders (`quantsync`→`quantwave`, `quantneon`→`quantgram`, `quantedits`→`quantcooks`) and, once no primary code references the legacy aliases, prune the legacy `QUANT_APPS`/`QuantApp` entries. Sweep stale `node_modules/.bin` in deleted app dirs.
+- The app folders are already renamed on disk; once no primary code references the deprecated aliases (gated on migration 0061 being fully applied everywhere), prune the legacy `QUANT_APPS`/`QuantApp` entries. Sweep stale `node_modules/.bin` in the old app dirs.
 
 **Phase 3 — Proxy/backend contract hardening (medium risk).**
+
 - Land the generated allowlist↔backend verb contract test (Section 10) and fix any drift it surfaces.
 
 **Phase 4 — QuantGit finish line (the real engineering).**
+
 - Wire the AI-plane dispatch (`onDispatchTask`) and badge seed data (5.5).
 - Stand up `services/ci-runner` on EC2 managed node groups; add workflow/deployment models; flip `runnerConnected` live; preserve fail-closed (5.4).
 - Back the remaining preview tabs (Projects/Discussions/MCP/Insights) or badge them until backed.
@@ -323,7 +328,7 @@ Each phase is independently shippable and leaves staging green; phases 1–3 car
 1. The APP_MAP roster is still the intended survivor set; `admin-enterprise` and `quant-desktop` are newer than the doc and their disposition is a genuine open question (fold into quanttrinity/native? keep as approved peers?). I assume they are legitimate but undocumented, not accidental.
 2. `quantmail.in` is the production origin (surface mints clone URLs against it); the design assumes single-origin deployment for the super-app.
 3. The QuantGit engine remains in quantai-backend (D1); this spec does not plan a move.
-4. Staging today is green with CI honestly *unavailable* rather than green-faked; "keep staging green" means keep it building and passing parity suites, not "make CI pass by faking it."
+4. Staging today is green with CI honestly _unavailable_ rather than green-faked; "keep staging green" means keep it building and passing parity suites, not "make CI pass by faking it."
 5. EC2 managed node groups (not Fargate) are acceptable infra for gVisor — inherited from QUANTGIT_ARCHITECTURE D3.
 6. The legacy `QuantApp` aliases still have external consumers (webhooks/notifications), so they are pruned only after a reference sweep, not immediately.
 
@@ -350,4 +355,4 @@ Each phase is independently shippable and leaves staging green; phases 1–3 car
 - Redirects/CSP: `apps/quantmail/next.config.js:47-70` (redirects), `:18-128` (CSP/headers/transpile).
 - Cross-app memory in Drive: `apps/quantmail/backend/routes/drive.ts` (`MEMORY_APP_LABELS`); `apps/quantmail/src/app/api/drive/memory/route.ts`; `apps/quantmail/src/app/api/drive/_lib/backend-url.ts`.
 
-*End of design spec.*
+_End of design spec._

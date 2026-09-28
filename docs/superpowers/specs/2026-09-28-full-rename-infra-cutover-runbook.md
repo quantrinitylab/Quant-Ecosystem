@@ -13,7 +13,7 @@ strings, all the way through to live staging infrastructure.
 
 ## What is ALREADY done (do not redo)
 
-The *logical* rebrand landed in an earlier wave ("Wave E"). Verified:
+The _logical_ rebrand landed in an earlier wave ("Wave E"). Verified:
 
 - **Package names** are already the product names: `apps/quantsync/package.json:2` =
   `@quant/quantwave`, `quantneon` = `@quant/quantgram`, `quantedits` = `@quant/quantcooks`.
@@ -47,6 +47,7 @@ Part B** (ops), because a name change is coupled to ECR-repo creation + fresh im
 digests and is not git-reversible.
 
 **On the branch (Part A, done):**
+
 - Folder moves `apps/quant{sync,neon,edits}` → `apps/quant{wave,gram,cooks}` (A1).
 - **Build paths only** in `deploy-staging.yml`: the `dockerfile=apps/<old>/…` paths were
   repointed to the new folders (A2), but the **target keys and their `repository` /
@@ -63,6 +64,7 @@ digests and is not git-reversible.
   cosmetic, order-insensitive under `--frozen-lockfile`).
 
 **Deferred to Part B (ops cutover, NOT on the branch):**
+
 - **A3** deploy-staging target/`repository`/`deployment`/`container` NAME renames — kept
   legacy so a `deploy-staging` dispatch still resolves to live resources.
 - **A4/A5** k8s manifests (`staging-remaining-apps.yaml` + the 3 `staging-*-backend.yaml`
@@ -77,9 +79,13 @@ on apply). Keeping names legacy on the branch decouples the Part-A merge from th
 change window. Post-edit grep (2026-09-28) confirms the legacy infra NAMES
 `quant-quant{sync,neon,edits}` are now confined to exactly: `deploy-staging.yml` (A3,
 intentional), the 4 k8s files (A4/A5, deferred), and this runbook — zero elsewhere. Legacy
-folder PATH strings `apps/quant{sync,neon,edits}` remain only in archived docs
-(`.agents/tasks/**`, `AGENT_*`/`*HANDOFF*`, `docs/REPO_INTEGRATION_AUDIT.md`,
-`LIFECYCLE_DIAGRAMS.md`, `mock-debt.csv`) + the deferred k8s file + this runbook.
+folder PATH strings `apps/quant{sync,neon,edits}` remain **only in historical/non-load-bearing
+files** (grep 2026-09-28, ~79 hits, list non-exhaustive): all of `.agents/**` (task manifests
+under `.agents/tasks/**`, `.agents/project-memory/APP_MAP_AND_DEDUPLICATION_DECISIONS.md`,
+`.agents/state/mock-debt.csv`), the root planning docs (`AGENT_MEMORY.md`, `TASK_PLANNER.md`,
+`AGENT-HANDOFF.md`), `scripts/task-w39-g05-explore.md`, `docs/REPO_INTEGRATION_AUDIT.md`,
+`docs/LIFECYCLE_DIAGRAMS.md`, the deferred k8s file (`infra/k8s/staging-remaining-apps.yaml`),
+and this runbook. No **load-bearing** code/config path string survives (see the Part A addendum).
 
 ## Part A — Branch-side changes (git-reversible; I execute these)
 
@@ -102,18 +108,26 @@ git mv apps/quantedits apps/quantcooks
 `Resolve approved target` maps each target → `dockerfile`. After the move these paths
 must point at the new folders or the `test -f "$dockerfile"` guard fails:
 
-- `apps/quantsync/Dockerfile`  → `apps/quantwave/Dockerfile`   (target `quantsync`, ~line 201)
-- `apps/quantneon/Dockerfile`  → `apps/quantgram/Dockerfile`   (target `quantneon`, ~line 225)
-- `apps/quantedits/Dockerfile` → `apps/quantcooks/Dockerfile`  (target `quantedits`, ~line 233)
+- `apps/quantsync/Dockerfile` → `apps/quantwave/Dockerfile` (target `quantsync`, ~line 201)
+- `apps/quantneon/Dockerfile` → `apps/quantgram/Dockerfile` (target `quantneon`, ~line 225)
+- `apps/quantedits/Dockerfile` → `apps/quantcooks/Dockerfile` (target `quantedits`, ~line 233)
 - backend variants (`*-backend` cases, ~lines 209/229/249) — same path swap.
 
 ### A3. Deploy targets + resource names — `deploy-staging.yml`
 
+> **DEFERRED to Part B — not executed in the Part-A cut.** The target keys and their resolved
+> `repository`/`deployment`/`container` names stay **legacy** on the branch, so a merged Part A
+> keeps `deploy-staging` resolving to the live legacy ECR repos / Deployments (which still exist
+> until Part B deletes them). Apply the renames below **only inside the Part-B change window**,
+> after the new ECR repos + images exist (Part B steps 1–2) — renaming a target to a repo with no
+> pushed image yields ImagePullBackOff on the next dispatch. Documented here (rather than in Part B)
+> to keep the full target-name mapping in one place.
+
 Rename target keys and their resolved `repository` / `deployment` / `container`:
 
-- `quantsync`  → `quantwave`  : repo `quant-quantsync`→`quant-quantwave`,
+- `quantsync` → `quantwave` : repo `quant-quantsync`→`quant-quantwave`,
   deploy `quant-quantsync`→`quant-quantwave`.
-- `quantneon`  → `quantgram`  : repo/deploy `quant-quantneon`→`quant-quantgram`.
+- `quantneon` → `quantgram` : repo/deploy `quant-quantneon`→`quant-quantgram`.
 - `quantedits` → `quantcooks` : repo/deploy `quant-quantedits`→`quant-quantcooks`.
 - `-backend` variants: `quant-quantsync-backend`→`quant-quantwave-backend`, etc.
 - Keep the OLD target keys as **hidden aliases** for one release if any runbook/PR
@@ -123,8 +137,8 @@ Rename target keys and their resolved `repository` / `deployment` / `container`:
 
 Rename Deployment/Service/label/selector names and ingress backends:
 
-- `quant-quantsync`  → `quant-quantwave`  (Deployment, Service, `app:` labels, ingress backend ~line 600)
-- `quant-quantneon`  → `quant-quantgram`  (…, ingress backend ~line 620)
+- `quant-quantsync` → `quant-quantwave` (Deployment, Service, `app:` labels, ingress backend ~line 600)
+- `quant-quantneon` → `quant-quantgram` (…, ingress backend ~line 620)
 - `quant-quantedits` → `quant-quantcooks` (…, ingress backend ~line 640)
 - **Image refs pin live digests** (`…/quant-quantsync@sha256:…`). These digests live in the
   OLD ECR repos. Do NOT flip the image line to a new repo until Part B has pushed images
@@ -133,8 +147,8 @@ Rename Deployment/Service/label/selector names and ingress backends:
 
 ### A5. Backend k8s manifests — rename the 3 files + their contents
 
-- `infra/k8s/staging-quantsync-backend.yaml`  → `staging-quantwave-backend.yaml`
-- `infra/k8s/staging-quantneon-backend.yaml`  → `staging-quantgram-backend.yaml`
+- `infra/k8s/staging-quantsync-backend.yaml` → `staging-quantwave-backend.yaml`
+- `infra/k8s/staging-quantneon-backend.yaml` → `staging-quantgram-backend.yaml`
 - `infra/k8s/staging-quantedits-backend.yaml` → `staging-quantcooks-backend.yaml`
 
 Inside each: Deployment/Service `quant-<x>-backend`, HPA/Ingress `quant-<x>-api-staging`,
@@ -167,7 +181,7 @@ repo or a k8s Deployment is not an in-place operation** — you create new, cut 
 delete old.
 
 > ⚠️ **ImagePullBackOff trap (already bitten once — see the header comment in
-> `staging-remaining-apps.yaml`):** the manifests pin image *digests* that exist only in
+> `staging-remaining-apps.yaml`):** the manifests pin image _digests_ that exist only in
 > the OLD repos. If you `kubectl apply` a manifest whose image line points at a NEW,
 > empty repo, every pod goes ImagePullBackOff. So: push images to the new repos FIRST,
 > capture the NEW digests, and only then apply manifests referencing them.
@@ -185,12 +199,20 @@ delete old.
 5. **Verify** rollout healthy (`kubectl rollout status`, pods Running, probes green).
 6. **Flip ingress** backends (A4) to the new Services; confirm the hostnames
    (`quantwave/quantgram/quantcooks.quantrinity.in`) serve from new pods.
-7. **Delete old** Deployments/Services (`quant-quantsync` etc.) once traffic is confirmed.
+7. **Repoint frontend proxies, then delete old.** Before removing anything, update the frontend
+   apps' backend-URL env **values** to the renamed backend Services — the env-var **keys** stay
+   legacy per A7 (e.g. `QUANTSYNC_BACKEND_URL`'s value flips `http://quant-quantsync-backend:3004`
+   → `http://quant-quantwave-backend:3004`) — and roll the frontend so nothing still resolves the
+   old Service DNS. Then **delete old** Deployments/Services (`quant-quantsync` etc.) once traffic
+   is confirmed off them.
 8. **Decommission old ECR repos** after a hold period.
 
-Roll the merge of Part A and the completion of Part B into one change window; do not merge
-Part A to `main` and leave Part B undone for long, or a `deploy-staging` dispatch could
-target renamed resources that don't exist yet.
+Because A3/A4/A5 keep the infra **names** legacy on the branch (those renames are deferred to
+Part B), a merged Part A still resolves `deploy-staging` and the k8s manifests to the live legacy
+resources — so **Part A is independently deployable and safe to merge on its own**. The
+single-change-window constraint applies to **Part B**: once you begin renaming targets/resources
+(A3 + steps 3–7), finish the cutover in one window, or a `deploy-staging` dispatch could target
+renamed resources that don't exist yet.
 
 ## Legacy-alias policy
 
@@ -214,8 +236,14 @@ coherent commit set to avoid a half-renamed tree.
 - `pnpm --filter @quant/server-core test` — `inventory.test.ts` still asserts
   ENGINE_INVENTORY length ≥ 68 / non-deferred ≥ 60 (rename ≠ remove; count must be
   unchanged).
-- Grep must return **zero** load-bearing hits for `apps/quantsync|apps/quantneon|apps/quantedits`
-  and `quant-quantsync|quant-quantneon|quant-quantedits` outside archived docs.
+- Grep for folder PATH strings `apps/quantsync|apps/quantneon|apps/quantedits` must return
+  **zero load-bearing hits** — remaining matches are only the historical/non-load-bearing files
+  enumerated above (`.agents/**`, root planning docs, `docs/REPO_INTEGRATION_AUDIT.md`,
+  `LIFECYCLE_DIAGRAMS.md`) plus the deferred k8s file and this runbook.
+- Grep for infra NAMES `quant-quantsync|quant-quantneon|quant-quantedits` will **not** be zero
+  after Part A — they legitimately remain **confined** to `deploy-staging.yml`, the 4 k8s files,
+  and this runbook until Part B renames them. Verify they are confined to exactly those files,
+  not absent.
 
 ## Rollback
 
@@ -235,7 +263,7 @@ same commit set (grep `apps/(quantsync|quantneon|quantedits)` restricted to code
   `apps/quantchat/backend/routes/federation.ts` reference `apps/quantneon`. Update.
 - **`scripts/inline-fetch-baseline.json`** and **`packages/testing/src/security/snyk.ts`** —
   app-path strings (baseline + scan targets). Update.
-- **Intra-folder self-references** — several files *inside* the moving folders embed their
+- **Intra-folder self-references** — several files _inside_ the moving folders embed their
   own path as a literal (e.g. `apps/quantneon/src/services/{sociogram-radar,api-client}.ts`,
   `src/features/*/types.ts`, `src/app/api/_lib/*-proxy.ts`, `backend/__tests__/…seam.test.ts`).
   They move with the folder but any literal `apps/quantneon` string inside needs the swap —
@@ -250,5 +278,3 @@ same commit set (grep `apps/(quantsync|quantneon|quantedits)` restricted to code
 **Execution readiness:** the above + A1–A8 is the full branch edit-set. It is gated only on
 the 3 still-running design agents (super-app, token-unification, cross-platform) finishing,
 since they read `apps/*` and `packages/brand`.
-
-

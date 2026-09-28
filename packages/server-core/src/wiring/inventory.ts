@@ -542,12 +542,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/ar-lenses',
     lane: 'per-app',
-    targets: ['quantneon', 'quantchat', 'quantmeet'],
+    targets: ['quantgram', 'quantchat', 'quantmeet'],
     stage: 3,
     dependsOn: [],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate. DoD-1 (wiring:dod) — imported by apps/quantgram ' +
+      'Task 12.3 quantgram DoD gate. DoD-1 (wiring:dod) — imported by apps/quantgram ' +
       '(backend/app.ts, backend/routes/ar-lenses.ts) AND declared in apps/quantgram ' +
       'dependencies ([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts ' +
       'traverses POST /ar-lenses/lenses/generate via buildApp() inject(): 401 (unauth), 403 ' +
@@ -557,22 +557,22 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
       '(src/features/ar-lenses/useArLenses.ts), forward asserted in ' +
       'src/__tests__/engine-proxy.forward.test.ts (method/body + Authorization + x-request-id ' +
       'minted-when-absent + status relayed). NOTE: ar-lenses also targets quantchat/quantmeet ' +
-      '(SHARED DECORATOR, design Open Question 2) — this row covers the engine and its quantneon ' +
+      '(SHARED DECORATOR, design Open Question 2) — this row covers the engine and its quantgram ' +
       'seam satisfies DoD now; the remaining app targets are tracked separately.',
   },
 
   // -------------------------------------------------------------------------
-  // Stage 4 — quantneon (federation, feeds, media)
+  // Stage 4 — quantgram (federation, feeds, media)
   // -------------------------------------------------------------------------
   {
     engine: '@quant/federation',
     lane: 'per-app',
-    targets: ['quantneon', 'quantchat', 'quantmail'],
+    targets: ['quantgram', 'quantchat', 'quantmail'],
     stage: 4,
     dependsOn: ['@quant/identity-permissions'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (SENSITIVE engine — scoped routes, Req 7.4). DoD-1 ' +
+      'Task 12.3 quantgram DoD gate (SENSITIVE engine — scoped routes, Req 7.4). DoD-1 ' +
       '(wiring:dod) — imported by apps/quantgram (backend/app.ts, backend/routes/federation.ts) ' +
       'AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts traverses POST /federation/instances/block ' +
@@ -586,7 +586,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/social-graph',
     lane: 'per-app',
-    targets: ['quantneon', 'quantchat'],
+    targets: ['quantgram', 'quantchat'],
     stage: 4,
     dependsOn: ['prisma'],
     status: 'deferred',
@@ -598,23 +598,23 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/search',
     lane: 'per-app',
-    targets: ['quantmail', 'quantneon', 'quantube'],
+    targets: ['quantmail', 'quantgram', 'quantube'],
     stage: 4,
     dependsOn: ['prisma'],
     status: 'deferred',
     reason:
       'Wave F consolidation: apps/admin was retired. Standalone search engine deferred ' +
-      'pending wiring into keeper apps (quantmail/quantneon/quantube).',
+      'pending wiring into keeper apps (quantmail/quantgram/quantube).',
   },
   {
     engine: '@quant/recommendations',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon', 'quantmax'],
+    targets: ['quantube', 'quantgram', 'quantmax'],
     stage: 4,
     dependsOn: ['prisma'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (feed stack, composed in backend/lib/feed-engines.ts; ' +
+      'Task 12.3 quantgram DoD gate (feed stack, composed in backend/lib/feed-engines.ts; ' +
       'recommendations -> ranking). DoD-1 (wiring:dod) — imported by apps/quantgram ' +
       '(backend/lib/feed-engines.ts; routes/feed.ts) AND declared in apps/quantgram dependencies ' +
       '([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts drives GET /feed ' +
@@ -628,12 +628,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/ranking',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon', 'quantmax'],
+    targets: ['quantube', 'quantgram', 'quantmax'],
     stage: 4,
     dependsOn: ['@quant/recommendations'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (feed stack; ranking consumes the recommendations retrieval ' +
+      'Task 12.3 quantgram DoD gate (feed stack; ranking consumes the recommendations retrieval ' +
       'order). DoD-1 (wiring:dod) — imported by apps/quantgram (backend/lib/feed-engines.ts, ' +
       'backend/routes/feed.ts) AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts: GET /feed returns the ranking ' +
@@ -646,12 +646,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/ml-pipeline',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon'],
+    targets: ['quantube', 'quantgram'],
     stage: 4,
     dependsOn: ['prisma'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (feed stack; model registry + InferenceEngine, wired AS-IS ' +
+      'Task 12.3 quantgram DoD gate (feed stack; model registry + InferenceEngine, wired AS-IS ' +
       'per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantgram (backend/lib/feed-engines.ts, ' +
       'backend/routes/feed.ts) AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts: POST /feed/score reaches the InferenceEngine ' +
@@ -663,12 +663,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/ml-runtime',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon'],
+    targets: ['quantube', 'quantgram'],
     stage: 4,
     dependsOn: ['@quant/ml-pipeline'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (feed stack; ModelLoader fed INTO ml-pipeline ' +
+      'Task 12.3 quantgram DoD gate (feed stack; ModelLoader fed INTO ml-pipeline ' +
       'InferenceEngine.setModelLoader — the genuine dependsOn edge). DoD-1 (wiring:dod) — ' +
       'imported by apps/quantgram (backend/lib/feed-engines.ts, backend/routes/feed.ts) AND ' +
       'declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
@@ -681,12 +681,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/triton-client',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon'],
+    targets: ['quantube', 'quantgram'],
     stage: 4,
     dependsOn: ['@quant/ml-runtime'],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate (feed stack; Triton model registry + fetch-based transport, ' +
+      'Task 12.3 quantgram DoD gate (feed stack; Triton model registry + fetch-based transport, ' +
       'wired AS-IS per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantgram ' +
       '(backend/lib/feed-engines.ts, backend/routes/feed.ts) AND declared in apps/quantgram ' +
       'dependencies ([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts: GET ' +
@@ -698,7 +698,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/media',
     lane: 'per-app',
-    targets: ['quantube', 'quantedits', 'quantneon'],
+    targets: ['quantube', 'quantcooks', 'quantgram'],
     stage: 4,
     dependsOn: [],
     status: 'done',
@@ -711,7 +711,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
       'proxies (src/app/api/media/** via _lib/engine-proxy.ts) + api-client hook ' +
       '(src/features/media/useMedia.ts), forward asserted in ' +
       'src/__tests__/engine-proxy.forward.test.ts (method/body + Authorization + x-request-id ' +
-      'minted-when-absent + status relayed). NOTE: media also targets quantedits/quantneon — ' +
+      'minted-when-absent + status relayed). NOTE: media also targets quantcooks/quantgram — ' +
       'its quantube seam satisfies DoD now; the remaining app targets are tracked separately.',
   },
 
@@ -721,7 +721,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/generative-media',
     lane: 'per-app',
-    targets: ['quantube', 'quantedits', 'quantneon'],
+    targets: ['quantube', 'quantcooks', 'quantgram'],
     stage: 5,
     dependsOn: ['@quant/media'],
     status: 'deferred',
@@ -733,7 +733,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/photos',
     lane: 'per-app',
-    targets: ['quantneon', 'quant-mobile'],
+    targets: ['quantgram', 'quant-mobile'],
     stage: 5,
     dependsOn: ['@quant/media'],
     status: 'deferred',
@@ -745,7 +745,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/cross-publish',
     lane: 'per-app',
-    targets: ['quantube', 'quantedits', 'quantneon'],
+    targets: ['quantube', 'quantcooks', 'quantgram'],
     stage: 5,
     dependsOn: ['@quant/media'],
     status: 'done',
@@ -759,12 +759,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
       '_lib/engine-proxy.ts) + api-client hook (src/features/cross-publish/useCrossPublish.ts), ' +
       'forward asserted in src/__tests__/engine-proxy.forward.test.ts. dependsOn @quant/media ' +
       '(decorated BEFORE cross-publish in buildApp(); done). NOTE: also targets ' +
-      'quantedits/quantneon — tracked separately.',
+      'quantcooks/quantgram — tracked separately.',
   },
   {
     engine: '@quant/quant-studio',
     lane: 'per-app',
-    targets: ['quantedits'],
+    targets: ['quantcooks'],
     stage: 5,
     dependsOn: ['@quant/media'],
     status: 'deferred',
@@ -804,7 +804,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/creator-economy',
     lane: 'per-app',
-    targets: ['quantube', 'quantneon'],
+    targets: ['quantube', 'quantgram'],
     stage: 5,
     dependsOn: ['@quant/payments'],
     status: 'done',
@@ -819,7 +819,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
       '(src/app/api/creator/**, src/app/api/payouts/** via _lib/engine-proxy.ts) + api-client ' +
       'hook (src/features/creator/useCreator.ts), forward asserted in ' +
       'src/__tests__/engine-proxy.forward.test.ts. dependsOn @quant/payments (done; payout rails ' +
-      'decorated AFTER payments in buildApp()). NOTE: also targets quantneon — tracked separately.',
+      'decorated AFTER payments in buildApp()). NOTE: also targets quantgram — tracked separately.',
   },
   {
     engine: '@quant/quant-commerce',
@@ -896,7 +896,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
   {
     engine: '@quant/cross-app-gaming',
     lane: 'per-app',
-    targets: ['quantneon'],
+    targets: ['quantgram'],
     stage: 5,
     dependsOn: [],
     status: 'deferred',

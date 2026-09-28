@@ -42,6 +42,7 @@ is not cosmetic — it is architectural (see Section 12, the one decision the ow
 - A4. "Google-class" = OIDC Authorization Code + PKCE with a central identity origin, not the
   current token-in-URL handoff.
 - A5. Existing Prisma user store in `@quant/auth` is the system of record for accounts.
+
 ## 3. Current-state assessment (verified against source)
 
 ### 3.1 There are THREE coexisting, contradictory client session models
@@ -78,6 +79,7 @@ shared bridge and QuantChat write.
   `/auth/logout` family revocation).
 - **None of the other apps drive these OAuth endpoints.** The `/sso` page does not run an
   OAuth authorize; it hands the raw token over the URL (Section 3.3).
+
 ### 3.3 What is ACTUALLY live cross-app: insecure token-in-URL + unsigned tickets
 
 - `UniversalSSOTokenBridge` is the live mechanism. It stores the token in localStorage
@@ -97,7 +99,7 @@ shared bridge and QuantChat write.
   localStorage keys and reuses it as the refresh token.
   Evidence: `apps/quantchat/src/lib/auth-session.ts:32-43` (`persistSession` → 5 keys),
   `apps/quantchat/src/providers/auth-gate.tsx:49` (`persistSession(resolvedToken, refreshToken
-  || resolvedToken)`).
+|| resolvedToken)`).
 
 Token-in-URL leaks via browser history, `Referer`, server/proxy logs, and shared links; the
 access token doubling as the refresh token defeats rotation entirely.
@@ -114,7 +116,7 @@ cookie `:35-47`, query `?token=` `:49-59` (and `optionalAuth` `:160-170`), issue
 (`packages/server-core/src/plugins/identity-permissions.ts:30-37`, depends on `auth` `:41`).
 
 Two consequences: (a) the server is the enabler of the URL-token handoff (it will accept it);
-(b) a single shared symmetric secret means any app that can *verify* can also *mint* — a
+(b) a single shared symmetric secret means any app that can _verify_ can also _mint_ — a
 compromise of one app compromises the identity of all. Target must move to asymmetric RS256 +
 JWKS (already half-present: `oauth.ts` issues RS256 `id_token` and serves `jwks.json`).
 
@@ -126,6 +128,7 @@ Evidence: `apps/quantmail/backend/lib/auth-session.ts` (`REFRESH_COOKIE_NAME 'qu
 `:16`, `REFRESH_COOKIE_PATH '/auth'` `:17`, options `httpOnly/secure/sameSite:'strict'/path`
 `:20-26`). Combined with the fact that there is no silent OAuth authorize, a login in one app
 simply does not exist in another — exactly the owner's complaint.
+
 ### 3.6 Identity data model that exists today
 
 - Prisma-backed OAuth entities in `@quant/auth` (`oAuthClient`, `authorizationCode`,
@@ -164,6 +167,7 @@ simply does not exist in another — exactly the owner's complaint.
    `✉` emoji) and `ConsentScreen` (unused by the raw-HTML `/oauth/authorize`).
 9. Each app still ships its own login page (quantchat, quantai, quantube, quantmax, quantneon,
    quantsync, quantads, quantmail) — no single sign-in surface.
+
 ## 4. Target architecture
 
 ### 4.1 Principles
@@ -207,13 +211,14 @@ Introduce a single sign-in origin, referred to here as the Quant Account origin:
   origin/path (the QuantMail pattern generalised), rotated with reuse detection
   (`token-service.ts:168-253`). The refresh cookie never leaves its app; the identity cookie
   never leaves the identity origin. These are different cookies with different jobs.
+
 ## 5. OIDC flows (the mechanics behind "Google-class")
 
 ### 5.1 First login (interactive Authorization Code + PKCE)
 
 1. App (e.g. `quantchat.quantrinity.in`) has no session → redirects to
    `https://id.quantrinity.in/authorize?client_id=quantchat&redirect_uri=...&response_type=code&
-   scope=openid profile email ...&state=<csrf>&code_challenge=<S256>&code_challenge_method=S256`.
+scope=openid profile email ...&state=<csrf>&code_challenge=<S256>&code_challenge_method=S256`.
 2. Identity origin has no identity cookie → renders the shared login UI, authenticates against
    the existing `/auth/login` (argon2, rate-limit, trusted-origin, 2FA branch already in
    `apps/quantmail/backend/routes/auth.ts`), sets the identity session cookie, then shows the
@@ -223,7 +228,11 @@ Introduce a single sign-in origin, referred to here as the Quant Account origin:
 4. App backend exchanges code + `code_verifier` at `/token` → receives access token (+ id_token)
    and sets its own HttpOnly refresh cookie. Access token stays in app memory.
 
-`state` is verified for CSRF; PKCE S256 is enforced (`validateCodeChallenge` in `@quant/auth`).
+`state` is verified for CSRF. **PKCE is mandatory and S256-only:** `/authorize` requires a
+`code_challenge` with `code_challenge_method=S256` and **rejects** any request that omits the
+challenge or sends `code_challenge_method=plain` (`validateCodeChallenge` in `@quant/auth`). The
+discovery document advertises `"code_challenge_methods_supported": ["S256"]` only (never `plain`),
+so `plain` is not negotiable for public or confidential clients (see §13).
 
 ### 5.2 Silent SSO (the "already signed in everywhere" property)
 
@@ -265,9 +274,11 @@ replay of an old refresh revokes the entire family. Access tokens are re-minted 
   logout notifies each app origin.
 - Device/session list: backed by the persisted session store (`Session.deviceInfo` already
   modelled, `packages/common/src/types.ts:36-54`) — "signed in on N devices", revoke one.
+
 ## 8. Component list (reuse first; build only the gaps)
 
 Reuse as-is (or lightly):
+
 - `apps/quantmail/backend/routes/oauth.ts` — the OAuth/OIDC engine. Keep; move behind the
   identity origin.
 - `apps/quantmail/backend/routes/auth.ts` + `lib/auth-session.ts` — credential login, 2FA,
@@ -279,9 +290,10 @@ Reuse as-is (or lightly):
 - `packages/shared-ui` `LoginPage` + `ConsentScreen` — adopt as the identity-origin UI after
   fixing brand-token theming and the broken emoji.
 - `packages/brand` — `generateThemeCSS` and the 6 themes `dark/light/neon/bharat/highContrast/
-  colorblindSafe` (`packages/brand/src/index.ts:52`) become the token source for all auth UI.
+colorblindSafe` (`packages/brand/src/index.ts:52`) become the token source for all auth UI.
 
 Build (the gaps):
+
 - Identity origin app/route surface at `id.quantrinity.in` (host + routing; can start as a thin
   Next.js surface in front of the existing backend).
 - `prompt=none` silent-authorize handling on `/authorize` and a client-side silent-auth helper
@@ -294,6 +306,7 @@ Build (the gaps):
   localStorage-clear (`UniversalSSOTokenBridge.ts:579-614`).
 
 Retire (after migration):
+
 - Token-in-URL handoff and unsigned tickets (`UniversalSSOTokenBridge` handoff path,
   `sso/page.tsx` URL params), localStorage token persistence, the `?token=` query acceptance in
   `packages/server-core/src/plugins/auth.ts:49-59`, and the divergent in-memory
@@ -302,6 +315,7 @@ Retire (after migration):
 ## 9. How each app delegates auth to the root
 
 Every app follows one contract (via the shared OIDC client helper):
+
 1. On load, try silent-authorize (`prompt=none`) against `id.quantrinity.in`.
 2. On `login_required`, redirect (or show a button) to interactive `/authorize`.
 3. Exchange code at the app's backend; set the app's own HttpOnly refresh cookie; keep the
@@ -310,6 +324,7 @@ Every app follows one contract (via the shared OIDC client helper):
    `hooks/useAuth.ts:55-60`, `:222`).
 
 Per-app notes (from `CORE_QUANT_APPS`, `interconnection/constants.ts:10-159`):
+
 - QuantMail (`quantmail.in`) — hosts/So is adjacent to the identity origin; becomes just another
   OIDC client of `id.quantrinity.in` (ADR-004 removes its special status). Its existing secure
   provider is the reference implementation to generalise.
@@ -321,6 +336,7 @@ Per-app notes (from `CORE_QUANT_APPS`, `interconnection/constants.ts:10-159`):
 - Cross-registrable-domain reality: because `quantmail.in` and `quant.network` are NOT
   `*.quantrinity.in`, they cannot share a `.quantrinity.in` cookie — they MUST use silent
   authorize (Section 12).
+
 ## 10. UI/UX (on @quant/shared-ui + @quant/brand tokens)
 
 All auth surfaces live at the identity origin and are themed by brand tokens (not hardcoded
@@ -343,6 +359,7 @@ All three inherit the 6 themes and pass the existing contrast checks (`packages/
 ## 11. Data flow (end to end)
 
 First interactive login (app has nothing):
+
 ```
 app → 302 /authorize(PKCE,state) → id.quantrinity.in
    no identity cookie → LoginPage → /auth/login (argon2, 2FA?) → set identity cookie
@@ -352,6 +369,7 @@ app → access token in memory → GET /api/auth/userinfo (verify) → render
 ```
 
 Silent SSO (second app, identity cookie already set):
+
 ```
 app2 (hidden iframe) → /authorize?prompt=none → id.quantrinity.in
    identity cookie present → 302 code (no UI) → postMessage code to app2
@@ -360,11 +378,13 @@ app2 backend → /token → signed in, zero clicks
 ```
 
 Account switch:
+
 ```
 chooser → /authorize?prompt=select_account (or login_hint=<sub>) → code for chosen identity
 ```
 
 Global logout:
+
 ```
 any app → id.quantrinity.in/logout → destroy identity session
    → revoke all per-app refresh families (propagateLogout)
@@ -372,10 +392,12 @@ any app → id.quantrinity.in/logout → destroy identity session
 ```
 
 Refresh rotation (per app, ongoing):
+
 ```
 ~12 min timer OR 401 → app backend /auth/refresh (cookie) → new access (+rotated refresh)
    replay of old refresh → whole family revoked (reuse detection)
 ```
+
 ## 12. THE decision the owner must make (session topology)
 
 How does "signed in everywhere" physically work? Two options; they are mutually exclusive as the
@@ -425,6 +447,7 @@ ratification before build starts.
   (`interconnection/constants.ts:179`); never `*`.
 - Open redirect: keep `safeReturnPath` allowlist (`apps/quantmail/src/lib/safe-return-path.ts`)
   on every `redirect_uri`/`returnTo`.
+
 ## 14. Error handling
 
 - Silent auth `login_required`: no loop — surface a sign-in button; never auto-redirect more
@@ -463,6 +486,7 @@ ratification before build starts.
   rejected.
 - Migration safety: run legacy handoff and new OIDC side by side behind a flag; snapshot that
   live staging keeps working at each phase boundary.
+
 ## 16. Migration path (non-breaking on live staging)
 
 The two systems (legacy handoff, new OIDC) run in parallel behind a feature flag; apps flip one
