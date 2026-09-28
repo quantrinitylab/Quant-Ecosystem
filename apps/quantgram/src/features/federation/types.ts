@@ -1,10 +1,10 @@
 // ============================================================================
-// quantneon — federation surface DTOs (Layer 5 request/response contracts)
+// quantgram — federation surface DTOs (Layer 5 request/response contracts)
 // ============================================================================
 //
 // Frontend-facing data shapes for the federation api-client hooks. These mirror
-// the JSON the quantneon backend federation routes return (see
-// apps/quantneon/backend/routes/federation.ts) and are intentionally decoupled
+// the JSON the quantgram backend federation routes return (see
+// apps/quantgram/backend/routes/federation.ts) and are intentionally decoupled
 // from the `@quant/federation` engine's internal types so a backend refactor
 // never forces a frontend type change. Every hook is typed against the
 // `{ success, data }` envelope via `APIResponse<T>` from the SDK.

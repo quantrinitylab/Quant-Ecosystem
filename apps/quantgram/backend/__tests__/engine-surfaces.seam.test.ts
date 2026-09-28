@@ -1,10 +1,10 @@
 // @vitest-environment node
 // ============================================================================
-// quantneon — Stage-4 engine seam tests (Task 12.3 / DoD-2 & DoD-4)
+// quantgram — Stage-4 engine seam tests (Task 12.3 / DoD-2 & DoD-4)
 // ============================================================================
 //
 // Traverses the real integration seam for the Stage-4 engines wired into
-// quantneon in Tasks 12.1 / 12.2, using Fastify `inject()` against the app's
+// quantgram in Tasks 12.1 / 12.2, using Fastify `inject()` against the app's
 // REAL `buildApp()`. No network, no mocked server-core: the global auth hook
 // from `createApp()` and the decorated engines are exercised exactly as in
 // production. The engines under test are:
@@ -18,11 +18,11 @@
 //     into `fastify.feed` (see backend/lib/feed-engines.ts), routes under `/feed`.
 //
 // Unlike the quantai harness (whose `buildApp()` has phantom-package import
-// breakage and forces a `createApp()` replication), quantneon's `buildApp()`
+// breakage and forces a `createApp()` replication), quantgram's `buildApp()`
 // loads cleanly — every `@quant/*` it imports (ar-lenses, federation,
 // recommendations, ranking, ml-pipeline, ml-runtime, triton-client, api-client,
 // server-core, …) is a real workspace package declared in
-// apps/quantneon/package.json — so this test builds the app via its OWN
+// apps/quantgram/package.json — so this test builds the app via its OWN
 // `buildApp()` and does NOT replicate the wiring. Confirmed by the `buildApp
 // loads` assertion below (mirrors the quantmeet template).
 //
@@ -42,7 +42,7 @@
 // PUBLIC_PATHS prefix-collision check (the `/live`-style bug observed in
 // quantmeet): createApp()'s allowlist is
 //   ['/health','/healthz','/ready','/readyz','/live','/livez','/metrics']
-// matched as `path === p || path.startsWith(p + '/')`. quantneon's route
+// matched as `path === p || path.startsWith(p + '/')`. quantgram's route
 // prefixes are `/ar-lenses`, `/federation`, `/feed`, `/posts`, `/ai` — NONE of
 // which equal or are prefixed by an allowlist entry (in particular `/feed` does
 // NOT collide with anything, and there is no `/live*` prefix here). To PROVE no
@@ -96,7 +96,7 @@ function signToken(scopes: string[], sub = 'user-123'): string {
       username: 'neonuser',
       role: 'user',
       scopes,
-      app: 'quantneon',
+      app: 'quantgram',
     }),
   );
   const signature = base64url(
@@ -120,7 +120,7 @@ afterAll(async () => {
 // Harness sanity: confirm the app builds via its own buildApp() (no
 // phantom-package breakage) and the Stage-4 engines are decorated.
 // ===========================================================================
-describe('quantneon buildApp() seam harness', () => {
+describe('quantgram buildApp() seam harness', () => {
   it('buildApp loads and decorates the Stage-4 engines', () => {
     expect(app).toBeTruthy();
     expect(app.arLenses).toBeTruthy();

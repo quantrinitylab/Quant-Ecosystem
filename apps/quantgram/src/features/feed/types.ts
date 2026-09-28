@@ -1,10 +1,10 @@
 // ============================================================================
-// quantneon — feed surface DTOs (Layer 5 request/response contracts)
+// quantgram — feed surface DTOs (Layer 5 request/response contracts)
 // ============================================================================
 //
 // Frontend-facing data shapes for the feed api-client hooks. These mirror the
-// JSON the quantneon backend feed routes return (see
-// apps/quantneon/backend/routes/feed.ts) — which compose the five real feed
+// JSON the quantgram backend feed routes return (see
+// apps/quantgram/backend/routes/feed.ts) — which compose the five real feed
 // engines (recommendations → ranking → ml-pipeline → ml-runtime →
 // triton-client). They are intentionally decoupled from the engines' internal
 // types so a backend refactor never forces a frontend type change. Every hook

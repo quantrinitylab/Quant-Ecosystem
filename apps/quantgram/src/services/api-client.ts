@@ -1,10 +1,10 @@
 // ============================================================================
-// QuantNeon - Frontend API Client
+// QuantGram - Frontend API Client
 // ============================================================================
 
 import type { Post, Reel, Story, Profile, Game, Product, ARFilter, Comment } from '../types';
 
-/** Mirrors the backend DmService shapes (apps/quantneon/backend/services/dm.service.ts). */
+/** Mirrors the backend DmService shapes (apps/quantgram/backend/services/dm.service.ts). */
 export interface DmParticipant {
   id: string;
   username: string;
@@ -43,7 +43,7 @@ interface RequestOptions {
   params?: Record<string, string>;
 }
 
-class QuantNeonApiClient {
+class QuantGramApiClient {
   private baseUrl: string;
   private token: string | null = null;
 
@@ -300,5 +300,5 @@ class QuantNeonApiClient {
   }
 }
 
-export const apiClient = new QuantNeonApiClient();
-export default QuantNeonApiClient;
+export const apiClient = new QuantGramApiClient();
+export default QuantGramApiClient;

@@ -426,7 +426,7 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       "Task 15.1 reconciliation. Beyond the design's authoritative agent set, but DoD-1 " +
-      '[DONE] via wiring:dod — 21 non-test importers across apps/quantneon, apps/quantsync, ' +
+      '[DONE] via wiring:dod — 21 non-test importers across apps/quantgram, apps/quantwave, ' +
       'apps/quanttube + packages/shared-ui + declared dependency. Marked done on real ' +
       'importer evidence per Req 5.1.',
   },
@@ -547,8 +547,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     dependsOn: [],
     status: 'done',
     reason:
-      'Task 12.3 quantneon DoD gate. DoD-1 (wiring:dod) — imported by apps/quantneon ' +
-      '(backend/app.ts, backend/routes/ar-lenses.ts) AND declared in apps/quantneon ' +
+      'Task 12.3 quantneon DoD gate. DoD-1 (wiring:dod) — imported by apps/quantgram ' +
+      '(backend/app.ts, backend/routes/ar-lenses.ts) AND declared in apps/quantgram ' +
       'dependencies ([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts ' +
       'traverses POST /ar-lenses/lenses/generate via buildApp() inject(): 401 (unauth), 403 ' +
       '(missing ar-lenses:write), 201 (authed, PromptToLens reached), plus GET ' +
@@ -573,8 +573,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       'Task 12.3 quantneon DoD gate (SENSITIVE engine — scoped routes, Req 7.4). DoD-1 ' +
-      '(wiring:dod) — imported by apps/quantneon (backend/app.ts, backend/routes/federation.ts) ' +
-      'AND declared in apps/quantneon dependencies ([DONE]). DoD-2/4 — ' +
+      '(wiring:dod) — imported by apps/quantgram (backend/app.ts, backend/routes/federation.ts) ' +
+      'AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts traverses POST /federation/instances/block ' +
       'via buildApp() inject(): 401 (unauth), 403 (missing federation:write), 201 (authed, ' +
       'FederationModeration reached), plus the read GET /federation/instances/:domain 401/403/200 ' +
@@ -615,8 +615,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       'Task 12.3 quantneon DoD gate (feed stack, composed in backend/lib/feed-engines.ts; ' +
-      'recommendations -> ranking). DoD-1 (wiring:dod) — imported by apps/quantneon ' +
-      '(backend/lib/feed-engines.ts; routes/feed.ts) AND declared in apps/quantneon dependencies ' +
+      'recommendations -> ranking). DoD-1 (wiring:dod) — imported by apps/quantgram ' +
+      '(backend/lib/feed-engines.ts; routes/feed.ts) AND declared in apps/quantgram dependencies ' +
       '([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts drives GET /feed ' +
       '(composed recommendations -> ranking, authed 200 with retrievalCount > 0) and GET ' +
       '/feed/recommendations (RecommendationPipeline reached), all unauth -> 401. DoD-3 — Next ' +
@@ -634,8 +634,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       'Task 12.3 quantneon DoD gate (feed stack; ranking consumes the recommendations retrieval ' +
-      'order). DoD-1 (wiring:dod) — imported by apps/quantneon (backend/lib/feed-engines.ts, ' +
-      'backend/routes/feed.ts) AND declared in apps/quantneon dependencies ([DONE]). DoD-2/4 — ' +
+      'order). DoD-1 (wiring:dod) — imported by apps/quantgram (backend/lib/feed-engines.ts, ' +
+      'backend/routes/feed.ts) AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts: GET /feed returns the ranking ' +
       'algorithmUsed + paginated items (engine reached), PUT /feed/algorithm + POST ' +
       '/feed/candidates gated by feed:write (401/403/2xx). DoD-3 — Next proxies ' +
@@ -652,8 +652,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       'Task 12.3 quantneon DoD gate (feed stack; model registry + InferenceEngine, wired AS-IS ' +
-      'per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantneon (backend/lib/feed-engines.ts, ' +
-      'backend/routes/feed.ts) AND declared in apps/quantneon dependencies ([DONE]). DoD-2/4 — ' +
+      'per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantgram (backend/lib/feed-engines.ts, ' +
+      'backend/routes/feed.ts) AND declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts: POST /feed/score reaches the InferenceEngine ' +
       'forward pass (feed:write 401/403/200, result returned), GET /feed/models read surface. ' +
       'DoD-3 — Next proxies (src/app/api/feed/score, /feed/models) + api-client hook ' +
@@ -670,8 +670,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     reason:
       'Task 12.3 quantneon DoD gate (feed stack; ModelLoader fed INTO ml-pipeline ' +
       'InferenceEngine.setModelLoader — the genuine dependsOn edge). DoD-1 (wiring:dod) — ' +
-      'imported by apps/quantneon (backend/lib/feed-engines.ts, backend/routes/feed.ts) AND ' +
-      'declared in apps/quantneon dependencies ([DONE]). DoD-2/4 — ' +
+      'imported by apps/quantgram (backend/lib/feed-engines.ts, backend/routes/feed.ts) AND ' +
+      'declared in apps/quantgram dependencies ([DONE]). DoD-2/4 — ' +
       'backend/__tests__/engine-surfaces.seam.test.ts: GET /feed/runtime/cache (ModelLoader cache ' +
       'stats reached, authed 200) + GET /feed/runtime/models, all unauth -> 401. DoD-3 — Next ' +
       'proxies (src/app/api/feed/runtime/**) + api-client hook (src/features/feed/useFeed.ts), ' +
@@ -687,8 +687,8 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     status: 'done',
     reason:
       'Task 12.3 quantneon DoD gate (feed stack; Triton model registry + fetch-based transport, ' +
-      'wired AS-IS per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantneon ' +
-      '(backend/lib/feed-engines.ts, backend/routes/feed.ts) AND declared in apps/quantneon ' +
+      'wired AS-IS per Req 9.1). DoD-1 (wiring:dod) — imported by apps/quantgram ' +
+      '(backend/lib/feed-engines.ts, backend/routes/feed.ts) AND declared in apps/quantgram ' +
       'dependencies ([DONE]). DoD-2/4 — backend/__tests__/engine-surfaces.seam.test.ts: GET ' +
       '/feed/triton/models (registry reached, authed 200) + POST /feed/triton/models gated by ' +
       'feed:write, all unauth -> 401. DoD-3 — Next proxies (src/app/api/feed/triton/models) + ' +

@@ -198,7 +198,7 @@ jobs:
             # product names; see infra/k8s/staging-remaining-apps.yaml for the
             # directory-to-host mapping.
             quantsync)
-              repository=quant-quantsync; dockerfile=apps/quantsync/Dockerfile
+              repository=quant-quantsync; dockerfile=apps/quantwave/Dockerfile
               deployment=quant-quantsync; container=quant-quantsync
               needs_cloudflare=false ;;
             quantmax)
@@ -206,7 +206,7 @@ jobs:
               deployment=quant-quantmax; container=quant-quantmax
               needs_cloudflare=false ;;
             quantneon)
-              repository=quant-quantneon; dockerfile=apps/quantneon/Dockerfile
+              repository=quant-quantneon; dockerfile=apps/quantgram/Dockerfile
               deployment=quant-quantneon; container=quant-quantneon
               needs_cloudflare=false ;;
             quantube)
@@ -222,15 +222,15 @@ jobs:
               deployment=quant-quantmax-backend; container=quantmax-backend
               needs_cloudflare=true ;;
             quantneon-backend)
-              repository=quant-quantneon-backend; dockerfile=apps/quantneon/Dockerfile.backend
+              repository=quant-quantneon-backend; dockerfile=apps/quantgram/Dockerfile.backend
               deployment=quant-quantneon-backend; container=quantneon-backend
               needs_cloudflare=true ;;
             quantsync-backend)
-              repository=quant-quantsync-backend; dockerfile=apps/quantsync/Dockerfile.backend
+              repository=quant-quantsync-backend; dockerfile=apps/quantwave/Dockerfile.backend
               deployment=quant-quantsync-backend; container=quantsync-backend
               needs_cloudflare=true ;;
             quantedits-backend)
-              repository=quant-quantedits-backend; dockerfile=apps/quantedits/Dockerfile.backend
+              repository=quant-quantedits-backend; dockerfile=apps/quantcooks/Dockerfile.backend
               deployment=quant-quantedits-backend; container=quantedits-backend
               needs_cloudflare=true ;;
             quantads-backend)
@@ -246,7 +246,7 @@ jobs:
               deployment=quant-signal-projector; container=signal-projector
               needs_cloudflare=false ;;
             quantedits)
-              repository=quant-quantedits; dockerfile=apps/quantedits/Dockerfile
+              repository=quant-quantedits; dockerfile=apps/quantcooks/Dockerfile
               deployment=quant-quantedits; container=quant-quantedits
               needs_cloudflare=false ;;
             quantads)

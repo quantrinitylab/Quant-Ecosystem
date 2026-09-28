@@ -4,7 +4,7 @@ WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.json turbo.json ./
 COPY patches/ ./patches/
 COPY packages/ ./packages/
-COPY apps/quantneon/ ./apps/quantneon/
+COPY apps/quantgram/ ./apps/quantgram/
 RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --child-concurrency 1
 
 FROM deps AS builder
@@ -23,7 +23,7 @@ ENV HOME=/tmp
 
 COPY --from=builder --chown=quantapp:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=quantapp:nodejs /app/packages/ ./packages/
-COPY --from=builder --chown=quantapp:nodejs /app/apps/quantneon/ ./apps/quantneon/
+COPY --from=builder --chown=quantapp:nodejs /app/apps/quantgram/ ./apps/quantgram/
 COPY --from=builder --chown=quantapp:nodejs /app/package.json ./package.json
 COPY --from=builder --chown=quantapp:nodejs /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
 

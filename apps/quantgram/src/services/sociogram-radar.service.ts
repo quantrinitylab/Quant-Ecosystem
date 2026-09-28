@@ -1,5 +1,5 @@
 // ============================================================================
-// @quant/quantgram (apps/quantneon) - Sociogram Proximity Radar & Trending Engine
+// @quant/quantgram (apps/quantgram) - Sociogram Proximity Radar & Trending Engine
 // Sociogram v1.0-grade Proximity Radar, Trending Hashtags & User Moderation Service
 // ============================================================================
 

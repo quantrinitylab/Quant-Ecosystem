@@ -1,10 +1,10 @@
 // ============================================================================
-// quantneon — ar-lenses surface DTOs (Layer 5 request/response contracts)
+// quantgram — ar-lenses surface DTOs (Layer 5 request/response contracts)
 // ============================================================================
 //
 // Frontend-facing data shapes for the ar-lenses api-client hooks. These mirror
-// the JSON the quantneon backend ar-lenses routes return (see
-// apps/quantneon/backend/routes/ar-lenses.ts) and are intentionally decoupled
+// the JSON the quantgram backend ar-lenses routes return (see
+// apps/quantgram/backend/routes/ar-lenses.ts) and are intentionally decoupled
 // from the `@quant/ar-lenses` engine's internal types so a backend refactor
 // never forces a frontend type change. Every hook is typed against the
 // `{ success, data }` envelope via `APIResponse<T>` from the SDK.

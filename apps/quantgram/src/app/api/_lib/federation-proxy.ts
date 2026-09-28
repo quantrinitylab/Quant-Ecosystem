@@ -1,10 +1,10 @@
 // ============================================================================
-// quantneon — federation surface proxy helper (Layer 4 of the integration seam)
+// quantgram — federation surface proxy helper (Layer 4 of the integration seam)
 // ============================================================================
 //
 // Thin wrapper around `@quant/api-client`'s `proxyToBackend` (the canonical
-// Layer-4 utility) used by every quantneon federation `app/api/federation/*`
-// route handler. It pins the single source of truth for the quantneon backend
+// Layer-4 utility) used by every quantgram federation `app/api/federation/*`
+// route handler. It pins the single source of truth for the quantgram backend
 // URL so each route handler stays one line.
 //
 // `proxyToBackend` already forwards the inbound `Authorization` bearer and
@@ -21,8 +21,8 @@ import type { NextRequest } from 'next/server';
 import { proxyToBackend } from '@quant/api-client';
 
 /**
- * The quantneon backend origin. Defaults to the backend's `PORT` (3012, see
- * `apps/quantneon/backend/app.ts` `getConfig()`), overridable via a single env
+ * The quantgram backend origin. Defaults to the backend's `PORT` (3012, see
+ * `apps/quantgram/backend/app.ts` `getConfig()`), overridable via a single env
  * var so the proxy and backend share one source of truth (Requirement 1.6).
  */
 export const QUANTNEON_BACKEND_URL =
@@ -38,7 +38,7 @@ interface ProxyFederationOptions {
 }
 
 /**
- * Forward a quantneon frontend request to the matching backend federation
+ * Forward a quantgram frontend request to the matching backend federation
  * route, propagating the bearer token + `x-request-id` and relaying status/body.
  */
 export function proxyFederationRequest(
