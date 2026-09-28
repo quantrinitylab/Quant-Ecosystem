@@ -194,20 +194,26 @@ enum RelationshipType {
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  userId     String
-  token      String   @unique
-  deviceInfo Json     @default("{}")
-  ipAddress  String?
-  userAgent  String?
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id                 String   @id @default(cuid())
+  userId             String
+  token              String?  @unique
+  tokenId            String?
+  refreshTokenFamily String?
+  app                String?
+  isActive           Boolean  @default(true)
+  lastActivityAt     DateTime @default(now())
+  deviceInfo         Json     @default("{}")
+  ipAddress          String?
+  userAgent          String?
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
   @@index([expiresAt])
+  @@index([isActive])
   @@map("sessions")
 }
 
