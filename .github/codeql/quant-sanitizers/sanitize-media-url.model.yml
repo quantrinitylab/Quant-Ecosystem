@@ -1,0 +1,20 @@
+# Teaches CodeQL that `@quant/common`'s `sanitizeMediaUrl` neutralizes untrusted
+# URLs, so its return value is a barrier for client-side XSS ("html-injection")
+# and client-side URL redirection ("url-redirection"). Without this, CodeQL does
+# not model the custom sanitizer and reports false positives on already-guarded
+# `src=`/`href=` sinks (e.g. the legacy-pages feeds). The barrier kinds match the
+# sink kinds consumed by SanitizerFromModel in DomBasedXssCustomizations.qll and
+# ClientSideUrlRedirectCustomizations.qll.
+#
+# The "@quant/common" rows match the workspace import specifier used by callers;
+# the "file:" rows match the in-source definition site (belt-and-suspenders, and
+# they survive app-folder renames since packages/common is not renamed).
+extensions:
+  - addsTo:
+      pack: codeql/javascript-all
+      extensible: barrierModel
+    data:
+      - ["@quant/common", "Member[sanitizeMediaUrl].ReturnValue", "html-injection"]
+      - ["@quant/common", "Member[sanitizeMediaUrl].ReturnValue", "url-redirection"]
+      - ["file:packages/common/src/utils.ts", "Member[sanitizeMediaUrl].ReturnValue", "html-injection"]
+      - ["file:packages/common/src/utils.ts", "Member[sanitizeMediaUrl].ReturnValue", "url-redirection"]

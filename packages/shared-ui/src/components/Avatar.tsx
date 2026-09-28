@@ -3,6 +3,7 @@
 // ============================================================================
 
 import React from 'react';
+import { sanitizeMediaUrl } from '@quant/common';
 
 export interface AvatarProps {
   src?: string | null;
@@ -96,7 +97,7 @@ export const Avatar: React.FC<AvatarProps> = ({
       aria-label={onClick ? alt : undefined}
     >
       {src ? (
-        <img src={src} alt={alt} className={`w-full h-full object-cover ${shapeStyles}`} />
+        <img src={sanitizeMediaUrl(src)} alt={alt} className={`w-full h-full object-cover ${shapeStyles}`} />
       ) : (
         <div
           className={`w-full h-full flex items-center justify-center font-semibold text-xs ${bgTints[getColorIndex(name || 'User')]}`}

@@ -221,7 +221,7 @@ const FeedPage: React.FC = () => {
                     <div className="p-[2px] bg-white dark:bg-[#0F0F14] rounded-full">
                       <img
                         className="w-14 h-14 rounded-full object-cover"
-                        src={user.avatar}
+                        src={sanitizeMediaUrl(user.avatar)}
                         alt={user.username}
                       />
                     </div>

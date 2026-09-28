@@ -35,6 +35,30 @@ describe('sanitizeMediaUrl', () => {
     );
   });
 
+  it('allows data:video/ and data:audio/ URLs', () => {
+    expect(sanitizeMediaUrl('data:video/mp4;base64,AAAAIGZ0')).toBe(
+      'data:video/mp4;base64,AAAAIGZ0',
+    );
+    expect(sanitizeMediaUrl('data:audio/mpeg;base64,SUQzBAA=')).toBe(
+      'data:audio/mpeg;base64,SUQzBAA=',
+    );
+  });
+
+  it('allows blob: object URLs', () => {
+    expect(sanitizeMediaUrl('blob:https://example.com/550e8400-e29b-41d4-a716-446655440000')).toBe(
+      'blob:https://example.com/550e8400-e29b-41d4-a716-446655440000',
+    );
+  });
+
+  it('blocks blob: URLs wrapping a script payload', () => {
+    expect(sanitizeMediaUrl('blob:javascript:alert(1)')).toBe('');
+  });
+
+  it('blocks non-media data: URLs', () => {
+    expect(sanitizeMediaUrl('data:application/json,{}')).toBe('');
+    expect(sanitizeMediaUrl('data:image')).toBe('');
+  });
+
   it('blocks javascript: protocol', () => {
     expect(sanitizeMediaUrl('javascript:alert(1)')).toBe('');
     expect(sanitizeMediaUrl('javascript:void(0)')).toBe('');

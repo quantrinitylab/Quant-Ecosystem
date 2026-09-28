@@ -46,6 +46,10 @@ jobs:
           build-mode: none
         - language: javascript-typescript
           build-mode: none
+          # Load the local data-extension pack (barrier models for sanitizeMediaUrl)
+          # only for the JS/TS analysis. Other legs leave this empty, which the
+          # CodeQL Action treats as unset. See .github/codeql/quant-sanitizers/.
+          extra-options: '{"database":{"init":["--search-path=.github/codeql/quant-sanitizers"],"run-queries":["--additional-packs=.github/codeql/quant-sanitizers","--extension-packs=quant/javascript-sanitizers"]}}'
         - language: python
           build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
@@ -65,6 +69,8 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         build-mode: ${{ matrix.build-mode }}
+      env:
+        CODEQL_ACTION_EXTRA_OPTIONS: ${{ matrix.extra-options }}
 
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
@@ -77,3 +83,5 @@ jobs:
       uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4
       with:
         category: "/language:${{matrix.language}}"
+      env:
+        CODEQL_ACTION_EXTRA_OPTIONS: ${{ matrix.extra-options }}

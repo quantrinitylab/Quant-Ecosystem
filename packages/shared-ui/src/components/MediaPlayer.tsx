@@ -6,6 +6,7 @@
 
 import React, { useState, useRef, useCallback } from 'react';
 import { useReducedMotion } from 'framer-motion';
+import { sanitizeMediaUrl } from '@quant/common';
 
 // ===== Video Player =====
 export interface VideoPlayerProps {
@@ -85,8 +86,8 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
     >
       <video
         ref={videoRef}
-        src={src}
-        poster={poster}
+        src={sanitizeMediaUrl(src)}
+        poster={sanitizeMediaUrl(poster)}
         autoPlay={autoPlay}
         muted={muted}
         loop={loop}
@@ -187,13 +188,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     <div className={`flex items-center gap-3 p-3 bg-gray-100 rounded-lg ${className}`}>
       <audio
         ref={audioRef}
-        src={src}
+        src={sanitizeMediaUrl(src)}
         autoPlay={autoPlay}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime || 0)}
         onLoadedMetadata={() => setDuration(audioRef.current?.duration || 0)}
         onEnded={onEnded}
       />
-      {coverArt && <img src={coverArt} alt="Cover" className="w-12 h-12 rounded-md object-cover" />}
+      {coverArt && <img src={sanitizeMediaUrl(coverArt)} alt="Cover" className="w-12 h-12 rounded-md object-cover" />}
       <div className="flex-1 min-w-0">
         {title && <p className="text-sm font-medium text-gray-900 truncate">{title}</p>}
         {artist && <p className="text-xs text-gray-500 truncate">{artist}</p>}
@@ -272,7 +273,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
         </div>
       ) : (
         <img
-          src={src}
+          src={sanitizeMediaUrl(src)}
           alt={alt}
           className={`w-full h-full object-contain transition-transform duration-300 ${zoomable ? 'cursor-zoom-in' : ''} ${isZoomed ? 'scale-150 cursor-zoom-out' : ''}`}
           onClick={zoomable ? () => setIsZoomed(!isZoomed) : undefined}

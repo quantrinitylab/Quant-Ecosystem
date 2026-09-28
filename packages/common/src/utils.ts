@@ -317,7 +317,8 @@ export function isEmpty(value: unknown): boolean {
 
 /**
  * Sanitize a URL for use in media src attributes (img, video, audio).
- * Only allows http:, https:, and data:image/ protocols.
+ * Allows http:, https:, relative paths, blob: object URLs, and data: URLs
+ * limited to image/video/audio payloads.
  * Returns an empty string for invalid or potentially dangerous URLs.
  */
 export function sanitizeMediaUrl(url: string | undefined | null): string {
@@ -346,8 +347,14 @@ export function sanitizeMediaUrl(url: string | undefined | null): string {
     return trimmed;
   }
 
-  // Allow data:image/ URLs (but not data:text/html or other dangerous types)
-  if (/^data:image\//i.test(trimmed)) {
+  // Allow blob: object URLs (same-origin, created by the app via createObjectURL).
+  // A blob: string wrapping a javascript:/vbscript: payload is already blocked above.
+  if (/^blob:/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Allow data: URLs for media payloads only (not data:text/html or other dangerous types)
+  if (/^data:(image|video|audio)\//i.test(trimmed)) {
     return trimmed;
   }
 
