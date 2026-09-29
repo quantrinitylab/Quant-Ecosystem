@@ -49,6 +49,20 @@ export {
   quantphotosIcon,
 } from './icons/index';
 export { generateBrandCSS, generateAppCSS, generateThemeCSS } from './tokens';
+export { buildQuantPreset } from './preset';
+export type {
+  QuantTailwindPreset,
+  QuantPresetExtend,
+  QuantPresetColors,
+  QuantColorScale,
+} from './preset';
+export {
+  APP_ALIASES,
+  resolveAppConfig,
+  hexToTriplet,
+  generateRootCss,
+  generateThemeCss,
+} from './theme-css';
 export { themes, dark, light, neon, bharat, highContrast, colorblindSafe } from './themes';
 export type { Theme } from './themes';
 export { hexToRgb, relativeLuminance, contrastRatio, meetsAA, meetsAAA } from './contrast';
