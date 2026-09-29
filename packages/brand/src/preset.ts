@@ -102,7 +102,13 @@ const semanticColors = {
   },
   border: tok('quant-border'),
   ring: tok('quant-ring'),
-  app: tok('quant-app-color'),
+  // Per-app accent. Falls back to the primary brand color when no
+  // `--quant-app-color` is defined — e.g. the appless base
+  // `generated/quant-tokens.css`, or an app that has not wired its accent yet —
+  // so `bg-app`/`text-app` degrade to a valid color instead of an empty
+  // `rgb( / <alpha>)`. Per-app rollout emits `--quant-app-color` via
+  // `generateRootCss(appId)`, which overrides this fallback.
+  app: `rgb(var(--quant-app-color, var(--quant-primary)) / <alpha-value>)`,
 };
 
 /**
