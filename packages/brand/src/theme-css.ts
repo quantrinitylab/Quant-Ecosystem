@@ -164,3 +164,14 @@ ${shadcn}
   --app-color: rgb(var(--quant-app-color));
 }`;
 }
+
+/**
+ * The full `@quant/brand` stylesheet as one string, in cascade order: `:root`
+ * primitives (+ per-app accent), all 6 theme blocks, then the back-compat alias
+ * block. Exactly what build-time codegen writes to `generated/quant-tokens.css`
+ * (spec §6.2); apps `@import` that file or inject this string. `appId` (new or
+ * legacy) adds the per-app accent; unknown ids throw.
+ */
+export function generateTokensCssDocument(appId?: string): string {
+  return [generateRootCss(appId), generateThemeCss(), generateAliasCss()].join('\n\n');
+}

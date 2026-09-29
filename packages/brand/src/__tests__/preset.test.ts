@@ -4,6 +4,7 @@ import {
   generateAliasCss,
   generateRootCss,
   generateThemeCss,
+  generateTokensCssDocument,
   hexToTriplet,
   resolveAppConfig,
   themes,
@@ -220,5 +221,29 @@ describe('generateAliasCss', () => {
   it('does not alias hover variants or the deprecated accent scale', () => {
     expect(css).not.toContain('--brand-primary-hover:');
     expect(css).not.toContain('--brand-accent-500:');
+  });
+});
+
+describe('generateTokensCssDocument', () => {
+  it('concatenates root primitives, all 6 theme blocks, and the alias block', () => {
+    const css = generateTokensCssDocument();
+    expect(css).toContain('--quant-primary-500: 255 140 66;'); // root primitive triplet
+    expect(css.match(/:root\[data-theme=/g) ?? []).toHaveLength(6); // every theme block
+    expect(css).toContain('--background: rgb(var(--quant-background));'); // alias block
+    expect(css).not.toContain('--quant-app-color:'); // no app-accent definition without an id
+  });
+
+  it('includes the per-app accent definition when an app id is given', () => {
+    const css = generateTokensCssDocument('quantgram');
+    expect(css).toContain('--quant-app-color: 236 72 153;'); // #EC4899
+    expect(css).toContain('--quant-app-hue: 330;');
+  });
+
+  it('contains no raw hex anywhere in the assembled document', () => {
+    expect(generateTokensCssDocument('quantchat')).not.toMatch(/#[0-9A-Fa-f]{6}/);
+  });
+
+  it('throws on an unknown app id', () => {
+    expect(() => generateTokensCssDocument('nonexistent')).toThrow('Unknown app: nonexistent');
   });
 });
