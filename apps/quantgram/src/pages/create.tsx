@@ -6,6 +6,7 @@
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { PageTransition, LoadingState } from '@quant/shared-ui';
+import { sanitizeMediaUrl } from '@quant/common';
 import { apiClient } from '../services/api-client';
 
 const CreatePostPage: React.FC = () => {
@@ -124,7 +125,7 @@ const CreatePostPage: React.FC = () => {
                   {selectedImages.map((url, i) => (
                     <img
                       key={`${url}-${i}`}
-                      src={url}
+                      src={sanitizeMediaUrl(url)}
                       alt=""
                       className="aspect-square object-cover rounded-lg"
                     />
@@ -151,7 +152,7 @@ const CreatePostPage: React.FC = () => {
                 {selectedImages.map((url, i) => (
                   <img
                     key={`${url}-${i}`}
-                    src={url}
+                    src={sanitizeMediaUrl(url)}
                     alt=""
                     className="aspect-square object-cover rounded-lg"
                   />
