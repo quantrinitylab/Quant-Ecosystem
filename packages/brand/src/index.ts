@@ -64,6 +64,8 @@ export {
   generateThemeCss,
   generateAliasCss,
   generateTokensCssDocument,
+  generateTokensCssFile,
+  QUANT_TOKENS_CSS_HEADER,
 } from './theme-css';
 export { themes, dark, light, neon, bharat, highContrast, colorblindSafe } from './themes';
 export type { Theme } from './themes';

@@ -36,7 +36,7 @@ describe('resolveAppConfig', () => {
 });
 
 describe('buildQuantPreset', () => {
-  it('maps every semantic role to rgb(var(--quant-*) / <alpha-value>)', () => {
+  it('maps every semantic role to rgb(var(--quant-*) / <alpha-value>) (app has a primary fallback)', () => {
     const { colors } = buildQuantPreset('quantchat').theme.extend;
     expect(colors.background).toBe('rgb(var(--quant-background) / <alpha-value>)');
     expect(colors.foreground).toBe('rgb(var(--quant-foreground) / <alpha-value>)');
@@ -54,7 +54,10 @@ describe('buildQuantPreset', () => {
     expect(colors.muted.foreground).toBe('rgb(var(--quant-muted-foreground) / <alpha-value>)');
     expect(colors.border).toBe('rgb(var(--quant-border) / <alpha-value>)');
     expect(colors.ring).toBe('rgb(var(--quant-ring) / <alpha-value>)');
-    expect(colors.app).toBe('rgb(var(--quant-app-color) / <alpha-value>)');
+    // `app` falls back to the primary brand color when no per-app
+    // --quant-app-color is defined (e.g. the appless base document), so
+    // bg-app/text-app stay valid instead of resolving to `rgb( / <alpha>)`.
+    expect(colors.app).toBe('rgb(var(--quant-app-color, var(--quant-primary)) / <alpha-value>)');
   });
 
   it('exposes all six primitive scales × 11 shades as var refs', () => {
