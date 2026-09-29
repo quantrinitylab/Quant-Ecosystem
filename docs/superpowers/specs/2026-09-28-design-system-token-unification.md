@@ -392,7 +392,7 @@ This deletes the hand-written `colors` blocks and the inlined `emerald/indigo/am
 ### 6.2 Injection
 
 Prefer **build-time**: a tiny `@quant/brand` codegen writes `packages/brand/generated/quant-tokens.css`
-that each app imports once at the top of `globals.css` (`@import '@quant/brand/quant-tokens.css';`).
+that each app imports once at the top of `globals.css` (`@import '@quant/brand/generated/quant-tokens.css';`).
 This beats today's runtime `<style dangerouslySetInnerHTML>` in the brand-providers
 (`quantchat/src/providers/brand-provider.tsx:19`, quantmail, quantcooks) which ship CSS in JS and
 cause a flash. Those three `BrandProvider`s are deleted once the import lands.
@@ -518,7 +518,7 @@ importer is repointed at `@quant/brand`.
    `// eslint-disable-next-line quant/no-raw-hex -- TODO(token): <hex>` so the build stays green and a
    human triages it. This keeps the codemod safe on the ~445-line surface.
 3. **CSS/globals pass:** replace hand-written `--brand-primary`/`--quant-*` literal declarations with
-   `@import '@quant/brand/quant-tokens.css';`, leaving only truly app-local vars.
+   `@import '@quant/brand/generated/quant-tokens.css';`, leaving only truly app-local vars.
 4. Run per-package; commit per-app so each diff is reviewable and `turbo run typecheck lint test` gates it.
 5. Dry-run mode prints a per-file before/after and a residual-unknown-hex count.
 
