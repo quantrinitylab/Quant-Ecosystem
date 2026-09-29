@@ -6,22 +6,24 @@
 [![Node](https://img.shields.io/badge/Node.js-22-green.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10-orange.svg)](https://pnpm.io/)
 
-A production-grade, interconnected platform of **18 applications**, **106 shared packages**, and **7 infrastructure services** built as a TypeScript monorepo. Covers email, messaging, social, video streaming, AI, file storage, calendar, video conferencing, advertising, gaming, and a unified credits economy - all unified by a single authentication layer (QuantMail OAuth2) and shared infrastructure, with QuantAI as an assistant woven through every app.
+A production-grade, interconnected platform of **18 applications**, **106 shared packages**, and **7 infrastructure services** built as a TypeScript monorepo. Covers email, messaging, social, video streaming, AI, file storage, calendar, video conferencing, advertising, gaming, and a unified credits economy - all unified by a single authentication layer (QuantMail OAuth2) and shared infrastructure, with QuantAI as an assistant and agent with agentic capabilities  through our every app. and all deep architecture and features 
 
 ## Product Vision (north star)
 
-The goal is one deeply interconnected ecosystem that out-features the incumbents, with **QuantAI** present in every app (an "alien" assistant avatar) and able to control both the apps and the user's device:
+The goal is one deeply interconnected ecosystem that out-features the incumbents, with **QuantAI** present in every app (an "as best sutible place you should design uiux for all platforms and device better than competator" assistant avatar) and able to control our all the apps due to deeply connection and control as much as the user's device maximum as quanty ai can:
 
 - **QuantMail** - the authentication root (OAuth2/OIDC SSO for every app) and a super-hub: email **plus** GitHub-style repos, Codex/Claude-Code-style coding, and Drive/Calendar/Docs/Meet as embedded features.
 - **QuantChat** - Snapchat + WhatsApp + Telegram: avatars, lenses/AR, streaks, reels, stories, Snap-Map, in-chat games, bots; phone-number required; QuantAI auto-reply avatar.
-- **QuantNeon** - Instagram: reels, feed, stories, close-friends, DMs, map, in-feed games.
+- **QuantGram** - Instagram: reels, feed, stories, close-friends, DMs, map, in-feed games.
 - **QuantMax** - TikTok + Omegle + Tinder: squads/rooms, party games, proximity voice.
-- **QuantSync** - Twitter/X + Threads: plus an anonymous section and a verified-only space.
+- **QuantWave** - Twitter/X + Threads: plus an anonymous section and a verified-only space.
 - **QuantTube** - YouTube + music with AI segment-skip playback.
-- **QuantEdits** - CapCut/After-Effects killer with AI daily auto-edit -> auto-post automations.
-- **QuantAds** - the monetization engine (in-game banners, creator payouts as credits) that funds the ecosystem.
-- **Quant Games** - cross-app connected ranks/leaderboards, Uno/Ludo/Monopoly, and a Godot-based open-world game with AI NPCs (bring-your-own API key).
-- **QuantTrinity** - the owner/admin command center: central control of all config, AI "employees", monitoring across every app and user.
+- **QuantCooks** - all deep architecture features micro features of higgsfield and figma deeply automation to our all apps user can automate quantube video wo video user ne topic sab kuch quantybse setup karwaya quanty ne workflow and automation banaya and bss abb videos bane jaa rahe hai best and best and post hote jaa rahe hai and is platform ko deeply saare platform se connect rakhna kyuki iska bahot jaroori hai social media platform ke liye user in loop me fase and yahi ghicha chalaya aaye sara features uiux sara platform pe omnipresent dekh ke sara apps use karne lage CapCut/After-Effects killer with AI daily auto-edit -> auto-post automations.
+- 
+- **QuantAds** - metaads google ads competitor with all deep architecture with our all platforms and all deep features micro features of all ads platform according to our platform which are situated and best the monetization engine (in-game banners, creator payouts as credits) that funds the ecosystem.
+- - cross social chat -app and quantwave multiplayer gaming features like we play all games deeply build with deep architecture connected ranks/leaderboards, Uno/Ludo/Monopoly, and a Godot or which is best -based multiplayer chat games and these user can also build and ship here they will be famous if their game will famous.
+  - 
+
 - **Economy** - one currency (1 credit ~= $1): top-up via UPI/PayPal/Stripe/crypto, daily creator withdrawals, AI metering with a daily free allowance, overage opt-in (default OFF), plans/tiers, and a marketplace with commission. Models are served via OpenRouter.
 
 > This is the long-term target. The platform is built up as verified, shippable increments - see the active spec under `.kiro/specs/unified-quant-credits-economy/` for the credits/payouts/marketplace rollout currently in progress.
@@ -40,16 +42,16 @@ pnpm dev:all
 
 ```mermaid
 graph TD
-    subgraph Apps["20 Applications (Next.js 15)"]
+    subgraph Apps["09 main killer Applications (Next.js 15)"]
         direction LR
         QM[QuantMail - Email + OAuth2]
         QC[QuantChat - Messaging]
-        QS[QuantSync - Social Feed]
+        QS[QuantWave - Social Feed]
         QT[QuantTube - Video/Music]
         QA[QuantAI - AI Hub]
-        QD[QuantDrive - Storage]
-        Admin[Admin Panel]
-        More[+10 more apps]
+        QD[QuantDrive  and Quantdocs also present inside quantmail - Storage ,ai memory all platforms, documents and other ]
+        Admin[Admin Panel different for all 09 apps different in their proper architecture and place don't gather all in one and do shit]
+        More[+4 more main apps]
     end
 
     subgraph Packages["100+ Shared Packages"]
@@ -89,24 +91,35 @@ graph TD
 
 | App               | Description                     | Key Features                                                              |
 | ----------------- | ------------------------------- | ------------------------------------------------------------------------- |
-| **QuantMail**     | Email + Central OAuth2 Provider | Full email client, SSO for all ecosystem apps, Git repos, CI/CD           |
-| **QuantChat**     | Instant Messaging               | Disappearing messages, stories, video calls, smart replies                |
-| **QuantSync**     | Social Network                  | Posts, threads, communities, polls, trending topics                       |
-| **QuantTube**     | Video & Music Streaming         | Upload, live streaming, channels, playlists                               |
-| **QuantAI**       | AI Assistant Hub                | Multi-model routing, device control, conversational AI                    |
-| **QuantDrive**    | Cloud Storage                   | File upload, sharing, versioning, folder management                       |
-| **QuantDocs**     | Collaborative Documents         | Real-time editing, templates                                              |
-| **QuantCalendar** | Calendar & Scheduling           | Events, reminders, meeting scheduling                                     |
-| **QuantMeet**     | Video Conferencing              | WebRTC, screen sharing, breakout rooms                                    |
-| **QuantMax**      | Multi-Mode                      | Short videos (TikTok), random chat (Omegle), dating (Tinder)              |
-| **QuantEdits**    | Video/Photo Editor              | Timeline editing, effects, exports                                        |
-| **QuantNeon**     | Photo/Video Sharing             | Filters, stories, close friends                                           |
-| **QuantAds**      | Advertising Platform            | Campaign management, targeting, analytics, creator payouts                |
-| **QuantTrinity**  | Owner/Admin Command Center      | Central config control, AI employees, cross-app monitoring, team accounts |
-| **Admin**         | Platform Admin                  | User/service management, audit, compliance, feature flags                 |
-| **Status**        | Status Page                     | Uptime monitoring, incident reporting                                     |
-| **Marketing**     | Landing Site                    | Product showcases, pricing                                                |
-| **Quant-Mobile**  | Mobile App                      | Cross-platform via Capacitor (iOS + Android)                              |
+| **QuantMail**     | calender, Drive, Contacts, Quantgit all in one Email + Central OAuth2 Provider | Full email client, SSO for all ecosystem apps, Git repos, CI/CD competitor gmail , google calender and tracker ,Drive ,GitHub ,Claudecode, compare every time with them their deep architecture and all make every time better and for omnipresence fro all devices Android ,ios , desktop , website, and all better than competator break every thing in deep small task and do your best with your spawn agents| | **QuantDrive**  it is inside quantmail but with all deep architecture and features of drive| Cloud Storage cam scanner to docs ai memory from all apps every time which help ai for user feedback recommendation and ye ai user ke hamare apps ke feed ko user ke mood ke hisab se ya command ke hisab se kare renowate jaisa youtube laa Raha hai        | File upload, sharing, versioning, folder management                       |
+| **QuantDocs**   ye quantdrive ke andar ka feature hona chahiye yaha pe isme pdf docks ka sara features sab kuch hona chahiye sab add karo sab kuch best banao| Collaborative Documents         | Real-time editing, templates and every feature and micro features | **QuantCalendar** is feature of quantmail with all deep architecture of google and apple calender with all deep features all trackers and quantchat meeting automation ai control make it best| Calendar & Scheduling           | Events, reminders, meeting scheduling , and maximum deep architecture and all the best features micro features and all omnipresence 
+
+
+
+
+| **QuantChat**     | Instant Messaging connected to every agent of our all platforms all apps and use quantchat as calling timer agents notification chating and other information for user from cross platform let user say to quanty in quantai send email to all workers for meeting at 5pm today set meeting and timer in quantchat and notify me 10 minutes before wo kar de , let user say call shivam in quantchat quanty opens quantchat and makes call and he is in cornor of mobile so don't disturb to user and talk to user and do all workers automation deploy agents and all to all our platform| Disappearing messages, stories, video calls, smart replies snap ,reels  , and all features of Snapchat ,telegram  , whatsapp and all ai in quantchat also as user avatar and competate with competator and make better deep architecture and all platforms omni presece and all best with sms verification|| **QuantMeet** it should be inside quantchat   | Video Conferencing     meeting connected to all ours ecosystem and ai control and automation ai will do all things for user      | WebRTC, screen sharing, breakout rooms      
+
+
+
+
+| **QuantWave**     | Social Network  with all features of x tweeter, reddit, threads , feed media ai and all things verification and all our quanty ai control everything user will say reel chalao post dikhao quantwave pe aur batate raho kya kya hai user ko padha padh ke scroll kar de user ke sath reel dekhe user ke liye message kare comment kare shedule kare post banaye sab kuch kare editing to quantwave me bhi karwa lega  | Posts, threads, communities, polls, trending topics  all features and micro features of x tweeter reddit threads and their deep architecture    |
+
+
+
+| **QuantTube**     | Video & Music Streaming YouTube billibilli compatetor shorts drama episode season full videos and all very addictive user creator music Spotify competitor and all features and micro features of these all platforms and deep architecture but it uses cloudflare r2 | Upload, live streaming, channels, playlists     and all features and micro features deeply and control by quanty fully sara feed sab kuch user ke hisab se banaye and sara kam kare user bole mujhe sabji banana sikhao video se quantube pe to wo quantube pe jaye video search kare khole aur jitna part important ho user ko dikha dikha ke bol bol ke samjha de jab samjhaye video Stop kar de | and aur bhi jo futuristic features ho in youtube Spotify billibilli and short drama ko beat karne ka karo sab banao best deep architecture ke sath sara omnipresent in all platforms 
+
+| **QuantAI**       | AI Assistant Hub   bhai isko to super app banana hai sara kam user ka sara apps control sara apps ke ai se yaha se hi baat jaye ek ai sara agents se kam karwa sake user permission se sara kam kare user ke liye phone chhuna na pade user ko reels dikhaye kam automation kare sab kuch   gemini , chatgpt , notion , claude all are compatetor inse best banao sabkuch    | Multi-model routing, device control, conversational AI    aur features micro features sab kuch deeply architecture and sab kuch          |                                              |
+                                    |
+                              |
+| **QuantMax**      |weplay tiktok Omegle multiplayer gaming rooms feed chat dating tinder features and all deep features Multi-Mode               | Short videos (TikTok), random chat (Omegle), dating (Tinder)       and all features and micro features of all the compatetor and deep architecture and all |
+
+| **QuantCooks**    | all deep architecture features micro features of higgsfield and figma deeply automation to our all apps user can automate quantube video wo video user ne topic sab kuch quantybse setup karwaya quanty ne workflow and automation banaya and bss abb videos bane jaa rahe hai best and best and post hote jaa rahe hai and is platform ko deeply saare platform se connect rakhna kyuki iska bahot jaroori hai social media platform ke liye user in loop me fase and yahi ghicha chalaya aaye sara features uiux sara platform pe omnipresent dekh ke sara apps use karne lage CapCut/After-Effects killer with AI daily auto-edit -> auto-post automations. deeply saare features and micro features tak higgsfield figma ke copy karo and sara kuch ai autonomous banao ready karo deeply Video/Photo Editor              | Timeline editing, effects, exports     automation ai all do and all our apps connected and all deeply 
+
+| **QuantGram**     | Instagram Facebook Pinterest compatetor all deep features of Instagram all algorithms deeply feed by ai and every feature Microfeatuse and ai control everything and do everything for user auto scroll and deep features Photo/Video Sharing             | Filters, stories, close friends      and all deep architecture and all deep architecture and all deep features micro features world best banao
+
+|
+| **QuantAds**      | Advertising Platform metaads google ads competitor with all deep architecture with our all platforms and all deep features micro features of all ads platform according to our platform which are situated and best the monetization engine (in-game banners, creator payouts as credits) that funds the ecosystem.
+- - cross social chat -app and quantwave multiplayer gaming features like we play all games deeply build with deep architecture connected ranks/leaderboards, Uno/Ludo/Monopoly, and a Godot or which is best -based multiplayer chat games and these user can also build and ship here they will be famous if their game will famous            | Campaign management, targeting, analytics, creator payouts       itna automation ho ki user quanty ai ko bole wo khud sab kar de payment request bejh de user ke upi pe wo kar de aur user ke hisab se ads laga de hamare saare apps pe jin jin pe jo ads chahiye user ko ya jo reels post unko promotion karna ho waise to ye boost ads reels post sab ke liye  hamare quantgram   and baaki ke social media apps me. pahle se ho |aur groups channel pe ads telegram ke tarah and all deep features and sab kuch 
 
 ## Key Packages
 
@@ -138,7 +151,7 @@ graph TD
 | `smtp-inbound`      | Inbound email processing for QuantMail                           |
 | `ci-runner`         | CI/CD pipeline execution for QuantMail repos                     |
 | `git-server`        | Git hosting backend                                              |
-| `matchmaking`       | Real-time user matching (QuantMax)                               |
+| `matchmaking`       | Real-time user matching (QuantWave)                               |
 | `moderation-worker` | AI-powered content moderation pipeline                           |
 
 ## Tech Stack
@@ -201,7 +214,7 @@ pnpm turbo lint
 
 ```
 Quant-Ecosystem/
-├── apps/                    # 20 frontend applications (Next.js 15)
+├── apps/                    # 9 main and killer frontend applications (Next.js 15)
 ├── packages/               # 100+ shared libraries
 ├── services/               # 8 infrastructure services
 ├── infra/                  # Kubernetes (Helm), Terraform, ArgoCD, monitoring
