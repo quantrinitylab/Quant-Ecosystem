@@ -134,7 +134,7 @@ export const WS_EVENTS = {
   EMAIL_NEW: 'email:new',
   EMAIL_READ: 'email:read',
 
-  // Social (QuantWave)
+  // Social (QuantSync)
   POST_NEW: 'post:new',
   POST_LIKE: 'post:like',
   POST_COMMENT: 'post:comment',
@@ -147,7 +147,7 @@ export const WS_EVENTS = {
   STREAM_VIEWER_LEAVE: 'stream:viewer_leave',
   STREAM_CHAT: 'stream:chat',
 
-  // Media (QuantGram)
+  // Media (QuantNeon)
   STORY_NEW: 'story:new',
   STORY_VIEW: 'story:view',
   STORY_REACTION: 'story:reaction',

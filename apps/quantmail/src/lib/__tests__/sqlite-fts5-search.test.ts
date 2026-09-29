@@ -430,20 +430,9 @@ describe('Task M15 / Gate 3: Superhuman SQLite FTS5 Wasm Local Email Search Inde
       const p95 = latencies[Math.floor(latencies.length * 0.95)];
       const median = latencies[Math.floor(latencies.length * 0.5)];
 
-      // Wall-clock latency is hardware-dependent. On shared/virtualized CI
-      // runners, absolute sub-5ms assertions are flaky (observed p95 ~18ms on
-      // GitHub-hosted runners), so we relax the thresholds under CI while
-      // keeping the strict Superhuman-class budget for local/controlled
-      // hardware. The benchmark still runs in full and still catches gross
-      // algorithmic regressions (an O(n^2) blow-up would breach even the CI
-      // ceiling), and every query is still asserted to return results above.
-      const isCI = !!process.env.CI;
-      const p95Budget = isCI ? 50.0 : 5.0;
-      const medianBudget = isCI ? 20.0 : 2.0;
-
-      // Verify Superhuman-class search performance (relaxed on CI hardware).
-      expect(p95).toBeLessThan(p95Budget);
-      expect(median).toBeLessThan(medianBudget);
+      // Verify Superhuman-class sub-5ms performance requirement
+      expect(p95).toBeLessThan(5.0);
+      expect(median).toBeLessThan(2.0);
     });
   });
 

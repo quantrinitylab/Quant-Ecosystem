@@ -9,8 +9,8 @@ import { createAppError } from '@quant/server-core';
 //
 // Task 14.1 (Req 3.1, 3.2, 7.4). Surfaces the real, as-shipped `@quant/federation`
 // engine over authenticated HTTP under the `/federation` prefix in quantchat,
-// mirroring the proven quantgram federation seam
-// (apps/quantgram/backend/routes/federation.ts).
+// mirroring the proven quantneon federation seam
+// (apps/quantneon/backend/routes/federation.ts).
 //
 // federation is a SENSITIVE engine (design "Security Considerations", Req 7.4):
 // every route below declares a fine-grained scope via `requireAuth({ scopes })`
