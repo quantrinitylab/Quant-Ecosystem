@@ -26,7 +26,7 @@ global:
 configmap:
   NODE_ENV: production
   LOG_LEVEL: warn
-  CORS_ORIGINS: 'https://quantmail.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quantube.quantrinity.in,https://quantgram.quantrinity.in,https://quantwave.quantrinity.in,https://quantmax.quantrinity.in,https://quantrinity.in'
+  CORS_ORIGINS: 'https://quantrinity.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in'
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform'
   AI_PROVIDER: cloudflare
