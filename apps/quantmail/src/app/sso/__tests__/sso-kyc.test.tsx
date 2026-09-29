@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import * as AuthProviderModule from '../../../providers/auth-provider';
-import { SsoChooserContent } from '../page';
+import { SsoChooserContent } from '../SsoChooserContent';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
