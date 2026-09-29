@@ -1,9 +1,19 @@
 # Per-App Platform Presence Restructure — Design Spec
 
-**Status:** DRAFT for owner review (no files moved yet — "pehle spec, phir move")
+**Status:** APPROVED — owner's updated `README.md` (main, blob `3b121d6b`, 2026-09-30) is now the authoritative target and resolves the §7 open decisions. Executing pilot-first.
 **Date:** 2026-09-30
 **Author:** Claude Opus 4.8 (with owner)
 **Relation:** redirects the old "super-app consolidation" line item; complements the design-token unification and the phase-3 rename.
+
+## 0. Source of truth — the updated README (read verbatim)
+
+The repo `README.md` is the north star. Points this spec must honour exactly:
+
+- **`apps/` holds exactly 9 products** ("9 main and killer frontend applications"): quantmail, quantchat, quantwave, quantube, quantai, quantmax, quantcooks, quantgram, quantads. (The tagline's "18 applications" counts folded-in sub-features; the *structure* is 9.)
+- **Sub-apps are features inside a host product, not top-level apps:** QuantDrive + QuantDocs + QuantCalendar + QuantGit live **inside QuantMail** (already true — `apps/quantmail/src/app/{drive,calendar,repos,quantgit,codehub}` exist). QuantMeet lives **inside QuantChat**.
+- **Admin is per-app** — README, emphatic: *"Admin Panel different for all 09 apps different in their proper architecture and place don't gather all in one and do shit."* ⇒ the monolithic `admin-enterprise` is rejected as the product boundary; each app owns its admin, a thin org hub only aggregates.
+- **QuantTrinity = the economy control-plane** ("credit value, free allowance, commission, plan catalog, and overage defaults are tuned from QuantTrinity") — an ecosystem control surface, **not** one of the 9 apps.
+- Every product is omnipresent (web + desktop + mobile), QuantAI/"Quanty" present in every app with cross-app agentic control, all unified by QuantMail OAuth2 SSO + shared packages.
 
 ## Goal
 
@@ -68,14 +78,18 @@ Each product folder becomes a small set of **nested workspace packages**, one pe
 
 ```
 apps/quantmail/
-  web/         # Next.js frontend            -> @quant/quantmail-web
-  backend/     # Fastify API (already exists) -> @quant/quantmail-backend
-  desktop/     # thin Tauri app              -> @quant/quantmail-desktop  (deps @quant/desktop-kit)
-  mobile/      # thin Capacitor app          -> @quant/quantmail-mobile   (deps @quant/mobile-kit)
-  marketing/   # this product's landing/content -> @quant/quantmail-marketing
-  admin/       # this product's admin slice   -> @quant/quantmail-admin
-  app.config.ts  # single per-app manifest (id, name, icon, color, routes, ports)
+  src/                 # Next.js web app (KEEP as-is; this is the product's web surface)
+    app/
+      admin/           # this product's OWN admin panel (role-gated route segment)
+      marketing/       # this product's OWN landing/content (route segment)
+      ...              # existing routes: drive, calendar, repos, settings, ...
+  backend/             # Fastify API (already exists)
+  desktop/             # thin Tauri target  -> @quant/quantmail-desktop  (deps @quant/desktop-kit)
+  mobile/              # thin Capacitor target -> @quant/quantmail-mobile (deps @quant/mobile-kit)
+  app.config.ts        # single per-app manifest (id, name, icon, color, routes, ports)
 ```
+
+Rationale (README-driven): admin + marketing are **route segments inside the product's own Next app**, not extra workspace packages — "in their proper architecture and place" without package/lockfile proliferation. Only desktop + mobile need separate build tooling (native), so only those stay nested kit-backed targets.
 
 - `pnpm-workspace.yaml` gains the `apps/*/*` glob (keep `apps/*` during migration).
 - Turbo picks these up automatically; `gate` runs each changed surface.
@@ -120,20 +134,24 @@ Local build/preview is impossible on this box, so every phase ships as its own P
 - **In-flight PRs / other sessions' WIP** (SSO, connect-backends) touch these apps → sequence phases around open PRs; rebase.
 - **Deploy workflows** reference fixed workload names → update alongside Phase 1/4.
 
-## 7. Decisions needed before I write the implementation plan
+## 7. Decisions — RESOLVED by the updated README (2026-09-30)
 
-1. **Surface granularity:** `apps/<app>/web` (rename `src/`→`web/`) vs keep `src/` as web and only add `desktop/ mobile/ marketing/ admin/`. *(Recommend: keep `src/` as web to minimise churn; add the four new surfaces.)*
-2. **Desktop/mobile model:** truly standalone per-app binaries (max separation, the stated preference) vs one kit-built ecosystem shell that loads each app. *(Recommend: standalone per-app, kit-backed.)*
-3. **Category B:** thin-hub-over-slices for enterprise-admin & trinity *(recommended)*, or leave them as-is for now and do Category A only first.
-4. **Pilot app:** quantmail *(recommended — flagship, already has backend + is the SSO root)*.
+1. **Surface granularity:** keep `src/` as the app's web; **admin + marketing are route segments inside the app's own Next.js project** (`apps/<app>/src/app/admin`, `.../marketing`), not new nested packages — fewer moving parts, matches README's "in their proper place", avoids package/lockfile churn. Only **desktop + mobile** are separate build targets (Tauri/Capacitor can't be Next routes) and stay kit-backed.
+2. **Desktop/mobile model:** standalone per-app, `@quant/desktop-kit` / `@quant/mobile-kit` backed (native VFS/plugins stay shared, never copied 9×). *(Verification-blocked on this box — CI/native only.)*
+3. **Category B:** admin → per-app admin route in every product **now**; a thin org hub later aggregates them (README: "don't gather all in one"). `quanttrinity` stays the economy control-plane hub.
+4. **Pilot app:** quantmail (flagship, SSO root, already hosts Drive/Calendar/Git).
+
+### Deletion safety (checked 2026-09-30)
+Neither horizontal shell is an empty stub — `apps/marketing/src/app/page.tsx` is a **1233-line** all-apps landing; `apps/admin-enterprise` is a **99-line** scaffold (from #343). Per §5, **nothing is deleted until its per-app replacement is proven**; retire shells only in Phase 4.
 
 ## 8. Non-goals
 - Not merging products into one super-app (this is the opposite).
 - Not changing product features/behaviour — pure structural relocation + kit extraction.
 - Not the design-token rollout (tracked separately).
 
-## 9. Next step
-On approval → invoke **writing-plans** to produce a per-phase implementation plan (starting Phase 0 + the Phase 1 quantmail pilot). No files move until then.
+## 9. Next step (executing)
+
+Phase 0a done = `@quant/app-registry` (PR #347). **Now executing Phase 1 pilot on quantmail:** add the per-app `admin/` route segment (role-gated), wired to existing QuantMail auth + `@quant/app-registry` — the concrete answer to README's "admin different for all 09 apps." Each increment ships gate-verified; shells retire only in Phase 4 once every product has its own slice.
 
 
 
