@@ -82,7 +82,7 @@ function scaleTriplets(prefix: string, shades: Record<string, string>): string {
  * registry key; unknown ids throw.
  */
 export function generateRootCss(appId?: string): string {
-  const app = appId ? resolveAppConfig(appId) : undefined;
+  const app = appId !== undefined ? resolveAppConfig(appId) : undefined;
   const appLayer = app
     ? `\n\n  /* Per-app accent (tokenised — never hardcoded) */\n` +
       `  --quant-app-color: ${hexToTriplet(app.color)};\n` +

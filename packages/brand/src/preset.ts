@@ -111,7 +111,7 @@ const semanticColors = {
  * loudly at build time rather than silently dropping the app accent.
  */
 export function buildQuantPreset(appId?: string): QuantTailwindPreset {
-  if (appId) {
+  if (appId !== undefined) {
     resolveAppConfig(appId);
   }
   const colors: QuantPresetColors = {

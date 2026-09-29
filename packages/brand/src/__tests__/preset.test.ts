@@ -43,17 +43,48 @@ describe('buildQuantPreset', () => {
     expect(colors.surface.DEFAULT).toBe('rgb(var(--quant-surface) / <alpha-value>)');
     expect(colors.surface.elevated).toBe('rgb(var(--quant-surface-elevated) / <alpha-value>)');
     expect(colors.destructive.DEFAULT).toBe('rgb(var(--quant-destructive) / <alpha-value>)');
+    expect(colors.destructive.foreground).toBe(
+      'rgb(var(--quant-destructive-foreground) / <alpha-value>)',
+    );
+    expect(colors.accent.DEFAULT).toBe('rgb(var(--quant-accent) / <alpha-value>)');
+    expect(colors.accent.foreground).toBe('rgb(var(--quant-accent-foreground) / <alpha-value>)');
+    expect(colors.muted.DEFAULT).toBe('rgb(var(--quant-muted) / <alpha-value>)');
+    expect(colors.muted.foreground).toBe('rgb(var(--quant-muted-foreground) / <alpha-value>)');
     expect(colors.border).toBe('rgb(var(--quant-border) / <alpha-value>)');
     expect(colors.ring).toBe('rgb(var(--quant-ring) / <alpha-value>)');
     expect(colors.app).toBe('rgb(var(--quant-app-color) / <alpha-value>)');
   });
 
-  it('exposes primitive scales 50..950 as var refs', () => {
+  it('exposes all six primitive scales × 11 shades as var refs', () => {
     const { colors } = buildQuantPreset().theme.extend;
-    expect(colors.brand['500']).toBe('rgb(var(--quant-primary-500) / <alpha-value>)');
-    expect(colors.neutral['950']).toBe('rgb(var(--quant-neutral-950) / <alpha-value>)');
-    expect(colors.success['400']).toBe('rgb(var(--quant-success-400) / <alpha-value>)');
-    expect(Object.keys(colors.brand)).toHaveLength(11);
+    const scales = [
+      ['brand', 'quant-primary'],
+      ['neutral', 'quant-neutral'],
+      ['success', 'quant-success'],
+      ['warning', 'quant-warning'],
+      ['error', 'quant-error'],
+      ['info', 'quant-info'],
+    ] as const;
+    const shades = [
+      '50',
+      '100',
+      '200',
+      '300',
+      '400',
+      '500',
+      '600',
+      '700',
+      '800',
+      '900',
+      '950',
+    ] as const;
+    for (const [scaleKey, varPrefix] of scales) {
+      const scale = colors[scaleKey];
+      expect(Object.keys(scale)).toHaveLength(11);
+      for (const shade of shades) {
+        expect(scale[shade]).toBe(`rgb(var(--${varPrefix}-${shade}) / <alpha-value>)`);
+      }
+    }
   });
 
   it('sets darkMode to class + [data-theme="dark"]', () => {
@@ -74,6 +105,10 @@ describe('buildQuantPreset', () => {
 
   it('throws on an unknown app id', () => {
     expect(() => buildQuantPreset('nonexistent')).toThrow('Unknown app: nonexistent');
+  });
+
+  it('treats a blank app id as invalid, not omission', () => {
+    expect(() => buildQuantPreset('')).toThrow('Unknown app: ');
   });
 
   it('builds with no app id (base preset)', () => {
@@ -128,6 +163,10 @@ describe('generateRootCss', () => {
 
   it('throws on an unknown app id', () => {
     expect(() => generateRootCss('nonexistent')).toThrow('Unknown app: nonexistent');
+  });
+
+  it('treats a blank app id as invalid, not omission', () => {
+    expect(() => generateRootCss('')).toThrow('Unknown app: ');
   });
 
   it('contains no raw hex in its output', () => {
