@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildQuantPreset,
+  generateAliasCss,
   generateRootCss,
   generateThemeCss,
   hexToTriplet,
@@ -171,5 +172,53 @@ describe('generateRootCss', () => {
 
   it('contains no raw hex in its output', () => {
     expect(generateRootCss('quantchat')).not.toMatch(/#[0-9A-Fa-f]{6}/);
+  });
+});
+
+describe('generateAliasCss', () => {
+  const css = generateAliasCss();
+
+  it('re-wraps quant triplets into rgb() for legacy semantic color names', () => {
+    expect(css).toContain('--brand-primary: rgb(var(--quant-primary));');
+    expect(css).toContain('--brand-accent: rgb(var(--quant-accent));');
+    expect(css).toContain('--brand-app-color: rgb(var(--quant-app-color));');
+    expect(css).toContain('--app-color: rgb(var(--quant-app-color));');
+  });
+
+  it('aliases shaded primitive scales to the canonical quant scales', () => {
+    expect(css).toContain('--brand-primary-500: rgb(var(--quant-primary-500));');
+    expect(css).toContain('--brand-neutral-950: rgb(var(--quant-neutral-950));');
+    expect(css).toContain('--brand-error-500: rgb(var(--quant-error-500));');
+  });
+
+  it('emits all 14 unprefixed shadcn semantic aliases', () => {
+    const slots = [
+      'background',
+      'foreground',
+      'surface',
+      'surface-elevated',
+      'primary',
+      'primary-foreground',
+      'accent',
+      'accent-foreground',
+      'border',
+      'muted',
+      'muted-foreground',
+      'destructive',
+      'destructive-foreground',
+      'ring',
+    ];
+    for (const slot of slots) {
+      expect(css).toContain(`--${slot}: rgb(var(--quant-${slot}));`);
+    }
+  });
+
+  it('never aliases to a bare triplet (which would emit invalid CSS)', () => {
+    expect(css).not.toMatch(/:\s*var\(--quant-/);
+  });
+
+  it('does not alias hover variants or the deprecated accent scale', () => {
+    expect(css).not.toContain('--brand-primary-hover:');
+    expect(css).not.toContain('--brand-accent-500:');
   });
 });

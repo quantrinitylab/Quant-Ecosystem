@@ -127,3 +127,40 @@ export function generateThemeCss(): string {
     })
     .join('\n\n');
 }
+
+/**
+ * Back-compat alias block (spec §6.1): legacy var names → canonical --quant-*,
+ * re-wrapped as rgb(var(...)) because --quant-* are raw "R G B" triplets and
+ * legacy consumers use these as full colors (a bare alias emits invalid CSS).
+ * Inert until an app imports it; removed in Wave 6. No hover/accent-scale alias.
+ */
+const SCALE_ALIASES: { brand: string; quant: string; shades: Record<string, string> }[] = [
+  { brand: 'brand-primary', quant: 'quant-primary', shades: primary },
+  { brand: 'brand-neutral', quant: 'quant-neutral', shades: neutral },
+  { brand: 'brand-success', quant: 'quant-success', shades: semantic.success },
+  { brand: 'brand-warning', quant: 'quant-warning', shades: semantic.warning },
+  { brand: 'brand-error', quant: 'quant-error', shades: semantic.error },
+  { brand: 'brand-info', quant: 'quant-info', shades: semantic.info },
+];
+
+export function generateAliasCss(): string {
+  const scales = SCALE_ALIASES.map(({ brand, quant, shades }) =>
+    Object.keys(shades)
+      .map((shade) => `  --${brand}-${shade}: rgb(var(--${quant}-${shade}));`)
+      .join('\n'),
+  ).join('\n');
+  const shadcn = COLOR_SLOTS.map(
+    (slot) => `  --${slotToVar(slot)}: rgb(var(--quant-${slotToVar(slot)}));`,
+  ).join('\n');
+  return `:root {
+  /* Legacy shaded --brand-* primitive scales → canonical --quant-* */
+${scales}
+
+  /* Unprefixed shadcn semantics + unshaded --brand-* + --app-color */
+${shadcn}
+  --brand-primary: rgb(var(--quant-primary));
+  --brand-accent: rgb(var(--quant-accent));
+  --brand-app-color: rgb(var(--quant-app-color));
+  --app-color: rgb(var(--quant-app-color));
+}`;
+}
