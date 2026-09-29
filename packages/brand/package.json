@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc",
+    "generate:tokens": "tsx scripts/generate-tokens-css.ts",
     "lint": "eslint ."
   },
   "devDependencies": {
