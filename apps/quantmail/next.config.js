@@ -34,7 +34,7 @@ const contentSecurityPolicy = [
 ].join('; ');
 
 const nextConfig = {
-  transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/brand', '@quant/bharat-ai'],
+  transpilePackages: ['@quant/shared-ui', '@quant/common', '@quant/brand', '@quant/app-registry', '@quant/bharat-ai'],
   experimental: {
     // framer-motion is imported at 121 sites; without this every one of them
     // pulls the whole barrel into its route chunk.

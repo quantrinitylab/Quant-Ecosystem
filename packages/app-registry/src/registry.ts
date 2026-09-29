@@ -20,7 +20,11 @@ export const PRODUCT_APPS: QuantAppEntry[] = [
     category: 'core',
     maturity: 'ga',
     kind: 'product',
-    surfaces: ['web', 'backend'],
+    // Pilot for the per-app restructure: QuantMail owns its OWN role-gated
+    // `/admin` route segment (apps/quantmail/src/app/admin) instead of routing
+    // staff to a shared admin-enterprise shell. Declaring 'admin' here is what
+    // lets ecosystem aggregators discover this app's admin presence.
+    surfaces: ['web', 'backend', 'admin'],
   },
   {
     id: 'quantchat',

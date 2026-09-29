@@ -24,6 +24,7 @@
     "@prisma/client": "^6.19.3",
     "@quant/ai": "workspace:*",
     "@quant/api-client": "workspace:*",
+    "@quant/app-registry": "workspace:*",
     "@quant/auth": "workspace:*",
     "@quant/brand": "workspace:*",
     "@quant/common": "workspace:*",

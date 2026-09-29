@@ -746,6 +746,9 @@ importers:
       '@quant/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@quant/app-registry':
+        specifier: workspace:*
+        version: link:../../packages/app-registry
       '@quant/auth':
         specifier: workspace:*
         version: link:../../packages/auth
