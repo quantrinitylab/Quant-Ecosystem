@@ -122,7 +122,7 @@ export class OfflineMutationQueue {
       try {
         listener(snapshot);
       } catch (err) {
-        console.error('OfflineMutationQueue listener error:', err);
+        // Ignore listener runtime errors safely without console logging in shared-ui
       }
     }
   }
