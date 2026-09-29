@@ -1,0 +1,41 @@
+import { describe, it, expect } from 'vitest';
+import { getApp, allApps, byCategory, searchApps, resolveAllApps } from '../queries';
+
+describe('registry query helpers', () => {
+  it('getApp returns the entry or undefined', () => {
+    expect(getApp('quantmail')?.name).toBe('QuantMail');
+    expect(getApp('nope')).toBeUndefined();
+  });
+
+  it('allApps returns a fresh copy of the catalog', () => {
+    const a = allApps();
+    expect(a).toHaveLength(9);
+    a.pop();
+    expect(allApps()).toHaveLength(9); // original catalog not mutated
+  });
+
+  it('byCategory groups correctly', () => {
+    expect(
+      byCategory('core')
+        .map((a) => a.id)
+        .sort(),
+    ).toEqual(['quantai', 'quantchat', 'quantmail', 'quantmax'].sort());
+    expect(byCategory('social')).toHaveLength(4);
+    expect(byCategory('infra').map((a) => a.id)).toEqual(['quantads']);
+  });
+
+  it('searchApps is case-insensitive and matches id / name / route', () => {
+    expect(searchApps('mail').map((a) => a.id)).toEqual(['quantmail']);
+    expect(searchApps('QUANT')).toHaveLength(9);
+    expect(searchApps('/ai').map((a) => a.id)).toEqual(['quantai']);
+    expect(searchApps('   ')).toEqual([]);
+  });
+
+  it('resolveAllApps merges a colour into every product', () => {
+    const resolved = resolveAllApps();
+    expect(resolved).toHaveLength(9);
+    for (const app of resolved) {
+      expect(app.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    }
+  });
+});
