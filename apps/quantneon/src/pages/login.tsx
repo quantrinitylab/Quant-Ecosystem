@@ -68,6 +68,23 @@ export default function LoginPage() {
           </p>
         </div>
 
+        <div className="mb-6">
+          <a
+            href={`https://quantmail.in/sso?returnTo=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantgram.quantrinity.in/')}`}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            ⚡ Continue with Quant Account
+          </a>
+        </div>
+
+        <div className="mb-6 flex items-center justify-center gap-4">
+          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
+          <span className="text-[11px] font-semibold tracking-wider text-[var(--quant-muted-foreground)]">
+            OR WITH QUANT ID / EMAIL
+          </span>
+          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
+        </div>
+
         {twoFactorNotice ? (
           <div
             role="status"

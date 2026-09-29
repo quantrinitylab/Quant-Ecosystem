@@ -51,6 +51,9 @@ export function getConfig(): AppConfig {
       { path: '/music', methods: ['GET'], exact: true },
       { path: '/search', methods: ['GET'], exact: true },
       { path: '/feed/trending', methods: ['GET'], exact: true },
+      { path: '/interactions/comments/:id', methods: ['GET'], exact: true },
+      { path: '/interactions/comments', methods: ['GET'], exact: true },
+      { path: '/interactions/likes/:id', methods: ['GET'], exact: true },
     ],
     env,
   };

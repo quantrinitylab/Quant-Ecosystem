@@ -112,9 +112,27 @@ export function useAuth(): UseAuthReturn {
       try {
         const userData = await fetchUserFromToken(token);
         if (!cancelled) setUser(userData);
-      } catch {
-        clearStoredTokens();
-        if (!cancelled) setUser(null);
+      } catch (err) {
+        const isAuthError =
+          err instanceof Error &&
+          (err.message.includes('401') ||
+            err.message.includes('403') ||
+            err.message.includes('verified user id'));
+        if (isAuthError) {
+          clearStoredTokens();
+          if (!cancelled) setUser(null);
+        } else {
+          // Network error or server unreachable. Don't log out if we have a token.
+          if (!cancelled) {
+            setUser({
+              id: 'offline',
+              email: '',
+              username: 'offline',
+              displayName: 'Offline',
+              role: 'user',
+            });
+          }
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -193,9 +211,16 @@ export function useAuth(): UseAuthReturn {
       // Re-resolve identity; if the token is no longer valid, fail closed.
       const userData = await fetchUserFromToken(token);
       setUser(userData);
-    } catch {
-      clearStoredTokens();
-      setUser(null);
+    } catch (err) {
+      const isAuthError =
+        err instanceof Error &&
+        (err.message.includes('401') ||
+          err.message.includes('403') ||
+          err.message.includes('verified user id'));
+      if (isAuthError) {
+        clearStoredTokens();
+        setUser(null);
+      }
     }
   }, []);
 
