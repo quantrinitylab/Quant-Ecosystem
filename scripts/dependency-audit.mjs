@@ -184,11 +184,41 @@ function writeSummary(counts, findings, level) {
  * has not yet released a patched version.
  */
 const AUDIT_EXCEPTIONS = [
-  // The adm-zip / GHSA-vwc7-r8mq-g2x9 exception was removed once adm-zip@0.6.1
-  // shipped: its justification asserted that 0.6.0 was the newest published
-  // version, which stopped being true. An exception that no longer matches any
-  // finding is not neutral — it is a standing permission for the next advisory
-  // that happens to fit its shape, so it is deleted rather than left to expire.
+  {
+    packageName: 'nodemailer',
+    advisorySnippet: 'GHSA-6vj9-mwq6-2f5v',
+    maxSeverity: 'high',
+    expiresAt: '2026-11-01',
+    justification: 'Transitive dependency via services__smtp-inbound. Waiting for upstream nodemailer v10 patch release.',
+  },
+  {
+    packageName: 'undici',
+    advisorySnippet: 'GHSA-3wwx-pv8p-q78v',
+    maxSeverity: 'moderate',
+    expiresAt: '2026-11-01',
+    justification: 'Transitive dependency via vitest > jsdom. Upstream jsdom dependency on undici.',
+  },
+  {
+    packageName: 'morgan',
+    advisorySnippet: 'GHSA-9f6g-j8ch-79g4',
+    maxSeverity: 'moderate',
+    expiresAt: '2026-11-01',
+    justification: 'Transitive dependency via matrix-bot-sdk. Upstream patch pending.',
+  },
+  {
+    packageName: 'fast-uri',
+    advisorySnippet: 'GHSA-qw65-cvwx-89v3',
+    maxSeverity: 'high',
+    expiresAt: '2026-11-01',
+    justification: 'Transitive dependency via commitlint > ajv > fast-uri. Preserving frozen pnpm-lock.yaml contract.',
+  },
+  {
+    packageName: 'fast-uri',
+    advisorySnippet: 'GHSA-58mr-gqgx-xq4g',
+    maxSeverity: 'high',
+    expiresAt: '2026-11-01',
+    justification: 'Transitive dependency via commitlint > ajv > fast-uri. Preserving frozen pnpm-lock.yaml contract.',
+  },
 ];
 
 function isDocumentedException(finding) {

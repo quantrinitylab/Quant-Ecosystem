@@ -17,7 +17,7 @@ global:
 configmap:
   NODE_ENV: staging
   LOG_LEVEL: debug
-  CORS_ORIGINS: 'https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quantrinity.in'
+  CORS_ORIGINS: 'https://quantmail.in,https://quantmail.quantrinity.in,https://quantchat.quantrinity.in,https://quantai.quantrinity.in,https://quantube.quantrinity.in,https://quantgram.quantrinity.in,https://quantwave.quantrinity.in,https://quantmax.quantrinity.in,https://quantrinity.in'
   JWT_ISSUER: 'https://quantrinity.in'
   JWT_AUDIENCE: 'quant-platform-staging'
   QUANTMAIL_BACKEND_URL: 'http://quant-quantmail-backend:3011'

@@ -47,13 +47,30 @@ function getWsUrl(): string {
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_WS_URL) {
     return process.env.NEXT_PUBLIC_WS_URL;
   }
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (window.location.hostname === 'quantchat.quantrinity.in') {
+        return 'wss://quantws.quantrinity.in/ws';
+      }
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${window.location.host}/ws`;
+    }
+  }
   return 'ws://localhost:3006/ws';
 }
 
 /** Default API base URL for long-polling */
-function getApiBaseUrl(): string {
+function getHttpFallbackUrl(): string {
+  if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_HTTP_FALLBACK_URL) {
+    return process.env.NEXT_PUBLIC_HTTP_FALLBACK_URL;
+  }
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return window.location.origin;
+    }
   }
   return 'http://localhost:3006';
 }
@@ -117,7 +134,7 @@ export function RealtimeProvider({ children }: Props) {
       try {
         const token = getAuthToken();
         const since = lastEventTimestampRef.current;
-        const url = `${getApiBaseUrl()}/api/events?since=${since}`;
+        const url = `${getHttpFallbackUrl()}/api/events?since=${since}`;
 
         const response = await fetch(url, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},

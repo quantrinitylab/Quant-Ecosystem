@@ -23,11 +23,27 @@ export interface SessionResult {
 let accessToken: string | null = null;
 
 export function getAccessToken(): string | null {
-  return accessToken;
+  if (accessToken) return accessToken;
+  if (typeof window !== 'undefined') {
+    const local = localStorage.getItem('quant_access_token') || localStorage.getItem('token');
+    if (local) return local;
+  }
+  return null;
 }
 
-function setAccessToken(token: string | null): void {
+export function setAccessToken(token: string | null): void {
   accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('quant_access_token', token);
+      localStorage.setItem('token', token);
+      document.cookie = `quant_access_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+    } else {
+      localStorage.removeItem('quant_access_token');
+      localStorage.removeItem('token');
+      document.cookie = 'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
+  }
   apiClient.setToken(token ?? '');
 }
 

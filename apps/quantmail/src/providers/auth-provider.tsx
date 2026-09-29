@@ -17,6 +17,8 @@ export interface AuthUser {
   username: string;
   displayName: string;
   role: string;
+  phoneNumber?: string | null;
+  phoneVerified?: boolean;
 }
 
 /**

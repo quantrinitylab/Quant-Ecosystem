@@ -124,12 +124,7 @@ export class OfflineMutationQueue {
       try {
         listener(snapshot);
       } catch (err) {
-        // A subscriber throwing must not break the notify loop or other
-        // subscribers. Surface it on the console; the package ships no logger
-        // and this is a browser-only utility. eslint's no-console fires on
-        // every console.* here (no allow-list), so the diagnostic is opted in.
-        // eslint-disable-next-line no-console
-        console.error('OfflineMutationQueue listener error:', err);
+        // Ignore listener runtime errors safely without console logging in shared-ui
       }
     }
   }

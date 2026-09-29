@@ -309,6 +309,15 @@ export class UniversalSSOTokenBridge {
       // Safely store token in standard ecosystem keys
       UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_access_token', tokenToStore);
       UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_auth_token', tokenToStore);
+      UniversalSSOTokenBridge.safeSetItem('localStorage', 'token', tokenToStore);
+      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_token', tokenToStore);
+      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quantchat_access_token', tokenToStore);
+
+      if (typeof document !== 'undefined') {
+        document.cookie =
+          'quant_access_token=' + tokenToStore + '; path=/; max-age=86400; SameSite=Lax';
+        document.cookie = 'token=' + tokenToStore + '; path=/; max-age=86400; SameSite=Lax';
+      }
 
       if (verifiedSession && verifiedSession.userId) {
         const session: QuantUserSession = {

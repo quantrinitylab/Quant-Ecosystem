@@ -23,12 +23,29 @@ export interface SessionResult {
 let accessToken: string | null = null;
 
 export function getAccessToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return (
+      accessToken || localStorage.getItem('quant_access_token') || localStorage.getItem('token')
+    );
+  }
   return accessToken;
 }
 
 function setAccessToken(token: string | null): void {
   accessToken = token;
   apiClient.setToken(token ?? '');
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('quant_access_token', token);
+      localStorage.setItem('token', token);
+      document.cookie = `quant_access_token=${encodeURIComponent(token)}; path=/; SameSite=Lax`;
+    } else {
+      localStorage.removeItem('quant_access_token');
+      localStorage.removeItem('token');
+      document.cookie =
+        'quant_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+    }
+  }
 }
 
 export function clearAccessToken(): void {
