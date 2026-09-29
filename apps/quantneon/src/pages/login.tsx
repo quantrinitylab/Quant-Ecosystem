@@ -4,7 +4,7 @@
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
 // ============================================================================
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 
@@ -18,7 +18,7 @@ function safeReturnPath(raw: string | string[] | undefined): string | null {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +29,24 @@ export default function LoginPage() {
     () => safeReturnPath(router.query.returnTo) ?? '/',
     [router.query.returnTo],
   );
+
+  useEffect(() => {
+    // Check if we have an active session or a token in URL/Storage
+    const ssoResult =
+      typeof window !== 'undefined'
+        ? (window as any).UniversalSSOTokenBridge?.getInstance().consumeHandoffTicket()
+        : null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasToken =
+      urlParams.get('token') ||
+      urlParams.get('accessToken') ||
+      urlParams.get('__quant_sso_ticket') ||
+      ssoResult?.ticket;
+
+    if (isAuthenticated || hasToken) {
+      void router.replace(destination());
+    }
+  }, [isAuthenticated, destination, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

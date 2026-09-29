@@ -1,7 +1,12 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import {
+  authSession,
+  clearAccessToken,
+  isTwoFactorChallenge,
+  getAccessToken,
+} from '../services/auth-session';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -36,14 +41,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       try {
+        const _token =
+          getAccessToken() ||
+          (typeof window !== 'undefined' ? localStorage.getItem('quant_access_token') : null);
+        if (_token) {
+          setIsAuthenticated(true);
+          setIsLoading(false);
+          // don't drop to logged-out if refresh fails initially since we have token
+        }
+
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('auth-timeout')), 5000),
         );
         const session = await Promise.race([authSession.refresh(), timeout]);
         if (!active) return;
-        setIsAuthenticated(Boolean(session.success && session.data?.accessToken));
+        if (session.success && session.data?.accessToken) {
+          setIsAuthenticated(true);
+        }
       } catch {
-        if (active) clearSession();
+        if (active && !getAccessToken()) clearSession();
       } finally {
         if (active) setIsLoading(false);
       }

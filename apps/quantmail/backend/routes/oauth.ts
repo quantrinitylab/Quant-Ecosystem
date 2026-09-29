@@ -591,6 +591,8 @@ export async function oauthRoutes(fastify: FastifyInstance) {
         username: user.username,
         displayName: user.displayName,
         role: user.role,
+        phoneNumber: user.phoneNumber,
+        phoneVerified: Boolean(user.phoneVerified),
       },
     });
   });

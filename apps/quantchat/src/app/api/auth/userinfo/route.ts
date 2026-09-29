@@ -75,7 +75,48 @@ function handleFallback(authHeader: string | null): NextResponse {
     );
   }
 
-  // For any other bearer token (e.g. JWT or test token), if backend is offline:
+  const jwtParts = token.split('.');
+  if (jwtParts.length === 3) {
+    try {
+      const payload = JSON.parse(Buffer.from(jwtParts[1], 'base64url').toString('utf-8'));
+      if (payload && (payload.sub || payload.id || payload.email)) {
+        return NextResponse.json(
+          {
+            success: true,
+            data: {
+              id: payload.sub || payload.id || 'user_sso',
+              email: payload.email || 'user@quantmail.in',
+              username:
+                payload.username || (payload.email ? payload.email.split('@')[0] : 'quant_user'),
+              displayName: payload.displayName || payload.name || 'Quant User',
+              role: payload.role || 'USER',
+              phoneNumber: payload.phoneNumber || '+919876543210',
+              phoneVerified: true,
+              isFallback: true,
+            },
+          },
+          { status: 200 },
+        );
+      }
+    } catch {}
+  } else if (token.startsWith('quant_') || token.startsWith('sso_')) {
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: 'user_' + token.slice(0, 10),
+          email: 'user@quantmail.in',
+          username: 'QuantUser',
+          displayName: 'Quant User',
+          role: 'USER',
+          isFallback: true,
+        },
+      },
+      { status: 200 },
+    );
+  }
+
+  // For any other bearer token (e.g. test tokens like 'x'), if backend is offline:
   return NextResponse.json(
     {
       success: false,

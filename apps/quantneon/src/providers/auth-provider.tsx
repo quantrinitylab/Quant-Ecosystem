@@ -1,5 +1,20 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  ReactNode,
+} from 'react';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
+import {
+  authSession,
+  clearAccessToken,
+  getAccessToken,
+  isTwoFactorChallenge,
+  setAccessToken,
+} from '../services/auth-session';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -17,7 +32,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,14 +49,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let active = true;
     (async () => {
       try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken =
+          urlParams.get('token') ||
+          urlParams.get('accessToken') ||
+          urlParams.get('__quant_sso_ticket');
+        const ssoResult = UniversalSSOTokenBridge.getInstance().consumeHandoffTicket();
+        const finalToken = ssoResult?.ticket || urlToken;
+
+        if (finalToken) {
+          setAccessToken(finalToken);
+          setIsAuthenticated(true);
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.delete('token');
+          currentUrl.searchParams.delete('accessToken');
+          currentUrl.searchParams.delete('__quant_sso_ticket');
+          window.history.replaceState({}, document.title, currentUrl.pathname + currentUrl.search);
+          if (active) setIsLoading(false);
+          return;
+        }
+
+        const localToken =
+          typeof window !== 'undefined'
+            ? getAccessToken() || localStorage.getItem('quant_access_token')
+            : null;
+        if (localToken) {
+          setIsAuthenticated(true);
+          if (active) setIsLoading(false);
+        }
+
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('auth-timeout')), 5000),
         );
         const session = await Promise.race([authSession.refresh(), timeout]);
         if (!active) return;
-        setIsAuthenticated(Boolean(session.success && session.data?.accessToken));
+        if (session.success && session.data?.accessToken) {
+          setIsAuthenticated(true);
+        } else if (!localToken) {
+          setIsAuthenticated(false);
+        }
       } catch {
-        if (active) clearSession();
+        const localToken =
+          typeof window !== 'undefined'
+            ? getAccessToken() || localStorage.getItem('quant_access_token')
+            : null;
+        if (!localToken && active) clearSession();
       } finally {
         if (active) setIsLoading(false);
       }
