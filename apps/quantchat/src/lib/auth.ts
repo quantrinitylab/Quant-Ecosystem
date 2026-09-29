@@ -38,9 +38,17 @@ export function getAuthHeadersWithContent(): Record<string, string> {
 export function getWsBaseUrl(): string {
   const envWsUrl = process.env.NEXT_PUBLIC_WS_URL;
   if (envWsUrl) return envWsUrl;
-  return typeof window !== 'undefined'
-    ? `ws://${window.location.hostname}:3002`
-    : `ws://127.0.0.1:3002`;
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (window.location.hostname === 'quantchat.quantrinity.in') {
+        return 'wss://quantws.quantrinity.in/ws';
+      }
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${window.location.host}/ws`;
+    }
+    return `ws://${window.location.hostname}:3002`;
+  }
+  return `ws://127.0.0.1:3002`;
 }
 
 /**

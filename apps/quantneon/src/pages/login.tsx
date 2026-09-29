@@ -4,7 +4,7 @@
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
 // ============================================================================
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 
@@ -18,7 +18,7 @@ function safeReturnPath(raw: string | string[] | undefined): string | null {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,6 +29,24 @@ export default function LoginPage() {
     () => safeReturnPath(router.query.returnTo) ?? '/',
     [router.query.returnTo],
   );
+
+  useEffect(() => {
+    // Check if we have an active session or a token in URL/Storage
+    const ssoResult =
+      typeof window !== 'undefined'
+        ? (window as any).UniversalSSOTokenBridge?.getInstance().consumeHandoffTicket()
+        : null;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasToken =
+      urlParams.get('token') ||
+      urlParams.get('accessToken') ||
+      urlParams.get('__quant_sso_ticket') ||
+      ssoResult?.ticket;
+
+    if (isAuthenticated || hasToken) {
+      void router.replace(destination());
+    }
+  }, [isAuthenticated, destination, router]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -66,6 +84,23 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
             Use your QuantID — one account for the whole ecosystem.
           </p>
+        </div>
+
+        <div className="mb-6">
+          <a
+            href={`https://quantmail.in/sso?returnTo=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantgram.quantrinity.in/')}`}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            ⚡ Continue with Quant Account
+          </a>
+        </div>
+
+        <div className="mb-6 flex items-center justify-center gap-4">
+          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
+          <span className="text-[11px] font-semibold tracking-wider text-[var(--quant-muted-foreground)]">
+            OR WITH QUANT ID / EMAIL
+          </span>
+          <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
         </div>
 
         {twoFactorNotice ? (

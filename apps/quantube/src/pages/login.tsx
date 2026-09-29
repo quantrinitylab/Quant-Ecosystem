@@ -124,6 +124,21 @@ export default function LoginPage() {
           </div>
         ) : null}
 
+        <a
+          href={`https://quantmail.in/sso?returnTo=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}${destination()}` : 'https://quantube.quantrinity.in/')}&client_id=quantube`}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 py-3 text-sm font-semibold text-white shadow-lg shadow-red-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+        >
+          ⚡ Continue with Quant Account
+        </a>
+        <div className="relative my-4 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-[var(--quant-border)]" />
+          </div>
+          <span className="relative bg-[var(--quant-background)] px-3 text-xs uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+            Or with email
+          </span>
+        </div>
+
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label
