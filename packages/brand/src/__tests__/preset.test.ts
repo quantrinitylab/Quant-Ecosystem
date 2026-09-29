@@ -178,12 +178,11 @@ describe('generateRootCss', () => {
 
 describe('generateAliasCss', () => {
   const css = generateAliasCss();
+  const appCss = generateAliasCss('quantgram');
 
-  it('re-wraps quant triplets into rgb() for legacy semantic color names', () => {
+  it('re-wraps quant triplets into rgb() for the unshaded --brand-* names', () => {
     expect(css).toContain('--brand-primary: rgb(var(--quant-primary));');
     expect(css).toContain('--brand-accent: rgb(var(--quant-accent));');
-    expect(css).toContain('--brand-app-color: rgb(var(--quant-app-color));');
-    expect(css).toContain('--app-color: rgb(var(--quant-app-color));');
   });
 
   it('aliases shaded primitive scales to the canonical quant scales', () => {
@@ -214,29 +213,55 @@ describe('generateAliasCss', () => {
     }
   });
 
-  it('never aliases to a bare triplet (which would emit invalid CSS)', () => {
+  it('omits the app-layer aliases in base mode (no --quant-app-* target exists)', () => {
+    expect(css).not.toContain('--brand-app-color:');
+    expect(css).not.toContain('--app-color:');
+    expect(css).not.toContain('--app-hue:');
+  });
+
+  it('emits the app-color and app-hue aliases only when an app id is given', () => {
+    expect(appCss).toContain('--brand-app-color: rgb(var(--quant-app-color));');
+    expect(appCss).toContain('--app-color: rgb(var(--quant-app-color));');
+    expect(appCss).toContain('--app-hue: var(--quant-app-hue);');
+  });
+
+  it('aliases the scalar app-hue bare, never wrapped in rgb()', () => {
+    expect(appCss).not.toContain('--app-hue: rgb(');
+  });
+
+  it('never aliases a color to a bare triplet (which would emit invalid CSS)', () => {
     expect(css).not.toMatch(/:\s*var\(--quant-/);
+    // With an app id the only permitted bare var() is the non-color --app-hue.
+    expect(appCss).not.toMatch(/:\s*var\(--quant-(?!app-hue)/);
   });
 
   it('does not alias hover variants or the deprecated accent scale', () => {
-    expect(css).not.toContain('--brand-primary-hover:');
-    expect(css).not.toContain('--brand-accent-500:');
+    expect(appCss).not.toContain('--brand-primary-hover:');
+    expect(appCss).not.toContain('--brand-accent-500:');
   });
 });
 
 describe('generateTokensCssDocument', () => {
-  it('concatenates root primitives, all 6 theme blocks, and the alias block', () => {
+  it('concatenates root primitives, all 6 theme blocks, and the alias block in order', () => {
     const css = generateTokensCssDocument();
-    expect(css).toContain('--quant-primary-500: 255 140 66;'); // root primitive triplet
+    const rootIdx = css.indexOf('--quant-primary-500: 255 140 66;'); // root primitive triplet
+    const themeIdx = css.indexOf(':root[data-theme='); // first theme block
+    const aliasIdx = css.indexOf('--background: rgb(var(--quant-background));'); // alias block
+    expect(rootIdx).toBeGreaterThanOrEqual(0);
     expect(css.match(/:root\[data-theme=/g) ?? []).toHaveLength(6); // every theme block
-    expect(css).toContain('--background: rgb(var(--quant-background));'); // alias block
+    // Cascade order matters: primitives → theme slots → back-compat aliases.
+    expect(rootIdx).toBeLessThan(themeIdx);
+    expect(themeIdx).toBeLessThan(aliasIdx);
     expect(css).not.toContain('--quant-app-color:'); // no app-accent definition without an id
+    expect(css).not.toContain('--app-color:'); // and no dangling app-layer alias either
   });
 
-  it('includes the per-app accent definition when an app id is given', () => {
+  it('includes the per-app accent definition and its aliases when an app id is given', () => {
     const css = generateTokensCssDocument('quantgram');
     expect(css).toContain('--quant-app-color: 236 72 153;'); // #EC4899
     expect(css).toContain('--quant-app-hue: 330;');
+    expect(css).toContain('--app-color: rgb(var(--quant-app-color));'); // alias resolves now
+    expect(css).toContain('--app-hue: var(--quant-app-hue);');
   });
 
   it('contains no raw hex anywhere in the assembled document', () => {

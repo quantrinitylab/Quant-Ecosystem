@@ -132,7 +132,15 @@ export function generateThemeCss(): string {
  * Back-compat alias block (spec §6.1): legacy var names → canonical --quant-*,
  * re-wrapped as rgb(var(...)) because --quant-* are raw "R G B" triplets and
  * legacy consumers use these as full colors (a bare alias emits invalid CSS).
- * Inert until an app imports it; removed in Wave 6. No hover/accent-scale alias.
+ * Inert until an app imports it; removed in Wave 6.
+ *
+ * NOT aliased (no canonical target exists): the `--brand-primary-hover` /
+ * `--brand-accent-hover` pair and the deprecated `--brand-accent-<shade>` scale.
+ * Hover was dropped as a token — there is no `--quant-*-hover`. CONSEQUENCE: a
+ * migrating app that deletes its hand-maintained `--brand-*-hover` lines (spec
+ * §6.1) loses hover colors with no fallback here. Per-app rollout PRs must
+ * handle hover deliberately — recompute it from the primary/accent role (a
+ * lightness shift / `color-mix`) rather than expecting an alias from this block.
  */
 const SCALE_ALIASES: { brand: string; quant: string; shades: Record<string, string> }[] = [
   { brand: 'brand-primary', quant: 'quant-primary', shades: primary },
@@ -143,7 +151,7 @@ const SCALE_ALIASES: { brand: string; quant: string; shades: Record<string, stri
   { brand: 'brand-info', quant: 'quant-info', shades: semantic.info },
 ];
 
-export function generateAliasCss(): string {
+export function generateAliasCss(appId?: string): string {
   const scales = SCALE_ALIASES.map(({ brand, quant, shades }) =>
     Object.keys(shades)
       .map((shade) => `  --${brand}-${shade}: rgb(var(--${quant}-${shade}));`)
@@ -152,16 +160,24 @@ export function generateAliasCss(): string {
   const shadcn = COLOR_SLOTS.map(
     (slot) => `  --${slotToVar(slot)}: rgb(var(--quant-${slotToVar(slot)}));`,
   ).join('\n');
+  // App-layer aliases only when an app id is in play: --quant-app-color and
+  // --quant-app-hue exist solely in generateRootCss(appId)'s output, so emitting
+  // these in base (no-id) mode would resolve to unset (invalid) values. --app-hue
+  // is a scalar hue, aliased bare — NOT rgb()-wrapped, since it is not a color.
+  const appLayer =
+    appId !== undefined
+      ? `\n  --brand-app-color: rgb(var(--quant-app-color));\n` +
+        `  --app-color: rgb(var(--quant-app-color));\n` +
+        `  --app-hue: var(--quant-app-hue);`
+      : '';
   return `:root {
   /* Legacy shaded --brand-* primitive scales → canonical --quant-* */
 ${scales}
 
-  /* Unprefixed shadcn semantics + unshaded --brand-* + --app-color */
+  /* Unprefixed shadcn semantics + unshaded --brand-* (+ app layer when id given) */
 ${shadcn}
   --brand-primary: rgb(var(--quant-primary));
-  --brand-accent: rgb(var(--quant-accent));
-  --brand-app-color: rgb(var(--quant-app-color));
-  --app-color: rgb(var(--quant-app-color));
+  --brand-accent: rgb(var(--quant-accent));${appLayer}
 }`;
 }
 
@@ -173,5 +189,5 @@ ${shadcn}
  * legacy) adds the per-app accent; unknown ids throw.
  */
 export function generateTokensCssDocument(appId?: string): string {
-  return [generateRootCss(appId), generateThemeCss(), generateAliasCss()].join('\n\n');
+  return [generateRootCss(appId), generateThemeCss(), generateAliasCss(appId)].join('\n\n');
 }
