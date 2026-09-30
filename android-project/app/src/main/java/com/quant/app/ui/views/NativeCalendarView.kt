@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +81,46 @@ data class ScheduleTimelineItem(
     val hasMeetLink: Boolean = false,
     val isDynamic: Boolean = false
 )
+
+/**
+ * 3D Pad QuantCalendarMark brand badge.
+ */
+@Composable
+fun QuantCalendarMark(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .clip(RoundedCornerShape(11.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFF, 0x8C, 0x42),
+                        Color(0xFFEA, 0x58, 0x0C)
+                    )
+                )
+            )
+            .border(
+                BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.55f),
+                            Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.2f)
+                        )
+                    )
+                ),
+                RoundedCornerShape(11.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Event,
+            contentDescription = "Quant Calendar",
+            tint = Color.White,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
 
 /**
  * Native Jetpack Compose Calendar & Schedule View.
@@ -175,13 +216,13 @@ fun NativeCalendarView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0B, 0x0C, 0x0E))
+            .background(Color(0xFF09, 0x0A, 0x0C))
     ) {
         // ─── 1. TOP MINI-CALENDAR HEADER ──────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF11, 0x13, 0x18))
+                .background(Color(0xFF10, 0x12, 0x18))
                 .padding(bottom = 12.dp)
         ) {
             // Month & Year Header Title
@@ -194,32 +235,28 @@ fun NativeCalendarView(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(Color(0xFFF5, 0x9E, 0x0B).copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Event,
-                            contentDescription = "Calendar",
-                            tint = Color(0xFFF5, 0x9E, 0x0B),
-                            modifier = Modifier.size(18.dp)
+                    QuantCalendarMark()
+                    Column {
+                        Text(
+                            text = "September 2026",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Sovereign CalDAV Schedule",
+                            color = Color(0xFF9C, 0xA3, 0xAF),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
-                    Text(
-                        text = "September 2026",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     IconButton(
                         onClick = {
@@ -235,23 +272,33 @@ fun NativeCalendarView(
                         )
                     }
 
-                    // Jump to Today button
+                    // Jump to Today pill
                     Surface(
                         onClick = {
                             selectedDayIndex = 2
                             Toast.makeText(context, "Jumped to Today (Wed Sep 30)", Toast.LENGTH_SHORT).show()
                         },
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF1F, 0x24, 0x2D),
-                        border = BorderStroke(1.dp, Color(0xFF37, 0x41, 0x51))
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.16f),
+                        border = BorderStroke(1.dp, Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.65f))
                     ) {
-                        Text(
-                            text = "Today",
-                            color = Color(0xFFF5, 0x9E, 0x0B),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(6.dp)
+                                    .background(Color(0xFFFF, 0x8C, 0x42), CircleShape)
+                            )
+                            Text(
+                                text = "Today",
+                                color = Color(0xFFFF, 0x8C, 0x42),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     IconButton(
@@ -297,50 +344,56 @@ fun NativeCalendarView(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF16, 0x1A, 0x22))
+                .background(Color(0xFF0F, 0x11, 0x17))
                 .padding(horizontal = 16.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Timezone location info with globe icon
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // Timezone location pill with globe icon
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF16, 0x19, 0x22))
+                    .border(1.dp, Color(0xFF26, 0x2C, 0x3A), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Public,
-                    contentDescription = "Timezone",
-                    tint = Color(0xFF9C, 0xA3, 0xAF),
-                    modifier = Modifier.size(16.dp)
-                )
-                Text(
-                    text = "IST · UTC+5:30 (New Delhi)",
-                    color = Color(0xFFD1, 0xD5, 0xDB),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Public,
+                        contentDescription = "Timezone",
+                        tint = Color(0xFF9C, 0xA3, 0xAF),
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Text(
+                        text = "IST · UTC+5:30 (New Delhi)",
+                        color = Color(0xFFE2, 0xE8, 0xF0),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             // Sync Badge: ⚡ CalDAV Real-Time Sync
             Box(
                 modifier = Modifier
-                    .background(
-                        color = Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f))
                     .border(
                         width = 1.dp,
-                        color = Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.4f),
+                        color = Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.45f),
                         shape = RoundedCornerShape(12.dp)
                     )
                     .clickable {
                         Toast.makeText(context, "⚡ CalDAV connected & synchronized (sub-50ms latency)", Toast.LENGTH_SHORT).show()
                     }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -357,22 +410,15 @@ fun NativeCalendarView(
             }
         }
 
-        HorizontalDivider(color = Color(0xFF1F, 0x24, 0x2D), thickness = 1.dp)
+        HorizontalDivider(color = Color(0xFF1E, 0x22, 0x2C), thickness = 1.dp)
 
         // ─── 3. DAILY SCHEDULE TIMELINE ───────────────────────────────────────
         val timelineHours = remember {
             listOf(
-                "08:00 AM",
                 "09:00 AM",
-                "10:00 AM",
-                "11:00 AM",
-                "12:00 PM",
-                "01:00 PM",
+                "11:30 AM",
                 "02:00 PM",
-                "03:00 PM",
-                "04:00 PM",
-                "05:00 PM",
-                "06:00 PM"
+                "04:30 PM"
             )
         }
 
@@ -385,9 +431,12 @@ fun NativeCalendarView(
             items(timelineHours) { hour ->
                 // Check if any event belongs to this hour slot
                 val matchedEvents = allEvents.filter { event ->
-                    event.timeSlot.startsWith(hour.take(2)) ||
-                    (hour == "11:00 AM" && event.timeSlot.startsWith("11:30")) ||
-                    (hour == "04:00 PM" && event.timeSlot.startsWith("04:30"))
+                    event.timeSlot == hour ||
+                    event.timeSlot.startsWith(hour.take(5)) ||
+                    (hour == "09:00 AM" && event.timeSlot.startsWith("09")) ||
+                    (hour == "11:30 AM" && event.timeSlot.startsWith("11:30")) ||
+                    (hour == "02:00 PM" && event.timeSlot.startsWith("02")) ||
+                    (hour == "04:30 PM" && event.timeSlot.startsWith("04:30"))
                 }
 
                 TimelineHourRow(
@@ -573,7 +622,7 @@ data class DayStripItem(
 
 /**
  * Horizontal strip cell rendering a single day.
- * Today (Wed 30) is highlighted with a glowing amber circle (#F59E0B).
+ * Today (Wed 30) is highlighted with a glowing ember circle (#FF8C42).
  */
 @Composable
 private fun DayStripCell(
@@ -581,18 +630,29 @@ private fun DayStripCell(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val amberColor = Color(0xFFF5, 0x9E, 0x0B)
+    val emberColor = Color(0xFFFF, 0x8C, 0x42)
 
     Column(
         modifier = Modifier
-            .width(44.dp)
+            .width(46.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 when {
-                    isSelected && day.isToday -> amberColor.copy(alpha = 0.2f)
-                    isSelected -> Color(0xFF1E, 0x22, 0x2B)
+                    isSelected && day.isToday -> emberColor.copy(alpha = 0.22f)
+                    isSelected -> Color(0xFF1E, 0x22, 0x2D)
+                    day.isToday -> emberColor.copy(alpha = 0.12f)
                     else -> Color.Transparent
                 }
+            )
+            .border(
+                width = 1.dp,
+                color = when {
+                    isSelected && day.isToday -> emberColor
+                    isSelected -> Color(0xFF38, 0x41, 0x54)
+                    day.isToday -> emberColor.copy(alpha = 0.45f)
+                    else -> Color.Transparent
+                },
+                shape = RoundedCornerShape(14.dp)
             )
             .clickable(onClick = onClick)
             .padding(vertical = 8.dp),
@@ -603,29 +663,51 @@ private fun DayStripCell(
         Text(
             text = day.dayName,
             color = when {
-                day.isToday -> amberColor
+                day.isToday -> emberColor
                 isSelected -> Color.White
                 else -> Color(0xFF6B, 0x72, 0x80)
             },
-            fontSize = 11.sp,
+            fontSize = 11.5.sp,
             fontWeight = if (day.isToday || isSelected) FontWeight.Bold else FontWeight.Medium
         )
 
-        // Day number inside circle
+        // Day number inside circle with glowing ember effect on Wed 30 (#FF8C42)
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(34.dp)
+                .clip(CircleShape)
                 .background(
                     when {
-                        day.isToday -> amberColor
-                        isSelected -> Color(0xFF37, 0x41, 0x51)
-                        else -> Color.Transparent
+                        day.isToday -> Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFFFF, 0xA4, 0x66),
+                                Color(0xFFFF, 0x8C, 0x42),
+                                Color(0xFFEA, 0x58, 0x0C)
+                            )
+                        )
+                        isSelected -> Brush.linearGradient(
+                            listOf(Color(0xFF37, 0x41, 0x51), Color(0xFF1F, 0x29, 0x37))
+                        )
+                        else -> SolidColor(Color.Transparent)
                     },
                     shape = CircleShape
                 )
                 .then(
                     if (day.isToday) {
-                        Modifier.border(2.dp, Color(0xFFFB, 0xBF, 0x24), CircleShape)
+                        Modifier.border(
+                            BorderStroke(
+                                2.dp,
+                                Brush.linearGradient(
+                                    listOf(
+                                        Color(0xFFFF, 0xD4, 0xB2),
+                                        Color(0xFFFF, 0x8C, 0x42)
+                                    )
+                                )
+                            ),
+                            CircleShape
+                        )
+                    } else if (isSelected) {
+                        Modifier.border(1.dp, Color(0xFF4B, 0x55, 0x63), CircleShape)
                     } else Modifier
                 ),
             contentAlignment = Alignment.Center
@@ -633,12 +715,12 @@ private fun DayStripCell(
             Text(
                 text = "${day.dayNumber}",
                 color = when {
-                    day.isToday -> Color.Black
+                    day.isToday -> Color(0xFF1A, 0x0A, 0x00)
                     isSelected -> Color.White
                     day.isCurrentMonth -> Color(0xFFE5, 0xE7, 0xEB)
                     else -> Color(0xFF4B, 0x55, 0x63)
                 },
-                fontSize = 13.sp,
+                fontSize = 13.5.sp,
                 fontWeight = if (day.isToday || isSelected) FontWeight.ExtraBold else FontWeight.Normal
             )
         }
@@ -705,6 +787,7 @@ private fun TimelineHourRow(
 
 /**
  * Rich Event Card matching Google Calendar & Calendly design standards.
+ * Features translucent colored borders, attendee chips, and [📹 Join QuantMeet HD] amber container button.
  */
 @Composable
 private fun TimelineEventCard(
@@ -715,24 +798,24 @@ private fun TimelineEventCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF16, 0x1A, 0x22))
-            .border(1.dp, event.color.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF13, 0x16, 0x20))
+            .border(1.dp, event.color.copy(alpha = 0.45f), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
-            .padding(12.dp)
+            .padding(14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Left color accent bar
             Box(
                 modifier = Modifier
                     .width(4.dp)
-                    .height(60.dp)
+                    .height(68.dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            listOf(event.color, event.color.copy(alpha = 0.4f))
+                            listOf(event.color, event.color.copy(alpha = 0.35f))
                         ),
                         shape = RoundedCornerShape(2.dp)
                     )
@@ -741,7 +824,7 @@ private fun TimelineEventCard(
             // Content
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Duration & Dynamic badge
                 Row(
@@ -752,14 +835,15 @@ private fun TimelineEventCard(
                     Text(
                         text = event.durationText,
                         color = event.color,
-                        fontSize = 11.sp,
+                        fontSize = 11.5.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     if (event.isDynamic) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = event.color.copy(alpha = 0.15f)
+                            color = event.color.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, event.color.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = "Local",
@@ -772,7 +856,8 @@ private fun TimelineEventCard(
                     } else if (event.category != null) {
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = event.color.copy(alpha = 0.15f)
+                            color = event.color.copy(alpha = 0.15f),
+                            border = BorderStroke(0.5.dp, event.color.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = event.category,
@@ -789,7 +874,7 @@ private fun TimelineEventCard(
                 Text(
                     text = event.title,
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 14.5.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -810,32 +895,44 @@ private fun TimelineEventCard(
                         Text(
                             text = event.location,
                             color = Color(0xFF9C, 0xA3, 0xAF),
-                            fontSize = 11.sp,
+                            fontSize = 11.5.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                // Attendees list if available
+                // Attendees Chips
                 if (event.attendees.isNotEmpty()) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Group,
                             contentDescription = "Attendees",
-                            tint = Color(0xFF6B, 0x72, 0x80),
+                            tint = Color(0xFF9C, 0xA3, 0xAF),
                             modifier = Modifier.size(13.dp)
                         )
-                        Text(
-                            text = event.attendees.joinToString(", "),
-                            color = Color(0xFF6B, 0x72, 0x80),
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        event.attendees.forEach { email ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF1D, 0x22, 0x2D))
+                                    .border(0.5.dp, Color(0xFF33, 0x3B, 0x4C), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 7.dp, vertical = 2.5.dp)
+                            ) {
+                                Text(
+                                    text = email,
+                                    color = Color(0xFFD1, 0xD5, 0xDB),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -845,21 +942,22 @@ private fun TimelineEventCard(
                     Button(
                         onClick = onJoinMeet,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFF5, 0x9E, 0x0B),
-                            contentColor = Color.Black
+                            containerColor = Color(0xFFFF, 0x8C, 0x42),
+                            contentColor = Color(0xFF18, 0x0A, 0x00)
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
                         modifier = Modifier.height(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Videocam,
                             contentDescription = "Video",
+                            tint = Color(0xFF18, 0x0A, 0x00),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Join QuantMeet HD",
+                            text = "📹 Join QuantMeet HD",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )

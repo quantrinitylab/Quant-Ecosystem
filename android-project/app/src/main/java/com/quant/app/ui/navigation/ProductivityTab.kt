@@ -26,6 +26,7 @@ enum class ProductivityTab(
   val icon: ImageVector,
   val fabLabel: String,
   val fabIcon: ImageVector,
+  val tabAccentColor: androidx.compose.ui.graphics.Color,
 ) {
   Mail(
     title = "Mail",
@@ -33,6 +34,7 @@ enum class ProductivityTab(
     icon = Icons.Default.Email,
     fabLabel = "Compose",
     fabIcon = Icons.Default.Edit,
+    tabAccentColor = androidx.compose.ui.graphics.Color(0xFFFF, 0x8C, 0x42), // #FF8C42
   ),
   Calendar(
     title = "Calendar",
@@ -40,6 +42,7 @@ enum class ProductivityTab(
     icon = Icons.Default.DateRange,
     fabLabel = "New Event",
     fabIcon = Icons.Default.Add,
+    tabAccentColor = androidx.compose.ui.graphics.Color(0xFFF5, 0x9E, 0x0B), // #F59E0B
   ),
   Drive(
     title = "Drive",
@@ -47,6 +50,7 @@ enum class ProductivityTab(
     icon = Icons.Default.Cloud,
     fabLabel = "Upload",
     fabIcon = Icons.Default.Upload,
+    tabAccentColor = androidx.compose.ui.graphics.Color(0xFF38, 0xBD, 0xF8), // #38BDF8
   ),
   Contacts(
     title = "Contacts",
@@ -54,6 +58,7 @@ enum class ProductivityTab(
     icon = Icons.Default.AccountBox,
     fabLabel = "New Contact",
     fabIcon = Icons.Default.PersonAdd,
+    tabAccentColor = androidx.compose.ui.graphics.Color(0xFF10, 0xB9, 0x81), // #10B981
   ),
   QuantGit(
     title = "QuantGit",
@@ -61,6 +66,7 @@ enum class ProductivityTab(
     icon = Icons.Default.Code,
     fabLabel = "New Repo",
     fabIcon = Icons.Default.Add,
+    tabAccentColor = androidx.compose.ui.graphics.Color(0xFFA7, 0x8B, 0xFA), // #A78BFA
   );
 
   companion object {

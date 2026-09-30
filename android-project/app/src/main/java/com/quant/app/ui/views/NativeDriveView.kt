@@ -64,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -80,15 +81,16 @@ enum class DriveFileType(
     val category: String,
     val containerColor: Color,
     val iconTint: Color,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val badgeLabel: String
 ) {
-    PDF("Documents", Color(0xFF3B, 0x14, 0x14), Color(0xFFEF, 0x44, 0x44), Icons.Default.PictureAsPdf),
-    SHEET("Spreadsheets", Color(0xFF0F, 0x30, 0x22), Color(0xFF10, 0xB9, 0x81), Icons.Default.TableChart),
-    DOC("Documents", Color(0xFF13, 0x27, 0x44), Color(0xFF3B, 0x82, 0xF6), Icons.Default.Description),
-    CODE("Code", Color(0xFF3A, 0x2A, 0x0A), Color(0xFFF5, 0x9E, 0x0B), Icons.Default.Code),
-    MEDIA("Media", Color(0xFF2C, 0x18, 0x45), Color(0xFFA8, 0x55, 0xF7), Icons.Default.PermMedia),
-    APK("Code", Color(0xFF0C, 0x33, 0x38), Color(0xFF06, 0xB6, 0xD4), Icons.Default.Android),
-    OTHER("Documents", Color(0xFF1E, 0x24, 0x33), Color(0xFF94, 0xA3, 0xB8), Icons.Default.InsertDriveFile)
+    PDF("Documents", Color(0xFF3B, 0x14, 0x14), Color(0xFFEF, 0x44, 0x44), Icons.Default.PictureAsPdf, "PDF"),
+    SHEET("Spreadsheets", Color(0xFF0F, 0x30, 0x22), Color(0xFF10, 0xB9, 0x81), Icons.Default.TableChart, "SHEET"),
+    DOC("Documents", Color(0xFF13, 0x27, 0x44), Color(0xFF3B, 0x82, 0xF6), Icons.Default.Description, "DOC"),
+    CODE("Code", Color(0xFF2E, 0x1A, 0x47), Color(0xFF8B, 0x5C, 0xF6), Icons.Default.Code, "CODE"),
+    MEDIA("Media", Color(0xFF2C, 0x18, 0x45), Color(0xFFA8, 0x55, 0xF7), Icons.Default.PermMedia, "MEDIA"),
+    APK("Code", Color(0xFF0C, 0x33, 0x38), Color(0xFF06, 0xB6, 0xD4), Icons.Default.Android, "APK"),
+    OTHER("Documents", Color(0xFF1E, 0x24, 0x33), Color(0xFF94, 0xA3, 0xB8), Icons.Default.InsertDriveFile, "FILE")
 }
 
 /**
@@ -226,7 +228,6 @@ val DRIVE_FILTER_OPTIONS = listOf(
     "Documents",
     "Spreadsheets",
     "Code",
-    "Media",
     "Offline"
 )
 
@@ -305,7 +306,7 @@ fun NativeDriveView(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0B, 0x0C, 0x0E))
+            .background(Color(0xFF09, 0x0A, 0x0C))
     ) {
         if (isGridView) {
             LazyVerticalGrid(
@@ -453,8 +454,8 @@ private fun StorageQuotaCard(
 ) {
     Card(
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF16, 0x19, 0x20)),
-        border = BorderStroke(1.dp, Color(0xFF2E, 0x34, 0x42)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF13, 0x16, 0x1F)),
+        border = BorderStroke(1.dp, Color(0xFF26, 0x2C, 0x3A)),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
@@ -470,44 +471,59 @@ private fun StorageQuotaCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(accentColor.copy(alpha = 0.15f))
-                            .border(1.dp, accentColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        accentColor.copy(alpha = 0.25f),
+                                        accentColor.copy(alpha = 0.10f)
+                                    )
+                                )
+                            )
+                            .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = "Encrypted Vault",
                             tint = accentColor,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
-                    Text(
-                        text = "QuantDrive Encrypted Vault",
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
+                    Column {
+                        Text(
+                            text = "QuantDrive Encrypted Vault",
+                            fontSize = 16.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Zero-Knowledge Sovereign Storage",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF94, 0xA3, 0xB8)
+                        )
+                    }
                 }
 
-                // AES-256 Badge
+                // AES-GCM Badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.12f))
-                        .border(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 7.dp, vertical = 3.dp)
+                        .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f))
+                        .border(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "AES-GCM",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color(0xFF10, 0xB9, 0x81)
                     )
                 }
@@ -537,26 +553,40 @@ private fun StorageQuotaCard(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Storage Progress Bar
-            LinearProgressIndicator(
-                progress = { 0.142f },
+            // Layered Gradient Progress Bar: 14.2 GB of 100 GB used (14.2%)
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                color = accentColor,
-                trackColor = Color(0xFF26, 0x2A, 0x33)
-            )
+                    .height(9.dp)
+                    .clip(RoundedCornerShape(5.dp))
+                    .background(Color(0xFF1E, 0x23, 0x30))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.142f)
+                        .height(9.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF0E, 0xA5, 0xE9), // Sky Blue
+                                    Color(0xFF38, 0xBD, 0xF8), // Light Blue
+                                    Color(0xFF81, 0x8C, 0xF8)  // Indigo
+                                )
+                            )
+                        )
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // FastCDC 64KB Dedup Badge
+            // FastCDC 64KB Dedup Badge: "⚡ FastCDC Dedup saved 4.8 GB bandwidth"
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0F, 0x12, 0x18))
-                    .border(1.dp, Color(0xFF23, 0x28, 0x34), RoundedCornerShape(12.dp))
+                    .background(Color(0xFF0F, 0x13, 0x1B))
+                    .border(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.25f), RoundedCornerShape(12.dp))
                     .padding(horizontal = 12.dp, vertical = 9.dp)
             ) {
                 Row(
@@ -583,10 +613,9 @@ private fun StorageQuotaCard(
 }
 
 /**
- * Horizontal Filter Chips Row:
- * "All Files", "Documents", "Spreadsheets", "Code", "Media", "Offline"
+ * Horizontal Filter Chips Row with glowing states:
+ * "All Files", "Documents", "Spreadsheets", "Code", "Offline"
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilterChipsRow(
     selectedFilter: String,
@@ -600,28 +629,38 @@ private fun FilterChipsRow(
     ) {
         items(DRIVE_FILTER_OPTIONS) { filter ->
             val isSelected = selectedFilter == filter
-            FilterChip(
-                selected = isSelected,
-                onClick = { onFilterSelected(filter) },
-                label = {
-                    Text(
-                        text = filter,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .then(
+                        if (isSelected) {
+                            Modifier.background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        accentColor.copy(alpha = 0.28f),
+                                        accentColor.copy(alpha = 0.12f)
+                                    )
+                                )
+                            )
+                        } else {
+                            Modifier.background(Color(0xFF14, 0x17, 0x22))
+                        }
                     )
-                },
-                shape = RoundedCornerShape(12.dp),
-                colors = FilterChipDefaults.filterChipColors(
-                    containerColor = Color(0xFF16, 0x19, 0x20),
-                    labelColor = Color(0xFF94, 0xA3, 0xB8),
-                    selectedContainerColor = accentColor.copy(alpha = 0.20f),
-                    selectedLabelColor = Color.White
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    if (isSelected) accentColor.copy(alpha = 0.6f) else Color(0xFF2E, 0x34, 0x42)
+                    .border(
+                        width = if (isSelected) 1.5.dp else 1.dp,
+                        color = if (isSelected) accentColor else Color(0xFF26, 0x2C, 0x3A),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clickable { onFilterSelected(filter) }
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    text = filter,
+                    fontSize = 12.5.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) Color.White else Color(0xFF94, 0xA3, 0xB8)
                 )
-            )
+            }
         }
     }
 }
@@ -677,6 +716,7 @@ private fun DriveSectionHeader(
 
 /**
  * List View Card for individual files.
+ * Features rich file-type colored badges (PDF in red, Sheets in green, Code in violet), size, date, star button, and 3-dot menu.
  */
 @Composable
 private fun DriveListCard(
@@ -690,8 +730,8 @@ private fun DriveListCard(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        color = Color(0xFF16, 0x19, 0x20),
-        border = BorderStroke(1.dp, Color(0xFF24, 0x28, 0x34)),
+        color = Color(0xFF14, 0x17, 0x22),
+        border = BorderStroke(1.dp, Color(0xFF24, 0x2A, 0x38)),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
@@ -713,7 +753,7 @@ private fun DriveListCard(
                         .size(46.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(file.type.containerColor)
-                        .border(1.dp, file.type.iconTint.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                        .border(1.dp, file.type.iconTint.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -725,14 +765,36 @@ private fun DriveListCard(
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = file.title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = file.title,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+
+                        // Rich file-type colored badge (PDF in red, Sheets in green, Code in violet)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(file.type.iconTint.copy(alpha = 0.15f))
+                                .border(0.5.dp, file.type.iconTint.copy(alpha = 0.45f), RoundedCornerShape(5.dp))
+                                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                        ) {
+                            Text(
+                                text = file.type.badgeLabel,
+                                color = file.type.iconTint,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
@@ -781,7 +843,7 @@ private fun DriveListCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // Star Toggle Button
+                // Star Button
                 IconButton(
                     onClick = onStarToggle,
                     modifier = Modifier.size(36.dp)
@@ -813,6 +875,7 @@ private fun DriveListCard(
 
 /**
  * Grid View Card for individual files.
+ * Features rich file-type colored badges, size, date, star button, and 3-dot menu.
  */
 @Composable
 private fun DriveGridCard(
@@ -825,8 +888,8 @@ private fun DriveGridCard(
 ) {
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF16, 0x19, 0x20)),
-        border = BorderStroke(1.dp, Color(0xFF24, 0x28, 0x34)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF14, 0x17, 0x22)),
+        border = BorderStroke(1.dp, Color(0xFF24, 0x2A, 0x38)),
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -836,26 +899,47 @@ private fun DriveGridCard(
                 .fillMaxWidth()
                 .padding(12.dp)
         ) {
-            // Top Row: Colored Icon Container & Star Button
+            // Top Row: Colored Icon Container, Rich file badge, & Star Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(file.type.containerColor)
-                        .border(1.dp, file.type.iconTint.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = file.type.icon,
-                        contentDescription = file.type.name,
-                        tint = file.type.iconTint,
-                        modifier = Modifier.size(22.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(file.type.containerColor)
+                            .border(1.dp, file.type.iconTint.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = file.type.icon,
+                            contentDescription = file.type.name,
+                            tint = file.type.iconTint,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // Rich file-type colored badge
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(file.type.iconTint.copy(alpha = 0.15f))
+                            .border(0.5.dp, file.type.iconTint.copy(alpha = 0.45f), RoundedCornerShape(5.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = file.type.badgeLabel,
+                            color = file.type.iconTint,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 IconButton(
@@ -871,7 +955,7 @@ private fun DriveGridCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // File Title (2 lines max with ellipsis)
             Text(
@@ -915,7 +999,7 @@ private fun DriveGridCard(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "File Options",
                         tint = Color(0xFF94, 0xA3, 0xB8),
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }

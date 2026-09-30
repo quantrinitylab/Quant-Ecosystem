@@ -73,6 +73,7 @@ import com.quant.app.ui.components.NativeRepoCreationSheet
 import com.quant.app.ui.components.NativeSearchOverlay
 import com.quant.app.ui.components.NativeThreadDetailModal
 import com.quant.app.ui.components.NativeVoiceChatSheet
+import com.quant.app.ui.components.QuantBrandLogo
 import com.quant.app.ui.components.QuantTopAppBar
 import com.quant.app.ui.components.SearchResultItem
 import com.quant.app.ui.navigation.ProductivityTab
@@ -165,17 +166,58 @@ fun MainScreen(
     }
   }
 
-  // Native Android back press handling
+  // Clean hardware back press handling for all modals, sheets, and docks
+  BackHandler(enabled = isComposerOpen) {
+    isComposerOpen = false
+  }
+
   BackHandler(enabled = isSearchOpen) {
     isSearchOpen = false
+  }
+
+  BackHandler(enabled = isEventSheetOpen) {
+    isEventSheetOpen = false
+  }
+
+  BackHandler(enabled = isUploadSheetOpen) {
+    isUploadSheetOpen = false
   }
 
   BackHandler(enabled = isContactSheetOpen) {
     isContactSheetOpen = false
   }
 
+  BackHandler(enabled = isRepoSheetOpen) {
+    isRepoSheetOpen = false
+  }
+
+  BackHandler(enabled = isVoiceChatSheetOpen) {
+    isVoiceChatSheetOpen = false
+  }
+
+  BackHandler(enabled = isAppSwitcherOpen) {
+    isAppSwitcherOpen = false
+  }
+
   BackHandler(enabled = selectedMailThread != null) {
     selectedMailThread = null
+  }
+
+  // Smooth fallback to Mail tab when pressing back from secondary native tabs
+  BackHandler(
+    enabled = isNativeMode &&
+      activeTab != ProductivityTab.Mail &&
+      !isComposerOpen &&
+      !isSearchOpen &&
+      !isEventSheetOpen &&
+      !isUploadSheetOpen &&
+      !isContactSheetOpen &&
+      !isRepoSheetOpen &&
+      !isVoiceChatSheetOpen &&
+      !isAppSwitcherOpen &&
+      selectedMailThread == null
+  ) {
+    activeTab = ProductivityTab.Mail
   }
 
   // Native Android back press navigates WebView history (guarded when sheets and native mode are inactive)
@@ -204,11 +246,20 @@ fun MainScreen(
       topBar = {
         if (isProductivitySuite && !isError) {
           QuantTopAppBar(
+            activeTab = activeTab,
             title = when (activeTab) {
               ProductivityTab.Mail -> "QuantMail"
+              ProductivityTab.Calendar -> "QuantCalendar"
+              ProductivityTab.Drive -> "QuantDrive"
               ProductivityTab.Contacts -> "QuantContacts"
               ProductivityTab.QuantGit -> "QuantGit"
-              else -> "Quant ${activeTab.title}"
+            },
+            appId = when (activeTab) {
+              ProductivityTab.Mail -> "quantmail"
+              ProductivityTab.Calendar -> "quantcalendar"
+              ProductivityTab.Drive -> "quantdrive"
+              ProductivityTab.Contacts -> "quantcontacts"
+              ProductivityTab.QuantGit -> "quantgit"
             },
             appInitials = when (activeTab) {
               ProductivityTab.Mail -> "QM"
@@ -217,7 +268,7 @@ fun MainScreen(
               ProductivityTab.Contacts -> "CT"
               ProductivityTab.QuantGit -> "QG"
             },
-            accentColor = accentColor,
+            accentColor = activeTab.tabAccentColor,
             isNativeMode = isNativeMode,
             onToggleViewMode = {
               nativeBridge?.triggerHaptic("medium")
@@ -246,7 +297,7 @@ fun MainScreen(
         if (isProductivitySuite && !isError) {
           QuantBottomNavBar(
             activeTab = activeTab,
-            accentColor = accentColor,
+            accentColor = activeTab.tabAccentColor,
             onTabSelected = { tab ->
               nativeBridge?.triggerHaptic("light")
               if (activeTab == tab) {
@@ -355,10 +406,14 @@ fun MainScreen(
                   fontSize = 13.sp
                 )
               },
-              containerColor = accentColor,
+              containerColor = tab.tabAccentColor,
               contentColor = Color.Black,
               shape = RoundedCornerShape(16.dp),
-              elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+              elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 6.dp,
+                pressedElevation = 10.dp
+              ),
+              modifier = Modifier.padding(bottom = 16.dp, end = 4.dp)
             )
           }
         }
@@ -374,7 +429,7 @@ fun MainScreen(
           when (activeTab) {
             ProductivityTab.Mail -> {
               NativeMailView(
-                accentColor = accentColor,
+                accentColor = Color(0xFFFF, 0x8C, 0x42),
                 onThreadClick = { thread ->
                   nativeBridge?.triggerHaptic("light")
                   selectedMailThread = thread.toSearchResultItem()
@@ -391,7 +446,7 @@ fun MainScreen(
             }
             ProductivityTab.Drive -> {
               NativeDriveView(
-                accentColor = Color(0xFF0E, 0xA5, 0xE9),
+                accentColor = Color(0xFF38, 0xBD, 0xF8),
                 onFileClick = { file ->
                   nativeBridge?.triggerHaptic("light")
                 }
@@ -407,7 +462,7 @@ fun MainScreen(
                   nativeBridge?.triggerHaptic("light")
                   isComposerOpen = true
                 },
-                accentColor = Color(0xFF0E, 0xA5, 0xE9)
+                accentColor = Color(0xFF10, 0xB9, 0x81)
               )
             }
             ProductivityTab.QuantGit -> {
@@ -416,7 +471,7 @@ fun MainScreen(
                   nativeBridge?.triggerHaptic("medium")
                   isRepoSheetOpen = true
                 },
-                accentColor = Color(0xFF10, 0xB9, 0x81)
+                accentColor = Color(0xFFA7, 0x8B, 0xFA)
               )
             }
           }
@@ -628,6 +683,7 @@ fun MainScreen(
         }
       }
     }
+
 
     // Modern Native Jetpack Compose Email Composer Modal Sheet
     AnimatedVisibility(
