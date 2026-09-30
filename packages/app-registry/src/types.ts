@@ -35,8 +35,12 @@ export interface QuantAppEntry {
   category: AppCategory;
   maturity: AppMaturity;
   kind: AppKind;
-  /** Platform surfaces that exist today. */
-  surfaces: PlatformSurface[];
+  /**
+   * Platform surfaces that exist today. Readonly: the catalog is the single
+   * source of truth and is deep-frozen at export (see registry.ts), so this
+   * array must never be pushed into by a consumer.
+   */
+  readonly surfaces: readonly PlatformSurface[];
   /** Explicit dev-server port, only where the app declares one (else undefined ⇒ default 3000). */
   devPort?: number;
 }

@@ -6,7 +6,11 @@ export function getApp(id: string): QuantAppEntry | undefined {
   return PRODUCT_APPS.find((a) => a.id === id);
 }
 
-/** All products, in catalog order (a fresh array — safe to mutate). */
+/**
+ * All products, in catalog order. The returned outer array is fresh — reorder,
+ * slice, or filter it freely. The entries themselves are the catalog's own
+ * deep-frozen objects (shared by reference), so they cannot be mutated.
+ */
 export function allApps(): QuantAppEntry[] {
   return [...PRODUCT_APPS];
 }

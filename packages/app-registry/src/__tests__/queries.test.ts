@@ -14,6 +14,17 @@ describe('registry query helpers', () => {
     expect(allApps()).toHaveLength(9); // original catalog not mutated
   });
 
+  it('exposes deep-frozen, immutable catalog entries', () => {
+    const app = getApp('quantmail');
+    expect(app).toBeDefined();
+    // Entries are shared by reference, so they must be frozen — a consumer
+    // mutating one would otherwise corrupt every later query.
+    expect(Object.isFrozen(app)).toBe(true);
+    expect(Object.isFrozen(app!.surfaces)).toBe(true);
+    // The outer array from allApps() is still a fresh, reorderable copy.
+    expect(() => allApps().sort()).not.toThrow();
+  });
+
   it('byCategory groups correctly', () => {
     expect(
       byCategory('core')
