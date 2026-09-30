@@ -4,15 +4,17 @@ import { resolveApp } from '@quant/app-registry';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { useAuth } from '../../providers/auth-provider';
+import { useAdminKpis, type KpiCell } from '../../hooks/useAdminKpis';
 
 /**
  * QuantMail Admin Console — the per-app admin surface (restructure Phase 1 pilot).
  *
  * Identity (name / category / maturity / surfaces / accent color) is pulled LIVE
  * from `@quant/app-registry` so this console can never drift from the canonical
- * catalog. Operational metrics are shown in an honest "awaiting admin API" state:
- * the backend admin endpoints (apps/quantmail/backend) are the next build step,
- * and each card is wired to swap its pending state for live data once they land.
+ * catalog. Operational metrics are fetched from the per-app admin API
+ * (`backend/routes/admin.ts`) via `useAdminKpis`; any card whose metric is not
+ * yet reachable falls back to an honest "awaiting/unavailable" state instead of
+ * inventing a number.
  */
 
 const app = resolveApp('quantmail');
@@ -51,16 +53,29 @@ const SERVICES: ServiceStatus[] = [
   { name: 'Git / CodeHub', detail: 'git-server + ci-runner' },
 ];
 
-function StatCard({ kpi }: { kpi: Kpi }) {
+function StatCard({ kpi, cell }: { kpi: Kpi; cell: KpiCell }) {
+  const isReady = cell.state === 'ready' && cell.value !== null;
+  const isError = cell.state === 'error';
+  const footnote = isReady
+    ? `Live · ${kpi.hint}`
+    : isError
+      ? `Unavailable · ${kpi.hint}`
+      : `Awaiting ${kpi.hint}`;
   return (
     <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-5">
       <div className="text-xs font-medium text-[var(--quant-muted-foreground)]">{kpi.label}</div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-[var(--quant-foreground)]">—</span>
-        <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-[var(--brand-primary)]/60" />
+        <span className="text-2xl font-bold text-[var(--quant-foreground)]">
+          {isReady ? cell.value : '—'}
+        </span>
+        {cell.state === 'loading' && (
+          <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-[var(--brand-primary)]/60" />
+        )}
+        {isReady && <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400" />}
+        {isError && <span className="inline-flex h-2 w-2 rounded-full bg-amber-400/70" />}
       </div>
       <div className="mt-1 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
-        Awaiting {kpi.hint}
+        {footnote}
       </div>
     </div>
   );
@@ -78,6 +93,13 @@ function SurfaceChip({ surface }: { surface: string }) {
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
+  const kpis = useAdminKpis();
+  const cellByKey: Record<string, KpiCell> = {
+    accounts: kpis.accounts,
+    sessions: kpis.sessions,
+    storage: kpis.storage,
+    delivery: kpis.delivery,
+  };
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
       <div className="flex h-full flex-col overflow-hidden bg-[var(--quant-background)]">
@@ -148,7 +170,11 @@ export default function AdminDashboardPage() {
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {KPIS.map((k) => (
-                <StatCard key={k.key} kpi={k} />
+                <StatCard
+                  key={k.key}
+                  kpi={k}
+                  cell={cellByKey[k.key] ?? { value: null, state: 'loading' }}
+                />
               ))}
             </div>
           </section>
