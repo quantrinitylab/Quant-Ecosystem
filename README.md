@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/Node.js-22-green.svg)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-10-orange.svg)](https://pnpm.io/)
 
-**Quant is not a suite of apps. It is one operating system for a person's digital life, wearing nine faces.** A single identity (QuantMail SSO), a single currency (Quant Credits, 1 credit ≈ $1), a single memory (the Drive vector store), and a single AI (**Quanty**) run *underneath* all nine products — so the instant you do something in one app, every other app already knows. Built as a TypeScript monorepo: **nine flagship products** (each with its own embedded sub-apps), **100+ shared packages**, and a dozen infrastructure services.
+**Quant is not a suite of apps. It is one operating system for a person's digital life, wearing nine faces.** A single identity (QuantMail SSO), a single currency (Quant Credits, 1 credit ≈ $1), a single memory (the Drive vector store), and a single AI (**Quanty**) run *underneath* all nine products — so the instant you do something in one app, every other app already knows. Built as a TypeScript monorepo: **nine flagship products** (each with its own embedded sub-apps), **100+ shared packages**, and fourteen infrastructure services.
 
 > **📖 The whole vision — deep architecture, per-app competitor teardowns, the UI/UX + Three.js/WebGL/WebGPU plan, and how every surface connects — lives in [`GOAL.md`](GOAL.md).** This README is the map; `GOAL.md` is the territory.
 
@@ -77,7 +77,7 @@ graph TD
         WS[ws-gateway]
         SI[search-indexer]
         MOD[moderation-worker]
-        MM[matchmaking]
+        SMTP[smtp-inbound]
         VT[video-transcoder]
         CDC[cdc-relay]
         AE[ad-engine]
@@ -233,14 +233,17 @@ apps/<app>/
 | `ws-gateway` | WebSocket connection management with JWT auth, presence, realtime fan-out |
 | `search-indexer` | Kafka CDC consumer; indexes to Meilisearch + Qdrant |
 | `cdc-relay` | Change Data Capture from PostgreSQL WAL |
-| `smtp-inbound` | Inbound email processing for QuantMail |
+| `signal-projector` | Derived feeds / recommendations projection |
+| `smtp-inbound` | Inbound email reception (MX) for QuantMail |
+| `smtp-submission` | Authenticated outbound mail submission (port 587) for QuantMail |
+| `imap-server` | IMAP mailbox access for QuantMail clients |
 | `git-server` | Git hosting backend (QuantGit / CodeHub) |
+| `git-sshd` | SSH transport for Git hosting (clone/push/pull over SSH) |
 | `ci-runner` | CI/CD pipeline execution for QuantMail repos |
-| `matchmaking` | Real-time user matching (QuantMax / QuantWave) |
+| `dns-poller` | Custom-domain DNS verification & reconciliation |
 | `moderation-worker` | AI-powered content-moderation pipeline |
 | `video-transcoder` | Video ingest/transcode (QuanTube / QuantCooks) |
 | `ad-engine` | QuantAds auction engine |
-| `signal-projector` | Derived feeds / recommendations projection |
 
 ## Documentation
 

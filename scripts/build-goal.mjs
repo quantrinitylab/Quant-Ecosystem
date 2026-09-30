@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Assembles GOAL.md from the ordered parts in docs/goal/_parts/.
 // Edit the parts, then run:  node scripts/build-goal.mjs
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -23,6 +23,17 @@ const ORDER = [
 const missing = ORDER.filter((f) => !existsSync(join(partsDir, f)));
 if (missing.length) {
   console.error(`Missing part(s), aborting: ${missing.join(', ')}`);
+  process.exit(1);
+}
+
+// Guard the other direction too: a part that exists on disk but isn't wired
+// into ORDER would be silently dropped from GOAL.md. Fail loudly so a new part
+// can't go missing just because someone forgot to add it here.
+const extra = readdirSync(partsDir)
+  .filter((f) => f.endsWith('.md'))
+  .filter((f) => !ORDER.includes(f));
+if (extra.length) {
+  console.error(`Part(s) present but not in ORDER (add to build-goal.mjs or delete): ${extra.join(', ')}`);
   process.exit(1);
 }
 

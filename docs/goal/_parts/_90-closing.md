@@ -57,7 +57,7 @@ data/  (Postgres+pgvector · Redis · Kafka · Meilisearch · Qdrant · R2)
 - **`@quant/auth` + `@quant/identity-permissions`** — OAuth2/OIDC client, JWT, session, RBAC/scopes.
 - **`@quant/api-client`** — typed cross-app API calls.
 - **`@quant/brand`** — the single visual-identity source: `--quant-*` design tokens, per-app accent hue, icons.
-- **`@quant/app-registry`** — the single app catalog (id/name/route/category/color/hue/icon for all 9). ✅ shipped; replaces the three drifted per-shell lists.
+- **`@quant/app-registry`** — the single app catalog (id/name/route/category/color/hue/icon for all 9). ✅ shipped; supersedes the three drifted per-shell lists as consumers migrate onto it (Phase 1+).
 - **`@quant/credits`** — the economy (ledger, `UsageGate`, plans, payouts, marketplace).
 - **`@quant/shared-ui`** — the component library + hooks (`useAuth`, etc.).
 - **`@quant/common`, `@quant/database`, `@quant/federation`, `@quant/notifications`, `@quant/storage`, `@quant/realtime`, `@quant/agentic` (voice-commands)** — shared primitives.

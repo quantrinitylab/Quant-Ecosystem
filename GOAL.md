@@ -351,7 +351,7 @@ The memory layer of §1.3 is a **backbone**, not a QuantAI-only feature. `@quant
 
 ### 4.7 App catalog single-source — `@quant/app-registry`
 
-`@quant/app-registry` is the **canonical catalog** — the single source of truth for every app's `id / name / route / category / maturity / surfaces`, replacing the old drifted per-shell lists (desktop/mobile/marketing each carried their own copy). Visual identity is *not* duplicated here: `resolveApp(id)` merges registry data with `@quant/brand`-derived `color / hue / iconRef` at read time (resolving post-rename aliases: `quantgram→quantneon`, `quantwave→quantsync`, `quantcooks→quantedits`). Launchers, the app switcher, marketing filters, admin, and Quanty's app-routing all read from this one list — add an app once, it appears everywhere correctly.
+`@quant/app-registry` is the **canonical catalog** — the single source of truth for every app's `id / name / route / category / maturity / surfaces`, replacing the old drifted per-shell lists (desktop/mobile/marketing each carried their own copy). Visual identity is *not* duplicated here: `resolveApp(id)` merges registry data with `@quant/brand`-derived `color / hue / iconRef` at read time (resolving each post-rename id to its legacy `@quant/brand` asset key, canonical→brand: `quantgram→quantneon`, `quantwave→quantsync`, `quantcooks→quantedits`). Launchers, the app switcher, marketing filters, admin, and Quanty's app-routing all read from this one list — add an app once, it appears everywhere correctly.
 
 ### 4.8 The ecosystem at a glance
 
@@ -706,7 +706,7 @@ QuantChat is where the ecosystem talks. It fuses WhatsApp-grade E2EE 1:1/group m
 ### What we build to beat them
 - **Quanty as a first-class participant, not a bot.** In any thread Quanty can be @-summoned or run as your auto-reply avatar (answers in your voice/style while you're away, with a visible "AI answered" badge). It doesn't just reply — it *acts*: "call Shivam" opens QuantChat and dials; "email all workers for a 5pm meeting, set a timer, notify me 10 min before" orchestrates QuantMail (compose+send) + QuantChat (timer + push) + calendar in one turn.
 - **E2EE that survives an agent.** Signal-grade Double Ratchet for human messages; Quanty operates only on content explicitly shared into an "assistant-visible" scope (per-thread toggle), so privacy and AI coexist instead of the WhatsApp (no AI) vs Telegram-cloud (no privacy) tradeoff.
-- **One contact graph, one currency.** Your QuantMail identity *is* your QuantChat identity is your QuantWave handle; credits pay for lens packs, premium meet rooms, boosted broadcasts, sticker/gift economy and creator tips — money moves in one wallet across all nine apps.
+- **One contact graph, one currency.** Your QuantMail identity *is* your QuantChat identity *is* your QuantWave handle; credits pay for lens packs, premium meet rooms, boosted broadcasts, sticker/gift economy and creator tips — money moves in one wallet across all nine apps.
 - **QuantMeet built in.** Full WebRTC conferencing (SFU, screen share, breakout rooms, recording→R2, live transcription/translation) lives inside chat, so a DM escalates to a 50-person call with breakouts without leaving the app or paying Zoom.
 - **Open AR + 3D avatars.** `packages/ar-lenses` is an open lens runtime (GLSL/WebGL2 + on-device ML) anyone can author in-app; rapier-rigged 3D avatars render in chat, calls and Snap-Map.
 
@@ -796,7 +796,7 @@ QuantGram is the ecosystem's visual home: Instagram's feed/stories/reels and DMs
 - **Content:** photo/video posts, carousels, stories (24h), reels, filters/AR lenses, alt-text, drafts, scheduling.
 - **Social:** follow/close-friends, likes/comments/saves/shares, DMs (shared with QuantChat), profiles, SSO-backed verified badges, map of posts.
 - **Creator:** insights/analytics, shoppable tags, subscriptions, tips, virtual gifts, collabs/co-author posts.
-- **Games:** in-feed mini-games (`neon-games` service) + leaderboards.
+- **Games:** in-feed mini-games + leaderboards.
 
 ### Deep / micro features (the long-tail lock-in)
 - Close-friends green ring, story highlights, story polls/quizzes/sliders/question stickers, link stickers.
@@ -1325,7 +1325,7 @@ data/  (Postgres+pgvector · Redis · Kafka · Meilisearch · Qdrant · R2)
 - **`@quant/auth` + `@quant/identity-permissions`** — OAuth2/OIDC client, JWT, session, RBAC/scopes.
 - **`@quant/api-client`** — typed cross-app API calls.
 - **`@quant/brand`** — the single visual-identity source: `--quant-*` design tokens, per-app accent hue, icons.
-- **`@quant/app-registry`** — the single app catalog (id/name/route/category/color/hue/icon for all 9). ✅ shipped; replaces the three drifted per-shell lists.
+- **`@quant/app-registry`** — the single app catalog (id/name/route/category/color/hue/icon for all 9). ✅ shipped; supersedes the three drifted per-shell lists as consumers migrate onto it (Phase 1+).
 - **`@quant/credits`** — the economy (ledger, `UsageGate`, plans, payouts, marketplace).
 - **`@quant/shared-ui`** — the component library + hooks (`useAuth`, etc.).
 - **`@quant/common`, `@quant/database`, `@quant/federation`, `@quant/notifications`, `@quant/storage`, `@quant/realtime`, `@quant/agentic` (voice-commands)** — shared primitives.

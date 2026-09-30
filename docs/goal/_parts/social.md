@@ -38,7 +38,7 @@ QuantChat is where the ecosystem talks. It fuses WhatsApp-grade E2EE 1:1/group m
 ### What we build to beat them
 - **Quanty as a first-class participant, not a bot.** In any thread Quanty can be @-summoned or run as your auto-reply avatar (answers in your voice/style while you're away, with a visible "AI answered" badge). It doesn't just reply — it *acts*: "call Shivam" opens QuantChat and dials; "email all workers for a 5pm meeting, set a timer, notify me 10 min before" orchestrates QuantMail (compose+send) + QuantChat (timer + push) + calendar in one turn.
 - **E2EE that survives an agent.** Signal-grade Double Ratchet for human messages; Quanty operates only on content explicitly shared into an "assistant-visible" scope (per-thread toggle), so privacy and AI coexist instead of the WhatsApp (no AI) vs Telegram-cloud (no privacy) tradeoff.
-- **One contact graph, one currency.** Your QuantMail identity *is* your QuantChat identity is your QuantWave handle; credits pay for lens packs, premium meet rooms, boosted broadcasts, sticker/gift economy and creator tips — money moves in one wallet across all nine apps.
+- **One contact graph, one currency.** Your QuantMail identity *is* your QuantChat identity *is* your QuantWave handle; credits pay for lens packs, premium meet rooms, boosted broadcasts, sticker/gift economy and creator tips — money moves in one wallet across all nine apps.
 - **QuantMeet built in.** Full WebRTC conferencing (SFU, screen share, breakout rooms, recording→R2, live transcription/translation) lives inside chat, so a DM escalates to a 50-person call with breakouts without leaving the app or paying Zoom.
 - **Open AR + 3D avatars.** `packages/ar-lenses` is an open lens runtime (GLSL/WebGL2 + on-device ML) anyone can author in-app; rapier-rigged 3D avatars render in chat, calls and Snap-Map.
 
@@ -128,7 +128,7 @@ QuantGram is the ecosystem's visual home: Instagram's feed/stories/reels and DMs
 - **Content:** photo/video posts, carousels, stories (24h), reels, filters/AR lenses, alt-text, drafts, scheduling.
 - **Social:** follow/close-friends, likes/comments/saves/shares, DMs (shared with QuantChat), profiles, SSO-backed verified badges, map of posts.
 - **Creator:** insights/analytics, shoppable tags, subscriptions, tips, virtual gifts, collabs/co-author posts.
-- **Games:** in-feed mini-games (`neon-games` service) + leaderboards.
+- **Games:** in-feed mini-games + leaderboards.
 
 ### Deep / micro features (the long-tail lock-in)
 - Close-friends green ring, story highlights, story polls/quizzes/sliders/question stickers, link stickers.
