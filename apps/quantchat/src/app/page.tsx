@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, useMotionValue, useTransform, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
-import { AppShell, TopBar, BottomNav, ChatList } from '@quant/shared-ui';
+import { AppShell, TopBar, BottomNav, ChatList, useAuth } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useConversations } from '../hooks/useConversations';
 import { usePresence, type PresenceStatus } from '../hooks/usePresence';
@@ -41,6 +41,29 @@ function formatRelativeTime(dateStr: string): string {
   if (diffDay === 1) return 'yesterday';
   if (diffDay < 7) return `${diffDay}d`;
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function UserIndicator() {
+  const { user } = useAuth();
+  if (!user) return null;
+
+  return (
+    <div className="relative group cursor-pointer">
+      <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold text-sm">
+        {user.displayName.substring(0, 2).toUpperCase()}
+      </div>
+      <div className="absolute right-0 top-10 w-64 bg-white shadow-lg rounded-xl p-4 border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none group-hover:pointer-events-auto">
+        <p className="font-bold text-[var(--quant-foreground)]">{user.displayName}</p>
+        <p className="text-sm text-[var(--quant-muted-foreground)]">@{user.username}</p>
+        <p className="text-sm text-[var(--quant-muted-foreground)]">{user.email}</p>
+        {user.kycStatus === 'verified' && (
+          <div className="mt-2 text-xs font-medium text-emerald-600 flex items-center gap-1">
+            <span>🛡️</span> Quant Identity Verified
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PresenceDot({ status }: { status: PresenceStatus }) {
@@ -219,7 +242,11 @@ export default function ChatListPage() {
 
   if (conversationList.length === 0)
     return (
-      <AppShell topBar={<TopBar title="QuantChat" />}>
+      <AppShell
+        topBar={
+          <TopBar title="QuantChat" rightActions={[<UserIndicator key="user-indicator" />]} />
+        }
+      >
         <EmptyState title="No conversations" description="Start a new chat to get connected" />
         <BottomNav
           items={navItems}
@@ -280,7 +307,9 @@ export default function ChatListPage() {
     });
 
   return (
-    <AppShell topBar={<TopBar title="QuantChat" />}>
+    <AppShell
+      topBar={<TopBar title="QuantChat" rightActions={[<UserIndicator key="user-indicator" />]} />}
+    >
       <motion.div
         className="flex flex-col h-full pb-16 overflow-y-auto"
         variants={listContainerVariants}

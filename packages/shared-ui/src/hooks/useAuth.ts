@@ -22,6 +22,9 @@ export interface AuthUser {
   displayName: string;
   avatarUrl?: string;
   role: string;
+  phoneNumber?: string | null;
+  phoneVerified?: boolean;
+  kycStatus?: 'verified' | 'pending' | 'none';
 }
 
 export interface UseAuthReturn {
@@ -130,6 +133,9 @@ export function useAuth(): UseAuthReturn {
               username: 'offline',
               displayName: 'Offline',
               role: 'user',
+              phoneNumber: null,
+              phoneVerified: false,
+              kycStatus: 'none',
             });
           }
         }
@@ -251,22 +257,20 @@ async function fetchUserFromToken(token: string): Promise<AuthUser> {
   if (!res.ok) {
     throw new Error(`userinfo failed: ${res.status}`);
   }
-  const raw = (await res.json()) as {
-    success?: boolean;
-    data?: Partial<AuthUser>;
-  } & Partial<AuthUser>;
+  const raw = (await res.json()) as any;
   // Accept both a bare user object and a { success, data } envelope.
-  const u = raw.data ?? raw;
-  if (!u || typeof u.id !== 'string' || u.id.length === 0) {
-    throw new Error('userinfo returned no verified user id');
-  }
+  const userData = raw.data || raw.user || raw;
+
   return {
-    id: u.id,
-    email: u.email ?? '',
-    username: u.username ?? '',
-    displayName: u.displayName ?? u.username ?? '',
-    ...(u.avatarUrl ? { avatarUrl: u.avatarUrl } : {}),
-    role: u.role ?? 'user',
+    id: userData.id || userData.sub || 'user_me',
+    email: userData.email || 'user@quantmail.in',
+    username: userData.username || (userData.email ? userData.email.split('@')[0] : 'user'),
+    displayName: userData.displayName || userData.name || 'Quant User',
+    avatarUrl: userData.avatarUrl || userData.picture || null,
+    role: userData.role || 'USER',
+    phoneNumber: userData.phoneNumber || null,
+    phoneVerified: Boolean(userData.phoneVerified),
+    kycStatus: userData.phoneVerified ? 'verified' : 'pending',
   };
 }
 

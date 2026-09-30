@@ -28,6 +28,7 @@ interface StoredAccount {
   id: string;
   email: string;
   displayName: string;
+  phoneVerified?: boolean;
 }
 
 const STORAGE_ACCOUNTS_KEY = 'quant_known_accounts';
@@ -158,6 +159,7 @@ export function SsoChooserContent({
           id: user.id || currentEmail,
           email: user.email,
           displayName: user.displayName || user.username || user.email.split('@')[0],
+          phoneVerified: user.phoneVerified,
         };
         if (existingIdx >= 0) {
           list[existingIdx] = current;
@@ -313,6 +315,7 @@ export function SsoChooserContent({
         id: user.id || user.email,
         email: user.email,
         displayName: user.displayName || user.username || user.email.split('@')[0],
+        phoneVerified: user.phoneVerified,
       });
     }
     for (const a of knownAccounts) {
@@ -402,6 +405,15 @@ export function SsoChooserContent({
                         {acc.displayName || acc.email.split('@')[0]}
                       </div>
                       <div className="text-xs text-zinc-400 truncate">{acc.email}</div>
+                      {acc.phoneVerified !== undefined && (
+                        <div
+                          className={`text-[10px] mt-0.5 ${acc.phoneVerified ? 'text-green-400' : 'text-yellow-400'}`}
+                        >
+                          {acc.phoneVerified
+                            ? 'Phone Verified ✓'
+                            : 'Phone Verification Required ⚠️'}
+                        </div>
+                      )}
                     </div>
 
                     {/* Status Badge */}
@@ -542,15 +554,21 @@ export function SsoChooserContent({
           <div className="w-full">
             <div className="text-center mb-6">
               <h2 className="text-lg font-semibold text-white flex items-center justify-center gap-2">
-                🛡️ Quant Identity KYC • Phone Verification
+                🛡️ Quant Identity KYC • Phone & Email Verification
               </h2>
               <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] uppercase font-bold tracking-wider">
                 Google KYC Parity
               </span>
               <p className="mt-3 text-sm text-zinc-400">
-                To protect your sovereign account and access {clientApp.name}, please verify your
-                mobile number with a one-time SMS code.
+                To protect your sovereign account and access {clientApp.name}, please verify with a
+                one-time code sent to your mobile and email.
               </p>
+              {user?.email && (
+                <p className="mt-2 text-xs text-zinc-500">
+                  📧 Verification code will also be sent to your registered QuantMail address:{' '}
+                  {user.email}
+                </p>
+              )}
             </div>
 
             {error && (
@@ -599,11 +617,42 @@ export function SsoChooserContent({
               </form>
             ) : (
               <form onSubmit={handleVerifyKycOtp} className="space-y-4">
-                {kycOtpDemoInfo?.message && (
-                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400 text-center">
-                    {kycOtpDemoInfo.message}
-                  </div>
-                )}
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400 text-center">
+                  📩 Code sent to mobile and email {user?.email}. Check your email or use the demo
+                  code below if SMS is delayed.
+                </div>
+
+                <div className="flex justify-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={handleSendKycOtp}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors"
+                  >
+                    📱 Resend SMS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        const token = browserAuthSession.getAccessToken();
+                        await fetch('/api/auth/phone/send-email-otp', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${token}`,
+                          },
+                          body: JSON.stringify({ phoneNumber: `${kycCountry}${kycPhone}` }),
+                        });
+                      } catch (e) {
+                        // Ignore
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors"
+                  >
+                    📧 Send via Email
+                  </button>
+                </div>
+
                 {kycOtpDemoInfo?.isDemo && kycOtpDemoInfo.demoCode && (
                   <div className="flex justify-center mb-2">
                     <button

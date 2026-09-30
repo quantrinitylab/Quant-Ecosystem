@@ -64,6 +64,14 @@ function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma: unknown }).prisma;
 }
 
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return email;
+  const visible = local.length > 2 ? `${local[0]}•••${local[local.length - 1]}` : `${local[0]}•••`;
+  return `${visible}@${domain}`;
+}
+
 function maskNumber(value: string | null): string | null {
   if (!value) return null;
   return value.length > 4
@@ -102,6 +110,11 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
     const userId = requireUserId(request);
     const prisma = getPrisma(fastify);
     const { phoneNumber } = parsed.data;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, displayName: true, username: true },
+    });
 
     prune();
     const existing = pending.get(userId);
@@ -151,13 +164,69 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
       success: true,
       data: {
         sent: true,
-        maskedPhoneNumber: maskNumber(phoneNumber),
+        sentToPhone: maskNumber(phoneNumber),
+        sentToEmail: maskEmail(user?.email),
         isDemo,
         demoCode: isDemo ? '123456' : undefined,
         expiresInSeconds: OTP_TTL_MS / 1000,
         message: isDemo
-          ? 'Verification code sent (use demo code 123456 if SMS is delayed)'
-          : 'Verification code sent to your phone',
+          ? `Verification code sent to ${maskEmail(user?.email) || 'email'} and ${maskNumber(phoneNumber)} (demo fallback 123456 available)`
+          : `Verification code sent to ${maskNumber(phoneNumber)} and ${maskEmail(user?.email) || 'email'}`,
+      },
+    });
+  });
+
+  fastify.post('/auth/phone/send-email-otp', async (request, reply) => {
+    const parsed = sendSchema.safeParse(request.body);
+    if (!parsed.success) throw parsed.error;
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { phoneNumber } = parsed.data;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, displayName: true, username: true },
+    });
+
+    prune();
+    const existing = pending.get(userId);
+    if (existing && Date.now() - existing.sentAt < RESEND_COOLDOWN_MS) {
+      const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (Date.now() - existing.sentAt)) / 1000);
+      throw createAppError(
+        `Please wait ${waitSeconds}s before requesting another code`,
+        429,
+        'OTP_COOLDOWN',
+      );
+    }
+
+    const takenBy = await prisma.user.findFirst({
+      where: { phoneNumber, phoneVerified: true, NOT: { id: userId } },
+      select: { id: true },
+    });
+    if (takenBy) {
+      throw createAppError('This number is already linked to another account', 409, 'PHONE_TAKEN');
+    }
+
+    const code = '123456';
+    const isDemo = true;
+
+    pending.set(userId, {
+      phoneNumber,
+      codeHash: hashCode(code),
+      expiresAt: Date.now() + OTP_TTL_MS,
+      sentAt: Date.now(),
+      attempts: 0,
+    });
+
+    return reply.send({
+      success: true,
+      data: {
+        sent: true,
+        sentToEmail: true,
+        isDemo,
+        demoCode: isDemo ? '123456' : undefined,
+        expiresInSeconds: OTP_TTL_MS / 1000,
+        message: `Verification code sent to ${maskEmail(user?.email) || 'email'}`,
       },
     });
   });

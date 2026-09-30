@@ -43,13 +43,13 @@ describe('SSO Phone KYC Flow', () => {
     const html = renderToString(<SsoChooserContent initialStage="phone-kyc" />);
 
     expect(html).toContain('Quant Identity KYC');
-    expect(html).toContain('Phone Verification');
+    expect(html).toContain('Phone &amp; Email Verification');
     expect(html).toContain('Google KYC Parity');
     expect(html).toContain('+91');
     expect(html).toContain('Send Verification Code');
   });
 
-  it('renders the demo OTP auto-fill chip when OTP is sent', () => {
+  it('renders the demo OTP auto-fill chip and resend buttons when OTP is sent', () => {
     const demoInfo = { isDemo: true, demoCode: '123456', message: 'Demo mode activated' };
     const html = renderToString(
       <SsoChooserContent
@@ -61,5 +61,8 @@ describe('SSO Phone KYC Flow', () => {
 
     expect(html).toContain('✨ Auto-Fill Demo OTP: <!-- -->123456');
     expect(html).toContain('Verify &amp; Complete KYC ✓');
+    expect(html).toContain('📱 Resend SMS');
+    expect(html).toContain('📧 Send via Email');
+    expect(html).toContain('📩 Code sent to mobile and email');
   });
 });

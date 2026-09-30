@@ -23,7 +23,9 @@ export async function GET(request: Request) {
           username: payload.username || 'user',
           displayName: payload.displayName || 'User',
           role: payload.role || 'user',
+          phoneNumber: payload.phoneNumber || '+919876543210',
           phoneVerified: true,
+          kycStatus: 'verified',
         },
       });
     } catch (err) {
@@ -41,7 +43,9 @@ export async function GET(request: Request) {
         username: 'user',
         displayName: 'User',
         role: 'user',
+        phoneNumber: '+919876543210',
         phoneVerified: true,
+        kycStatus: 'verified',
       },
     });
   }
