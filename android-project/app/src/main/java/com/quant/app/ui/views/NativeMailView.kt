@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -112,43 +113,45 @@ data class LensItem(
 )
 
 /**
- * Pre-defined design tokens for QuantMail Native Views matching QuantMail Web and Superhuman.
+ * Pre-defined design tokens for QuantMail Native Views matching Superhuman and Linear luxury palette.
  */
 object QuantBrandTokens {
-    val VoidCanvas = Color(0xFF09, 0x0A, 0x0C)
-    val CardObsidian = Color(0xFF11, 0x13, 0x18)
-    val CardBorder = Color(0xFF1E, 0x22, 0x2A)
+    // Luxury Obsidian & Slate Palette
+    val VoidCanvas = Color(0xFF09, 0x0A, 0x0E) // Canvas: #090A0E
+    val CardObsidian = Color(0xFF12, 0x15, 0x1E) // Card surface: #12151E (rich deep dark slate)
+    val CardBorder = Color(0xFF23, 0x29, 0x38) // Card border: #232938 (subtle 0.8dp hairline stroke)
+    val CardBorderHairline = 0.8.dp
 
-    // Amber / Radiant Tokens
-    val AmberPrimary = Color(0xFFFF, 0x8C, 0x42)
-    val AmberHalo = Color(0x4D, 0xFF, 0x8C, 0x42) // 0.3 outer halo
-    val AmberTintBg = Color(0xFF2B, 0x1A, 0x11)
-    val AmberGlowBorder = Color(0xFFFF, 0x8C, 0x42)
+    // Molten Amber & Radiant Accents
+    val AmberPrimary = Color(0xFFFF, 0x8C, 0x42) // Molten Amber #FF8C42
+    val AmberHalo = Color(0x33, 0xFF, 0x8C, 0x42) // Soft outer halo
+    val AmberTintBg = Color(0xFF2A, 0x1E, 0x17) // Active pill background #2A1E17
+    val AmberGlowBorder = Color(0x99, 0xFF, 0x8C, 0x42) // #FF8C42.copy(alpha = 0.6f)
 
-    // Lens Filter Tokens
-    val LensInactiveBg = Color(0xFF13, 0x15, 0x1A)
-    val LensInactiveBorder = Color(0xFF22, 0x26, 0x30)
-    val LensInactiveText = Color(0xFF94, 0xA3, 0xB8)
+    // Superhuman Split Lens Filter Tokens
+    val LensInactiveBg = Color(0xFF14, 0x17, 0x22) // Inactive background #141722
+    val LensInactiveBorder = Color(0xFF20, 0x25, 0x34) // Inactive border #202534
+    val LensInactiveText = Color(0xFF94, 0xA3, 0xB8) // Inactive text #94A3B8
 
-    // Typography Tokens
-    val TextWhite = Color(0xFFF8, 0xFA, 0xFC)
-    val TextMuted = Color(0xFF94, 0xA3, 0xB8)
-    val TextSubtle = Color(0xFF64, 0x74, 0x8B)
-    val TextRead = Color(0xFFCBD5E1)
+    // Crisp Typography Tokens
+    val TextWhite = Color(0xFFF8, 0xFA, 0xFC) // Text primary: #F8FAFC
+    val TextSecondary = Color(0xFF94, 0xA3, 0xB8) // Text secondary: #94A3B8
+    val TextMuted = Color(0xFF64, 0x74, 0x8B) // Text muted: #64748B
+    val TextRead = Color(0xFF94, 0xA3, 0xB8)
 
-    // Functional Tokens
+    // Functional & Action Tokens
     val StarGold = Color(0xFFF5, 0x9E, 0x0B)
-    val BadgeDarkText = Color(0xFF09, 0x0A, 0x0C)
-    val BadgeMutedBg = Color(0xFF28, 0x2C, 0x35)
-    val AttachmentBg = Color(0xFF1E, 0x22, 0x2A)
-    val AttachmentBorder = Color(0xFF2E, 0x34, 0x42)
+    val BadgeDarkText = Color(0xFF09, 0x0A, 0x0E)
+    val BadgeMutedBg = Color(0xFF20, 0x25, 0x34)
+    val AttachmentBg = Color(0xFF16, 0x19, 0x24)
+    val AttachmentBorder = Color(0xFF25, 0x2B, 0x3C)
     val ActionIconTint = Color(0xFF64, 0x74, 0x8B)
 
-    // Priority Radar Hero Tokens
+    // Priority Radar Executive Glow
     val RadarBorderGradient = listOf(
-        Color(0xFF28, 0x2C, 0x35),
-        Color(0x66, 0xFF, 0x8C, 0x42),
-        Color(0xFF28, 0x2C, 0x35)
+        Color(0xFF23, 0x29, 0x38),
+        Color(0x99, 0xFF, 0x8C, 0x42),
+        Color(0xFF23, 0x29, 0x38)
     )
 }
 
@@ -217,12 +220,12 @@ object AvatarGradientCache {
 }
 
 /**
- * Pre-defined category tag colors.
+ * Pre-defined category tag colors with soft modern tints.
  */
 object TagColors {
-    val Mint = Color(0xFF34, 0xD3, 0x99)
-    val Sky = Color(0xFF60, 0xA5, 0xFA)
-    val Gold = Color(0xFFFB, 0xBF, 0x24)
+    val Mint = Color(0xFF34, 0xD3, 0x99) // Mint for CodeHub
+    val Sky = Color(0xFF38, 0xBD, 0xF8) // Sky for Finance
+    val Gold = Color(0xFFFB, 0xBF, 0x24) // Gold for Executive
     val Coral = Color(0xFFF8, 0x71, 0x71)
     val Lavender = Color(0xFFA7, 0x8B, 0xFA)
     val Indigo = Color(0xFF81, 0x8C, 0xF8)
@@ -588,7 +591,7 @@ fun SuperhumanSplitLensesBar(
         modifier = modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -597,45 +600,48 @@ fun SuperhumanSplitLensesBar(
 
             val backgroundColor = if (isSelected) QuantBrandTokens.AmberTintBg else QuantBrandTokens.LensInactiveBg
             val borderColor = if (isSelected) QuantBrandTokens.AmberGlowBorder else QuantBrandTokens.LensInactiveBorder
-            val textColor = if (isSelected) Color.White else QuantBrandTokens.LensInactiveText
+            val textColor = if (isSelected) Color(0xFFFFFFFF) else QuantBrandTokens.LensInactiveText
 
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
                     .background(backgroundColor)
                     .border(
-                        width = if (isSelected) 1.2.dp else 1.dp,
+                        width = 0.8.dp,
                         color = borderColor,
                         shape = RoundedCornerShape(20.dp)
                     )
                     .clickable { onLensSelect(lens.key) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = lens.label,
                     color = textColor,
                     fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false
                 )
 
                 if (lens.countBadge != null) {
                     Spacer(modifier = Modifier.width(6.dp))
                     val badgeBg = if (lens.isAccentBadge) QuantBrandTokens.AmberPrimary else QuantBrandTokens.BadgeMutedBg
-                    val badgeTextColor = if (lens.isAccentBadge) QuantBrandTokens.BadgeDarkText else QuantBrandTokens.TextRead
+                    val badgeTextColor = if (lens.isAccentBadge) QuantBrandTokens.BadgeDarkText else QuantBrandTokens.TextSecondary
 
                     Box(
                         modifier = Modifier
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(10.dp))
                             .background(badgeBg)
-                            .padding(horizontal = 6.dp, vertical = 1.5.dp),
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = lens.countBadge,
                             color = badgeTextColor,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            lineHeight = 12.sp
                         )
                     }
                 }
@@ -645,10 +651,11 @@ fun SuperhumanSplitLensesBar(
 }
 
 /**
- * "✨ Quant AI Priority Radar" Hero Card:
- * Frosted Obsidian surface (Color(0xFF11, 0x13, 0x18), border gradient with subtle amber glow).
- * Sparkle icon, Title "✨ 3 Priority Conversations Require Attention", Subtitle "Synthesized by Quanty AI from 14 active threads".
- * Quick action button "[Triage All (E)]" with haptic feedback.
+ * "✨ Quant AI Priority Radar" Executive Intelligence Hero Card:
+ * Luxury obsidian slate surface (Color(0xFF12, 0x15, 0x1E)) with subtle gold-amber gradient border.
+ * Pulsing AI sparkle badge with soft outer halo.
+ * Content: "✨ 3 Urgent Conversations Require Attention", subtitle "Synthesized by Quanty AI · 14 active threads".
+ * Action: Sleek pill button with amber glow: "⚡ Triage (E)".
  */
 @Composable
 fun QuantAiPriorityRadarHeroCard(
@@ -658,15 +665,26 @@ fun QuantAiPriorityRadarHeroCard(
     onTriageClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse_radar")
+    val haloAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.15f,
+        targetValue = 0.42f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "haloAlpha"
+    )
+
     Surface(
         onClick = onTriageClick,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = QuantBrandTokens.CardObsidian,
         border = BorderStroke(
-            1.dp,
+            0.8.dp,
             Brush.horizontalGradient(QuantBrandTokens.RadarBorderGradient)
         )
     ) {
@@ -676,20 +694,23 @@ fun QuantAiPriorityRadarHeroCard(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Sparkle icon badge with glowing ember halo
+            // Pulsing AI sparkle badge with soft amber halo
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color(0x26, 0xFF, 0x8C, 0x42))
-                    .border(1.dp, Color(0x55, 0xFF, 0x8C, 0x42), CircleShape),
+                    .background(QuantBrandTokens.AmberPrimary.copy(alpha = haloAlpha))
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(QuantBrandTokens.AmberTintBg)
+                    .border(0.8.dp, QuantBrandTokens.AmberPrimary.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.AutoAwesome,
                     contentDescription = "Priority Radar",
                     tint = QuantBrandTokens.AmberPrimary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(17.dp)
                 )
             }
 
@@ -700,10 +721,10 @@ fun QuantAiPriorityRadarHeroCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = "✨ $priorityCount Priority Conversations Require Attention",
-                    color = Color.White,
+                    text = "✨ $priorityCount Urgent Conversations Require Attention",
+                    color = QuantBrandTokens.TextWhite,
                     fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -711,8 +732,8 @@ fun QuantAiPriorityRadarHeroCard(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "Synthesized by Quanty AI from $totalThreads active threads",
-                    color = QuantBrandTokens.TextMuted,
+                    text = "Synthesized by Quanty AI · $totalThreads active threads",
+                    color = QuantBrandTokens.TextSecondary,
                     fontSize = 11.5.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -721,21 +742,22 @@ fun QuantAiPriorityRadarHeroCard(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Quick action button: [Triage All (E)]
+            // Sleek pill button with amber glow: ⚡ Triage (E)
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(QuantBrandTokens.AmberTintBg)
-                    .border(1.dp, Color(0x55, 0xFF, 0x8C, 0x42), RoundedCornerShape(8.dp))
+                    .border(1.dp, QuantBrandTokens.AmberPrimary.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .clickable { onTriageClick() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "[Triage All (E)]",
+                    text = "⚡ Triage (E)",
                     color = QuantBrandTokens.AmberPrimary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
                 )
             }
         }
@@ -744,14 +766,12 @@ fun QuantAiPriorityRadarHeroCard(
 
 /**
  * High-Fidelity Email Thread Card:
- * Frosted Obsidian card container Color(0xFF11, 0x13, 0x18) on Canvas Void Color(0xFF09, 0x0A, 0x0C) with border Color(0xFF1E, 0x22, 0x2A), 14.dp rounded corners.
- * Left: Identity Avatar with cached multi-color gradient initials (CG, QE, TS, SP, etc.).
- * Unread indicator: Radiant glowing beacon dot (#FF8C42 with 0.3 outer halo).
- * Sender name in crisp white (FontWeight.Bold if unread), time in #FF8C42 (unread) or #64748B (read).
- * Subject line in crisp white typography (#F8FAFC).
- * Snippet preview in muted slate Color(0xFF94, 0xA3, 0xB8) (2 lines).
- * Attachment pill ('📎 filename.pdf (X MB)') with clean borders.
- * Action row: Star icon button (toggles gold #F59E0B), Quick Archive [📥], Snooze [⏰] with smooth touch feedback.
+ * Luxury obsidian slate surface (#12151E) on Canvas Void (#090A0E) with subtle hairline border (#232938, 0.8dp), 16dp rounded corners.
+ * Left: 44dp circular avatar with rich gradient cache, crisp white initials, and unread beacon dot with soft outer halo.
+ * Sender & Timestamp: 14.5sp semi-bold sender name, verified domain badge where applicable, relative time in amber if unread or slate if read.
+ * Subject & Snippet: Subject in #F8FAFC (14sp medium), snippet in #94A3B8 (12.5sp regular, 18sp line height).
+ * Attachment & Tags: Sleek tag pills with soft background tints (Mint for CodeHub, Sky for Finance, Gold for Executive), clean attachment capsule with file size.
+ * Quick Action Row: Refined Star toggle (gold #F59E0B), Archive button, Snooze button with 34dp touch targets and smooth haptics.
  */
 @Composable
 fun HighFidelityMailThreadCard(
@@ -766,14 +786,25 @@ fun HighFidelityMailThreadCard(
     val initials = AvatarGradientCache.getInitials(thread.sender)
     val avatarGradient = AvatarGradientCache.getGradient(thread.sender, initials)
 
+    val isVerifiedSender = remember(thread.sender) {
+        thread.sender.contains("CodeHub", ignoreCase = true) ||
+        thread.sender.contains("Engineering", ignoreCase = true) ||
+        thread.sender.contains("Sundar", ignoreCase = true) ||
+        thread.sender.contains("GitHub", ignoreCase = true) ||
+        thread.sender.contains("Stripe", ignoreCase = true) ||
+        thread.sender.contains("AWS", ignoreCase = true) ||
+        thread.sender.contains("Trinity", ignoreCase = true) ||
+        thread.sender.contains("Copilot", ignoreCase = true)
+    }
+
     Surface(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = QuantBrandTokens.CardObsidian,
-        border = BorderStroke(1.dp, QuantBrandTokens.CardBorder)
+        border = BorderStroke(QuantBrandTokens.CardBorderHairline, QuantBrandTokens.CardBorder)
     ) {
         Column(
             modifier = Modifier
@@ -784,20 +815,44 @@ fun HighFidelityMailThreadCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
-                // Identity Avatar with cached multi-color gradient initials
+                // Identity Avatar (44dp) with rich gradient cache, crisp white initials, and unread beacon dot with soft outer halo
                 Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(avatarGradient),
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.size(44.dp)
                 ) {
-                    Text(
-                        text = initials,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(CircleShape)
+                            .background(avatarGradient),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initials,
+                            color = Color.White,
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (thread.isUnread) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 2.dp, y = (-2).dp)
+                                .size(13.dp)
+                                .clip(CircleShape)
+                                .background(QuantBrandTokens.AmberHalo),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(QuantBrandTokens.AmberPrimary)
+                                    .border(1.dp, QuantBrandTokens.CardObsidian, CircleShape)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -806,69 +861,62 @@ fun HighFidelityMailThreadCard(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Row 1: Sender name + radiant glowing beacon dot (#FF8C42 with 0.3 outer halo) + time
+                    // Row 1: Sender name (14.5sp semi-bold) + verified domain badge + relative time (in amber if unread or slate if read)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (thread.isUnread) {
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(QuantBrandTokens.AmberHalo),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.5.dp)
-                                        .clip(CircleShape)
-                                        .background(QuantBrandTokens.AmberPrimary)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                        }
-
                         Text(
                             text = thread.sender,
-                            fontSize = 14.sp,
-                            fontWeight = if (thread.isUnread) FontWeight.Bold else FontWeight.Medium,
-                            color = if (thread.isUnread) Color.White else QuantBrandTokens.TextRead,
+                            fontSize = 14.5.sp,
+                            fontWeight = if (thread.isUnread) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (thread.isUnread) QuantBrandTokens.TextWhite else QuantBrandTokens.TextRead,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f, fill = false)
                         )
 
-                        Spacer(modifier = Modifier.width(6.dp))
+                        if (isVerifiedSender) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Verified Sender",
+                                tint = Color(0xFF38, 0xBD, 0xF8),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
 
                         Text(
                             text = thread.time,
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = if (thread.isUnread) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (thread.isUnread) QuantBrandTokens.AmberPrimary else QuantBrandTokens.TextSubtle
+                            color = if (thread.isUnread) QuantBrandTokens.AmberPrimary else QuantBrandTokens.TextMuted
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-                    // Row 2: Subject line in crisp typography (#F8FAFC)
+                    // Row 2: Subject in #F8FAFC (14sp medium)
                     Text(
                         text = thread.subject,
-                        fontSize = 13.5.sp,
-                        fontWeight = if (thread.isUnread) FontWeight.SemiBold else FontWeight.Normal,
+                        fontSize = 14.sp,
+                        fontWeight = if (thread.isUnread) FontWeight.Medium else FontWeight.Normal,
                         color = QuantBrandTokens.TextWhite,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
-                    // Row 3: Snippet preview in muted slate Color(0xFF94, 0xA3, 0xB8) (2 lines)
+                    // Row 3: Snippet in #94A3B8 (12.5sp regular, 18sp line height)
                     Text(
                         text = thread.snippet,
                         fontSize = 12.5.sp,
-                        color = QuantBrandTokens.TextMuted,
-                        lineHeight = 17.sp,
+                        fontWeight = FontWeight.Normal,
+                        color = QuantBrandTokens.TextSecondary,
+                        lineHeight = 18.sp,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -877,18 +925,19 @@ fun HighFidelityMailThreadCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Row 4: Tag chip, Attachment pill & Action icons
+            // Row 4: Attachment & Tags (sleek tag pills with soft background tints, clean attachment capsule) + Quick Action Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Category Tag Chip
+                // Sleek Category Tag Pill with soft background tint
                 val tagColor = TagColors.getTagColor(thread.tag, accentColor)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(tagColor.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(tagColor.copy(alpha = 0.14f))
+                        .border(0.8.dp, tagColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.5.dp)
                 ) {
                     Text(
                         text = thread.tag,
@@ -898,7 +947,7 @@ fun HighFidelityMailThreadCard(
                     )
                 }
 
-                // Attachment pill ('📎 filename.pdf (X MB)') with clean borders
+                // Clean Attachment Capsule with file size
                 if (thread.hasAttachment) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Row(
@@ -906,13 +955,13 @@ fun HighFidelityMailThreadCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(QuantBrandTokens.AttachmentBg)
-                            .border(1.dp, QuantBrandTokens.AttachmentBorder, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                            .border(0.8.dp, QuantBrandTokens.AttachmentBorder, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.5.dp)
                     ) {
                         Text(
                             text = "📎 ${thread.attachmentText ?: "attachment"}",
                             fontSize = 10.5.sp,
-                            color = QuantBrandTokens.TextMuted,
+                            color = QuantBrandTokens.TextSecondary,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -922,15 +971,15 @@ fun HighFidelityMailThreadCard(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Action Row: Star icon button (toggles gold #F59E0B), Quick Archive [📥], Snooze [⏰]
+                // Quick Action Row: Refined Star toggle (gold #F59E0B), Archive button, Snooze button with 34dp touch targets and smooth haptics
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // Star button
                     IconButton(
                         onClick = { onToggleStar(thread) },
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = if (thread.isStarred) Icons.Filled.Star else Icons.Filled.StarBorder,
@@ -943,7 +992,7 @@ fun HighFidelityMailThreadCard(
                     // Quick Archive [📥]
                     IconButton(
                         onClick = { onArchive(thread) },
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Archive,
@@ -956,7 +1005,7 @@ fun HighFidelityMailThreadCard(
                     // Snooze [⏰]
                     IconButton(
                         onClick = { onSnooze(thread) },
-                        modifier = Modifier.size(30.dp)
+                        modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Schedule,
@@ -1004,12 +1053,12 @@ fun MailInboxZeroState(
                 .offset(y = floatOffset.dp)
                 .size(76.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF13, 0x15, 0x1A))
+                .background(QuantBrandTokens.CardObsidian)
                 .border(
                     BorderStroke(
                         1.5.dp,
                         Brush.linearGradient(
-                            listOf(Color(0xFFFF, 0x8C, 0x42), Color(0xFF28, 0x2C, 0x35))
+                            listOf(QuantBrandTokens.AmberPrimary, QuantBrandTokens.CardBorder)
                         )
                     ),
                     CircleShape
@@ -1025,7 +1074,7 @@ fun MailInboxZeroState(
             text = "Inbox Zero · All caught up! ✨",
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = QuantBrandTokens.TextWhite
         )
 
         Spacer(modifier = Modifier.height(6.dp))
@@ -1037,7 +1086,7 @@ fun MailInboxZeroState(
                 "No conversations in “$lens”. Try switching lenses or clearing filters."
             },
             fontSize = 13.sp,
-            color = Color(0xFF64, 0x74, 0x8B),
+            color = QuantBrandTokens.TextMuted,
             textAlign = TextAlign.Center
         )
 
@@ -1045,12 +1094,12 @@ fun MailInboxZeroState(
             Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = onResetLens,
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1E, 0x22, 0x2C),
-                    contentColor = Color(0xFFFF, 0x8C, 0x42)
+                    containerColor = QuantBrandTokens.LensInactiveBg,
+                    contentColor = QuantBrandTokens.AmberPrimary
                 ),
-                border = BorderStroke(1.dp, Color(0xFF33, 0x3A, 0x47))
+                border = BorderStroke(1.dp, QuantBrandTokens.LensInactiveBorder)
             ) {
                 Text(
                     text = "View All Mail",

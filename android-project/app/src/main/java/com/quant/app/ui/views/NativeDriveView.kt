@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -76,6 +78,7 @@ import com.quant.app.data.EcosystemStateStore
 
 /**
  * File type categories and icon styling metadata for QuantDrive.
+ * Benchmark: Crimson for PDF, Azure for DOC/TXT, Emerald for CODE, Amber for ZIP/ARCHIVE, Sunset for IMAGES.
  */
 enum class DriveFileType(
     val category: String,
@@ -84,10 +87,12 @@ enum class DriveFileType(
     val icon: ImageVector,
     val badgeLabel: String
 ) {
-    PDF("Documents", Color(0xFF3B, 0x14, 0x14), Color(0xFFEF, 0x44, 0x44), Icons.Default.PictureAsPdf, "PDF"),
-    SHEET("Spreadsheets", Color(0xFF0F, 0x30, 0x22), Color(0xFF10, 0xB9, 0x81), Icons.Default.TableChart, "SHEET"),
-    DOC("Documents", Color(0xFF13, 0x27, 0x44), Color(0xFF3B, 0x82, 0xF6), Icons.Default.Description, "DOC"),
-    CODE("Code", Color(0xFF2E, 0x1A, 0x47), Color(0xFF8B, 0x5C, 0xF6), Icons.Default.Code, "CODE"),
+    PDF("Documents", Color(0xFF3D, 0x11, 0x14), Color(0xFFEF, 0x44, 0x44), Icons.Default.PictureAsPdf, "PDF"), // Crimson for PDF
+    SHEET("Spreadsheets", Color(0xFF0F, 0x30, 0x22), Color(0xFF34, 0xD3, 0x99), Icons.Default.TableChart, "SHEET"),
+    DOC("Documents", Color(0xFF0C, 0x22, 0x3D), Color(0xFF38, 0xBD, 0xF8), Icons.Default.Description, "DOC"), // Azure for DOC/TXT
+    CODE("Code", Color(0xFF06, 0x33, 0x23), Color(0xFF10, 0xB9, 0x81), Icons.Default.Code, "CODE"), // Emerald for CODE
+    ARCHIVE("Documents", Color(0xFF3D, 0x26, 0x06), Color(0xFFF5, 0x9E, 0x0B), Icons.Default.FolderOpen, "ZIP"), // Amber for ZIP/ARCHIVE
+    IMAGE("Media", Color(0xFF3D, 0x12, 0x26), Color(0xFFF4, 0x3F, 0x5E), Icons.Default.PermMedia, "IMAGE"), // Sunset for IMAGES
     MEDIA("Media", Color(0xFF2C, 0x18, 0x45), Color(0xFFA8, 0x55, 0xF7), Icons.Default.PermMedia, "MEDIA"),
     APK("Code", Color(0xFF0C, 0x33, 0x38), Color(0xFF06, 0xB6, 0xD4), Icons.Default.Android, "APK"),
     OTHER("Documents", Color(0xFF1E, 0x24, 0x33), Color(0xFF94, 0xA3, 0xB8), Icons.Default.InsertDriveFile, "FILE")
@@ -148,19 +153,19 @@ val BASELINE_DRIVE_FILES = listOf(
     ),
     DriveItem(
         id = "f_05",
-        title = "FastCDC-64KB-Deduplication.pdf",
-        size = "890 KB",
+        title = "Sovereign-Vault-Backups.zip",
+        size = "18.4 MB",
         modifiedDate = "3h ago",
-        type = DriveFileType.PDF,
+        type = DriveFileType.ARCHIVE,
         isInitiallyStarred = true,
         isOffline = true
     ),
     DriveItem(
         id = "f_06",
-        title = "Global-Infrastructure-Budget.xlsx",
+        title = "Product-Launch-Keynote.docx",
         size = "3.8 MB",
         modifiedDate = "4h ago",
-        type = DriveFileType.SHEET,
+        type = DriveFileType.DOC,
         isInitiallyStarred = false,
         isOffline = false
     ),
@@ -175,10 +180,10 @@ val BASELINE_DRIVE_FILES = listOf(
     ),
     DriveItem(
         id = "f_08",
-        title = "Aura-Voice-Orb-Keynote.mp4",
-        size = "54.1 MB",
+        title = "Brand-Identity-Kit-4K.png",
+        size = "8.2 MB",
         modifiedDate = "Yesterday",
-        type = DriveFileType.MEDIA,
+        type = DriveFileType.IMAGE,
         isInitiallyStarred = false,
         isOffline = true
     ),
@@ -211,10 +216,10 @@ val BASELINE_DRIVE_FILES = listOf(
     ),
     DriveItem(
         id = "f_12",
-        title = "Brand-Identity-Kit-4K.png",
-        size = "8.2 MB",
+        title = "Executive-Briefing-Notes.txt",
+        size = "14 KB",
         modifiedDate = "5 days ago",
-        type = DriveFileType.MEDIA,
+        type = DriveFileType.DOC,
         isInitiallyStarred = false,
         isOffline = true
     )
@@ -228,6 +233,7 @@ val DRIVE_FILTER_OPTIONS = listOf(
     "Documents",
     "Spreadsheets",
     "Code",
+    "Media",
     "Offline"
 )
 
@@ -268,7 +274,9 @@ fun NativeDriveView(
             ext in listOf("xlsx", "xls", "csv") -> DriveFileType.SHEET
             ext in listOf("doc", "docx", "txt", "md") -> DriveFileType.DOC
             ext in listOf("kt", "java", "ts", "js", "rs", "py", "go", "json", "html", "css") -> DriveFileType.CODE
-            ext in listOf("png", "jpg", "jpeg", "mp4", "mp3", "mov", "webp", "gif") -> DriveFileType.MEDIA
+            ext in listOf("zip", "tar", "gz", "7z", "rar") -> DriveFileType.ARCHIVE
+            ext in listOf("png", "jpg", "jpeg", "webp", "svg", "gif") -> DriveFileType.IMAGE
+            ext in listOf("mp4", "mp3", "mov", "wav") -> DriveFileType.MEDIA
             ext == "apk" -> DriveFileType.APK
             storeFile.type == "scan" -> DriveFileType.DOC
             else -> DriveFileType.OTHER
@@ -531,47 +539,54 @@ private fun StorageQuotaCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Storage Quota Progress Labels
+            // Luxurious Storage Quota Progress Labels (14.2 GB of 100 GB used · 14.2%)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "14.2 GB of 100 GB used",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    text = "14.2 GB of 100 GB used · 14.2%",
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFE2, 0xE8, 0xF0)
                 )
-                Text(
-                    text = "14.2%",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accentColor
-                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = accentColor.copy(alpha = 0.15f),
+                    border = BorderStroke(0.6.dp, accentColor.copy(alpha = 0.45f))
+                ) {
+                    Text(
+                        text = "85.8 GB free",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Layered Gradient Progress Bar: 14.2 GB of 100 GB used (14.2%)
+            // Luxurious Layered Gradient Progress Bar: 14.2 GB of 100 GB used · 14.2%
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(9.dp)
-                    .clip(RoundedCornerShape(5.dp))
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFF1E, 0x23, 0x30))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(0.142f)
-                        .height(9.dp)
-                        .clip(RoundedCornerShape(5.dp))
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
                         .background(
                             Brush.horizontalGradient(
                                 colors = listOf(
                                     Color(0xFF0E, 0xA5, 0xE9), // Sky Blue
-                                    Color(0xFF38, 0xBD, 0xF8), // Light Blue
-                                    Color(0xFF81, 0x8C, 0xF8)  // Indigo
+                                    Color(0xFF38, 0xBD, 0xF8), // Light Azure
+                                    Color(0xFF81, 0x8C, 0xF8)  // Indigo Glow
                                 )
                             )
                         )
@@ -580,13 +595,29 @@ private fun StorageQuotaCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // FastCDC 64KB Dedup Badge: "⚡ FastCDC Dedup saved 4.8 GB bandwidth"
+            // FastCDC 64KB Dedup Badge: "⚡ FastCDC Dedup saved 4.8 GB bandwidth" with emerald green glow
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF0F, 0x13, 0x1B))
-                    .border(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.35f),
+                                Color(0xFF0B, 0x1A, 0x15).copy(alpha = 0.6f)
+                            )
+                        )
+                    )
+                    .border(
+                        1.2.dp,
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.75f),
+                                Color(0xFF34, 0xD3, 0x99).copy(alpha = 0.45f)
+                            )
+                        ),
+                        RoundedCornerShape(12.dp)
+                    )
                     .padding(horizontal = 12.dp, vertical = 9.dp)
             ) {
                 Row(
@@ -597,13 +628,13 @@ private fun StorageQuotaCard(
                     Icon(
                         imageVector = Icons.Default.FlashOn,
                         contentDescription = "FastCDC",
-                        tint = Color(0xFF10, 0xB9, 0x81),
+                        tint = Color(0xFF34, 0xD3, 0x99),
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = "⚡ FastCDC Dedup saved 4.8 GB bandwidth",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = Color(0xFF34, 0xD3, 0x99)
                     )
                 }
@@ -727,6 +758,7 @@ private fun DriveListCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardContext = LocalContext.current
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -827,18 +859,27 @@ private fun DriveListCard(
                                 fontSize = 10.sp,
                                 color = Color(0xFF64, 0x74, 0x8B)
                             )
-                            Text(
-                                text = "Offline",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF10, 0xB9, 0x81)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = "📌",
+                                    fontSize = 9.sp
+                                )
+                                Text(
+                                    text = "Offline",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF10, 0xB9, 0x81)
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Trailing Action Icons: Star & 3-dots
+            // Trailing Action Icons: Star & 3-dots Menu
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -856,17 +897,75 @@ private fun DriveListCard(
                     )
                 }
 
-                // 3-dots action icon
-                IconButton(
-                    onClick = onMoreOptions,
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "File Options",
-                        tint = Color(0xFF94, 0xA3, 0xB8),
-                        modifier = Modifier.size(20.dp)
-                    )
+                // 3-dots action menu with download, share, star actions
+                var showListMenu by remember { mutableStateOf(false) }
+
+                Box {
+                    IconButton(
+                        onClick = { showListMenu = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "File Options",
+                            tint = Color(0xFF94, 0xA3, 0xB8),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showListMenu,
+                        onDismissRequest = { showListMenu = false },
+                        modifier = Modifier
+                            .background(Color(0xFF16, 0x19, 0x24))
+                            .border(1.dp, Color(0xFF2E, 0x34, 0x46), RoundedCornerShape(12.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (isStarred) "Unstar file" else "Star file", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = null,
+                                    tint = if (isStarred) Color(0xFFF5, 0x9E, 0x0B) else Color(0xFF94, 0xA3, 0xB8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showListMenu = false
+                                onStarToggle()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Download file", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FlashOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38, 0xBD, 0xF8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showListMenu = false
+                                Toast.makeText(cardContext, "📥 Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Share link", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Code,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA7, 0x8B, 0xFA),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showListMenu = false
+                                Toast.makeText(cardContext, "🔗 Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -886,6 +985,7 @@ private fun DriveGridCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val gridContext = LocalContext.current
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF14, 0x17, 0x22)),
@@ -984,23 +1084,93 @@ private fun DriveGridCard(
                         fontWeight = FontWeight.Medium,
                         color = Color(0xFF94, 0xA3, 0xB8)
                     )
-                    Text(
-                        text = file.modifiedDate,
-                        fontSize = 10.sp,
-                        color = Color(0xFF64, 0x74, 0x8B)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = file.modifiedDate,
+                            fontSize = 10.sp,
+                            color = Color(0xFF64, 0x74, 0x8B)
+                        )
+                        if (file.isOffline) {
+                            Text(
+                                text = "📌",
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
                 }
 
-                IconButton(
-                    onClick = onMoreOptions,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "File Options",
-                        tint = Color(0xFF94, 0xA3, 0xB8),
-                        modifier = Modifier.size(18.dp)
-                    )
+                // 3-dots action menu with download, share, star actions
+                var showGridMenu by remember { mutableStateOf(false) }
+
+                Box {
+                    IconButton(
+                        onClick = { showGridMenu = true },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "File Options",
+                            tint = Color(0xFF94, 0xA3, 0xB8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = showGridMenu,
+                        onDismissRequest = { showGridMenu = false },
+                        modifier = Modifier
+                            .background(Color(0xFF16, 0x19, 0x24))
+                            .border(1.dp, Color(0xFF2E, 0x34, 0x46), RoundedCornerShape(12.dp))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(if (isStarred) "Unstar file" else "Star file", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = null,
+                                    tint = if (isStarred) Color(0xFFF5, 0x9E, 0x0B) else Color(0xFF94, 0xA3, 0xB8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showGridMenu = false
+                                onStarToggle()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Download file", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.FlashOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38, 0xBD, 0xF8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showGridMenu = false
+                                Toast.makeText(gridContext, "📥 Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Share link", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Code,
+                                    contentDescription = null,
+                                    tint = Color(0xFFA7, 0x8B, 0xFA),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showGridMenu = false
+                                Toast.makeText(gridContext, "🔗 Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 }
             }
         }

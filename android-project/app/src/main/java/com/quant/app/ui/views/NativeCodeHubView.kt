@@ -251,33 +251,36 @@ fun NativeCodeHubView(
                     }
                 }
 
-                Button(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onNewRepoClick()
-                    },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = accentColor,
-                        contentColor = Color.Black
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                // Clean header with repo count and protected badge (Creation delegated to dedicated FAB)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF16, 0x18, 0x1D),
+                        border = BorderStroke(1.dp, Color(0xFF26, 0x2A, 0x33))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "New Repo",
-                            tint = Color.Black,
-                            modifier = Modifier.size(16.dp)
-                        )
                         Text(
-                            text = "New Repo",
-                            color = Color.Black,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            text = "${dynamicRepos.size} repos",
+                            color = Color(0xFFE5, 0xE7, 0xEB),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.5f),
+                        border = BorderStroke(0.8.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.6f))
+                    ) {
+                        Text(
+                            text = "🛡 Protected",
+                            color = Color(0xFF34, 0xD3, 0x99),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -290,17 +293,11 @@ fun NativeCodeHubView(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF13, 0x11, 0x24)
+                    containerColor = Color(0xFF13, 0x16, 0x20)
                 ),
                 border = BorderStroke(
                     1.2.dp,
-                    Brush.horizontalGradient(
-                        listOf(
-                            Color(0xFF8B, 0x5C, 0xF6).copy(alpha = glowAlpha),
-                            Color(0xFF63, 0x66, 0xF1).copy(alpha = glowAlpha * 0.8f),
-                            Color(0xFFEC, 0x48, 0x99).copy(alpha = glowAlpha)
-                        )
-                    )
+                    Color(0xFFA7, 0x8B, 0xFA).copy(alpha = glowAlpha)
                 )
             ) {
                 Column(
@@ -377,17 +374,17 @@ fun NativeCodeHubView(
                         }
                     }
 
-                    // Live Copilot Status Box
+                    // Live Copilot Status Box (Modern Terminal Style)
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFF0F, 0x0D, 0x1C),
-                        border = BorderStroke(0.8.dp, Color(0xFF2E, 0x26, 0x4F)),
+                        color = Color(0xFF0F, 0x11, 0x1A),
+                        border = BorderStroke(0.8.dp, Color(0xFF2A, 0x22, 0x44)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
@@ -396,15 +393,15 @@ fun NativeCodeHubView(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "PR #347 has 100% green tests across 14 services. Zero security alerts. Ready for 1-click merge.",
+                                text = "PR #347 has 100% green tests · Zero security alerts",
                                 color = Color(0xFFE5, 0xE7, 0xEB),
                                 fontSize = 12.sp,
-                                lineHeight = 16.sp
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
 
-                    // Quick Action Pills Row
+                    // Responsive Quick Action Pills Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -434,10 +431,12 @@ fun NativeCodeHubView(
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Text(
-                                    text = "AI Code Review",
+                                    text = "AI Review",
                                     color = Color(0xFFE9, 0xD5, 0xFF),
                                     fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -467,7 +466,9 @@ fun NativeCodeHubView(
                                     text = if (isCopilotChatOpen) "Chat Active" else "Ask Quanty",
                                     color = Color(0xFFBF, 0xDB, 0xFE),
                                     fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -503,7 +504,9 @@ fun NativeCodeHubView(
                                     text = "Copilot Commit",
                                     color = Color(0xFFA7, 0xF3, 0xD0),
                                     fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
                         }
@@ -785,7 +788,7 @@ fun NativeCodeHubView(
                         // Protected Badge
                         BadgePill(
                             icon = Icons.Default.Security,
-                            text = "🛡️ Protected",
+                            text = "🛡 Protected",
                             backgroundColor = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.4f),
                             borderColor = Color(0xFF10, 0xB9, 0x81),
                             textColor = Color(0xFF34, 0xD3, 0x99)
@@ -803,7 +806,7 @@ fun NativeCodeHubView(
                         // Stars Badge
                         BadgePill(
                             icon = Icons.Default.Star,
-                            text = "⭐ 348 stars",
+                            text = "★ 348 stars",
                             backgroundColor = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.35f),
                             borderColor = Color(0xFFF5, 0x9E, 0x0B),
                             textColor = Color(0xFFFB, 0xBF, 0x24)
@@ -1026,6 +1029,9 @@ fun NativeCodeHubView(
             }
         } else {
             items(dynamicRepos, key = { it.id }) { repo ->
+                val repoSlug = repo.name.lowercase().replace(" ", "-")
+                val cloneUrl = "git@quantmail.in:quantrinitylab/$repoSlug.git"
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -1034,71 +1040,148 @@ fun NativeCodeHubView(
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        // Title: Organization / Repo name in crisp bold typography
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (repo.isPrivate) Icons.Default.Lock else Icons.Default.Public,
-                                    contentDescription = null,
-                                    tint = if (repo.isPrivate) Color(0xFFF5, 0x9E, 0x0B) else accentColor,
-                                    modifier = Modifier.size(16.dp)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "quantrinitylab /",
+                                    color = Color(0xFF9C, 0xA3, 0xAF),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
                                 )
                                 Text(
                                     text = repo.name,
                                     color = Color.White,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.3).sp
                                 )
                             }
 
+                            // Branch Pill
                             Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (repo.isPrivate) Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.3f) else Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.3f),
-                                border = BorderStroke(1.dp, if (repo.isPrivate) Color(0xFFF5, 0x9E, 0x0B) else accentColor)
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color(0xFF0F, 0x17, 0x2A),
+                                border = BorderStroke(0.8.dp, Color(0xFF33, 0x41, 0x55))
                             ) {
-                                Text(
-                                    text = if (repo.isPrivate) "Private" else "Public",
-                                    color = if (repo.isPrivate) Color(0xFFFB, 0xBF, 0x24) else Color(0xFF34, 0xD3, 0x99),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(text = "🌿", fontSize = 10.sp)
+                                    Text(
+                                        text = repo.branch,
+                                        color = Color(0xFF93, 0xC5, 0xFD),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
+
+                        // Status Badges Row: '🛡 Protected' (emerald), 'Public' (slate), '★ 348 stars' (gold), '🔀 42 forks' (blue)
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Protected Badge (emerald tint)
+                            BadgePill(
+                                icon = Icons.Default.Security,
+                                text = "🛡 Protected",
+                                backgroundColor = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.4f),
+                                borderColor = Color(0xFF10, 0xB9, 0x81),
+                                textColor = Color(0xFF34, 0xD3, 0x99)
+                            )
+
+                            // Public/Private Badge
+                            if (repo.isPrivate) {
+                                BadgePill(
+                                    icon = Icons.Default.Lock,
+                                    text = "Private",
+                                    backgroundColor = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.35f),
+                                    borderColor = Color(0xFFF5, 0x9E, 0x0B),
+                                    textColor = Color(0xFFFB, 0xBF, 0x24)
+                                )
+                            } else {
+                                BadgePill(
+                                    icon = Icons.Default.Public,
+                                    text = "Public",
+                                    backgroundColor = Color(0xFF1E, 0x29, 0x3B),
+                                    borderColor = Color(0xFF47, 0x55, 0x69),
+                                    textColor = Color(0xFF94, 0xA3, 0xB8)
                                 )
                             }
+
+                            // Stars Badge (gold tint)
+                            BadgePill(
+                                icon = Icons.Default.Star,
+                                text = "★ 348 stars",
+                                backgroundColor = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.35f),
+                                borderColor = Color(0xFFF5, 0x9E, 0x0B),
+                                textColor = Color(0xFFFB, 0xBF, 0x24)
+                            )
+
+                            // Forks Badge (blue tint)
+                            BadgePill(
+                                icon = Icons.Default.CallSplit,
+                                text = "🔀 42 forks",
+                                backgroundColor = Color(0xFF16, 0x4E, 0x63).copy(alpha = 0.4f),
+                                borderColor = Color(0xFF06, 0xB6, 0xD4),
+                                textColor = Color(0xFF67, 0xE8, 0xF9)
+                            )
                         }
 
                         if (repo.description.isNotBlank()) {
                             Text(
                                 text = repo.description,
                                 color = Color(0xFF9C, 0xA3, 0xAF),
-                                fontSize = 12.sp,
+                                fontSize = 12.5.sp,
                                 maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 17.sp
                             )
                         }
 
+                        // Monospaced clone URL chip with 1-tap copy
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF0B, 0x0C, 0x0E))
+                                .border(0.5.dp, Color(0xFF26, 0x2A, 0x33), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    clipboardManager.setText(AnnotatedString(cloneUrl))
+                                    Toast.makeText(context, "📋 Copied: $cloneUrl", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "🌿 ${repo.branch}",
-                                color = Color(0xFF60, 0xA5, 0xFA),
-                                fontSize = 11.sp,
-                                fontFamily = FontFamily.Monospace
+                                text = cloneUrl,
+                                color = Color(0xFF9C, 0xA3, 0xAF),
+                                fontSize = 10.5.sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
                             )
-                            Text(text = "·", color = Color(0xFF4B, 0x55, 0x63))
-                            Text(
-                                text = "Updated just now",
-                                color = Color(0xFF6B, 0x72, 0x80),
-                                fontSize = 11.sp
+
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy Clone URL",
+                                tint = accentColor,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }

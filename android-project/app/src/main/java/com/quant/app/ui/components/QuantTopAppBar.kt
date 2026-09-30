@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,14 +45,17 @@ import com.quant.app.ui.navigation.ProductivityTab
 
 /**
  * Sovereign Jetpack Compose Top App Bar for the Quant Ecosystem.
- * Matches the visual luxury and fidelity of QuantMail Web:
- * - Clean, uncluttered header with no clunky view mode button.
- * - Left: Glowing 40dp QuantBrandLogo + split BrandWordmark ('Quant' in white + app name in accent color).
- * - Center: Sleek frosted search trigger chip (surface Color(0xFF16, 0x18, 0x1D), border Color(0xFF28, 0x2C, 0x35), search icon, text 'Search emails (/)', '<5ms' speed badge).
- * - Right:
- *   - Live sync indicator dot (static glowing emerald green Color(0xFF10, 0xB9, 0x81) with soft halo).
- *   - Quanty AI Assistant button (sparkle '✨' in frosted circular button).
- *   - Ecosystem Account Switcher Avatar ('[Q]' in circular gradient with amber border) triggering onOpenAppSwitcher.
+ * Elevates the header to a world-class Superhuman / Linear luxury aesthetic:
+ * - Surface: Deep obsidian frosted bar (#0D1017) with hairline divider (#1E2433).
+ * - Height: 58dp with generous 16dp horizontal padding.
+ * - Left: Refined 34dp molten squircle brand mark + split BrandWordmark
+ *   ("Quant" in crisp white #F8FAFC + App Title in tab accent color)
+ *   + static high-fidelity live sync beacon dot (#10B981).
+ * - Center/Right Actions:
+ *   1. Sleek frosted search trigger button with Search icon & "<5ms" speed chip (no text truncation).
+ *   2. Frosted circular Sparkle Assistant button ('✨') with subtle purple/amethyst glow.
+ *   3. Luxury User Profile Avatar circle with dynamic initials, verified status ring,
+ *      and direct trigger for QuantAccountProfileSheet.
  */
 @Composable
 fun QuantTopAppBar(
@@ -102,25 +107,26 @@ fun QuantTopAppBar(
         }
     }
 
-    val wordmarkAppKey = remember(activeTab, resolvedAppId) {
+    val (appNameText, tabAccent) = remember(activeTab, title, accentColor) {
         if (activeTab != null) {
             when (activeTab) {
-                ProductivityTab.Mail -> "mail"
-                ProductivityTab.Calendar -> "calendar"
-                ProductivityTab.Drive -> "drive"
-                ProductivityTab.Contacts -> "contacts"
-                ProductivityTab.QuantGit -> "git"
+                ProductivityTab.Mail -> "Mail" to Color(0xFFFF, 0x8C, 0x42)
+                ProductivityTab.Calendar -> "Calendar" to Color(0xFFF5, 0x9E, 0x0B)
+                ProductivityTab.Drive -> "Drive" to Color(0xFF38, 0xBD, 0xF8)
+                ProductivityTab.Contacts -> "Contacts" to Color(0xFF10, 0xB9, 0x81)
+                ProductivityTab.QuantGit -> "Git" to Color(0xFFA7, 0x8B, 0xFA)
             }
         } else {
             when {
-                resolvedAppId.contains("cal") -> "calendar"
-                resolvedAppId.contains("drive") -> "drive"
-                resolvedAppId.contains("contact") || resolvedAppId.contains("dex") -> "contacts"
-                resolvedAppId.contains("git") || resolvedAppId.contains("code") -> "git"
-                resolvedAppId.contains("chat") -> "chat"
-                resolvedAppId.contains("tube") -> "tube"
-                resolvedAppId.contains("ai") -> "ai"
-                else -> "mail"
+                title.contains("Calendar", ignoreCase = true) -> "Calendar" to Color(0xFFF5, 0x9E, 0x0B)
+                title.contains("Drive", ignoreCase = true) -> "Drive" to Color(0xFF38, 0xBD, 0xF8)
+                title.contains("Contact", ignoreCase = true) -> "Contacts" to Color(0xFF10, 0xB9, 0x81)
+                title.contains("Git", ignoreCase = true) || title.contains("Code", ignoreCase = true) -> "Git" to Color(0xFFA7, 0x8B, 0xFA)
+                title.contains("Chat", ignoreCase = true) -> "Chat" to Color(0xFF10, 0xB9, 0x81)
+                title.contains("Tube", ignoreCase = true) -> "Tube" to Color(0xFFFF, 0x22, 0x22)
+                title.contains("AI", ignoreCase = true) -> "AI" to Color(0xFF8B, 0x5C, 0xF6)
+                title.startsWith("Quant", ignoreCase = true) && title.length > 5 -> title.substring(5).trim() to accentColor
+                else -> "Mail" to accentColor
             }
         }
     }
@@ -128,21 +134,21 @@ fun QuantTopAppBar(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xFF0B, 0x0C, 0x0E))
+            .background(Color(0xFF0D, 0x10, 0x17))
             .statusBarsPadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
-                .padding(horizontal = 14.dp),
+                .height(58.dp)
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. Left Section: Glowing 40dp QuantBrandLogo + Split BrandWordmark
+            // 1. Left Section: 34dp Molten Squircle Logo + Wordmark + Live Sync Beacon
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
                     .clickable(
@@ -154,53 +160,96 @@ fun QuantTopAppBar(
                         }
                     )
             ) {
+                // Sleek 34dp molten squircle brand mark
                 if (activeTab != null) {
                     when (activeTab) {
-                        ProductivityTab.Mail -> QuantMailLavaMark(size = 40.dp)
-                        ProductivityTab.Calendar -> QuantCalendarMark(size = 40.dp)
-                        ProductivityTab.Drive -> QuantDriveMark(size = 40.dp)
-                        ProductivityTab.Contacts -> QuantContactsMark(size = 40.dp)
-                        ProductivityTab.QuantGit -> QuantGitMark(size = 40.dp)
+                        ProductivityTab.Mail -> QuantMailLavaMark(size = 34.dp)
+                        ProductivityTab.Calendar -> QuantCalendarMark(size = 34.dp)
+                        ProductivityTab.Drive -> QuantDriveMark(size = 34.dp)
+                        ProductivityTab.Contacts -> QuantContactsMark(size = 34.dp)
+                        ProductivityTab.QuantGit -> QuantGitMark(size = 34.dp)
                     }
                 } else {
                     QuantAppLogo(
                         appId = resolvedAppId,
-                        size = 40.dp,
-                        accentColor = accentColor
+                        size = 34.dp,
+                        accentColor = tabAccent
                     )
                 }
 
-                BrandWordmark(
-                    app = wordmarkAppKey,
-                    fontSize = 20.sp
-                )
+                // Split wordmark: "Quant" (crisp white #F8FAFC) + App Title (accent color)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = "Quant",
+                        color = Color(0xFFF8, 0xFA, 0xFC),
+                        fontSize = 17.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.4).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = appNameText,
+                        color = tabAccent,
+                        fontSize = 17.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.4).sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Live sync beacon dot: subtle glowing emerald pulse
+                Spacer(modifier = Modifier.width(2.dp))
+                val emeraldColor = Color(0xFF10, 0xB9, 0x81)
+                Box(
+                    modifier = Modifier.size(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Outer halo
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(emeraldColor.copy(alpha = 0.20f))
+                    )
+                    // Inner core beacon dot with subtle ambient shadow
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(emeraldColor)
+                            .shadow(2.dp, CircleShape, ambientColor = emeraldColor, spotColor = emeraldColor)
+                    )
+                }
             }
 
-            // 2. Center Section: Sleek frosted search trigger chip
-            Surface(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onSearchClick()
-                },
-                shape = RoundedCornerShape(18.dp),
-                color = Color(0xFF16, 0x18, 0x1D),
-                border = BorderStroke(1.dp, Color(0xFF28, 0x2C, 0x35)),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(38.dp)
-                    .padding(horizontal = 10.dp)
+            // 2. Center/Right Actions: Frosted Search Trigger + Sparkle Assistant + User Avatar
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(
+                // Sleek, frosted search trigger button with Search icon and subtle "<5ms" chip
+                Surface(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onSearchClick()
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF14, 0x17, 0x20),
+                    border = BorderStroke(1.dp, Color(0xFF24, 0x2A, 0x38)),
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .height(36.dp)
+                        .sizeIn(minWidth = 40.dp)
                 ) {
                     Row(
+                        modifier = Modifier
+                            .padding(horizontal = 9.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        modifier = Modifier.weight(1f, fill = false)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -208,73 +257,43 @@ fun QuantTopAppBar(
                             tint = Color(0xFF94, 0xA3, 0xB8),
                             modifier = Modifier.size(16.dp)
                         )
-                        Text(
-                            text = "Search emails (/)",
-                            color = Color(0xFF94, 0xA3, 0xB8),
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    // '<5ms' Speed Badge
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f))
-                            .border(
-                                BorderStroke(0.5.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.45f)),
-                                RoundedCornerShape(6.dp)
+                        // '<5ms' Speed Chip with crisp green contrast
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.12f))
+                                .border(
+                                    BorderStroke(0.5.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.35f)),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .padding(horizontal = 4.dp, vertical = 1.5.dp)
+                        ) {
+                            Text(
+                                text = "<5ms",
+                                color = Color(0xFF10, 0xB9, 0x81),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.2.sp
                             )
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "<5ms",
-                            color = Color(0xFF10, 0xB9, 0x81),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.2.sp
-                        )
+                        }
                     }
                 }
-            }
 
-            // 3. Right Section: Live sync indicator + Quanty AI Assistant button + Account Switcher Avatar
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Live sync indicator dot: static high-fidelity glowing beacon (zero-jank, zero-ANR)
-                val emeraldColor = Color(0xFF10, 0xB9, 0x81)
-                Box(
-                    modifier = Modifier.size(18.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Outer halo
-                    Box(
-                        modifier = Modifier
-                            .size(14.dp)
-                            .clip(CircleShape)
-                            .background(emeraldColor.copy(alpha = 0.25f))
-                    )
-                    // Inner core beacon dot with subtle ambient shadow
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(emeraldColor)
-                            .shadow(3.dp, CircleShape, ambientColor = emeraldColor, spotColor = emeraldColor)
-                    )
-                }
-
-                // Quanty AI Assistant button (sparkle '✨' in frosted circular button)
+                // Sparkle Assistant button ('✨') in a frosted circular container with subtle glow
                 Box(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF16, 0x18, 0x1D))
-                        .border(BorderStroke(1.dp, Color(0xFF28, 0x2C, 0x35)), CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Color(0xFF8B, 0x5C, 0xF6).copy(alpha = 0.18f),
+                                    Color(0xFF14, 0x17, 0x20)
+                                )
+                            )
+                        )
+                        .border(BorderStroke(1.dp, Color(0xFF26, 0x2C, 0x3A)), CircleShape)
+                        .shadow(4.dp, CircleShape, ambientColor = Color(0xFF8B, 0x5C, 0xF6).copy(alpha = 0.25f), spotColor = Color(0xFF8B, 0x5C, 0xF6).copy(alpha = 0.25f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -291,20 +310,23 @@ fun QuantTopAppBar(
                     )
                 }
 
-                // Ecosystem Account Switcher Avatar ('[Q]' in circular gradient with amber border)
+                // Luxury User Profile Avatar circle with dynamic initials & verified status ring
                 Box(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
                         .background(
                             Brush.radialGradient(
-                                0.0f to Color(0xFF38, 0x22, 0x14),
-                                0.6f to Color(0xFF1C, 0x13, 0x0C),
-                                1.0f to Color(0xFF0F, 0x0A, 0x06)
+                                0.0f to Color(0xFF2E, 0x1C, 0x12),
+                                0.6f to Color(0xFF1A, 0x12, 0x0C),
+                                1.0f to Color(0xFF0F, 0x11, 0x17)
                             )
                         )
-                        .border(BorderStroke(1.5.dp, Color(0xFFFF, 0x8C, 0x42)), CircleShape)
-                        .shadow(4.dp, CircleShape, ambientColor = Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.35f))
+                        .border(
+                            BorderStroke(1.5.dp, tabAccent.copy(alpha = 0.85f)),
+                            CircleShape
+                        )
+                        .shadow(4.dp, CircleShape, ambientColor = tabAccent.copy(alpha = 0.30f), spotColor = tabAccent.copy(alpha = 0.30f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -317,19 +339,29 @@ fun QuantTopAppBar(
                 ) {
                     Text(
                         text = displayInitials,
-                        color = Color(0xFFFF, 0xC1, 0x89),
-                        fontSize = if (displayInitials.length > 2) 11.sp else 13.sp,
+                        color = Color(0xFFF8, 0xFA, 0xFC),
+                        fontSize = if (displayInitials.length > 2) 11.sp else 12.5.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.5.sp
+                        letterSpacing = 0.4.sp
+                    )
+
+                    // Verified status ring dot
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(9.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF10, 0xB9, 0x81))
+                            .border(1.5.dp, Color(0xFF0D, 0x10, 0x17), CircleShape)
                     )
                 }
             }
         }
 
-        // Frosted bottom border Color(0xFF26, 0x2A, 0x33)
+        // Frosted hairline divider #1E2433
         HorizontalDivider(
             thickness = 1.dp,
-            color = Color(0xFF26, 0x2A, 0x33)
+            color = Color(0xFF1E, 0x24, 0x33)
         )
     }
 }

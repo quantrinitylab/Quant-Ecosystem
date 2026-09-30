@@ -268,9 +268,9 @@ fun NativeContactsView(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF10, 0x17, 0x26)),
                 shape = RoundedCornerShape(14.dp),
                 border = BorderStroke(
-                    1.dp,
+                    1.2.dp,
                     Brush.horizontalGradient(
-                        listOf(Color(0xFF1E, 0x3A, 0x64), Color(0xFF0E, 0xA5, 0xE9).copy(alpha = 0.45f))
+                        listOf(Color(0xFF1E, 0x3A, 0x64), Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.5f))
                     )
                 )
             ) {
@@ -283,11 +283,11 @@ fun NativeContactsView(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.linearGradient(
-                                    listOf(Color(0xFF0E, 0xA5, 0xE9), Color(0xFF63, 0x66, 0xF1))
+                                    listOf(Color(0xFF0E, 0xA5, 0xE9), Color(0xFF10, 0xB9, 0x81))
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -296,7 +296,7 @@ fun NativeContactsView(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = "AI Wizard",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -315,22 +315,21 @@ fun NativeContactsView(
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f))
-                            .border(BorderStroke(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.4f)), RoundedCornerShape(8.dp))
-                            .clickable {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                Toast.makeText(context, "✨ All 8 contacts verified unique & CalDAV synced", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(horizontal = 8.dp, vertical = 5.dp)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, Color(0xFF10, 0xB9, 0x81)),
+                        modifier = Modifier.clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            Toast.makeText(context, "✨ All 8 contacts verified unique & CalDAV synced", Toast.LENGTH_SHORT).show()
+                        }
                     ) {
                         Text(
-                            text = "⚡ Verified",
+                            text = "✓ Verified",
                             color = Color(0xFF34, 0xD3, 0x99),
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                         )
                     }
                 }
@@ -488,6 +487,8 @@ private fun ContactCard(
     accentColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -503,24 +504,47 @@ private fun ContactCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Round Avatar Gradient with Initials
+                // Google Contacts-class circular avatar with gradient initials and verified badge
                 Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(getAvatarGradient(contact.name))
-                        .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape),
+                    modifier = Modifier.size(48.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = getInitials(contact.name),
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(getAvatarGradient(contact.name))
+                            .border(1.5.dp, if (contact.isVip) Color(0xFFF5, 0x9E, 0x0B) else Color.White.copy(alpha = 0.3f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = getInitials(contact.name),
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Verified badge on bottom-end of avatar
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(16.dp)
+                            .clip(CircleShape)
+                            .background(if (contact.isVip) Color(0xFFF5, 0x9E, 0x0B) else Color(0xFF10, 0xB9, 0x81))
+                            .border(1.5.dp, Color(0xFF14, 0x17, 0x22), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (contact.isVip) "★" else "✓",
+                            color = Color.Black,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
 
-                // Name, Job Title & Company, Email
+                // Name, VIP gold badge, Role, Company, Email
                 Column(modifier = Modifier.weight(1f)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -529,14 +553,26 @@ private fun ContactCard(
                         Text(
                             text = contact.name,
                             color = Color.White,
-                            fontSize = 14.5.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
 
                         if (contact.isVip) {
-                            TagBadge(tag = "VIP", isVip = true)
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.45f),
+                                border = BorderStroke(1.dp, Color(0xFFF5, 0x9E, 0x0B))
+                            ) {
+                                Text(
+                                    text = "★ VIP",
+                                    color = Color(0xFFFB, 0xBF, 0x24),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         } else if (contact.tag != "All" && contact.tag.isNotEmpty()) {
                             TagBadge(tag = contact.tag, isVip = false)
                         }
@@ -552,6 +588,7 @@ private fun ContactCard(
                             text = subtitle,
                             color = Color(0xFF9C, 0xA3, 0xAF),
                             fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -584,7 +621,7 @@ private fun ContactCard(
             HorizontalDivider(thickness = 0.5.dp, color = Color(0xFF26, 0x2C, 0x3A))
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Action Buttons Row: Direct [📞 Call] & [✉️ Email] Buttons
+            // Action Buttons Row: Direct [📞 Call] & [✉ Email] Pills with rounded corners and haptic feedback
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -592,15 +629,18 @@ private fun ContactCard(
             ) {
                 if (!contact.phone.isNullOrBlank()) {
                     Surface(
-                        onClick = onCallClick,
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.14f),
-                        border = BorderStroke(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.45f))
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onCallClick()
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.5f))
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Call,
@@ -609,7 +649,7 @@ private fun ContactCard(
                                 modifier = Modifier.size(13.dp)
                             )
                             Text(
-                                text = "📞 Call",
+                                text = "Call",
                                 color = Color(0xFF34, 0xD3, 0x99),
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
@@ -621,15 +661,18 @@ private fun ContactCard(
                 }
 
                 Surface(
-                    onClick = onEmailClick,
-                    shape = RoundedCornerShape(8.dp),
-                    color = accentColor.copy(alpha = 0.16f),
-                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.5f))
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onEmailClick()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    color = accentColor.copy(alpha = 0.18f),
+                    border = BorderStroke(1.dp, accentColor.copy(alpha = 0.55f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Email,
@@ -638,7 +681,7 @@ private fun ContactCard(
                             modifier = Modifier.size(13.dp)
                         )
                         Text(
-                            text = "✉️ Email",
+                            text = "Email",
                             color = accentColor,
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold
