@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -77,6 +78,7 @@ fun QuantAccountProfileSheet(
     onDismiss: () -> Unit,
     onLogout: () -> Unit = {},
     onWorkspaceChanged: (String) -> Unit = {},
+    onOpenPhoneVerification: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -261,6 +263,80 @@ fun QuantAccountProfileSheet(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.2.sp
                             )
+                        }
+
+                        // Phone verification status badge / action button
+                        if (currentUser.isPhoneVerified) {
+                            val maskedPhone = remember(currentUser.phoneNumber) {
+                                val raw = currentUser.phoneNumber?.trim() ?: "+91 98765 43210"
+                                val digits = raw.filter { it.isDigit() }
+                                if (digits.length >= 6) {
+                                    val prefix = if (raw.startsWith("+91")) "+91 " else if (raw.startsWith("+")) raw.takeWhile { it != ' ' && !it.isWhitespace() } + " " else "+91 "
+                                    val startDigits = digits.take(2)
+                                    val lastDigits = digits.takeLast(4)
+                                    "$prefix$startDigits••••$lastDigits"
+                                } else {
+                                    "+91 98••••4321"
+                                }
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.12f))
+                                    .border(
+                                        BorderStroke(0.5.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.40f)),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Phone Verified",
+                                    tint = Color(0xFF10, 0xB9, 0x81),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = "Phone: $maskedPhone (Verified)",
+                                    color = Color(0xFF10, 0xB9, 0x81),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.2.sp
+                                )
+                            }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFFF5, 0x9E, 0x0B).copy(alpha = 0.12f))
+                                    .border(
+                                        BorderStroke(0.5.dp, Color(0xFFF5, 0x9E, 0x0B).copy(alpha = 0.40f)),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onOpenPhoneVerification()
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Verify Mobile Phone",
+                                    tint = Color(0xFFF5, 0x9E, 0x0B),
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Text(
+                                    text = "Verify Mobile Phone (OTP)",
+                                    color = Color(0xFFF5, 0x9E, 0x0B),
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.2.sp
+                                )
+                            }
                         }
                     }
                 }

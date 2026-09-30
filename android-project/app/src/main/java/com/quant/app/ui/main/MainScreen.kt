@@ -71,6 +71,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.quant.app.ui.auth.QuantLoginScreen
+import com.quant.app.ui.auth.QuantPhoneVerificationScreen
 import com.quant.app.ui.components.QuantAccountProfileSheet
 import com.quant.app.ui.components.NativeCalendarEventSheet
 import com.quant.app.ui.components.NativeContactCreationSheet
@@ -167,6 +168,9 @@ fun MainScreen(
   // Sovereign Account Profile & Workspace Manager sheet open state
   var isAppSwitcherOpen by remember { mutableStateOf(false) }
 
+  // Sovereign Phone OTP Verification screen open state
+  var isPhoneVerificationOpen by remember { mutableStateOf(false) }
+
   // Fast search overlay open state
   var isSearchOpen by remember { mutableStateOf(false) }
 
@@ -228,6 +232,10 @@ fun MainScreen(
     isAppSwitcherOpen = false
   }
 
+  BackHandler(enabled = isPhoneVerificationOpen) {
+    isPhoneVerificationOpen = false
+  }
+
   BackHandler(enabled = selectedMailThread != null) {
     selectedMailThread = null
   }
@@ -244,6 +252,7 @@ fun MainScreen(
       !isRepoSheetOpen &&
       !isVoiceChatSheetOpen &&
       !isAppSwitcherOpen &&
+      !isPhoneVerificationOpen &&
       selectedMailThread == null
   ) {
     activeTab = ProductivityTab.Mail
@@ -253,6 +262,7 @@ fun MainScreen(
   BackHandler(
     enabled = !isComposerOpen &&
       !isAppSwitcherOpen &&
+      !isPhoneVerificationOpen &&
       !isSearchOpen &&
       !isEventSheetOpen &&
       !isUploadSheetOpen &&
@@ -775,6 +785,10 @@ fun MainScreen(
         onWorkspaceChanged = { newWorkspace ->
           currentUser = QuantAuthManager.getCurrentUser(context)
           nativeBridge?.triggerHaptic("selection")
+        },
+        onOpenPhoneVerification = {
+          isAppSwitcherOpen = false
+          isPhoneVerificationOpen = true
         }
       )
     }
@@ -1000,6 +1014,27 @@ fun MainScreen(
           isComposerOpen = true
         },
         accentColor = accentColor
+      )
+    }
+
+    // Sovereign Mobile Phone OTP Verification Modal
+    if (isPhoneVerificationOpen) {
+      QuantPhoneVerificationScreen(
+        initialPhoneNumber = currentUser.phoneNumber ?: "",
+        onVerificationSuccess = { verifiedPhone, _ ->
+          QuantAuthManager.savePhoneVerification(context, verifiedPhone)
+          currentUser = QuantAuthManager.getCurrentUser(context)
+          nativeBridge?.triggerHaptic("success")
+          android.widget.Toast.makeText(
+            context,
+            "Phone verified: $verifiedPhone",
+            android.widget.Toast.LENGTH_SHORT
+          ).show()
+          isPhoneVerificationOpen = false
+        },
+        onDismiss = {
+          isPhoneVerificationOpen = false
+        }
       )
     }
   }

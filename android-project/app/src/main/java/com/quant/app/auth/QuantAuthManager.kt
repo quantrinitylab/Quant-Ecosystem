@@ -15,7 +15,9 @@ data class UserProfile(
     val token: String,
     val refreshToken: String = "",
     val isVerified: Boolean = true,
-    val avatarUrl: String? = null
+    val avatarUrl: String? = null,
+    val phoneNumber: String? = null,
+    val isPhoneVerified: Boolean = false
 )
 
 /**
@@ -67,6 +69,8 @@ object QuantAuthManager {
     private const val KEY_AUTH_TOKEN = "auth_token"
     private const val KEY_REFRESH_TOKEN = "refresh_token"
     private const val KEY_IS_VERIFIED = "is_verified"
+    const val KEY_PHONE_NUMBER = "phone_number"
+    const val KEY_IS_PHONE_VERIFIED = "is_phone_verified"
 
     // Default fast demo session token
     private const val DEMO_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZXYtc2VudGluZWwiLCJhdWQiOiJxdWFudG1haWwiLCJpYXQiOjE3MDQwOTAwMDB9.s0v3r31gn_qu4ntm41l_s1gn4tur3"
@@ -180,6 +184,8 @@ object QuantAuthManager {
         val token = prefs.getString(KEY_AUTH_TOKEN, DEMO_JWT) ?: DEMO_JWT
         val refreshToken = prefs.getString(KEY_REFRESH_TOKEN, "") ?: ""
         val isVerified = prefs.getBoolean(KEY_IS_VERIFIED, true)
+        val phoneNumber = prefs.getString(KEY_PHONE_NUMBER, null)
+        val isPhoneVerified = prefs.getBoolean(KEY_IS_PHONE_VERIFIED, false)
 
         return UserProfile(
             id = userId,
@@ -189,7 +195,68 @@ object QuantAuthManager {
             workspace = workspace,
             token = token,
             refreshToken = refreshToken,
-            isVerified = isVerified
+            isVerified = isVerified,
+            phoneNumber = phoneNumber,
+            isPhoneVerified = isPhoneVerified
+        )
+    }
+
+    /**
+     * Persists mobile phone verification status and sovereign phone number.
+     */
+    fun savePhoneVerification(context: Context, phoneNumber: String) {
+        val prefs = getPrefs(context)
+        prefs.edit().apply {
+            putBoolean(KEY_IS_PHONE_VERIFIED, true)
+            putString(KEY_PHONE_NUMBER, phoneNumber.trim())
+            apply()
+        }
+    }
+
+    /**
+     * Authenticates or initializes a sovereign user session associated with a verified phone number.
+     */
+    fun loginWithPhone(context: Context, phoneNumber: String): UserProfile {
+        val cleanPhone = phoneNumber.trim().replace("\\s+".toRegex(), "")
+        val last4 = if (cleanPhone.length >= 4) cleanPhone.takeLast(4) else cleanPhone
+        val derivedName = "User $last4"
+        val phoneUser = cleanPhone.replace("+", "").ifBlank { "user$last4" }
+        val email = "$phoneUser@quantmail.in"
+        val initials = extractInitials(derivedName)
+        val userId = "usr_ph_${Math.abs(cleanPhone.hashCode())}"
+        val token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
+            java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                """{"sub":"$userId","phone":"$cleanPhone","email":"$email","aud":"quantmail.in"}""".toByteArray()
+            ) + ".quant_phone_sec_token"
+        val refreshToken = "ref_ph_${System.currentTimeMillis()}"
+
+        val prefs = getPrefs(context)
+        prefs.edit().apply {
+            putBoolean(KEY_IS_LOGGED_IN, true)
+            putString(KEY_USER_ID, userId)
+            putString(KEY_EMAIL, email)
+            putString(KEY_NAME, derivedName)
+            putString(KEY_INITIALS, initials)
+            putString(KEY_WORKSPACE, "Quant Sovereign Space")
+            putString(KEY_AUTH_TOKEN, token)
+            putString(KEY_REFRESH_TOKEN, refreshToken)
+            putBoolean(KEY_IS_VERIFIED, true)
+            putString(KEY_PHONE_NUMBER, cleanPhone)
+            putBoolean(KEY_IS_PHONE_VERIFIED, true)
+            apply()
+        }
+
+        return UserProfile(
+            id = userId,
+            email = email,
+            name = derivedName,
+            initials = initials,
+            workspace = "Quant Sovereign Space",
+            token = token,
+            refreshToken = refreshToken,
+            isVerified = true,
+            phoneNumber = cleanPhone,
+            isPhoneVerified = true
         )
     }
 

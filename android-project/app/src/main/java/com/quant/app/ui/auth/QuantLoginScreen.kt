@@ -27,10 +27,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
@@ -85,7 +88,7 @@ import kotlinx.coroutines.launch
  * - Subtitle: "Sovereign End-to-End Encrypted Productivity Suite".
  * - Frosted obsidian text fields (Color(0xFF11, 0x13, 0x18)).
  * - Molten ember sign-in action button (#FF8C42).
- * - "⚡ Continue with Quant SSO" outlined button.
+ * - "Sign In with Mobile Phone OTP" button and "Continue with Quant SSO" button.
  * - "1-Tap Quick Demo Login" row with instant emulator test chips.
  * - Compliant cryptography footer badge.
  */
@@ -99,6 +102,26 @@ fun QuantLoginScreen(
     val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
+
+    var isPhoneAuthMode by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = isPhoneAuthMode) {
+        isPhoneAuthMode = false
+    }
+
+    if (isPhoneAuthMode) {
+        QuantPhoneVerificationScreen(
+            onVerificationSuccess = { phoneNumber, _ ->
+                val user = QuantAuthManager.loginWithPhone(context, phoneNumber)
+                onLoginSuccess(user)
+            },
+            onDismiss = {
+                isPhoneAuthMode = false
+            },
+            modifier = modifier
+        )
+        return
+    }
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -336,7 +359,42 @@ fun QuantLoginScreen(
                         }
                     }
 
-                    // "⚡ Continue with Quant SSO" secondary outlined button
+                    // "Sign In with Mobile Phone OTP" action button
+                    OutlinedButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            isPhoneAuthMode = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.50f)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0xFF14, 0x16, 0x1D),
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.PhoneAndroid,
+                                contentDescription = null,
+                                tint = Color(0xFFFF, 0x8C, 0x42),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Sign In with Mobile Phone OTP",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = Color(0xFFF8, 0xFA, 0xFC)
+                            )
+                        }
+                    }
+
+                    // "Continue with Quant SSO" secondary outlined button
                     OutlinedButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -352,12 +410,23 @@ fun QuantLoginScreen(
                             contentColor = Color.White
                         )
                     ) {
-                        Text(
-                            text = "⚡ Continue with Quant SSO",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                            color = Color(0xFFE2, 0xE8, 0xF0)
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Bolt,
+                                contentDescription = null,
+                                tint = Color(0xFFFF, 0x8C, 0x42),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Continue with Quant SSO",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                color = Color(0xFFE2, 0xE8, 0xF0)
+                            )
+                        }
                     }
                 }
 
