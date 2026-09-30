@@ -32,8 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.GridView
@@ -42,6 +44,8 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.TableChart
@@ -453,7 +457,7 @@ fun NativeDriveView(
  * Top Storage Quota Card showing:
  * - "QuantDrive Encrypted Vault"
  * - Progress bar: "14.2 GB of 100 GB used" (14.2%)
- * - FastCDC 64KB badge: "⚡ FastCDC Dedup saved 4.8 GB bandwidth"
+ * - FastCDC 64KB badge: "FastCDC Dedup saved 4.8 GB bandwidth"
  */
 @Composable
 private fun StorageQuotaCard(
@@ -595,7 +599,7 @@ private fun StorageQuotaCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // FastCDC 64KB Dedup Badge: "⚡ FastCDC Dedup saved 4.8 GB bandwidth" with emerald green glow
+            // FastCDC 64KB Dedup Badge: "FastCDC Dedup saved 4.8 GB bandwidth" with emerald green glow
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -626,13 +630,13 @@ private fun StorageQuotaCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.FlashOn,
-                        contentDescription = "FastCDC",
-                        tint = Color(0xFF34, 0xD3, 0x99),
-                        modifier = Modifier.size(16.dp)
+                        imageVector = Icons.Filled.Bolt,
+                        contentDescription = null,
+                        tint = Color(0xFF10, 0xB9, 0x81),
+                        modifier = Modifier.size(15.dp)
                     )
                     Text(
-                        text = "⚡ FastCDC Dedup saved 4.8 GB bandwidth",
+                        text = "FastCDC Dedup saved 4.8 GB bandwidth",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF34, 0xD3, 0x99)
@@ -863,9 +867,11 @@ private fun DriveListCard(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
-                                Text(
-                                    text = "📌",
-                                    fontSize = 9.sp
+                                Icon(
+                                    imageVector = Icons.Filled.PushPin,
+                                    contentDescription = "Pinned",
+                                    tint = Color(0xFF38, 0xBD, 0xF8),
+                                    modifier = Modifier.size(14.dp)
                                 )
                                 Text(
                                     text = "Offline",
@@ -939,7 +945,7 @@ private fun DriveListCard(
                             text = { Text("Download file", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.FlashOn,
+                                    imageVector = Icons.Filled.Download,
                                     contentDescription = null,
                                     tint = Color(0xFF38, 0xBD, 0xF8),
                                     modifier = Modifier.size(18.dp)
@@ -947,14 +953,14 @@ private fun DriveListCard(
                             },
                             onClick = {
                                 showListMenu = false
-                                Toast.makeText(cardContext, "📥 Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(cardContext, "Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Share link", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.Code,
+                                    imageVector = Icons.Filled.Share,
                                     contentDescription = null,
                                     tint = Color(0xFFA7, 0x8B, 0xFA),
                                     modifier = Modifier.size(18.dp)
@@ -962,7 +968,7 @@ private fun DriveListCard(
                             },
                             onClick = {
                                 showListMenu = false
-                                Toast.makeText(cardContext, "🔗 Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(cardContext, "Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }
@@ -1094,9 +1100,11 @@ private fun DriveGridCard(
                             color = Color(0xFF64, 0x74, 0x8B)
                         )
                         if (file.isOffline) {
-                            Text(
-                                text = "📌",
-                                fontSize = 9.sp
+                            Icon(
+                                imageVector = Icons.Filled.PushPin,
+                                contentDescription = "Pinned",
+                                tint = Color(0xFF38, 0xBD, 0xF8),
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
@@ -1144,7 +1152,7 @@ private fun DriveGridCard(
                             text = { Text("Download file", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.FlashOn,
+                                    imageVector = Icons.Filled.Download,
                                     contentDescription = null,
                                     tint = Color(0xFF38, 0xBD, 0xF8),
                                     modifier = Modifier.size(18.dp)
@@ -1152,14 +1160,14 @@ private fun DriveGridCard(
                             },
                             onClick = {
                                 showGridMenu = false
-                                Toast.makeText(gridContext, "📥 Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(gridContext, "Downloading ${file.title}...", Toast.LENGTH_SHORT).show()
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Share link", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Default.Code,
+                                    imageVector = Icons.Filled.Share,
                                     contentDescription = null,
                                     tint = Color(0xFFA7, 0x8B, 0xFA),
                                     modifier = Modifier.size(18.dp)
@@ -1167,7 +1175,7 @@ private fun DriveGridCard(
                             },
                             onClick = {
                                 showGridMenu = false
-                                Toast.makeText(gridContext, "🔗 Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(gridContext, "Share link copied for ${file.title}", Toast.LENGTH_SHORT).show()
                             }
                         )
                     }

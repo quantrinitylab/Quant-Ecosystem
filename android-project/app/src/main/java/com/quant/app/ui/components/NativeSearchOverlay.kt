@@ -74,7 +74,11 @@ data class SearchResultItem(
     val subject: String,
     val snippet: String,
     val time: String,
-    val chip: String
+    val chip: String,
+    val senderEmail: String? = null,
+    val hasAttachment: Boolean = false,
+    val attachmentText: String? = null,
+    val isStarred: Boolean = false
 )
 
 /**

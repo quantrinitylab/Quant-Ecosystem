@@ -89,7 +89,7 @@ fun NativeEmailComposerSheet(
             .statusBarsPadding()
             .imePadding()
     ) {
-        // 1. Header Bar: Close button [✕], Title "Compose", Send button [➤ Send]
+        // 1. Header Bar: Close button, Title "Compose", Send button [Send]
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -332,7 +332,7 @@ fun NativeEmailComposerSheet(
 
         HorizontalDivider(thickness = 0.5.dp, color = Color(0xFF26, 0x2A, 0x33))
 
-        // 6. Bottom toolbar: Attach file, Format buttons (Bold, Italic), "✨ Quanty Assist"
+        // 6. Bottom toolbar: Attach file, Format buttons (Bold, Italic), "Quanty Assist"
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -391,7 +391,7 @@ fun NativeEmailComposerSheet(
                 }
             }
 
-            // "✨ Quanty Assist" button: Pre-fills or enhances the email with smart AI content
+            // "Quanty Assist" button: Pre-fills or enhances the email with smart AI content
             Surface(
                 onClick = {
                     if (!recipientChips.contains("team@quantmail.in")) {
@@ -400,7 +400,7 @@ fun NativeEmailComposerSheet(
                     toInput = ""
                     subject = "Quant Ecosystem Android Launch"
                     body = "Subject: Quant Ecosystem Android Launch\n\nHi Team,\n\nThe native Jetpack Compose productivity suite is now live on Android emulator with 5-tab navigation, hardware biometric bridge, and 9-app sovereign integration.\n\nBest,\nQuant Lead"
-                    Toast.makeText(context, "✨ Quanty Assist generated sovereign launch draft", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Quanty Assist generated sovereign launch draft", Toast.LENGTH_SHORT).show()
                 },
                 shape = RoundedCornerShape(18.dp),
                 color = accentColor.copy(alpha = 0.16f),
@@ -419,7 +419,7 @@ fun NativeEmailComposerSheet(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = "✨ Quanty Assist",
+                        text = "Quanty Assist",
                         color = accentColor,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold

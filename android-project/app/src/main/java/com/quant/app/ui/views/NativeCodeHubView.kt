@@ -39,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
@@ -152,7 +153,7 @@ fun NativeCodeHubView(
             GitCopilotMessage(
                 id = "init_1",
                 sender = "quanty",
-                text = "👋 Hi! I'm Quanty, your Sovereign Git Copilot. I'm actively analyzing quantrinitylab/Quant-Ecosystem on branch main.\n\nPR #347 is verified with 100% green tests across 14 services. How can I assist with your code, PRs, or architecture today?",
+                text = "Hi! I'm Quanty, your Sovereign Git Copilot. I'm actively analyzing quantrinitylab/Quant-Ecosystem on branch main.\n\nPR #347 is verified with 100% green tests across 14 services. How can I assist with your code, PRs, or architecture today?",
                 timestamp = "Just now"
             )
         )
@@ -275,13 +276,24 @@ fun NativeCodeHubView(
                         color = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.5f),
                         border = BorderStroke(0.8.dp, Color(0xFF10, 0xB9, 0x81).copy(alpha = 0.6f))
                     ) {
-                        Text(
-                            text = "🛡 Protected",
-                            color = Color(0xFF34, 0xD3, 0x99),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Security,
+                                contentDescription = "Protected",
+                                tint = Color(0xFF34, 0xD3, 0x99),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Protected",
+                                color = Color(0xFF34, 0xD3, 0x99),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -336,7 +348,7 @@ fun NativeCodeHubView(
 
                             Column {
                                 Text(
-                                    text = "✨ Quanty Code Copilot",
+                                    text = "Quanty Code Copilot",
                                     color = Color.White,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
@@ -484,7 +496,7 @@ fun NativeCodeHubView(
                                 clipboardManager.setText(AnnotatedString(smartCommit))
                                 Toast.makeText(
                                     context,
-                                    "📝 Copilot Commit copied: \"$smartCommit\"",
+                                    "Copilot Commit copied: \"$smartCommit\"",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -687,15 +699,15 @@ fun NativeCodeHubView(
                                             // Smart sovereign responses based on query
                                             val reply = when {
                                                 userQuery.contains("architecture", ignoreCase = true) ->
-                                                    "🏛️ Architecture Analysis:\nQuant-Ecosystem features a zero-mock 9-app sovereign architecture with universal SSO. QuantGit connects directly to git.quantmail.in with smart HTTP, 3-way merge resolution, and EKS staging cluster deployment."
+                                                    "Architecture Analysis:\nQuant-Ecosystem features a zero-mock 9-app sovereign architecture with universal SSO. QuantGit connects directly to git.quantmail.in with smart HTTP, 3-way merge resolution, and EKS staging cluster deployment."
                                                 userQuery.contains("security", ignoreCase = true) || userQuery.contains("audit", ignoreCase = true) ->
-                                                    "🛡️ Security Audit: PASSED\n• Zero high/critical CVEs across 14 services\n• GPG commit signatures cryptographically verified\n• Branch protection enabled on 'main' with required linear history."
+                                                    "Security Audit: PASSED\n• Zero high/critical CVEs across 14 services\n• GPG commit signatures cryptographically verified\n• Branch protection enabled on 'main' with required linear history."
                                                 userQuery.contains("commit", ignoreCase = true) ->
-                                                    "📝 Suggested Commit:\nfeat(quantgit): integrate sovereign in-repo quanty copilot and zero-mock parity\n\nBranch: main | GPG: Verified"
+                                                    "Suggested Commit:\nfeat(quantgit): integrate sovereign in-repo quanty copilot and zero-mock parity\n\nBranch: main | GPG: Verified"
                                                 userQuery.contains("PR", ignoreCase = true) || userQuery.contains("347", ignoreCase = true) ->
-                                                    "🌿 PR #347 Review:\nStatus: APPROVED | 14/14 Checks Green | Ready for 1-click sovereign merge into 'main'."
+                                                    "PR #347 Review:\nStatus: APPROVED | 14/14 Checks Green | Ready for 1-click sovereign merge into 'main'."
                                                 else ->
-                                                    "✨ Quanty Git Analysis:\nRepo 'quantrinitylab/Quant-Ecosystem' is 100% synchronized with sovereign cluster git.quantmail.in. All branch protections and CI/CD pipelines are verified green!"
+                                                    "Quanty Git Analysis:\nRepo 'quantrinitylab/Quant-Ecosystem' is 100% synchronized with sovereign cluster git.quantmail.in. All branch protections and CI/CD pipelines are verified green!"
                                             }
 
                                             copilotChatHistory.add(
@@ -767,7 +779,12 @@ fun NativeCodeHubView(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
-                                Text(text = "🌿", fontSize = 11.sp)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.CallSplit,
+                                    contentDescription = "Branch",
+                                    tint = Color(0xFF93, 0xC5, 0xFD),
+                                    modifier = Modifier.size(12.dp)
+                                )
                                 Text(
                                     text = "main",
                                     color = Color(0xFF93, 0xC5, 0xFD),
@@ -787,8 +804,8 @@ fun NativeCodeHubView(
                     ) {
                         // Protected Badge
                         BadgePill(
-                            icon = Icons.Default.Security,
-                            text = "🛡 Protected",
+                            icon = Icons.Filled.Security,
+                            text = "Protected",
                             backgroundColor = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.4f),
                             borderColor = Color(0xFF10, 0xB9, 0x81),
                             textColor = Color(0xFF34, 0xD3, 0x99)
@@ -796,7 +813,7 @@ fun NativeCodeHubView(
 
                         // Public Badge
                         BadgePill(
-                            icon = Icons.Default.Public,
+                            icon = Icons.Filled.Public,
                             text = "Public",
                             backgroundColor = Color(0xFF1E, 0x29, 0x3B),
                             borderColor = Color(0xFF47, 0x55, 0x69),
@@ -805,8 +822,8 @@ fun NativeCodeHubView(
 
                         // Stars Badge
                         BadgePill(
-                            icon = Icons.Default.Star,
-                            text = "★ 348 stars",
+                            icon = Icons.Filled.Star,
+                            text = "348",
                             backgroundColor = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.35f),
                             borderColor = Color(0xFFF5, 0x9E, 0x0B),
                             textColor = Color(0xFFFB, 0xBF, 0x24)
@@ -814,8 +831,8 @@ fun NativeCodeHubView(
 
                         // Forks Badge
                         BadgePill(
-                            icon = Icons.Default.CallSplit,
-                            text = "🔀 42 forks",
+                            icon = Icons.AutoMirrored.Filled.CallSplit,
+                            text = "42",
                             backgroundColor = Color(0xFF16, 0x4E, 0x63).copy(alpha = 0.4f),
                             borderColor = Color(0xFF06, 0xB6, 0xD4),
                             textColor = Color(0xFF67, 0xE8, 0xF9)
@@ -843,7 +860,7 @@ fun NativeCodeHubView(
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 val cloneUrl = "git@quantmail.in:quantrinitylab/Quant-Ecosystem.git"
                                 clipboardManager.setText(AnnotatedString(cloneUrl))
-                                Toast.makeText(context, "📋 Clone URL copied to clipboard", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Clone URL copied to clipboard", Toast.LENGTH_SHORT).show()
                             }
                             .padding(horizontal = 12.dp, vertical = 9.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1075,7 +1092,12 @@ fun NativeCodeHubView(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
-                                    Text(text = "🌿", fontSize = 10.sp)
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.CallSplit,
+                                        contentDescription = "Branch",
+                                        tint = Color(0xFF93, 0xC5, 0xFD),
+                                        modifier = Modifier.size(11.dp)
+                                    )
                                     Text(
                                         text = repo.branch,
                                         color = Color(0xFF93, 0xC5, 0xFD),
@@ -1087,7 +1109,7 @@ fun NativeCodeHubView(
                             }
                         }
 
-                        // Status Badges Row: '🛡 Protected' (emerald), 'Public' (slate), '★ 348 stars' (gold), '🔀 42 forks' (blue)
+                        // Status Badges Row: 'Protected' (emerald), 'Public' (slate), '348 stars' (gold), '42 forks' (blue)
                         Row(
                             modifier = Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1095,8 +1117,8 @@ fun NativeCodeHubView(
                         ) {
                             // Protected Badge (emerald tint)
                             BadgePill(
-                                icon = Icons.Default.Security,
-                                text = "🛡 Protected",
+                                icon = Icons.Filled.Security,
+                                text = "Protected",
                                 backgroundColor = Color(0xFF06, 0x4E, 0x3B).copy(alpha = 0.4f),
                                 borderColor = Color(0xFF10, 0xB9, 0x81),
                                 textColor = Color(0xFF34, 0xD3, 0x99)
@@ -1123,8 +1145,8 @@ fun NativeCodeHubView(
 
                             // Stars Badge (gold tint)
                             BadgePill(
-                                icon = Icons.Default.Star,
-                                text = "★ 348 stars",
+                                icon = Icons.Filled.Star,
+                                text = "348",
                                 backgroundColor = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.35f),
                                 borderColor = Color(0xFFF5, 0x9E, 0x0B),
                                 textColor = Color(0xFFFB, 0xBF, 0x24)
@@ -1132,8 +1154,8 @@ fun NativeCodeHubView(
 
                             // Forks Badge (blue tint)
                             BadgePill(
-                                icon = Icons.Default.CallSplit,
-                                text = "🔀 42 forks",
+                                icon = Icons.AutoMirrored.Filled.CallSplit,
+                                text = "42",
                                 backgroundColor = Color(0xFF16, 0x4E, 0x63).copy(alpha = 0.4f),
                                 borderColor = Color(0xFF06, 0xB6, 0xD4),
                                 textColor = Color(0xFF67, 0xE8, 0xF9)
@@ -1158,11 +1180,11 @@ fun NativeCodeHubView(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(Color(0xFF0B, 0x0C, 0x0E))
                                 .border(0.5.dp, Color(0xFF26, 0x2A, 0x33), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    clipboardManager.setText(AnnotatedString(cloneUrl))
-                                    Toast.makeText(context, "📋 Copied: $cloneUrl", Toast.LENGTH_SHORT).show()
-                                }
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                clipboardManager.setText(AnnotatedString(cloneUrl))
+                                Toast.makeText(context, "Copied: $cloneUrl", Toast.LENGTH_SHORT).show()
+                            }
                                 .padding(horizontal = 10.dp, vertical = 7.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -1222,7 +1244,7 @@ fun NativeCodeHubView(
                 title = "PR #347 Per-App Platform Presence Ready",
                 author = "quantlead",
                 status = "Open",
-                ciStatus = "✓ ci/actions passed",
+                ciStatus = "ci/actions passed",
                 reviewStatus = "Review required",
                 timeAgo = "2h ago",
                 isMerged = false,
@@ -1238,8 +1260,8 @@ fun NativeCodeHubView(
                 title = "PR #338 Restructure Phase 3 Cleanup & App Rename",
                 author = "quantlead",
                 status = "Merged",
-                ciStatus = "✓ all tests verified",
-                reviewStatus = "🟣 Merged",
+                ciStatus = "all tests verified",
+                reviewStatus = "Merged",
                 timeAgo = "Yesterday",
                 isMerged = true,
                 accentColor = accentColor,
@@ -1254,7 +1276,7 @@ fun NativeCodeHubView(
                 title = "PR #350 Jetpack Compose Native Productivity Engine",
                 author = "quantagent",
                 status = "Open",
-                ciStatus = "✓ ci/actions passed",
+                ciStatus = "ci/actions passed",
                 reviewStatus = "Approved",
                 timeAgo = "15m ago",
                 isMerged = false,
@@ -1370,11 +1392,20 @@ fun NativeCodeHubView(
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "✓ All 24 checks passed in 48s · EKS staging ready",
-                            color = Color(0xFF34, 0xD3, 0x99),
-                            fontSize = 11.5.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                tint = Color(0xFF34, 0xD3, 0x99),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "All 24 checks passed in 48s · EKS staging ready",
+                                color = Color(0xFF34, 0xD3, 0x99),
+                                fontSize = 11.5.sp
+                            )
+                        }
                     }
 
                     Icon(
@@ -1432,10 +1463,46 @@ fun NativeCodeHubView(
                             modifier = Modifier.padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(text = "🟢 Code Quality: 99.4/100 (A+)", color = Color(0xFF34, 0xD3, 0x99), fontSize = 12.sp)
-                            Text(text = "🟢 Test Coverage: 98.2% across 14 services", color = Color(0xFF34, 0xD3, 0x99), fontSize = 12.sp)
-                            Text(text = "🛡️ Security: 0 High / 0 Medium CVEs detected", color = Color(0xFF60, 0xA5, 0xFA), fontSize = 12.sp)
-                            Text(text = "⚡ Performance: Zero latency regressions", color = Color(0xFFFBBF24), fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF34, 0xD3, 0x99),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Code Quality: 99.4/100 (A+)", color = Color(0xFF34, 0xD3, 0x99), fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF34, 0xD3, 0x99),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Test Coverage: 98.2% across 14 services", color = Color(0xFF34, 0xD3, 0x99), fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Security,
+                                    contentDescription = null,
+                                    tint = Color(0xFF60, 0xA5, 0xFA),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Security: 0 High / 0 Medium CVEs detected", color = Color(0xFF60, 0xA5, 0xFA), fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.Bolt,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFB, 0xBF, 0x24),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(text = "Performance: Zero latency regressions", color = Color(0xFFFB, 0xBF, 0x24), fontSize = 12.sp)
+                            }
                         }
                     }
 
@@ -1452,7 +1519,7 @@ fun NativeCodeHubView(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         showAiReviewModal = false
-                        Toast.makeText(context, "🚀 PR #347 Approved & Merge Queued via QuantGit", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "PR #347 Approved & Merge Queued via QuantGit", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8B, 0x5C, 0xF6)),
                     shape = RoundedCornerShape(8.dp)

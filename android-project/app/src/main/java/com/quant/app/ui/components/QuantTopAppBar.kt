@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,7 +54,7 @@ import com.quant.app.ui.navigation.ProductivityTab
  *   + static high-fidelity live sync beacon dot (#10B981).
  * - Center/Right Actions:
  *   1. Sleek frosted search trigger button with Search icon & "<5ms" speed chip (no text truncation).
- *   2. Frosted circular Sparkle Assistant button ('✨') with subtle purple/amethyst glow.
+ *   2. Frosted circular Sparkle Assistant button with subtle purple/amethyst glow.
  *   3. Luxury User Profile Avatar circle with dynamic initials, verified status ring,
  *      and direct trigger for QuantAccountProfileSheet.
  */
@@ -279,7 +280,7 @@ fun QuantTopAppBar(
                     }
                 }
 
-                // Sparkle Assistant button ('✨') in a frosted circular container with subtle glow
+                // Sparkle Assistant button in a frosted circular container with subtle glow
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -304,9 +305,11 @@ fun QuantTopAppBar(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "✨",
-                        fontSize = 14.sp
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = "AI Assistant",
+                        tint = Color(0xFFA7, 0x8B, 0xFA),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 

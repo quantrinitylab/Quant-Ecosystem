@@ -29,14 +29,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -81,6 +86,20 @@ data class ScheduleTimelineItem(
     val hasMeetLink: Boolean = false,
     val isDynamic: Boolean = false
 )
+
+/**
+ * Returns a crisp vector icon for an event category.
+ */
+fun getCategoryVectorIcon(category: String?): ImageVector {
+    return when (category?.lowercase()?.trim()) {
+        "engineering", "codehub", "code review", "sprint" -> Icons.Default.Code
+        "executive", "board", "leadership", "partnership" -> Icons.Default.Star
+        "architecture", "infra", "infrastructure", "planning" -> Icons.Default.AccountTree
+        "design", "ux", "ui" -> Icons.Default.Palette
+        "sync", "standup", "meet" -> Icons.Default.Videocam
+        else -> Icons.Default.Event
+    }
+}
 
 /**
  * 3D Pad QuantCalendarMark brand badge.
@@ -285,12 +304,13 @@ fun NativeCalendarView(
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(5.dp),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .background(Color(0xFFFF, 0x8C, 0x42), CircleShape)
+                            Icon(
+                                imageVector = Icons.Default.Today,
+                                contentDescription = "Today",
+                                tint = Color(0xFFFF, 0x8C, 0x42),
+                                modifier = Modifier.size(13.dp)
                             )
                             Text(
                                 text = "Today",
@@ -376,7 +396,7 @@ fun NativeCalendarView(
                 }
             }
 
-            // Sync Badge: ⚡ CalDAV Real-Time Sync
+            // Sync Badge: CalDAV Real-Time Sync
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -387,7 +407,7 @@ fun NativeCalendarView(
                         shape = RoundedCornerShape(12.dp)
                     )
                     .clickable {
-                        Toast.makeText(context, "⚡ CalDAV connected & synchronized (sub-50ms latency)", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "CalDAV connected & synchronized (sub-50ms latency)", Toast.LENGTH_SHORT).show()
                     }
                     .padding(horizontal = 10.dp, vertical = 5.dp)
             ) {
@@ -395,13 +415,14 @@ fun NativeCalendarView(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(Color(0xFF10, 0xB9, 0x81), CircleShape)
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "CalDAV Sync",
+                        tint = Color(0xFF10, 0xB9, 0x81),
+                        modifier = Modifier.size(13.dp)
                     )
                     Text(
-                        text = "⚡ CalDAV Real-Time Sync",
+                        text = "CalDAV Real-Time Sync",
                         color = Color(0xFF10, 0xB9, 0x81),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
@@ -445,10 +466,10 @@ fun NativeCalendarView(
                     onEventClick = { item ->
                         onEventClick?.invoke(item)
                         selectedEventDetail = item
-                        Toast.makeText(context, "📅 ${item.title}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, item.title, Toast.LENGTH_SHORT).show()
                     },
                     onJoinMeet = { meetEvent ->
-                        Toast.makeText(context, "📹 Joining QuantMeet HD: ${meetEvent.title}...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Joining QuantMeet HD: ${meetEvent.title}...", Toast.LENGTH_SHORT).show()
                         try {
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://quantmail.in/meet/${meetEvent.id}"))
                             context.startActivity(intent)
@@ -537,7 +558,7 @@ fun NativeCalendarView(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Event,
+                                imageVector = getCategoryVectorIcon(item.category),
                                 contentDescription = "Category",
                                 tint = item.color,
                                 modifier = Modifier.size(16.dp)
@@ -580,12 +601,12 @@ fun NativeCalendarView(
                         Spacer(modifier = Modifier.height(4.dp))
                         Button(
                             onClick = {
-                                Toast.makeText(context, "📹 Joining QuantMeet HD...", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Joining QuantMeet HD...", Toast.LENGTH_SHORT).show()
                                 selectedEventDetail = null
                             },
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFF5, 0x9E, 0x0B),
-                                contentColor = Color.Black
+                                containerColor = Color(0xFFFF, 0x8C, 0x42),
+                                contentColor = Color(0xFF18, 0x0A, 0x00)
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -593,6 +614,7 @@ fun NativeCalendarView(
                             Icon(
                                 imageVector = Icons.Default.Videocam,
                                 contentDescription = "Video",
+                                tint = Color(0xFF18, 0x0A, 0x00),
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -859,13 +881,24 @@ private fun TimelineEventCard(
                             color = event.color.copy(alpha = 0.15f),
                             border = BorderStroke(0.5.dp, event.color.copy(alpha = 0.35f))
                         ) {
-                            Text(
-                                text = event.category,
-                                color = event.color,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.SemiBold,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = getCategoryVectorIcon(event.category),
+                                    contentDescription = null,
+                                    tint = event.color,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = event.category,
+                                    color = event.color,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
                         }
                     }
                 }
@@ -936,7 +969,7 @@ private fun TimelineEventCard(
                     }
                 }
 
-                // [📹 Join QuantMeet HD] Action Button if meet link exists
+                // [Join QuantMeet HD] Action Button if meet link exists
                 if (event.hasMeetLink) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Button(
@@ -957,7 +990,7 @@ private fun TimelineEventCard(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "📹 Join QuantMeet HD",
+                            text = "Join QuantMeet HD",
                             fontWeight = FontWeight.Bold,
                             fontSize = 12.sp
                         )

@@ -30,10 +30,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -77,7 +79,7 @@ import com.quant.app.data.EcosystemStateStore
  * Features:
  * - Search bar: "Search contacts, companies, tags..." with clear button.
  * - Category / Tag Filter Chips: All, VIPs, Engineering, Leadership, Design, Customers.
- * - Deduplication Alert Banner: "✨ Quant AI Deduplication Wizard · All 8 contacts deduplicated and synced".
+ * - Deduplication Alert Banner: "Quant AI Deduplication Wizard · All 8 contacts deduplicated and synced".
  * - Contact Cards List (LazyColumn):
  *   * Sundar Pichai (CEO, Google & Alphabet)
  *   * Satya Nadella (CEO, Microsoft)
@@ -86,7 +88,7 @@ import com.quant.app.data.EcosystemStateStore
  *   * Dev Sentinel (Lead QA & Security Engineer)
  *   * Sarah Chen (Principal Frontend Architect)
  *   * Dynamic contacts from EcosystemStateStore.contactsList
- * - Actions on each card: [✉️ Email], [📞 Call], [★ Star] toggle, click for detail modal.
+ * - Actions on each card: [Email], [Call], [Star] toggle, click for detail modal.
  * - Contextual empty state when filter/search yields 0 results.
  */
 @Composable
@@ -302,7 +304,7 @@ fun NativeContactsView(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "✨ Quant AI Deduplication Wizard",
+                            text = "Quant AI Deduplication Wizard",
                             color = Color.White,
                             fontSize = 13.5.sp,
                             fontWeight = FontWeight.Bold
@@ -321,16 +323,27 @@ fun NativeContactsView(
                         border = BorderStroke(1.dp, Color(0xFF10, 0xB9, 0x81)),
                         modifier = Modifier.clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            Toast.makeText(context, "✨ All 8 contacts verified unique & CalDAV synced", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "All 8 contacts verified unique & CalDAV synced", Toast.LENGTH_SHORT).show()
                         }
                     ) {
-                        Text(
-                            text = "✓ Verified",
-                            color = Color(0xFF34, 0xD3, 0x99),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                        )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.CheckCircle,
+                                contentDescription = "Verified",
+                                tint = Color(0xFF10, 0xB9, 0x81),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Verified",
+                                color = Color(0xFF34, 0xD3, 0x99),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -438,12 +451,12 @@ fun NativeContactsView(
                     onEmailClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onComposeEmail(contact.email)
-                        Toast.makeText(context, "✉️ Emailing ${contact.name}", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Emailing ${contact.name}", Toast.LENGTH_SHORT).show()
                     },
                     onCallClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         val phone = contact.phone ?: "No phone listed"
-                        Toast.makeText(context, "📞 Dialing ${contact.name} ($phone)...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Dialing ${contact.name} ($phone)...", Toast.LENGTH_SHORT).show()
                     },
                     accentColor = accentColor
                 )
@@ -463,11 +476,11 @@ fun NativeContactsView(
             },
             onEmailClick = {
                 onComposeEmail(contact.email)
-                Toast.makeText(context, "✉️ Emailing ${contact.name}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Emailing ${contact.name}", Toast.LENGTH_SHORT).show()
             },
             onCallClick = {
                 val phone = contact.phone ?: "No phone listed"
-                Toast.makeText(context, "📞 Dialing ${contact.name} ($phone)...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Dialing ${contact.name} ($phone)...", Toast.LENGTH_SHORT).show()
             },
             accentColor = accentColor
         )
@@ -535,11 +548,11 @@ private fun ContactCard(
                             .border(1.5.dp, Color(0xFF14, 0x17, 0x22), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = if (contact.isVip) "★" else "✓",
-                            color = Color.Black,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.ExtraBold
+                        Icon(
+                            imageVector = if (contact.isVip) Icons.Filled.Star else Icons.Filled.CheckCircle,
+                            contentDescription = if (contact.isVip) "VIP" else "Verified",
+                            tint = Color.Black,
+                            modifier = Modifier.size(10.dp)
                         )
                     }
                 }
@@ -565,13 +578,24 @@ private fun ContactCard(
                                 color = Color(0xFF78, 0x35, 0x0F).copy(alpha = 0.45f),
                                 border = BorderStroke(1.dp, Color(0xFFF5, 0x9E, 0x0B))
                             ) {
-                                Text(
-                                    text = "★ VIP",
-                                    color = Color(0xFFFB, 0xBF, 0x24),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Star,
+                                        contentDescription = "VIP",
+                                        tint = Color(0xFFF5, 0x9E, 0x0B),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "VIP",
+                                        color = Color(0xFFFB, 0xBF, 0x24),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
                             }
                         } else if (contact.tag != "All" && contact.tag.isNotEmpty()) {
                             TagBadge(tag = contact.tag, isVip = false)
@@ -621,7 +645,7 @@ private fun ContactCard(
             HorizontalDivider(thickness = 0.5.dp, color = Color(0xFF26, 0x2C, 0x3A))
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Action Buttons Row: Direct [📞 Call] & [✉ Email] Pills with rounded corners and haptic feedback
+            // Action Buttons Row: Direct [Call] & [Email] Pills with rounded corners and haptic feedback
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -643,14 +667,14 @@ private fun ContactCard(
                             horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Call,
+                                imageVector = Icons.Filled.Phone,
                                 contentDescription = "Call",
-                                tint = Color(0xFF10, 0xB9, 0x81),
-                                modifier = Modifier.size(13.dp)
+                                tint = Color(0xFF38, 0xBD, 0xF8),
+                                modifier = Modifier.size(14.dp)
                             )
                             Text(
                                 text = "Call",
-                                color = Color(0xFF34, 0xD3, 0x99),
+                                color = Color(0xFF38, 0xBD, 0xF8),
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -675,14 +699,14 @@ private fun ContactCard(
                         horizontalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Email,
+                            imageVector = Icons.Filled.Email,
                             contentDescription = "Email",
-                            tint = accentColor,
-                            modifier = Modifier.size(13.dp)
+                            tint = Color(0xFFFF, 0x8C, 0x42),
+                            modifier = Modifier.size(14.dp)
                         )
                         Text(
                             text = "Email",
-                            color = accentColor,
+                            color = Color(0xFFFF, 0x8C, 0x42),
                             fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold
                         )

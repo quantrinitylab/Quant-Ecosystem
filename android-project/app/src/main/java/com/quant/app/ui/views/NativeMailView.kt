@@ -9,12 +9,18 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,22 +42,42 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MarkEmailRead
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,6 +98,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quant.app.ui.components.NativeThreadDetailModal
 import com.quant.app.ui.components.SearchResultItem
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.absoluteValue
 
@@ -255,8 +282,9 @@ object TagColors {
  * Superhuman Split Lenses Bar: Interactive filter pills with glowing ember borders.
  * Quant AI Priority Radar: Hero card for priority synthesized threads.
  * High-Fidelity Email Thread Cards: Multi-color gradient initials, glowing beacon dots, attachment chips & quick actions.
- * Empty State: "Inbox Zero · All caught up! ✨" matching InboxZeroState.tsx.
+ * Empty State: "Inbox Zero · All caught up!" matching InboxZeroState.tsx.
  */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NativeMailView(
     modifier: Modifier = Modifier,
@@ -450,6 +478,42 @@ fun NativeMailView(
     // Active detail modal thread state
     var activeDetailThread by remember { mutableStateOf<MailThread?>(null) }
 
+    // Multi-select state
+    val selectedThreadIds = remember { mutableStateListOf<String>() }
+    val isSelectionMode = selectedThreadIds.isNotEmpty()
+
+    // Pull-to-refresh state
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    val onRefreshAction: () -> Unit = {
+        coroutineScope.launch {
+            isRefreshing = true
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            delay(1200)
+            val alreadySynced = threads.any { it.id == "thread_fastify_live" }
+            if (!alreadySynced) {
+                threads.add(
+                    0,
+                    MailThread(
+                        id = "thread_fastify_live",
+                        sender = "Fastify Sovereign Gate",
+                        subject = "Live Cluster Sync · Ingestion Verified",
+                        snippet = "Real-time SSE event synced from Fastify sovereign endpoint in quant-staging. 0ms latency.",
+                        time = "Just now",
+                        tag = "Security",
+                        isUnread = true,
+                        isStarred = false,
+                        hasAttachment = false,
+                        category = "Important",
+                        isPriority = true
+                    )
+                )
+            }
+            isRefreshing = false
+            Toast.makeText(context, "Inboxes synced with Fastify Sovereign Engine (0ms latency)", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // Filter threads based on the selected lens using derivedStateOf to prevent recomposition thrashing
     val displayedThreads by remember(selectedLens) {
         derivedStateOf {
@@ -472,6 +536,152 @@ fun NativeMailView(
             .background(QuantBrandTokens.VoidCanvas)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // ─── 0. TOP CONTEXTUAL SELECTION BAR (When isSelectionMode is active) ───
+            AnimatedVisibility(
+                visible = isSelectionMode,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = QuantBrandTokens.CardObsidian,
+                    border = BorderStroke(1.dp, QuantBrandTokens.AmberGlowBorder)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Close icon button (clears selection)
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                selectedThreadIds.clear()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "Clear Selection",
+                                tint = QuantBrandTokens.TextWhite,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Selection count label
+                        Text(
+                            text = "${selectedThreadIds.size} selected",
+                            fontSize = 14.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = QuantBrandTokens.TextWhite
+                        )
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        val allSelected = displayedThreads.isNotEmpty() &&
+                                displayedThreads.all { selectedThreadIds.contains(it.id) }
+
+                        // "Select All" / "Deselect All" button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(QuantBrandTokens.AmberTintBg)
+                                .border(0.8.dp, QuantBrandTokens.AmberPrimary.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (allSelected) {
+                                        selectedThreadIds.clear()
+                                    } else {
+                                        selectedThreadIds.clear()
+                                        selectedThreadIds.addAll(displayedThreads.map { it.id })
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (allSelected) "Deselect All" else "Select All",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = QuantBrandTokens.AmberPrimary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // [Archive] icon button (archives all selected)
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val count = selectedThreadIds.size
+                                val toRemove = selectedThreadIds.toSet()
+                                threads.removeIf { it.id in toRemove }
+                                selectedThreadIds.clear()
+                                Toast.makeText(context, "Archived $count threads", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Archive,
+                                contentDescription = "Archive Selected",
+                                tint = Color(0xFF10, 0xB9, 0x81),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // [Mark Read] icon button
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val count = selectedThreadIds.size
+                                val toMark = selectedThreadIds.toSet()
+                                threads.indices.forEach { idx ->
+                                    if (threads[idx].id in toMark) {
+                                        threads[idx] = threads[idx].copy(isUnread = false)
+                                    }
+                                }
+                                selectedThreadIds.clear()
+                                Toast.makeText(context, "Marked $count threads as read", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MarkEmailRead,
+                                contentDescription = "Mark Read",
+                                tint = Color(0xFF38, 0xBD, 0xF8),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        // [Delete] icon button
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                val count = selectedThreadIds.size
+                                val toRemove = selectedThreadIds.toSet()
+                                threads.removeIf { it.id in toRemove }
+                                selectedThreadIds.clear()
+                                Toast.makeText(context, "Deleted $count threads", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete Selected",
+                                tint = Color(0xFFEF, 0x44, 0x44),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // ─── 1. SUPERHUMAN SPLIT LENSES BAR ─────────────────────────────────
             SuperhumanSplitLensesBar(
                 lenses = lenses,
@@ -494,7 +704,7 @@ fun NativeMailView(
                 onTriageClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     selectedLens = "important"
-                    Toast.makeText(context, "✨ Triaged 3 Priority threads with Quant AI", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Triaged 3 priority threads with Quant AI", Toast.LENGTH_SHORT).show()
                     coroutineScope.launch {
                         listState.animateScrollToItem(0)
                     }
@@ -503,60 +713,137 @@ fun NativeMailView(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // ─── 3. HIGH-FIDELITY THREAD LIST / EMPTY STATE ─────────────────────
-            if (displayedThreads.isEmpty()) {
-                MailInboxZeroState(
-                    lens = selectedLens,
-                    onResetLens = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        selectedLens = "all"
-                    },
+            // ─── 2.1 SLEEK LINEAR PROGRESS INDICATOR (When isRefreshing is active) ──
+            AnimatedVisibility(
+                visible = isRefreshing,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                LinearProgressIndicator(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f)
+                        .height(3.dp),
+                    color = QuantBrandTokens.AmberPrimary,
+                    trackColor = QuantBrandTokens.AmberTintBg
                 )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
-                ) {
-                    items(
-                        items = displayedThreads,
-                        key = { it.id }
-                    ) { thread ->
-                        HighFidelityMailThreadCard(
-                            thread = thread,
-                            accentColor = accentColor,
-                            onClick = {
-                                if (onThreadClick != null) {
-                                    onThreadClick(thread)
-                                } else {
-                                    activeDetailThread = thread
+            }
+
+            // ─── 3. HIGH-FIDELITY THREAD LIST / EMPTY STATE WITH PULL-TO-REFRESH & SWIPE ──
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = onRefreshAction,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                if (displayedThreads.isEmpty()) {
+                    MailInboxZeroState(
+                        lens = selectedLens,
+                        onResetLens = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            selectedLens = "all"
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
+                    ) {
+                        items(
+                            items = displayedThreads,
+                            key = { it.id }
+                        ) { thread ->
+                            key(thread.id) {
+                                val dismissState = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { dismissValue ->
+                                        when (dismissValue) {
+                                            SwipeToDismissBoxValue.EndToStart -> {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                threads.removeIf { it.id == thread.id }
+                                                Toast.makeText(context, "Archived: ${thread.subject}", Toast.LENGTH_SHORT).show()
+                                                true
+                                            }
+                                            SwipeToDismissBoxValue.StartToEnd -> {
+                                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                Toast.makeText(context, "Snoozed until tomorrow 9:00 AM", Toast.LENGTH_SHORT).show()
+                                                false // Springs back cleanly!
+                                            }
+                                            SwipeToDismissBoxValue.Settled -> false
+                                        }
+                                    }
+                                )
+
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    backgroundContent = {
+                                        SwipeDismissBackground(dismissState = dismissState)
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateItem(),
+                                    enableDismissFromStartToEnd = !isSelectionMode,
+                                    enableDismissFromEndToStart = !isSelectionMode
+                                ) {
+                                    HighFidelityMailThreadCard(
+                                        thread = thread,
+                                        accentColor = accentColor,
+                                        isSelectionMode = isSelectionMode,
+                                        isSelected = selectedThreadIds.contains(thread.id),
+                                        onToggleSelect = {
+                                            if (selectedThreadIds.contains(thread.id)) {
+                                                selectedThreadIds.remove(thread.id)
+                                            } else {
+                                                selectedThreadIds.add(thread.id)
+                                            }
+                                        },
+                                        onClick = {
+                                            if (isSelectionMode) {
+                                                if (selectedThreadIds.contains(thread.id)) {
+                                                    selectedThreadIds.remove(thread.id)
+                                                } else {
+                                                    selectedThreadIds.add(thread.id)
+                                                }
+                                            } else {
+                                                if (onThreadClick != null) {
+                                                    onThreadClick(thread)
+                                                } else {
+                                                    activeDetailThread = thread
+                                                }
+                                            }
+                                        },
+                                        onLongClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            if (selectedThreadIds.contains(thread.id)) {
+                                                selectedThreadIds.remove(thread.id)
+                                            } else {
+                                                selectedThreadIds.add(thread.id)
+                                            }
+                                        },
+                                        onToggleStar = { target ->
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            val index = threads.indexOfFirst { it.id == target.id }
+                                            if (index != -1) {
+                                                val updated = target.copy(isStarred = !target.isStarred)
+                                                threads[index] = updated
+                                                val msg = if (updated.isStarred) "Thread Starred" else "Thread Unstarred"
+                                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                        onArchive = { target ->
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            threads.removeIf { it.id == target.id }
+                                            Toast.makeText(context, "Thread archived to Archive", Toast.LENGTH_SHORT).show()
+                                        },
+                                        onSnooze = { target ->
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            Toast.makeText(context, "Snoozed until tomorrow 9:00 AM", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
                                 }
-                            },
-                            onToggleStar = { target ->
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                val index = threads.indexOfFirst { it.id == target.id }
-                                if (index != -1) {
-                                    val updated = target.copy(isStarred = !target.isStarred)
-                                    threads[index] = updated
-                                    val msg = if (updated.isStarred) "★ Thread Starred [S]" else "☆ Thread Unstarred"
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            onArchive = { target ->
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                threads.removeIf { it.id == target.id }
-                                Toast.makeText(context, "📥 Thread archived to Archive [E]", Toast.LENGTH_SHORT).show()
-                            },
-                            onSnooze = { target ->
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                Toast.makeText(context, "⏰ Snoozed until tomorrow 9:00 AM [H]", Toast.LENGTH_SHORT).show()
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -651,11 +938,11 @@ fun SuperhumanSplitLensesBar(
 }
 
 /**
- * "✨ Quant AI Priority Radar" Executive Intelligence Hero Card:
+ * "Quant AI Priority Radar" Executive Intelligence Hero Card:
  * Luxury obsidian slate surface (Color(0xFF12, 0x15, 0x1E)) with subtle gold-amber gradient border.
  * Pulsing AI sparkle badge with soft outer halo.
- * Content: "✨ 3 Urgent Conversations Require Attention", subtitle "Synthesized by Quanty AI · 14 active threads".
- * Action: Sleek pill button with amber glow: "⚡ Triage (E)".
+ * Content: "3 Urgent Conversations Require Attention", subtitle "Synthesized by Quanty AI · 14 active threads".
+ * Action: Sleek pill button with amber glow: "Triage (E)".
  */
 @Composable
 fun QuantAiPriorityRadarHeroCard(
@@ -720,14 +1007,23 @@ fun QuantAiPriorityRadarHeroCard(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
-                    text = "✨ $priorityCount Urgent Conversations Require Attention",
-                    color = QuantBrandTokens.TextWhite,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = null,
+                        tint = QuantBrandTokens.AmberPrimary,
+                        modifier = Modifier.size(15.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "$priorityCount Urgent Conversations Require Attention",
+                        color = QuantBrandTokens.TextWhite,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(2.dp))
 
@@ -742,7 +1038,7 @@ fun QuantAiPriorityRadarHeroCard(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Sleek pill button with amber glow: ⚡ Triage (E)
+            // Sleek pill button with amber glow: Triage (E)
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(20.dp))
@@ -752,13 +1048,105 @@ fun QuantAiPriorityRadarHeroCard(
                     .padding(horizontal = 12.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "⚡ Triage (E)",
-                    color = QuantBrandTokens.AmberPrimary,
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.Bolt,
+                        contentDescription = null,
+                        tint = QuantBrandTokens.AmberPrimary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Triage (E)",
+                        color = QuantBrandTokens.AmberPrimary,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Background rendered underneath an email card during swipe gesture.
+ * Swipe Left (End-to-Start): Lush emerald green background with right-aligned Archive icon & label.
+ * Swipe Right (Start-to-End): Warm amber/gold background with left-aligned Snooze icon & label.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeDismissBackground(
+    dismissState: SwipeToDismissBoxState,
+    modifier: Modifier = Modifier
+) {
+    val direction = dismissState.dismissDirection
+
+    val backgroundColor by animateColorAsState(
+        targetValue = when (direction) {
+            SwipeToDismissBoxValue.EndToStart -> Color(0xFF10, 0xB9, 0x81) // Lush emerald green
+            SwipeToDismissBoxValue.StartToEnd -> Color(0xFFF5, 0x9E, 0x0B) // Warm amber/gold
+            SwipeToDismissBoxValue.Settled -> Color.Transparent
+        },
+        label = "swipe_bg_color"
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(backgroundColor)
+            .padding(horizontal = 20.dp),
+        contentAlignment = when (direction) {
+            SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
+            SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+            else -> Alignment.Center
+        }
+    ) {
+        when (direction) {
+            SwipeToDismissBoxValue.EndToStart -> {
+                // Swipe Left (End-to-Start): Lush emerald green, right-aligned Archive icon & label
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Archive",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Filled.Archive,
+                        contentDescription = "Archive",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            SwipeToDismissBoxValue.StartToEnd -> {
+                // Swipe Right (Start-to-End): Warm amber/gold, left-aligned Snooze icon & label
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = "Snooze",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "Snooze",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            SwipeToDismissBoxValue.Settled -> {
+                // Idle / settled
             }
         }
     }
@@ -767,17 +1155,22 @@ fun QuantAiPriorityRadarHeroCard(
 /**
  * High-Fidelity Email Thread Card:
  * Luxury obsidian slate surface (#12151E) on Canvas Void (#090A0E) with subtle hairline border (#232938, 0.8dp), 16dp rounded corners.
- * Left: 44dp circular avatar with rich gradient cache, crisp white initials, and unread beacon dot with soft outer halo.
+ * Left: Optional circular selection checkbox + 44dp circular avatar with rich gradient cache, crisp white initials, and unread beacon dot with soft outer halo.
  * Sender & Timestamp: 14.5sp semi-bold sender name, verified domain badge where applicable, relative time in amber if unread or slate if read.
  * Subject & Snippet: Subject in #F8FAFC (14sp medium), snippet in #94A3B8 (12.5sp regular, 18sp line height).
  * Attachment & Tags: Sleek tag pills with soft background tints (Mint for CodeHub, Sky for Finance, Gold for Executive), clean attachment capsule with file size.
  * Quick Action Row: Refined Star toggle (gold #F59E0B), Archive button, Snooze button with 34dp touch targets and smooth haptics.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HighFidelityMailThreadCard(
     thread: MailThread,
     accentColor: Color,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onToggleStar: (MailThread) -> Unit,
     onArchive: (MailThread) -> Unit,
     onSnooze: (MailThread) -> Unit,
@@ -798,13 +1191,20 @@ fun HighFidelityMailThreadCard(
     }
 
     Surface(
-        onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(16.dp),
-        color = QuantBrandTokens.CardObsidian,
-        border = BorderStroke(QuantBrandTokens.CardBorderHairline, QuantBrandTokens.CardBorder)
+        color = if (isSelected) QuantBrandTokens.AmberTintBg else QuantBrandTokens.CardObsidian,
+        border = BorderStroke(
+            if (isSelected) 1.2.dp else QuantBrandTokens.CardBorderHairline,
+            if (isSelected) QuantBrandTokens.AmberGlowBorder else QuantBrandTokens.CardBorder
+        )
     ) {
         Column(
             modifier = Modifier
@@ -815,6 +1215,41 @@ fun HighFidelityMailThreadCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top
             ) {
+                // Circular Checkbox Indicator for Multi-Select (Animated)
+                AnimatedVisibility(
+                    visible = isSelectionMode,
+                    enter = fadeIn() + expandHorizontally(),
+                    exit = fadeOut() + shrinkHorizontally()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isSelected) QuantBrandTokens.AmberPrimary else Color.Transparent
+                                )
+                                .border(
+                                    width = if (isSelected) 0.dp else 1.5.dp,
+                                    color = if (isSelected) Color.Transparent else QuantBrandTokens.TextMuted,
+                                    shape = CircleShape
+                                )
+                                .clickable { onToggleSelect() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = "Selected",
+                                    tint = QuantBrandTokens.BadgeDarkText,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+                }
+
                 // Identity Avatar (44dp) with rich gradient cache, crisp white initials, and unread beacon dot with soft outer halo
                 Box(
                     modifier = Modifier.size(44.dp)
@@ -958,8 +1393,15 @@ fun HighFidelityMailThreadCard(
                             .border(0.8.dp, QuantBrandTokens.AttachmentBorder, RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 2.5.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Filled.AttachFile,
+                            contentDescription = "Attachment",
+                            tint = QuantBrandTokens.TextSecondary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "📎 ${thread.attachmentText ?: "attachment"}",
+                            text = thread.attachmentText ?: "attachment",
                             fontSize = 10.5.sp,
                             color = QuantBrandTokens.TextSecondary,
                             fontWeight = FontWeight.Medium,
@@ -982,14 +1424,14 @@ fun HighFidelityMailThreadCard(
                         modifier = Modifier.size(34.dp)
                     ) {
                         Icon(
-                            imageVector = if (thread.isStarred) Icons.Filled.Star else Icons.Filled.StarBorder,
+                            imageVector = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
                             contentDescription = if (thread.isStarred) "Starred" else "Star",
                             tint = if (thread.isStarred) QuantBrandTokens.StarGold else QuantBrandTokens.ActionIconTint,
                             modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    // Quick Archive [📥]
+                    // Quick Archive
                     IconButton(
                         onClick = { onArchive(thread) },
                         modifier = Modifier.size(34.dp)
@@ -1002,7 +1444,7 @@ fun HighFidelityMailThreadCard(
                         )
                     }
 
-                    // Snooze [⏰]
+                    // Snooze
                     IconButton(
                         onClick = { onSnooze(thread) },
                         modifier = Modifier.size(34.dp)
@@ -1021,7 +1463,7 @@ fun HighFidelityMailThreadCard(
 }
 
 /**
- * Empty State: "Inbox Zero · All caught up! ✨" matching InboxZeroState.tsx.
+ * Empty State: "Inbox Zero · All caught up!" matching InboxZeroState.tsx.
  */
 @Composable
 fun MailInboxZeroState(
@@ -1065,17 +1507,31 @@ fun MailInboxZeroState(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "✨", fontSize = 32.sp)
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = QuantBrandTokens.AmberPrimary,
+                modifier = Modifier.size(36.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        Text(
-            text = "Inbox Zero · All caught up! ✨",
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = QuantBrandTokens.TextWhite
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = Color(0xFF10, 0xB9, 0x81),
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Inbox Zero · All caught up!",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = QuantBrandTokens.TextWhite
+            )
+        }
 
         Spacer(modifier = Modifier.height(6.dp))
 
