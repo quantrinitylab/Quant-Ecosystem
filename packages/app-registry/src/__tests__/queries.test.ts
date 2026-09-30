@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getApp, allApps, byCategory, searchApps, resolveAllApps } from '../queries';
+import { getApp, allApps, byCategory, searchApps, resolveAllApps, withSurface } from '../queries';
 
 describe('registry query helpers', () => {
   it('getApp returns the entry or undefined', () => {
@@ -37,5 +37,17 @@ describe('registry query helpers', () => {
     for (const app of resolved) {
       expect(app.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
+  });
+
+  it('withSurface finds the apps that expose a surface', () => {
+    // Every product ships web + backend today.
+    expect(withSurface('web')).toHaveLength(9);
+    expect(withSurface('backend')).toHaveLength(9);
+    // The QuantMail pilot is the only app that owns admin + marketing slices so far.
+    expect(withSurface('admin').map((a) => a.id)).toEqual(['quantmail']);
+    expect(withSurface('marketing').map((a) => a.id)).toEqual(['quantmail']);
+    // No product ships a native surface yet (kits are verification-blocked).
+    expect(withSurface('desktop')).toEqual([]);
+    expect(withSurface('mobile')).toEqual([]);
   });
 });

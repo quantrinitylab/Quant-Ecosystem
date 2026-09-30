@@ -1,5 +1,5 @@
 import { PRODUCT_APPS, resolveApp } from './registry';
-import type { AppCategory, QuantAppEntry, ResolvedQuantApp } from './types';
+import type { AppCategory, PlatformSurface, QuantAppEntry, ResolvedQuantApp } from './types';
 
 /** Look up a single product by canonical id. */
 export function getApp(id: string): QuantAppEntry | undefined {
@@ -31,4 +31,15 @@ export function searchApps(query: string): QuantAppEntry[] {
 /** All products with brand-derived visual identity merged in. */
 export function resolveAllApps(): ResolvedQuantApp[] {
   return PRODUCT_APPS.map((a) => resolveApp(a));
+}
+
+/**
+ * Products that expose a given platform surface, in catalog order. This is how
+ * a thin ecosystem hub discovers per-app slices to compose — e.g. the
+ * enterprise-admin hub lists `withSurface('admin')` and the marketing-home hub
+ * lists `withSurface('marketing')` — instead of hard-coding an app list that
+ * drifts (the exact rot this registry replaced).
+ */
+export function withSurface(surface: PlatformSurface): QuantAppEntry[] {
+  return PRODUCT_APPS.filter((a) => a.surfaces.includes(surface));
 }
