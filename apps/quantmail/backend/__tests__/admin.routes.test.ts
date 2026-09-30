@@ -47,7 +47,10 @@ async function buildTestApp(opts?: { userId?: string; role?: string }) {
   const app = fastify();
   await app.register(errorHandlerPlugin);
   const prisma = makePrisma();
-  app.decorate('prisma', prisma);
+  // Fastify types `prisma` as the real PrismaClient (module augmentation); this
+  // deterministic stub only implements the handful of methods the KPIs call, so
+  // cast past the structural check — runtime behaviour is unaffected.
+  app.decorate('prisma', prisma as unknown as never);
   app.addHook('preHandler', async (req) => {
     if (opts?.userId) {
       (req as unknown as { auth?: unknown }).auth = { userId: opts.userId, role: opts.role };
@@ -143,7 +146,7 @@ describe('QuantMail per-app Admin API (Phase 1 pilot backend)', () => {
             { status: 'deferred', _count: 2 },
           ],
         },
-      });
+      } as unknown as never);
       app.addHook('preHandler', async (req) => {
         (req as unknown as { auth?: unknown }).auth = { userId: 'a-1', role: 'ADMIN' };
       });
