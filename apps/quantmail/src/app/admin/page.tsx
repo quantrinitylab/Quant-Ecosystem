@@ -54,7 +54,10 @@ const SERVICES: ServiceStatus[] = [
 ];
 
 function StatCard({ kpi, cell }: { kpi: Kpi; cell: KpiCell }) {
-  const isReady = cell.state === 'ready' && cell.value !== null;
+  // A cell can succeed yet still carry no number: a deliverability response with
+  // no *resolved* attempts formats to an em dash. Treat that em dash as "no data
+  // yet", not a live value, so it never shows a green "Live" dot over a blank.
+  const isReady = cell.state === 'ready' && cell.value !== null && cell.value !== '—';
   const isError = cell.state === 'error';
   const footnote = isReady
     ? `Live · ${kpi.hint}`
@@ -186,9 +189,11 @@ export default function AdminDashboardPage() {
                 Moderation queue
               </h2>
               <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-4 py-10 text-center">
-                <div className="text-sm font-medium text-[var(--quant-foreground)]">Queue empty</div>
+                <div className="text-sm font-medium text-[var(--quant-muted-foreground)]">
+                  Moderation feed not yet wired
+                </div>
                 <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
-                  Reports from the moderation-worker pipeline will surface here.
+                  Reports from the moderation-worker pipeline will surface here once connected.
                 </p>
               </div>
             </section>

@@ -50,7 +50,7 @@ const MATURITY_COPY: Record<string, string> = {
 
 function FeatureCard({ feature }: { feature: Feature }) {
   return (
-    <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6 transition-colors hover:border-[var(--quant-muted-foreground)]/40">
+    <div className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-6 transition-colors hover:border-[color-mix(in_srgb,var(--quant-muted-foreground)_40%,transparent)]">
       <h3 className="text-base font-semibold text-[var(--quant-foreground)]">{feature.title}</h3>
       <p className="mt-2 text-sm leading-relaxed text-[var(--quant-muted-foreground)]">
         {feature.blurb}
@@ -85,7 +85,7 @@ export default function QuantMailMarketingPage() {
           </Link>
           <Link
             href="/register"
-            className="rounded-lg px-3 py-1.5 font-medium text-white"
+            className="rounded-lg px-3 py-1.5 font-medium text-[#111318]"
             style={{ backgroundColor: app.color }}
           >
             Get started
@@ -110,7 +110,7 @@ export default function QuantMailMarketingPage() {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           <Link
             href="/register"
-            className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+            className="rounded-xl px-5 py-2.5 text-sm font-semibold text-[#111318]"
             style={{ backgroundColor: app.color }}
           >
             Create your account
@@ -147,7 +147,7 @@ export default function QuantMailMarketingPage() {
           </div>
           <Link
             href="/register"
-            className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-white"
+            className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-semibold text-[#111318]"
             style={{ backgroundColor: app.color }}
           >
             Get started free

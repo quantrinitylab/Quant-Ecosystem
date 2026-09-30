@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatBytes, formatCount, formatPercent } from '../admin-kpi-format';
+import { formatCount, formatPercent } from '../admin-kpi-format';
 
 describe('admin KPI formatters', () => {
   describe('formatCount', () => {
@@ -16,20 +16,8 @@ describe('admin KPI formatters', () => {
     });
   });
 
-  describe('formatBytes', () => {
-    it('scales to the largest binary unit ≥ 1', () => {
-      expect(formatBytes(0)).toBe('0 B');
-      expect(formatBytes(512)).toBe('512 B');
-      expect(formatBytes(1024)).toBe('1.0 KB');
-      expect(formatBytes(987654321)).toBe('941.9 MB');
-      expect(formatBytes(1024 ** 4)).toBe('1.0 TB');
-    });
-
-    it('rejects negative and non-finite input with an em dash', () => {
-      expect(formatBytes(-1)).toBe('—');
-      expect(formatBytes(Number.NaN)).toBe('—');
-    });
-  });
+  // Byte formatting lives in `../format-bytes` (one formatter for the whole app);
+  // its behaviour is pinned by `__tests__/format-bytes.test.ts`, not here.
 
   describe('formatPercent', () => {
     it('renders a fraction as an integer percent', () => {

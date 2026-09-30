@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { apiClient } from '../services/api-client';
-import { formatBytes, formatCount, formatPercent } from '../lib/admin-kpi-format';
+import { formatCount, formatPercent } from '../lib/admin-kpi-format';
+import { formatBytes } from '../lib/format-bytes';
 
 /**
  * Fetches the four QuantMail admin KPI cards from the per-app admin API and

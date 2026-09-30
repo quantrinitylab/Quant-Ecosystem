@@ -1,10 +1,14 @@
 /**
  * Human-readable formatters for the QuantMail admin console KPI cards.
  *
- * Pure functions, no React — the display logic that's most bug-prone (byte
- * scaling, percent rounding) lives here so it can be unit-tested without a DOM.
- * Every formatter returns an em dash for absent/invalid input so a card never
- * renders `NaN`, `undefined`, or `Infinity`.
+ * Pure functions, no React — the display logic that's most bug-prone (percent
+ * rounding) lives here so it can be unit-tested without a DOM. Every formatter
+ * returns an em dash for absent/invalid input so a card never renders `NaN`,
+ * `undefined`, or `Infinity`.
+ *
+ * Byte scaling is deliberately NOT here: there is one byte formatter for the
+ * whole app in `./format-bytes`, and duplicating it once read `1.0 KB` here and
+ * `1 KB` in Drive. The storage KPI imports that single source directly.
  */
 
 const EM_DASH = '—';
@@ -13,21 +17,6 @@ const EM_DASH = '—';
 export function formatCount(n: number): string {
   if (!Number.isFinite(n)) return EM_DASH;
   return Math.round(n).toLocaleString('en-US');
-}
-
-/**
- * Bytes → the largest binary unit under which the value is ≥ 1, e.g.
- * 987654321 → "941.9 MB", 512 → "512 B", 0 → "0 B". Whole bytes get no
- * decimal; larger units read better with one.
- */
-export function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return EM_DASH;
-  if (bytes === 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** exponent;
-  const rendered = exponent === 0 ? String(Math.round(value)) : value.toFixed(1);
-  return `${rendered} ${units[exponent]}`;
 }
 
 /**

@@ -121,6 +121,19 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   { pattern: /^settings\/tokens$/, methods: ['GET', 'POST'] },
   { pattern: /^settings\/tokens\/[^/]+$/, methods: ['DELETE'] },
 
+  // ── Admin console (restructure Phase 1 pilot) ──────────────────────────────
+  // adminRoutes is mounted at both `/admin` and `/api/admin` (backend/app.ts).
+  // The web client calls `/api/admin/*`, so this proxy sees `admin/*`. Without
+  // these four read-only, staff-gated KPI GETs the proxy returned
+  // API_ROUTE_NOT_FOUND and every card in src/app/admin/page.tsx read
+  // "Unavailable" even though the backend and the AdminGuard were both in place.
+  // Anchored + enumerated on purpose: this opens exactly the four KPI reads, not
+  // a blanket `admin/*` door — any other admin path still 404s here.
+  {
+    pattern: /^admin\/(?:accounts\/count|sessions\/active|storage\/summary|mail\/deliverability)$/,
+    methods: ['GET'],
+  },
+
   { pattern: /^threads(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^emails(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^labels(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },

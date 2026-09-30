@@ -43,10 +43,12 @@ function requireStaff(request: FastifyRequest): { userId: string; role: string }
 }
 
 export default async function adminRoutes(fastify: FastifyInstance) {
-  // GET /admin/accounts/count — total registered accounts.
+  // GET /admin/accounts/count — total registered accounts (soft-deleted excluded).
   fastify.get('/accounts/count', async (request, reply) => {
     requireStaff(request);
-    const total = await getPrisma(fastify).user.count();
+    // `deletedAt` is the User soft-delete tombstone (schema.prisma). A bare
+    // count() would inflate the KPI with erased accounts, so filter to live rows.
+    const total = await getPrisma(fastify).user.count({ where: { deletedAt: null } });
     return reply.send({ success: true, data: { total } });
   });
 
