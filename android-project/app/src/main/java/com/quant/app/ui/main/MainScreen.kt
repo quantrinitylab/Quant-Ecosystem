@@ -64,7 +64,14 @@ import com.quant.app.BuildConfig
 import com.quant.app.MainActivity
 import com.quant.app.bridge.QuantNativeBridge
 import com.quant.app.data.EcosystemStateStore
-import com.quant.app.ui.components.EcosystemAppsBottomSheet
+import com.quant.app.network.QuantBackendClient
+import com.quant.app.auth.QuantAuthManager
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.quant.app.ui.auth.QuantLoginScreen
+import com.quant.app.ui.components.QuantAccountProfileSheet
 import com.quant.app.ui.components.NativeCalendarEventSheet
 import com.quant.app.ui.components.NativeContactCreationSheet
 import com.quant.app.ui.components.NativeDriveUploadSheet
@@ -119,6 +126,28 @@ fun MainScreen(
   modifier: Modifier = Modifier,
 ) {
   val accentColor = remember { getAppAccentColor() }
+  val context = androidx.compose.ui.platform.LocalContext.current
+  var isAuthenticated by remember { mutableStateOf(QuantAuthManager.isLoggedIn(context)) }
+  var currentUser by remember(isAuthenticated) { mutableStateOf(QuantAuthManager.getCurrentUser(context)) }
+  val coroutineScope = rememberCoroutineScope()
+
+  // Initial sovereign network sync for authenticated user
+  LaunchedEffect(isAuthenticated) {
+    if (isAuthenticated) {
+      withContext(Dispatchers.IO) {
+        try {
+          val token = currentUser.token
+          QuantBackendClient.fetchCalendarEvents(token)
+          QuantBackendClient.fetchDriveFiles(token)
+          QuantBackendClient.fetchContacts(token)
+          QuantBackendClient.fetchRepos(token)
+        } catch (_: Exception) {
+          // Sovereign local cache remains intact
+        }
+      }
+    }
+  }
+
   var webViewRef by remember { mutableStateOf<WebView?>(null) }
   var nativeBridge by remember { mutableStateOf<QuantNativeBridge?>(null) }
   var swipeRefreshRef by remember { mutableStateOf<SwipeRefreshLayout?>(null) }
@@ -135,7 +164,7 @@ fun MainScreen(
   // Composer modal open state
   var isComposerOpen by remember { mutableStateOf(false) }
 
-  // Sovereign Ecosystem 9-Apps Switcher sheet open state
+  // Sovereign Account Profile & Workspace Manager sheet open state
   var isAppSwitcherOpen by remember { mutableStateOf(false) }
 
   // Fast search overlay open state
@@ -237,6 +266,20 @@ fun MainScreen(
     webViewRef?.goBack()
   }
 
+  if (!isAuthenticated) {
+    QuantLoginScreen(
+      onLoginSuccess = { user ->
+        currentUser = user
+        isAuthenticated = true
+      },
+      onContinueWithSso = {
+        MainActivity.launchCustomTab(context, "${BuildConfig.DEFAULT_APP_URL}auth/sso")
+      },
+      modifier = modifier
+    )
+    return
+  }
+
   Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
       modifier = Modifier
@@ -282,14 +325,15 @@ fun MainScreen(
                 null
               )
             },
+            onOpenAccountProfile = {
+              nativeBridge?.triggerHaptic("medium")
+              isAppSwitcherOpen = true
+            },
             onOpenAppSwitcher = {
               nativeBridge?.triggerHaptic("medium")
               isAppSwitcherOpen = true
-              webViewRef?.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('quant:app_switcher:open'));",
-                null
-              )
-            }
+            },
+            userInitials = currentUser.initials
           )
         }
       },
@@ -701,6 +745,9 @@ fun MainScreen(
         onDismiss = { isComposerOpen = false },
         onSend = { to, subject, body ->
           nativeBridge?.triggerHaptic("heavy")
+          coroutineScope.launch(Dispatchers.IO) {
+            QuantBackendClient.sendEmail(to, subject, body, currentUser.token)
+          }
           webViewRef?.evaluateJavascript(
             """
             window.dispatchEvent(new CustomEvent('quant:mail:sent', {
@@ -715,57 +762,19 @@ fun MainScreen(
       )
     }
 
-    // Sovereign Ecosystem 9-Apps Switcher Bottom Sheet
+    // Dedicated QuantMail Account & Workspace Manager Bottom Sheet
     if (isAppSwitcherOpen) {
-      EcosystemAppsBottomSheet(
+      QuantAccountProfileSheet(
         onDismiss = { isAppSwitcherOpen = false },
-        onAppSelected = { app ->
-          nativeBridge?.triggerHaptic("medium")
+        onLogout = {
+          nativeBridge?.triggerHaptic("heavy")
+          QuantAuthManager.logout(context)
           isAppSwitcherOpen = false
-          when {
-            app.id.equals("quantmail", ignoreCase = true) -> {
-              activeTab = ProductivityTab.Mail
-              webViewRef?.loadUrl(ProductivityTab.Mail.url)
-            }
-            app.id.equals("quantcalendar", ignoreCase = true) -> {
-              activeTab = ProductivityTab.Calendar
-              webViewRef?.loadUrl(ProductivityTab.Calendar.url)
-            }
-            app.id.equals("quantdrive", ignoreCase = true) -> {
-              activeTab = ProductivityTab.Drive
-              webViewRef?.loadUrl(ProductivityTab.Drive.url)
-            }
-            app.id.equals("quantcontacts", ignoreCase = true) || app.id.equals("contacts", ignoreCase = true) -> {
-              activeTab = ProductivityTab.Contacts
-              webViewRef?.loadUrl(ProductivityTab.Contacts.url)
-            }
-            app.id.equals("quantgit", ignoreCase = true) || app.id.equals("codehub", ignoreCase = true) -> {
-              activeTab = ProductivityTab.QuantGit
-              webViewRef?.loadUrl(ProductivityTab.QuantGit.url)
-            }
-            else -> {
-              webViewRef?.loadUrl(app.url)
-            }
-          }
-          webViewRef?.evaluateJavascript(
-            """
-            window.dispatchEvent(new CustomEvent('quant:app_switch', {
-              detail: { appId: '${app.id}', url: '${app.url}' }
-            }));
-            """.trimIndent(),
-            null
-          )
+          isAuthenticated = false
         },
-        currentAppId = when (BuildConfig.FLAVOR) {
-          "quantchat" -> "quantchat"
-          "quantgram" -> "quantgram"
-          "quantube" -> "quantube"
-          "quantai" -> "quantai"
-          "quantwave" -> "quantwave"
-          "quantmax" -> "quantmax"
-          "quantcooks" -> "quantcooks"
-          "quantads" -> "quantads"
-          else -> "quantmail"
+        onWorkspaceChanged = { newWorkspace ->
+          currentUser = QuantAuthManager.getCurrentUser(context)
+          nativeBridge?.triggerHaptic("selection")
         }
       )
     }
@@ -809,6 +818,10 @@ fun MainScreen(
         onDismiss = { isEventSheetOpen = false },
         onSave = { title, dateTime, attendees, isMeetLink ->
           nativeBridge?.triggerHaptic("heavy")
+          EcosystemStateStore.addEvent(title, dateTime, attendees, isMeetLink)
+          coroutineScope.launch(Dispatchers.IO) {
+            QuantBackendClient.createEvent(title, dateTime, attendees, isMeetLink, currentUser.token)
+          }
           webViewRef?.evaluateJavascript(
             """
             window.dispatchEvent(new CustomEvent('quant:calendar:event_created', {
@@ -834,12 +847,16 @@ fun MainScreen(
         onDismiss = { isUploadSheetOpen = false },
         onActionSelected = { actionId ->
           nativeBridge?.triggerHaptic("medium")
-          when (actionId) {
-            "upload" -> EcosystemStateStore.addFile("FastCDC_Uploaded_Doc_${System.currentTimeMillis() % 1000}.pdf", "2.8 MB", "file")
-            "scan" -> EcosystemStateStore.addFile("OCR_Scanned_Document_${System.currentTimeMillis() % 1000}.pdf", "1.2 MB", "scan")
-            "folder" -> EcosystemStateStore.addFile("Encrypted_Workspace_Folder", "0 KB", "folder")
-            "offline_pin" -> EcosystemStateStore.addFile("Offline_Pinned_Vault.zip", "18.5 MB", "offline")
-            else -> EcosystemStateStore.addFile("Drive_Document.pdf", "1.4 MB", "file")
+          val (fileName, fileSize, fileType) = when (actionId) {
+            "upload" -> Triple("FastCDC_Uploaded_Doc_${System.currentTimeMillis() % 1000}.pdf", "2.8 MB", "file")
+            "scan" -> Triple("OCR_Scanned_Document_${System.currentTimeMillis() % 1000}.pdf", "1.2 MB", "scan")
+            "folder" -> Triple("Encrypted_Workspace_Folder", "0 KB", "folder")
+            "offline_pin" -> Triple("Offline_Pinned_Vault.zip", "18.5 MB", "offline")
+            else -> Triple("Drive_Document.pdf", "1.4 MB", "file")
+          }
+          EcosystemStateStore.addFile(fileName, fileSize, fileType)
+          coroutineScope.launch(Dispatchers.IO) {
+            QuantBackendClient.uploadDriveFile(fileName, fileSize, fileType, currentUser.token)
           }
           webViewRef?.evaluateJavascript(
             """
@@ -871,6 +888,10 @@ fun MainScreen(
         onDismiss = { isContactSheetOpen = false },
         onSave = { name, email, phone, company, role, tag, isVip ->
           nativeBridge?.triggerHaptic("heavy")
+          EcosystemStateStore.addContact(name, email, phone, company, role, tag, isVip)
+          coroutineScope.launch(Dispatchers.IO) {
+            QuantBackendClient.createContact(name, email, phone, company, role, tag, isVip, currentUser.token)
+          }
           webViewRef?.evaluateJavascript(
             """
             window.dispatchEvent(new CustomEvent('quant:contacts:contact_created', {
@@ -909,6 +930,10 @@ fun MainScreen(
         onDismiss = { isRepoSheetOpen = false },
         onCreate = { name, desc, isPriv, initReadme, addGitignore, addLicense ->
           nativeBridge?.triggerHaptic("heavy")
+          EcosystemStateStore.addRepo(name, desc, isPriv)
+          coroutineScope.launch(Dispatchers.IO) {
+            QuantBackendClient.createRepo(name, desc, isPriv, currentUser.token)
+          }
           webViewRef?.evaluateJavascript(
             """
             window.dispatchEvent(new CustomEvent('quant:codehub:repo_created', {

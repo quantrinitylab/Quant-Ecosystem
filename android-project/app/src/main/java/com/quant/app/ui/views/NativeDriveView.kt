@@ -285,8 +285,8 @@ fun NativeDriveView(
         )
     }
 
-    // Combine dynamic files first (newest on top) with baseline curated files
-    val allFiles = dynamicFiles + BASELINE_DRIVE_FILES
+    // Combine dynamic files first (newest on top) with baseline curated files, guaranteed unique by id
+    val allFiles = (dynamicFiles + BASELINE_DRIVE_FILES).distinctBy { it.id }
 
     // Filter files based on selected category chip
     val filteredFiles = remember(selectedFilter, allFiles, starredStates.toMap()) {
@@ -300,7 +300,7 @@ fun NativeDriveView(
                 "Offline" -> file.isOffline
                 else -> true
             }
-        }
+        }.distinctBy { it.id }
     }
 
     Box(

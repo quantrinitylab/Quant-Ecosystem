@@ -1,6 +1,7 @@
 package com.quant.app.data
 
 import androidx.compose.runtime.mutableStateListOf
+import java.util.UUID
 
 /**
  * Singleton shared state store for locally created ecosystem items.
@@ -10,7 +11,7 @@ object EcosystemStateStore {
 
     // ─── Data Models ──────────────────────────────────────────────────────
     data class CalendarEvent(
-        val id: String = "evt_${System.currentTimeMillis()}",
+        val id: String = "evt_${UUID.randomUUID().toString().take(8)}_${System.nanoTime()}",
         val title: String,
         val time: String,
         val attendees: List<String> = emptyList(),
@@ -18,7 +19,7 @@ object EcosystemStateStore {
     )
 
     data class DriveFile(
-        val id: String = "file_${System.currentTimeMillis()}",
+        val id: String = "file_${UUID.randomUUID().toString().take(8)}_${System.nanoTime()}",
         val name: String,
         val size: String,
         val type: String, // "file", "folder", "scan", "offline"
@@ -26,7 +27,7 @@ object EcosystemStateStore {
     )
 
     data class GitRepo(
-        val id: String = "repo_${System.currentTimeMillis()}",
+        val id: String = "repo_${UUID.randomUUID().toString().take(8)}_${System.nanoTime()}",
         val name: String,
         val description: String,
         val isPrivate: Boolean,
@@ -34,14 +35,14 @@ object EcosystemStateStore {
     )
 
     data class AiChatMessage(
-        val id: String = "msg_${System.currentTimeMillis()}",
+        val id: String = "msg_${UUID.randomUUID().toString().take(8)}_${System.nanoTime()}",
         val sender: String, // "user" or persona name e.g. "Aura"
         val text: String,
         val timestamp: Long = System.currentTimeMillis()
     )
 
     data class ContactItem(
-        val id: String = "contact_${System.currentTimeMillis()}",
+        val id: String = "contact_${UUID.randomUUID().toString().take(8)}_${System.nanoTime()}",
         val name: String,
         val email: String,
         val phone: String? = null,

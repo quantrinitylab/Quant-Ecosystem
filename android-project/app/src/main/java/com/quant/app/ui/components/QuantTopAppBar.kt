@@ -32,11 +32,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.quant.app.auth.QuantAuthManager
 import com.quant.app.ui.navigation.ProductivityTab
 
 /**
@@ -60,11 +62,18 @@ fun QuantTopAppBar(
     activeTab: ProductivityTab? = null,
     onToggleViewMode: () -> Unit = {},
     onSearchClick: () -> Unit = {},
-    onOpenAppSwitcher: () -> Unit = {},
+    onOpenAccountProfile: () -> Unit = {},
+    onOpenAppSwitcher: () -> Unit = onOpenAccountProfile,
+    userInitials: String? = null,
     onAssistantClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
+    val currentUser = remember { QuantAuthManager.getCurrentUser(context) }
+    val displayInitials = remember(userInitials, currentUser) {
+        userInitials?.takeIf { it.isNotBlank() } ?: currentUser.initials.ifBlank { appInitials }
+    }
 
     // Resolve canonical appId for logo rendering
     val resolvedAppId = remember(appId, title, activeTab) {
@@ -141,7 +150,7 @@ fun QuantTopAppBar(
                         indication = null,
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onOpenAppSwitcher()
+                            onOpenAccountProfile()
                         }
                     )
             ) {
@@ -301,15 +310,15 @@ fun QuantTopAppBar(
                             indication = null,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onOpenAppSwitcher()
+                                onOpenAccountProfile()
                             }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Q",
+                        text = displayInitials,
                         color = Color(0xFFFF, 0xC1, 0x89),
-                        fontSize = 14.sp,
+                        fontSize = if (displayInitials.length > 2) 11.sp else 13.sp,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 0.5.sp
                     )

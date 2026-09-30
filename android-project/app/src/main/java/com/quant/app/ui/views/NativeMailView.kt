@@ -451,13 +451,13 @@ fun NativeMailView(
     val displayedThreads by remember(selectedLens) {
         derivedStateOf {
             when (selectedLens) {
-                "all" -> threads
-                "important" -> threads.filter { it.category == "Important" }
-                "updates" -> threads.filter { it.category == "Updates" }
-                "promotions" -> threads.filter { it.category == "Promotions" }
-                "contacts" -> threads.filter { it.category == "Contacts" }
-                "starred" -> threads.filter { it.isStarred }
-                else -> threads
+                "all" -> threads.distinctBy { it.id }
+                "important" -> threads.filter { it.category == "Important" }.distinctBy { it.id }
+                "updates" -> threads.filter { it.category == "Updates" }.distinctBy { it.id }
+                "promotions" -> threads.filter { it.category == "Promotions" }.distinctBy { it.id }
+                "contacts" -> threads.filter { it.category == "Contacts" }.distinctBy { it.id }
+                "starred" -> threads.filter { it.isStarred }.distinctBy { it.id }
+                else -> threads.distinctBy { it.id }
             }
         }
     }

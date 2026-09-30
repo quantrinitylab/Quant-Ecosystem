@@ -136,7 +136,7 @@ fun NativeContactsView(
                 contact.tag.lowercase().contains(query)
 
             matchesFilter && matchesSearch
-        }
+        }.distinctBy { it.id }
     }
 
     LazyColumn(

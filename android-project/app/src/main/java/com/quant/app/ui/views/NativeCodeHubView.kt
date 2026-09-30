@@ -169,8 +169,8 @@ fun NativeCodeHubView(
         )
     }
 
-    // Dynamic repos from state store
-    val dynamicRepos = EcosystemStateStore.reposList
+    // Dynamic repos from state store, guaranteed unique by id
+    val dynamicRepos = EcosystemStateStore.reposList.distinctBy { it.id }
 
     // Glowing animation for Copilot Hero
     val infiniteTransition = rememberInfiniteTransition(label = "copilot_glow")
