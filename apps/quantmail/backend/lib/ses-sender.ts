@@ -70,10 +70,27 @@ export async function sendViaSes(opts: SesSendOptions): Promise<string> {
 }
 
 /**
- * Check if the SES sender is configured (at minimum, a region is available).
+ * Check if the SES sender is actually configured with usable credentials.
+ *
+ * A bare region is NOT a credential: a deployment that only sets `AWS_REGION`
+ * (common — it is injected into most AWS runtimes by default) must fall back to
+ * the SMTP transport rather than route mail to SES and fail at transmit. We
+ * therefore gate on the two credential paths `getClient()` can actually use:
+ *   1. Explicit static SES credentials (`SES_ACCESS_KEY_ID` + `SES_SECRET_ACCESS_KEY`).
+ *   2. Ambient credentials resolvable by the AWS SDK default provider chain that
+ *      `getClient()` falls back to — IRSA on EKS (`AWS_WEB_IDENTITY_TOKEN_FILE`
+ *      + `AWS_ROLE_ARN`), an ECS task role (`AWS_CONTAINER_CREDENTIALS_*`), or a
+ *      shared `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` pair.
  */
 export function isSesConfigured(): boolean {
-  return Boolean(
-    process.env['SES_REGION'] ?? process.env['AWS_REGION'] ?? process.env['SES_ACCESS_KEY_ID'],
+  const hasStaticSesCredentials = Boolean(
+    process.env['SES_ACCESS_KEY_ID'] && process.env['SES_SECRET_ACCESS_KEY'],
   );
+  const hasAmbientAwsCredentials = Boolean(
+    (process.env['AWS_ACCESS_KEY_ID'] && process.env['AWS_SECRET_ACCESS_KEY']) ||
+      (process.env['AWS_WEB_IDENTITY_TOKEN_FILE'] && process.env['AWS_ROLE_ARN']) ||
+      process.env['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI'] ||
+      process.env['AWS_CONTAINER_CREDENTIALS_FULL_URI'],
+  );
+  return hasStaticSesCredentials || hasAmbientAwsCredentials;
 }
