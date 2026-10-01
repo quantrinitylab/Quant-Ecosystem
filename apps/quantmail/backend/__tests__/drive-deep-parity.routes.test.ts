@@ -560,6 +560,62 @@ describe('QuantDrive Deep Parity — Links, Sweeper & Cursor Pagination', () => 
     expect(res.body).toBe('quant-public-streamed-file-content');
   });
 
+  it('hashes the share password and enforces it on the public download route', async () => {
+    // Create a password-protected link through the real handler so the stored
+    // secret is processed by argon2 exactly as production would.
+    const create = await app.inject({
+      method: 'POST',
+      url: '/drive/shares/link',
+      headers: { 'content-type': 'application/json' },
+      payload: { fileId: 'file_spec_1', role: 'viewer', password: 'correct-horse-battery' },
+    });
+    expect(create.statusCode).toBe(201);
+    const token = JSON.parse(create.body).share.token as string;
+
+    // The password is persisted as a one-way argon2 digest, never plaintext.
+    const stored = driveShares.find((s) => s.token === token);
+    expect(stored?.password).toBeTruthy();
+    expect(stored?.password).not.toBe('correct-horse-battery');
+    expect(stored?.password).toMatch(/^\$argon2/);
+
+    // Metadata still advertises that a password is required.
+    const meta = await app.inject({ method: 'GET', url: `/drive/public/share/${token}` });
+    expect(JSON.parse(meta.body).file.requiresPassword).toBe(true);
+
+    // No password supplied -> fail closed with 401 and no bytes streamed.
+    const missing = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download`,
+    });
+    expect(missing.statusCode).toBe(401);
+    expect(missing.body).not.toContain('quant-public-streamed-file-content');
+
+    // Wrong password -> 403.
+    const wrong = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download`,
+      headers: { 'x-share-password': 'nope' },
+    });
+    expect(wrong.statusCode).toBe(403);
+
+    // Correct password via header -> streams the file.
+    const okHeader = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download`,
+      headers: { 'x-share-password': 'correct-horse-battery' },
+    });
+    expect(okHeader.statusCode).toBe(200);
+    expect(okHeader.body).toBe('quant-public-streamed-file-content');
+
+    // Correct password via query-param fallback -> also streams the file.
+    const okQuery = await app.inject({
+      method: 'GET',
+      url: `/drive/public/share/${token}/download?password=correct-horse-battery`,
+    });
+    expect(okQuery.statusCode).toBe(200);
+    expect(okQuery.body).toBe('quant-public-streamed-file-content');
+  });
+
   it('revokes public share link when requested by owner', async () => {
     const token = 'revokable_token_1234567890abcdef';
     driveShares.push({

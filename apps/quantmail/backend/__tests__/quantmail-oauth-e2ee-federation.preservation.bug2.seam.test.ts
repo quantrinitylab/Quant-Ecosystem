@@ -677,7 +677,7 @@ describe('Bug 2 preservation baseline — POST /auth/register', () => {
       method: 'POST',
       url: '/auth/register',
       headers: authedHeaders(),
-      payload: { email: 'taken@test.com', username: 'taken', password: 'pw' },
+      payload: { email: 'taken@test.com', username: 'taken', password: 'password123' },
     });
     expect(res.statusCode).toBe(409);
     expect(res.json()).toMatchObject({
@@ -697,7 +697,7 @@ describe('Bug 2 preservation baseline — POST /auth/register', () => {
       method: 'POST',
       url: '/auth/register',
       headers: authedHeaders(),
-      payload: { email: 'new@test.com', username: 'newuser', password: 'pw' },
+      payload: { email: 'new@test.com', username: 'newuser', password: 'password123' },
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
