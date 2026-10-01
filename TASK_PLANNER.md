@@ -3433,3 +3433,17 @@
   - **Domain**: ML Pipeline & Recommendations (`packages/ml-pipeline`, `packages/recommendations`)
   - **Target**: Replace in-memory heuristics with real ONNX runtime embeddings and Qdrant semantic vector queries.
   - **Assigned Developer Agent**: Subagent Track 4 (AI/ML Lead)
+
+### 💎 The 9 Canonical Sovereign Applications Master Matrix
+
+| #   | Application    | Core Domain & Incumbent Overthrow Target     | Key Features & Commercial Reference (`C:\Users\Pc\new`)                                                                                                             | Active Subagent Assignment |
+| --- | -------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| 1   | **QuantMail**  | Google Workspace, Superhuman, GitHub, Proton | 5 Pillars: Mail, Calendar, Drive, CodeHub, Contacts; FastCDC 64KB, 10s undo-send, split inboxes, in-browser code editor. Ref: `BeDrive`, `Booking SaaS`, `EventON`. | Subagent Track A1 & C1     |
+| 2   | **QuantChat**  | WhatsApp, Telegram, Snapchat, Zoom           | Double Ratchet E2EE, ephemeral snaps (410 gone), channels, LiveKit SFU QuantMeet video grid. Ref: `Whoxa App & Chat`, `Chatter`, `Chatzy`.                          | Subagent Track A2 & C2     |
+| 3   | **QuantGram**  | Instagram, BeReal, Threads                   | 9:16 reels, 24h stories with interactive stickers, explore grid, audio notes, social map. Ref: `Shortie`, `Sociogram`, `SnapReels`.                                 | Subagent Track A3 & C3     |
+| 4   | **QuantWave**  | X / Twitter, Reddit                          | Algorithmic "For You" graph, recursive comment trees, communities, anonymous whistleblower space. Ref: `Grupo Chat`, `Orange`.                                      | Subagent Track A4 & C4     |
+| 5   | **QuantAI**    | ChatGPT, Claude Code, Devin                  | Multi-model routing, 3D animated Voice Orb, dual-mode split canvas, BullMQ scheduled tasks, local memory. Ref: `AgentLabs`, `MagicAI`, `FluxGPT`.                   | Subagent Track B1 & B2     |
+| 6   | **QuantAds**   | Meta Ads Manager, Google Ads                 | Redis bitset ad server (<2ms), $eCPM = bid \times pCTR$, GSP auction, 70% creator payouts to wallet. Ref: `ERPGo`, `Nexsas`.                                        | Subagent Track B3          |
+| 7   | **QuantMax**   | TikTok, Tinder, Omegle                       | Spatial matching (PostGIS), Glicko-2 ELO, LiveKit WebRTC random videochat, group party rooms. Ref: `Flirtzy`, `Shortzz`.                                            | Subagent Track B4          |
+| 8   | **QuanTube**   | YouTube, Spotify, DramaBox                   | Adaptive HLS 360p-4K streaming, Web Audio lockscreen music player, AI segment-skipping, creator studio. Ref: `DTTube`, `DTLive`.                                    | Subagent Track B5          |
+| 9   | **QuantCooks** | CapCut, Higgsfield, Figma                    | WebGL2 transition shaders, Web Audio PCM visualizer, AI autonomous auto-edit to auto-post daily workflows. Ref: `Artifism`, `Vizion AI`.                            | Subagent Track A5 & C5     |
