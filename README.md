@@ -22,11 +22,11 @@ The "sub-apps" below are **features inside a host app, not standalone apps**; th
 | **QuantChat** | WhatsApp · Snapchat · Telegram · Discord | QuantMeet (video) | 🟡 scaffolded, deep |
 | **QuantAI** | ChatGPT · Gemini · Notion AI · Perplexity | — | 🟡 scaffolded |
 | **QuantGram** | Instagram · Facebook · Pinterest | — | 🟡 scaffolded |
-| **QuantWave** | X / Twitter · Threads · Reddit | — | 🟡 scaffolded |
+| **QuantWave** | X / Twitter · Threads · Reddit | multiplayer games platform | 🟡 scaffolded |
 | **QuanTube** | YouTube · Bilibili · Spotify | — | 🟡 scaffolded |
 | **QuantMax** | TikTok · Omegle · Tinder | — | 🟡 scaffolded |
 | **QuantCooks** | CapCut · After Effects · Figma · Higgsfield | — | 🟡 scaffolded |
-| **QuantAds** | Meta Ads · Google Ads | multiplayer games platform | 🟡 scaffolded |
+| **QuantAds** | Meta Ads · Google Ads | 🟡 scaffolded |
 
 **Not one of the nine — [QuantTrinity](GOAL.md#the-economy--quant-credits)** is the *economy control-plane* (it tunes credit value, free allowance, commission, plan catalog, and overage defaults). It governs the ecosystem; it is not a consumer product.
 
