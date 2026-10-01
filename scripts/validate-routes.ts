@@ -7,8 +7,9 @@ const APPS_DIR = path.join(ROOT, 'apps');
 // Apps that legitimately have no standard Next.js app-router routes.
 // - marketing: uses pages/ directory pattern
 // - quant-mobile: React Native app (no web routes)
+// - quant-desktop: Tauri / Vite desktop app
 // - status: standalone status service (no frontend routes)
-const EXCLUDED_APPS = new Set(['marketing', 'quant-mobile', 'status']);
+const EXCLUDED_APPS = new Set(['marketing', 'quant-mobile', 'quant-desktop', 'status']);
 
 function findFilesRecursive(dir: string, pattern: RegExp): string[] {
   const results: string[] = [];
@@ -35,12 +36,35 @@ function getAppDirs(): string[] {
 }
 
 function discoverFrontendRoutes(appDir: string): string[] {
+  const routes: string[] = [];
   const appRouterDir = path.join(appDir, 'src', 'app');
-  const pages = findFilesRecursive(appRouterDir, /^page\.(tsx|ts|jsx|js)$/);
-  return pages.map((p) => {
-    const relative = path.relative(appRouterDir, path.dirname(p));
-    return '/' + relative.replace(/\\/g, '/');
-  });
+  if (fs.existsSync(appRouterDir)) {
+    const pages = findFilesRecursive(appRouterDir, /^page\.(tsx|ts|jsx|js)$/);
+    for (const p of pages) {
+      const relative = path.relative(appRouterDir, path.dirname(p));
+      routes.push('/' + relative.replace(/\\/g, '/'));
+    }
+  }
+
+  const pagesRouterDir = path.join(appDir, 'src', 'pages');
+  if (fs.existsSync(pagesRouterDir)) {
+    const pages = findFilesRecursive(pagesRouterDir, /\.(tsx|ts|jsx|js)$/);
+    for (const p of pages) {
+      const fileName = path.basename(p);
+      if (fileName.startsWith('_') || fileName.endsWith('.css')) continue;
+      let relative = path.relative(pagesRouterDir, p).replace(/\\/g, '/');
+      relative = relative.replace(/\.(tsx|ts|jsx|js)$/, '');
+      if (relative === 'index') {
+        routes.push('/');
+      } else if (relative.endsWith('/index')) {
+        routes.push('/' + relative.slice(0, -6));
+      } else {
+        routes.push('/' + relative);
+      }
+    }
+  }
+
+  return Array.from(new Set(routes));
 }
 
 function discoverApiRoutes(appDir: string): string[] {
