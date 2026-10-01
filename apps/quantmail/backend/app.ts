@@ -189,6 +189,27 @@ export async function buildApp(config?: AppConfig) {
 
   const detailedHealthHandler = async () => {
     const memory = process.memoryUsage();
+
+    // Probe Postgres with a lightweight round-trip (mirrors the server-core
+    // readiness probe in plugins/health.ts). Each probe swallows its own failure
+    // so this endpoint reports a disconnected dependency rather than throwing a
+    // 500 — a down database should surface as a signal, not an opaque error.
+    let postgres: 'connected' | 'disconnected' = 'connected';
+    try {
+      const prismaProbe = db as unknown as { $queryRawUnsafe: (query: string) => Promise<unknown> };
+      await prismaProbe.$queryRawUnsafe('SELECT 1');
+    } catch {
+      postgres = 'disconnected';
+    }
+
+    // Redis is owned by @quant/server-core (the rate limiter + the BullMQ
+    // outbound transport) and is not decorated onto this instance, so there is no
+    // live client in scope to ping from here. Report what we can honestly
+    // determine — whether it is configured — instead of fabricating 'connected'.
+    const redis: 'configured' | 'not_configured' = appConfig.redisUrl
+      ? 'configured'
+      : 'not_configured';
+
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
@@ -200,9 +221,9 @@ export async function buildApp(config?: AppConfig) {
         externalBytes: memory.external,
       },
       services: {
-        api: 'connected',
-        postgres: 'connected',
-        redis: 'connected',
+        api: 'ok',
+        postgres,
+        redis,
       },
       version: '1.0.0',
     };
