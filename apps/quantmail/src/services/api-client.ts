@@ -967,7 +967,21 @@ export class QuantMailApiClient {
   async aiSuggestReplies(
     emailId: string,
   ): Promise<ApiResponse<{ emailId: string; suggestions: string[] }>> {
-    return this.get(`/ai/replies/${emailId}`);
+    // The reply-suggestions route lives on the AI router mounted at /emails
+    // (backend/routes/ai.ts: GET /:id/reply-suggestions), not under /ai — the
+    // old GET /ai/replies/:id path was never allow-listed and 404ed, so the UI
+    // silently fell back to canned replies. The backend returns ReplySuggestion[]
+    // ({ content, confidence }); flatten it to the string[] the component renders.
+    const response = await this.get<Array<{ content: string; confidence: number }>>(
+      `/emails/${emailId}/reply-suggestions`,
+    );
+    if (!response.success || !response.data) {
+      return { ...response, data: undefined };
+    }
+    return {
+      ...response,
+      data: { emailId, suggestions: response.data.map((reply) => reply.content) },
+    };
   }
 
   // --------------------------------------------------------------------------
