@@ -290,6 +290,32 @@ describe('Task M15 / Gate 3: Superhuman SQLite FTS5 Wasm Local Email Search Inde
       expect(matchSnippet).toContain('<mark>memory</mark>');
       expect(matchSnippet).toContain('<mark>pressure</mark>');
     });
+
+    it('HTML-escapes attacker-controlled snippet text while still wrapping matches in <mark>', () => {
+      // Stored-XSS regression: a malicious subject/body is indexed locally and the
+      // snippet is later rendered via dangerouslySetInnerHTML. The surrounding text
+      // must be inert; the only markup allowed in the output is our own <mark> tags.
+      indexer.indexEmails([
+        {
+          id: 'xss_doc',
+          threadId: 'th_xss',
+          subject: 'Security Alert',
+          snippet: 'Hello <img src=x onerror=alert(1)> invoice world',
+          bodyText: 'Routine invoice notification body.',
+        },
+      ]);
+
+      const hits = indexer.search('invoice');
+      expect(hits.length).toBe(1);
+      const matchSnippet = hits[0].matchSnippet;
+
+      // The matched term is still highlighted...
+      expect(matchSnippet).toContain('<mark>invoice</mark>');
+      // ...but the attacker's tag is inert text, not a live element.
+      expect(matchSnippet).not.toContain('<img');
+      expect(matchSnippet).toContain('&lt;img');
+      expect(matchSnippet).not.toContain('onerror=alert(1)>');
+    });
   });
 
   describe('5. Prefix Query Wildcard Matching (repo* matching repository)', () => {

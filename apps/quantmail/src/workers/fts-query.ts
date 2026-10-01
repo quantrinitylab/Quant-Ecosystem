@@ -10,6 +10,21 @@
 
 import { EmailRecord } from './fts-schema.js';
 
+/**
+ * Encode text so attacker-controlled snippet content cannot become markup.
+ * The highlighted snippet is rendered via dangerouslySetInnerHTML downstream,
+ * so every character that could open a tag or an entity must be escaped before
+ * we add our own <mark> wrappers. This is an output encoder, not a sanitizer.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;') // first, or every entity below gets double-encoded
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export interface FtsQueryOptions {
   limit?: number;
   offset?: number;
@@ -303,7 +318,7 @@ export class InMemoryFts5Engine {
     const highlightRegex =
       validTokens.length > 0
         ? new RegExp(
-            `(${validTokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
+            `(${validTokens.map((t) => escapeHtml(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`,
             'gi',
           )
         : null;
@@ -378,7 +393,10 @@ export class InMemoryFts5Engine {
   }
 
   private highlightSnippet(text: string, regex: RegExp | null): string {
-    if (!text || !regex) return text || '';
-    return text.replace(regex, '<mark>$1</mark>');
+    // Escape first so the surrounding snippet text is inert; the only markup in
+    // the result is the <mark> wrappers added over the (already-escaped) matches.
+    const safe = escapeHtml(text || '');
+    if (!regex) return safe;
+    return safe.replace(regex, '<mark>$1</mark>');
   }
 }
