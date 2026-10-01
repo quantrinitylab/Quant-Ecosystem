@@ -5,14 +5,20 @@
 // ============================================================================
 import { buildApp, getConfig } from './app.js';
 import { buildWorker } from './worker.js';
+import { ProactiveReminderWorker } from './services/proactive-reminder-worker.service.js';
 
 async function main(): Promise<void> {
   const config = getConfig();
   const app = await buildApp(config);
   const deliveryWorker = buildWorker();
+  // Consume QuantMail's dedicated proactive queue (meeting_reminder jobs). Runs
+  // in-process alongside the delivery worker; no-ops when Redis is unconfigured.
+  const reminderWorker = new ProactiveReminderWorker();
+  reminderWorker.start();
 
   await app.listen({ port: config.port, host: config.host });
   app.log.info('outbound delivery worker started');
+  app.log.info('proactive reminder worker started');
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {
@@ -24,6 +30,7 @@ async function main(): Promise<void> {
       // Stop queue consumption before closing the app and its shared database
       // resources so in-flight delivery state is persisted safely.
       await deliveryWorker.close();
+      await reminderWorker.stop();
       await app.close();
       process.exit(0);
     } catch (error) {

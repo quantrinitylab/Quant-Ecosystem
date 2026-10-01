@@ -1,6 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { TypedQueue, ProactiveAgentJobSchema, type ProactiveAgentJob } from '@quant/queue';
 
+/** Shared cross-app proactive queue. QuantChat is the sole consumer here and
+ * handles ONLY `meeting_call_alert`; keep the call-alert branch on this queue. */
+export const PROACTIVE_SHARED_QUEUE = 'quant:proactive-jobs';
+
+/**
+ * QuantMail-owned proactive queue. Reminders route here (NOT the shared queue)
+ * so this app's reminder worker consumes them without competing with QuantChat
+ * for the shared queue's jobs (BullMQ workers on one queue are competing
+ * consumers — a second consumer on the shared queue would race QuantChat and
+ * could steal call alerts or silently drop reminders).
+ */
+export const PROACTIVE_QUANTMAIL_QUEUE = 'quant:proactive-jobs:quantmail';
+
 export interface CalendarEventReminder {
   type: string;
   minutesBefore: number | null;
@@ -28,33 +41,52 @@ export interface ScheduledCallAlert {
 }
 
 export interface CalendarCallAlertOptions {
+  /** Shared queue for `meeting_call_alert` jobs (consumed by QuantChat). */
   queue?: TypedQueue<ProactiveAgentJob>;
+  /** QuantMail-owned queue for `meeting_reminder` jobs (consumed in-app). */
+  reminderQueue?: TypedQueue<ProactiveAgentJob>;
   redisUrl?: string;
 }
 
 export class CalendarCallAlertService {
   private queue: TypedQueue<ProactiveAgentJob> | null = null;
+  private reminderQueue: TypedQueue<ProactiveAgentJob> | null = null;
   private readonly memoryAlerts = new Map<string, ScheduledCallAlert>();
 
   constructor(options: CalendarCallAlertOptions = {}) {
-    if (options.queue) {
-      this.queue = options.queue;
-    } else {
+    if (options.queue) this.queue = options.queue;
+    if (options.reminderQueue) this.reminderQueue = options.reminderQueue;
+
+    // Build any queue not explicitly injected from the Redis connection. Both
+    // the shared call-alert queue and the QuantMail reminder queue share one
+    // connection but are distinct BullMQ queues with distinct consumers.
+    if (!options.queue || !options.reminderQueue) {
       const url = options.redisUrl || process.env['REDIS_URL'];
       if (url) {
         try {
           const parsed = new URL(url);
-          this.queue = new TypedQueue<ProactiveAgentJob>(
-            'quant:proactive-jobs',
-            ProactiveAgentJobSchema,
-            {
-              host: parsed.hostname || '127.0.0.1',
-              port: parseInt(parsed.port, 10) || 6379,
-              maxRetriesPerRequest: 1,
-            },
-          );
+          const connection = {
+            host: parsed.hostname || '127.0.0.1',
+            port: parseInt(parsed.port, 10) || 6379,
+            maxRetriesPerRequest: 1,
+          };
+          if (!options.queue) {
+            this.queue = new TypedQueue<ProactiveAgentJob>(
+              PROACTIVE_SHARED_QUEUE,
+              ProactiveAgentJobSchema,
+              connection,
+            );
+          }
+          if (!options.reminderQueue) {
+            this.reminderQueue = new TypedQueue<ProactiveAgentJob>(
+              PROACTIVE_QUANTMAIL_QUEUE,
+              ProactiveAgentJobSchema,
+              connection,
+            );
+          }
         } catch {
-          this.queue = null;
+          if (!options.queue) this.queue = null;
+          if (!options.reminderQueue) this.reminderQueue = null;
         }
       }
     }
@@ -117,14 +149,37 @@ export class CalendarCallAlertService {
             },
           };
 
-      if (this.queue) {
-        try {
-          await this.queue.add(isCall ? 'meeting-call-alert' : 'meeting-reminder', jobData, {
-            delay: delayMs,
-            jobId,
-          });
-        } catch {
-          // Fallback to memory tracking
+      if (isCall) {
+        // Call alerts stay on the SHARED queue — QuantChat's proactive
+        // call-worker is the consumer. Untouched by this app's reminder path.
+        if (this.queue) {
+          try {
+            await this.queue.add('meeting-call-alert', jobData, {
+              delay: delayMs,
+              jobId,
+            });
+          } catch {
+            // Fallback to memory tracking
+          }
+        }
+      } else {
+        // Reminders route to the QuantMail-owned queue, consumed by
+        // ProactiveReminderWorker. Durable retry/backoff so a transient worker
+        // or Redis blip doesn't silently drop the reminder.
+        if (this.reminderQueue) {
+          try {
+            await this.reminderQueue.add('meeting-reminder', jobData, {
+              delay: delayMs,
+              jobId,
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 5000 },
+              removeOnComplete: true,
+              removeOnFail: false,
+            });
+          } catch {
+            // Best-effort enqueue; a Redis blip here drops this reminder, but the
+            // deterministic jobId makes a later re-schedule idempotent.
+          }
         }
       }
 
