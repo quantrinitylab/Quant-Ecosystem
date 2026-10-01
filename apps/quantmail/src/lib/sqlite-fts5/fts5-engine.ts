@@ -16,6 +16,7 @@ import { stemWord, tokenizeFts5 } from './porter-stemmer';
 import { FTS5_FIELD_WEIGHTS, FTS5_SNIPPET_MAX_TOKENS } from './schema';
 import type { EmailItem, Fts5SearchOptions, Fts5SearchResponse, Fts5SearchResult } from './types';
 import { normalizeEmailItem } from './types';
+import { escapeHtml } from '../email-body';
 
 interface DocumentRecord {
   id: string;
@@ -626,7 +627,7 @@ export class Fts5Engine {
   private generateSnippet(doc: DocumentRecord, tokens: string[]): string {
     const candidates = [doc.snippet, doc.subject, doc.bodyText].filter(Boolean);
     if (candidates.length === 0 || tokens.length === 0) {
-      return doc.snippet || doc.subject || '';
+      return escapeHtml(doc.snippet || doc.subject || '');
     }
 
     // Find candidate text with earliest or most matches
@@ -648,8 +649,8 @@ export class Fts5Engine {
     }
 
     if (bestMatchIndex === -1) {
-      // No token found in snippet/subject; return default snippet
-      return doc.snippet || doc.subject;
+      // No token found in snippet/subject; return default snippet (escaped, no <mark>)
+      return escapeHtml(doc.snippet || doc.subject || '');
     }
 
     // Extract window of words around bestMatchIndex
@@ -673,12 +674,15 @@ export class Fts5Engine {
     const hasLeading = startWord > 0;
     const hasTrailing = endWord < words.length;
 
-    // Apply <mark> to matched tokens
+    // Apply <mark> to matched tokens. HTML-escape the attacker-controlled word
+    // FIRST so it can never become markup; the only HTML in the output is the
+    // <mark> wrappers added here. The match term is escaped the same way so it
+    // still lands on the escaped text.
     const highlightedWords = windowWords.map((word) => {
-      let marked = word;
+      let marked = escapeHtml(word);
       for (const tok of tokens) {
         if (tok.length < 2) continue;
-        const re = new RegExp(`(${this.escapeRegex(tok)})`, 'gi');
+        const re = new RegExp(`(${this.escapeRegex(escapeHtml(tok))})`, 'gi');
         marked = marked.replace(re, '<mark>$1</mark>');
       }
       return marked;
