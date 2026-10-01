@@ -4,6 +4,7 @@ import type { ContactSuggestion } from '../types';
 
 const CACHE_KEY = 'quant-contact-suggestions';
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const SUGGESTION_LIMIT = 100; // backend caps /contacts/frequent at 100
 
 interface CachedContacts {
   contacts: ContactSuggestion[];
@@ -41,17 +42,21 @@ export function useContactSuggestions(): {
 
     setIsLoading(true);
     try {
-      const response = await apiClient.getContacts({ page: 1 });
+      // The dedicated frequent-contacts endpoint ranks by frequency (then
+      // recency, then name) on the server and isn't capped to a single 20-row
+      // page the way getContacts({ page: 1 }) was.
+      const response = await apiClient.getFrequentContacts(SUGGESTION_LIMIT);
       if (response.success && response.data) {
         const items = Array.isArray(response.data) ? response.data : [];
-        const suggestions: ContactSuggestion[] = items.map((c: any) => ({
+        const suggestions: ContactSuggestion[] = items.map((c) => ({
           email: c.email,
           name: c.name || undefined,
-          avatar: c.avatarUrl || undefined,
-          frequency: c.emailCount ?? c.interactionCount ?? 0,
+          avatar: c.avatar || undefined,
+          frequency: c.frequency ?? 0,
         }));
 
-        // Sort by frequency descending
+        // Already highest-frequency first from the server; this only keeps equal
+        // ranks stable if the transport ever reorders them.
         suggestions.sort((a, b) => (b.frequency ?? 0) - (a.frequency ?? 0));
 
         setContacts(suggestions);
