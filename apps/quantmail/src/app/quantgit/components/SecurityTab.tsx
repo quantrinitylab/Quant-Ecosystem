@@ -195,24 +195,41 @@ export function SecurityTab({
   };
 
   const handleTriggerSecretScan = async () => {
+    const target = repoId || selectedRepo?.id;
+    if (!target) {
+      showToast('Select a repository before running a secret scan.');
+      return;
+    }
     setIsScanningSecrets(true);
-    showToast('Running on-demand repository secret scanning...');
+    showToast('Running on-demand repository secret scanning…');
     try {
-      if (repoId || selectedRepo?.id) {
-        const target = repoId || selectedRepo?.id;
-        await fetch(`/api/repos/${encodeURIComponent(target!)}/security/scan`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scanType: 'secrets' }),
-        }).catch(() => null);
+      const res = await fetch(`/api/repos/${encodeURIComponent(target)}/security/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanType: 'secrets' }),
+      });
+      if (!res.ok) {
+        showToast('Secret scanning is not available for this repository yet.');
+        return;
+      }
+      // Only report counts the backend actually returned — never a canned result.
+      const data = (await res.json().catch(() => null)) as {
+        filesScanned?: number;
+        newLeaks?: number;
+      } | null;
+      if (data && typeof data.filesScanned === 'number' && typeof data.newLeaks === 'number') {
+        showToast(
+          `Secret scan complete: ${data.filesScanned} files analyzed. ${data.newLeaks} new leaked credential${
+            data.newLeaks === 1 ? '' : 's'
+          } found.`,
+        );
+      } else {
+        showToast('Secret scan complete.');
       }
     } catch {
-      // Fallback
+      showToast('Secret scanning is not available for this repository yet.');
     } finally {
-      setTimeout(() => {
-        setIsScanningSecrets(false);
-        showToast('Secret scan complete: 48 files analyzed. 0 new leaked credentials found.');
-      }, 1200);
+      setIsScanningSecrets(false);
     }
   };
 
