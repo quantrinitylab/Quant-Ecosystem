@@ -369,11 +369,6 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
         total: 15 * 1024 ** 3,
         tier: 'FREE',
         percentUsed: 80,
-        breakdown: {
-          documents: 5 * 1024 ** 3,
-          media: 5 * 1024 ** 3,
-          other: 2 * 1024 ** 3,
-        },
       };
 
       const mockApiFetch = vi.fn().mockResolvedValue({
@@ -392,7 +387,6 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
       expect(quota.usedBytes).toBe(12 * 1024 ** 3);
       expect(quota.limitBytes).toBe(15 * 1024 ** 3);
       expect(quota.percentUsed).toBe(80);
-      expect(quota.breakdown?.documents).toBe(5 * 1024 ** 3);
       expect(manager.getWarningStatus()).toBe('warning');
     });
 
@@ -487,17 +481,12 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
   // 4. StorageQuotaBar Static HTML Rendering Tests
   // ==========================================================================
   describe('StorageQuotaBar Component Static Rendering', () => {
-    it('renders normal status (<80%) with segmented progress bar and legend', () => {
+    it('renders normal status (<80%) with a single real usage bar and no breakdown legend', () => {
       const normalQuota: StorageQuotaData = {
         usedBytes: 1.5 * 1024 ** 3,
         limitBytes: 15 * 1024 ** 3,
         tier: 'FREE',
         percentUsed: 10,
-        breakdown: {
-          documents: 0.8 * 1024 ** 3,
-          media: 0.5 * 1024 ** 3,
-          other: 0.2 * 1024 ** 3,
-        },
       };
 
       const html = renderToStaticMarkup(
@@ -510,14 +499,13 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
       expect(html).toContain('data-testid="quota-warning-badge"');
       expect(html).toContain('normal');
       expect(html).toContain('data-testid="upgrade-storage-button"');
-      expect(html).toContain('data-testid="segmented-progress-bar"');
-      expect(html).toContain('data-testid="segment-documents"');
-      expect(html).toContain('data-testid="segment-media"');
-      expect(html).toContain('data-testid="segment-other"');
-      expect(html).toContain('data-testid="quota-breakdown-legend"');
-      expect(html).toContain('data-testid="legend-documents-size"');
-      expect(html).toContain('data-testid="legend-media-size"');
-      expect(html).toContain('data-testid="legend-other-size"');
+      expect(html).toContain('data-testid="storage-usage-bar"');
+      expect(html).toContain('data-testid="storage-usage-fill"');
+      // The fabricated Docs/Media/Other breakdown and legend must be gone.
+      expect(html).not.toContain('data-testid="segment-documents"');
+      expect(html).not.toContain('data-testid="segment-media"');
+      expect(html).not.toContain('data-testid="segment-other"');
+      expect(html).not.toContain('data-testid="quota-breakdown-legend"');
     });
 
     it('renders warning banner when quota usage is 85%', () => {
@@ -526,11 +514,6 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
         limitBytes: 15 * 1024 ** 3,
         tier: 'FREE',
         percentUsed: 85,
-        breakdown: {
-          documents: 6 * 1024 ** 3,
-          media: 5 * 1024 ** 3,
-          other: 1.75 * 1024 ** 3,
-        },
       };
 
       const html = renderToStaticMarkup(
@@ -550,11 +533,6 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
         limitBytes: 15 * 1024 ** 3,
         tier: 'STANDARD',
         percentUsed: 95,
-        breakdown: {
-          documents: 8 * 1024 ** 3,
-          media: 5 * 1024 ** 3,
-          other: 1.25 * 1024 ** 3,
-        },
       };
 
       const html = renderToStaticMarkup(
@@ -568,18 +546,17 @@ describe('DriveAISearch & StorageQuota Architect Test Suite', () => {
       expect(html).not.toContain('data-testid="warning-threshold-banner"');
     });
 
-    it('renders fallback progress segment when breakdown is empty but usage > 0', () => {
-      const quotaNoBreakdown: StorageQuotaData = {
+    it('renders the usage bar fill proportional to real percent used', () => {
+      const quota: StorageQuotaData = {
         usedBytes: 7.5 * 1024 ** 3,
         limitBytes: 15 * 1024 ** 3,
         tier: 'FREE',
         percentUsed: 50,
-        breakdown: { documents: 0, media: 0, other: 0 },
       };
 
-      const html = renderToStaticMarkup(<StorageQuotaBar initialQuota={quotaNoBreakdown} />);
+      const html = renderToStaticMarkup(<StorageQuotaBar initialQuota={quota} />);
 
-      expect(html).toContain('data-testid="segment-used"');
+      expect(html).toContain('data-testid="storage-usage-fill"');
       expect(html).toContain('width:50%');
     });
   });
