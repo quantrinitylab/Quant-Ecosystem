@@ -72,57 +72,65 @@ export async function authRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post('/auth/register', async (request, reply) => {
-    if (!requireTrustedOrigin(request, reply)) return;
-    const { email, username, displayName, password } = request.body as any;
+  fastify.post(
+    '/auth/register',
+    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      if (!requireTrustedOrigin(request, reply)) return;
+      const { email, username, displayName, password } = request.body as any;
 
-    if (!email || !username || !password) {
-      return fail(reply, 400, 'VALIDATION_ERROR', 'Email, username and password are required.');
-    }
+      if (!email || !username || !password) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Email, username and password are required.');
+      }
+      // Mirror /auth/change-password: reject trivially short secrets at the door.
+      if (password.length < 8) {
+        return fail(reply, 400, 'VALIDATION_ERROR', 'Password must be at least 8 characters.');
+      }
 
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email }, { username }] },
-    });
-
-    if (existing) {
-      const takenField = existing.email === email ? 'email' : 'username';
-      return fail(
-        reply,
-        409,
-        'USER_EXISTS',
-        `An account with this ${takenField} already exists. Try signing in instead.`,
-      );
-    }
-
-    const passwordHash = await argon2.hash(password);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        username,
-        displayName: displayName || username,
-        passwordHash,
-        status: 'ACTIVE',
-        emailVerified: true,
-      },
-    });
-
-    // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
-    if (prisma.emailFolder?.createMany) {
-      await prisma.emailFolder.createMany({
-        data: [
-          { userId: user.id, name: 'Inbox', type: 'INBOX' },
-          { userId: user.id, name: 'Sent', type: 'SENT' },
-          { userId: user.id, name: 'Drafts', type: 'DRAFTS' },
-          { userId: user.id, name: 'Archive', type: 'ARCHIVE' },
-          { userId: user.id, name: 'Trash', type: 'TRASH' },
-          { userId: user.id, name: 'Spam', type: 'SPAM' },
-        ],
-        skipDuplicates: true,
+      const existing = await prisma.user.findFirst({
+        where: { OR: [{ email }, { username }] },
       });
-    }
 
-    return reply.send(await issueBrowserSession(tokenService, reply, user));
-  });
+      if (existing) {
+        const takenField = existing.email === email ? 'email' : 'username';
+        return fail(
+          reply,
+          409,
+          'USER_EXISTS',
+          `An account with this ${takenField} already exists. Try signing in instead.`,
+        );
+      }
+
+      const passwordHash = await argon2.hash(password);
+      const user = await prisma.user.create({
+        data: {
+          email,
+          username,
+          displayName: displayName || username,
+          passwordHash,
+          status: 'ACTIVE',
+          emailVerified: true,
+        },
+      });
+
+      // Provision standard mail folders at signup (M10: eliminates per-request upsert overhead)
+      if (prisma.emailFolder?.createMany) {
+        await prisma.emailFolder.createMany({
+          data: [
+            { userId: user.id, name: 'Inbox', type: 'INBOX' },
+            { userId: user.id, name: 'Sent', type: 'SENT' },
+            { userId: user.id, name: 'Drafts', type: 'DRAFTS' },
+            { userId: user.id, name: 'Archive', type: 'ARCHIVE' },
+            { userId: user.id, name: 'Trash', type: 'TRASH' },
+            { userId: user.id, name: 'Spam', type: 'SPAM' },
+          ],
+          skipDuplicates: true,
+        });
+      }
+
+      return reply.send(await issueBrowserSession(tokenService, reply, user));
+    },
+  );
 
   // Cookie-only browser rotation endpoint. Requiring an allowlisted Origin in
   // addition to SameSite=Strict prevents cross-site refresh and logout CSRF.

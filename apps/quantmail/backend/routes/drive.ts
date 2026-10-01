@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import * as argon2 from 'argon2';
 import { AIEngine } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 import {
@@ -1028,13 +1029,18 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       ? new Date(Date.now() + parsed.data.expiresInDays * 86_400_000)
       : null;
 
+    // Store a one-way argon2 digest, never the plaintext. The download endpoint
+    // verifies the supplied password against this hash; the column being set is
+    // also what drives `requiresPassword` in the metadata response.
+    const passwordHash = parsed.data.password ? await argon2.hash(parsed.data.password) : null;
+
     const share = await prisma.driveShare.create({
       data: {
         fileId: file.id,
         createdById: userId,
         token,
         role: parsed.data.role ?? 'viewer',
-        password: parsed.data.password || null,
+        password: passwordHash,
         expiresAt,
       },
     });
@@ -1090,7 +1096,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Params: { token: string } }>(
+  fastify.get<{ Params: { token: string }; Querystring: { password?: string } }>(
     '/drive/public/share/:token/download',
     async (request, reply) => {
       const share = await prisma.driveShare.findUnique({
@@ -1099,6 +1105,33 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       if (!share) throw createAppError('Share link not found', 404, 'SHARE_NOT_FOUND');
       if (share.expiresAt && new Date(share.expiresAt).getTime() < Date.now()) {
         throw createAppError('This share link has expired', 410, 'LINK_EXPIRED');
+      }
+
+      // Enforce the password server-side before any bytes leave the box. The
+      // metadata endpoint only advertises `requiresPassword`; the real gate is
+      // here. Fail closed: a missing or wrong password never streams the file.
+      // The secret is accepted from the `x-share-password` header (preferred,
+      // kept out of URLs/logs) or a `password` query param as a fallback for
+      // plain-navigation downloads.
+      if (share.password) {
+        const headerValue = request.headers['x-share-password'];
+        const supplied =
+          (typeof headerValue === 'string'
+            ? headerValue
+            : Array.isArray(headerValue)
+              ? headerValue[0]
+              : undefined) ?? request.query.password;
+        if (!supplied) {
+          throw createAppError(
+            'This share link requires a password',
+            401,
+            'SHARE_PASSWORD_REQUIRED',
+          );
+        }
+        const valid = await argon2.verify(share.password, supplied).catch(() => false);
+        if (!valid) {
+          throw createAppError('Incorrect share password', 403, 'SHARE_PASSWORD_INVALID');
+        }
       }
 
       const file = await prisma.file.findFirst({
