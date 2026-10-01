@@ -178,7 +178,7 @@ export function CommandPalette() {
               was clipped off-screen below ~1150px of viewport width. */}
           <motion.div
             ref={trapRef}
-            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
+            className="command-palette fixed left-1/2 top-[12%] z-[120] flex max-h-[72vh] w-[calc(100%-1.5rem)] max-w-xl flex-col overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] shadow-[0_20px_60px_rgba(0,0,0,0.7)]"
             role="dialog"
             aria-modal="true"
             aria-label="Command palette"
@@ -187,9 +187,9 @@ export function CommandPalette() {
             exit={{ opacity: 0, scale: 0.98, x: '-50%', y: -6 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
           >
-            <div className="flex items-center gap-3 border-b border-[#282C35] bg-[#111318] px-4 py-3.5">
+            <div className="flex items-center gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3.5">
               <svg
-                className="h-4 w-4 shrink-0 text-[#FF8C42]"
+                className="h-4 w-4 shrink-0 text-[var(--brand-primary)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -205,7 +205,7 @@ export function CommandPalette() {
                 id="command-palette-input"
                 name="commandQuery"
                 ref={inputRef}
-                className="min-w-0 flex-1 bg-transparent text-sm text-[#F5F5F5] placeholder-[#A1A4AC] focus:outline-none"
+                className="min-w-0 flex-1 bg-transparent text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none"
                 type="text"
                 placeholder="Type a command, or jump to a workspace…"
                 value={query}
@@ -219,7 +219,7 @@ export function CommandPalette() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <kbd className="shrink-0 rounded border border-[#282C35] bg-[#16181D] px-1.5 py-0.5 font-mono text-[10px] text-[#A1A4AC]">
+              <kbd className="shrink-0 rounded border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--quant-muted-foreground)]">
                 Esc
               </kbd>
             </div>
@@ -232,7 +232,7 @@ export function CommandPalette() {
               aria-label="Commands"
             >
               {flatOrder.length === 0 && (
-                <p className="py-10 text-center text-xs text-[#A1A4AC]">
+                <p className="py-10 text-center text-xs text-[var(--quant-muted-foreground)]">
                   No commands match &ldquo;{query}&rdquo;
                 </p>
               )}
@@ -251,7 +251,7 @@ export function CommandPalette() {
                   <div
                     id={`command-palette-group-${group.replace(/\s+/g, '-').toLowerCase()}`}
                     role="presentation"
-                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                    className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
                   >
                     {group}
                   </div>
@@ -278,7 +278,7 @@ export function CommandPalette() {
                            not be tab stops. Arrow keys and clicks are unchanged;
                            Tab now has nowhere to go but the query field. */
                         tabIndex={-1}
-                        className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        className={`flex min-h-[44px] w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                           isActive
                             ? 'border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_16px_rgba(255,140,66,0.12)]'
                             : 'border border-transparent hover:bg-white/[0.04]'
@@ -292,8 +292,8 @@ export function CommandPalette() {
                               command.destructive
                                 ? 'text-[#E5484D]'
                                 : isActive
-                                  ? 'text-[#FF8C42]'
-                                  : 'text-[#6B6E76]'
+                                  ? 'text-[var(--brand-primary)]'
+                                  : 'text-[var(--quant-text-muted)]'
                             }`}
                           >
                             <CommandIcon name={command.icon} />
@@ -301,13 +301,15 @@ export function CommandPalette() {
                           <span className="min-w-0">
                             <span
                               className={`block truncate text-xs font-semibold ${
-                                command.destructive ? 'text-[#E5484D]' : 'text-[#F5F5F5]'
+                                command.destructive
+                                  ? 'text-[#E5484D]'
+                                  : 'text-[var(--quant-foreground)]'
                               }`}
                             >
                               {command.label}
                             </span>
                             {command.description && (
-                              <span className="block truncate text-[11px] text-[#A1A4AC]">
+                              <span className="block truncate text-[11px] text-[var(--quant-muted-foreground)]">
                                 {command.description}
                               </span>
                             )}
@@ -318,8 +320,8 @@ export function CommandPalette() {
                           <kbd
                             className={`shrink-0 rounded border px-1.5 py-0.5 font-mono text-[10px] ${
                               isActive
-                                ? 'border-[#FF8C42]/40 bg-[#FF8C42]/15 text-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.15)] font-semibold'
-                                : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC]'
+                                ? 'border-[#FF8C42]/40 bg-[#FF8C42]/15 text-[var(--brand-primary)] shadow-[0_0_8px_rgba(255,140,66,0.15)] font-semibold'
+                                : 'border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)]'
                             }`}
                           >
                             {binding}
@@ -332,19 +334,19 @@ export function CommandPalette() {
               ))}
             </div>
 
-            <footer className="flex items-center justify-between border-t border-[#282C35] bg-[#111318] px-4 py-2 text-[11px] text-[#A1A4AC]">
+            <footer className="flex items-center justify-between border-t border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 text-[11px] text-[var(--quant-muted-foreground)]">
               <span className="flex items-center gap-3">
                 <span>
-                  <kbd className="font-mono text-[#A1A4AC]">↑↓</kbd> navigate
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">↑↓</kbd> navigate
                 </span>
                 <span>
-                  <kbd className="font-mono text-[#A1A4AC]">↵</kbd> run
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">↵</kbd> run
                 </span>
                 <span className="hidden sm:inline">
-                  <kbd className="font-mono text-[#A1A4AC]">esc</kbd> close
+                  <kbd className="font-mono text-[var(--quant-muted-foreground)]">esc</kbd> close
                 </span>
               </span>
-              <span className="text-[10px] font-medium text-[#FF8C42]">
+              <span className="text-[10px] font-medium text-[var(--brand-primary)]">
                 {flatOrder.length} command{flatOrder.length === 1 ? '' : 's'}
               </span>
             </footer>

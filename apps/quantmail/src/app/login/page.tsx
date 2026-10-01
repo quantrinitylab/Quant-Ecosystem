@@ -244,7 +244,7 @@ function LoginForm() {
           </div>
 
           {stage === 'credentials' && contextNotice ? (
-            <div className="mb-5 rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[#FFB875]">
+            <div className="mb-5 rounded-xl border border-[#FF8C42]/30 bg-[#FF8C42]/10 shadow-[0_0_16px_rgba(255,140,66,0.1),inset_0_1px_0_0_rgba(255,255,255,0.06)] px-4 py-3 text-sm text-[var(--brand-accent)]">
               {contextNotice}
             </div>
           ) : null}
@@ -362,7 +362,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {isLoading ? 'Signing in…' : 'Sign in'}
               </button>
@@ -431,7 +431,7 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
+                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
                 {isLoading ? 'Checking…' : 'Verify and sign in'}
               </button>

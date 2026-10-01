@@ -141,7 +141,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       <div className="space-y-6 pt-1">
         {/* Direct Workspace Link */}
         <div>
-          <label className="block text-xs font-semibold text-[#8B949E] mb-1.5">
+          <label className="block text-xs font-semibold text-[var(--quant-text-muted)] mb-1.5">
             Workspace Direct Link
           </label>
           <div className="flex items-center gap-2">
@@ -149,7 +149,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               type="text"
               readOnly
               value={directDocUrl}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs font-mono text-[#C9D1D9] select-all focus:outline-none focus:border-[#FF8C42]"
+              className="flex-1 bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-3 py-2 text-xs font-mono text-[var(--quant-foreground)] select-all focus:outline-none focus:border-[var(--brand-primary)]"
             />
             <Button
               variant="secondary"
@@ -162,10 +162,10 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         </div>
 
         {/* Public Share Token Link (Tasks N12 & D04) */}
-        <div className="p-4 rounded-xl border border-[#30363D] bg-[#161B22] space-y-3">
+        <div className="p-4 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42]">
+              <div className="w-8 h-8 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center text-[var(--brand-primary)]">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -176,14 +176,16 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 </svg>
               </div>
               <div>
-                <p className="text-xs font-semibold text-[#F0F6FC]">Public Share Link</p>
-                <p className="text-[11px] text-[#8B949E]">
+                <p className="text-xs font-semibold text-[var(--quant-foreground)]">
+                  Public Share Link
+                </p>
+                <p className="text-[11px] text-[var(--quant-text-muted)]">
                   Share with anyone outside your workspace with role and expiration
                 </p>
               </div>
             </div>
             {publicShareUrl && (
-              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-medium border border-[#238636] bg-[#238636]/10 text-[#3FB950]">
+              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-medium border border-[var(--quant-success)] bg-[#238636]/10 text-[var(--quant-success)]">
                 Active
               </span>
             )}
@@ -194,7 +196,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <select
                 value={publicRole}
                 onChange={(e) => setPublicRole(e.target.value as 'view' | 'edit')}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
+                className="bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-2.5 py-1.5 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--brand-primary)]"
               >
                 <option value="view">Can View</option>
                 <option value="edit">Can Edit</option>
@@ -202,7 +204,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <select
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(e.target.value as any)}
-                className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-1.5 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
+                className="bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-2.5 py-1.5 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--brand-primary)]"
               >
                 <option value="1d">Expires in 1 day</option>
                 <option value="7d">Expires in 7 days</option>
@@ -225,7 +227,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   type="text"
                   readOnly
                   value={publicShareUrl}
-                  className="flex-1 bg-[#0D1117] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[#3FB950] select-all focus:outline-none"
+                  className="flex-1 bg-[var(--quant-background)] border border-[#238636]/50 rounded-xl px-3 py-2 text-xs font-mono text-[var(--quant-success)] select-all focus:outline-none"
                 />
                 <Button
                   variant="primary"
@@ -243,9 +245,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                   Revoke
                 </Button>
               </div>
-              <p className="text-[11px] text-[#8B949E]">
-                Role: <span className="text-[#F0F6FC] capitalize">{publicRole}</span> • Expiration:{' '}
-                <span className="text-[#F0F6FC]">{expiresIn === 'never' ? 'None' : expiresIn}</span>
+              <p className="text-[11px] text-[var(--quant-text-muted)]">
+                Role:{' '}
+                <span className="text-[var(--quant-foreground)] capitalize">{publicRole}</span> •
+                Expiration:{' '}
+                <span className="text-[var(--quant-foreground)]">
+                  {expiresIn === 'never' ? 'None' : expiresIn}
+                </span>
               </p>
             </div>
           )}
@@ -253,19 +259,21 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
         {/* Invite collaborators */}
         <form onSubmit={handleSendInvite} className="space-y-3">
-          <label className="block text-xs font-semibold text-[#8B949E]">Add Collaborators</label>
+          <label className="block text-xs font-semibold text-[var(--quant-text-muted)]">
+            Add Collaborators
+          </label>
           <div className="flex items-center gap-2">
             <input
               type="email"
               placeholder="teammate@quant.app"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
-              className="flex-1 bg-[#0D1117] border border-[#30363D] rounded-xl px-3 py-2 text-xs text-[#F0F6FC] placeholder-[#6E7681] focus:outline-none focus:border-[#FF8C42]"
+              className="flex-1 bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-3 py-2 text-xs text-[var(--quant-foreground)] placeholder-[var(--quant-text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"
             />
             <select
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as 'viewer' | 'editor' | 'admin')}
-              className="bg-[#0D1117] border border-[#30363D] rounded-xl px-2.5 py-2 text-xs text-[#F0F6FC] focus:outline-none focus:border-[#FF8C42]"
+              className="bg-[var(--quant-background)] border border-[var(--quant-border)] rounded-xl px-2.5 py-2 text-xs text-[var(--quant-foreground)] focus:outline-none focus:border-[var(--brand-primary)]"
             >
               <option value="viewer">Can View</option>
               <option value="editor">Can Edit</option>
@@ -283,43 +291,49 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
         {/* Current Collaborators list */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-[#8B949E]">Collaborators</label>
+          <label className="block text-xs font-semibold text-[var(--quant-text-muted)]">
+            Collaborators
+          </label>
           <div className="space-y-1.5 max-h-40 overflow-y-auto">
-            <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]">
+            <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)]">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-[#FF8C42] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
+                <div className="w-6 h-6 rounded-full bg-[var(--brand-primary)] text-[var(--quant-background)] flex items-center justify-center text-[10px] font-bold">
                   Y
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-[#F0F6FC]">You (Owner)</p>
-                  <p className="text-[10px] text-[#8B949E]">Current session</p>
+                  <p className="text-xs font-medium text-[var(--quant-foreground)]">You (Owner)</p>
+                  <p className="text-[10px] text-[var(--quant-text-muted)]">Current session</p>
                 </div>
               </div>
-              <span className="text-[11px] font-medium text-[#FF8C42]">Owner</span>
+              <span className="text-[11px] font-medium text-[var(--brand-primary)]">Owner</span>
             </div>
 
             {collaborators.map((c, i) => (
               <div
                 key={c.id || i}
-                className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]"
+                className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--quant-background)] border border-[var(--quant-surface-elevated)]"
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[#58A6FF] text-[#0D1117] flex items-center justify-center text-[10px] font-bold">
+                  <div className="w-6 h-6 rounded-full bg-[var(--quant-info)] text-[var(--quant-background)] flex items-center justify-center text-[10px] font-bold">
                     {c.email[0].toUpperCase()}
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-[#F0F6FC]">{c.email}</p>
-                    <p className="text-[10px] text-[#8B949E] capitalize">{c.role}</p>
+                    <p className="text-xs font-medium text-[var(--quant-foreground)]">{c.email}</p>
+                    <p className="text-[10px] text-[var(--quant-text-muted)] capitalize">
+                      {c.role}
+                    </p>
                   </div>
                 </div>
-                <span className="text-[11px] text-[#8B949E] capitalize">{c.role}</span>
+                <span className="text-[11px] text-[var(--quant-text-muted)] capitalize">
+                  {c.role}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-end pt-2 border-t border-[#30363D]">
+        <div className="flex items-center justify-end pt-2 border-t border-[var(--quant-border)]">
           <Button variant="secondary" onClick={onClose} className="text-xs">
             Done
           </Button>

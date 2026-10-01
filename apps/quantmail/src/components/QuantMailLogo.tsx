@@ -467,7 +467,7 @@ export function QuantMailLogo({
 
       {showBadge && unreadCount > 0 && (
         <span className="absolute -top-1 -right-1.5 z-20 pointer-events-none transition-transform duration-200 group-hover:scale-110">
-          <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
+          <span className="relative inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-[#111111] bg-[var(--brand-primary)] rounded-full border border-[var(--quant-background)] shadow-sm">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         </span>
@@ -517,7 +517,7 @@ export function QuantMailLogo({
       onClick={handleClick}
       aria-label={accessibleName}
       title={accessibleName}
-      className={`relative inline-flex items-center justify-center cursor-pointer select-none group outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${className}`}
+      className={`relative inline-flex items-center justify-center cursor-pointer select-none group outline-none rounded-xl focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${className}`}
       // The mark is 36–42px on most surfaces, which is under the 44px floor, and the box
       // is sized in px rather than by a class — so the floor has to be inline too. `max`
       // keeps the 96px empty-state mark from shrinking.

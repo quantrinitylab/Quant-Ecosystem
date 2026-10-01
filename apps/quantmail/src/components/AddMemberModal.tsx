@@ -126,7 +126,7 @@ export function AddMemberModal({
         aria-modal="true"
         aria-labelledby={`${id}-title`}
         aria-describedby={`${id}-description`}
-        className="w-full max-w-lg rounded-t-3xl border border-[#3A404D] bg-[#111318] shadow-[0_24px_80px_rgba(0,0,0,.75)] transition-transform sm:rounded-3xl"
+        className="w-full max-w-lg rounded-t-3xl border border-[var(--quant-border-strong)] bg-[var(--quant-surface)] shadow-[0_24px_80px_rgba(0,0,0,.75)] transition-transform sm:rounded-3xl"
         style={{ transform: `translateY(${dragY}px)` }}
       >
         <div
@@ -146,15 +146,21 @@ export function AddMemberModal({
             setDragY(0);
           }}
         >
-          <span className="h-1 w-10 rounded-full bg-[#3A404D]" aria-hidden="true" />
+          <span
+            className="h-1 w-10 rounded-full bg-[var(--quant-border-strong)]"
+            aria-hidden="true"
+          />
         </div>
 
-        <header className="flex items-start justify-between gap-3 border-b border-[#282C35] px-5 pb-4 sm:pt-5">
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--quant-border)] px-5 pb-4 sm:pt-5">
           <div className="min-w-0">
             <h2 id={`${id}-title`} className="truncate text-lg font-bold text-white">
               Add members
             </h2>
-            <p id={`${id}-description`} className="truncate text-xs text-[#A1A4AC]">
+            <p
+              id={`${id}-description`}
+              className="truncate text-xs text-[var(--quant-muted-foreground)]"
+            >
               Add people to {groupName}
             </p>
           </div>
@@ -162,7 +168,7 @@ export function AddMemberModal({
             type="button"
             onClick={onClose}
             aria-label="Close add-member drawer"
-            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-border)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             ✕
           </button>
@@ -172,7 +178,7 @@ export function AddMemberModal({
           <div>
             <label
               htmlFor={`${id}-email`}
-              className="mb-1.5 block text-xs font-semibold text-[#A1A4AC]"
+              className="mb-1.5 block text-xs font-semibold text-[var(--quant-muted-foreground)]"
             >
               Email address
             </label>
@@ -195,7 +201,7 @@ export function AddMemberModal({
                   }
                 }}
                 placeholder="person@example.com"
-                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[#3A404D] bg-[#090A0C] px-3 text-sm text-white placeholder-[#6B6E76] focus:border-[#FF8C42] focus:outline-none"
+                className="min-h-[44px] min-w-0 flex-1 rounded-xl border border-[var(--quant-border-strong)] bg-[var(--quant-background)] px-3 text-sm text-white placeholder-[var(--quant-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <datalist id={`${id}-suggestions`}>
                 {availableSuggestions.map((item) => (
@@ -207,7 +213,7 @@ export function AddMemberModal({
               <button
                 type="button"
                 onClick={() => addOne()}
-                className="min-h-[44px] rounded-xl border border-[#3A404D] bg-[#282C35] px-4 text-xs font-bold text-white hover:bg-[#3A404D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="min-h-[44px] rounded-xl border border-[var(--quant-border-strong)] bg-[var(--quant-border)] px-4 text-xs font-bold text-white hover:bg-[var(--quant-border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 Add
               </button>
@@ -216,7 +222,7 @@ export function AddMemberModal({
 
           {availableSuggestions.length > 0 && (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#6B6E76]">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--quant-text-muted)]">
                 Suggestions
               </p>
               <div className="flex max-h-28 flex-wrap gap-2 overflow-y-auto">
@@ -225,7 +231,7 @@ export function AddMemberModal({
                     key={item.email}
                     type="button"
                     onClick={() => addOne(item.email)}
-                    className="min-h-[40px] rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[#A1A4AC] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/10 hover:text-[#FF8C42] hover:shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="min-h-[40px] rounded-full border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-[var(--quant-muted-foreground)] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/10 hover:text-[var(--brand-primary)] hover:shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   >
                     {item.name || item.email}
                   </button>
@@ -239,7 +245,7 @@ export function AddMemberModal({
               {pending.map((email) => (
                 <li
                   key={email}
-                  className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[#282C35] bg-[#16181D] px-3"
+                  className="flex min-h-[48px] items-center gap-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3"
                 >
                   <span className="min-w-0 flex-1 truncate text-xs text-white">{email}</span>
                   <button
@@ -248,7 +254,7 @@ export function AddMemberModal({
                       setPending((current) => current.filter((item) => item !== email))
                     }
                     aria-label={`Remove ${email}`}
-                    className="flex size-11 items-center justify-center rounded-xl text-[#A1A4AC] hover:bg-rose-500/10 hover:text-rose-300"
+                    className="flex size-11 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] hover:bg-rose-500/10 hover:text-rose-300"
                   >
                     ✕
                   </button>
@@ -263,18 +269,18 @@ export function AddMemberModal({
             </p>
           )}
 
-          <footer className="flex justify-end gap-2 border-t border-[#282C35] pt-4">
+          <footer className="flex justify-end gap-2 border-t border-[var(--quant-border)] pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] rounded-xl border border-[#282C35] px-4 text-xs font-semibold text-white hover:bg-[#282C35]"
+              className="min-h-[44px] rounded-xl border border-[var(--quant-border)] px-4 text-xs font-semibold text-white hover:bg-[var(--quant-border)]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busy || (!input.trim() && pending.length === 0)}
-              className="min-h-[44px] rounded-xl bg-[#FF8C42] px-5 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A] disabled:opacity-40"
+              className="min-h-[44px] rounded-xl bg-[var(--brand-primary)] px-5 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-40"
             >
               {busy
                 ? 'Adding…'

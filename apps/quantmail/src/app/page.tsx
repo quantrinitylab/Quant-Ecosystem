@@ -184,9 +184,9 @@ function SpamBanner({
   isEmptying: boolean;
 }) {
   return (
-    <div className="mx-3 sm:mx-4 my-2.5 px-3.5 py-2.5 rounded-xl bg-[#12141A] border border-[#282C35] flex items-center justify-between gap-3 text-xs">
+    <div className="mx-3 sm:mx-4 my-2.5 px-3.5 py-2.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-border)] flex items-center justify-between gap-3 text-xs">
       <div className="flex items-center gap-2 text-[#EDEDED] min-w-0">
-        <IconSpam size={15} className="text-[#FF8C42] shrink-0" />
+        <IconSpam size={15} className="text-[var(--brand-primary)] shrink-0" />
         <span className="font-semibold text-xs text-[#EDEDED]">Spam</span>
       </div>
       {spamCount > 0 && (
@@ -194,7 +194,7 @@ function SpamBanner({
           type="button"
           onClick={onEmptySpam}
           disabled={isEmptying}
-          className="shrink-0 text-xs font-semibold text-[#FF8C42] hover:text-[#FF9B5A] disabled:opacity-50 transition-colors"
+          className="shrink-0 text-xs font-semibold text-[var(--brand-primary)] hover:text-[var(--brand-primary-hover)] disabled:opacity-50 transition-colors"
         >
           {isEmptying ? 'Emptying…' : 'Empty Spam now'}
         </button>
@@ -452,7 +452,7 @@ function EmailRow({
             event.stopPropagation();
             onToggleSelect(event);
           }}
-          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           title="Select conversation"
           aria-label={`Select ${groupInfo?.name ?? thread.participantsSummary}`}
         >
@@ -475,11 +475,11 @@ function EmailRow({
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
-              <strong className="truncate text-[#F5F5F5] font-semibold">
+              <strong className="truncate text-[var(--quant-foreground)] font-semibold">
                 {groupInfo?.name ?? thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
+                <span className="px-1.5 py-0.2 rounded-full bg-[var(--quant-border)] text-[10px] font-mono text-[var(--quant-muted-foreground)] shrink-0">
                   {thread.count}
                 </span>
               )}
@@ -493,12 +493,12 @@ function EmailRow({
             {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
             <time>{formatReceivedAt(thread.receivedAt)}</time>
           </div>
-          <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
+          <h3 className="text-xs sm:text-sm font-medium text-[var(--quant-muted-foreground)] truncate">
             {groupInfo && thread.subject.toLowerCase() === `[group] ${groupInfo.name.toLowerCase()}`
               ? sanitizeSnippetText(email.snippet || email.bodyText) || '(no subject)'
               : sanitizeSnippetText(thread.subject) || '(no subject)'}
           </h3>
-          <p className="text-xs text-[#A1A4AC] truncate">
+          <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
             {sanitizeSnippetText(email.snippet || email.bodyText)}
           </p>
         </div>
@@ -535,7 +535,7 @@ function EmailRow({
         {isSpamMode && onRescueSpam && (
           <button
             type="button"
-            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[#FF8C42] hover:text-[#FFB875] border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_12px_rgba(255,140,66,0.1)] text-xs font-semibold transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] z-10"
+            className="flex items-center gap-1.5 shrink-0 px-2.5 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[var(--brand-primary)] hover:text-[var(--brand-accent)] border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_0_12px_rgba(255,140,66,0.1)] text-xs font-semibold transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] z-10"
             onClick={(event) => {
               event.stopPropagation();
               onRescueSpam();
@@ -560,7 +560,7 @@ function EmailRow({
         {isSpamMode && !isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[var(--quant-muted-foreground)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             onClick={(event) => {
               event.stopPropagation();
               void onDelete();
@@ -600,7 +600,7 @@ function EmailRow({
               }
               triggerLabel={`More actions for conversation with ${thread.participantsSummary}`}
               triggerTitle="More actions"
-              triggerClassName="flex items-center justify-center p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-[#282C35]/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              triggerClassName="flex items-center justify-center p-1.5 rounded-xl min-h-[44px] min-w-[44px] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[#282C35]/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               menuLabel="Conversation actions"
               open={showRowMenu}
               onOpenChange={setShowRowMenu}
@@ -616,7 +616,7 @@ function EmailRow({
                       close();
                       onToggleStar(e);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] hover:text-[#FF8C42] rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--brand-primary)] rounded-lg transition-colors text-left"
                   >
                     <svg
                       className="size-3.5 shrink-0"
@@ -640,7 +640,7 @@ function EmailRow({
                       if (thread.isRead) onMarkUnread();
                       else onMarkRead();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] rounded-lg transition-colors text-left"
                   >
                     <svg
                       className="size-3.5 shrink-0"
@@ -663,7 +663,7 @@ function EmailRow({
                       close();
                       setShowSnoozeMenu(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] rounded-lg transition-colors text-left"
                   >
                     <svg
                       className="size-3.5 shrink-0"
@@ -686,7 +686,7 @@ function EmailRow({
                       close();
                       void onArchive();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] rounded-lg transition-colors text-left"
                   >
                     <MailIcon name="archive" className="size-3.5 shrink-0" />
                     <span>Archive</span>
@@ -724,7 +724,7 @@ function EmailRow({
         {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15"
+            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] text-[var(--brand-primary)] fill-[var(--brand-primary)] bg-[#FF8C42]/15"
             onClick={onToggleStar}
             aria-label="Unpin email"
             aria-pressed={true}
@@ -889,7 +889,7 @@ function GroupChip({
   const count = group.emails.length;
   const accent = group.color ?? GROUP_ACCENT_DEFAULT;
   return (
-    <span className="shrink-0 inline-flex items-stretch rounded-full bg-[#111318] border border-[#282C35] overflow-hidden">
+    <span className="shrink-0 inline-flex items-stretch rounded-full bg-[var(--quant-surface)] border border-[var(--quant-border)] overflow-hidden">
       <button
         type="button"
         onClick={onCompose}
@@ -909,7 +909,7 @@ function GroupChip({
             ? `${group.name} has no members yet — add some to write to it`
             : `Write to ${group.name}: ${group.emails.slice(0, 4).join(', ')}${count > 4 ? `, +${count - 4} more` : ''}`
         }
-        className="min-h-touch pl-3 pr-2.5 inline-flex items-center gap-2 text-xs font-medium text-[#F5F5F5] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+        className="min-h-touch pl-3 pr-2.5 inline-flex items-center gap-2 text-xs font-medium text-[var(--quant-foreground)] hover:bg-[var(--quant-border)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
       >
         <span
           aria-hidden="true"
@@ -917,15 +917,17 @@ function GroupChip({
           style={{ background: accent }}
         />
         <span className="max-w-[10rem] truncate">{group.name}</span>
-        <span className="text-[11px] font-semibold text-[#A1A4AC] tabular-nums">{count}</span>
+        <span className="text-[11px] font-semibold text-[var(--quant-muted-foreground)] tabular-nums">
+          {count}
+        </span>
       </button>
-      <span aria-hidden="true" className="w-px bg-[#282C35]" />
+      <span aria-hidden="true" className="w-px bg-[var(--quant-border)]" />
       <button
         type="button"
         onClick={onEdit}
         aria-label={`Edit group ${group.name}`}
         title={`Edit ${group.name}`}
-        className="w-11 min-h-touch inline-flex items-center justify-center text-[#A1A4AC] hover:text-[#FF8C42] hover:bg-[#1C1F26] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+        className="w-11 min-h-touch inline-flex items-center justify-center text-[var(--quant-muted-foreground)] hover:text-[var(--brand-primary)] hover:bg-[var(--quant-border)] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
       >
         <svg
           className="size-3.5"
@@ -969,14 +971,14 @@ function ArchivedFolderRow({
       type="button"
       onClick={onToggle}
       aria-expanded={isViewing}
-      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[#111318] hover:bg-[#16181D] border-b border-[#282C35] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-inset"
+      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-4 py-3 bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-border)] transition-colors select-none group text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-inset"
     >
       <span className="flex items-center gap-3 min-w-0">
-        <span className="size-8 shrink-0 rounded-full bg-[#16181D] border border-[#282C35] flex items-center justify-center text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">
+        <span className="size-8 shrink-0 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] flex items-center justify-center text-[var(--quant-muted-foreground)] group-hover:text-[var(--brand-primary)] transition-colors">
           <MailIcon name={isViewing ? 'mail' : 'archive'} className="size-4" />
         </span>
         <span className="flex flex-col min-w-0">
-          <span className="text-sm font-semibold text-[#F5F5F5] truncate">
+          <span className="text-sm font-semibold text-[var(--quant-foreground)] truncate">
             {isViewing ? 'Back to inbox' : 'Archived'}
           </span>
           {/*
@@ -985,14 +987,14 @@ function ArchivedFolderRow({
             reads as the quieter of the two lines because the line above it is
             larger and semibold.
           */}
-          <span className="text-[11px] text-[#A1A4AC] truncate">
+          <span className="text-[11px] text-[var(--quant-muted-foreground)] truncate">
             {isViewing
               ? `Viewing archived ${categoryLabel}`
               : `${count} archived conversation${count === 1 ? '' : 's'}`}
           </span>
         </span>
       </span>
-      <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30 shadow-[0_0_10px_rgba(255,140,66,0.12)]">
+      <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full bg-[#FF8C42]/15 text-[var(--brand-primary)] border border-[#FF8C42]/30 shadow-[0_0_10px_rgba(255,140,66,0.12)]">
         {count}
       </span>
     </button>
@@ -2495,7 +2497,7 @@ export default function InboxPage() {
            * subtree into the positioned layer, where the z-indexes mean what
            * they say. Any popover added to this row inherits the fix.
            */}
-          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md">
+          <div className="relative z-30 flex items-center gap-2 py-2 px-3 sm:px-4 border-b border-[var(--quant-border)] bg-[#090A0C]/95 backdrop-blur-md">
             {/*
               One pill holds the four lenses and the spam link, because they are
               one row of destinations to a reader. The tablist is a nested group
@@ -2503,7 +2505,7 @@ export default function InboxPage() {
               tablist containing something that is not a tab is a widget a screen
               reader cannot describe. The hairline says the last chip leaves.
             */}
-            <div className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[#111318] border border-[#282C35] overflow-x-auto no-scrollbar select-none">
+            <div className="flex-1 min-w-0 flex items-center gap-1 p-1 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-border)] overflow-x-auto no-scrollbar select-none">
               <div
                 role="tablist"
                 aria-label="Conversation lens"
@@ -2540,10 +2542,10 @@ export default function InboxPage() {
                       aria-label={`${lens.label}${badgeCount !== null ? ` (${badgeCount})` : ''}`}
                       onClick={() => selectLens(lens.key)}
                       onKeyDown={(event) => onLensKeyDown(event, index)}
-                      className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                      className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                         isActive
-                          ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                          : 'border border-white/[0.07] bg-white/[0.02] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.05] hover:border-white/[0.12]'
+                          ? 'bg-[#FF8C42]/12 text-[var(--brand-primary)] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                          : 'border border-white/[0.07] bg-white/[0.02] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.05] hover:border-white/[0.12]'
                       }`}
                     >
                       <span>{lens.label}</span>
@@ -2551,10 +2553,10 @@ export default function InboxPage() {
                         <span
                           className={`text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight ${
                             isActive
-                              ? 'bg-[#FF8C42]/20 text-[#FF9B5A]'
+                              ? 'bg-[#FF8C42]/20 text-[var(--brand-primary-hover)]'
                               : hasUnread
-                                ? 'bg-[#FF8C42]/15 text-[#FF9B5A] border border-[#FF8C42]/30'
-                                : 'bg-[#090A0C] text-[#A1A4AC] border border-[#282C35]'
+                                ? 'bg-[#FF8C42]/15 text-[var(--brand-primary-hover)] border border-[#FF8C42]/30'
+                                : 'bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] border border-[var(--quant-border)]'
                           }`}
                         >
                           {badgeCount}
@@ -2587,16 +2589,16 @@ export default function InboxPage() {
                     ? `Filter conversations, ${narrowingCount} active`
                     : 'Filter conversations'
                 }
-                className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                className={`inline-flex items-center justify-center gap-1.5 px-3 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-full text-xs font-medium border whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                   narrowingCount > 0 || isFilterMenuOpen
-                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                    : 'bg-[#111318] text-[#A1A4AC] border-white/[0.08] hover:text-[#F5F5F5] hover:bg-white/[0.04] hover:border-white/[0.14]'
+                    ? 'bg-[#FF8C42]/12 text-[var(--brand-primary)] border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'bg-[var(--quant-surface)] text-[var(--quant-muted-foreground)] border-white/[0.08] hover:text-[var(--quant-foreground)] hover:bg-white/[0.04] hover:border-white/[0.14]'
                 }`}
               >
                 <IconFilter size={14} />
                 <span className="hidden sm:inline">Filter</span>
                 {narrowingCount > 0 && (
-                  <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[#FF9B5A]">
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full font-semibold leading-tight bg-[#FF8C42]/20 text-[var(--brand-primary-hover)]">
                     {narrowingCount}
                   </span>
                 )}
@@ -2620,7 +2622,7 @@ export default function InboxPage() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ duration: 0.14 }}
-                    className="absolute right-0 top-full mt-2 z-30 w-72 rounded-2xl bg-[#16181D] border border-[#282C35] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
+                    className="absolute right-0 top-full mt-2 z-30 w-72 rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shadow-[0_4px_16px_rgba(0,0,0,0.6)] overflow-hidden"
                   >
                     {/*
                       Two groups, two indicator shapes: a circle for the one-of
@@ -2636,7 +2638,7 @@ export default function InboxPage() {
                     */}
                     <p
                       id={turnGroupLabelId}
-                      className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+                      className="px-3 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
                     >
                       Whose turn
                     </p>
@@ -2656,26 +2658,28 @@ export default function InboxPage() {
                             title={turn.hint}
                             onClick={() => selectTurn(turn.key)}
                             onKeyDown={(event) => onTurnKeyDown(event, index)}
-                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[var(--quant-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                           >
                             <span
                               aria-hidden="true"
                               className={`size-[18px] shrink-0 rounded-full border inline-flex items-center justify-center transition-colors ${
-                                isOn ? 'border-[#FF8C42]' : 'border-[#3A404D]'
+                                isOn
+                                  ? 'border-[var(--brand-primary)]'
+                                  : 'border-[var(--quant-border-strong)]'
                               }`}
                             >
                               <span
                                 className={`size-2 rounded-full transition-colors ${
-                                  isOn ? 'bg-[#FF8C42]' : 'bg-transparent'
+                                  isOn ? 'bg-[var(--brand-primary)]' : 'bg-transparent'
                                 }`}
                               />
                             </span>
                             <span
-                              className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                              className={`flex-1 truncate ${isOn ? 'text-[var(--quant-foreground)] font-semibold' : 'text-[var(--quant-muted-foreground)]'}`}
                             >
                               {turn.label}
                             </span>
-                            <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                            <span className="shrink-0 text-[10px] font-semibold text-[var(--quant-muted-foreground)]">
                               {turnCounts[turn.key]}
                             </span>
                           </button>
@@ -2684,7 +2688,7 @@ export default function InboxPage() {
                     </div>
                     <p
                       id={filterGroupLabelId}
-                      className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC] border-t border-[#282C35]"
+                      className="mt-1 px-3 pt-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)] border-t border-[var(--quant-border)]"
                     >
                       Narrow this view
                     </p>
@@ -2712,24 +2716,24 @@ export default function InboxPage() {
                             role="checkbox"
                             aria-checked={isOn}
                             onClick={() => toggleFilter(filter.key)}
-                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                            className="w-full min-h-[44px] px-3 flex items-center gap-2.5 text-left text-xs transition-colors hover:bg-[var(--quant-border)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                           >
                             <span
                               aria-hidden="true"
                               className={`size-[18px] shrink-0 rounded-md border inline-flex items-center justify-center transition-colors ${
                                 isOn
-                                  ? 'bg-[#FF8C42] border-[#FF8C42] text-[#090A0C]'
-                                  : 'border-[#3A404D] text-transparent'
+                                  ? 'bg-[var(--brand-primary)] border-[var(--brand-primary)] text-[var(--quant-background)]'
+                                  : 'border-[var(--quant-border-strong)] text-transparent'
                               }`}
                             >
                               <IconCheck size={12} strokeWidth={2.4} />
                             </span>
                             <span
-                              className={`flex-1 truncate ${isOn ? 'text-[#F5F5F5] font-semibold' : 'text-[#A1A4AC]'}`}
+                              className={`flex-1 truncate ${isOn ? 'text-[var(--quant-foreground)] font-semibold' : 'text-[var(--quant-muted-foreground)]'}`}
                             >
                               {filter.label}
                             </span>
-                            <span className="shrink-0 text-[10px] font-semibold text-[#A1A4AC]">
+                            <span className="shrink-0 text-[10px] font-semibold text-[var(--quant-muted-foreground)]">
                               {filterCounts[filter.key]}
                             </span>
                           </button>
@@ -2744,7 +2748,7 @@ export default function InboxPage() {
                           setActiveFilters(new Set());
                           setIsFilterMenuOpen(false);
                         }}
-                        className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[#A1A4AC] border-t border-[#282C35] transition-colors hover:bg-[#1C1F26] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
+                        className="w-full min-h-[44px] px-3 flex items-center gap-2 text-left text-xs font-semibold text-[var(--quant-muted-foreground)] border-t border-[var(--quant-border)] transition-colors hover:bg-[var(--quant-border)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                       >
                         <IconX size={13} />
                         {/*
@@ -2771,10 +2775,10 @@ export default function InboxPage() {
                 animate={{ height: pullDistance > 0 ? pullDistance : 42, opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.18 }}
-                className="overflow-hidden flex items-center justify-center gap-2.5 text-xs font-semibold text-[#FF8C42] bg-[#FF8C42]/10 border-b border-[#FF8C42]/20 py-2 select-none"
+                className="overflow-hidden flex items-center justify-center gap-2.5 text-xs font-semibold text-[var(--brand-primary)] bg-[#FF8C42]/10 border-b border-[#FF8C42]/20 py-2 select-none"
               >
                 <div
-                  className={`size-4 rounded-full border-2 border-[#FF8C42] border-t-transparent ${
+                  className={`size-4 rounded-full border-2 border-[var(--brand-primary)] border-t-transparent ${
                     isRefreshing ? 'animate-spin' : ''
                   }`}
                   style={{
@@ -2853,11 +2857,14 @@ export default function InboxPage() {
               </div>
             )}
             {!isLoading && !isSearching && !error && showGroupsView && (
-              <section aria-label="Your groups" className="w-full border-b border-[#282C35]">
-                <header className="flex items-center justify-between gap-3 border-b border-[#282C35] bg-[#0B0C0F] px-4 py-3">
+              <section
+                aria-label="Your groups"
+                className="w-full border-b border-[var(--quant-border)]"
+              >
+                <header className="flex items-center justify-between gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-4 py-3">
                   <div>
-                    <h2 className="text-sm font-bold text-[#F5F5F5]">Groups</h2>
-                    <p className="mt-0.5 text-[11px] text-[#A1A4AC]">
+                    <h2 className="text-sm font-bold text-[var(--quant-foreground)]">Groups</h2>
+                    <p className="mt-0.5 text-[11px] text-[var(--quant-muted-foreground)]">
                       Open an existing conversation or start a new group chat.
                     </p>
                   </div>
@@ -2865,7 +2872,7 @@ export default function InboxPage() {
                   <button
                     type="button"
                     onClick={() => setGroupEditorTarget('new')}
-                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-[#FF8C42] px-3.5 text-xs font-bold text-[#090A0C] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+                    className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl bg-[var(--brand-primary)] px-3.5 text-xs font-bold text-[var(--quant-background)] transition-colors hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
                   >
                     <span aria-hidden="true" className="text-base leading-none">
                       +
@@ -2888,14 +2895,16 @@ export default function InboxPage() {
                   </div>
                 ) : groupsError ? (
                   <div className="px-6 py-14 text-center">
-                    <h3 className="text-sm font-bold text-[#F5F5F5]">Groups could not be loaded</h3>
-                    <p className="mt-1 text-xs text-[#A1A4AC]">
+                    <h3 className="text-sm font-bold text-[var(--quant-foreground)]">
+                      Groups could not be loaded
+                    </h3>
+                    <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
                       Your saved groups are safe. Try again in a moment.
                     </p>
                   </div>
                 ) : savedGroups.length === 0 ? (
                   <div className="flex min-h-[320px] flex-col items-center justify-center px-6 text-center">
-                    <div className="flex size-14 items-center justify-center rounded-full border border-[#282C35] bg-[#16181D] text-[#FF8C42]">
+                    <div className="flex size-14 items-center justify-center rounded-full border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] text-[var(--brand-primary)]">
                       <svg
                         className="size-6"
                         viewBox="0 0 24 24"
@@ -2911,24 +2920,27 @@ export default function InboxPage() {
                       </svg>
                     </div>
 
-                    <h3 className="mt-4 text-base font-bold text-[#F5F5F5]">
+                    <h3 className="mt-4 text-base font-bold text-[var(--quant-foreground)]">
                       Create your first group
                     </h3>
 
-                    <p className="mt-1 max-w-sm text-xs leading-5 text-[#A1A4AC]">
+                    <p className="mt-1 max-w-sm text-xs leading-5 text-[var(--quant-muted-foreground)]">
                       Save a set of addresses and keep every message in one unified conversation.
                     </p>
 
                     <button
                       type="button"
                       onClick={() => setGroupEditorTarget('new')}
-                      className="mt-5 min-h-[44px] rounded-xl bg-[#FF8C42] px-5 text-xs font-bold text-[#090A0C] hover:bg-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="mt-5 min-h-[44px] rounded-xl bg-[var(--brand-primary)] px-5 text-xs font-bold text-[var(--quant-background)] hover:bg-[var(--brand-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     >
                       + New group
                     </button>
                   </div>
                 ) : (
-                  <ul role="list" className="m-0 list-none divide-y divide-[#282C35] p-0">
+                  <ul
+                    role="list"
+                    className="m-0 list-none divide-y divide-[var(--quant-border)] p-0"
+                  >
                     {savedGroups.map((group) => {
                       const matchingThread = findGroupThread(group);
                       const latestMessage = matchingThread?.latestEmail;
@@ -2937,7 +2949,7 @@ export default function InboxPage() {
 
                       return (
                         <li key={group.id}>
-                          <div className="group flex min-h-[78px] items-center gap-3 bg-[#111318] px-3 py-2 transition-colors hover:bg-[#16181D] sm:px-4">
+                          <div className="group flex min-h-[78px] items-center gap-3 bg-[var(--quant-surface)] px-3 py-2 transition-colors hover:bg-[var(--quant-surface-elevated)] sm:px-4">
                             <button
                               type="button"
                               onClick={() => {
@@ -2947,7 +2959,7 @@ export default function InboxPage() {
                                   setQuickGroupChatTarget(group);
                                 }
                               }}
-                              className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              className="flex min-h-[60px] min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                               aria-label={
                                 matchingThread
                                   ? `Open ${group.name} group conversation`
@@ -2956,7 +2968,7 @@ export default function InboxPage() {
                             >
                               <span className="relative shrink-0">
                                 <span
-                                  className="flex size-12 items-center justify-center rounded-full text-sm font-black text-[#090A0C]"
+                                  className="flex size-12 items-center justify-center rounded-full text-sm font-black text-[var(--quant-background)]"
                                   style={{ backgroundColor: accent }}
                                   aria-hidden="true"
                                 >
@@ -2970,25 +2982,25 @@ export default function InboxPage() {
                                     .toUpperCase()}
                                 </span>
 
-                                <span className="absolute -bottom-1 -right-1 flex min-w-5 items-center justify-center rounded-full border-2 border-[#111318] bg-[#282C35] px-1 text-[9px] font-bold text-[#F5F5F5]">
+                                <span className="absolute -bottom-1 -right-1 flex min-w-5 items-center justify-center rounded-full border-2 border-[var(--quant-surface)] bg-[var(--quant-border)] px-1 text-[9px] font-bold text-[var(--quant-foreground)]">
                                   {memberCount}
                                 </span>
                               </span>
 
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center justify-between gap-3">
-                                  <strong className="truncate text-sm text-[#F5F5F5]">
+                                  <strong className="truncate text-sm text-[var(--quant-foreground)]">
                                     {group.name}
                                   </strong>
 
                                   {matchingThread && (
-                                    <time className="shrink-0 text-[10px] text-[#A1A4AC]">
+                                    <time className="shrink-0 text-[10px] text-[var(--quant-muted-foreground)]">
                                       {formatReceivedAt(matchingThread.receivedAt)}
                                     </time>
                                   )}
                                 </span>
 
-                                <span className="mt-0.5 block truncate text-xs text-[#A1A4AC]">
+                                <span className="mt-0.5 block truncate text-xs text-[var(--quant-muted-foreground)]">
                                   {matchingThread
                                     ? sanitizeSnippetText(
                                         latestMessage?.snippet ||
@@ -3006,7 +3018,7 @@ export default function InboxPage() {
                               type="button"
                               onClick={() => setGroupEditorTarget(group)}
                               aria-label={`Edit group ${group.name}`}
-                              className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                              className="flex size-11 shrink-0 items-center justify-center rounded-xl text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-border)] hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                             >
                               <svg
                                 className="size-4"
@@ -3032,12 +3044,12 @@ export default function InboxPage() {
                 {unmatchedGroupThreads.length > 0 && (
                   <section
                     aria-labelledby="other-group-conversations-title"
-                    className="border-t border-[#282C35]"
+                    className="border-t border-[var(--quant-border)]"
                   >
                     <div
                       role="list"
                       aria-label="Other group conversations"
-                      className="divide-y divide-[#282C35]"
+                      className="divide-y divide-[var(--quant-border)]"
                     >
                       {unmatchedGroupThreads.map((thread) => {
                         const displayIndex = displayThreads.findIndex(
@@ -3110,11 +3122,11 @@ export default function InboxPage() {
                     </div>
                   ) : activeLens === 'snoozed' && narrowingCount === 0 ? (
                     <div className="mail-empty py-12 px-4 text-center space-y-3">
-                      <div className="size-12 rounded-full bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-[#FF8C42] shadow-[0_0_20px_rgba(255,140,66,0.15)] flex items-center justify-center mx-auto mb-1">
+                      <div className="size-12 rounded-full bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-[var(--brand-primary)] shadow-[0_0_20px_rgba(255,140,66,0.15)] flex items-center justify-center mx-auto mb-1">
                         <MailIcon name="clock" className="size-6" />
                       </div>
                       <h3 className="text-base font-bold text-white">Nothing snoozed right now</h3>
-                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
                         Conversations you snooze will wait here until their wake time.
                       </p>
                       <div className="pt-2 flex justify-center">
@@ -3125,7 +3137,7 @@ export default function InboxPage() {
                     </div>
                   ) : activeLens === 'spam' && narrowingCount === 0 ? (
                     <div className="mail-empty py-12 px-4 text-center space-y-3">
-                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                      <div className="size-12 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] flex items-center justify-center mx-auto mb-1">
                         <IconSpam size={22} />
                       </div>
                       <h3 className="text-base font-bold text-white">No spam messages</h3>
@@ -3149,11 +3161,13 @@ export default function InboxPage() {
                         </svg>
                       </div>
                       <h3 className="text-base font-bold text-white">All caught up!</h3>
-                      <p className="text-xs text-[#A1A4AC]">Zero unread messages in your inbox.</p>
+                      <p className="text-xs text-[var(--quant-muted-foreground)]">
+                        Zero unread messages in your inbox.
+                      </p>
                     </div>
                   ) : activeLens === 'contacts' && narrowingCount === 0 ? (
                     <div className="mail-empty py-12 px-4 text-center space-y-3">
-                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                      <div className="size-12 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] flex items-center justify-center mx-auto mb-1">
                         <svg
                           className="size-6"
                           viewBox="0 0 24 24"
@@ -3173,7 +3187,7 @@ export default function InboxPage() {
                           ? 'No saved contacts yet'
                           : 'No conversations with contacts yet'}
                       </h3>
-                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
                         {contactDirectory && contactDirectory.size === 0
                           ? 'Save someone to your address book and their conversations collect here.'
                           : 'Messages from people in your address book will appear here.'}
@@ -3186,11 +3200,11 @@ export default function InboxPage() {
                     </div>
                   ) : activeLens !== 'all' || narrowingCount > 0 ? (
                     <div className="mail-empty py-12 px-4 text-center space-y-2">
-                      <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-1">
+                      <div className="size-12 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] flex items-center justify-center mx-auto mb-1">
                         <IconFilter size={22} />
                       </div>
                       <h3 className="text-base font-bold text-white">Nothing in this view</h3>
-                      <p className="text-xs text-[#A1A4AC] max-w-xs mx-auto">
+                      <p className="text-xs text-[var(--quant-muted-foreground)] max-w-xs mx-auto">
                         {activeTurn === 'needs_you'
                           ? 'Nothing here is on your turn — no one is waiting on a reply from you.'
                           : activeTurn === 'waiting'
@@ -3251,7 +3265,7 @@ export default function InboxPage() {
                   {showPinnedNotice && (
                     <p className="mail-pinned-notice">
                       <svg
-                        className="size-3.5 shrink-0 text-[#FF8C42]"
+                        className="size-3.5 shrink-0 text-[var(--brand-primary)]"
                         viewBox="0 0 24 24"
                         fill="currentColor"
                         stroke="currentColor"
@@ -3281,7 +3295,7 @@ export default function InboxPage() {
                         <button
                           type="button"
                           onClick={() => selectTurn('any')}
-                          className="relative font-semibold text-[#FF8C42] underline decoration-dotted underline-offset-2 hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] rounded after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
+                          className="relative font-semibold text-[var(--brand-primary)] underline decoration-dotted underline-offset-2 hover:text-[var(--brand-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] rounded after:absolute after:-inset-y-[13px] after:-inset-x-[10px] after:content-['']"
                         >
                           Show both sides
                         </button>
@@ -3410,12 +3424,12 @@ export default function InboxPage() {
       {/* WhatsApp-Style Quick Group Chat Modal */}
       {quickGroupChatTarget !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-lg bg-[#121622] border border-[#3A404D]/80 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.7)] flex flex-col">
+          <div className="w-full max-w-lg bg-[var(--quant-surface)] border border-[#3A404D]/80 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.7)] flex flex-col">
             {/* Header with WhatsApp-style group info */}
-            <div className="flex items-center justify-between gap-3 p-4 bg-[#16181D] border-b border-[#282C35]">
+            <div className="flex items-center justify-between gap-3 p-4 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-border)]">
               <div className="flex items-center gap-3 min-w-0">
                 <div
-                  className="size-11 rounded-full flex items-center justify-center text-[#111318] font-bold shrink-0 shadow"
+                  className="size-11 rounded-full flex items-center justify-center text-[var(--quant-surface)] font-bold shrink-0 shadow"
                   style={{ background: quickGroupChatTarget.color ?? '#FF8C42' }}
                 >
                   <svg
@@ -3435,7 +3449,7 @@ export default function InboxPage() {
                   <h3 className="text-sm font-bold text-white truncate">
                     {quickGroupChatTarget.name}
                   </h3>
-                  <p className="text-[11px] text-[#A1A4AC] truncate">
+                  <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate">
                     {quickGroupChatTarget.emails.length} participants:{' '}
                     {quickGroupChatTarget.emails.join(', ')}
                   </p>
@@ -3444,7 +3458,7 @@ export default function InboxPage() {
               <button
                 type="button"
                 onClick={() => setQuickGroupChatTarget(null)}
-                className="size-8 rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] flex items-center justify-center transition-colors"
+                className="size-8 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-border)] flex items-center justify-center transition-colors"
                 aria-label="Close group chat"
               >
                 <MailIcon name="close" className="size-4" />
@@ -3453,10 +3467,10 @@ export default function InboxPage() {
 
             {/* Chat conversation preview */}
             <div className="p-4 min-h-[140px] max-h-[240px] overflow-y-auto bg-[#090A0C]/70 flex flex-col justify-end space-y-3">
-              <div className="mx-auto text-center px-3 py-1 rounded-full bg-[#16181D] border border-[#282C35] text-[10px] text-[#A1A4AC]">
+              <div className="mx-auto text-center px-3 py-1 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[10px] text-[var(--quant-muted-foreground)]">
                 Delivered to all {quickGroupChatTarget.emails.length} group members
               </div>
-              <div className="bg-[#16181D]/80 border border-[#282C35] rounded-xl p-3 text-xs text-[#A1A4AC] text-center">
+              <div className="bg-[#16181D]/80 border border-[var(--quant-border)] rounded-xl p-3 text-xs text-[var(--quant-muted-foreground)] text-center">
                 Send a quick message or update to everyone in{' '}
                 <strong className="text-white">{quickGroupChatTarget.name}</strong>.
               </div>
@@ -3499,7 +3513,7 @@ export default function InboxPage() {
                   setIsSendingQuickChat(false);
                 }
               }}
-              className="p-3 bg-[#111318] border-t border-[#282C35] flex items-center gap-2"
+              className="p-3 bg-[var(--quant-surface)] border-t border-[var(--quant-border)] flex items-center gap-2"
             >
               <input
                 type="text"
@@ -3507,12 +3521,12 @@ export default function InboxPage() {
                 onChange={(e) => setQuickChatMessage(e.target.value)}
                 placeholder={`Message ${quickGroupChatTarget.name}…`}
                 autoFocus
-                className="flex-1 min-h-touch bg-[#090A0C] border border-[#282C35] focus:border-[#FF8C42] rounded-xl px-3.5 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                className="flex-1 min-h-touch bg-[var(--quant-background)] border border-[var(--quant-border)] focus:border-[var(--brand-primary)] rounded-xl px-3.5 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none"
               />
               <button
                 type="submit"
                 disabled={!quickChatMessage.trim() || isSendingQuickChat}
-                className="px-4 min-h-touch rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#090A0C] text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm"
+                className="px-4 min-h-touch rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[var(--quant-background)] text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1.5 shadow-sm"
               >
                 {isSendingQuickChat ? (
                   'Sending…'

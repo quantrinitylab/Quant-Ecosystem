@@ -97,15 +97,15 @@ function VintagePostageStamp({
       {/* 2. REAL PERFORATED POSTAGE STAMP (Serrated Scalloped Teeth)  */}
       {/* ------------------------------------------------------------- */}
       <div
-        className="relative w-16 h-20 p-1 bg-white dark:bg-[#282C35] shadow-md border border-[#A1A4AC]/60 dark:border-[#FF8C42]/40 rounded-[2px]"
+        className="relative w-16 h-20 p-1 bg-white dark:bg-[var(--quant-border)] shadow-md border border-[#A1A4AC]/60 dark:border-[#FF8C42]/40 rounded-[2px]"
         style={{
           boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
         }}
       >
         {/* Scalloped teeth simulated borders */}
-        <div className="w-full h-full border border-dashed border-[#A1A4AC]/80 dark:border-[#FF8C42]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[#111318] overflow-hidden">
+        <div className="w-full h-full border border-dashed border-[#A1A4AC]/80 dark:border-[#FF8C42]/50 p-1 flex flex-col justify-between items-center bg-[#FAF6F0] dark:bg-[var(--quant-surface)] overflow-hidden">
           {/* Stamp Top Kicker */}
-          <div className="w-full flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider text-[#6B6E76] dark:text-[#FFB875]">
+          <div className="w-full flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider text-[var(--quant-text-muted)] dark:text-[var(--brand-accent)]">
             <span>POST</span>
             <span>{stamp.value}</span>
           </div>
@@ -131,7 +131,7 @@ function VintagePostageStamp({
           </div>
 
           {/* Stamp Bottom Text */}
-          <span className="text-[6px] font-bold tracking-widest text-[#6B6E76] dark:text-[#FF8C42]/80 uppercase">
+          <span className="text-[6px] font-bold tracking-widest text-[var(--quant-text-muted)] dark:text-[#FF8C42]/80 uppercase">
             QUANT TRINITY
           </span>
         </div>
@@ -182,7 +182,7 @@ export function PostcardCanvas({
       ink: '#2D2824',
     },
     'obsidian-matte': {
-      bg: 'bg-[#121316] shadow-[inset_0_0_50px_rgba(0,0,0,0.85)]',
+      bg: 'bg-[var(--quant-surface)] shadow-[inset_0_0_50px_rgba(0,0,0,0.85)]',
       text: 'text-[#F3F4F6]',
       border: 'border-[#FF8C42]/40',
       ink: '#F59E0B',
@@ -190,7 +190,7 @@ export function PostcardCanvas({
     'clean-ivory': {
       bg: 'bg-[#FCFAF7] shadow-[inset_0_0_40px_rgba(0,0,0,0.06)]',
       text: 'text-[#1F1D1A]',
-      border: 'border-[#A1A4AC]',
+      border: 'border-[var(--quant-muted-foreground)]',
       ink: '#1F1D1A',
     },
   };
@@ -248,16 +248,16 @@ export function PostcardCanvas({
             {template.hasFiligree && (
               <>
                 <FiligreeCorner
-                  className={`absolute top-2 left-2 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute top-2 left-2 ${isDark ? 'text-[var(--brand-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute top-2 right-2 rotate-90 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute top-2 right-2 rotate-90 ${isDark ? 'text-[var(--brand-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute bottom-2 left-2 -rotate-90 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute bottom-2 left-2 -rotate-90 ${isDark ? 'text-[var(--brand-primary)]' : 'text-[#8C6D52]'}`}
                 />
                 <FiligreeCorner
-                  className={`absolute bottom-2 right-2 rotate-180 ${isDark ? 'text-[#FF8C42]' : 'text-[#8C6D52]'}`}
+                  className={`absolute bottom-2 right-2 rotate-180 ${isDark ? 'text-[var(--brand-primary)]' : 'text-[#8C6D52]'}`}
                 />
               </>
             )}
@@ -277,13 +277,13 @@ export function PostcardCanvas({
                 >
                   Post Card
                 </span>
-                <span className="hidden sm:inline-block text-[9px] font-mono tracking-widest uppercase text-[#6B6E76] dark:text-[#A1A4AC]">
+                <span className="hidden sm:inline-block text-[9px] font-mono tracking-widest uppercase text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)]">
                   · QuantMail Postal Transmission ·
                 </span>
               </div>
 
               {/* Date & Location Stamp Header */}
-              <div className="text-right text-[10px] font-mono text-[#6B6E76] dark:text-[#A1A4AC]">
+              <div className="text-right text-[10px] font-mono text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)]">
                 <span>{locationString}</span>
                 <span className="mx-1.5">|</span>
                 <span className="font-bold">{dateString}</span>
@@ -446,23 +446,23 @@ export function PostcardCanvas({
                   >
                     Greetings from {locationString}
                   </span>
-                  <p className="text-[11px] font-mono tracking-wider opacity-90 text-[#FFB875]">
+                  <p className="text-[11px] font-mono tracking-wider opacity-90 text-[var(--brand-accent)]">
                     QuantMail Handcrafted Postal Edition
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="relative w-full h-full rounded-lg border-2 border-dashed border-[#A1A4AC]/70 dark:border-[#3A404D] flex flex-col items-center justify-center p-6 text-center">
-                <span className="mb-3 text-[#C75D1E] dark:text-[#FFB875]">
+              <div className="relative w-full h-full rounded-lg border-2 border-dashed border-[#A1A4AC]/70 dark:border-[var(--quant-border-strong)] flex flex-col items-center justify-center p-6 text-center">
+                <span className="mb-3 text-[#C75D1E] dark:text-[var(--brand-accent)]">
                   <IconMailHeart size={44} />
                 </span>
-                <h3 className="text-lg sm:text-xl font-serif font-bold text-[#282C35] dark:text-[#F5F5F5]">
+                <h3 className="text-lg sm:text-xl font-serif font-bold text-[var(--quant-border)] dark:text-[var(--quant-foreground)]">
                   {template.name}
                 </h3>
-                <p className="text-xs text-[#6B6E76] dark:text-[#A1A4AC] max-w-sm mt-1">
+                <p className="text-xs text-[var(--quant-text-muted)] dark:text-[var(--quant-muted-foreground)] max-w-sm mt-1">
                   {template.description}
                 </p>
-                <div className="mt-4 px-3 py-1 bg-[#FF8C42]/15 border border-[#FF8C42]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[#FFB875] font-semibold">
+                <div className="mt-4 px-3 py-1 bg-[#FF8C42]/15 border border-[#FF8C42]/30 rounded-full text-xs font-mono text-[#C75D1E] dark:text-[var(--brand-accent)] font-semibold">
                   Tap "Flip Card" below to write message
                 </div>
               </div>
@@ -479,7 +479,7 @@ export function PostcardCanvas({
           <button
             type="button"
             onClick={() => setIsFlipped((prev) => !prev)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#FF8C42]/30 bg-[#111318]/90 px-4 py-1.5 text-xs font-semibold text-[#FF8C42] shadow-md transition-all hover:border-[#FF8C42] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 dark:bg-[#282C35]"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#FF8C42]/30 bg-[#111318]/90 px-4 py-1.5 text-xs font-semibold text-[var(--brand-primary)] shadow-md transition-all hover:border-[var(--brand-primary)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 dark:bg-[var(--quant-border)]"
           >
             <svg
               viewBox="0 0 24 24"

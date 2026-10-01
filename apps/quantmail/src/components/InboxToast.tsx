@@ -42,7 +42,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
     case 'warning':
       return (
         <svg
-          className="size-4 text-[#FF8C42] shrink-0"
+          className="size-4 text-[var(--brand-primary)] shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -75,7 +75,7 @@ function ToastIcon({ type }: { type: ToastMessage['type'] }) {
     default:
       return (
         <svg
-          className="size-4 text-[#FF8C42] shrink-0"
+          className="size-4 text-[var(--brand-primary)] shrink-0"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -132,11 +132,11 @@ function InboxToastItem({
           <ToastIcon type={toast.type} />
         )}
       </span>
-      <span className="inbox-toast-text text-[#F5F5F5]">{toast.text}</span>
+      <span className="inbox-toast-text text-[var(--quant-foreground)]">{toast.text}</span>
       {toast.undoAction && (
         <button
           type="button"
-          className="inbox-toast-undo text-[#FF8C42] hover:bg-[#FF8C42]/20 px-2 py-0.5 rounded font-semibold transition-colors"
+          className="inbox-toast-undo text-[var(--brand-primary)] hover:bg-[#FF8C42]/20 px-2 py-0.5 rounded font-semibold transition-colors"
           onClick={() => {
             // Dismiss first: clears the pending undo, so the same action
             // cannot be reversed a second time.
@@ -149,7 +149,7 @@ function InboxToastItem({
       )}
       <button
         type="button"
-        className="inbox-toast-dismiss text-[#6B6E76] hover:text-[#F5F5F5] transition-colors p-1"
+        className="inbox-toast-dismiss text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] transition-colors p-1"
         onClick={() => onDismiss(toast.id)}
         aria-label="Dismiss"
       >

@@ -330,7 +330,7 @@ export function SsoChooserContent({
   const showChooser = hasAccounts && !isAddingAnother;
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[#090A0C] text-[#FAFAFA] px-4 py-8 selection:bg-[#FF8C42]/20 selection:text-[#FF8C42]">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-[var(--quant-background)] text-[#FAFAFA] px-4 py-8 selection:bg-[#FF8C42]/20 selection:text-[var(--brand-primary)]">
       {/* Central Google-Class SSO Card */}
       <div className="w-full max-w-md rounded-2xl bg-[#111318]/90 backdrop-blur-xl border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06),0_20px_40px_-15px_rgba(0,0,0,0.7)] p-8 sm:p-10 flex flex-col items-center transition-all">
         {/* Brand Logo with Pupil Tracking */}
@@ -341,7 +341,7 @@ export function SsoChooserContent({
           <div className="mt-3 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.06] text-[11px] font-medium tracking-wider uppercase text-zinc-400">
             <span>Quant ID</span>
             <span className="text-zinc-600">•</span>
-            <span className="text-[#FF8C42]">Single Sign-On</span>
+            <span className="text-[var(--brand-primary)]">Single Sign-On</span>
           </div>
         </div>
 
@@ -364,7 +364,7 @@ export function SsoChooserContent({
         {/* Authorizing Spinner Overlay */}
         {authorizing && (
           <div className="w-full py-12 flex flex-col items-center justify-center space-y-3">
-            <div className="w-8 h-8 rounded-full border-2 border-[#FF8C42] border-t-transparent animate-spin" />
+            <div className="w-8 h-8 rounded-full border-2 border-[var(--brand-primary)] border-t-transparent animate-spin" />
             <p className="text-sm font-medium text-zinc-300">
               Connecting you to {clientApp.name}...
             </p>
@@ -401,7 +401,7 @@ export function SsoChooserContent({
 
                     {/* Account Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white truncate group-hover:text-[#FF8C42] transition-colors">
+                      <div className="text-sm font-medium text-white truncate group-hover:text-[var(--brand-primary)] transition-colors">
                         {acc.displayName || acc.email.split('@')[0]}
                       </div>
                       <div className="text-xs text-zinc-400 truncate">{acc.email}</div>
@@ -440,7 +440,9 @@ export function SsoChooserContent({
               type="button"
               className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/[0.08] hover:border-white/[0.16] hover:bg-white/[0.04] text-sm font-medium text-zinc-300 hover:text-white transition-all"
             >
-              <span className="text-base leading-none font-bold text-[#FF8C42]">+</span>
+              <span className="text-base leading-none font-bold text-[var(--brand-primary)]">
+                +
+              </span>
               <span>Use another account</span>
             </button>
           </div>
@@ -467,7 +469,7 @@ export function SsoChooserContent({
                   placeholder="you@quantmail.in"
                   autoFocus
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
                 />
               </div>
 
@@ -480,7 +482,7 @@ export function SsoChooserContent({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white placeholder:text-zinc-600 outline-none transition-all pr-10"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-sm text-white placeholder:text-zinc-600 outline-none transition-all pr-10"
                   />
                   <button
                     type="button"
@@ -495,7 +497,7 @@ export function SsoChooserContent({
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-[var(--brand-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
               >
                 {submitting ? 'Signing in...' : `Continue to ${clientApp.name}`}
               </button>
@@ -535,13 +537,13 @@ export function SsoChooserContent({
                   placeholder="6-digit code or recovery code"
                   autoFocus
                   required
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
                 />
               </div>
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
+                className="w-full py-3 px-4 rounded-xl bg-[var(--brand-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
               >
                 {submitting ? 'Verifying...' : `Verify and Continue`}
               </button>
@@ -587,7 +589,7 @@ export function SsoChooserContent({
                     <select
                       value={kycCountry}
                       onChange={(e) => setKycCountry(e.target.value)}
-                      className="w-[100px] px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white outline-none appearance-none"
+                      className="w-[100px] px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-sm text-white outline-none appearance-none"
                     >
                       <option value="+91">🇮🇳 +91</option>
                       <option value="+1">🇺🇸 +1</option>
@@ -603,14 +605,14 @@ export function SsoChooserContent({
                       onChange={(e) => setKycPhone(e.target.value.replace(/\D/g, ''))}
                       placeholder="9876543210"
                       required
-                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
                     />
                   </div>
                 </div>
                 <button
                   type="submit"
                   disabled={submitting || !kycPhone}
-                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
+                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[var(--brand-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
                 >
                   {submitting ? 'Sending...' : 'Send Verification Code'}
                 </button>
@@ -676,13 +678,13 @@ export function SsoChooserContent({
                     autoFocus
                     required
                     maxLength={6}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-center tracking-[0.5em] text-lg text-white placeholder:text-zinc-600 outline-none transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[var(--brand-primary)] focus:ring-1 focus:ring-[var(--brand-primary)] text-center tracking-[0.5em] text-lg text-white placeholder:text-zinc-600 outline-none transition-all"
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={submitting || kycCode.length < 4}
-                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[var(--brand-primary)] text-[var(--quant-background)] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {submitting ? 'Verifying...' : 'Verify & Complete KYC ✓'}
                 </button>

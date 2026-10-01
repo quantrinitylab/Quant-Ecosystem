@@ -70,7 +70,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     if (mimeType.includes('zip') || mimeType.includes('archive')) {
       return (
         <svg
-          className="size-5 text-[#FF8C42]"
+          className="size-5 text-[var(--brand-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -119,7 +119,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     }
     return (
       <svg
-        className="size-5 text-[#A1A4AC]"
+        className="size-5 text-[var(--quant-muted-foreground)]"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -142,7 +142,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     <div className="attachment-preview-container">
       <p className="attachment-preview-label flex items-center gap-1.5">
         <svg
-          className="size-3.5 text-[#FF8C42]"
+          className="size-3.5 text-[var(--brand-primary)]"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

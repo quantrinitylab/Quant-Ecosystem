@@ -525,7 +525,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               >
                 AI Duplicate Cleaner
               </h2>
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
                 Quant AI scanned storage and identified identical duplicate files by hash.
               </p>
             </div>
@@ -536,7 +536,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
             onClick={onClose}
             disabled={state.isCleaning}
             aria-label="Close dialog"
-            className="p-1.5 rounded-lg text-[#9CA3AF] hover:text-white hover:bg-[#282C35] transition-colors disabled:opacity-50"
+            className="p-1.5 rounded-lg text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[var(--quant-border)] transition-colors disabled:opacity-50"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
@@ -581,7 +581,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                   Reclaim {formatBytes(totalSavings)} across {totalDuplicates}{' '}
                   {totalDuplicates === 1 ? 'duplicate' : 'duplicates'}
                 </div>
-                <div className="text-xs text-[#9CA3AF]">
+                <div className="text-xs text-[var(--quant-muted-foreground)]">
                   {selectedDuplicates} of {totalDuplicates} selected for cleanup (
                   {formatBytes(selectedSavings)})
                 </div>
@@ -593,7 +593,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 type="button"
                 data-testid="select-all-duplicates-button"
                 onClick={() => manager.selectAllDuplicates()}
-                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors"
+                className="px-2.5 py-1 text-xs font-medium rounded text-[var(--quant-muted-foreground)] hover:text-white bg-[var(--quant-border)] hover:bg-[#323742] transition-colors"
               >
                 Select All
               </button>
@@ -601,7 +601,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 type="button"
                 data-testid="deselect-all-duplicates-button"
                 onClick={() => manager.deselectAll()}
-                className="px-2.5 py-1 text-xs font-medium rounded text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors"
+                className="px-2.5 py-1 text-xs font-medium rounded text-[var(--quant-muted-foreground)] hover:text-white bg-[var(--quant-border)] hover:bg-[#323742] transition-colors"
               >
                 Deselect All
               </button>
@@ -624,7 +624,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               <p className="text-sm font-medium text-white">
                 Scanning Drive files for duplicates...
               </p>
-              <p className="text-xs text-[#9CA3AF]">
+              <p className="text-xs text-[var(--quant-muted-foreground)]">
                 Analyzing perceptual and cryptographic content hashes.
               </p>
             </div>
@@ -707,7 +707,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                 </svg>
               </div>
               <h3 className="text-base font-semibold text-white">No Duplicate Files Detected</h3>
-              <p className="text-xs text-[#9CA3AF] max-w-sm">
+              <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm">
                 Your QuantDrive storage is fully optimized. Every file in your account is unique.
               </p>
             </div>
@@ -734,11 +734,13 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[#9CA3AF]">
+                    <span className="font-mono text-[var(--quant-muted-foreground)]">
                       SHA-256: {group.hash.slice(0, 12)}...
                     </span>
-                    <span className="text-[#6B7280]">•</span>
-                    <span className="text-[#9CA3AF]">{group.files.length} identical copies</span>
+                    <span className="text-[var(--quant-muted-foreground)]">•</span>
+                    <span className="text-[var(--quant-muted-foreground)]">
+                      {group.files.length} identical copies
+                    </span>
                   </div>
                   <div className="font-medium" style={{ color: '#FF8C42' }}>
                     {formatBytes(group.potentialSavings)} potential savings
@@ -785,7 +787,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                             aria-label={`Select duplicate ${file.name} for deletion`}
                             checked={file.selectedForDeletion}
                             onChange={() => manager.toggleSelectFile(file.id)}
-                            className="w-4 h-4 rounded cursor-pointer accent-[#EF4444] border-gray-600 bg-gray-800"
+                            className="w-4 h-4 rounded cursor-pointer accent-[var(--quant-destructive)] border-gray-600 bg-gray-800"
                           />
                         )}
 
@@ -823,7 +825,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 mt-0.5 text-xs text-[#9CA3AF]">
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--quant-muted-foreground)]">
                             <span className="truncate max-w-[200px]" title={file.path}>
                               {file.path}
                             </span>
@@ -842,7 +844,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
                             -{formatBytes(file.size)}
                           </span>
                         ) : (
-                          <span className="text-xs text-[#6B7280]">
+                          <span className="text-xs text-[var(--quant-muted-foreground)]">
                             {file.isOriginal ? 'Preserved' : 'Kept'}
                           </span>
                         )}
@@ -862,7 +864,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
             borderColor: '#282C35',
           }}
         >
-          <div className="text-xs text-[#9CA3AF]">
+          <div className="text-xs text-[var(--quant-muted-foreground)]">
             {selectedDuplicates > 0 ? (
               <span>
                 Ready to reclaim{' '}
@@ -880,7 +882,7 @@ export const AIDuplicateCleanerModal: React.FC<AIDuplicateCleanerModalProps> = (
               data-testid="cleaner-cancel-button"
               onClick={onClose}
               disabled={state.isCleaning}
-              className="px-4 py-2 text-xs font-medium rounded-lg text-[#9CA3AF] hover:text-white bg-[#282C35] hover:bg-[#323742] transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-xs font-medium rounded-lg text-[var(--quant-muted-foreground)] hover:text-white bg-[var(--quant-border)] hover:bg-[#323742] transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

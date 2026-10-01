@@ -29,7 +29,7 @@ export function ContactsPagination({
         ? `Page ${page} of ${Math.max(1, current.totalPages)} · ${current.total} contacts`
         : `Page ${page}`;
   const buttonClass =
-    'min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-3 text-sm font-medium text-[#F5F5F5] transition-colors hover:border-[#3A404D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] disabled:cursor-not-allowed disabled:opacity-50';
+    'min-h-11 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 text-sm font-medium text-[var(--quant-foreground)] transition-colors hover:border-[var(--quant-border-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:opacity-50';
 
   return (
     <nav
@@ -38,7 +38,11 @@ export function ContactsPagination({
       className="shrink-0 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 sm:px-8"
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p role="status" aria-live="polite" className="text-sm text-[#A1A4AC]">
+        <p
+          role="status"
+          aria-live="polite"
+          className="text-sm text-[var(--quant-muted-foreground)]"
+        >
           {status}
         </p>
         <div className="flex items-center gap-2">
@@ -62,7 +66,9 @@ export function ContactsPagination({
           </button>
         </div>
       </div>
-      <p className="mt-2 text-sm text-[#A1A4AC]">Letter index and export cover this page.</p>
+      <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
+        Letter index and export cover this page.
+      </p>
     </nav>
   );
 }

@@ -59,7 +59,7 @@ export function BrandLoader({
             blurred amber blob behind it and a drop-shadow around it, which on the
             near-black canvas read as a neon bloom rather than as progress.
           */}
-          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[#FF8C42] border-r-[#FF9B5A]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+          <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--brand-primary)] border-r-[#FF9B5A]/70 animate-[spin_1s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
 
           {/* Center Mascot Logo */}
           <div className="relative z-10 flex items-center justify-center size-14 sm:size-16 rounded-2xl bg-[#090A0C]/80 border border-[#282C35]/90 shadow-2xl">
@@ -68,22 +68,26 @@ export function BrandLoader({
         </div>
 
         {/* Crisp Modern Loading Subtitle */}
-        <p className="mt-8 text-[13px] font-medium text-[#A1A4AC] tracking-wide font-sans">
+        <p className="mt-8 text-[13px] font-medium text-[var(--quant-muted-foreground)] tracking-wide font-sans">
           {message}
         </p>
         {hint ? (
-          <div className="text-center text-xs text-[#A1A4AC] mt-1 font-sans">{hint}</div>
+          <div className="text-center text-xs text-[var(--quant-muted-foreground)] mt-1 font-sans">
+            {hint}
+          </div>
         ) : null}
       </div>
 
       {/* Minimalist Tech Hierarchy (Apple/Google style) */}
       <div className="flex flex-col items-center gap-1 pb-4 text-center">
-        <span className="text-sm font-semibold tracking-wider text-[#F5F5F5] font-sans">
+        <span className="text-sm font-semibold tracking-wider text-[var(--quant-foreground)] font-sans">
           QUANTMAIL
         </span>
-        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[#A1A4AC] uppercase">
+        <div className="flex items-center gap-1.5 text-[10px] font-mono tracking-[0.25em] text-[var(--quant-muted-foreground)] uppercase">
           <span>BY</span>
-          <span className="font-bold text-[#FF8C42] tracking-[0.3em]">QUANTRINITY</span>
+          <span className="font-bold text-[var(--brand-primary)] tracking-[0.3em]">
+            QUANTRINITY
+          </span>
         </div>
       </div>
 

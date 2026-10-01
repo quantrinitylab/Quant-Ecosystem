@@ -163,7 +163,7 @@ export default function DocumentPage() {
       className="quantmail-shell"
       searchPlaceholder="Search document content..."
     >
-      <div className="flex flex-col h-full bg-[#0D1117] text-[#C9D1D9] overflow-hidden">
+      <div className="flex flex-col h-full bg-[var(--quant-background)] text-[var(--quant-foreground)] overflow-hidden">
         {/* Notion-class Header Bar */}
         <DocumentHeader
           docId={docId}
@@ -189,10 +189,10 @@ export default function DocumentPage() {
         <main className="flex-1 overflow-y-auto no-scrollbar relative">
           {isLoading ? (
             <div className="mx-auto max-w-4xl py-20 px-8 space-y-6 animate-pulse">
-              <div className="h-10 w-48 bg-[#161B22] rounded-lg" />
-              <div className="h-4 w-full bg-[#161B22] rounded" />
-              <div className="h-4 w-3/4 bg-[#161B22] rounded" />
-              <div className="h-32 w-full bg-[#161B22] rounded-xl" />
+              <div className="h-10 w-48 bg-[var(--quant-surface)] rounded-lg" />
+              <div className="h-4 w-full bg-[var(--quant-surface)] rounded" />
+              <div className="h-4 w-3/4 bg-[var(--quant-surface)] rounded" />
+              <div className="h-32 w-full bg-[var(--quant-surface)] rounded-xl" />
             </div>
           ) : (
             <div className="min-h-full">
@@ -207,15 +207,15 @@ export default function DocumentPage() {
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className="w-12 h-12 rounded-xl bg-[#161B22] border border-[#30363D] hover:border-[#FF8C42] flex items-center justify-center text-2xl transition-all shadow-sm"
+                    className="w-12 h-12 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-border)] hover:border-[var(--brand-primary)] flex items-center justify-center text-2xl transition-all shadow-sm"
                     title="Change icon"
                   >
                     {metadata.icon || '📄'}
                   </button>
 
                   {showEmojiPicker && (
-                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[#30363D] bg-[#161B22] p-2 shadow-2xl z-50">
-                      <div className="text-[10px] font-semibold text-[#8B949E] px-1 py-1 uppercase tracking-wider">
+                    <div className="absolute left-0 top-full mt-2 w-64 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-2 shadow-2xl z-50">
+                      <div className="text-[10px] font-semibold text-[var(--quant-text-muted)] px-1 py-1 uppercase tracking-wider">
                         Select Icon
                       </div>
                       <div className="grid grid-cols-5 gap-1.5 pt-1">
@@ -227,7 +227,7 @@ export default function DocumentPage() {
                               setMetadata({ icon: emoji });
                               setShowEmojiPicker(false);
                             }}
-                            className="w-10 h-10 rounded-lg hover:bg-[#21262D] flex items-center justify-center text-xl transition-colors"
+                            className="w-10 h-10 rounded-lg hover:bg-[var(--quant-surface-elevated)] flex items-center justify-center text-xl transition-colors"
                           >
                             {emoji}
                           </button>
@@ -243,15 +243,15 @@ export default function DocumentPage() {
                   placeholder="Untitled"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-transparent border-none text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#F0F6FC] placeholder-[#30363D] focus:outline-none focus:ring-0 leading-tight mb-4"
+                  className="w-full bg-transparent border-none text-3xl sm:text-4xl md:text-5xl font-extrabold text-[var(--quant-foreground)] placeholder-[var(--quant-border)] focus:outline-none focus:ring-0 leading-tight mb-4"
                 />
 
                 {/* Subpages Section */}
-                <div className="mt-2 mb-6 pt-3 border-t border-[#21262D]">
+                <div className="mt-2 mb-6 pt-3 border-t border-[var(--quant-surface-elevated)]">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 text-xs font-semibold text-[#8B949E] uppercase tracking-wider">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[var(--quant-text-muted)] uppercase tracking-wider">
                       <svg
-                        className="w-3.5 h-3.5 text-[#8B949E]"
+                        className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -269,7 +269,7 @@ export default function DocumentPage() {
                       type="button"
                       onClick={handleAddSubpage}
                       disabled={isCreatingSubpage}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[#161B22] text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#FF8C42] border border-[#30363D] transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--quant-surface)] text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--brand-primary)] border border-[var(--quant-border)] transition-colors"
                     >
                       <span>+ Add subpage</span>
                     </button>
@@ -281,19 +281,21 @@ export default function DocumentPage() {
                         <Link
                           key={subpage.id}
                           href={`/drive/doc/${subpage.id}`}
-                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#161B22]/70 border border-[#30363D]/60 hover:border-[#FF8C42]/60 hover:bg-[#161B22] transition-all group"
+                          className="flex items-center gap-2.5 p-2.5 rounded-lg bg-[#161B22]/70 border border-[#30363D]/60 hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface)] transition-all group"
                         >
                           <span className="text-base shrink-0">
                             {(subpage.metadata as any)?.icon || '📄'}
                           </span>
-                          <span className="text-xs font-medium text-[#C9D1D9] group-hover:text-[#F0F6FC] truncate">
+                          <span className="text-xs font-medium text-[var(--quant-foreground)] group-hover:text-[var(--quant-foreground)] truncate">
                             {subpage.title || 'Untitled'}
                           </span>
                         </Link>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-[#6E7681] italic">No subpages.</div>
+                    <div className="text-xs text-[var(--quant-text-muted)] italic">
+                      No subpages.
+                    </div>
                   )}
                 </div>
               </div>
@@ -310,22 +312,22 @@ export default function DocumentPage() {
           )}
 
           {/* Floating Auto-save / Sync Status Pill */}
-          <div className="fixed bottom-4 right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md">
+          <div className="fixed bottom-4 right-6 z-30 flex items-center gap-2 rounded-full border border-[var(--quant-border)] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[var(--quant-text-muted)] shadow-xl backdrop-blur-md">
             {syncStatus === 'connected' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#3FB950] animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-success)] animate-pulse" />
                 <span>Live Multiplayer CRDT</span>
               </>
             )}
             {syncStatus === 'saving' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#D29922]" />
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-warning)]" />
                 <span>Auto-saving changes...</span>
               </>
             )}
             {syncStatus === 'saved' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#3FB950]" />
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-success)]" />
                 <span>
                   Saved{' '}
                   {lastSaved
@@ -336,7 +338,7 @@ export default function DocumentPage() {
             )}
             {syncStatus === 'offline' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#8B949E]" />
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-text-muted)]" />
                 <span>Offline (Local Cache)</span>
               </>
             )}

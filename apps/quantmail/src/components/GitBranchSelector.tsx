@@ -104,7 +104,7 @@ export function GitBranchSelector({
                   {branch.isDefault && <span className="branch-badge">default</span>}
                   {branch.isProtected && (
                     <span className="branch-badge branch-badge--protected" title="Protected branch">
-                      <IconLock size={11} className="text-[#FF8C42]" />
+                      <IconLock size={11} className="text-[var(--brand-primary)]" />
                     </span>
                   )}
                   {branch.aheadBehind &&
@@ -132,7 +132,7 @@ export function GitBranchSelector({
                     )}
                   {branch.name === currentBranch && (
                     <span className="branch-check">
-                      <IconCheck size={13} className="text-[#FF8C42]" />
+                      <IconCheck size={13} className="text-[var(--brand-primary)]" />
                     </span>
                   )}
                 </button>

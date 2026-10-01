@@ -20,11 +20,11 @@ const TONE: Record<MessageKind, { label: string; className: string }> = {
   mail: {
     label: 'Mail',
     className:
-      'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[0_0_10px_rgba(255,140,66,0.12)]',
+      'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[var(--brand-primary)] shadow-[0_0_10px_rgba(255,140,66,0.12)]',
   },
   chat: {
     label: 'Chat',
-    className: 'bg-white/[0.03] border-white/[0.08] text-[#A1A4AC]',
+    className: 'bg-white/[0.03] border-white/[0.08] text-[var(--quant-muted-foreground)]',
   },
 };
 
@@ -76,7 +76,7 @@ export function ThreadKindBadge({ mix, className = '' }: ThreadKindBadgeProps) {
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded border border-[#282C35] bg-[#16181D] px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[#A1A4AC] ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-[var(--quant-muted-foreground)] ${className}`}
       title="Mail and chat in this conversation"
     >
       <IconMail size={11} aria-hidden="true" />

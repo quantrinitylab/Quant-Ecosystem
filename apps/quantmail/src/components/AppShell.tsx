@@ -191,7 +191,7 @@ function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md px-2 shadow-lg md:hidden"
+      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[var(--quant-border)] bg-[#090A0C]/95 backdrop-blur-md px-2 shadow-lg md:hidden"
       aria-label="Mobile primary navigation"
     >
       {BOTTOM_NAV.map((item) => {
@@ -202,7 +202,9 @@ function MobileBottomNav() {
             type="button"
             onClick={() => router.push(item.path)}
             className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 text-[10px] font-medium transition-colors ${
-              active ? 'text-[#FF8C42] font-semibold' : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+              active
+                ? 'text-[var(--brand-primary)] font-semibold'
+                : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
             }`}
             aria-current={active ? 'page' : undefined}
           >
@@ -725,7 +727,7 @@ export function AppShell({
                       type="button"
                       // Hidden once the rail is pinned on a wide screen: the drawer it
                       // opens is `md:hidden` there, so the control had nothing to show.
-                      className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
+                      className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[var(--quant-border)] text-[var(--quant-muted-foreground)] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${isPinned ? 'md:hidden' : ''}`}
                       aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                       aria-expanded={isDrawerPresented}
                       aria-controls={drawerId}
@@ -754,7 +756,7 @@ export function AppShell({
                 */}
                     <button
                       type="button"
-                      className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                       onClick={handleLogoClick}
                       title={`${appDisplayName(currentApp)} — Click to refresh`}
                       aria-label={`${appDisplayName(currentApp)} — refresh`}
@@ -798,9 +800,9 @@ export function AppShell({
                        * a click aimed at the top or bottom of the search bar did
                        * nothing. `min-h` keeps the box the same size it looked before.
                        */
-                      <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                      <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[var(--quant-border)] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
                         <svg
-                          className="size-4 text-[#A1A4AC] shrink-0"
+                          className="size-4 text-[var(--quant-muted-foreground)] shrink-0"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -833,7 +835,7 @@ export function AppShell({
                               ? 'Search in QuantMail (sender, subject, keyword)…'
                               : `Search in ${appDisplayName(currentApp)}…`)
                           }
-                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
+                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none"
                         />
                         {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                         {/*
@@ -843,7 +845,7 @@ export function AppShell({
                       shadowing binding above puts the caret here instead; see the
                       comment on `focusSearch`.
                     */}
-                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
+                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[var(--quant-border)] text-[10px] font-mono text-[var(--quant-text-muted)] border border-[#3A404D]/60 shrink-0">
                           /
                         </kbd>
                       </div>
@@ -863,10 +865,10 @@ export function AppShell({
                     {onSearchChange && (
                       <button
                         type="button"
-                        className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                           isMobileSearchOpen
-                            ? 'bg-[#282C35] text-[#FF8C42]'
-                            : 'text-[#A1A4AC] hover:bg-[#282C35] hover:text-white'
+                            ? 'bg-[var(--quant-border)] text-[var(--brand-primary)]'
+                            : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-border)] hover:text-white'
                         }`}
                         onClick={() => {
                           // Closing discards the query. A collapsed row that is still
@@ -930,10 +932,10 @@ export function AppShell({
                 }`}
               >
                 <div className="min-h-0 overflow-hidden">
-                  <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[#090A0C] px-3 py-2.5 sm:px-4">
+                  <div className="flex items-center gap-2 border-b border-[#282C35]/80 bg-[var(--quant-background)] px-3 py-2.5 sm:px-4">
                     <div className="flex min-h-touch flex-1 items-center gap-2 rounded-xl border border-[#3A404D]/80 bg-[#111318]/90 px-3 shadow-inner focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30">
                       <svg
-                        className="size-4 shrink-0 text-[#A1A4AC]"
+                        className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -969,7 +971,7 @@ export function AppShell({
                             ? 'Search messages, contacts, keywords…'
                             : `Search in ${appDisplayName(currentApp)}…`)
                         }
-                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[#A1A4AC] focus:outline-none"
+                        className="h-11 w-full bg-transparent text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none"
                       />
                       {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
                     </div>
@@ -984,7 +986,7 @@ export function AppShell({
                         onSearchChange('');
                         setIsMobileSearchOpen(false);
                       }}
-                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="inline-flex min-h-touch items-center justify-center rounded-lg px-3 text-xs font-medium text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-border)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     >
                       Cancel
                     </button>

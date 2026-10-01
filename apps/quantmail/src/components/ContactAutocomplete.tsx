@@ -201,14 +201,14 @@ export function ContactAutocomplete({
           return (
             <span
               key={email}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[#FFB875] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[var(--brand-accent)] text-xs font-mono animate-in fade-in zoom-in-95 duration-100 shadow-sm"
             >
               <span className="font-medium text-white truncate max-w-[200px]">
                 {contact?.name ? `${contact.name} (${email})` : email}
               </span>
               <button
                 type="button"
-                className="relative size-5 shrink-0 ml-0.5 flex items-center justify-center rounded hover:bg-[#FF8C42]/30 text-[#FF8C42] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] after:absolute after:-inset-y-[12px] after:-inset-x-[8px] after:content-['']"
+                className="relative size-5 shrink-0 ml-0.5 flex items-center justify-center rounded hover:bg-[#FF8C42]/30 text-[var(--brand-primary)] hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] after:absolute after:-inset-y-[12px] after:-inset-x-[8px] after:content-['']"
                 onClick={(e) => {
                   e.stopPropagation();
                   removeChip(email);
@@ -225,7 +225,7 @@ export function ContactAutocomplete({
           ref={inputRef}
           id={id}
           type="text"
-          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none py-1 px-1 font-mono"
+          className="flex-1 min-w-[160px] bg-transparent text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none py-1 px-1 font-mono"
           value={inputValue}
           onChange={(e) => {
             setInputValue(e.target.value);
@@ -250,7 +250,7 @@ export function ContactAutocomplete({
         {showDropdown && (
           <motion.div
             ref={listRef}
-            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-[#3A404D]/80 bg-[#121622] p-1.5 shadow-2xl backdrop-blur-xl"
+            className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-2xl border border-[#3A404D]/80 bg-[var(--quant-surface)] p-1.5 shadow-2xl backdrop-blur-xl"
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
@@ -262,18 +262,20 @@ export function ContactAutocomplete({
                 (s) => s.email.toLowerCase() === cleanEmail(inputValue).toLowerCase(),
               ) && (
                 <div
-                  className="flex items-center gap-2.5 p-2 rounded-xl text-xs hover:bg-[#FF8C42]/15 cursor-pointer text-[#FFB875] font-mono transition-colors"
+                  className="flex items-center gap-2.5 p-2 rounded-xl text-xs hover:bg-[#FF8C42]/15 cursor-pointer text-[var(--brand-accent)] font-mono transition-colors"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     addChip(inputValue);
                   }}
                 >
-                  <div className="size-6 rounded-full bg-[#FF8C42]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[#FF8C42] font-bold text-[10px]">
+                  <div className="size-6 rounded-full bg-[#FF8C42]/20 border border-[#FF8C42]/40 flex items-center justify-center text-[var(--brand-primary)] font-bold text-[10px]">
                     +
                   </div>
                   <div className="flex flex-col">
                     <span className="font-bold text-white">Send to: {cleanEmail(inputValue)}</span>
-                    <span className="text-[10px] text-[#A1A4AC]">Press Enter or click to add</span>
+                    <span className="text-[10px] text-[var(--quant-muted-foreground)]">
+                      Press Enter or click to add
+                    </span>
                   </div>
                 </div>
               )}
@@ -285,7 +287,7 @@ export function ContactAutocomplete({
                 className={`flex items-center gap-2.5 p-2 rounded-xl text-xs cursor-pointer transition-colors ${
                   index === activeIndex
                     ? 'bg-[#FF8C42]/20 text-white'
-                    : 'hover:bg-[#282C35] text-[#A1A4AC]'
+                    : 'hover:bg-[var(--quant-border)] text-[var(--quant-muted-foreground)]'
                 }`}
                 onMouseDown={(e) => {
                   e.preventDefault();
@@ -298,7 +300,7 @@ export function ContactAutocomplete({
                   {suggestion.name && (
                     <span className="font-bold text-white truncate">{suggestion.name}</span>
                   )}
-                  <span className="text-[11px] text-[#A1A4AC] font-mono truncate">
+                  <span className="text-[11px] text-[var(--quant-muted-foreground)] font-mono truncate">
                     {suggestion.email}
                   </span>
                 </div>
