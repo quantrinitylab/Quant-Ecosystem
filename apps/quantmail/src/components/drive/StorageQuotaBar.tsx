@@ -9,11 +9,6 @@ export interface StorageQuotaData {
   limitBytes: number;
   tier: string;
   percentUsed: number;
-  breakdown?: {
-    documents: number;
-    media: number;
-    other: number;
-  };
 }
 
 export interface StorageQuotaState {
@@ -33,11 +28,6 @@ const DEFAULT_QUOTA: StorageQuotaData = {
   limitBytes: 15 * 1024 ** 3, // 15 GB
   tier: 'FREE',
   percentUsed: 0,
-  breakdown: {
-    documents: 0,
-    media: 0,
-    other: 0,
-  },
 };
 
 /**
@@ -68,14 +58,6 @@ export class StorageQuotaManager {
         usedBytes: initialUsed,
         limitBytes: initialLimit,
         percentUsed: computedPercent,
-        breakdown: options?.initialQuota?.breakdown ?? {
-          documents: Math.round(initialUsed * 0.45),
-          media: Math.round(initialUsed * 0.35),
-          other: Math.max(
-            0,
-            initialUsed - Math.round(initialUsed * 0.45) - Math.round(initialUsed * 0.35),
-          ),
-        },
       },
       isLoading: false,
       error: null,
@@ -89,10 +71,7 @@ export class StorageQuotaManager {
   public getState(): StorageQuotaState {
     return {
       ...this.state,
-      quota: {
-        ...this.state.quota,
-        breakdown: this.state.quota.breakdown ? { ...this.state.quota.breakdown } : undefined,
-      },
+      quota: { ...this.state.quota },
     };
   }
 
@@ -191,28 +170,11 @@ export class StorageQuotaManager {
             ? (usedBytes / limitBytes) * 100
             : 0;
 
-      const breakdown =
-        raw.breakdown && typeof raw.breakdown === 'object'
-          ? {
-              documents: raw.breakdown.documents ?? 0,
-              media: raw.breakdown.media ?? 0,
-              other: raw.breakdown.other ?? 0,
-            }
-          : {
-              documents: Math.round(usedBytes * 0.45),
-              media: Math.round(usedBytes * 0.35),
-              other: Math.max(
-                0,
-                usedBytes - Math.round(usedBytes * 0.45) - Math.round(usedBytes * 0.35),
-              ),
-            };
-
       const updatedQuota: StorageQuotaData = {
         usedBytes,
         limitBytes,
         tier,
         percentUsed,
-        breakdown,
       };
 
       this.state.quota = updatedQuota;
@@ -241,9 +203,10 @@ export interface StorageQuotaBarProps {
 /**
  * StorageQuotaBar Component
  *
- * Renders a segmented storage progress meter (Documents, Media, Other, Free Space),
- * warning threshold states (<80% normal, 80-90% warning, >90% critical),
- * and an Upgrade Storage trigger.
+ * Renders the real storage usage meter (used of limit), warning threshold
+ * states (<80% normal, 80-90% warning, >90% critical), and an Upgrade Storage
+ * trigger. The quota endpoint reports only used/limit, so no per-category
+ * breakdown is shown.
  */
 export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   initialQuota,
@@ -270,17 +233,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
 
   const { quota, isLoading, error } = state;
   const warningStatus = manager.getWarningStatus();
-  const limit = Math.max(1, quota.limitBytes);
   const percentUsedRounded = Math.min(100, Math.max(0, Math.round(quota.percentUsed)));
-
-  // Segment widths in percentage of total capacity
-  const docBytes = quota.breakdown?.documents ?? 0;
-  const mediaBytes = quota.breakdown?.media ?? 0;
-  const otherBytes = quota.breakdown?.other ?? Math.max(0, quota.usedBytes - docBytes - mediaBytes);
-
-  const docPct = Math.min(100, (docBytes / limit) * 100);
-  const mediaPct = Math.min(100 - docPct, (mediaBytes / limit) * 100);
-  const otherPct = Math.min(100 - docPct - mediaPct, (otherBytes / limit) * 100);
 
   // Status visual styles
   const statusConfig = {
@@ -379,51 +332,18 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
         </span>
       </div>
 
-      {/* Segmented Progress Bar */}
+      {/* Usage Bar — real used-of-limit only (backend reports no category breakdown) */}
       <div
-        data-testid="segmented-progress-bar"
+        data-testid="storage-usage-bar"
         className="w-full h-3 rounded-full bg-[#282C35] overflow-hidden flex"
       >
-        {/* Has explicit breakdown */}
-        {docPct + mediaPct + otherPct > 0 ? (
-          <>
-            {/* Documents (Blue) */}
-            {docPct > 0 && (
-              <div
-                data-testid="segment-documents"
-                style={{ width: `${docPct}%` }}
-                title={`Documents: ${formatBytes(docBytes)} (${docPct.toFixed(1)}%)`}
-                className="h-full bg-[#60A5FA] transition-all duration-300"
-              />
-            )}
-            {/* Media (Green) */}
-            {mediaPct > 0 && (
-              <div
-                data-testid="segment-media"
-                style={{ width: `${mediaPct}%` }}
-                title={`Media: ${formatBytes(mediaBytes)} (${mediaPct.toFixed(1)}%)`}
-                className="h-full bg-[#10B981] transition-all duration-300"
-              />
-            )}
-            {/* Other (Amber) */}
-            {otherPct > 0 && (
-              <div
-                data-testid="segment-other"
-                style={{ width: `${otherPct}%` }}
-                title={`Other: ${formatBytes(otherBytes)} (${otherPct.toFixed(1)}%)`}
-                className="h-full bg-[#FF8C42] transition-all duration-300"
-              />
-            )}
-          </>
-        ) : (
-          /* Fallback single bar when breakdown is empty but usage > 0 */
-          quota.percentUsed > 0 && (
-            <div
-              data-testid="segment-used"
-              style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
-              className={`h-full ${statusConfig.barColor} transition-all duration-300`}
-            />
-          )
+        {quota.percentUsed > 0 && (
+          <div
+            data-testid="storage-usage-fill"
+            style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
+            title={`${formatBytes(quota.usedBytes)} of ${formatBytes(quota.limitBytes)} (${percentUsedRounded}%)`}
+            className={`h-full ${statusConfig.barColor} transition-all duration-300`}
+          />
         )}
       </div>
 
@@ -500,36 +420,6 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
           <span>{error}</span>
         </div>
       )}
-
-      {/* Legend Row */}
-      <div
-        data-testid="quota-breakdown-legend"
-        className="mt-3 pt-2.5 border-t border-[#282C35] grid grid-cols-3 gap-2 text-[11px]"
-      >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#60A5FA] shrink-0" />
-          <span className="text-slate-400 truncate">Docs:</span>
-          <span data-testid="legend-documents-size" className="font-medium text-slate-200 truncate">
-            {formatBytes(docBytes)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0" />
-          <span className="text-slate-400 truncate">Media:</span>
-          <span data-testid="legend-media-size" className="font-medium text-slate-200 truncate">
-            {formatBytes(mediaBytes)}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#FF8C42] shrink-0" />
-          <span className="text-slate-400 truncate">Other:</span>
-          <span data-testid="legend-other-size" className="font-medium text-slate-200 truncate">
-            {formatBytes(otherBytes)}
-          </span>
-        </div>
-      </div>
     </div>
   );
 };
