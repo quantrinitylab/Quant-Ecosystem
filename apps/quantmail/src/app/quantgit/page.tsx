@@ -809,8 +809,9 @@ export default function QuantGitPage() {
               },
               date: c.date || 'Sep 26, 2026',
               relativeTime: c.relativeTime || c.timeAgo || 'recently',
-              verified: c.verified ?? true,
-              verificationReason: c.verificationReason || 'GPG signature verified',
+              // Never claim GPG verification the backend did not assert.
+              verified: c.verified ?? false,
+              verificationReason: c.verificationReason,
               stats: c.stats || { totalFiles: 3, additions: 42, deletions: 12 },
               files: c.files,
             }));
