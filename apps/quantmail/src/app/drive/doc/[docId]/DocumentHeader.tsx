@@ -64,12 +64,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between border-b border-[#30363D] bg-[#0D1117]/95 px-4 backdrop-blur-md">
+      <header className="sticky top-0 z-40 flex h-14 w-full items-center justify-between border-b border-[var(--quant-border)] bg-[#0D1117]/95 px-4 backdrop-blur-md">
         {/* Left Cluster: Back to Drive & Breadcrumbs */}
         <div className="flex items-center gap-2 min-w-0">
           <Link
             href="/drive"
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] transition-colors shrink-0"
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-[var(--quant-text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--quant-surface)] transition-colors shrink-0"
             title="Back to QuantDrive"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,7 +84,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <span className="sm:hidden">Drive</span>
           </Link>
 
-          <span className="text-[#30363D] select-none text-xs">/</span>
+          <span className="text-[var(--quant-border)] select-none text-xs">/</span>
 
           {breadcrumbs && breadcrumbs.length > 0 && (
             <>
@@ -92,12 +92,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <React.Fragment key={crumb.id}>
                   <Link
                     href={`/drive/doc/${crumb.id}`}
-                    className="truncate text-xs font-medium text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#161B22] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
+                    className="truncate text-xs font-medium text-[var(--quant-text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--quant-surface)] px-1.5 py-0.5 rounded transition-colors max-w-[100px] sm:max-w-[140px]"
                     title={crumb.title || 'Untitled'}
                   >
                     {crumb.title || 'Untitled'}
                   </Link>
-                  <span className="text-[#30363D] select-none text-xs">/</span>
+                  <span className="text-[var(--quant-border)] select-none text-xs">/</span>
                 </React.Fragment>
               ))}
             </>
@@ -115,13 +115,13 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                   if (e.key === 'Enter') setIsEditingTitle(false);
                 }}
                 autoFocus
-                className="w-full bg-[#161B22] border border-[#FF8C42] rounded px-2 py-0.5 text-xs font-semibold text-[#F0F6FC] focus:outline-none"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--brand-primary)] rounded px-2 py-0.5 text-xs font-semibold text-[var(--quant-foreground)] focus:outline-none"
               />
             ) : (
               <button
                 type="button"
                 onClick={() => setIsEditingTitle(true)}
-                className="truncate text-left text-xs font-semibold text-[#F0F6FC] hover:text-[#FF8C42] hover:bg-[#161B22] px-2 py-1 rounded transition-colors block w-full"
+                className="truncate text-left text-xs font-semibold text-[var(--quant-foreground)] hover:text-[var(--brand-primary)] hover:bg-[var(--quant-surface)] px-2 py-1 rounded transition-colors block w-full"
                 title="Click to rename"
               >
                 {title || 'Untitled Document'}
@@ -133,32 +133,40 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
         {/* Right Cluster: Sync Status, Presence, and Actions */}
         <div className="flex items-center gap-2">
           {/* Connection & Sync Status Indicator */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#161B22] border border-[#30363D] text-[11px]">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[var(--quant-surface)] border border-[var(--quant-border)] text-[11px]">
             {syncStatus === 'connected' && (
               <>
                 <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3FB950] opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#3FB950]" />
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--quant-success)] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--quant-success)]" />
                 </span>
-                <span className="text-[#3FB950] font-medium hidden md:inline">● Live Sync</span>
+                <span className="text-[var(--quant-success)] font-medium hidden md:inline">
+                  ● Live Sync
+                </span>
               </>
             )}
             {syncStatus === 'saving' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#D29922] animate-pulse" />
-                <span className="text-[#D29922] font-medium hidden md:inline">○ Saving...</span>
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-warning)] animate-pulse" />
+                <span className="text-[var(--quant-warning)] font-medium hidden md:inline">
+                  ○ Saving...
+                </span>
               </>
             )}
             {syncStatus === 'saved' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#3FB950]" />
-                <span className="text-[#8B949E] font-medium hidden md:inline">✓ Saved</span>
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-success)]" />
+                <span className="text-[var(--quant-text-muted)] font-medium hidden md:inline">
+                  ✓ Saved
+                </span>
               </>
             )}
             {syncStatus === 'offline' && (
               <>
-                <span className="h-2 w-2 rounded-full bg-[#8B949E]" />
-                <span className="text-[#8B949E] font-medium hidden md:inline">Offline</span>
+                <span className="h-2 w-2 rounded-full bg-[var(--quant-text-muted)]" />
+                <span className="text-[var(--quant-text-muted)] font-medium hidden md:inline">
+                  Offline
+                </span>
               </>
             )}
           </div>
@@ -170,14 +178,14 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                 <div
                   key={collab.clientId}
                   title={`${collab.name} is actively editing`}
-                  className="w-6 h-6 rounded-full border-2 border-[#0D1117] flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
+                  className="w-6 h-6 rounded-full border-2 border-[var(--quant-background)] flex items-center justify-center text-[10px] font-bold text-white shadow-sm"
                   style={{ backgroundColor: collab.color }}
                 >
                   {collab.name[0].toUpperCase()}
                 </div>
               ))}
               {collaborators.length > 4 && (
-                <div className="w-6 h-6 rounded-full border-2 border-[#0D1117] bg-[#21262D] text-[#8B949E] flex items-center justify-center text-[9px] font-semibold">
+                <div className="w-6 h-6 rounded-full border-2 border-[var(--quant-background)] bg-[var(--quant-surface-elevated)] text-[var(--quant-text-muted)] flex items-center justify-center text-[9px] font-semibold">
                   +{collaborators.length - 4}
                 </div>
               )}
@@ -188,10 +196,10 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#F0F6FC] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-elevated)] text-xs font-medium text-[var(--quant-foreground)] transition-colors"
           >
             <svg
-              className="w-3.5 h-3.5 text-[#FF8C42]"
+              className="w-3.5 h-3.5 text-[var(--brand-primary)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -210,11 +218,11 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
           <button
             type="button"
             onClick={onExportMarkdown}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-elevated)] text-xs font-medium text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] transition-colors"
             title="Download as Markdown (.md)"
           >
             <svg
-              className="w-3.5 h-3.5 text-[#8B949E]"
+              className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -234,11 +242,11 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={onOpenVersionHistory}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] transition-colors"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-elevated)] text-xs font-medium text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] transition-colors"
               title="View Version History"
             >
               <svg
-                className="w-3.5 h-3.5 text-[#8B949E]"
+                className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -264,7 +272,7 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             <button
               type="button"
               onClick={() => setShowMoreMenu(!showMoreMenu)}
-              className="p-1.5 rounded-lg border border-[#30363D] bg-[#161B22] hover:bg-[#21262D] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
+              className="p-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-elevated)] text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] transition-colors"
               title="More actions"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -275,8 +283,8 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
             </button>
 
             {showMoreMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[#30363D] bg-[#161B22] p-1.5 shadow-2xl z-50 space-y-1">
-                <div className="px-2.5 py-1.5 border-b border-[#21262D] text-[11px] text-[#8B949E]">
+              <div className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1.5 shadow-2xl z-50 space-y-1">
+                <div className="px-2.5 py-1.5 border-b border-[var(--quant-surface-elevated)] text-[11px] text-[var(--quant-text-muted)]">
                   <p>
                     {wordCount} words • {readingTime} min read
                   </p>
@@ -288,10 +296,10 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                     fileInputRef.current?.click();
                     setShowMoreMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] transition-colors text-left"
                 >
                   <svg
-                    className="w-3.5 h-3.5 text-[#8B949E]"
+                    className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -312,10 +320,10 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                     onExportMarkdown();
                     setShowMoreMenu(false);
                   }}
-                  className="sm:hidden w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                  className="sm:hidden w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] transition-colors text-left"
                 >
                   <svg
-                    className="w-3.5 h-3.5 text-[#8B949E]"
+                    className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -337,10 +345,10 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                       onOpenVersionHistory();
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] transition-colors text-left"
                   >
                     <svg
-                      className="w-3.5 h-3.5 text-[#8B949E]"
+                      className="w-3.5 h-3.5 text-[var(--quant-text-muted)]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -359,10 +367,12 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                       onToggleFullWidth();
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] transition-colors text-left"
                   >
                     <span>Full Width</span>
-                    <span className="text-[11px] text-[#8B949E]">{fullWidth ? 'On' : 'Off'}</span>
+                    <span className="text-[11px] text-[var(--quant-text-muted)]">
+                      {fullWidth ? 'On' : 'Off'}
+                    </span>
                   </button>
                 )}
 
@@ -373,21 +383,21 @@ export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
                       onDuplicateDocument();
                       setShowMoreMenu(false);
                     }}
-                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC] transition-colors text-left"
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)] transition-colors text-left"
                   >
                     <span>Duplicate</span>
                   </button>
                 )}
 
                 {onDeleteDocument && (
-                  <div className="border-t border-[#21262D] pt-1 mt-1">
+                  <div className="border-t border-[var(--quant-surface-elevated)] pt-1 mt-1">
                     <button
                       type="button"
                       onClick={() => {
                         onDeleteDocument();
                         setShowMoreMenu(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#F85149] hover:bg-[#F85149]/10 transition-colors text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-destructive)] hover:bg-[#F85149]/10 transition-colors text-left"
                     >
                       <span>Delete Document</span>
                     </button>

@@ -439,12 +439,14 @@ function SequenceHint() {
       {pending.map((chord, index) => (
         <kbd
           key={`${chord}-${index}`}
-          className="rounded-md border border-[#FF8C42]/40 bg-[#FF8C42]/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
+          className="rounded-md border border-[#FF8C42]/40 bg-[#FF8C42]/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-[var(--brand-primary)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)]"
         >
           {chordToLabelParts(chord).join(' ')}
         </kbd>
       ))}
-      <span className="text-[11px] text-[#A1A4AC]">waiting for next key…</span>
+      <span className="text-[11px] text-[var(--quant-muted-foreground)]">
+        waiting for next key…
+      </span>
     </div>
   );
 }

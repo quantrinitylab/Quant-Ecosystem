@@ -231,7 +231,7 @@ export function AccountBadge() {
             // A menu is not a place to Tab through. Leave, and let focus land outside.
             if (event.key === 'Tab') setOpen(false);
           }}
-          className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in"
+          className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] shadow-2xl animate-scale-in"
         >
           {/*
             Multi-Account Switcher Section. `role="none"` on the padding wrapper:
@@ -239,10 +239,10 @@ export function AccountBadge() {
             — so the two sections used to swallow every item and the menu read as
             empty. Presentational here, so the menu owns what is inside directly.
           */}
-          <div role="none" className="p-2 border-b border-[#282C35] space-y-1">
+          <div role="none" className="p-2 border-b border-[var(--quant-border)] space-y-1">
             <p
               aria-hidden="true"
-              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#A1A4AC]"
+              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]"
             >
               Accounts ({accounts.length})
             </p>
@@ -263,7 +263,7 @@ export function AccountBadge() {
                     aria-checked={isCurrent}
                     tabIndex={-1}
                     onClick={() => handleSwitchAccount(acc)}
-                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`w-full flex items-center justify-between gap-2.5 p-2 rounded-xl text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                       isCurrent
                         ? 'bg-[#FF8C42]/10 border border-[#FF8C42]/30 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
                         : 'hover:bg-white/[0.04] border border-transparent'
@@ -281,14 +281,14 @@ export function AccountBadge() {
                         <p className="text-xs font-semibold text-white truncate leading-tight">
                           {acc.displayName}
                         </p>
-                        <p className="text-[10px] text-[#A1A4AC] truncate leading-tight">
+                        <p className="text-[10px] text-[var(--quant-muted-foreground)] truncate leading-tight">
                           {acc.email}
                         </p>
                       </div>
                     </div>
                     {isCurrent && (
                       <svg
-                        className="size-3.5 text-[#FF8C42] shrink-0"
+                        className="size-3.5 text-[var(--brand-primary)] shrink-0"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -310,7 +310,7 @@ export function AccountBadge() {
               role="menuitem"
               tabIndex={-1}
               onClick={handleAddAccount}
-              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-[var(--brand-primary)] hover:bg-[#FF8C42]/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <span
                 className="size-5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 flex items-center justify-center font-bold"
@@ -332,10 +332,10 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/settings');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:text-white hover:bg-[var(--quant-border)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <svg
-                className="size-3.5 text-[#A1A4AC]"
+                className="size-3.5 text-[var(--quant-muted-foreground)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -357,10 +357,10 @@ export function AccountBadge() {
                 setOpen(false);
                 router.push('/security');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:text-white hover:bg-[#1C1F26] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-[var(--quant-foreground)] hover:text-white hover:bg-[var(--quant-border)] rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <svg
-                className="size-3.5 text-[#A1A4AC]"
+                className="size-3.5 text-[var(--quant-muted-foreground)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -382,7 +382,7 @@ export function AccountBadge() {
                 await logout();
                 router.push('/login');
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <svg
                 className="size-3.5 text-rose-400"

@@ -844,7 +844,9 @@ export function ConversationalThreadView({
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
-    <div className={`flex flex-col h-full bg-[#090A0C] text-white select-text ${className}`}>
+    <div
+      className={`flex flex-col h-full bg-[var(--quant-background)] text-white select-text ${className}`}
+    >
       {/* Top Header Actions Bar */}
       <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -852,7 +854,7 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 -ml-1.5 rounded-xl text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="p-2 -ml-1.5 rounded-xl text-[var(--quant-muted-foreground)] hover:text-white hover:bg-[#282C35]/80 active:bg-[#3A404D]/60 transition-all active:scale-95 flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[40px] sm:min-h-[40px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               title="Back to inbox"
               aria-label="Back to inbox"
             >
@@ -874,12 +876,12 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={() => setGroupInfoOpen(true)}
-              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[#16181D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               aria-label={`Open details and shared media for ${activeGroup.name}`}
             >
               <span
                 aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[#090A0C]"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[var(--quant-background)]"
                 style={{
                   backgroundColor: activeGroup.color ?? '#FF8C42',
                 }}
@@ -898,7 +900,7 @@ export function ConversationalThreadView({
                 <span className="truncate text-sm font-bold text-white sm:text-base">
                   {activeGroup.name}
                 </span>
-                <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
+                <span className="truncate text-[11px] text-[var(--quant-muted-foreground)] transition-colors group-hover:text-[var(--brand-primary-hover)]">
                   {activeGroup.emails.length}{' '}
                   {activeGroup.emails.length === 1 ? 'member' : 'members'} · Tap for group details
                   &amp; media
@@ -909,12 +911,12 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={() => setProfileOpen(true)}
-              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[#16181D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1.5 text-left transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               aria-label={`Open details and shared media for ${otherParticipant.name || participantSummary}`}
             >
               <span
                 aria-hidden="true"
-                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[#090A0C] bg-[#FF8C42]"
+                className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-black text-[var(--quant-background)] bg-[var(--brand-primary)]"
               >
                 {(
                   (otherParticipant.name || participantSummary)
@@ -930,7 +932,7 @@ export function ConversationalThreadView({
                 <span className="truncate text-sm font-bold text-white sm:text-base">
                   {otherParticipant.name || participantSummary}
                 </span>
-                <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
+                <span className="truncate text-[11px] text-[var(--quant-muted-foreground)] transition-colors group-hover:text-[var(--brand-primary-hover)]">
                   {otherParticipant.email || threadSubject || 'Tap for details & media'}
                 </span>
               </span>
@@ -954,7 +956,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={openReplyComposer}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 sm:min-w-0"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-border)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:min-w-0"
             title="Reply (R)"
             aria-label="Reply to conversation"
           >
@@ -974,7 +976,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={openForwardComposer}
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 sm:min-w-0"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-border)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 sm:min-w-0"
             title="Forward message"
             aria-label="Forward conversation"
           >
@@ -994,10 +996,10 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={handleToggleStar}
-            className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0 ${
+            className={`flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 transition-all active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0 ${
               starred
-                ? 'text-[#FF8C42] bg-[#FF8C42]/10'
-                : 'text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35]'
+                ? 'text-[var(--brand-primary)] bg-[#FF8C42]/10'
+                : 'text-[var(--quant-muted-foreground)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-border)]'
             }`}
             title={starred ? 'Pinned to top' : 'Pin to top'}
           >
@@ -1024,7 +1026,7 @@ export function ConversationalThreadView({
                   `/thread/${primaryMessage?.threadId || primaryMessage?.id || threadId}?returnTo=${encodeURIComponent(currentPath)}`,
                 );
               }}
-              className="p-2 rounded-xl text-[#A1A4AC] hover:text-[#FFB875] hover:bg-[#282C35] transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
+              className="p-2 rounded-xl text-[var(--quant-muted-foreground)] hover:text-[var(--brand-accent)] hover:bg-[var(--quant-border)] transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Open in Full Thread View"
               aria-label="Open in full thread view"
             >
@@ -1047,7 +1049,7 @@ export function ConversationalThreadView({
             <button
               type="button"
               onClick={() => onArchive(conversationMessageIds)}
-              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-border)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0"
               title="Archive conversation (E)"
               aria-label="Archive conversation"
             >
@@ -1071,7 +1073,7 @@ export function ConversationalThreadView({
               type="button"
               onClick={handleRescueSpam}
               disabled={isRescuingSpam}
-              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-xs font-semibold text-[#FF8C42] border border-[#FF8C42]/30 shadow-sm transition-all disabled:opacity-50"
+              className="flex min-h-[44px] sm:min-h-0 items-center gap-1.5 rounded-xl px-3 py-1.5 bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-xs font-semibold text-[var(--brand-primary)] border border-[#FF8C42]/30 shadow-sm transition-all disabled:opacity-50"
               title="Not spam"
             >
               <svg
@@ -1098,10 +1100,10 @@ export function ConversationalThreadView({
               </svg>
             }
             triggerLabel="More conversation actions"
-            triggerClassName="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+            triggerClassName="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-border)] hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)]"
             wrapperClassName="inline-flex"
             menuLabel="Conversation actions"
-            menuClassName="w-52 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
+            menuClassName="w-52 overflow-hidden rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] py-1 shadow-[0_4px_16px_rgba(0,0,0,0.6)]"
             scope="thread-header-menu"
             height={180}
           >
@@ -1115,10 +1117,10 @@ export function ConversationalThreadView({
                     close();
                     openReplyAllComposer();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-border)] focus-visible:outline-none focus-visible:bg-[var(--quant-border)]"
                 >
                   <svg
-                    className="size-4 shrink-0 text-[#A1A4AC]"
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1142,10 +1144,10 @@ export function ConversationalThreadView({
                     close();
                   }}
                   disabled={messages.length === 0}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35] disabled:cursor-not-allowed disabled:text-[#6B6E76] disabled:hover:bg-transparent"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-border)] focus-visible:outline-none focus-visible:bg-[var(--quant-border)] disabled:cursor-not-allowed disabled:text-[var(--quant-text-muted)] disabled:hover:bg-transparent"
                 >
                   <svg
-                    className={`size-4 shrink-0 text-[#A1A4AC] transition-transform ${allExpanded ? 'rotate-180' : ''}`}
+                    className={`size-4 shrink-0 text-[var(--quant-muted-foreground)] transition-transform ${allExpanded ? 'rotate-180' : ''}`}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1166,10 +1168,10 @@ export function ConversationalThreadView({
                     close();
                     window.print();
                   }}
-                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#282C35] focus-visible:outline-none focus-visible:bg-[#282C35]"
+                  className="flex w-full min-h-[44px] items-center gap-3 px-3.5 text-left text-[13px] font-medium text-[var(--quant-foreground)] transition-colors hover:bg-[var(--quant-border)] focus-visible:outline-none focus-visible:bg-[var(--quant-border)]"
                 >
                   <svg
-                    className="size-4 shrink-0 text-[#A1A4AC]"
+                    className="size-4 shrink-0 text-[var(--quant-muted-foreground)]"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -1217,7 +1219,7 @@ export function ConversationalThreadView({
       {/* Main Conversation Stream (Chronological Stack) */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
         {isQuarantined && (
-          <div className="p-3.5 sm:p-4 rounded-xl bg-[#16181D] border border-[#282C35] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-3.5 sm:p-4 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="size-8 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 flex items-center justify-center shrink-0">
                 <svg
@@ -1240,7 +1242,7 @@ export function ConversationalThreadView({
                 type="button"
                 onClick={handleRescueSpam}
                 disabled={isRescuingSpam}
-                className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/30 text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+                className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/10 hover:bg-[#FF8C42]/15 text-[var(--brand-primary)] border border-[#FF8C42]/30 text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 <svg
                   className="size-3.5"
@@ -1266,9 +1268,9 @@ export function ConversationalThreadView({
         )}
 
         {!isLoading && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center p-12 text-center text-[#A1A4AC]">
+          <div className="flex flex-col items-center justify-center p-12 text-center text-[var(--quant-muted-foreground)]">
             <svg
-              className="w-10 h-10 mb-3 text-[#6B6E76]"
+              className="w-10 h-10 mb-3 text-[var(--quant-text-muted)]"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1280,7 +1282,9 @@ export function ConversationalThreadView({
                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
               />
             </svg>
-            <p className="text-sm font-medium text-[#A1A4AC]">No messages in this conversation</p>
+            <p className="text-sm font-medium text-[var(--quant-muted-foreground)]">
+              No messages in this conversation
+            </p>
           </div>
         )}
 
@@ -1359,10 +1363,10 @@ export function ConversationalThreadView({
                     type="button"
                     onClick={() => toggleMessageExpand(index)}
                     aria-expanded={false}
-                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                       isOutbound
                         ? 'border-[#FF8C42]/25 bg-[#FF8C42]/[0.04] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-                        : 'border-white/[0.08] bg-[#111318] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+                        : 'border-white/[0.08] bg-[var(--quant-surface)] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
@@ -1376,7 +1380,7 @@ export function ConversationalThreadView({
                           the warm surface under it already say who spoke, and those
                           are surfaces rather than the loudest colour on the palette.
                         */}
-                        <span className="truncate text-xs font-semibold text-[#F5F5F5]">
+                        <span className="truncate text-xs font-semibold text-[var(--quant-foreground)]">
                           {msgFromName}
                         </span>
 
@@ -1384,7 +1388,7 @@ export function ConversationalThreadView({
                         <span className="flex items-center gap-1.5 shrink-0">
                           {showKindBadges && <MessageKindBadge kind={messageKind} />}
                           {hasAtt && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#FF8C42]/10 border border-[#FF8C42]/25 text-[10px] font-semibold text-[#FF8C42] flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-[#FF8C42]/10 border border-[#FF8C42]/25 text-[10px] font-semibold text-[var(--brand-primary)] flex items-center gap-1">
                               <svg
                                 className="w-2.5 h-2.5"
                                 fill="none"
@@ -1413,18 +1417,18 @@ export function ConversationalThreadView({
                           )}
                         </span>
 
-                        <span className="text-xs text-[#A1A4AC] truncate max-w-xs sm:max-w-md">
+                        <span className="text-xs text-[var(--quant-muted-foreground)] truncate max-w-xs sm:max-w-md">
                           — {message.snippet || message.bodyText?.slice(0, 80) || '(No preview)'}
                         </span>
                       </span>
                     </span>
 
                     <span className="flex items-center gap-2 shrink-0">
-                      <span className="text-[11px] text-[#A1A4AC] font-mono">
+                      <span className="text-[11px] text-[var(--quant-muted-foreground)] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
                       <svg
-                        className="size-4 text-[#6B6E76] group-hover:text-[#A1A4AC] transition-colors"
+                        className="size-4 text-[var(--quant-text-muted)] group-hover:text-[var(--quant-muted-foreground)] transition-colors"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -1441,7 +1445,7 @@ export function ConversationalThreadView({
                     className={`w-full max-w-[96%] overflow-hidden rounded-xl transition-all sm:max-w-[92%] sm:rounded-2xl ${
                       isOutbound
                         ? 'bg-[#14100E] shadow-[inset_0_0_0_1px_#3A2416]'
-                        : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35]'
+                        : 'bg-[var(--quant-surface)] shadow-[inset_0_0_0_1px_#282C35]'
                     }`}
                   >
                     {/*
@@ -1477,11 +1481,11 @@ export function ConversationalThreadView({
 
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-semibold text-[#F5F5F5]">
+                            <span className="text-sm font-semibold text-[var(--quant-foreground)]">
                               {msgFromName}
                             </span>
                             {showKindBadges && <MessageKindBadge kind={messageKind} />}
-                            <span className="text-xs text-[#A1A4AC] font-mono">
+                            <span className="text-xs text-[var(--quant-muted-foreground)] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
                           </div>
@@ -1504,7 +1508,7 @@ export function ConversationalThreadView({
                             aria-controls={
                               isDetailsExpanded ? `${detailsBaseId}-details-${index}` : undefined
                             }
-                            className="group relative inline-flex items-center gap-1 pt-0.5 text-left font-mono text-xs text-[#A1A4AC] before:absolute before:inset-x-0 before:-inset-y-[13px] before:content-[''] hover:text-[#FFB875] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                            className="group relative inline-flex items-center gap-1 pt-0.5 text-left font-mono text-xs text-[var(--quant-muted-foreground)] before:absolute before:inset-x-0 before:-inset-y-[13px] before:content-[''] hover:text-[var(--brand-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                           >
                             <span>to {isOutbound ? toDisplay : 'me'}</span>
                             <svg
@@ -1533,7 +1537,7 @@ export function ConversationalThreadView({
                             at from the other direction.
                           */
                           aria-expanded={true}
-                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[#A1A4AC] transition-colors hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C] sm:min-h-0 sm:min-w-0"
+                          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl p-2 text-[var(--quant-muted-foreground)] transition-colors hover:bg-[var(--quant-border)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] sm:min-h-0 sm:min-w-0"
                           title="Collapse this message"
                         >
                           <svg
@@ -1561,20 +1565,26 @@ export function ConversationalThreadView({
                           className="px-4 sm:px-5"
                         >
                           {/* A hairline-ruled block, not a third nested card. */}
-                          <div className="space-y-1.5 border-t border-[#282C35] py-3 font-mono text-xs text-[#A1A4AC]">
+                          <div className="space-y-1.5 border-t border-[var(--quant-border)] py-3 font-mono text-xs text-[var(--quant-muted-foreground)]">
                             <div className="flex">
-                              <span className="w-20 text-[#A1A4AC]">From:</span>
-                              <span className="font-medium text-[#F5F5F5]">
+                              <span className="w-20 text-[var(--quant-muted-foreground)]">
+                                From:
+                              </span>
+                              <span className="font-medium text-[var(--quant-foreground)]">
                                 {msgFromName} {msgFromEmail ? `<${msgFromEmail}>` : ''}
                               </span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-[#A1A4AC]">To:</span>
-                              <span className="text-[#A1A4AC]">{toDisplay}</span>
+                              <span className="w-20 text-[var(--quant-muted-foreground)]">To:</span>
+                              <span className="text-[var(--quant-muted-foreground)]">
+                                {toDisplay}
+                              </span>
                             </div>
                             <div className="flex">
-                              <span className="w-20 text-[#A1A4AC]">Date:</span>
-                              <span className="text-[#A1A4AC]">
+                              <span className="w-20 text-[var(--quant-muted-foreground)]">
+                                Date:
+                              </span>
+                              <span className="text-[var(--quant-muted-foreground)]">
                                 {message.receivedAt
                                   ? new Date(message.receivedAt).toLocaleString()
                                   : 'N/A'}
@@ -1622,7 +1632,7 @@ export function ConversationalThreadView({
           <div
             role="group"
             aria-label="Send as"
-            className="flex items-center gap-1 rounded-xl border border-[#282C35] bg-[#111318] p-1 w-fit"
+            className="flex items-center gap-1 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1 w-fit"
           >
             {[
               { mode: 'chat' as const, label: 'Message', Glyph: IconChat },
@@ -1635,10 +1645,10 @@ export function ConversationalThreadView({
                   type="button"
                   onClick={() => setComposeMode(mode)}
                   aria-pressed={isActive}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                     isActive
-                      ? 'bg-[#FF8C42]/10 text-[#FF8C42] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.30)]'
-                      : 'text-[#A1A4AC] hover:bg-white/[0.04] hover:text-[#EDEDED]'
+                      ? 'bg-[#FF8C42]/10 text-[var(--brand-primary)] shadow-[inset_0_0_0_1px_rgba(255,140,66,0.30)]'
+                      : 'text-[var(--quant-muted-foreground)] hover:bg-white/[0.04] hover:text-[#EDEDED]'
                   }`}
                   title={
                     mode === 'chat'
@@ -1660,10 +1670,10 @@ export function ConversationalThreadView({
             {pendingAttachments.map((att, index) => (
               <span
                 key={index}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#16181D] border border-[#282C35] text-xs text-[#F5F5F5]"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-xs text-[var(--quant-foreground)]"
               >
                 <svg
-                  className="w-3.5 h-3.5 text-[#FF8C42]"
+                  className="w-3.5 h-3.5 text-[var(--brand-primary)]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1679,7 +1689,7 @@ export function ConversationalThreadView({
                 <button
                   type="button"
                   onClick={() => removePendingAttachment(index)}
-                  className="text-[#6B6E76] hover:text-[#F87171] p-0.5 rounded transition-colors"
+                  className="text-[var(--quant-text-muted)] hover:text-[var(--quant-destructive)] p-0.5 rounded transition-colors"
                   aria-label="Remove attachment"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1697,7 +1707,7 @@ export function ConversationalThreadView({
         )}
 
         {/* Main Floating Input Bar */}
-        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[#282C35] bg-[#111318] shadow-2xl">
+        <div className="flex items-center gap-1.5 sm:gap-2 p-1.5 sm:p-2 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] shadow-2xl">
           {/* File Attachment Hidden Input */}
           <input
             type="file"
@@ -1718,7 +1728,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1.5 text-[#A1A4AC] transition-all hover:bg-[#282C35] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0 sm:min-w-0 sm:p-2"
+            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1.5 text-[var(--quant-muted-foreground)] transition-all hover:bg-[var(--quant-border)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-2"
             title="Attach Files / Photos"
             aria-label="Attach files or photos"
           >
@@ -1737,7 +1747,7 @@ export function ConversationalThreadView({
           <button
             type="button"
             onClick={() => setIsQuantyOpen(true)}
-            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 text-[#FF8C42] transition-all hover:bg-[#FF8C42]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0 sm:min-w-0 sm:p-1.5"
+            className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-xl p-1 text-[var(--brand-primary)] transition-all hover:bg-[#FF8C42]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0 sm:min-w-0 sm:p-1.5"
             title="Ask Quanty AI to write response"
             aria-label="Ask Quanty AI to write a response"
           >
@@ -1762,7 +1772,7 @@ export function ConversationalThreadView({
                 : 'Message (↵ to send)…'
             }
             aria-label={composeMode === 'mail' ? 'Start a letter reply' : 'Message'}
-            className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[#A1A4AC] focus:outline-none px-1 sm:px-2 py-1.5 sm:min-h-0"
+            className="min-h-[44px] min-w-0 flex-1 bg-transparent border-none text-xs sm:text-sm text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none px-1 sm:px-2 py-1.5 sm:min-h-0"
           />
 
           {/* Send Button — sends the line, or carries it into the full composer */}
@@ -1773,7 +1783,7 @@ export function ConversationalThreadView({
               composeMode === 'chat' &&
               ((!quickReplyText.trim() && pendingAttachments.length === 0) || isSendingQuickReply)
             }
-            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318]"
+            className="px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111] text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-30 disabled:pointer-events-none shrink-0 flex items-center gap-1.5 min-h-[44px] sm:min-h-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)]"
           >
             <span>{composeMode === 'mail' ? 'Compose' : isSendingQuickReply ? '…' : 'Send'}</span>
             {composeMode === 'mail' ? (
@@ -1869,19 +1879,19 @@ export function ConversationalThreadView({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="trash-title"
-            className="w-full max-w-sm rounded-2xl border border-[#3A404D] bg-[#111318] p-5"
+            className="w-full max-w-sm rounded-2xl border border-[var(--quant-border-strong)] bg-[var(--quant-surface)] p-5"
           >
             <h2 id="trash-title" className="text-base font-bold text-white">
               Move conversation to Trash?
             </h2>
-            <p className="mt-2 text-xs text-[#A1A4AC]">
+            <p className="mt-2 text-xs text-[var(--quant-muted-foreground)]">
               The complete conversation will be moved to Trash.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setConfirmTrash(false)}
-                className="min-h-[44px] rounded-xl border border-[#282C35] px-4 text-xs font-semibold text-white"
+                className="min-h-[44px] rounded-xl border border-[var(--quant-border)] px-4 text-xs font-semibold text-white"
               >
                 Cancel
               </button>

@@ -119,9 +119,9 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         {isLoading ? (
           <div className="space-y-3 py-4">
-            <Skeleton className="h-16 w-full rounded-xl bg-[#16181D]" />
-            <Skeleton className="h-24 w-full rounded-xl bg-[#16181D]" />
-            <Skeleton className="h-24 w-full rounded-xl bg-[#16181D]" />
+            <Skeleton className="h-16 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
+            <Skeleton className="h-24 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
+            <Skeleton className="h-24 w-full rounded-xl bg-[var(--quant-surface-elevated)]" />
           </div>
         ) : clusters.length === 0 ? (
           <div className="py-12 text-center">
@@ -135,8 +135,10 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                 />
               </svg>
             </div>
-            <h4 className="mt-3 text-sm font-semibold text-[#F5F5F5]">No Duplicates Found</h4>
-            <p className="mt-1 text-xs text-[#A1A4AC]">
+            <h4 className="mt-3 text-sm font-semibold text-[var(--quant-foreground)]">
+              No Duplicates Found
+            </h4>
+            <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
               Your address book is clean. All contacts have unique emails and names.
             </p>
             <div className="mt-5">
@@ -147,12 +149,12 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between rounded-xl border border-[#282C35] bg-[#16181D] p-3">
+            <div className="flex items-center justify-between rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] p-3">
               <div>
-                <span className="text-xs font-semibold text-[#F5F5F5]">
+                <span className="text-xs font-semibold text-[var(--quant-foreground)]">
                   {clusters.length} Duplicate Group{clusters.length === 1 ? '' : 's'} Detected
                 </span>
-                <p className="text-[11px] text-[#A1A4AC]">
+                <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                   Choose which contact to keep as primary for each group, or auto-merge all.
                 </p>
               </div>
@@ -169,14 +171,14 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                 return (
                   <div
                     key={cIdx}
-                    className="rounded-xl border border-[#282C35] bg-[#111318] p-4 space-y-3"
+                    className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-4 space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[#FF8C42]/10 text-[#FF8C42] border border-[#FF8C42]/20">
+                        <span className="rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-[#FF8C42]/10 text-[var(--brand-primary)] border border-[#FF8C42]/20">
                           {cluster.reason === 'email' ? 'Identical Email' : 'Identical Name'}
                         </span>
-                        <span className="text-xs text-[#A1A4AC]">
+                        <span className="text-xs text-[var(--quant-muted-foreground)]">
                           {cluster.reason === 'email'
                             ? cluster.primaryContact.email
                             : cluster.primaryContact.name}
@@ -202,7 +204,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                             className={`cursor-pointer rounded-lg border p-3 transition-all ${
                               isSelectedPrimary
                                 ? 'border-[#FF8C42]/50 bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]/50 shadow-[0_0_16px_rgba(255,140,66,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)]'
-                                : 'border-white/[0.08] bg-[#111318] hover:border-white/[0.14] hover:bg-white/[0.03]'
+                                : 'border-white/[0.08] bg-[var(--quant-surface)] hover:border-white/[0.14] hover:bg-white/[0.03]'
                             }`}
                           >
                             <div className="flex items-start justify-between">
@@ -214,16 +216,16 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 />
                                 <div>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-xs font-semibold text-[#F5F5F5]">
+                                    <span className="text-xs font-semibold text-[var(--quant-foreground)]">
                                       {contact.name || 'Unnamed'}
                                     </span>
                                     {isSelectedPrimary && (
-                                      <span className="rounded bg-[#FF8C42] px-1 py-0.2 text-[9px] font-bold text-[#111111]">
+                                      <span className="rounded bg-[var(--brand-primary)] px-1 py-0.2 text-[9px] font-bold text-[#111111]">
                                         PRIMARY
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-[#A1A4AC] truncate max-w-[180px]">
+                                  <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate max-w-[180px]">
                                     {contact.email}
                                   </p>
                                 </div>
@@ -233,11 +235,11 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 name={`primary-${cIdx}`}
                                 checked={isSelectedPrimary}
                                 onChange={() => handleSelectPrimary(cIdx, contact.id)}
-                                className="mt-1 h-3.5 w-3.5 accent-[#FF8C42]"
+                                className="mt-1 h-3.5 w-3.5 accent-[var(--brand-primary)]"
                               />
                             </div>
 
-                            <div className="mt-2.5 space-y-1 text-[11px] text-[#6B6E76]">
+                            <div className="mt-2.5 space-y-1 text-[11px] text-[var(--quant-text-muted)]">
                               {contact.phone && <p className="truncate">📞 {contact.phone}</p>}
                               {contact.company && <p className="truncate">🏢 {contact.company}</p>}
                               {contact.tags && contact.tags.length > 0 && (
@@ -245,7 +247,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                   {contact.tags.map((tag) => (
                                     <span
                                       key={tag}
-                                      className="rounded bg-[#282C35] px-1.5 py-0.2 text-[9px] text-[#A1A4AC]"
+                                      className="rounded bg-[var(--quant-border)] px-1.5 py-0.2 text-[9px] text-[var(--quant-muted-foreground)]"
                                     >
                                       {tag}
                                     </span>
@@ -253,7 +255,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                 </div>
                               )}
                               {contact.frequency !== undefined && (
-                                <p className="text-[10px] text-[#A1A4AC] pt-0.5">
+                                <p className="text-[10px] text-[var(--quant-muted-foreground)] pt-0.5">
                                   {contact.frequency} interaction
                                   {contact.frequency === 1 ? '' : 's'}
                                 </p>

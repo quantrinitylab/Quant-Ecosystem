@@ -232,18 +232,18 @@ export function PostcardStudio() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#0A0B0E] text-[#F5F5F5] p-4 sm:p-8">
+      <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[var(--quant-background)] text-[var(--quant-foreground)] p-4 sm:p-8">
         {/* Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#282C35]/80 pb-6 mb-8">
           <div>
-            <div className="flex items-center gap-2.5 text-xs font-mono font-bold tracking-widest text-[#FF8C42] uppercase">
+            <div className="flex items-center gap-2.5 text-xs font-mono font-bold tracking-widest text-[var(--brand-primary)] uppercase">
               <IconMailHeart size={14} />
               <span>QuantMail Creative Suite</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-black text-white mt-1">
               Vintage Postcard Studio
             </h1>
-            <p className="text-xs sm:text-sm text-[#A1A4AC] mt-1 max-w-xl">
+            <p className="text-xs sm:text-sm text-[var(--quant-muted-foreground)] mt-1 max-w-xl">
               Design handcrafted, authentic vintage postcards with custom stamps, PNG stickers, and
               paper textures. Send timeless letters to anyone.
             </p>
@@ -254,7 +254,7 @@ export function PostcardStudio() {
             <button
               type="button"
               onClick={handleSaveCard}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#FF8C42] px-4 py-2 text-xs font-semibold text-[#111111] transition-all hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111318] sm:min-h-0"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-xs font-semibold text-[#111111] transition-all hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] sm:min-h-0"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -278,7 +278,7 @@ export function PostcardStudio() {
                 );
                 router.push('/compose');
               }}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#282C35] bg-[#16181D] px-4 py-2 text-xs font-semibold text-[#F5F5F5] transition-all hover:bg-[#1C1F26] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-4 py-2 text-xs font-semibold text-[var(--quant-foreground)] transition-all hover:bg-[var(--quant-border)] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -311,7 +311,7 @@ export function PostcardStudio() {
           aria-label="Postcard studio views"
           aria-orientation="horizontal"
           onKeyDown={onTabKeyDown}
-          className="flex items-center gap-2 border-b border-[#282C35] mb-6"
+          className="flex items-center gap-2 border-b border-[var(--quant-border)] mb-6"
         >
           {STUDIO_TABS.map((tab) => {
             const isActive = activeTab === tab.key;
@@ -331,10 +331,10 @@ export function PostcardStudio() {
                 aria-controls={isActive ? panelId(tab.key) : undefined}
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.key)}
-                className={`min-h-11 px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                className={`min-h-11 px-4 py-2 text-xs font-semibold rounded-t-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                   isActive
-                    ? 'bg-[#111318] text-[#FF8C42] border-t-2 border-[#FF8C42]'
-                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                    ? 'bg-[var(--quant-surface)] text-[var(--brand-primary)] border-t-2 border-[var(--brand-primary)]'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                 }`}
               >
                 {tab.key === 'my-cards' ? `${tab.label} (${customCards.length})` : tab.label}
@@ -358,8 +358,8 @@ export function PostcardStudio() {
             className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start"
           >
             {/* Left: 3D Interactive Canvas Preview */}
-            <div className="lg:col-span-7 flex flex-col items-center bg-[#111318] border border-[#282C35] rounded-2xl p-6 sm:p-8">
-              <div className="w-full flex items-center justify-between text-xs text-[#A1A4AC] font-mono mb-4">
+            <div className="lg:col-span-7 flex flex-col items-center bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-2xl p-6 sm:p-8">
+              <div className="w-full flex items-center justify-between text-xs text-[var(--quant-muted-foreground)] font-mono mb-4">
                 <span>LIVE 3D PREVIEW</span>
                 <span>TILT & FLIP SUPPORTED</span>
               </div>
@@ -374,15 +374,15 @@ export function PostcardStudio() {
                 className="w-full"
               />
 
-              <p className="text-[11px] text-[#A1A4AC] font-mono mt-4 text-center">
+              <p className="text-[11px] text-[var(--quant-muted-foreground)] font-mono mt-4 text-center">
                 Tip: Type directly onto the card above to test your message flow and letterpress
                 layout.
               </p>
             </div>
 
             {/* Right: Customization Controls Panel */}
-            <div className="lg:col-span-5 space-y-6 bg-[#111318] border border-[#282C35] rounded-2xl p-6">
-              <h2 className="text-sm font-bold tracking-wide uppercase text-[#F5F5F5] font-mono">
+            <div className="lg:col-span-5 space-y-6 bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-2xl p-6">
+              <h2 className="text-sm font-bold tracking-wide uppercase text-[var(--quant-foreground)] font-mono">
                 Postcard Controls
               </h2>
 
@@ -390,7 +390,7 @@ export function PostcardStudio() {
               <div>
                 <label
                   htmlFor={`${studioId}-title`}
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1.5"
                 >
                   Postcard Title
                 </label>
@@ -401,7 +401,7 @@ export function PostcardStudio() {
                   onChange={(e) =>
                     setCurrentTemplate((prev) => ({ ...prev, name: e.target.value }))
                   }
-                  className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-3 py-2 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
+                  className="min-h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-2 text-xs text-[var(--quant-foreground)] focus:border-[var(--brand-primary)] focus:outline-none sm:min-h-0"
                 />
               </div>
 
@@ -423,7 +423,7 @@ export function PostcardStudio() {
                 */}
                 <div
                   id={`${studioId}-texture-label`}
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1.5"
                 >
                   Aged Paper Texture
                 </div>
@@ -461,10 +461,10 @@ export function PostcardStudio() {
                         onClick={() =>
                           setCurrentTemplate((prev) => ({ ...prev, paperTexture: tex.key }))
                         }
-                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                           isChosen
-                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
-                            : 'bg-[#16181D] border-white/[0.08] text-[#A1A4AC] hover:border-white/[0.15]'
+                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[var(--brand-primary)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                            : 'bg-[var(--quant-surface-elevated)] border-white/[0.08] text-[var(--quant-muted-foreground)] hover:border-white/[0.15]'
                         }`}
                       >
                         {tex.label}
@@ -478,12 +478,12 @@ export function PostcardStudio() {
               {/* The label owns the hit area: the native box is 16px, so a tap
                * anywhere on this row is the only version of this control a
                * finger can actually use. */}
-              <label className="flex min-h-11 cursor-pointer items-center justify-between border-t border-[#282C35] pt-4">
+              <label className="flex min-h-11 cursor-pointer items-center justify-between border-t border-[var(--quant-border)] pt-4">
                 <div>
-                  <div className="text-xs font-semibold text-[#F5F5F5]">
+                  <div className="text-xs font-semibold text-[var(--quant-foreground)]">
                     Victorian Filigree Corners
                   </div>
-                  <div className="text-[11px] text-[#A1A4AC]">
+                  <div className="text-[11px] text-[var(--quant-muted-foreground)]">
                     Ornate hand-drawn corner flourishes
                   </div>
                 </div>
@@ -493,16 +493,16 @@ export function PostcardStudio() {
                   onChange={(e) =>
                     setCurrentTemplate((prev) => ({ ...prev, hasFiligree: e.target.checked }))
                   }
-                  className="size-4 shrink-0 cursor-pointer rounded accent-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="size-4 shrink-0 cursor-pointer rounded accent-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 />
               </label>
 
               {/* Font Style */}
-              <div className="border-t border-[#282C35] pt-4">
+              <div className="border-t border-[var(--quant-border)] pt-4">
                 {/* Same shape as the texture picker above, for the same reason. */}
                 <div
                   id={`${studioId}-font-label`}
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1.5"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1.5"
                 >
                   Typography Style
                 </div>
@@ -531,10 +531,10 @@ export function PostcardStudio() {
                         onClick={() =>
                           setCurrentTemplate((prev) => ({ ...prev, fontFamily: font.key }))
                         }
-                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                        className={`min-h-11 rounded-lg border px-3 py-2 text-left font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                           isChosen
-                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[#FF8C42] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
-                            : 'bg-[#16181D] border-white/[0.08] text-[#A1A4AC] hover:border-white/[0.15]'
+                            ? 'bg-[#FF8C42]/12 border-[#FF8C42]/30 text-[var(--brand-primary)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]'
+                            : 'bg-[var(--quant-surface-elevated)] border-white/[0.08] text-[var(--quant-muted-foreground)] hover:border-white/[0.15]'
                         }`}
                       >
                         {font.label}
@@ -545,8 +545,8 @@ export function PostcardStudio() {
               </div>
 
               {/* Postage Stamp & Cancellation Seal Controls */}
-              <div className="border-t border-[#282C35] pt-4 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono">
+              <div className="border-t border-[var(--quant-border)] pt-4 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--brand-primary)] font-mono">
                   Postage Stamp & Rubber Seal
                 </div>
 
@@ -554,7 +554,7 @@ export function PostcardStudio() {
                   <div>
                     <label
                       htmlFor={`${studioId}-postmark-city`}
-                      className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                      className="block text-[11px] font-medium text-[var(--quant-muted-foreground)] mb-1"
                     >
                       Postmark City
                     </label>
@@ -568,7 +568,7 @@ export function PostcardStudio() {
                           stamp: { ...prev.stamp, postmarkCity: e.target.value },
                         }))
                       }
-                      className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
+                      className="min-h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-1.5 text-xs text-[var(--quant-foreground)] focus:border-[var(--brand-primary)] focus:outline-none sm:min-h-0"
                       placeholder="e.g. TOKYO"
                     />
                   </div>
@@ -576,7 +576,7 @@ export function PostcardStudio() {
                   <div>
                     <label
                       htmlFor={`${studioId}-stamp-value`}
-                      className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                      className="block text-[11px] font-medium text-[var(--quant-muted-foreground)] mb-1"
                     >
                       Stamp Value
                     </label>
@@ -590,7 +590,7 @@ export function PostcardStudio() {
                           stamp: { ...prev.stamp, value: e.target.value },
                         }))
                       }
-                      className="min-h-11 w-full rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 py-1.5 text-xs text-[#F5F5F5] focus:border-[#FF8C42] focus:outline-none sm:min-h-0"
+                      className="min-h-11 w-full rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-2.5 py-1.5 text-xs text-[var(--quant-foreground)] focus:border-[var(--brand-primary)] focus:outline-none sm:min-h-0"
                       placeholder="e.g. 50¢ or ₹5"
                     />
                   </div>
@@ -600,7 +600,7 @@ export function PostcardStudio() {
                 <div>
                   <label
                     htmlFor={`${studioId}-stamp-photo`}
-                    className="block text-[11px] font-medium text-[#A1A4AC] mb-1"
+                    className="block text-[11px] font-medium text-[var(--quant-muted-foreground)] mb-1"
                   >
                     Upload Custom Photo for Stamp (PNG / JPG)
                   </label>
@@ -613,21 +613,21 @@ export function PostcardStudio() {
                     type="file"
                     accept="image/*"
                     onChange={handleUploadStampPhoto}
-                    className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
+                    className="min-h-11 w-full text-xs text-[var(--quant-muted-foreground)] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--brand-primary)] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                   />
                 </div>
               </div>
 
               {/* PNG Stickers Layer */}
-              <div className="border-t border-[#282C35] pt-4 space-y-3">
+              <div className="border-t border-[var(--quant-border)] pt-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div
                     id={`${studioId}-stickers-label`}
-                    className="text-xs font-bold uppercase tracking-wider text-[#FF8C42] font-mono"
+                    className="text-xs font-bold uppercase tracking-wider text-[var(--brand-primary)] font-mono"
                   >
                     Add Custom PNG Stickers
                   </div>
-                  <span className="text-[11px] text-[#A1A4AC]">
+                  <span className="text-[11px] text-[var(--quant-muted-foreground)]">
                     {currentTemplate.stickers.length} active
                   </span>
                 </div>
@@ -644,7 +644,7 @@ export function PostcardStudio() {
                   type="file"
                   accept="image/png,image/webp,image/*"
                   onChange={handleUploadSticker}
-                  className="min-h-11 w-full text-xs text-[#A1A4AC] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#FF8C42] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
+                  className="min-h-11 w-full text-xs text-[var(--quant-muted-foreground)] file:mr-3 file:rounded-md file:border file:border-[#FF8C42]/25 file:bg-[#FF8C42]/12 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[var(--brand-primary)] hover:file:bg-[#FF8C42]/20 sm:min-h-0 [@media(pointer:coarse)]:file:py-3"
                 />
 
                 {currentTemplate.stickers.length > 0 && (
@@ -674,10 +674,10 @@ export function PostcardStudio() {
             {DEFAULT_VINTAGE_PRESETS.map((preset) => (
               <div
                 key={preset.id}
-                className="bg-[#111318] border border-[#282C35] hover:border-[#FF8C42]/50 rounded-2xl p-5 flex flex-col justify-between transition-all group shadow-lg"
+                className="bg-[var(--quant-surface)] border border-[var(--quant-border)] hover:border-[#FF8C42]/50 rounded-2xl p-5 flex flex-col justify-between transition-all group shadow-lg"
               >
                 <div>
-                  <div className="w-full aspect-[1.58/1] rounded-xl overflow-hidden mb-4 border border-[#282C35] bg-[#090A0C] p-2">
+                  <div className="w-full aspect-[1.58/1] rounded-xl overflow-hidden mb-4 border border-[var(--quant-border)] bg-[var(--quant-background)] p-2">
                     <PostcardCanvas
                       template={preset}
                       message="Greetings from across the postal timeline…"
@@ -686,14 +686,16 @@ export function PostcardStudio() {
                     />
                   </div>
 
-                  <h3 className="text-base font-serif font-bold text-[#F5F5F5] group-hover:text-[#FF8C42] transition-colors">
+                  <h3 className="text-base font-serif font-bold text-[var(--quant-foreground)] group-hover:text-[var(--brand-primary)] transition-colors">
                     {preset.name}
                   </h3>
-                  <p className="text-xs text-[#A1A4AC] mt-1">{preset.description}</p>
+                  <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                    {preset.description}
+                  </p>
                 </div>
 
-                <div className="mt-5 pt-4 border-t border-[#282C35] flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-[#FF8C42] font-semibold uppercase">
+                <div className="mt-5 pt-4 border-t border-[var(--quant-border)] flex items-center justify-between">
+                  <span className="text-[11px] font-mono text-[var(--brand-primary)] font-semibold uppercase">
                     {preset.category}
                   </span>
                   <button
@@ -703,7 +705,7 @@ export function PostcardStudio() {
                       setActiveTab('designer');
                       showToast({ text: `Loaded "${preset.name}" into designer!`, type: 'info' });
                     }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/30 shadow-sm transition-all"
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8C42]/10 hover:bg-[#FF8C42]/20 text-[var(--brand-primary)] border border-[#FF8C42]/30 shadow-sm transition-all"
                   >
                     Customize in Studio
                   </button>
@@ -719,8 +721,8 @@ export function PostcardStudio() {
         {activeTab === 'my-cards' && (
           <div role="tabpanel" id={panelId('my-cards')} aria-labelledby={tabId('my-cards')}>
             {customCards.length === 0 ? (
-              <div className="text-center py-16 bg-[#111318]/40 border border-dashed border-[#282C35] rounded-2xl">
-                <div className="size-12 rounded-full bg-[#16181D] border border-[#282C35] text-[#A1A4AC] flex items-center justify-center mx-auto mb-3">
+              <div className="text-center py-16 bg-[#111318]/40 border border-dashed border-[var(--quant-border)] rounded-2xl">
+                <div className="size-12 rounded-full bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] flex items-center justify-center mx-auto mb-3">
                   <svg
                     className="size-6"
                     viewBox="0 0 24 24"
@@ -731,17 +733,17 @@ export function PostcardStudio() {
                     <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                   </svg>
                 </div>
-                <h3 className="text-base font-semibold text-[#F5F5F5]">
+                <h3 className="text-base font-semibold text-[var(--quant-foreground)]">
                   No custom postcards saved yet
                 </h3>
-                <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto mt-1">
+                <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm mx-auto mt-1">
                   Design a postcard in the Studio and click &ldquo;Save Postcard&rdquo; to build
                   your personal postal collection.
                 </p>
                 <button
                   type="button"
                   onClick={() => setActiveTab('designer')}
-                  className="mt-4 px-4 py-2 bg-[#FF8C42]/10 text-[#FF8C42] border border-[#FF8C42]/30 rounded-lg text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-sm transition-colors"
+                  className="mt-4 px-4 py-2 bg-[#FF8C42]/10 text-[var(--brand-primary)] border border-[#FF8C42]/30 rounded-lg text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-sm transition-colors"
                 >
                   Open Postcard Studio
                 </button>
@@ -751,10 +753,10 @@ export function PostcardStudio() {
                 {customCards.map((card) => (
                   <div
                     key={card.id}
-                    className="bg-[#111318] border border-[#282C35] rounded-2xl p-5 flex flex-col justify-between shadow-lg"
+                    className="bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-2xl p-5 flex flex-col justify-between shadow-lg"
                   >
                     <div>
-                      <div className="w-full aspect-[1.58/1] rounded-xl overflow-hidden mb-4 border border-[#282C35] bg-[#090A0C] p-2">
+                      <div className="w-full aspect-[1.58/1] rounded-xl overflow-hidden mb-4 border border-[var(--quant-border)] bg-[var(--quant-background)] p-2">
                         <PostcardCanvas
                           template={card}
                           message="My personalized postal stationery…"
@@ -762,8 +764,10 @@ export function PostcardStudio() {
                           allowFlip={false}
                         />
                       </div>
-                      <h3 className="text-base font-serif font-bold text-[#F5F5F5]">{card.name}</h3>
-                      <p className="text-xs text-[#A1A4AC] mt-1">
+                      <h3 className="text-base font-serif font-bold text-[var(--quant-foreground)]">
+                        {card.name}
+                      </h3>
+                      <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                         Created{' '}
                         {card.createdAt
                           ? new Date(card.createdAt).toLocaleDateString()
@@ -771,7 +775,7 @@ export function PostcardStudio() {
                       </p>
                     </div>
 
-                    <div className="mt-5 pt-4 border-t border-[#282C35] flex items-center justify-between">
+                    <div className="mt-5 pt-4 border-t border-[var(--quant-border)] flex items-center justify-between">
                       <button
                         type="button"
                         onClick={() => handleDeleteCustomCard(card.id)}
@@ -787,7 +791,7 @@ export function PostcardStudio() {
                             setCurrentTemplate(card);
                             setActiveTab('designer');
                           }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#16181D] hover:bg-[#1C1F26] text-[#F5F5F5] border border-[#282C35]"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--quant-surface-elevated)] hover:bg-[var(--quant-border)] text-[var(--quant-foreground)] border border-[var(--quant-border)]"
                         >
                           Edit
                         </button>
@@ -800,7 +804,7 @@ export function PostcardStudio() {
                             );
                             router.push('/compose');
                           }}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111]"
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] text-[#111111]"
                         >
                           Send Mail
                         </button>

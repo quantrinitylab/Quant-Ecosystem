@@ -33,7 +33,7 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
       expect(html).toContain('px-4 py-2');
 
       // Verify brand mark
-      expect(html).toContain('bg-[#FF8C42]');
+      expect(html).toContain('bg-[var(--brand-primary)]');
       expect(html).toContain('Keys');
     });
 
@@ -98,20 +98,26 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
       const htmlJ = renderToStaticMarkup(
         <SuperhumanShortcutDock activeKeyOverride="J" disableListener />,
       );
-      expect(htmlJ).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlJ).toContain(
+        'border-[var(--brand-primary)] bg-[#FF8C42]/20 text-[var(--brand-primary)]',
+      );
       expect(htmlJ).toContain('shadow-[0_0_12px_rgba(255,140,66,0.6)]');
 
       // Test highlighting for 'E' (Done / Archive)
       const htmlE = renderToStaticMarkup(
         <SuperhumanShortcutDock activeKeyOverride="E" disableListener />,
       );
-      expect(htmlE).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlE).toContain(
+        'border-[var(--brand-primary)] bg-[#FF8C42]/20 text-[var(--brand-primary)]',
+      );
 
       // Test highlighting for 'CMD_K' (Command Palette)
       const htmlPalette = renderToStaticMarkup(
         <SuperhumanShortcutDock activeKeyOverride="CMD_K" disableListener />,
       );
-      expect(htmlPalette).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
+      expect(htmlPalette).toContain(
+        'border-[var(--brand-primary)] bg-[#FF8C42]/20 text-[var(--brand-primary)]',
+      );
     });
   });
 

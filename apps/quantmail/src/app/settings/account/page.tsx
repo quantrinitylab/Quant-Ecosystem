@@ -155,7 +155,7 @@ export default function AccountSettingsPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-red-500/20 bg-[#090A0C] p-4 space-y-3">
+            <div className="rounded-xl border border-red-500/20 bg-[var(--quant-background)] p-4 space-y-3">
               <label className="block text-xs font-medium text-[var(--quant-foreground)]">
                 To confirm permanent deletion, please type{' '}
                 <span className="font-mono text-red-400 font-bold">DELETE</span> below:

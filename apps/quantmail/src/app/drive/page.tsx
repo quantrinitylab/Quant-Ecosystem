@@ -50,7 +50,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (type === 'folder') {
     return (
       <svg
-        className={`${className} text-[#FF8C42] shrink-0`}
+        className={`${className} text-[var(--brand-primary)] shrink-0`}
         fill="currentColor"
         viewBox="0 0 24 24"
       >
@@ -62,7 +62,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (m.startsWith('image/')) {
     return (
       <svg
-        className={`${className} text-[#60A5FA] shrink-0`}
+        className={`${className} text-[var(--quant-info)] shrink-0`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -81,7 +81,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (m.includes('pdf')) {
     return (
       <svg
-        className={`${className} text-[#EF4444] shrink-0`}
+        className={`${className} text-[var(--quant-destructive)] shrink-0`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -105,7 +105,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (m.includes('spreadsheet') || m.includes('excel') || m.includes('csv')) {
     return (
       <svg
-        className={`${className} text-[#22C55E] shrink-0`}
+        className={`${className} text-[var(--quant-success)] shrink-0`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -121,7 +121,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   if (m.includes('presentation') || m.includes('powerpoint')) {
     return (
       <svg
-        className={`${className} text-[#F59E0B] shrink-0`}
+        className={`${className} text-[var(--quant-warning)] shrink-0`}
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
@@ -216,7 +216,7 @@ function getFileIcon(mimeType: string, type: string, className = 'w-5 h-5'): Rea
   }
   return (
     <svg
-      className={`${className} text-[#A1A4AC] shrink-0`}
+      className={`${className} text-[var(--quant-muted-foreground)] shrink-0`}
       fill="none"
       stroke="currentColor"
       viewBox="0 0 24 24"
@@ -815,7 +815,7 @@ export default function DrivePage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search files, folders, documents…"
     >
-      <div className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page drive-workspace flex flex-col h-full bg-[var(--quant-background)]">
         <input
           id="drive-file-input"
           name="driveFiles"
@@ -840,7 +840,7 @@ export default function DrivePage() {
         <div className="flex items-center gap-2 border-b border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-2 sm:px-8">
           {/* Breadcrumbs — hidden at root on mobile, where "My Drive" is redundant */}
           <nav
-            className={`min-w-0 shrink items-center gap-1.5 text-xs text-[#A1A4AC] ${
+            className={`min-w-0 shrink items-center gap-1.5 text-xs text-[var(--quant-muted-foreground)] ${
               currentFolderId || searchQuery.trim() ? 'flex' : 'hidden md:flex'
             }`}
             aria-label="Breadcrumb"
@@ -851,16 +851,18 @@ export default function DrivePage() {
                 if (searchQuery.trim()) setSearchQuery('');
                 navigateToFolder(null, 'Home');
               }}
-              className={`shrink-0 rounded transition-colors hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                !currentFolderId && !searchQuery.trim() ? 'font-semibold text-[#F5F5F5]' : ''
+              className={`shrink-0 rounded transition-colors hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                !currentFolderId && !searchQuery.trim()
+                  ? 'font-semibold text-[var(--quant-foreground)]'
+                  : ''
               }`}
             >
               My Drive
             </button>
             {searchQuery.trim() ? (
               <span className="flex min-w-0 items-center gap-1.5">
-                <span className="shrink-0 text-[#6B6E76]">/</span>
-                <span className="max-w-[200px] truncate font-medium text-[#FF8C42]">
+                <span className="shrink-0 text-[var(--quant-text-muted)]">/</span>
+                <span className="max-w-[200px] truncate font-medium text-[var(--brand-primary)]">
                   Search: &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
               </span>
@@ -868,18 +870,18 @@ export default function DrivePage() {
               breadcrumbs &&
               breadcrumbs.slice(1).map((b, i) => (
                 <span key={b.id || i} className="flex min-w-0 items-center gap-1.5">
-                  <span className="shrink-0 text-[#6B6E76]">/</span>
+                  <span className="shrink-0 text-[var(--quant-text-muted)]">/</span>
                   <button
                     type="button"
                     onClick={() => navigateToBreadcrumb(i + 1)}
-                    className="max-w-[120px] truncate rounded font-medium text-[#F5F5F5] transition-colors hover:text-[#FF8C42] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    className="max-w-[120px] truncate rounded font-medium text-[var(--quant-foreground)] transition-colors hover:text-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   >
                     {b.name}
                   </button>
                 </span>
               ))
             )}
-            <span className="mx-1 hidden h-4 w-px shrink-0 bg-[#282C35] md:block" />
+            <span className="mx-1 hidden h-4 w-px shrink-0 bg-[var(--quant-border)] md:block" />
           </nav>
 
           {/* Filter pills — the only element allowed to overflow */}
@@ -900,10 +902,10 @@ export default function DrivePage() {
                 type="button"
                 onClick={() => setActiveFilter(filter.key)}
                 aria-pressed={activeFilter === filter.key}
-                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                   activeFilter === filter.key
-                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
-                    : 'border border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.06] hover:border-white/[0.14]'
+                    ? 'bg-[#FF8C42]/12 text-[var(--brand-primary)] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                    : 'border border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] hover:bg-white/[0.06] hover:border-white/[0.14]'
                 }`}
               >
                 {filter.label}
@@ -926,10 +928,10 @@ export default function DrivePage() {
                   onClick={() => setViewMode(key)}
                   aria-label={label}
                   aria-pressed={viewMode === key}
-                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] [@media(pointer:coarse)]:size-11 ${
+                  className={`grid size-8 place-items-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] [@media(pointer:coarse)]:size-11 ${
                     viewMode === key
-                      ? 'bg-[#FF8C42] text-[#111111]'
-                      : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                      ? 'bg-[var(--brand-primary)] text-[#111111]'
+                      : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                   }`}
                 >
                   <Icon size={14} />
@@ -943,7 +945,7 @@ export default function DrivePage() {
                 const docId = 'doc_' + Math.random().toString(36).substring(2, 9);
                 router.push(`/drive/doc/${docId}`);
               }}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#FF8C42] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--brand-primary)] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New document"
             >
               <IconFile size={14} />
@@ -953,7 +955,7 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={() => setShowNewFolderModal(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#F5F5F5] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] md:px-3 [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:md:h-8 [@media(pointer:coarse)]:md:w-auto"
               aria-label="New folder"
             >
               <IconFolderPlus size={14} />
@@ -963,11 +965,11 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={() => setIsDuplicateCleanerOpen(true)}
-              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[#A1A4AC] border border-white/[0.08] transition-all hover:text-[#F5F5F5] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] md:px-3"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--quant-muted-foreground)] border border-white/[0.08] transition-all hover:text-[var(--quant-foreground)] hover:border-[#FF8C42]/40 hover:bg-white/[0.04] hover:shadow-[0_0_12px_rgba(255,140,66,0.1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] md:px-3"
               aria-label="Find and clean duplicate files"
             >
               <svg
-                className="size-3.5 text-[#FF8C42]"
+                className="size-3.5 text-[var(--brand-primary)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -986,7 +988,7 @@ export default function DrivePage() {
             <button
               type="button"
               onClick={handleUploadTrigger}
-              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[#FF8C42] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
+              className="hidden h-8 items-center gap-1.5 rounded-lg bg-[var(--brand-primary)] px-3 text-xs font-semibold text-[#111111] transition-colors hover:bg-[var(--brand-primary-hover)] active:bg-[var(--brand-primary-pressed)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-surface)] md:inline-flex"
             >
               <IconUpload size={14} />
               <span>Upload</span>
@@ -1030,7 +1032,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={handleDownloadSelected}
-                className="min-h-touch px-2.5 rounded-md bg-[#16181D] border border-[#282C35] text-[#F5F5F5] hover:bg-[#1C1F26] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="min-h-touch px-2.5 rounded-md bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-[var(--quant-foreground)] hover:bg-[var(--quant-border)] font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1045,7 +1047,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={handleBatchDelete}
-                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="min-h-touch px-2.5 rounded-md bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 font-medium flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -1060,7 +1062,7 @@ export default function DrivePage() {
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="min-h-touch px-2.5 rounded-md text-[#A1A4AC] hover:text-[#F5F5F5] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                className="min-h-touch px-2.5 rounded-md text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
                 <svg
                   className="size-3.5"
@@ -1082,10 +1084,10 @@ export default function DrivePage() {
 
         {/* Search Mode Indicator (Task D21) */}
         {searchQuery.trim() && (
-          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[#16181D] border-b border-[#282C35] text-xs">
-            <div className="flex items-center gap-2 text-[#A1A4AC]">
+          <div className="flex items-center justify-between px-4 py-2 sm:px-8 bg-[var(--quant-surface-elevated)] border-b border-[var(--quant-border)] text-xs">
+            <div className="flex items-center gap-2 text-[var(--quant-muted-foreground)]">
               <svg
-                className="size-3.5 text-[#FF8C42]"
+                className="size-3.5 text-[var(--brand-primary)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -1096,18 +1098,18 @@ export default function DrivePage() {
               </svg>
               <span>
                 Search results for{' '}
-                <span className="font-semibold text-[#F5F5F5]">
+                <span className="font-semibold text-[var(--quant-foreground)]">
                   &ldquo;{searchQuery.trim()}&rdquo;
                 </span>
               </span>
-              <span className="text-[#6B6E76]">
+              <span className="text-[var(--quant-text-muted)]">
                 ({filteredItems.length} item{filteredItems.length === 1 ? '' : 's'})
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="inline-flex items-center gap-1 text-xs text-[#FF8C42] hover:text-[#FF9B5A] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+              className="inline-flex items-center gap-1 text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-hover)] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <span>Clear search</span>
               <svg
@@ -1139,9 +1141,9 @@ export default function DrivePage() {
         >
           {/* Drag Overlay Hint */}
           {isDragOver && (
-            <div className="absolute inset-4 z-30 border-2 border-dashed border-[#FF8C42] rounded-2xl bg-[#090A0C]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
+            <div className="absolute inset-4 z-30 border-2 border-dashed border-[var(--brand-primary)] rounded-2xl bg-[#090A0C]/90 flex flex-col items-center justify-center pointer-events-none backdrop-blur-sm">
               <svg
-                className="w-12 h-12 text-[#FF8C42] mb-3 animate-bounce"
+                className="w-12 h-12 text-[var(--brand-primary)] mb-3 animate-bounce"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1154,7 +1156,9 @@ export default function DrivePage() {
                 />
               </svg>
               <p className="text-base font-semibold text-white">Drop files here to upload</p>
-              <p className="text-xs text-[#A1A4AC] mt-1">Stored securely in QuantDrive</p>
+              <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
+                Stored securely in QuantDrive
+              </p>
             </div>
           )}
 
@@ -1169,8 +1173,8 @@ export default function DrivePage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
                 <div>
-                  <h3 className="text-sm font-bold text-[#F5F5F5]">Trash</h3>
-                  <p className="text-xs text-[#A1A4AC]">
+                  <h3 className="text-sm font-bold text-[var(--quant-foreground)]">Trash</h3>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
                     Items in trash can be restored or deleted permanently.
                   </p>
                 </div>
@@ -1189,9 +1193,9 @@ export default function DrivePage() {
 
               {!loadingSpecial && trashItems.length === 0 && (
                 <div className="text-center py-16 space-y-4">
-                  <div className="flex justify-center text-[#A1A4AC]">
+                  <div className="flex justify-center text-[var(--quant-muted-foreground)]">
                     <svg
-                      className="w-16 h-16 text-[#A1A4AC]"
+                      className="w-16 h-16 text-[var(--quant-muted-foreground)]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1204,8 +1208,10 @@ export default function DrivePage() {
                       />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">Trash is empty</h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                  <h3 className="text-xl font-extrabold text-[var(--quant-foreground)]">
+                    Trash is empty
+                  </h3>
+                  <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm mx-auto">
                     Items moved to trash will appear here. You can restore them anytime or delete
                     them permanently.
                   </p>
@@ -1220,14 +1226,14 @@ export default function DrivePage() {
                       className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] transition-colors"
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#16181D] border border-[#282C35] shrink-0">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shrink-0">
                           {getFileIcon(item.mimeType, item.type, 'w-4 h-4')}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                          <p className="text-xs font-semibold text-[var(--quant-foreground)] truncate">
                             {item.name}
                           </p>
-                          <p className="text-[11px] text-[#A1A4AC]">
+                          <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                             {item.type === 'folder' ? 'Folder' : formatBytes(item.size)}
                             {item.deletedAt &&
                               ` · Deleted ${new Date(item.deletedAt).toLocaleDateString()}`}
@@ -1238,7 +1244,7 @@ export default function DrivePage() {
                         <button
                           type="button"
                           onClick={(e) => handleRestoreItem(item.id, item.name, e)}
-                          className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                          className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                         >
                           Restore
                         </button>
@@ -1261,8 +1267,10 @@ export default function DrivePage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
                 <div>
-                  <h3 className="text-sm font-bold text-[#F5F5F5]">Shared with me</h3>
-                  <p className="text-xs text-[#A1A4AC]">
+                  <h3 className="text-sm font-bold text-[var(--quant-foreground)]">
+                    Shared with me
+                  </h3>
+                  <p className="text-xs text-[var(--quant-muted-foreground)]">
                     Files and folders shared with you by other users.
                   </p>
                 </div>
@@ -1281,9 +1289,9 @@ export default function DrivePage() {
 
               {!loadingSpecial && receivedShares.length === 0 && (
                 <div className="text-center py-16 space-y-4">
-                  <div className="flex justify-center text-[#A1A4AC]">
+                  <div className="flex justify-center text-[var(--quant-muted-foreground)]">
                     <svg
-                      className="w-16 h-16 text-[#A1A4AC]"
+                      className="w-16 h-16 text-[var(--quant-muted-foreground)]"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -1296,8 +1304,10 @@ export default function DrivePage() {
                       />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">No shared items</h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                  <h3 className="text-xl font-extrabold text-[var(--quant-foreground)]">
+                    No shared items
+                  </h3>
+                  <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm mx-auto">
                     Files and folders shared with you will appear here with accept or decline
                     options.
                   </p>
@@ -1317,12 +1327,12 @@ export default function DrivePage() {
                         className="flex items-center justify-between p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] transition-colors"
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#16181D] border border-[#282C35] shrink-0">
+                          <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] shrink-0">
                             {getFileIcon(mimeType, isFolder ? 'folder' : 'file', 'w-4 h-4')}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                              <p className="text-xs font-semibold text-[var(--quant-foreground)] truncate">
                                 {itemName}
                               </p>
                               <span
@@ -1337,7 +1347,7 @@ export default function DrivePage() {
                                 {share.status}
                               </span>
                             </div>
-                            <p className="text-[11px] text-[#A1A4AC] mt-0.5">
+                            <p className="text-[11px] text-[var(--quant-muted-foreground)] mt-0.5">
                               Shared by {share.owner.name || share.owner.email} · {share.permission}{' '}
                               permission
                               {size > 0 && ` · ${formatBytes(size)}`}
@@ -1350,14 +1360,14 @@ export default function DrivePage() {
                               <button
                                 type="button"
                                 onClick={(e) => handleAcceptShare(share.id, e)}
-                                className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                className="px-3 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                               >
                                 Accept
                               </button>
                               <button
                                 type="button"
                                 onClick={(e) => handleDeclineShare(share.id, e)}
-                                className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs font-medium text-[#A1A4AC] hover:text-[#F5F5F5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                className="px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                               >
                                 Decline
                               </button>
@@ -1377,14 +1387,14 @@ export default function DrivePage() {
                                     modifiedAt: share.file!.updatedAt,
                                   })
                                 }
-                                className="px-2.5 py-1.5 rounded-lg bg-[#16181D] border border-[#282C35] text-xs font-medium text-[#F5F5F5] hover:bg-[#1F222A] transition-colors"
+                                className="px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] text-xs font-medium text-[var(--quant-foreground)] hover:bg-[#1F222A] transition-colors"
                               >
                                 Preview
                               </button>
                               <button
                                 type="button"
                                 onClick={() => downloadFile(share.file!.id, share.file!.name)}
-                                className="px-2.5 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[#FF8C42] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors"
+                                className="px-2.5 py-1.5 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/35 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors"
                               >
                                 Download
                               </button>
@@ -1418,10 +1428,10 @@ export default function DrivePage() {
                   <div className="flex justify-center">
                     <QuantDriveLogo size={104} title="Drive" />
                   </div>
-                  <h3 className="text-xl font-extrabold text-[#F5F5F5]">
+                  <h3 className="text-xl font-extrabold text-[var(--quant-foreground)]">
                     {searchQuery ? 'No matching files found' : 'This folder is empty'}
                   </h3>
-                  <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                  <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm mx-auto">
                     Drag and drop files anywhere on the screen, or click Upload to store files
                     securely.
                   </p>
@@ -1447,7 +1457,7 @@ export default function DrivePage() {
                   {folders.length > 0 && (
                     <section>
                       <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)]">
                           Folders ({folders.length})
                         </h3>
                       </div>
@@ -1487,9 +1497,9 @@ export default function DrivePage() {
                               }}
                               className={`group relative flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer select-none ${
                                 isDragTarget
-                                  ? 'border-[#FF8C42] bg-[#FF8C42]/20 ring-2 ring-[#FF8C42] scale-[1.02]'
+                                  ? 'border-[var(--brand-primary)] bg-[#FF8C42]/20 ring-2 ring-[var(--brand-primary)] scale-[1.02]'
                                   : isSelected
-                                    ? 'border-[#FF8C42] bg-[#FF8C42]/10'
+                                    ? 'border-[var(--brand-primary)] bg-[#FF8C42]/10'
                                     : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60 hover:bg-[var(--quant-surface-hover)]'
                               }`}
                             >
@@ -1499,19 +1509,19 @@ export default function DrivePage() {
                                   checked={isSelected}
                                   onChange={(e) => handleToggleSelect(folder.id, e as never)}
                                   onClick={(e) => e.stopPropagation()}
-                                  className="accent-[#FF8C42] rounded cursor-pointer"
+                                  className="accent-[var(--brand-primary)] rounded cursor-pointer"
                                   aria-label={`Select folder ${folder.name}`}
                                 />
                                 <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#FF8C42]/10 border border-[#FF8C42]/25 shadow-[0_0_10px_rgba(255,140,66,0.1)] shrink-0 group-hover:scale-105 transition-transform">
                                   <svg
-                                    className="w-4 h-4 text-[#FF8C42]"
+                                    className="w-4 h-4 text-[var(--brand-primary)]"
                                     fill="currentColor"
                                     viewBox="0 0 24 24"
                                   >
                                     <path d="M4 4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8L10 4H4z" />
                                   </svg>
                                 </div>
-                                <span className="text-xs font-semibold text-[#F5F5F5] truncate min-w-0 flex-1">
+                                <span className="text-xs font-semibold text-[var(--quant-foreground)] truncate min-w-0 flex-1">
                                   {folder.name}
                                 </span>
                               </div>
@@ -1522,8 +1532,8 @@ export default function DrivePage() {
                                   onClick={(e) => handleToggleStar(folder, e)}
                                   className={`p-1.5 rounded-lg transition-colors ${
                                     folder.isStarred
-                                      ? 'text-[#FF8C42] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
-                                      : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
+                                      ? 'text-[var(--brand-primary)] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
+                                      : 'text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-white/5'
                                   }`}
                                   title={folder.isStarred ? 'Unstar' : 'Star'}
                                 >
@@ -1544,7 +1554,7 @@ export default function DrivePage() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleOpenRename(folder, e)}
-                                  className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
+                                  className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-white/5 transition-colors"
                                   title="Rename"
                                 >
                                   <svg
@@ -1570,7 +1580,7 @@ export default function DrivePage() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleDeleteItem(folder.id, folder.name, e)}
-                                  className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
+                                  className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-destructive)] hover:bg-[#2A1215] transition-colors"
                                   title="Delete"
                                 >
                                   <svg
@@ -1603,7 +1613,7 @@ export default function DrivePage() {
                   {/* Files Group */}
                   {regularFiles.length > 0 && (
                     <section>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] mb-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--quant-muted-foreground)] mb-3">
                         Files ({regularFiles.length})
                       </h3>
 
@@ -1629,7 +1639,7 @@ export default function DrivePage() {
                                   isBeingDragged ? 'opacity-40 scale-95' : ''
                                 } ${
                                   isSelected
-                                    ? 'border-[#FF8C42] bg-[#FF8C42]/10 ring-1 ring-[#FF8C42]'
+                                    ? 'border-[var(--brand-primary)] bg-[#FF8C42]/10 ring-1 ring-[var(--brand-primary)]'
                                     : 'border-[var(--quant-border)] bg-[var(--quant-surface)] hover:border-[#FF8C42]/60'
                                 }`}
                               >
@@ -1639,7 +1649,7 @@ export default function DrivePage() {
                                     type="checkbox"
                                     checked={isSelected}
                                     onChange={(e) => handleToggleSelect(file.id, e as never)}
-                                    className="accent-[#FF8C42] rounded cursor-pointer"
+                                    className="accent-[var(--brand-primary)] rounded cursor-pointer"
                                     aria-label={`Select file ${file.name}`}
                                   />
                                   <div className="flex items-center gap-1">
@@ -1648,8 +1658,8 @@ export default function DrivePage() {
                                       onClick={(e) => handleToggleStar(file, e)}
                                       className={`p-1.5 rounded-lg transition-colors ${
                                         file.isStarred
-                                          ? 'text-[#FF8C42] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
-                                          : 'text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5'
+                                          ? 'text-[var(--brand-primary)] bg-[#FF8C42]/15 shadow-[0_0_10px_rgba(255,140,66,0.15)]'
+                                          : 'text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-white/5'
                                       }`}
                                       title={file.isStarred ? 'Unstar' : 'Star'}
                                     >
@@ -1670,7 +1680,7 @@ export default function DrivePage() {
                                     <button
                                       type="button"
                                       onClick={(e) => handleOpenRename(file, e)}
-                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors"
+                                      className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-white/5 transition-colors"
                                       title="Rename"
                                     >
                                       <svg
@@ -1699,7 +1709,7 @@ export default function DrivePage() {
                                         e.stopPropagation();
                                         setVersionHistoryFile(file);
                                       }}
-                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#60A5FA] hover:bg-white/5 transition-colors"
+                                      className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-info)] hover:bg-white/5 transition-colors"
                                       title="Versions"
                                       aria-label={`Version history for ${file.name}`}
                                     >
@@ -1723,7 +1733,7 @@ export default function DrivePage() {
                                         e.stopPropagation();
                                         setAiSummaryFile(file);
                                       }}
-                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#FF8C42] hover:bg-white/5 transition-colors"
+                                      className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--brand-primary)] hover:bg-white/5 transition-colors"
                                       title="AI Insights"
                                       aria-label={`AI insights for ${file.name}`}
                                     >
@@ -1744,7 +1754,7 @@ export default function DrivePage() {
                                     <button
                                       type="button"
                                       onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                      className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] transition-colors"
+                                      className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-destructive)] hover:bg-[#2A1215] transition-colors"
                                       title="Delete"
                                     >
                                       <svg
@@ -1780,7 +1790,7 @@ export default function DrivePage() {
                                 !failedThumbnails.has(file.id) ? (
                                   <div
                                     onClick={() => setPreviewItem(file)}
-                                    className="flex h-28 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[#090A0C] p-2 transition-colors group-hover:bg-[#16181D]"
+                                    className="flex h-28 cursor-pointer items-center justify-center overflow-hidden rounded-xl bg-[var(--quant-background)] p-2 transition-colors group-hover:bg-[var(--quant-surface-elevated)]"
                                   >
                                     <img
                                       src={file.thumbnailUrl}
@@ -1793,12 +1803,12 @@ export default function DrivePage() {
                                 ) : (
                                   <div
                                     onClick={() => setPreviewItem(file)}
-                                    className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[#090A0C] py-6 transition-colors group-hover:bg-[#16181D]"
+                                    className="flex cursor-pointer flex-col items-center justify-center rounded-xl bg-[var(--quant-background)] py-6 transition-colors group-hover:bg-[var(--quant-surface-elevated)]"
                                   >
-                                    <div className="mb-2 grid size-12 place-items-center text-[#A1A4AC] transition-transform group-hover:scale-105">
+                                    <div className="mb-2 grid size-12 place-items-center text-[var(--quant-muted-foreground)] transition-transform group-hover:scale-105">
                                       {getFileIcon(file.mimeType, file.type, 'w-6 h-6')}
                                     </div>
-                                    <span className="font-mono text-[10px] uppercase tracking-wider text-[#A1A4AC]">
+                                    <span className="font-mono text-[10px] uppercase tracking-wider text-[var(--quant-muted-foreground)]">
                                       {file.mimeType.split('/')[1] || 'FILE'}
                                     </span>
                                   </div>
@@ -1807,17 +1817,17 @@ export default function DrivePage() {
                                 <div className="mt-3">
                                   <h4
                                     onClick={() => setPreviewItem(file)}
-                                    className="cursor-pointer truncate text-xs font-bold text-[#F5F5F5] hover:text-[#FF8C42]"
+                                    className="cursor-pointer truncate text-xs font-bold text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]"
                                     title={file.name}
                                   >
                                     {file.name}
                                   </h4>
-                                  <div className="flex items-center justify-between text-[11px] text-[#A1A4AC] mt-1">
+                                  <div className="flex items-center justify-between text-[11px] text-[var(--quant-muted-foreground)] mt-1">
                                     <span>{formatBytes(file.size)}</span>
                                     <button
                                       type="button"
                                       onClick={() => downloadFile(file.id, file.name)}
-                                      className="inline-flex items-center gap-1 rounded font-semibold text-[#FF8C42] hover:text-[#FF9B5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                                      className="inline-flex items-center gap-1 rounded font-semibold text-[var(--brand-primary)] hover:text-[var(--brand-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                                     >
                                       <IconDownload size={12} />
                                       <span>Download</span>
@@ -1831,7 +1841,7 @@ export default function DrivePage() {
                       ) : (
                         <div className="rounded-2xl border border-[var(--quant-border)] overflow-hidden bg-[var(--quant-surface)]">
                           <table className="w-full text-left text-xs">
-                            <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-[#A1A4AC] uppercase">
+                            <thead className="border-b border-[var(--quant-border)] bg-[var(--quant-surface-subtle)] text-[11px] font-bold text-[var(--quant-muted-foreground)] uppercase">
                               <tr>
                                 <th className="py-3 px-4 w-8">
                                   <input
@@ -1847,7 +1857,7 @@ export default function DrivePage() {
                                         setSelectedIds(new Set());
                                       }
                                     }}
-                                    className="accent-[#FF8C42] rounded"
+                                    className="accent-[var(--brand-primary)] rounded"
                                     aria-label="Select all files"
                                   />
                                 </th>
@@ -1857,7 +1867,7 @@ export default function DrivePage() {
                                 <th className="py-3 px-4 text-right">Actions</th>
                               </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#282C35]">
+                            <tbody className="divide-y divide-[var(--quant-border)]">
                               {virtualizer.isVirtualized && virtualizer.offsetTop > 0 && (
                                 <tr
                                   style={{ height: `${virtualizer.offsetTop}px` }}
@@ -1896,7 +1906,7 @@ export default function DrivePage() {
                                         type="checkbox"
                                         checked={isSelected}
                                         onChange={(e) => handleToggleSelect(file.id, e as never)}
-                                        className="accent-[#FF8C42] rounded cursor-pointer"
+                                        className="accent-[var(--brand-primary)] rounded cursor-pointer"
                                         aria-label={`Select file ${file.name}`}
                                       />
                                     </td>
@@ -1904,20 +1914,23 @@ export default function DrivePage() {
                                       <span>{getFileIcon(file.mimeType, file.type)}</span>
                                       <span
                                         onClick={() => setPreviewItem(file)}
-                                        className="cursor-pointer hover:text-[#FF8C42] truncate max-w-xs"
+                                        className="cursor-pointer hover:text-[var(--brand-primary)] truncate max-w-xs"
                                       >
                                         {file.name}
                                       </span>
                                       {file.isStarred && (
-                                        <span className="text-[#FF8C42]" title="Starred">
+                                        <span
+                                          className="text-[var(--brand-primary)]"
+                                          title="Starred"
+                                        >
                                           <IconStarFilled size={12} />
                                         </span>
                                       )}
                                     </td>
-                                    <td className="py-3 px-4 text-[#A1A4AC] hidden sm:table-cell">
+                                    <td className="py-3 px-4 text-[var(--quant-muted-foreground)] hidden sm:table-cell">
                                       {file.mimeType}
                                     </td>
-                                    <td className="py-3 px-4 text-[#A1A4AC]">
+                                    <td className="py-3 px-4 text-[var(--quant-muted-foreground)]">
                                       {formatBytes(file.size)}
                                     </td>
                                     <td className="py-3 px-4 text-right">
@@ -1927,10 +1940,10 @@ export default function DrivePage() {
                                           onClick={() => handleToggleStar(file)}
                                           aria-pressed={Boolean(file.isStarred)}
                                           aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
-                                          className={`grid size-8 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                                          className={`grid size-8 place-items-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                                             file.isStarred
-                                              ? 'text-[#FF8C42]'
-                                              : 'text-[#6B6E76] hover:text-[#F5F5F5]'
+                                              ? 'text-[var(--brand-primary)]'
+                                              : 'text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)]'
                                           }`}
                                         >
                                           {file.isStarred ? (
@@ -1942,35 +1955,35 @@ export default function DrivePage() {
                                         <button
                                           type="button"
                                           onClick={(e) => handleOpenRename(file, e)}
-                                          className="text-xs text-[#A1A4AC] hover:text-white font-semibold"
+                                          className="text-xs text-[var(--quant-muted-foreground)] hover:text-white font-semibold"
                                         >
                                           Rename
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => setVersionHistoryFile(file)}
-                                          className="text-xs text-[#A1A4AC] hover:text-[#60A5FA] font-semibold"
+                                          className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-info)] font-semibold"
                                         >
                                           Versions
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => setAiSummaryFile(file)}
-                                          className="text-xs text-[#A1A4AC] hover:text-[#FF8C42] font-semibold"
+                                          className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--brand-primary)] font-semibold"
                                         >
                                           AI Insights
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => downloadFile(file.id, file.name)}
-                                          className="text-xs text-[#FF8C42] hover:text-[#FF9B5A] font-semibold"
+                                          className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary-hover)] font-semibold"
                                         >
                                           Download
                                         </button>
                                         <button
                                           type="button"
                                           onClick={(e) => handleDeleteItem(file.id, file.name, e)}
-                                          className="text-xs text-[#A1A4AC] hover:text-rose-400 font-semibold"
+                                          className="text-xs text-[var(--quant-muted-foreground)] hover:text-rose-400 font-semibold"
                                         >
                                           Delete
                                         </button>
@@ -2013,57 +2026,65 @@ export default function DrivePage() {
         >
           <div className="p-4 space-y-4 text-center">
             {previewItem && previewItem.mimeType.startsWith('image/') ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_#282C35]">
                 <img
                   src={getDownloadUrl(previewItem.id)}
                   alt={previewItem.name}
                   className="max-h-96 mx-auto rounded-lg object-contain"
                 />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
+                <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">
+                  {previewItem.name}
+                </h4>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
               </div>
             ) : previewItem && previewItem.mimeType === 'application/pdf' ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_#282C35]">
                 <iframe
                   src={getDownloadUrl(previewItem.id)}
                   className="w-full h-96 rounded-lg border border-[var(--quant-border)]"
                   title={previewItem.name}
                 />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
+                <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">
+                  {previewItem.name}
+                </h4>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
               </div>
             ) : previewItem && previewItem.mimeType.startsWith('audio/') ? (
-              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
-                <span className="mb-3 text-[#A1A4AC]">
+              <div className="flex flex-col items-center justify-center rounded-xl bg-[var(--quant-surface)] p-8 shadow-[inset_0_0_0_1px_#282C35]">
+                <span className="mb-3 text-[var(--quant-muted-foreground)]">
                   {getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')}
                 </span>
-                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1 mb-4">
+                <h4 className="text-sm font-bold text-[var(--quant-foreground)]">
+                  {previewItem.name}
+                </h4>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1 mb-4">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
                 <audio controls src={getDownloadUrl(previewItem.id)} className="w-full max-w-md" />
               </div>
             ) : previewItem && previewItem.mimeType.startsWith('video/') ? (
-              <div className="rounded-xl bg-[#111318] p-4 shadow-[inset_0_0_0_1px_#282C35]">
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 shadow-[inset_0_0_0_1px_#282C35]">
                 <video
                   controls
                   src={getDownloadUrl(previewItem.id)}
                   className="max-h-96 w-full rounded-lg mx-auto"
                 />
-                <h4 className="text-sm font-bold text-[#F5F5F5] mt-3">{previewItem.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
+                <h4 className="text-sm font-bold text-[var(--quant-foreground)] mt-3">
+                  {previewItem.name}
+                </h4>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                 </p>
               </div>
             ) : previewItem && isTextOrCodeFile(previewItem.mimeType, previewItem.name) ? (
-              <div className="rounded-xl bg-[#111318] p-4 text-left shadow-[inset_0_0_0_1px_#282C35]">
-                <div className="flex items-center justify-between border-b border-[#282C35] pb-3 mb-3">
+              <div className="rounded-xl bg-[var(--quant-surface)] p-4 text-left shadow-[inset_0_0_0_1px_#282C35]">
+                <div className="flex items-center justify-between border-b border-[var(--quant-border)] pb-3 mb-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-[#FF8C42] shrink-0">
+                    <span className="text-[var(--brand-primary)] shrink-0">
                       <svg
                         className="w-5 h-5"
                         fill="none"
@@ -2085,13 +2106,13 @@ export default function DrivePage() {
                       </svg>
                     </span>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-[#F5F5F5] truncate">
+                      <h4 className="text-sm font-bold text-[var(--quant-foreground)] truncate">
                         {previewItem.name}
                       </h4>
-                      <p className="text-[11px] text-[#A1A4AC]">
+                      <p className="text-[11px] text-[var(--quant-muted-foreground)]">
                         {previewItem.mimeType} · {formatBytes(previewItem.size ?? 0)}
                         {textPreviewContent !== null && (
-                          <span className="text-[#FF8C42] ml-1.5 font-mono">
+                          <span className="text-[var(--brand-primary)] ml-1.5 font-mono">
                             ({textPreviewContent.split('\n').length} lines)
                           </span>
                         )}
@@ -2124,7 +2145,7 @@ export default function DrivePage() {
                     ) : (
                       <>
                         <svg
-                          className="w-3.5 h-3.5 text-[#A1A4AC]"
+                          className="w-3.5 h-3.5 text-[var(--quant-muted-foreground)]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -2153,8 +2174,8 @@ export default function DrivePage() {
                 </div>
 
                 {isLoadingTextPreview ? (
-                  <div className="py-12 text-center text-xs text-[#A1A4AC] space-y-3">
-                    <div className="w-6 h-6 border-2 border-[#FF8C42] border-t-transparent rounded-full animate-spin mx-auto" />
+                  <div className="py-12 text-center text-xs text-[var(--quant-muted-foreground)] space-y-3">
+                    <div className="w-6 h-6 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full animate-spin mx-auto" />
                     <p>Loading code preview…</p>
                   </div>
                 ) : textPreviewError ? (
@@ -2163,8 +2184,8 @@ export default function DrivePage() {
                     <p className="text-zinc-400">{textPreviewError}</p>
                   </div>
                 ) : textPreviewContent !== null ? (
-                  <div className="flex bg-[#0B0C0E] border border-[#282C35] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
-                    <div className="select-none py-3 px-3 text-right text-[#4E525E] border-r border-[#22262E] bg-[#0E1014] font-mono text-xs leading-relaxed shrink-0">
+                  <div className="flex bg-[#0B0C0E] border border-[var(--quant-border)] rounded-lg max-h-[30rem] overflow-auto font-mono text-xs shadow-inner">
+                    <div className="select-none py-3 px-3 text-right text-[#4E525E] border-r border-[#22262E] bg-[var(--quant-background)] font-mono text-xs leading-relaxed shrink-0">
                       {textPreviewContent.split('\n').map((_, idx) => (
                         <div key={idx}>{idx + 1}</div>
                       ))}
@@ -2176,16 +2197,18 @@ export default function DrivePage() {
                 ) : null}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center rounded-xl bg-[#111318] p-8 shadow-[inset_0_0_0_1px_#282C35]">
-                <span className="mb-3 text-[#A1A4AC]">
+              <div className="flex flex-col items-center justify-center rounded-xl bg-[var(--quant-surface)] p-8 shadow-[inset_0_0_0_1px_#282C35]">
+                <span className="mb-3 text-[var(--quant-muted-foreground)]">
                   {previewItem ? (
                     getFileIcon(previewItem.mimeType, previewItem.type, 'w-14 h-14')
                   ) : (
                     <IconFile size={56} />
                   )}
                 </span>
-                <h4 className="text-sm font-bold text-[#F5F5F5]">{previewItem?.name}</h4>
-                <p className="text-xs text-[#A1A4AC] mt-1">
+                <h4 className="text-sm font-bold text-[var(--quant-foreground)]">
+                  {previewItem?.name}
+                </h4>
+                <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                   {previewItem?.mimeType} · {formatBytes(previewItem?.size ?? 0)}
                 </p>
               </div>
@@ -2239,7 +2262,7 @@ export default function DrivePage() {
             <div>
               <label
                 htmlFor="drive-new-folder-name"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Folder Name
               </label>
@@ -2253,7 +2276,7 @@ export default function DrivePage() {
                   if (e.key === 'Enter') handleCreateFolder();
                 }}
                 placeholder="e.g. Invoices, Project Assets, Designs…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
                 /* `Modal` traps focus and picks the first focusable child unless a
                    descendant is marked. React's `autoFocus` renders no attribute
@@ -2283,7 +2306,7 @@ export default function DrivePage() {
             <div>
               <label
                 htmlFor="drive-rename-value"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 New Name
               </label>
@@ -2296,7 +2319,7 @@ export default function DrivePage() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveRename();
                 }}
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
                 data-autofocus
               />

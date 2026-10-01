@@ -234,7 +234,7 @@ export default function ComposePage() {
 
   if (draftLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0d1017] text-[#A1A4AC] text-sm">
+      <div className="flex h-screen w-screen items-center justify-center bg-[var(--quant-background)] text-[var(--quant-muted-foreground)] text-sm">
         <p>Loading draft…</p>
       </div>
     );
@@ -242,7 +242,7 @@ export default function ComposePage() {
 
   return (
     <UndoSendProvider>
-      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
+      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--quant-background)]">
         <EmailComposer
           // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
           // can carry a whole group's members, and the composer is the thing that

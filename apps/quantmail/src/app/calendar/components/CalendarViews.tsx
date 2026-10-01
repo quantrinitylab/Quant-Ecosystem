@@ -136,7 +136,7 @@ export function CalendarViews({
     <>
       {/* Date picker: drag the handle at the bottom to swap the week strip for the month grid. */}
       <div
-        className="border-b border-[#282C35]/80 bg-[#101014] select-none overflow-hidden relative"
+        className="border-b border-[#282C35]/80 bg-[var(--quant-background)] select-none overflow-hidden relative"
         style={{
           height: `${currentHeight}px`,
           transition: isDragging ? 'none' : 'height 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -146,7 +146,7 @@ export function CalendarViews({
         <div className="flex flex-col h-full justify-between px-3 pt-2 pb-1">
           <div className="grid grid-cols-7 text-center py-1">
             {WEEKDAYS_SHORT.map((d, i) => (
-              <div key={i} className="text-[11px] font-bold text-[#A1A4AC]">
+              <div key={i} className="text-[11px] font-bold text-[var(--quant-muted-foreground)]">
                 {d}
               </div>
             ))}
@@ -156,21 +156,23 @@ export function CalendarViews({
             {!isMonthExpanded ? (
               <div className="grid grid-cols-7 text-center h-[46px] [@media(pointer:coarse)]:h-[52px] items-center">
                 {currentWeekDays.map((d) => {
-                  let sphereClass = 'text-[#F5F5F5] hover:bg-[#16181D]';
+                  let sphereClass =
+                    'text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)]';
 
                   if (d.isSelected) {
-                    sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
+                    sphereClass = 'bg-[var(--brand-primary)] text-[#111111] font-bold shadow-sm';
                   } else if (d.hasPeriod) {
                     sphereClass =
                       'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                   } else if (d.hasUrgentTask) {
                     sphereClass =
-                      'text-[#FF8C42] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
+                      'text-[var(--brand-primary)] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
                   } else if (d.hasBirthday) {
                     sphereClass =
                       'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
                   } else if (d.isToday) {
-                    sphereClass = 'border-2 border-[#FF8C42] text-[#FF8C42] font-semibold';
+                    sphereClass =
+                      'border-2 border-[var(--brand-primary)] text-[var(--brand-primary)] font-semibold';
                   }
 
                   return (
@@ -178,7 +180,7 @@ export function CalendarViews({
                       <button
                         type="button"
                         onClick={() => selectDate(d.date)}
-                        className={`relative size-9 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
+                        className={`relative size-9 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] ${sphereClass}`}
                         aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(d)}`}
                         title={d.holidayName}
                       >
@@ -198,22 +200,24 @@ export function CalendarViews({
                   >
                     {week.map((d) => {
                       let sphereClass = d.isCurrentMonth
-                        ? 'text-[#A1A4AC] hover:bg-[#16181D]'
+                        ? 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-surface-elevated)]'
                         : 'text-[#A1A4AC]/50';
 
                       if (d.isSelected) {
-                        sphereClass = 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm';
+                        sphereClass =
+                          'bg-[var(--brand-primary)] text-[#111111] font-bold shadow-sm';
                       } else if (d.hasPeriod) {
                         sphereClass =
                           'text-rose-300 bg-rose-950/40 border border-rose-800/60 font-semibold';
                       } else if (d.hasUrgentTask) {
                         sphereClass =
-                          'text-[#FF8C42] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
+                          'text-[var(--brand-primary)] bg-[#FF8C42]/12 border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.12)] font-semibold';
                       } else if (d.hasBirthday) {
                         sphereClass =
                           'text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 font-semibold';
                       } else if (d.isToday) {
-                        sphereClass = 'border border-[#FF8C42] text-[#FF8C42] font-semibold';
+                        sphereClass =
+                          'border border-[var(--brand-primary)] text-[var(--brand-primary)] font-semibold';
                       }
 
                       const marks: DayMarkFlags = {
@@ -229,7 +233,7 @@ export function CalendarViews({
                           <button
                             type="button"
                             onClick={() => selectDate(d.date)}
-                            className={`relative size-8 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101014] ${sphereClass}`}
+                            className={`relative size-8 [@media(pointer:coarse)]:size-11 rounded-full flex flex-col items-center justify-center text-xs transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--quant-background)] ${sphereClass}`}
                             aria-label={`${d.dayNum} ${MONTH_NAMES[d.date.getMonth()]}${d.holidayName ? `, ${d.holidayName}` : ''}${dayMarkLabel(marks)}`}
                             title={d.holidayName}
                           >
@@ -257,8 +261,8 @@ export function CalendarViews({
             <div
               className={`w-12 h-1.5 rounded-full transition-all ${
                 isDragging
-                  ? 'bg-[#FF8C42] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
-                  : 'bg-[#3A404D] group-hover:bg-[#6B6E76]'
+                  ? 'bg-[var(--brand-primary)] scale-110 shadow-[0_0_0_3px_rgba(255,140,66,0.22)]'
+                  : 'bg-[var(--quant-border-strong)] group-hover:bg-[var(--quant-text-muted)]'
               }`}
             />
           </div>
@@ -272,7 +276,7 @@ export function CalendarViews({
         className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-6 pb-28 md:pb-6"
       >
         {isLoadingPast && (
-          <div className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-[#FF8C42] animate-pulse">
+          <div className="flex items-center justify-center gap-2 py-2 text-xs font-bold text-[var(--brand-primary)] animate-pulse">
             <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
               <circle
                 className="opacity-25"
@@ -306,10 +310,10 @@ export function CalendarViews({
           <div className="divide-y divide-[#282C35]/60">
             {visibleAgendaDays.length === 0 && (
               <div className="py-12 text-center">
-                <p className="text-sm font-medium text-[#F5F5F5]">
+                <p className="text-sm font-medium text-[var(--quant-foreground)]">
                   {searchFilter.trim() ? 'No matches in this range' : 'Nothing scheduled'}
                 </p>
-                <p className="mt-1 text-xs text-[#A1A4AC]">
+                <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">
                   {searchFilter.trim()
                     ? `Nothing here matches “${searchFilter.trim()}”.`
                     : 'This range is clear.'}
@@ -324,7 +328,7 @@ export function CalendarViews({
 
               const monthBand = item.monthBreak && (
                 <div className="flex items-center gap-3 pb-1.5 pt-3 first:pt-0">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A1A4AC]">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--quant-muted-foreground)]">
                     {item.monthBreak}
                   </span>
                   <span className="h-px flex-1 bg-[#282C35]/60" />
@@ -344,25 +348,27 @@ export function CalendarViews({
                       onClick={() => openDedicatedSheet('event', item.date)}
                       aria-label={`No events on ${item.dayNum} ${item.monthShort}. Add an entry.`}
                       className={`group flex w-full min-h-[32px] items-center gap-2.5 rounded-lg px-2 text-left transition-colors [@media(pointer:coarse)]:min-h-touch ${
-                        isSelected ? 'bg-[#16181D]' : 'hover:bg-[#111318]'
-                      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]`}
+                        isSelected
+                          ? 'bg-[var(--quant-surface-elevated)]'
+                          : 'hover:bg-[var(--quant-surface)]'
+                      } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]`}
                     >
                       <span
                         className={`w-[52px] shrink-0 text-xs tabular-nums ${
                           item.isToday
-                            ? 'font-semibold text-[#FF8C42]'
+                            ? 'font-semibold text-[var(--brand-primary)]'
                             : isSelected
-                              ? 'font-medium text-[#F5F5F5]'
-                              : 'text-[#A1A4AC]'
+                              ? 'font-medium text-[var(--quant-foreground)]'
+                              : 'text-[var(--quant-muted-foreground)]'
                         }`}
                       >
                         {item.dayNum} {item.monthShort}
                       </span>
-                      <span className="text-[#6B6E76]">·</span>
-                      <span className="flex-1 truncate text-[11px] text-[#A1A4AC]">
+                      <span className="text-[var(--quant-text-muted)]">·</span>
+                      <span className="flex-1 truncate text-[11px] text-[var(--quant-muted-foreground)]">
                         {item.isToday ? 'Nothing left today' : 'No events'}
                       </span>
-                      <span className="shrink-0 pr-1 text-[11px] font-medium text-[#FF8C42] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100">
+                      <span className="shrink-0 pr-1 text-[11px] font-medium text-[var(--brand-primary)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 [@media(pointer:coarse)]:opacity-100">
                         + Add
                       </span>
                     </button>
@@ -387,20 +393,24 @@ export function CalendarViews({
                     <div className="mb-2.5 flex items-baseline gap-2.5">
                       <span
                         className={`text-sm font-semibold tabular-nums tracking-tight ${
-                          item.isToday ? 'text-[#FF8C42]' : 'text-[#F5F5F5]'
+                          item.isToday
+                            ? 'text-[var(--brand-primary)]'
+                            : 'text-[var(--quant-foreground)]'
                         }`}
                       >
                         {item.dayNum} {item.monthShort}
                       </span>
-                      <span className="text-[11px] text-[#A1A4AC]">{item.weekdayName}</span>
+                      <span className="text-[11px] text-[var(--quant-muted-foreground)]">
+                        {item.weekdayName}
+                      </span>
 
                       {item.isToday && (
-                        <span className="rounded-full border border-[#FF8C42]/35 bg-[#FF8C42]/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.1)]">
+                        <span className="rounded-full border border-[#FF8C42]/35 bg-[#FF8C42]/12 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-primary)] shadow-[0_0_8px_rgba(255,140,66,0.1)]">
                           Today
                         </span>
                       )}
                       {item.isTomorrow && (
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-[#A1A4AC]">
+                        <span className="text-[10px] font-medium uppercase tracking-wider text-[var(--quant-muted-foreground)]">
                           Tomorrow
                         </span>
                       )}
@@ -414,7 +424,7 @@ export function CalendarViews({
                           className="relative flex items-center justify-between px-4 py-3 rounded-2xl border border-[#FF8C42]/30 bg-[#1E1610]/80 shadow-[0_4px_16px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="size-8 rounded-full bg-[#FF8C42]/15 border border-[#FF8C42]/40 flex items-center justify-center text-[#FFB875] shrink-0">
+                            <div className="size-8 rounded-full bg-[#FF8C42]/15 border border-[#FF8C42]/40 flex items-center justify-center text-[var(--brand-accent)] shrink-0">
                               <IconFlag size={15} />
                             </div>
                             <div>
@@ -422,14 +432,16 @@ export function CalendarViews({
                                 <span className="font-extrabold text-sm text-[#FFE3C8] tracking-wide">
                                   {h.name}
                                 </span>
-                                <span className="size-2 rounded-full bg-[#FF8C42]" />
+                                <span className="size-2 rounded-full bg-[var(--brand-primary)]" />
                               </div>
                               {h.description && (
-                                <p className="text-[11px] text-[#A1A4AC] mt-0.5">{h.description}</p>
+                                <p className="text-[11px] text-[var(--quant-muted-foreground)] mt-0.5">
+                                  {h.description}
+                                </p>
                               )}
                             </div>
                           </div>
-                          <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-[#FF8C42]/20 text-[#FFB875] border border-[#FF8C42]/40 shadow-sm">
+                          <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-[#FF8C42]/20 text-[var(--brand-accent)] border border-[#FF8C42]/40 shadow-sm">
                             Holiday
                           </span>
                         </div>
@@ -547,7 +559,7 @@ export function CalendarViews({
                                         type: 'success',
                                       });
                                     }}
-                                    className="text-xs font-black text-[#FFB875] hover:text-white flex items-center justify-center"
+                                    className="text-xs font-black text-[var(--brand-accent)] hover:text-white flex items-center justify-center"
                                   >
                                     <svg
                                       className="size-3.5"
@@ -566,7 +578,7 @@ export function CalendarViews({
                                 ) : isPeriod ? (
                                   <IconFlower className="size-4 text-rose-300" />
                                 ) : (
-                                  <IconCalendar className="size-4 text-[#FF8C42]" />
+                                  <IconCalendar className="size-4 text-[var(--brand-primary)]" />
                                 )}
                               </div>
 
@@ -610,13 +622,16 @@ export function CalendarViews({
                                       : `${hhmm(startOf(ev))} – ${hhmm(endOf(ev))}`}
                                   </span>
                                   {ev.location && (
-                                    <span className="text-[#A1A4AC] flex items-center gap-1">
-                                      · <IconMapPin className="size-3 text-[#A1A4AC] inline" />{' '}
+                                    <span className="text-[var(--quant-muted-foreground)] flex items-center gap-1">
+                                      ·{' '}
+                                      <IconMapPin className="size-3 text-[var(--quant-muted-foreground)] inline" />{' '}
                                       {ev.location}
                                     </span>
                                   )}
                                   {ev.description && (
-                                    <span className="text-[#A1A4AC]">· {ev.description}</span>
+                                    <span className="text-[var(--quant-muted-foreground)]">
+                                      · {ev.description}
+                                    </span>
                                   )}
                                 </p>
                               </div>
@@ -629,7 +644,7 @@ export function CalendarViews({
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   onClick={(e) => e.stopPropagation()}
-                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.1)] text-[11px] font-semibold flex items-center gap-1.5 hover:bg-[#FF8C42]/20 transition-all"
+                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 text-[var(--brand-primary)] border border-[#FF8C42]/35 shadow-[0_0_10px_rgba(255,140,66,0.1)] text-[11px] font-semibold flex items-center gap-1.5 hover:bg-[#FF8C42]/20 transition-all"
                                 >
                                   <svg
                                     className="w-3 h-3"
@@ -650,7 +665,7 @@ export function CalendarViews({
                               <button
                                 type="button"
                                 onClick={(e) => handleDeleteEvent(ev.id, e)}
-                                className="p-1.5 rounded-lg text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] text-xs transition-colors"
+                                className="p-1.5 rounded-lg text-[var(--quant-text-muted)] hover:text-[var(--quant-destructive)] hover:bg-[#2A1215] text-xs transition-colors"
                                 title="Delete"
                               >
                                 <svg
@@ -680,7 +695,7 @@ export function CalendarViews({
         )}
 
         {isLoadingFuture && (
-          <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-[#FF8C42] animate-pulse">
+          <div className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-[var(--brand-primary)] animate-pulse">
             <svg className="animate-spin size-4" viewBox="0 0 24 24" fill="none">
               <circle
                 className="opacity-25"

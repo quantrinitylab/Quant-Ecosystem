@@ -346,8 +346,8 @@ describe('QuantDrive File AI Insights & Entity Extraction Test Suite', () => {
       expect(html).toContain('data-testid="copy-summary-btn"');
 
       // Quant Studio design tokens
-      expect(html).toContain('bg-[#16181D]');
-      expect(html).toContain('border-[#282C35]');
+      expect(html).toContain('bg-[var(--quant-surface-elevated)]');
+      expect(html).toContain('border-[var(--quant-border)]');
       expect(html).toContain('#FF8C42');
 
       // Idle state

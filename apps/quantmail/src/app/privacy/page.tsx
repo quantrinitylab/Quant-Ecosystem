@@ -337,7 +337,7 @@ export default function PrivacyPolicyPage() {
               directly from within the app and via the web:
             </p>
 
-            <div className="rounded-xl border border-red-500/20 bg-[#090A0C] p-4 space-y-3">
+            <div className="rounded-xl border border-red-500/20 bg-[var(--quant-background)] p-4 space-y-3">
               <div className="text-xs font-semibold text-[var(--quant-foreground)]">
                 Step-by-Step Deletion Process:
               </div>

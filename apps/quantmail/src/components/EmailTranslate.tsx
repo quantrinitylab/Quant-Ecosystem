@@ -55,7 +55,7 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
         <div className="translate-prompt flex items-center gap-2">
           <span className="translate-icon">
             <svg
-              className="size-4 text-[#FF8C42]"
+              className="size-4 text-[var(--brand-primary)]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -103,7 +103,7 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
             <div className="translate-result-header flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-xs font-medium">
                 <svg
-                  className="size-3.5 text-[#FF8C42]"
+                  className="size-3.5 text-[var(--brand-primary)]"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -121,14 +121,14 @@ export function EmailTranslate({ text, detectedLanguage, onTranslate }: EmailTra
                 <button
                   type="button"
                   onClick={() => setShowOriginal((v) => !v)}
-                  className="text-xs text-[#A1A4AC] hover:text-[#F5F5F5]"
+                  className="text-xs text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
                 >
                   {showOriginal ? 'Hide original' : 'Show original'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setTranslated(null)}
-                  className="text-[#6B6E76] hover:text-[#F5F5F5]"
+                  className="text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)]"
                 >
                   <svg
                     className="size-3.5"

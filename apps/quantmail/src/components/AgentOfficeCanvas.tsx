@@ -614,7 +614,7 @@ export function AgentOfficeCanvas({ agents, onInspect, className = '' }: AgentOf
     <canvas
       ref={canvasRef}
       aria-label="Interactive Agent Lab office. Select an agent to inspect their dossier."
-      className={`min-h-[420px] w-full touch-manipulation rounded-xl border border-[#30363d] bg-[#0d1117] ${className}`}
+      className={`min-h-[420px] w-full touch-manipulation rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] ${className}`}
     />
   );
 }

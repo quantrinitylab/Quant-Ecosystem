@@ -56,7 +56,7 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Period Length ({formState.periodDays} days)
             </label>
             <input
@@ -72,7 +72,7 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Cycle Length ({formState.cycleLength} days)
             </label>
             <input
@@ -88,7 +88,7 @@ export function CalendarModals({
           </div>
 
           <div>
-            <label className="block text-[#A1A4AC] mb-1 font-semibold">
+            <label className="block text-[var(--quant-muted-foreground)] mb-1 font-semibold">
               Current Cycle Day ({formState.currentCycleDay})
             </label>
             <input
@@ -99,11 +99,11 @@ export function CalendarModals({
               onChange={(e) =>
                 setFormState({ ...formState, currentCycleDay: Number(e.target.value) || 1 })
               }
-              className="w-full bg-[#111318] border border-[#3A404D] rounded-xl px-3 py-1.5 text-xs text-white"
+              className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border-strong)] rounded-xl px-3 py-1.5 text-xs text-white"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--quant-border)]">
             <Button variant="primary" onClick={() => setIsPeriodCustomizeOpen(false)}>
               Done
             </Button>
@@ -126,10 +126,10 @@ export function CalendarModals({
                 setFormState({ ...formState, timezone: tz.value });
                 setIsTimezoneModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)] ${
                 formState.timezone === tz.value
-                  ? 'bg-[#FF8C42] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[#282C35]'
+                  ? 'bg-[var(--brand-primary)] text-black font-black'
+                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-border)]'
               }`}
               aria-pressed={formState.timezone === tz.value}
             >
@@ -155,10 +155,10 @@ export function CalendarModals({
                 setFormState({ ...formState, recurrence: rec });
                 setIsRecurrenceModalOpen(false);
               }}
-              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42] ${
+              className={`w-full text-left p-2.5 min-h-[44px] rounded-xl transition-colors flex items-center justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)] ${
                 formState.recurrence === rec
-                  ? 'bg-[#FF8C42] text-black font-black'
-                  : 'text-[#A1A4AC] hover:bg-[#282C35]'
+                  ? 'bg-[var(--brand-primary)] text-black font-black'
+                  : 'text-[var(--quant-muted-foreground)] hover:bg-[var(--quant-border)]'
               }`}
               aria-pressed={formState.recurrence === rec}
             >
@@ -177,7 +177,7 @@ export function CalendarModals({
       >
         <div className="space-y-4 text-xs text-white">
           <div className="text-center py-2">
-            <span className="text-lg font-black text-[#FF8C42]">
+            <span className="text-lg font-black text-[var(--brand-primary)]">
               {NOTIFICATION_SLIDER_VALUES[notifSliderIndex].label}
             </span>
           </div>
@@ -188,17 +188,17 @@ export function CalendarModals({
             max={NOTIFICATION_SLIDER_VALUES.length - 1}
             value={notifSliderIndex}
             onChange={(e) => setNotifSliderIndex(Number(e.target.value))}
-            className="w-full accent-[#FF8C42]"
+            className="w-full accent-[var(--brand-primary)]"
           />
 
-          <div className="flex items-center justify-between text-[10px] text-[#A1A4AC]">
+          <div className="flex items-center justify-between text-[10px] text-[var(--quant-muted-foreground)]">
             <span>5m</span>
             <span>1h</span>
             <span>1d</span>
             <span>1w</span>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#282C35]">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--quant-border)]">
             <Button variant="ghost" onClick={() => setIsNotificationSliderOpen(false)}>
               Cancel
             </Button>
@@ -222,9 +222,9 @@ export function CalendarModals({
           onClose={() => setSelectedEvent(null)}
           title={selectedEvent.title}
         >
-          <div className="space-y-3 text-xs text-[#A1A4AC]">
+          <div className="space-y-3 text-xs text-[var(--quant-muted-foreground)]">
             <div className="flex items-center gap-2 text-white font-semibold">
-              <IconClock className="size-4 text-[#FF8C42]" />
+              <IconClock className="size-4 text-[var(--brand-primary)]" />
               <span>
                 {selectedEvent.allDay
                   ? 'All Day Entry'
@@ -239,10 +239,10 @@ export function CalendarModals({
                     selectedEvent.type === 'period'
                       ? 'bg-rose-500/20 text-rose-300'
                       : selectedEvent.type === 'task'
-                        ? 'bg-[#FF8C42]/20 text-[#FFB875]'
+                        ? 'bg-[#FF8C42]/20 text-[var(--brand-accent)]'
                         : selectedEvent.type === 'birthday'
                           ? 'bg-emerald-500/20 text-emerald-300'
-                          : 'bg-[#FF8C42]/20 text-[#FF8C42]'
+                          : 'bg-[#FF8C42]/20 text-[var(--brand-primary)]'
                   }`}
                 >
                   {selectedEvent.type}
@@ -263,7 +263,7 @@ export function CalendarModals({
                     href={selectedEvent.location}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-[#FF8C42] hover:underline font-bold"
+                    className="inline-flex items-center gap-1.5 text-[var(--brand-primary)] hover:underline font-bold"
                   >
                     <IconVideoCall size={13} />
                     {selectedEvent.location}
@@ -276,17 +276,17 @@ export function CalendarModals({
             )}
 
             {selectedEvent.description && (
-              <div className="pt-2 border-t border-[#282C35] text-[#A1A4AC]">
+              <div className="pt-2 border-t border-[var(--quant-border)] text-[var(--quant-muted-foreground)]">
                 {selectedEvent.description}
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-3 border-t border-[#282C35]">
+            <div className="flex items-center justify-between pt-3 border-t border-[var(--quant-border)]">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => openEditSheet(selectedEvent)}
-                  className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/20 text-[#FF8C42] hover:bg-[#FF8C42]/30 text-xs font-bold"
+                  className="px-3 py-1.5 rounded-xl bg-[#FF8C42]/20 text-[var(--brand-primary)] hover:bg-[#FF8C42]/30 text-xs font-bold"
                 >
                   Edit Entry
                 </button>

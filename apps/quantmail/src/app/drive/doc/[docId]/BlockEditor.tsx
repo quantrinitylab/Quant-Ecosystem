@@ -369,7 +369,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                   type="button"
                   onClick={() => insertBlockBelow(block.id)}
                   title="Add block below"
-                  className="w-5 h-5 rounded flex items-center justify-center text-[#8B949E] hover:text-[#FF8C42] hover:bg-[#21262D] text-xs transition-colors"
+                  className="w-5 h-5 rounded flex items-center justify-center text-[var(--quant-text-muted)] hover:text-[var(--brand-primary)] hover:bg-[var(--quant-surface-elevated)] text-xs transition-colors"
                 >
                   +
                 </button>
@@ -377,21 +377,21 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                   type="button"
                   onClick={() => setBlockMenuId(blockMenuId === block.id ? null : block.id)}
                   title="Block settings"
-                  className="w-5 h-5 rounded flex items-center justify-center text-[#8B949E] hover:text-[#F0F6FC] hover:bg-[#21262D] text-xs transition-colors"
+                  className="w-5 h-5 rounded flex items-center justify-center text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] text-xs transition-colors"
                 >
                   ⠿
                 </button>
 
                 {/* Block actions popover */}
                 {blockMenuId === block.id && (
-                  <div className="absolute left-6 top-0 w-44 rounded-xl border border-[#30363D] bg-[#161B22] p-1 shadow-2xl z-50 space-y-0.5">
+                  <div className="absolute left-6 top-0 w-44 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1 shadow-2xl z-50 space-y-0.5">
                     <button
                       type="button"
                       onClick={() => {
                         duplicateBlock(block.id);
                         setBlockMenuId(null);
                       }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC]"
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]"
                     >
                       Duplicate
                     </button>
@@ -401,7 +401,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         moveBlock(block.id, 'up');
                         setBlockMenuId(null);
                       }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC]"
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]"
                     >
                       Move Up
                     </button>
@@ -411,18 +411,18 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         moveBlock(block.id, 'down');
                         setBlockMenuId(null);
                       }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] hover:text-[#F0F6FC]"
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] hover:text-[var(--quant-foreground)]"
                     >
                       Move Down
                     </button>
-                    <div className="border-t border-[#21262D] pt-0.5 mt-0.5">
+                    <div className="border-t border-[var(--quant-surface-elevated)] pt-0.5 mt-0.5">
                       <button
                         type="button"
                         onClick={() => {
                           deleteBlock(block.id);
                           setBlockMenuId(null);
                         }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[#F85149] hover:bg-[#F85149]/10"
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-[var(--quant-destructive)] hover:bg-[#F85149]/10"
                       >
                         Delete
                       </button>
@@ -450,7 +450,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     }}
                     onBlur={() => onCursorMove?.(undefined)}
                     onKeyDown={(e) => handleKeyDown(e, block, index)}
-                    className="w-full bg-transparent border-none text-2xl sm:text-3xl font-extrabold text-[#F0F6FC] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-tight py-1"
+                    className="w-full bg-transparent border-none text-2xl sm:text-3xl font-extrabold text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-tight py-1"
                   />
                 )}
 
@@ -471,7 +471,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     }}
                     onBlur={() => onCursorMove?.(undefined)}
                     onKeyDown={(e) => handleKeyDown(e, block, index)}
-                    className="w-full bg-transparent border-none text-xl sm:text-2xl font-bold text-[#F0F6FC] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-snug py-1"
+                    className="w-full bg-transparent border-none text-xl sm:text-2xl font-bold text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-snug py-1"
                   />
                 )}
 
@@ -492,7 +492,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     }}
                     onBlur={() => onCursorMove?.(undefined)}
                     onKeyDown={(e) => handleKeyDown(e, block, index)}
-                    className="w-full bg-transparent border-none text-lg sm:text-xl font-semibold text-[#F0F6FC] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-normal py-1"
+                    className="w-full bg-transparent border-none text-lg sm:text-xl font-semibold text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-normal py-1"
                   />
                 )}
 
@@ -522,7 +522,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     }}
                     onBlur={() => onCursorMove?.(undefined)}
                     onKeyDown={(e) => handleKeyDown(e, block, index)}
-                    className="w-full bg-transparent border-none text-base text-[#C9D1D9] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-relaxed py-0.5 resize-none overflow-hidden"
+                    className="w-full bg-transparent border-none text-base text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-relaxed py-0.5 resize-none overflow-hidden"
                   />
                 )}
 
@@ -538,7 +538,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                           ),
                         );
                       }}
-                      className="mt-1 w-4 h-4 rounded border-[#30363D] bg-[#0D1117] text-[#FF8C42] focus:ring-0 accent-[#FF8C42] cursor-pointer"
+                      className="mt-1 w-4 h-4 rounded border-[var(--quant-border)] bg-[var(--quant-background)] text-[var(--brand-primary)] focus:ring-0 accent-[var(--brand-primary)] cursor-pointer"
                     />
                     <input
                       ref={(el) => {
@@ -558,8 +558,8 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       onKeyDown={(e) => handleKeyDown(e, block, index)}
                       className={`flex-1 bg-transparent border-none text-base focus:outline-none focus:ring-0 leading-relaxed ${
                         block.checked
-                          ? 'line-through text-[#6E7681]'
-                          : 'text-[#C9D1D9] placeholder-[#484F58]'
+                          ? 'line-through text-[var(--quant-text-muted)]'
+                          : 'text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)]'
                       }`}
                     />
                   </div>
@@ -567,7 +567,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
                 {block.type === 'bullet' && (
                   <div className="flex items-start gap-2.5 py-0.5">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#FF8C42] shrink-0" />
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)] shrink-0" />
                     <input
                       ref={(el) => {
                         if (el) blockRefs.current.set(block.id, el);
@@ -584,14 +584,14 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
                       onKeyDown={(e) => handleKeyDown(e, block, index)}
-                      className="flex-1 bg-transparent border-none text-base text-[#C9D1D9] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-relaxed"
+                      className="flex-1 bg-transparent border-none text-base text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-relaxed"
                     />
                   </div>
                 )}
 
                 {block.type === 'numbered' && (
                   <div className="flex items-start gap-2.5 py-0.5">
-                    <span className="mt-0.5 text-xs font-mono font-semibold text-[#FF8C42] shrink-0 min-w-[18px]">
+                    <span className="mt-0.5 text-xs font-mono font-semibold text-[var(--brand-primary)] shrink-0 min-w-[18px]">
                       {index + 1}.
                     </span>
                     <input
@@ -610,13 +610,13 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
                       onKeyDown={(e) => handleKeyDown(e, block, index)}
-                      className="flex-1 bg-transparent border-none text-base text-[#C9D1D9] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-relaxed"
+                      className="flex-1 bg-transparent border-none text-base text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-relaxed"
                     />
                   </div>
                 )}
 
                 {block.type === 'quote' && (
-                  <div className="border-l-4 border-[#FF8C42] pl-3 py-1 bg-[#FF8C42]/5 rounded-r-lg my-1">
+                  <div className="border-l-4 border-[var(--brand-primary)] pl-3 py-1 bg-[#FF8C42]/5 rounded-r-lg my-1">
                     <textarea
                       ref={(el) => {
                         if (el) blockRefs.current.set(block.id, el);
@@ -637,13 +637,13 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
                       onKeyDown={(e) => handleKeyDown(e, block, index)}
-                      className="w-full bg-transparent border-none italic text-base text-[#C9D1D9] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-relaxed resize-none overflow-hidden"
+                      className="w-full bg-transparent border-none italic text-base text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-relaxed resize-none overflow-hidden"
                     />
                   </div>
                 )}
 
                 {block.type === 'callout' && (
-                  <div className="flex items-start gap-3 p-3.5 rounded-xl border border-[#30363D] bg-[#161B22] my-1 shadow-sm">
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] my-1 shadow-sm">
                     <span className="text-xl select-none leading-none shrink-0">
                       {block.calloutIcon || '💡'}
                     </span>
@@ -667,20 +667,20 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
                       onKeyDown={(e) => handleKeyDown(e, block, index)}
-                      className="flex-1 bg-transparent border-none text-sm text-[#F0F6FC] placeholder-[#484F58] focus:outline-none focus:ring-0 leading-relaxed resize-none overflow-hidden"
+                      className="flex-1 bg-transparent border-none text-sm text-[var(--quant-foreground)] placeholder-[var(--quant-border-strong)] focus:outline-none focus:ring-0 leading-relaxed resize-none overflow-hidden"
                     />
                   </div>
                 )}
 
                 {block.type === 'divider' && (
                   <div className="py-3 my-1">
-                    <hr className="border-t border-[#30363D]" />
+                    <hr className="border-t border-[var(--quant-border)]" />
                   </div>
                 )}
 
                 {block.type === 'code' && (
-                  <div className="rounded-xl border border-[#30363D] bg-[#0D1117] overflow-hidden my-2 shadow-sm font-mono text-sm">
-                    <div className="flex items-center justify-between px-3 py-1.5 bg-[#161B22] border-b border-[#30363D] text-xs">
+                  <div className="rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)] overflow-hidden my-2 shadow-sm font-mono text-sm">
+                    <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--quant-surface)] border-b border-[var(--quant-border)] text-xs">
                       <select
                         value={block.language || 'typescript'}
                         onChange={(e) => {
@@ -689,7 +689,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             prev.map((b) => (b.id === block.id ? { ...b, language: lang } : b)),
                           );
                         }}
-                        className="bg-transparent border-none text-xs text-[#8B949E] focus:outline-none cursor-pointer"
+                        className="bg-transparent border-none text-xs text-[var(--quant-text-muted)] focus:outline-none cursor-pointer"
                       >
                         <option value="typescript">TypeScript</option>
                         <option value="javascript">JavaScript</option>
@@ -703,7 +703,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                       <button
                         type="button"
                         onClick={() => handleCopyCode(block.content)}
-                        className="text-[11px] text-[#8B949E] hover:text-[#F0F6FC] transition-colors"
+                        className="text-[11px] text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] transition-colors"
                       >
                         Copy code
                       </button>
@@ -722,13 +722,13 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         onCursorMove?.(block.id);
                       }}
                       onBlur={() => onCursorMove?.(undefined)}
-                      className="w-full bg-[#0D1117] p-3 text-xs font-mono text-[#58A6FF] placeholder-[#484F58] focus:outline-none leading-relaxed resize-y border-none"
+                      className="w-full bg-[var(--quant-background)] p-3 text-xs font-mono text-[var(--quant-info)] placeholder-[var(--quant-border-strong)] focus:outline-none leading-relaxed resize-y border-none"
                     />
                   </div>
                 )}
 
                 {block.type === 'table' && (
-                  <div className="overflow-x-auto my-2 rounded-xl border border-[#30363D] bg-[#0D1117]">
+                  <div className="overflow-x-auto my-2 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-background)]">
                     <table className="w-full text-left text-xs border-collapse">
                       <tbody>
                         {(
@@ -740,13 +740,15 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                           <tr
                             key={rIdx}
                             className={
-                              rIdx === 0 ? 'bg-[#161B22] font-semibold text-[#F0F6FC]' : ''
+                              rIdx === 0
+                                ? 'bg-[var(--quant-surface)] font-semibold text-[var(--quant-foreground)]'
+                                : ''
                             }
                           >
                             {row.map((cell, cIdx) => (
                               <td
                                 key={cIdx}
-                                className="border border-[#30363D] p-1.5 focus-within:bg-[#FF8C42]/10"
+                                className="border border-[var(--quant-border)] p-1.5 focus-within:bg-[#FF8C42]/10"
                               >
                                 <input
                                   type="text"
@@ -765,7 +767,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                                       }),
                                     );
                                   }}
-                                  className="w-full bg-transparent border-none text-xs text-[#C9D1D9] focus:outline-none"
+                                  className="w-full bg-transparent border-none text-xs text-[var(--quant-foreground)] focus:outline-none"
                                 />
                               </td>
                             ))}
@@ -773,7 +775,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         ))}
                       </tbody>
                     </table>
-                    <div className="flex items-center gap-2 p-2 bg-[#161B22]/50 border-t border-[#30363D] text-[11px] text-[#8B949E]">
+                    <div className="flex items-center gap-2 p-2 bg-[#161B22]/50 border-t border-[var(--quant-border)] text-[11px] text-[var(--quant-text-muted)]">
                       <button
                         type="button"
                         onClick={() => {
@@ -787,7 +789,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             }),
                           );
                         }}
-                        className="hover:text-[#FF8C42] transition-colors"
+                        className="hover:text-[var(--brand-primary)] transition-colors"
                       >
                         + Add Row
                       </button>
@@ -803,7 +805,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             }),
                           );
                         }}
-                        className="hover:text-[#FF8C42] transition-colors"
+                        className="hover:text-[var(--brand-primary)] transition-colors"
                       >
                         + Add Column
                       </button>

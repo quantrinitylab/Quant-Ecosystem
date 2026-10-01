@@ -540,7 +540,7 @@ export default function ContactsPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search contacts by name, email, company…"
     >
-      <div className="workspace-page contacts-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page contacts-workspace flex flex-col h-full bg-[var(--quant-background)]">
         <input
           ref={vcardInputRef}
           type="file"
@@ -556,10 +556,10 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange('all')}
-                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                className={`inline-flex min-h-11 items-center justify-center rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                   activeTab === 'all'
-                    ? 'bg-[#FF8C42] text-[#111111] font-bold shadow-sm'
-                    : 'text-[#A1A4AC] hover:text-white'
+                    ? 'bg-[var(--brand-primary)] text-[#111111] font-bold shadow-sm'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-white'
                 }`}
               >
                 All{activeTab === 'all' && pagination && !error ? ` (${pagination.total})` : ''}
@@ -567,10 +567,10 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange('favorites')}
-                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 ${
                   activeTab === 'favorites'
-                    ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_12px_rgba(255,140,66,0.12)]'
-                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
+                    ? 'bg-[#FF8C42]/12 text-[var(--brand-primary)] border border-[#FF8C42]/35 shadow-[0_0_12px_rgba(255,140,66,0.12)]'
+                    : 'text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'
                 }`}
               >
                 <svg
@@ -610,8 +610,8 @@ export default function ContactsPage() {
                     }}
                     className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors ${
                       isSelected
-                        ? 'border-[#FF8C42]/40 bg-[#FF8C42]/12 text-[#FF8C42] font-semibold shadow-[0_0_12px_rgba(255,140,66,0.12)]'
-                        : 'border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:border-white/[0.15] hover:text-[#F5F5F5]'
+                        ? 'border-[#FF8C42]/40 bg-[#FF8C42]/12 text-[var(--brand-primary)] font-semibold shadow-[0_0_12px_rgba(255,140,66,0.12)]'
+                        : 'border-white/[0.08] bg-white/[0.03] text-[var(--quant-muted-foreground)] hover:border-white/[0.15] hover:text-[var(--quant-foreground)]'
                     }`}
                     title={`Filter by ${grp.name} (${(grp.emails || []).length} members)`}
                   >
@@ -620,7 +620,7 @@ export default function ContactsPage() {
                       style={{ backgroundColor: grp.color || '#FF8C42' }}
                     />
                     <span className="truncate max-w-[120px]">{grp.name}</span>
-                    <span className="text-[10px] text-[#6B6E76] font-mono">
+                    <span className="text-[10px] text-[var(--quant-text-muted)] font-mono">
                       ({(grp.emails || []).length})
                     </span>
                     {isSelected && (
@@ -632,7 +632,7 @@ export default function ContactsPage() {
                           setEditingGroup(grp);
                           setShowGroupModal(true);
                         }}
-                        className="ml-0.5 rounded px-1 text-[#FF8C42] hover:bg-[#3D2214]"
+                        className="ml-0.5 rounded px-1 text-[var(--brand-primary)] hover:bg-[#3D2214]"
                         title="Edit group"
                       >
                         ✎
@@ -648,7 +648,7 @@ export default function ContactsPage() {
                   setEditingGroup(null);
                   setShowGroupModal(true);
                 }}
-                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-dashed border-[#282C35] bg-[#121316] px-2 py-1 text-xs text-[#A1A4AC] hover:border-[#FF8C42] hover:text-[#FF8C42] transition-colors"
+                className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-dashed border-[var(--quant-border)] bg-[var(--quant-surface)] px-2 py-1 text-xs text-[var(--quant-muted-foreground)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] transition-colors"
                 title="Create new contact group"
               >
                 <span>+ Group</span>
@@ -660,7 +660,7 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={() => vcardInputRef.current?.click()}
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1.5 text-xs text-[var(--quant-muted-foreground)] transition-colors hover:border-[var(--quant-border-strong)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0"
               title="Import vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -683,7 +683,7 @@ export default function ContactsPage() {
                 !contacts?.length ||
                 searchQuery.trim() !== debouncedQuery
               }
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1.5 text-xs text-[var(--quant-muted-foreground)] transition-colors hover:border-[var(--quant-border-strong)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0 disabled:cursor-not-allowed disabled:opacity-50"
               title="Export this page to vCard .vcf"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -699,11 +699,11 @@ export default function ContactsPage() {
             <button
               type="button"
               onClick={() => setShowDedupeModal(true)}
-              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[#282C35] bg-[#16181D] px-3 py-1.5 text-xs text-[#A1A4AC] transition-colors hover:border-[#3A404D] hover:text-[#F5F5F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0"
+              className="flex min-h-11 items-center gap-1.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] px-3 py-1.5 text-xs text-[var(--quant-muted-foreground)] transition-colors hover:border-[var(--quant-border-strong)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:min-h-0"
               title="Find and merge duplicate contacts"
             >
               <svg
-                className="w-3.5 h-3.5 text-[#FF8C42]"
+                className="w-3.5 h-3.5 text-[var(--brand-primary)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -765,7 +765,7 @@ export default function ContactsPage() {
 
             {!isLoading && !error && (!contacts || contacts.length === 0) && (
               <div className="text-center py-16 space-y-3">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[#16181D] border border-[#282C35] mx-auto text-[#6B6E76]">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] mx-auto text-[var(--quant-text-muted)]">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
                       strokeLinecap="round"
@@ -782,7 +782,7 @@ export default function ContactsPage() {
                     />
                   </svg>
                 </div>
-                <h3 className="text-lg font-bold text-[#F5F5F5]">
+                <h3 className="text-lg font-bold text-[var(--quant-foreground)]">
                   {(pagination?.total ?? 0) > 0
                     ? 'No contacts on this page'
                     : debouncedQuery
@@ -791,7 +791,7 @@ export default function ContactsPage() {
                         ? 'No favorites yet'
                         : 'Your address book is empty'}
                 </h3>
-                <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
+                <p className="text-xs text-[var(--quant-muted-foreground)] max-w-sm mx-auto">
                   {(pagination?.total ?? 0) > 0
                     ? 'Your address book changed. Refresh this page or use page navigation.'
                     : activeTab === 'favorites' && !debouncedQuery
@@ -825,7 +825,7 @@ export default function ContactsPage() {
               <div className="space-y-6">
                 {groupedContacts.map((group) => (
                   <section key={group.letter} id={`letter-${group.letter}`} className="space-y-2">
-                    <h3 className="sticky top-0 z-10 text-xs font-extrabold uppercase tracking-widest text-[#FF8C42] bg-[#090A0C]/90 backdrop-blur-sm py-1">
+                    <h3 className="sticky top-0 z-10 text-xs font-extrabold uppercase tracking-widest text-[var(--brand-primary)] bg-[#090A0C]/90 backdrop-blur-sm py-1">
                       {group.letter} ({group.contacts.length})
                     </h3>
 
@@ -836,7 +836,7 @@ export default function ContactsPage() {
                           <div
                             key={contact.id}
                             onClick={() => setInspectContact(contact)}
-                            className="group flex flex-col justify-between p-4 rounded-2xl border border-[#282C35] bg-[#16181D] hover:border-[#FF8C42]/50 hover:bg-[#1C1F26] transition-all shadow-sm cursor-pointer"
+                            className="group flex flex-col justify-between p-4 rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface-elevated)] hover:border-[#FF8C42]/50 hover:bg-[var(--quant-border)] transition-all shadow-sm cursor-pointer"
                           >
                             <div className="flex items-start gap-3">
                               <Avatar
@@ -845,7 +845,7 @@ export default function ContactsPage() {
                                 size="md"
                               />
                               <div className="min-w-0 flex-1">
-                                <h4 className="text-sm font-semibold text-[#F5F5F5] truncate group-hover:text-[#FF9B5A] transition-colors flex items-center gap-1.5">
+                                <h4 className="text-sm font-semibold text-[var(--quant-foreground)] truncate group-hover:text-[var(--brand-primary-hover)] transition-colors flex items-center gap-1.5">
                                   <span className="truncate">{contact.name || contact.email}</span>
                                   {contact.isFavorite && (
                                     <svg
@@ -857,11 +857,13 @@ export default function ContactsPage() {
                                     </svg>
                                   )}
                                 </h4>
-                                <p className="text-xs text-[#A1A4AC] truncate">{contact.email}</p>
+                                <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
+                                  {contact.email}
+                                </p>
                                 {contact.company && (
-                                  <p className="text-[11px] text-[#A1A4AC] mt-0.5 truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[var(--quant-muted-foreground)] mt-0.5 truncate flex items-center gap-1">
                                     <svg
-                                      className="w-3 h-3 text-[#6B6E76]"
+                                      className="w-3 h-3 text-[var(--quant-text-muted)]"
                                       fill="none"
                                       stroke="currentColor"
                                       viewBox="0 0 24 24"
@@ -877,9 +879,9 @@ export default function ContactsPage() {
                                   </p>
                                 )}
                                 {contact.phone && (
-                                  <p className="text-[11px] text-[#A1A4AC] truncate flex items-center gap-1">
+                                  <p className="text-[11px] text-[var(--quant-muted-foreground)] truncate flex items-center gap-1">
                                     <svg
-                                      className="w-3 h-3 text-[#6B6E76]"
+                                      className="w-3 h-3 text-[var(--quant-text-muted)]"
                                       fill="none"
                                       stroke="currentColor"
                                       viewBox="0 0 24 24"
@@ -899,13 +901,13 @@ export default function ContactsPage() {
                                     {contact.tags.slice(0, 3).map((tag) => (
                                       <span
                                         key={tag}
-                                        className="px-1.5 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[#FF8C42]"
+                                        className="px-1.5 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[var(--brand-primary)]"
                                       >
                                         {tag}
                                       </span>
                                     ))}
                                     {contact.tags.length > 3 && (
-                                      <span className="px-1.5 py-0.5 rounded-md bg-[#111318] border border-[#282C35] text-[10px] text-[#A1A4AC]">
+                                      <span className="px-1.5 py-0.5 rounded-md bg-[var(--quant-surface)] border border-[var(--quant-border)] text-[10px] text-[var(--quant-muted-foreground)]">
                                         +{contact.tags.length - 3}
                                       </span>
                                     )}
@@ -922,18 +924,18 @@ export default function ContactsPage() {
                                */}
                               {threads > 0 && (
                                 <span
-                                  className="shrink-0 rounded-md bg-[#111318] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[#A1A4AC] shadow-[inset_0_0_0_1px_#282C35]"
+                                  className="shrink-0 rounded-md bg-[var(--quant-surface)] px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-[var(--quant-muted-foreground)] shadow-[inset_0_0_0_1px_#282C35]"
                                   title={`${threads} recent thread${threads === 1 ? '' : 's'} with ${contact.email}`}
                                 >
                                   {threads}
-                                  <span className="ml-0.5 font-medium text-[#A1A4AC]">
+                                  <span className="ml-0.5 font-medium text-[var(--quant-muted-foreground)]">
                                     {threads === 1 ? 'thread' : 'threads'}
                                   </span>
                                 </span>
                               )}
                             </div>
 
-                            <div className="flex items-center justify-between border-t border-[#282C35] mt-3 pt-3">
+                            <div className="flex items-center justify-between border-t border-[var(--quant-border)] mt-3 pt-3">
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
@@ -941,7 +943,7 @@ export default function ContactsPage() {
                                     e.stopPropagation();
                                     router.push(`/compose?to=${encodeURIComponent(contact.email)}`);
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[#FF8C42] text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[var(--brand-primary)] text-xs font-semibold hover:bg-[#FF8C42]/20 shadow-[0_0_10px_rgba(255,140,66,0.1)] transition-colors flex items-center gap-1"
                                 >
                                   <svg
                                     className="w-3 h-3"
@@ -966,7 +968,7 @@ export default function ContactsPage() {
                                       `/calendar?attendee=${encodeURIComponent(contact.email)}`,
                                     );
                                   }}
-                                  className="px-2.5 py-1 rounded-lg bg-[#111318] border border-[#282C35] text-[#A1A4AC] text-xs font-medium hover:text-[#F5F5F5] hover:border-[#3A404D] transition-colors flex items-center gap-1"
+                                  className="px-2.5 py-1 rounded-lg bg-[var(--quant-surface)] border border-[var(--quant-border)] text-[var(--quant-muted-foreground)] text-xs font-medium hover:text-[var(--quant-foreground)] hover:border-[var(--quant-border-strong)] transition-colors flex items-center gap-1"
                                 >
                                   <svg
                                     className="w-3 h-3"
@@ -1011,7 +1013,7 @@ export default function ContactsPage() {
                                   className={`p-1.5 rounded-lg transition-colors hover:bg-white/5 ${
                                     contact.isFavorite
                                       ? 'text-[#FFB020]'
-                                      : 'text-[#6B6E76] hover:text-[#FFB020]'
+                                      : 'text-[var(--quant-text-muted)] hover:text-[#FFB020]'
                                   }`}
                                   title={
                                     contact.isFavorite
@@ -1041,7 +1043,7 @@ export default function ContactsPage() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleOpenEdit(contact, e)}
-                                  className="p-1.5 text-[#6B6E76] hover:text-[#F5F5F5] hover:bg-white/5 rounded-lg transition-colors"
+                                  className="p-1.5 text-[var(--quant-text-muted)] hover:text-[var(--quant-foreground)] hover:bg-white/5 rounded-lg transition-colors"
                                   title="Edit contact"
                                 >
                                   <svg
@@ -1067,7 +1069,7 @@ export default function ContactsPage() {
                                 <button
                                   type="button"
                                   onClick={(e) => handleDelete(contact.id, contact.name, e)}
-                                  className="p-1.5 text-[#6B6E76] hover:text-[#F87171] hover:bg-[#2A1215] rounded-lg transition-colors"
+                                  className="p-1.5 text-[var(--quant-text-muted)] hover:text-[var(--quant-destructive)] hover:bg-[#2A1215] rounded-lg transition-colors"
                                   title="Delete contact"
                                 >
                                   <svg
@@ -1149,12 +1151,12 @@ export default function ContactsPage() {
                     }}
                     aria-current={active ? 'true' : undefined}
                     aria-label={`Jump to ${letter === '#' ? 'other' : letter}`}
-                    className={`flex flex-1 items-center justify-center rounded text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`flex flex-1 items-center justify-center rounded text-[10px] font-bold leading-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                       active
-                        ? 'text-[#FF8C42]'
+                        ? 'text-[var(--brand-primary)]'
                         : exists
-                          ? 'text-[#F5F5F5] hover:text-[#FF8C42]'
-                          : 'text-[#A1A4AC]'
+                          ? 'text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]'
+                          : 'text-[var(--quant-muted-foreground)]'
                     }`}
                   >
                     {letter}
@@ -1168,7 +1170,7 @@ export default function ContactsPage() {
           {scrub && (
             <div
               aria-hidden="true"
-              className="pointer-events-none fixed right-11 z-40 grid size-14 place-items-center rounded-2xl bg-[#16181D] text-2xl font-black text-[#FF8C42] shadow-[0_4px_16px_rgba(0,0,0,0.6)] sm:right-14"
+              className="pointer-events-none fixed right-11 z-40 grid size-14 place-items-center rounded-2xl bg-[var(--quant-surface-elevated)] text-2xl font-black text-[var(--brand-primary)] shadow-[0_4px_16px_rgba(0,0,0,0.6)] sm:right-14"
               style={{ top: scrub.y - 28 }}
             >
               {scrub.letter}
@@ -1183,7 +1185,7 @@ export default function ContactsPage() {
           title={inspectContact?.name || 'Contact Details'}
         >
           <div className="p-4 space-y-4">
-            <div className="flex items-center gap-4 p-4 rounded-2xl bg-[#111318] border border-[#282C35]">
+            <div className="flex items-center gap-4 p-4 rounded-2xl bg-[var(--quant-surface)] border border-[var(--quant-border)]">
               <Avatar
                 name={inspectContact?.name || inspectContact?.email}
                 src={inspectContact?.avatarUrl}
@@ -1198,9 +1200,11 @@ export default function ContactsPage() {
                     </svg>
                   )}
                 </h3>
-                <p className="text-xs text-[#A1A4AC]">{inspectContact?.email}</p>
+                <p className="text-xs text-[var(--quant-muted-foreground)]">
+                  {inspectContact?.email}
+                </p>
                 {inspectContact?.company && (
-                  <p className="text-xs text-[#FF8C42] mt-0.5 flex items-center gap-1.5">
+                  <p className="text-xs text-[var(--brand-primary)] mt-0.5 flex items-center gap-1.5">
                     <svg
                       className="size-3.5"
                       viewBox="0 0 24 24"
@@ -1231,7 +1235,7 @@ export default function ContactsPage() {
                 {inspectContact.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-2 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[#FF8C42]"
+                    className="px-2 py-0.5 rounded-md bg-[#FF8C42]/12 border border-[#FF8C42]/30 text-[10px] font-semibold text-[var(--brand-primary)]"
                   >
                     {tag}
                   </span>
@@ -1241,21 +1245,21 @@ export default function ContactsPage() {
 
             <div className="space-y-2 text-xs">
               {inspectContact?.phone && (
-                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#111318]/60 border border-[#282C35]">
-                  <span className="text-[#A1A4AC]">Phone Number</span>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#111318]/60 border border-[var(--quant-border)]">
+                  <span className="text-[var(--quant-muted-foreground)]">Phone Number</span>
                   <a
                     href={`tel:${inspectContact.phone}`}
-                    className="font-mono font-semibold text-[#F5F5F5] hover:text-[#FF8C42]"
+                    className="font-mono font-semibold text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]"
                   >
                     {inspectContact.phone}
                   </a>
                 </div>
               )}
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#111318]/60 border border-[#282C35]">
-                <span className="text-[#A1A4AC]">Email Address</span>
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#111318]/60 border border-[var(--quant-border)]">
+                <span className="text-[var(--quant-muted-foreground)]">Email Address</span>
                 <a
                   href={`mailto:${inspectContact?.email}`}
-                  className="font-mono font-semibold text-[#F5F5F5] hover:text-[#FF8C42]"
+                  className="font-mono font-semibold text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]"
                 >
                   {inspectContact?.email}
                 </a>
@@ -1270,10 +1274,10 @@ export default function ContactsPage() {
                       router.push(`/search?q=${encodeURIComponent(inspectContact.email)}`);
                     }
                   }}
-                  className="flex min-h-touch w-full items-center justify-between rounded-xl bg-[#111318]/60 p-2.5 text-left shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[#16181D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  className="flex min-h-touch w-full items-center justify-between rounded-xl bg-[#111318]/60 p-2.5 text-left shadow-[inset_0_0_0_1px_#282C35] transition-colors hover:bg-[var(--quant-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
-                  <span className="text-[#A1A4AC]">Recent Conversations</span>
-                  <span className="flex items-center gap-1.5 font-semibold text-[#FF8C42]">
+                  <span className="text-[var(--quant-muted-foreground)]">Recent Conversations</span>
+                  <span className="flex items-center gap-1.5 font-semibold text-[var(--brand-primary)]">
                     View {threadCountFor(inspectContact?.email)}{' '}
                     {threadCountFor(inspectContact?.email) === 1 ? 'thread' : 'threads'}
                     <IconChevronRight size={13} />
@@ -1282,7 +1286,7 @@ export default function ContactsPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-[#282C35]">
+            <div className="flex items-center justify-between pt-2 border-t border-[var(--quant-border)]">
               <div className="flex items-center gap-2">
                 <Button
                   variant="primary"
@@ -1349,7 +1353,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-name"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Full Name *
               </label>
@@ -1360,7 +1364,7 @@ export default function ContactsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g. Sundar Pichai"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
                 autoFocus
                 /* `Modal` traps focus, and React applies `autoFocus` imperatively
                    without rendering an attribute the trap could find — so the
@@ -1373,7 +1377,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-email"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Email Address *
               </label>
@@ -1384,7 +1388,7 @@ export default function ContactsPage() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="e.g. sundar@quantmail.in"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
               />
             </div>
 
@@ -1392,7 +1396,7 @@ export default function ContactsPage() {
               <div>
                 <label
                   htmlFor="contact-phone"
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
                 >
                   Phone
                 </label>
@@ -1403,13 +1407,13 @@ export default function ContactsPage() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="+91 98765 43210"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
                 />
               </div>
               <div>
                 <label
                   htmlFor="contact-company"
-                  className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                  className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
                 >
                   Company
                 </label>
@@ -1420,7 +1424,7 @@ export default function ContactsPage() {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                   placeholder="e.g. Quantrinity"
-                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                  className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
                 />
               </div>
             </div>
@@ -1428,7 +1432,7 @@ export default function ContactsPage() {
             <div>
               <label
                 htmlFor="contact-tags"
-                className="block text-xs font-semibold text-[#A1A4AC] mb-1"
+                className="block text-xs font-semibold text-[var(--quant-muted-foreground)] mb-1"
               >
                 Tags (comma-separated)
               </label>
@@ -1439,7 +1443,7 @@ export default function ContactsPage() {
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                 placeholder="Team, VIP, Client…"
-                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] [@media(pointer:coarse)]:min-h-11"
+                className="w-full bg-[var(--quant-surface)] border border-[var(--quant-border)] rounded-lg px-3 py-2 text-xs text-white placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)] [@media(pointer:coarse)]:min-h-11"
               />
             </div>
 

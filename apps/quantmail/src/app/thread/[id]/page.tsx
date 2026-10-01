@@ -62,7 +62,10 @@ export default function ThreadPage() {
     return (
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
         <div className="workspace-page thread-workspace flex flex-col h-full bg-[#0a0d14]">
-          <div className="flex-1 flex items-center justify-center p-6 text-[#A1A4AC]" role="status">
+          <div
+            className="flex-1 flex items-center justify-center p-6 text-[var(--quant-muted-foreground)]"
+            role="status"
+          >
             Returning to inbox…
           </div>
         </div>
@@ -72,7 +75,7 @@ export default function ThreadPage() {
 
   return (
     <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
-      <div className="workspace-page thread-workspace flex flex-col h-full bg-[#090A0C]">
+      <div className="workspace-page thread-workspace flex flex-col h-full bg-[var(--quant-background)]">
         <ConversationalThreadView
           threadId={threadId}
           onClose={() => leaveThread(false)}

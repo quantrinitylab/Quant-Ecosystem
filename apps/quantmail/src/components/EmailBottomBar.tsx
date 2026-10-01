@@ -8,7 +8,7 @@ export interface EmailBottomBarProps {
 
 export function EmailBottomBar({ onReply, onForward, onEmoji }: EmailBottomBarProps) {
   return (
-    <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-[#282C35] bg-[#0c1017]/95 backdrop-blur-xl shadow-2xl">
+    <div className="sticky bottom-0 z-20 flex items-center justify-between gap-3 px-4 sm:px-6 py-3 border-t border-[var(--quant-border)] bg-[#0c1017]/95 backdrop-blur-xl shadow-2xl">
       <div className="flex items-center gap-2.5">
         <button
           type="button"
@@ -31,7 +31,7 @@ export function EmailBottomBar({ onReply, onForward, onEmoji }: EmailBottomBarPr
         <button
           type="button"
           onClick={onForward}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#282C35] hover:bg-[#3A404D] text-[#F5F5F5] hover:text-white font-semibold text-xs border border-[#3A404D] transition-all active:scale-95"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--quant-border)] hover:bg-[var(--quant-border-strong)] text-[var(--quant-foreground)] hover:text-white font-semibold text-xs border border-[var(--quant-border-strong)] transition-all active:scale-95"
         >
           <svg
             className="size-4"
@@ -53,7 +53,7 @@ export function EmailBottomBar({ onReply, onForward, onEmoji }: EmailBottomBarPr
             key={emoji}
             type="button"
             onClick={() => onEmoji?.(emoji)}
-            className="p-1.5 rounded-xl bg-[#111318] border border-[#282C35] hover:border-[#FF8C42]/50 hover:bg-[#282C35] text-sm transition-all hover:scale-110"
+            className="p-1.5 rounded-xl bg-[var(--quant-surface)] border border-[var(--quant-border)] hover:border-[#FF8C42]/50 hover:bg-[var(--quant-border)] text-sm transition-all hover:scale-110"
             title={`React with ${emoji}`}
           >
             {emoji}

@@ -99,19 +99,21 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
   };
 
   return (
-    <section className="rounded-xl border border-white/[0.08] bg-[#111318] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
+    <section className="rounded-xl border border-white/[0.08] bg-[var(--quant-surface)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]">
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
-        className="w-full min-h-[44px] flex items-center gap-3 px-4 py-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+        className="w-full min-h-[44px] flex items-center gap-3 px-4 py-3 text-left rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
       >
-        <span className="size-9 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 shadow-[0_0_12px_rgba(255,140,66,0.15)] flex items-center justify-center text-[#FF8C42] shrink-0">
+        <span className="size-9 rounded-lg bg-[#FF8C42]/12 border border-[#FF8C42]/30 shadow-[0_0_12px_rgba(255,140,66,0.15)] flex items-center justify-center text-[var(--brand-primary)] shrink-0">
           <IconSparkle size={18} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-semibold text-[#F5F5F5]">AI Memory</span>
-          <span className="block text-xs text-[#A1A4AC] mt-0.5 truncate">
+          <span className="block text-sm font-semibold text-[var(--quant-foreground)]">
+            AI Memory
+          </span>
+          <span className="block text-xs text-[var(--quant-muted-foreground)] mt-0.5 truncate">
             {isLoading
               ? 'Reading what the assistant has learned…'
               : error
@@ -121,31 +123,33 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
                   : `${total} ${total === 1 ? 'thing' : 'things'} learned across QuantMail, QuantChat and QuantTube.`}
           </span>
         </span>
-        <span className="text-[#6B6E76] shrink-0">
+        <span className="text-[var(--quant-text-muted)] shrink-0">
           {isOpen ? <IconChevronDown size={18} /> : <IconChevronRight size={18} />}
         </span>
       </button>
 
       {isOpen && (
-        <div className="border-t border-[#282C35] px-4 py-3 flex flex-col gap-4">
+        <div className="border-t border-[var(--quant-border)] px-4 py-3 flex flex-col gap-4">
           {!isLoading && !error && total > 0 && shown === 0 && (
-            <p className="text-xs text-[#6B6E76]">No memory matches that search.</p>
+            <p className="text-xs text-[var(--quant-text-muted)]">No memory matches that search.</p>
           )}
 
           {groups.map((group) => (
             <div key={group.app} className="flex flex-col gap-2">
-              <h3 className="text-[11px] font-mono uppercase tracking-wider text-[#6B6E76]">
+              <h3 className="text-[11px] font-mono uppercase tracking-wider text-[var(--quant-text-muted)]">
                 {group.label} · {group.items.length}
               </h3>
               <ul className="flex flex-col gap-1.5">
                 {group.items.map((item) => (
                   <li
                     key={item.id}
-                    className="flex items-start gap-3 rounded-lg bg-[#16181D] px-3 py-2.5"
+                    className="flex items-start gap-3 rounded-lg bg-[var(--quant-surface-elevated)] px-3 py-2.5"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-[#F5F5F5] break-words">{item.summary}</p>
-                      <p className="text-[11px] text-[#6B6E76] mt-1">
+                      <p className="text-sm text-[var(--quant-foreground)] break-words">
+                        {item.summary}
+                      </p>
+                      <p className="text-[11px] text-[var(--quant-text-muted)] mt-1">
                         {kindLabel(item.kind)}
                         {learnedAt(item.updatedAt) ? ` · learned ${learnedAt(item.updatedAt)}` : ''}
                         {item.version > 1 ? ` · revised ${item.version - 1}×` : ''}
@@ -156,7 +160,7 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
                       onClick={() => void handleForget(item)}
                       disabled={forgettingId === item.id}
                       aria-label={`Forget: ${item.summary.slice(0, 80)}`}
-                      className="size-11 -my-1 -mr-1 shrink-0 flex items-center justify-center rounded-lg text-[#6B6E76] transition-colors hover:text-[#F5F5F5] hover:bg-[#282C35] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="size-11 -my-1 -mr-1 shrink-0 flex items-center justify-center rounded-lg text-[var(--quant-text-muted)] transition-colors hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-border)] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     >
                       <IconTrash size={16} />
                     </button>
@@ -167,7 +171,7 @@ export function AIMemoryPanel({ query = '' }: AIMemoryPanelProps) {
           ))}
 
           {truncated && (
-            <p className="text-[11px] text-[#6B6E76]">
+            <p className="text-[11px] text-[var(--quant-text-muted)]">
               Showing the most recent memories only — there are more than this view loads at once.
             </p>
           )}

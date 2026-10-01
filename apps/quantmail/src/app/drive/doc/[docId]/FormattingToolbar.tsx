@@ -47,7 +47,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
   const [showColorDropdown, setShowColorDropdown] = useState<boolean>(false);
 
   return (
-    <div className="flex items-center gap-1 rounded-xl border border-[#30363D] bg-[#161B22] p-1 shadow-xl backdrop-blur-md">
+    <div className="flex items-center gap-1 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1 shadow-xl backdrop-blur-md">
       {/* Block type switcher */}
       <div className="relative">
         <button
@@ -56,11 +56,11 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
             setShowTypeDropdown(!showTypeDropdown);
             setShowColorDropdown(false);
           }}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
         >
           <span>{TYPE_LABELS[currentType] || 'Text'}</span>
           <svg
-            className="w-3 h-3 text-[#8B949E]"
+            className="w-3 h-3 text-[var(--quant-text-muted)]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -70,7 +70,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         </button>
 
         {showTypeDropdown && (
-          <div className="absolute top-full left-0 mt-1.5 w-44 rounded-xl border border-[#30363D] bg-[#161B22] p-1 shadow-2xl z-50">
+          <div className="absolute top-full left-0 mt-1.5 w-44 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1 shadow-2xl z-50">
             {(
               [
                 'paragraph',
@@ -94,26 +94,26 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                 }}
                 className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
                   currentType === t
-                    ? 'bg-[#21262D] text-[#FF8C42] font-semibold'
-                    : 'text-[#C9D1D9] hover:bg-[#21262D]/60 hover:text-[#F0F6FC]'
+                    ? 'bg-[var(--quant-surface-elevated)] text-[var(--brand-primary)] font-semibold'
+                    : 'text-[var(--quant-foreground)] hover:bg-[#21262D]/60 hover:text-[var(--quant-foreground)]'
                 }`}
               >
                 <span>{TYPE_LABELS[t]}</span>
-                {currentType === t && <span className="text-[#FF8C42]">✓</span>}
+                {currentType === t && <span className="text-[var(--brand-primary)]">✓</span>}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      <div className="w-px h-4 bg-[#30363D] mx-0.5" />
+      <div className="w-px h-4 bg-[var(--quant-border)] mx-0.5" />
 
       {/* Bold button */}
       <button
         type="button"
         onClick={() => onFormatText('bold')}
         title="Bold (Ctrl+B)"
-        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+        className="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
       >
         B
       </button>
@@ -123,7 +123,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         type="button"
         onClick={() => onFormatText('italic')}
         title="Italic (Ctrl+I)"
-        className="w-7 h-7 rounded-lg flex items-center justify-center italic text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+        className="w-7 h-7 rounded-lg flex items-center justify-center italic text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
       >
         I
       </button>
@@ -133,7 +133,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         type="button"
         onClick={() => onFormatText('strike')}
         title="Strikethrough (Ctrl+Shift+X)"
-        className="w-7 h-7 rounded-lg flex items-center justify-center line-through text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+        className="w-7 h-7 rounded-lg flex items-center justify-center line-through text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
       >
         S
       </button>
@@ -143,7 +143,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         type="button"
         onClick={() => onFormatText('code')}
         title="Inline Code (Ctrl+E)"
-        className="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+        className="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
       >
         &lt;/&gt;
       </button>
@@ -153,7 +153,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
         type="button"
         onClick={() => onFormatText('link')}
         title="Insert Link (Ctrl+K)"
-        className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+        className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -175,14 +175,14 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
               setShowTypeDropdown(false);
             }}
             title="Highlight Color"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[#C9D1D9] hover:text-[#F0F6FC] hover:bg-[#21262D] transition-colors"
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-xs text-[var(--quant-foreground)] hover:text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
           >
-            <span className="w-3.5 h-3.5 rounded-full border border-[#30363D] bg-[#FF8C42]" />
+            <span className="w-3.5 h-3.5 rounded-full border border-[var(--quant-border)] bg-[var(--brand-primary)]" />
           </button>
 
           {showColorDropdown && (
-            <div className="absolute top-full right-0 mt-1.5 w-36 rounded-xl border border-[#30363D] bg-[#161B22] p-1.5 shadow-2xl z-50 space-y-1">
-              <div className="text-[10px] font-semibold text-[#8B949E] px-2 py-0.5 uppercase tracking-wider">
+            <div className="absolute top-full right-0 mt-1.5 w-36 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-1.5 shadow-2xl z-50 space-y-1">
+              <div className="text-[10px] font-semibold text-[var(--quant-text-muted)] px-2 py-0.5 uppercase tracking-wider">
                 Highlight
               </div>
               {COLOR_OPTIONS.map((c) => (
@@ -193,7 +193,7 @@ export const FormattingToolbar: React.FC<FormattingToolbarProps> = ({
                     onHighlightColor(c.value);
                     setShowColorDropdown(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-[#C9D1D9] hover:bg-[#21262D] transition-colors"
+                  className="w-full flex items-center gap-2 px-2 py-1 rounded-lg text-xs text-[var(--quant-foreground)] hover:bg-[var(--quant-surface-elevated)] transition-colors"
                 >
                   <span
                     className="w-3 h-3 rounded-full border border-white/20 shrink-0"

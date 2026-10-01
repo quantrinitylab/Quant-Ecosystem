@@ -41,24 +41,24 @@ const THEMES: Record<
   }
 > = {
   'github-dark': {
-    shell: 'bg-[#0d1117] text-[#e6edf3]',
-    header: 'bg-[#161b22]',
-    editor: 'bg-[#0d1117]',
-    gutter: 'bg-[#0d1117] text-[#484f58]',
-    text: 'text-[#e6edf3]',
-    muted: 'text-[#7d8590]',
-    border: 'border-[#30363d]',
-    input: 'bg-[#0d1117] text-[#e6edf3]',
+    shell: 'bg-[var(--quant-background)] text-[var(--quant-foreground)]',
+    header: 'bg-[var(--quant-surface)]',
+    editor: 'bg-[var(--quant-background)]',
+    gutter: 'bg-[var(--quant-background)] text-[var(--quant-border-strong)]',
+    text: 'text-[var(--quant-foreground)]',
+    muted: 'text-[var(--quant-muted-foreground)]',
+    border: 'border-[var(--quant-border)]',
+    input: 'bg-[var(--quant-background)] text-[var(--quant-foreground)]',
   },
   'github-light': {
-    shell: 'bg-white text-[#1f2328]',
+    shell: 'bg-white text-[var(--quant-surface-elevated)]',
     header: 'bg-[#f6f8fa]',
     editor: 'bg-white',
     gutter: 'bg-[#f6f8fa] text-[#8c959f]',
-    text: 'text-[#1f2328]',
-    muted: 'text-[#656d76]',
+    text: 'text-[var(--quant-surface-elevated)]',
+    muted: 'text-[var(--quant-text-muted)]',
     border: 'border-[#d0d7de]',
-    input: 'bg-white text-[#1f2328]',
+    input: 'bg-white text-[var(--quant-surface-elevated)]',
   },
 };
 
@@ -227,7 +227,7 @@ export function BlobEditor({
               {dirty && (
                 <>
                   <span aria-hidden="true">·</span>
-                  <span className="font-semibold text-[#d29922]">Unsaved changes</span>
+                  <span className="font-semibold text-[var(--quant-warning)]">Unsaved changes</span>
                 </>
               )}
             </div>
@@ -245,7 +245,7 @@ export function BlobEditor({
                 aria-pressed={mode === 'edit'}
                 className={`px-3 py-1.5 text-xs font-semibold ${
                   mode === 'edit'
-                    ? 'bg-[#238636] text-white'
+                    ? 'bg-[var(--quant-success)] text-white'
                     : `${themeTokens.header} ${themeTokens.muted}`
                 }`}
               >
@@ -258,7 +258,7 @@ export function BlobEditor({
                 aria-pressed={mode === 'preview'}
                 className={`px-3 py-1.5 text-xs font-semibold ${
                   mode === 'preview'
-                    ? 'bg-[#238636] text-white'
+                    ? 'bg-[var(--quant-success)] text-white'
                     : `${themeTokens.header} ${themeTokens.muted}`
                 }`}
               >
@@ -270,7 +270,7 @@ export function BlobEditor({
               value={theme}
               onChange={(event) => setTheme(event.target.value as BlobEditorTheme)}
               aria-label="Syntax theme"
-              className={`rounded-md border px-2.5 py-1.5 text-xs outline-none focus:border-[#58a6ff] ${themeTokens.input} ${themeTokens.border}`}
+              className={`rounded-md border px-2.5 py-1.5 text-xs outline-none focus:border-[var(--quant-info)] ${themeTokens.input} ${themeTokens.border}`}
             >
               <option value="github-dark">GitHub Dark</option>
               <option value="github-light">GitHub Light</option>
@@ -339,7 +339,7 @@ export function BlobEditor({
                 onChange={(event) => setCommitMessage(event.target.value)}
                 maxLength={200}
                 disabled={saving || readOnly}
-                className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#58a6ff] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
+                className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--quant-info)] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
               />
             </label>
 
@@ -351,7 +351,7 @@ export function BlobEditor({
                   value={targetBranch}
                   onChange={(event) => setTargetBranch(event.target.value)}
                   disabled={saving || readOnly}
-                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#58a6ff] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
+                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--quant-info)] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
                 >
                   {Array.from(new Set([branch, ...availableBranches])).map((branchName) => (
                     <option key={branchName} value={branchName}>
@@ -364,7 +364,7 @@ export function BlobEditor({
                   value={targetBranch}
                   onChange={(event) => setTargetBranch(event.target.value)}
                   disabled={saving || readOnly}
-                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#58a6ff] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
+                  className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[var(--quant-info)] disabled:opacity-60 ${themeTokens.input} ${themeTokens.border}`}
                 />
               )}
             </label>
@@ -373,14 +373,14 @@ export function BlobEditor({
           {error && (
             <p
               role="alert"
-              className="rounded-md border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-xs text-[#f85149]"
+              className="rounded-md border border-[#f85149]/40 bg-[#f85149]/10 px-3 py-2 text-xs text-[var(--quant-destructive)]"
             >
               {error}
             </p>
           )}
 
           {readOnly && (
-            <p className="text-xs text-[#d29922]">
+            <p className="text-xs text-[var(--quant-warning)]">
               This file is read-only for the current account.
             </p>
           )}
@@ -406,7 +406,7 @@ export function BlobEditor({
                 disabled={
                   saving || readOnly || !dirty || !commitMessage.trim() || !targetBranch.trim()
                 }
-                className="rounded-md bg-[#238636] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2ea043] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-md bg-[var(--quant-success)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[var(--quant-success)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? 'Committing…' : 'Commit changes'}
               </button>

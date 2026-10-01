@@ -36,10 +36,10 @@ export interface RouteSkeletonProps {
 }
 
 /** One shimmer bar. `motion-reduce` is honoured by Tailwind, not by a hook. */
-const PULSE = 'bg-[#16181D] animate-pulse motion-reduce:animate-none';
+const PULSE = 'bg-[var(--quant-surface-elevated)] animate-pulse motion-reduce:animate-none';
 const BAR = `rounded ${PULSE}`;
 /** A filled placeholder that should read as a surface rather than as text. */
-const SURFACE = 'rounded-xl bg-[#111318] shadow-[inset_0_0_0_1px_#282C35]';
+const SURFACE = 'rounded-xl bg-[var(--quant-surface)] shadow-[inset_0_0_0_1px_#282C35]';
 
 /**
  * Fixed, not random: a `Math.random()` width would differ between the streamed
@@ -50,7 +50,7 @@ const ROW_WIDTHS = ['72%', '54%', '81%', '46%', '66%', '77%', '58%', '69%', '50%
 
 function HeaderRail() {
   return (
-    <div className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[#282C35] bg-[#090A0C] px-3 md:px-5">
+    <div className="flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--quant-border)] bg-[var(--quant-background)] px-3 md:px-5">
       <div className="flex items-center gap-3">
         <div className={`size-9 ${BAR}`} />
         <div className={`size-7 rounded-lg ${PULSE}`} />
@@ -187,7 +187,7 @@ function CalendarBody() {
         {Array.from({ length: 35 }, (_, index) => (
           <div
             key={`cell-${index}`}
-            className="rounded-lg bg-[#111318] shadow-[inset_0_0_0_1px_#282C35] p-1.5"
+            className="rounded-lg bg-[var(--quant-surface)] shadow-[inset_0_0_0_1px_#282C35] p-1.5"
           >
             <div className={`h-2.5 w-4 ${BAR}`} />
           </div>
@@ -203,7 +203,10 @@ function ComposeBody() {
       <div className={`h-6 w-32 ${BAR}`} />
       <div className={`${SURFACE} flex min-h-0 flex-1 flex-col gap-3 p-4`}>
         {['To', 'Subject'].map((field) => (
-          <div key={field} className="flex items-center gap-3 border-b border-[#282C35] pb-3">
+          <div
+            key={field}
+            className="flex items-center gap-3 border-b border-[var(--quant-border)] pb-3"
+          >
             <div className={`h-3 w-14 flex-none ${BAR}`} />
             <div className={`h-3 flex-1 ${BAR}`} />
           </div>
@@ -241,7 +244,7 @@ export function RouteSkeleton({ variant = 'list', label = 'page' }: RouteSkeleto
 
   return (
     <section
-      className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-[#090A0C]"
+      className="flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-[var(--quant-background)]"
       role="status"
       aria-busy="true"
       aria-label={`Loading ${label}`}
@@ -252,7 +255,9 @@ export function RouteSkeleton({ variant = 'list', label = 'page' }: RouteSkeleto
         </div>
         <Body />
         {/* Mobile bottom nav: AppShell reserves it with `pb-14 md:pb-0`. */}
-        {!chromeless && <div className="h-14 flex-none border-t border-[#282C35] md:hidden" />}
+        {!chromeless && (
+          <div className="h-14 flex-none border-t border-[var(--quant-border)] md:hidden" />
+        )}
       </div>
     </section>
   );

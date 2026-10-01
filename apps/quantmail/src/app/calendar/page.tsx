@@ -937,13 +937,13 @@ export default function CalendarPage() {
             {
               id: 'event',
               label: 'Event',
-              icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
+              icon: <IconCalendar className="size-4 text-[var(--brand-primary)]" />,
               onSelect: () => openDedicatedSheet('event'),
             },
             {
               id: 'task',
               label: 'Task',
-              icon: <IconTarget className="size-4 text-[#FF8C42]" />,
+              icon: <IconTarget className="size-4 text-[var(--brand-primary)]" />,
               onSelect: () => openDedicatedSheet('task'),
             },
             {

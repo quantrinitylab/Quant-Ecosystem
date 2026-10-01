@@ -286,13 +286,13 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   const statusConfig = {
     normal: {
       badgeBg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-      barColor: 'bg-[#60A5FA]',
+      barColor: 'bg-[var(--quant-info)]',
       textColor: 'text-slate-300',
     },
     warning: {
-      badgeBg: 'bg-[#FF8C42]/15 text-[#FF8C42] border-[#FF8C42]/30',
-      barColor: 'bg-[#FF8C42]',
-      textColor: 'text-[#FF8C42]',
+      badgeBg: 'bg-[#FF8C42]/15 text-[var(--brand-primary)] border-[#FF8C42]/30',
+      barColor: 'bg-[var(--brand-primary)]',
+      textColor: 'text-[var(--brand-primary)]',
     },
     critical: {
       badgeBg: 'bg-red-500/15 text-red-400 border-red-500/30',
@@ -304,13 +304,13 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   return (
     <div
       data-testid="storage-quota-bar-container"
-      className="w-full rounded-2xl bg-[#16181D] border border-[#282C35] p-4 text-slate-200 shadow-md"
+      className="w-full rounded-2xl bg-[var(--quant-surface-elevated)] border border-[var(--quant-border)] p-4 text-slate-200 shadow-md"
     >
       {/* Top Header Row */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <svg
-            className="w-4 h-4 text-[#60A5FA]"
+            className="w-4 h-4 text-[var(--quant-info)]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -327,7 +327,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
           </span>
           {isLoading && (
             <svg
-              className="w-3.5 h-3.5 animate-spin text-[#60A5FA]"
+              className="w-3.5 h-3.5 animate-spin text-[var(--quant-info)]"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -349,7 +349,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
           type="button"
           onClick={onUpgradeClick}
           data-testid="upgrade-storage-button"
-          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[#FF8C42] hover:bg-[#FF8C42]/90 text-black transition-colors duration-150 shadow-sm"
+          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold bg-[var(--brand-primary)] hover:bg-[#FF8C42]/90 text-black transition-colors duration-150 shadow-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -382,7 +382,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       {/* Segmented Progress Bar */}
       <div
         data-testid="segmented-progress-bar"
-        className="w-full h-3 rounded-full bg-[#282C35] overflow-hidden flex"
+        className="w-full h-3 rounded-full bg-[var(--quant-border)] overflow-hidden flex"
       >
         {/* Has explicit breakdown */}
         {docPct + mediaPct + otherPct > 0 ? (
@@ -393,7 +393,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
                 data-testid="segment-documents"
                 style={{ width: `${docPct}%` }}
                 title={`Documents: ${formatBytes(docBytes)} (${docPct.toFixed(1)}%)`}
-                className="h-full bg-[#60A5FA] transition-all duration-300"
+                className="h-full bg-[var(--quant-info)] transition-all duration-300"
               />
             )}
             {/* Media (Green) */}
@@ -402,7 +402,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
                 data-testid="segment-media"
                 style={{ width: `${mediaPct}%` }}
                 title={`Media: ${formatBytes(mediaBytes)} (${mediaPct.toFixed(1)}%)`}
-                className="h-full bg-[#10B981] transition-all duration-300"
+                className="h-full bg-[var(--quant-success)] transition-all duration-300"
               />
             )}
             {/* Other (Amber) */}
@@ -411,7 +411,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
                 data-testid="segment-other"
                 style={{ width: `${otherPct}%` }}
                 title={`Other: ${formatBytes(otherBytes)} (${otherPct.toFixed(1)}%)`}
-                className="h-full bg-[#FF8C42] transition-all duration-300"
+                className="h-full bg-[var(--brand-primary)] transition-all duration-300"
               />
             )}
           </>
@@ -431,10 +431,10 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       {warningStatus === 'warning' && (
         <div
           data-testid="warning-threshold-banner"
-          className="mt-2.5 px-3 py-1.5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-xs text-[#FF8C42] flex items-center gap-2"
+          className="mt-2.5 px-3 py-1.5 rounded-lg bg-[#FF8C42]/10 border border-[#FF8C42]/30 text-xs text-[var(--brand-primary)] flex items-center gap-2"
         >
           <svg
-            className="w-4 h-4 shrink-0 text-[#FF8C42]"
+            className="w-4 h-4 shrink-0 text-[var(--brand-primary)]"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -504,10 +504,10 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       {/* Legend Row */}
       <div
         data-testid="quota-breakdown-legend"
-        className="mt-3 pt-2.5 border-t border-[#282C35] grid grid-cols-3 gap-2 text-[11px]"
+        className="mt-3 pt-2.5 border-t border-[var(--quant-border)] grid grid-cols-3 gap-2 text-[11px]"
       >
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#60A5FA] shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--quant-info)] shrink-0" />
           <span className="text-slate-400 truncate">Docs:</span>
           <span data-testid="legend-documents-size" className="font-medium text-slate-200 truncate">
             {formatBytes(docBytes)}
@@ -515,7 +515,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--quant-success)] shrink-0" />
           <span className="text-slate-400 truncate">Media:</span>
           <span data-testid="legend-media-size" className="font-medium text-slate-200 truncate">
             {formatBytes(mediaBytes)}
@@ -523,7 +523,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#FF8C42] shrink-0" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--brand-primary)] shrink-0" />
           <span className="text-slate-400 truncate">Other:</span>
           <span data-testid="legend-other-size" className="font-medium text-slate-200 truncate">
             {formatBytes(otherBytes)}

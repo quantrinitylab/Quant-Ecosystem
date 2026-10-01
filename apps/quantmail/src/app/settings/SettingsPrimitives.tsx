@@ -4,7 +4,7 @@
  * Settings' shared surfaces: one card, one toggle row, one choice group.
  *
  * The page had eleven hand-rolled versions of the same card — `rounded-2xl`
- * beside `rounded-xl`, `bg-[#121622]` beside `bg-[#111318]`, `shadow-xl` beside
+ * beside `rounded-xl`, `bg-[var(--quant-surface)]` beside `bg-[var(--quant-surface)]`, `shadow-xl` beside
  * `shadow-sm`, headings at three sizes — and thirteen hand-rolled checkbox rows,
  * of which the ones wrapped in a `<label>` were tappable and the ones without
  * were a 16px box on a phone. ART LAW 18: a pattern repeated more than twice

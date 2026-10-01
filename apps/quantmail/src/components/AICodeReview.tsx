@@ -88,7 +88,9 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
     } catch (requestError) {
       setReview(null);
       setError(
-        requestError instanceof Error ? requestError.message : 'Code review is temporarily unavailable.',
+        requestError instanceof Error
+          ? requestError.message
+          : 'Code review is temporarily unavailable.',
       );
     }
   }, [prDiff, prId, prTitle]);
@@ -99,8 +101,16 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
         <>
           <button type="button" className="ai-review-trigger" onClick={() => void requestReview()}>
             <span className="ai-review-icon flex items-center justify-center">
-              <svg className="size-5 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+              <svg
+                className="size-5 text-[var(--brand-primary)]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
               </svg>
             </span>
             <div className="ai-review-trigger-text">
@@ -109,23 +119,57 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
             </div>
             <span className="ai-review-arrow">→</span>
           </button>
-          {error && <p className="ai-review-summary" role="alert">{error}</p>}
+          {error && (
+            <p className="ai-review-summary" role="alert">
+              {error}
+            </p>
+          )}
         </>
       )}
 
       <AnimatePresence>
         {review && (
-          <motion.div className="ai-review-panel" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+          <motion.div
+            className="ai-review-panel"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+          >
             {review.isLoading ? (
-              <div className="ai-review-loading"><span className="ai-spinner" /><span>Analyzing the real pull request diff…</span></div>
+              <div className="ai-review-loading">
+                <span className="ai-spinner" />
+                <span>Analyzing the real pull request diff…</span>
+              </div>
             ) : (
               <>
                 <header className="ai-review-header">
-                  <button type="button" className="ai-review-score" onClick={() => setIsExpanded((value) => !value)} aria-expanded={isExpanded}>
-                    <div className="score-ring" style={{ background: `conic-gradient(${review.score >= 80 ? '#4ade80' : review.score >= 60 ? '#fbbf24' : '#f87171'} ${review.score * 3.6}deg, #282C35 0deg)` }}><span>{review.score}</span></div>
-                    <div><strong>Code Quality Score</strong><span>{review.comments.length} review comments</span></div>
+                  <button
+                    type="button"
+                    className="ai-review-score"
+                    onClick={() => setIsExpanded((value) => !value)}
+                    aria-expanded={isExpanded}
+                  >
+                    <div
+                      className="score-ring"
+                      style={{
+                        background: `conic-gradient(${review.score >= 80 ? '#4ade80' : review.score >= 60 ? '#fbbf24' : '#f87171'} ${review.score * 3.6}deg, #282C35 0deg)`,
+                      }}
+                    >
+                      <span>{review.score}</span>
+                    </div>
+                    <div>
+                      <strong>Code Quality Score</strong>
+                      <span>{review.comments.length} review comments</span>
+                    </div>
                   </button>
-                  <button type="button" className="ai-review-toggle" onClick={() => setIsExpanded((value) => !value)} aria-label={isExpanded ? 'Collapse review' : 'Expand review'}>⌄</button>
+                  <button
+                    type="button"
+                    className="ai-review-toggle"
+                    onClick={() => setIsExpanded((value) => !value)}
+                    aria-label={isExpanded ? 'Collapse review' : 'Expand review'}
+                  >
+                    ⌄
+                  </button>
                 </header>
                 {isExpanded && (
                   <>
@@ -136,12 +180,23 @@ export function AICodeReview({ prId, prTitle, prDiff }: AICodeReviewProps) {
                         return (
                           <div key={comment.id} className="ai-review-comment">
                             <div className="ai-comment-header flex items-center gap-1.5">
-                              <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: config.color }} />
-                              <span className="ai-comment-severity" style={{ color: config.color }}>{config.label}</span>
-                              <span className="ai-comment-file">{comment.file}:{comment.line}</span>
+                              <span
+                                className="size-2 rounded-full shrink-0"
+                                style={{ backgroundColor: config.color }}
+                              />
+                              <span className="ai-comment-severity" style={{ color: config.color }}>
+                                {config.label}
+                              </span>
+                              <span className="ai-comment-file">
+                                {comment.file}:{comment.line}
+                              </span>
                             </div>
                             <p className="ai-comment-text">{comment.comment}</p>
-                            {comment.suggestedFix && <pre className="ai-code-content"><code>{comment.suggestedFix}</code></pre>}
+                            {comment.suggestedFix && (
+                              <pre className="ai-code-content">
+                                <code>{comment.suggestedFix}</code>
+                              </pre>
+                            )}
                           </div>
                         );
                       })}

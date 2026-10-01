@@ -410,7 +410,7 @@ export function Interactive3DLogo({
               animate={{ scale: 1.8, opacity: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="absolute inset-0 rounded-2xl border-2 border-[#FF8C42] pointer-events-none"
+              className="absolute inset-0 rounded-2xl border-2 border-[var(--brand-primary)] pointer-events-none"
             />
           )}
         </AnimatePresence>
@@ -428,10 +428,10 @@ export function Interactive3DLogo({
               className="relative flex items-center justify-center"
             >
               {/* Outer Energy Pulse Ring */}
-              <span className="absolute size-[18px] rounded-full bg-[#FF8C42] opacity-40 animate-ping" />
+              <span className="absolute size-[18px] rounded-full bg-[var(--brand-primary)] opacity-40 animate-ping" />
 
               {/* Clean Badge */}
-              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[#FF8C42] rounded-full border border-[#090A0C] shadow-sm">
+              <span className="relative inline-flex items-center justify-center min-w-[17px] h-[17px] px-1 text-[10px] font-bold text-[#111111] bg-[var(--brand-primary)] rounded-full border border-[var(--quant-background)] shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             </motion.div>
