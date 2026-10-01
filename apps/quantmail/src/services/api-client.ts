@@ -778,6 +778,20 @@ export class QuantMailApiClient {
     return this.get('/contacts/directory');
   }
 
+  /**
+   * The user's most-frequently-contacted people, highest frequency first (then
+   * most recently contacted, then name) — ranked server-side and not capped to a
+   * single 20-row page the way `getContacts({ page: 1 })` is. Backs the
+   * composer's contact autocomplete.
+   *
+   * Through the Next proxy this is `/api/contacts/frequent`, which lands in the
+   * `[id]` route and forwards `/contacts/frequent` verbatim — the same path
+   * `getContactDirectory` relies on. `limit` is clamped to 1..100 by the backend.
+   */
+  async getFrequentContacts(limit?: number): Promise<ApiResponse<Contact[]>> {
+    return this.get('/contacts/frequent', { params: { limit } });
+  }
+
   async createContact(data: Partial<Contact>): Promise<ApiResponse<Contact>> {
     return this.post('/contacts', data);
   }
