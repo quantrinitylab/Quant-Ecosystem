@@ -22,6 +22,8 @@
       "@quant/common/*": ["../../packages/common/src/*"],
       "@quant/brand": ["../../packages/brand/src/index.ts"],
       "@quant/brand/*": ["../../packages/brand/src/*"],
+      "@quant/app-registry": ["../../packages/app-registry/src/index.ts"],
+      "@quant/app-registry/*": ["../../packages/app-registry/src/*"],
       "@quant/agentic/voice-commands": ["../../packages/agentic/src/voice/use-voice-commands.ts"],
       "@quant/storage": ["../../packages/storage/src/index.ts"],
       "@quant/storage/*": ["../../packages/storage/src/*"]

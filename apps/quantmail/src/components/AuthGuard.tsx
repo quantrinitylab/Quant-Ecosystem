@@ -6,7 +6,17 @@ import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
 /** Exact signed-out product surface. Keep this short and auditable. */
-const PUBLIC_PATHS = ['/login', '/register', '/forgot-password', '/reset-password', '/quantgit'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/quantgit',
+  // Per-app public marketing landing (apps/quantmail/src/app/marketing). It is
+  // the product's own "marketing" surface from the restructure and must be
+  // readable signed-out, so it stays out of the login redirect.
+  '/marketing',
+];
 
 function isInternalLabPath(pathname: string): boolean {
   return pathname === '/lab' || pathname.startsWith('/lab/');

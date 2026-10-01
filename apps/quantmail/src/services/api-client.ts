@@ -138,6 +138,36 @@ export interface ApplyFilterResult {
   affectedCount: number;
 }
 
+// ----------------------------------------------------------------------------
+// Admin console KPIs (per-app /admin surface — restructure Phase 1 pilot).
+// Read-only, staff-gated. Shapes mirror `backend/routes/admin.ts` exactly.
+// ----------------------------------------------------------------------------
+
+export interface AdminAccountsKpi {
+  total: number;
+}
+
+export interface AdminActiveSessionsKpi {
+  active: number;
+  windowHours: number;
+}
+
+export interface AdminStorageKpi {
+  usedBytes: number;
+  fileCount: number;
+}
+
+export interface AdminDeliverabilityKpi {
+  windowHours: number;
+  total: number;
+  queued: number;
+  sent: number;
+  deferred: number;
+  bounced: number;
+  /** Rate over resolved (sent + bounced) attempts; null when none have resolved. */
+  successRate: number | null;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -1084,6 +1114,31 @@ export class QuantMailApiClient {
     token: string,
   ): Promise<ApiResponse<{ workspaceId: string; role: WorkspaceRole }>> {
     return this.post(`/invites/${token}/accept`, {});
+  }
+
+  // --------------------------------------------------------------------------
+  // Admin console API (per-app /admin surface — read-only KPIs, staff-gated)
+  //
+  // Dual-mounted server-side at `/admin/*` and `/api/admin/*`, so these resolve
+  // whether the base URL is the Next proxy (`/api`) or an absolute backend host.
+  // A non-staff caller gets 403 and an unauthenticated one 401 — the console's
+  // KPI cards fall back to their honest "awaiting" state on any non-success.
+  // --------------------------------------------------------------------------
+
+  async getAdminAccountsCount(): Promise<ApiResponse<AdminAccountsKpi>> {
+    return this.get('/admin/accounts/count');
+  }
+
+  async getAdminActiveSessions(): Promise<ApiResponse<AdminActiveSessionsKpi>> {
+    return this.get('/admin/sessions/active');
+  }
+
+  async getAdminStorageSummary(): Promise<ApiResponse<AdminStorageKpi>> {
+    return this.get('/admin/storage/summary');
+  }
+
+  async getAdminDeliverability(): Promise<ApiResponse<AdminDeliverabilityKpi>> {
+    return this.get('/admin/mail/deliverability');
   }
 
   // --------------------------------------------------------------------------

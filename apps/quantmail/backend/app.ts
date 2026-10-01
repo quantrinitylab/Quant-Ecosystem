@@ -53,6 +53,7 @@ import { setupWSConnection } from './services/yjs-server';
 import documentRoutes from './routes/documents';
 import deliverabilityRoutes from './routes/deliverability';
 import auditLogsRoutes from './routes/audit-logs';
+import adminRoutes from './routes/admin';
 import retentionRoutes from './routes/retention';
 import enterpriseDomainsRoutes from './routes/enterprise-domains';
 import davRoutes from './routes/dav';
@@ -405,6 +406,8 @@ export async function buildApp(config?: AppConfig) {
   await app.register(deliverabilityRoutes, { prefix: '/api/deliverability' });
   await app.register(auditLogsRoutes, { prefix: '/audit-logs' });
   await app.register(auditLogsRoutes, { prefix: '/api/audit-logs' });
+  await app.register(adminRoutes, { prefix: '/admin' });
+  await app.register(adminRoutes, { prefix: '/api/admin' });
   await app.register(retentionRoutes, { prefix: '/retention' });
   await app.register(retentionRoutes, { prefix: '/api/retention' });
   await app.register(enterpriseDomainsRoutes, { prefix: '/domains' });
