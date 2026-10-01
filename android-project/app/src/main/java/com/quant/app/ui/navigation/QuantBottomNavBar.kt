@@ -29,7 +29,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -42,7 +41,7 @@ import androidx.compose.ui.unit.sp
 /**
  * Sovereign Jetpack Compose Bottom Navigation Bar for the Quant Unified Productivity Suite.
  * Displays the 5 sovereign pillars:
- * 1. Mail (#FF8C42) - Clean unread count badge '12' with drop shadow and crisp contrast
+ * 1. Mail (#FF8C42) - Clean unread count badge '12' with crisp contrast
  * 2. Calendar (#F59E0B) - Clean today's day number '1' badge
  * 3. Drive (#38BDF8)
  * 4. Contacts (#10B981)
@@ -140,13 +139,12 @@ fun QuantBottomNavBar(
                 modifier = Modifier.size(20.dp)
               )
 
-              // Clean Material 3 style badge for Mail tab: unread count '12' with drop shadow & crisp cutout
+              // Clean Material 3 style badge for Mail tab: unread count '12' with crisp cutout
               if (tab == ProductivityTab.Mail) {
                 Box(
                   modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 8.dp, y = (-6).dp)
-                    .shadow(3.dp, RoundedCornerShape(8.dp), ambientColor = Color.Black.copy(alpha = 0.6f))
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFFF, 0x8C, 0x42))
                     .border(1.5.dp, Color(0xFF0D, 0x10, 0x17), RoundedCornerShape(8.dp))
@@ -169,7 +167,6 @@ fun QuantBottomNavBar(
                   modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 7.dp, y = (-6).dp)
-                    .shadow(3.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.6f))
                     .clip(CircleShape)
                     .background(Color(0xFFF5, 0x9E, 0x0B))
                     .border(1.5.dp, Color(0xFF0D, 0x10, 0x17), CircleShape)

@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
@@ -941,6 +940,9 @@ private class QuantGitDrawingCache(val s: Float) {
     val cy = 50f * s
     val half = 45f * s
     val radius = 22f * s
+    val x0 = cx - half
+    val y0 = cy - half
+    val edge = half * 2f
 
     // 0. Ambient Halo (Purple / Chrome glow)
     val glowRadius = 54f * s
@@ -1115,87 +1117,83 @@ fun QuantMailLavaMark(
             center = Offset(cache.cx, cache.cy)
         )
 
-        // 1. Clip to squircle plate
-        clipPath(cache.platePath) {
-            // Molten Ember Plate
-            drawRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
+        // 1. Molten Ember Squircle Plate
+        drawRoundRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
 
-            // Warm sidewall extrusion for "M" paper thickness
-            drawPath(path = cache.sidewallPath, brush = cache.sidewallBrush)
+        // 2. Mascot drawn at Canvas level (zero clipping)
+        // Warm sidewall extrusion for "M" paper thickness
+        drawPath(path = cache.sidewallPath, brush = cache.sidewallBrush)
 
-            // 3D sculpted solid white "M" Quanty mascot body
-            drawPath(path = cache.mPath, brush = cache.mascotBodyBrush)
+        // 3D sculpted solid white "M" Quanty mascot body
+        drawPath(path = cache.mPath, brush = cache.mascotBodyBrush)
 
-            // Clipped interior details (Bounce light, notch occlusion, blush, eyes)
-            clipPath(cache.mPath) {
-                // Bounce light along bottom edge
-                drawRect(
-                    brush = cache.bounceLightBrush,
-                    topLeft = Offset(23f * s, 59f * s),
-                    size = Size(54f * s, 15f * s)
-                )
+        // Bounce light along bottom edge
+        drawRoundRect(
+            brush = cache.bounceLightBrush,
+            topLeft = Offset(23f * s, 59f * s),
+            size = Size(54f * s, 15f * s),
+            cornerRadius = CornerRadius(7f * s, 7f * s)
+        )
 
-                // Notch valley crease occlusion
-                drawCircle(
-                    brush = cache.creaseOcclusionBrush,
-                    radius = 15f * s,
-                    center = Offset(50f * s, 47f * s)
-                )
+        // Notch valley crease occlusion
+        drawCircle(
+            brush = cache.creaseOcclusionBrush,
+            radius = 15f * s,
+            center = Offset(50f * s, 47f * s)
+        )
 
-                // Warm glowing cheek blush (#FF7A00 with 0.38 alpha)
-                drawCircle(
-                    brush = cache.blushBrushLeft,
-                    radius = cache.blushR,
-                    center = Offset(cache.leftBlushX, cache.blushY)
-                )
-                drawCircle(
-                    brush = cache.blushBrushRight,
-                    radius = cache.blushR,
-                    center = Offset(cache.rightBlushX, cache.blushY)
-                )
+        // Warm glowing cheek blush (#FF7A00 with 0.38 alpha)
+        drawCircle(
+            brush = cache.blushBrushLeft,
+            radius = cache.blushR,
+            center = Offset(cache.leftBlushX, cache.blushY)
+        )
+        drawCircle(
+            brush = cache.blushBrushRight,
+            radius = cache.blushR,
+            center = Offset(cache.rightBlushX, cache.blushY)
+        )
 
-                // Left Eye: Wink arc if winking, otherwise dark espresso pupil + sparkle
-                if (activeWinking) {
-                    drawPath(
-                        path = cache.winkArc,
-                        color = Color(0x17, 0x0F, 0x0A),
-                        style = Stroke(width = 2.4f * s, cap = StrokeCap.Round)
-                    )
-                } else {
-                    drawOval(
-                        brush = cache.leftPupilBrush,
-                        topLeft = Offset(cache.leftEyeX - cache.r, cache.eyeCy - cache.r),
-                        size = Size(cache.r * 2f, cache.r * 2f)
-                    )
-                    drawOval(
-                        color = Color.White.copy(alpha = 0.88f),
-                        topLeft = Offset(cache.leftEyeX - cache.r * 0.3f - cache.cr, cache.eyeCy - cache.r * 0.46f - cache.cr),
-                        size = Size(cache.cr * 2f, cache.cr * 2f)
-                    )
-                }
-
-                // Right Eye: Lively open pupil + sparkle
-                drawOval(
-                    brush = cache.rightPupilBrush,
-                    topLeft = Offset(cache.rightEyeX - cache.r, cache.eyeCy - cache.r),
-                    size = Size(cache.r * 2f, cache.r * 2f)
-                )
-                drawOval(
-                    color = Color.White.copy(alpha = 0.88f),
-                    topLeft = Offset(cache.rightEyeX - cache.r * 0.3f - cache.cr, cache.eyeCy - cache.r * 0.46f - cache.cr),
-                    size = Size(cache.cr * 2f, cache.cr * 2f)
-                )
-            }
-
-            // Mascot outline stroke
-            drawPath(path = cache.mPath, brush = cache.mascotOutlineBrush, style = Stroke(width = 1.1f * s))
+        // Left Eye: Wink arc if winking, otherwise dark espresso pupil + sparkle
+        if (activeWinking) {
+            drawPath(
+                path = cache.winkArc,
+                color = Color(0x17, 0x0F, 0x0A),
+                style = Stroke(width = 2.4f * s, cap = StrokeCap.Round)
+            )
+        } else {
+            drawOval(
+                brush = cache.leftPupilBrush,
+                topLeft = Offset(cache.leftEyeX - cache.r, cache.eyeCy - cache.r),
+                size = Size(cache.r * 2f, cache.r * 2f)
+            )
+            drawOval(
+                color = Color.White.copy(alpha = 0.88f),
+                topLeft = Offset(cache.leftEyeX - cache.r * 0.3f - cache.cr, cache.eyeCy - cache.r * 0.46f - cache.cr),
+                size = Size(cache.cr * 2f, cache.cr * 2f)
+            )
         }
+
+        // Right Eye: Lively open pupil + sparkle
+        drawOval(
+            brush = cache.rightPupilBrush,
+            topLeft = Offset(cache.rightEyeX - cache.r, cache.eyeCy - cache.r),
+            size = Size(cache.r * 2f, cache.r * 2f)
+        )
+        drawOval(
+            color = Color.White.copy(alpha = 0.88f),
+            topLeft = Offset(cache.rightEyeX - cache.r * 0.3f - cache.cr, cache.eyeCy - cache.r * 0.46f - cache.cr),
+            size = Size(cache.cr * 2f, cache.cr * 2f)
+        )
+
+        // Mascot outline stroke
+        drawPath(path = cache.mPath, brush = cache.mascotOutlineBrush, style = Stroke(width = 1.1f * s))
 
         // Crisp glass specular outer bezel stroke
         drawPath(path = cache.bezelPath, brush = cache.bezelBrush, style = Stroke(width = 1.4f * s))
@@ -1227,63 +1225,59 @@ fun QuantCalendarMark(
             center = Offset(cache.cx, cache.cy)
         )
 
-        // 1. Clip to squircle plate
-        clipPath(cache.platePath) {
-            drawRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
+        // 1. Squircle plate (molten ember background plate & rotated back sheet)
+        drawRoundRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
 
-            // Back sheet offset
-            rotate(-4.5f, pivot = Offset(cache.cx, cache.cy)) {
-                drawPath(path = cache.backSheetPath, brush = cache.backSheetBrush)
-                drawPath(path = cache.backSheetPath, color = Color(255, 198, 148, 128), style = Stroke(width = 0.9f * s))
-            }
-
-            // Pad thickness sidewall
-            drawPath(path = cache.padSidewallPath, brush = cache.padSidewallBrush)
-
-            // Frosted Pad face
-            drawPath(path = cache.padPath, brush = cache.padFaceBrush)
-
-            // Pad interior details
-            clipPath(cache.padPath) {
-                // Header rail
-                drawRect(brush = cache.railBrush, topLeft = Offset(cache.padX, cache.padY), size = Size(cache.padW, cache.headH))
-                drawRect(brush = cache.railHighlightBrush, topLeft = Offset(cache.padX, cache.padY), size = Size(cache.padW, cache.headH))
-                drawRect(color = Color(0, 0, 0, 102), topLeft = Offset(cache.padX, cache.padY + cache.headH - 0.7f * s), size = Size(cache.padW, 0.7f * s))
-
-                // Day Number Text in crisp ember ink (#1A0F08)
-                drawIntoCanvas { canvas ->
-                    canvas.nativeCanvas.drawText(dayNumber.toString(), cache.cx, cache.textBaseline, cache.textPaint)
-                }
-
-                // Frosted rim outline
-                drawPath(path = cache.padPath, brush = cache.frostedRimBrush, style = Stroke(width = 1f * s))
-            }
-
-            // Binder Posts standing proud
-            drawPath(path = cache.postWall1, brush = cache.postWallBrush)
-            drawPath(path = cache.postWall2, brush = cache.postWallBrush)
-            drawPath(path = cache.postFace1, brush = cache.postFaceBrush1)
-            drawPath(path = cache.postFace2, brush = cache.postFaceBrush2)
-
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.85f),
-                topLeft = Offset(cache.post1X - 0.65f * s, cache.postY + 1.5f * s),
-                size = Size(1.3f * s, 3.4f * s),
-                cornerRadius = CornerRadius(0.65f * s, 0.65f * s)
-            )
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.85f),
-                topLeft = Offset(cache.post2X - 0.65f * s, cache.postY + 1.5f * s),
-                size = Size(1.3f * s, 3.4f * s),
-                cornerRadius = CornerRadius(0.65f * s, 0.65f * s)
-            )
+        // Back sheet offset
+        rotate(-4.5f, pivot = Offset(cache.cx, cache.cy)) {
+            drawPath(path = cache.backSheetPath, brush = cache.backSheetBrush)
+            drawPath(path = cache.backSheetPath, color = Color(255, 198, 148, 128), style = Stroke(width = 0.9f * s))
         }
+
+        // 2. Pad drawn at Canvas level (zero clipping)
+        // Pad thickness sidewall
+        drawPath(path = cache.padSidewallPath, brush = cache.padSidewallBrush)
+
+        // Frosted Pad face
+        drawPath(path = cache.padPath, brush = cache.padFaceBrush)
+
+        // Header rail
+        drawRoundRect(brush = cache.railBrush, topLeft = Offset(cache.padX, cache.padY), size = Size(cache.padW, cache.headH), cornerRadius = CornerRadius(cache.padR, cache.padR))
+        drawRoundRect(brush = cache.railHighlightBrush, topLeft = Offset(cache.padX, cache.padY), size = Size(cache.padW, cache.headH), cornerRadius = CornerRadius(cache.padR, cache.padR))
+        drawRect(color = Color(0, 0, 0, 102), topLeft = Offset(cache.padX, cache.padY + cache.headH - 0.7f * s), size = Size(cache.padW, 0.7f * s))
+
+        // Day Number Text in crisp ember ink (#1A0F08)
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawText(dayNumber.toString(), cache.cx, cache.textBaseline, cache.textPaint)
+        }
+
+        // Frosted rim outline
+        drawPath(path = cache.padPath, brush = cache.frostedRimBrush, style = Stroke(width = 1f * s))
+
+        // Binder Posts standing proud
+        drawPath(path = cache.postWall1, brush = cache.postWallBrush)
+        drawPath(path = cache.postWall2, brush = cache.postWallBrush)
+        drawPath(path = cache.postFace1, brush = cache.postFaceBrush1)
+        drawPath(path = cache.postFace2, brush = cache.postFaceBrush2)
+
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.85f),
+            topLeft = Offset(cache.post1X - 0.65f * s, cache.postY + 1.5f * s),
+            size = Size(1.3f * s, 3.4f * s),
+            cornerRadius = CornerRadius(0.65f * s, 0.65f * s)
+        )
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.85f),
+            topLeft = Offset(cache.post2X - 0.65f * s, cache.postY + 1.5f * s),
+            size = Size(1.3f * s, 3.4f * s),
+            cornerRadius = CornerRadius(0.65f * s, 0.65f * s)
+        )
 
         // Glass bezel
         drawPath(path = cache.bezelPath, brush = cache.bezelBrush, style = Stroke(width = 1.4f * s))
@@ -1314,41 +1308,39 @@ fun QuantDriveMark(
             center = Offset(cache.cx, cache.cy)
         )
 
-        // 1. Clip to squircle plate
-        clipPath(cache.platePath) {
-            drawRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
+        // 1. Squircle plate (molten ember background plate)
+        drawRoundRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
 
-            // Platter 1: Bottom Obsidian-Ember Storage Disc
-            drawPath(path = cache.p1SidePath, brush = cache.p1SideBrush)
-            drawOval(brush = cache.p1TopBrush, topLeft = Offset(cache.ox - cache.p1Rx, cache.p1Y - cache.p1Ry), size = Size(cache.p1Rx * 2f, cache.p1Ry * 2f))
-            drawOval(color = Color(255, 140, 66, 89), topLeft = Offset(cache.ox - cache.p1Rx, cache.p1Y - cache.p1Ry), size = Size(cache.p1Rx * 2f, cache.p1Ry * 2f), style = Stroke(width = 0.8f * s))
+        // Platter 1: Bottom Obsidian-Ember Storage Disc
+        drawPath(path = cache.p1SidePath, brush = cache.p1SideBrush)
+        drawOval(brush = cache.p1TopBrush, topLeft = Offset(cache.ox - cache.p1Rx, cache.p1Y - cache.p1Ry), size = Size(cache.p1Rx * 2f, cache.p1Ry * 2f))
+        drawOval(color = Color(255, 140, 66, 89), topLeft = Offset(cache.ox - cache.p1Rx, cache.p1Y - cache.p1Ry), size = Size(cache.p1Rx * 2f, cache.p1Ry * 2f), style = Stroke(width = 0.8f * s))
 
-            // Platter 2: Middle Amber-Gold Storage Disc
-            drawPath(path = cache.p2SidePath, brush = cache.p2SideBrush)
-            drawOval(brush = cache.p2TopBrush, topLeft = Offset(cache.ox - cache.p2Rx, cache.p2Y - cache.p2Ry), size = Size(cache.p2Rx * 2f, cache.p2Ry * 2f))
-            drawOval(color = Color(255, 200, 140, 115), topLeft = Offset(cache.ox - cache.p2Rx, cache.p2Y - cache.p2Ry), size = Size(cache.p2Rx * 2f, cache.p2Ry * 2f), style = Stroke(width = 0.8f * s))
-            drawOval(color = Color(255, 230, 200, 64), topLeft = Offset(cache.ox - 15f * s, cache.p2Y - 4.8f * s), size = Size(30f * s, 9.6f * s), style = Stroke(width = 0.6f * s))
+        // Platter 2: Middle Amber-Gold Storage Disc
+        drawPath(path = cache.p2SidePath, brush = cache.p2SideBrush)
+        drawOval(brush = cache.p2TopBrush, topLeft = Offset(cache.ox - cache.p2Rx, cache.p2Y - cache.p2Ry), size = Size(cache.p2Rx * 2f, cache.p2Ry * 2f))
+        drawOval(color = Color(255, 200, 140, 115), topLeft = Offset(cache.ox - cache.p2Rx, cache.p2Y - cache.p2Ry), size = Size(cache.p2Rx * 2f, cache.p2Ry * 2f), style = Stroke(width = 0.8f * s))
+        drawOval(color = Color(255, 230, 200, 64), topLeft = Offset(cache.ox - 15f * s, cache.p2Y - 4.8f * s), size = Size(30f * s, 9.6f * s), style = Stroke(width = 0.6f * s))
 
-            // Platter 3: Sleek Frosted Cloud Surface
-            drawPath(path = cache.cloudPath, brush = cache.cloudBrush)
-            drawPath(path = cache.cloudPath, brush = cache.cloudStrokeBrush, style = Stroke(width = 1.1f * s))
+        // Platter 3: Sleek Frosted Cloud Surface
+        drawPath(path = cache.cloudPath, brush = cache.cloudBrush)
+        drawPath(path = cache.cloudPath, brush = cache.cloudStrokeBrush, style = Stroke(width = 1.1f * s))
 
-            // Glowing data diamond nucleus
-            drawCircle(brush = cache.coreGlowBrush, radius = 8f * s, center = Offset(cache.ox, cache.coreY))
-            drawPath(path = cache.diamondPath, brush = cache.diamondBrush)
-            drawPath(path = cache.diamondPath, color = Color.White, style = Stroke(width = 0.7f * s))
+        // Glowing data diamond nucleus
+        drawCircle(brush = cache.coreGlowBrush, radius = 8f * s, center = Offset(cache.ox, cache.coreY))
+        drawPath(path = cache.diamondPath, brush = cache.diamondBrush)
+        drawPath(path = cache.diamondPath, color = Color.White, style = Stroke(width = 0.7f * s))
 
-            // Floating data nodes
-            drawCircle(color = Color(255, 235, 200, 204), radius = 1.2f * s, center = Offset(cache.ox + 22f * s, cache.oy - 6f * s))
-            drawCircle(color = Color(255, 235, 200, 166), radius = 1.0f * s, center = Offset(cache.ox - 20f * s, cache.oy - 3f * s))
-            drawCircle(color = Color(255, 235, 200, 128), radius = 0.9f * s, center = Offset(cache.ox + 16f * s, cache.oy - 12f * s))
-        }
+        // Floating data nodes
+        drawCircle(color = Color(255, 235, 200, 204), radius = 1.2f * s, center = Offset(cache.ox + 22f * s, cache.oy - 6f * s))
+        drawCircle(color = Color(255, 235, 200, 166), radius = 1.0f * s, center = Offset(cache.ox - 20f * s, cache.oy - 3f * s))
+        drawCircle(color = Color(255, 235, 200, 128), radius = 0.9f * s, center = Offset(cache.ox + 16f * s, cache.oy - 12f * s))
 
         // Glass bezel
         drawPath(path = cache.bezelPath, brush = cache.bezelBrush, style = Stroke(width = 1.4f * s))
@@ -1379,31 +1371,29 @@ fun QuantContactsMark(
             center = Offset(cache.cx, cache.cy)
         )
 
-        // 1. Clip to squircle plate
-        clipPath(cache.platePath) {
-            drawRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge))
-            drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
+        // 1. Squircle plate (molten ember background plate)
+        drawRoundRect(brush = cache.baseFloorBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer1Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer2Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer3Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.layer4Brush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawRoundRect(brush = cache.domeBrush, topLeft = Offset(cache.x0, cache.y0), size = Size(cache.edge, cache.edge), cornerRadius = CornerRadius(22f * s, 22f * s))
+        drawPath(path = cache.fresnelPath, brush = cache.fresnelBrush, style = Stroke(width = 2.4f * s))
 
-            // Figure Behind (Peach)
-            translate(top = 1.9f * s) {
-                drawPath(path = cache.backFigurePath, brush = cache.backSidewallBrush)
-            }
-            drawPath(path = cache.backFigurePath, brush = cache.backFaceBrush)
-            drawPath(path = cache.backFigurePath, brush = cache.backSeamBrush, style = Stroke(width = 1.5f * s))
-
-            // Figure In Front (Dark Ember)
-            translate(top = 2.8f * s) {
-                drawPath(path = cache.frontFigurePath, brush = cache.frontSidewallBrush)
-            }
-            drawPath(path = cache.frontFigurePath, brush = cache.frontFaceBrush)
-            drawPath(path = cache.frontBodyPath, brush = cache.frontShoulderLightBrush, style = Stroke(width = 1.9f * s))
-            drawPath(path = cache.headRimPath, brush = cache.headRimBrush, style = Stroke(width = 1.9f * s, cap = StrokeCap.Round))
+        // Figure Behind (Peach)
+        translate(top = 1.9f * s) {
+            drawPath(path = cache.backFigurePath, brush = cache.backSidewallBrush)
         }
+        drawPath(path = cache.backFigurePath, brush = cache.backFaceBrush)
+        drawPath(path = cache.backFigurePath, brush = cache.backSeamBrush, style = Stroke(width = 1.5f * s))
+
+        // Figure In Front (Dark Ember)
+        translate(top = 2.8f * s) {
+            drawPath(path = cache.frontFigurePath, brush = cache.frontSidewallBrush)
+        }
+        drawPath(path = cache.frontFigurePath, brush = cache.frontFaceBrush)
+        drawPath(path = cache.frontBodyPath, brush = cache.frontShoulderLightBrush, style = Stroke(width = 1.9f * s))
+        drawPath(path = cache.headRimPath, brush = cache.headRimBrush, style = Stroke(width = 1.9f * s, cap = StrokeCap.Round))
 
         // Glass bezel
         drawPath(path = cache.bezelPath, brush = cache.bezelBrush, style = Stroke(width = 1.4f * s))
@@ -1434,41 +1424,37 @@ fun QuantGitMark(
             center = Offset(cache.cx, cache.cy)
         )
 
-        // 1. Clip to squircle plate
-        clipPath(cache.platePath) {
-            // Obsidian plate base
+        // 1. Obsidian plate base & sheens
+        drawRoundRect(
+            brush = cache.obsidianBaseBrush,
+            topLeft = Offset(cache.x0, cache.y0),
+            size = Size(cache.edge, cache.edge),
+            cornerRadius = CornerRadius(22f * s, 22f * s)
+        )
+        drawCircle(brush = cache.coolSheenBrush, radius = 38f * s, center = Offset(cache.cx - 15f * s, cache.cy - 18f * s))
+        drawCircle(brush = cache.warmReflectionBrush, radius = 44f * s, center = Offset(cache.cx + 19f * s, cache.cy + 20f * s))
+
+        // 2. Notch at Canvas level
+        drawPath(path = cache.notchPath, brush = cache.notchBrush, style = Stroke(width = 3f * s))
+
+        // 3. Rotated Diamond & Git Graph at Canvas level (zero nested clipping)
+        rotate(45f, pivot = Offset(cache.cx, cache.cy)) {
+            drawPath(path = cache.diamondWall, brush = cache.diamondWallBrush)
+            drawPath(path = cache.diamondFace, brush = cache.diamondFaceBrush)
             drawRect(
-                brush = cache.obsidianBaseBrush,
-                topLeft = Offset(cache.cx - cache.half, cache.cy - cache.half),
-                size = Size(cache.half * 2f, cache.half * 2f)
+                brush = cache.diamondDomeBrush,
+                topLeft = Offset(cache.cx - cache.dHalf, cache.cy - cache.dHalf),
+                size = Size(cache.dHalf * 2f, cache.dHalf * 2f)
             )
-            drawCircle(brush = cache.coolSheenBrush, radius = 38f * s, center = Offset(cache.cx - 15f * s, cache.cy - 18f * s))
-            drawCircle(brush = cache.warmReflectionBrush, radius = 44f * s, center = Offset(cache.cx + 19f * s, cache.cy + 20f * s))
+        }
 
-            // Notch
-            clipPath(cache.notchClip) {
-                drawPath(path = cache.notchPath, brush = cache.notchBrush, style = Stroke(width = 3f * s))
-            }
+        // Git Graph: Trunk and Branch
+        drawPath(path = cache.graphPath, color = Color(74, 26, 4, 128), style = Stroke(width = 6.2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path = cache.graphPath, brush = cache.graphInkBrush, style = Stroke(width = 4f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
 
-            // Rotated Diamond
-            rotate(45f, pivot = Offset(cache.cx, cache.cy)) {
-                drawPath(path = cache.diamondWall, brush = cache.diamondWallBrush)
-                drawPath(path = cache.diamondFace, brush = cache.diamondFaceBrush)
-                drawRect(
-                    brush = cache.diamondDomeBrush,
-                    topLeft = Offset(cache.cx - cache.dHalf, cache.cy - cache.dHalf),
-                    size = Size(cache.dHalf * 2f, cache.dHalf * 2f)
-                )
-            }
-
-            // Git Graph: Trunk and Branch
-            drawPath(path = cache.graphPath, color = Color(74, 26, 4, 128), style = Stroke(width = 6.2f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            drawPath(path = cache.graphPath, brush = cache.graphInkBrush, style = Stroke(width = 4f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
-
-            for (node in listOf(cache.trunkA, cache.trunkB, cache.leaf)) {
-                drawCircle(color = Color(74, 26, 4, 128), radius = 5.4f * s, center = node)
-                drawCircle(color = Color(0xFF, 0xF6, 0xEC), radius = 4.2f * s, center = node)
-            }
+        for (node in listOf(cache.trunkA, cache.trunkB, cache.leaf)) {
+            drawCircle(color = Color(74, 26, 4, 128), radius = 5.4f * s, center = node)
+            drawCircle(color = Color(0xFF, 0xF6, 0xEC), radius = 4.2f * s, center = node)
         }
 
         // Iridescent Chrome Bezel

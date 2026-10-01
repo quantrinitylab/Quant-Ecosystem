@@ -31,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -217,13 +216,12 @@ fun QuantTopAppBar(
                             .clip(CircleShape)
                             .background(emeraldColor.copy(alpha = 0.20f))
                     )
-                    // Inner core beacon dot with subtle ambient shadow
+                    // Inner core beacon dot
                     Box(
                         modifier = Modifier
                             .size(5.dp)
                             .clip(CircleShape)
                             .background(emeraldColor)
-                            .shadow(2.dp, CircleShape, ambientColor = emeraldColor, spotColor = emeraldColor)
                     )
                 }
             }
@@ -294,7 +292,6 @@ fun QuantTopAppBar(
                             )
                         )
                         .border(BorderStroke(1.dp, Color(0xFF26, 0x2C, 0x3A)), CircleShape)
-                        .shadow(4.dp, CircleShape, ambientColor = Color(0xFF8B, 0x5C, 0xF6).copy(alpha = 0.25f), spotColor = Color(0xFF8B, 0x5C, 0xF6).copy(alpha = 0.25f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -329,7 +326,6 @@ fun QuantTopAppBar(
                             BorderStroke(1.5.dp, tabAccent.copy(alpha = 0.85f)),
                             CircleShape
                         )
-                        .shadow(4.dp, CircleShape, ambientColor = tabAccent.copy(alpha = 0.30f), spotColor = tabAccent.copy(alpha = 0.30f))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,

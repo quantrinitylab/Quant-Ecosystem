@@ -70,7 +70,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -670,18 +669,13 @@ private fun Phase1PhoneInput(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Action Button: "Send Verification Code" with molten amber background, 50dp height, subtle glow shadow
+        // Action Button: "Send Verification Code" with molten amber background, 50dp height
         Button(
             onClick = { onSendOtp() },
             enabled = !isLoading && phoneNumber.filter { it.isDigit() }.length >= 7,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    spotColor = PhoneAuthTokens.MoltenAmber.copy(alpha = 0.45f)
-                ),
+                .height(50.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = PhoneAuthTokens.MoltenAmber,
@@ -903,12 +897,7 @@ private fun Phase2OtpInput(
             enabled = !isLoading && otpCode.length == 6,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(50.dp)
-                .shadow(
-                    elevation = 8.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    spotColor = PhoneAuthTokens.MoltenAmber.copy(alpha = 0.45f)
-                ),
+                .height(50.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = PhoneAuthTokens.MoltenAmber,

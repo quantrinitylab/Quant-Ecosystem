@@ -51,7 +51,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -200,8 +199,7 @@ fun QuantAccountProfileSheet(
                                     )
                                 )
                             )
-                            .border(BorderStroke(1.5.dp, Color(0xFFFF, 0x8C, 0x42)), CircleShape)
-                            .shadow(6.dp, CircleShape, ambientColor = Color(0xFFFF, 0x8C, 0x42).copy(alpha = 0.35f)),
+                            .border(BorderStroke(1.5.dp, Color(0xFFFF, 0x8C, 0x42)), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

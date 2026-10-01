@@ -201,7 +201,8 @@ fun NativeCodeHubView(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Box(
                         modifier = Modifier
@@ -219,16 +220,18 @@ fun NativeCodeHubView(
                         )
                     }
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "QuantGit Sovereign Engine",
+                                text = "QuantGit",
                                 color = Color.White,
                                 fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -247,7 +250,9 @@ fun NativeCodeHubView(
                         Text(
                             text = "git.quantmail.in · Zero-mock",
                             color = Color(0xFF9C, 0xA3, 0xAF),
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -267,7 +272,9 @@ fun NativeCodeHubView(
                             color = Color(0xFFE5, 0xE7, 0xEB),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                         )
                     }
 
@@ -278,7 +285,7 @@ fun NativeCodeHubView(
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.Security,
@@ -291,7 +298,9 @@ fun NativeCodeHubView(
                                 text = "Protected",
                                 color = Color(0xFF34, 0xD3, 0x99),
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
@@ -1560,8 +1569,10 @@ private fun BadgePill(
             Text(
                 text = text,
                 color = textColor,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

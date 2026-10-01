@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PermMedia
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PushPin
@@ -63,6 +64,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +81,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.quant.app.data.EcosystemStateStore
+import com.quant.app.ui.components.NativeFileDetailSheet
 
 /**
  * File type categories and icon styling metadata for QuantDrive.
@@ -270,6 +273,19 @@ fun NativeDriveView(
         }
     }
 
+    // State map to track user-toggled offline status persistently during session
+    val offlineStates = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            BASELINE_DRIVE_FILES.forEach { put(it.id, it.isOffline) }
+        }
+    }
+
+    // State list to track deleted files during session
+    val deletedFileIds = remember { mutableStateListOf<String>() }
+
+    // Selected file for luxury File Detail, Version History & AI Summary Sheet
+    var selectedFileForDetail by remember { mutableStateOf<DriveItem?>(null) }
+
     // Map runtime dynamic files from EcosystemStateStore.driveFilesList into DriveItem
     val dynamicFiles = EcosystemStateStore.driveFilesList.map { storeFile ->
         val ext = storeFile.name.substringAfterLast('.', "").lowercase()
@@ -297,19 +313,22 @@ fun NativeDriveView(
         )
     }
 
-    // Combine dynamic files first (newest on top) with baseline curated files, guaranteed unique by id
-    val allFiles = (dynamicFiles + BASELINE_DRIVE_FILES).distinctBy { it.id }
+    // Combine dynamic files first (newest on top) with baseline curated files, excluding deleted files
+    val allFiles = (dynamicFiles + BASELINE_DRIVE_FILES)
+        .distinctBy { it.id }
+        .filterNot { it.id in deletedFileIds }
 
     // Filter files based on selected category chip
-    val filteredFiles = remember(selectedFilter, allFiles, starredStates.toMap()) {
+    val filteredFiles = remember(selectedFilter, allFiles, starredStates.toMap(), offlineStates.toMap(), deletedFileIds.toList()) {
         allFiles.filter { file ->
+            val isOffline = offlineStates[file.id] ?: file.isOffline
             when (selectedFilter) {
                 "All Files" -> true
                 "Documents" -> file.type.category == "Documents"
                 "Spreadsheets" -> file.type.category == "Spreadsheets"
                 "Code" -> file.type.category == "Code"
                 "Media" -> file.type.category == "Media"
-                "Offline" -> file.isOffline
+                "Offline" -> isOffline
                 else -> true
             }
         }.distinctBy { it.id }
@@ -360,9 +379,11 @@ fun NativeDriveView(
                 } else {
                     items(filteredFiles, key = { it.id }) { file ->
                         val isStarred = starredStates[file.id] ?: file.isInitiallyStarred
+                        val isOffline = offlineStates[file.id] ?: file.isOffline
                         DriveGridCard(
                             file = file,
                             isStarred = isStarred,
+                            isOffline = isOffline,
                             onStarToggle = {
                                 val newState = !isStarred
                                 starredStates[file.id] = newState
@@ -373,13 +394,12 @@ fun NativeDriveView(
                                 ).show()
                             },
                             onMoreOptions = {
-                                Toast.makeText(
-                                    context,
-                                    "File options: Share, Download, Details",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                selectedFileForDetail = file
                             },
-                            onClick = { onFileClick(file) }
+                            onClick = {
+                                selectedFileForDetail = file
+                                onFileClick(file)
+                            }
                         )
                     }
                 }
@@ -425,9 +445,11 @@ fun NativeDriveView(
                 } else {
                     items(filteredFiles, key = { it.id }) { file ->
                         val isStarred = starredStates[file.id] ?: file.isInitiallyStarred
+                        val isOffline = offlineStates[file.id] ?: file.isOffline
                         DriveListCard(
                             file = file,
                             isStarred = isStarred,
+                            isOffline = isOffline,
                             onStarToggle = {
                                 val newState = !isStarred
                                 starredStates[file.id] = newState
@@ -438,17 +460,41 @@ fun NativeDriveView(
                                 ).show()
                             },
                             onMoreOptions = {
-                                Toast.makeText(
-                                    context,
-                                    "File options: Share, Download, Details",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                selectedFileForDetail = file
                             },
-                            onClick = { onFileClick(file) }
+                            onClick = {
+                                selectedFileForDetail = file
+                                onFileClick(file)
+                            }
                         )
                     }
                 }
             }
+        }
+
+        // Google Drive & Dropbox-class File Detail, Version History & AI Summary BottomSheet
+        selectedFileForDetail?.let { targetFile ->
+            val isStarred = starredStates[targetFile.id] ?: targetFile.isInitiallyStarred
+            val isOffline = offlineStates[targetFile.id] ?: targetFile.isOffline
+            NativeFileDetailSheet(
+                file = targetFile,
+                isStarred = isStarred,
+                isOffline = isOffline,
+                onDismiss = { selectedFileForDetail = null },
+                onStarToggle = {
+                    val newState = !isStarred
+                    starredStates[targetFile.id] = newState
+                },
+                onOfflineToggle = {
+                    val newState = !isOffline
+                    offlineStates[targetFile.id] = newState
+                },
+                onDelete = { deletedFile ->
+                    deletedFileIds.add(deletedFile.id)
+                    selectedFileForDetail = null
+                },
+                accentColor = accentColor
+            )
         }
     }
 }
@@ -757,6 +803,7 @@ private fun DriveSectionHeader(
 private fun DriveListCard(
     file: DriveItem,
     isStarred: Boolean,
+    isOffline: Boolean = file.isOffline,
     onStarToggle: () -> Unit,
     onMoreOptions: () -> Unit,
     onClick: () -> Unit,
@@ -857,7 +904,7 @@ private fun DriveListCard(
                             color = Color(0xFF64, 0x74, 0x8B)
                         )
 
-                        if (file.isOffline) {
+                        if (isOffline) {
                             Text(
                                 text = "•",
                                 fontSize = 10.sp,
@@ -927,6 +974,21 @@ private fun DriveListCard(
                             .border(1.dp, Color(0xFF2E, 0x34, 0x46), RoundedCornerShape(12.dp))
                     ) {
                         DropdownMenuItem(
+                            text = { Text("File Details & History", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38, 0xBD, 0xF8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showListMenu = false
+                                onMoreOptions()
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text(if (isStarred) "Unstar file" else "Star file", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
                                 Icon(
@@ -986,6 +1048,7 @@ private fun DriveListCard(
 private fun DriveGridCard(
     file: DriveItem,
     isStarred: Boolean,
+    isOffline: Boolean = file.isOffline,
     onStarToggle: () -> Unit,
     onMoreOptions: () -> Unit,
     onClick: () -> Unit,
@@ -1099,7 +1162,7 @@ private fun DriveGridCard(
                             fontSize = 10.sp,
                             color = Color(0xFF64, 0x74, 0x8B)
                         )
-                        if (file.isOffline) {
+                        if (isOffline) {
                             Icon(
                                 imageVector = Icons.Filled.PushPin,
                                 contentDescription = "Pinned",
@@ -1133,6 +1196,21 @@ private fun DriveGridCard(
                             .background(Color(0xFF16, 0x19, 0x24))
                             .border(1.dp, Color(0xFF2E, 0x34, 0x46), RoundedCornerShape(12.dp))
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("File Details & History", color = Color.White, fontSize = 13.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38, 0xBD, 0xF8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            },
+                            onClick = {
+                                showGridMenu = false
+                                onMoreOptions()
+                            }
+                        )
                         DropdownMenuItem(
                             text = { Text(if (isStarred) "Unstar file" else "Star file", color = Color.White, fontSize = 13.sp) },
                             leadingIcon = {
