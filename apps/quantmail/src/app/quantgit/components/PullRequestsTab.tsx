@@ -309,31 +309,33 @@ export function PullRequestsTab({
     const prNumber = (selectedPR as any).number || selectedPR.id;
 
     try {
+      let merged = false;
       if (onMergePR) {
+        // Parent owns the merge; a throw here means it failed.
         await onMergePR(prNumber, selectedMergeMethod);
+        merged = true;
       } else {
-        // Direct backend call
-        try {
-          const res = await fetch(
-            `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/merge`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ method: selectedMergeMethod }),
-            },
-          );
-          if (!res.ok) {
-            // fall back to optimistic update for testing & offline mode
-          }
-        } catch {
-          // offline fallback
-        }
+        const res = await fetch(
+          `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/merge`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ method: selectedMergeMethod }),
+          },
+        );
+        merged = res.ok;
       }
 
-      // Optimistically update PR to merged state
-      setSelectedPR((prev) => (prev ? { ...prev, state: 'merged' } : null));
-      setIsMergeConfirmOpen(false);
-      showToast?.(`Pull request #${prNumber} merged successfully!`);
+      if (merged) {
+        setSelectedPR((prev) => (prev ? { ...prev, state: 'merged' } : null));
+        setIsMergeConfirmOpen(false);
+        showToast?.(`Pull request #${prNumber} merged successfully!`);
+      } else {
+        // Do not claim success when the merge did not happen.
+        showToast?.(`Could not merge pull request #${prNumber}. Please try again.`);
+      }
+    } catch {
+      showToast?.(`Could not merge pull request #${prNumber}. Please try again.`);
     } finally {
       setIsMerging(false);
     }
