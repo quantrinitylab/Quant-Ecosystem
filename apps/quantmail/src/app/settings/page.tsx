@@ -698,7 +698,7 @@ export default function SettingsPage() {
                       onChange={(event) =>
                         setProfile((prev) => ({ ...prev, displayName: event.target.value }))
                       }
-                      placeholder="Kundan Kumar"
+                      placeholder="Your name"
                       maxLength={80}
                       fullWidth
                     />
@@ -739,7 +739,7 @@ export default function SettingsPage() {
                   onChange={(event) => setSignature(event.target.value)}
                   rows={4}
                   aria-label="Email signature"
-                  placeholder={'Best regards,\nKundan\nFounder @ Quantrinity'}
+                  placeholder={'Best regards,\nYour name\nYour title'}
                 />
                 {signature.trim() && (
                   <div className="rounded-lg border border-[var(--quant-border)] bg-[var(--quant-background)] p-3">
@@ -748,7 +748,7 @@ export default function SettingsPage() {
                     </p>
                     {/*
                      * The old "Live Preview" printed the field's raw text, so an
-                     * HTML signature previewed as `<b>Kundan</b>` — the one thing
+                     * HTML signature previewed as `<b>Your name</b>` — the one thing
                      * a preview exists to not do. It renders through the same
                      * sanitiser the message body uses; when that returns nothing
                      * (no DOM yet, or nothing survived sanitising) the raw text is

@@ -80,7 +80,7 @@ const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
 export default function CalendarPage() {
   const today = useMemo(() => new Date(), []);
   const { user } = useAuth();
-  const currentUserEmail = user?.email || 'kundan@quantmail.in';
+  const currentUserEmail = user?.email || '';
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());

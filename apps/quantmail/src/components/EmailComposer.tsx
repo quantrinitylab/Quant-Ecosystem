@@ -303,7 +303,7 @@ export function EmailComposer({
   const [body, setBody] = useState(initialBody);
   const [closing, setClosing] = useState('Thank you for your time.');
   const [signoff, setSignoff] = useState('Best regards,');
-  const [senderName, setSenderName] = useState(authUser?.displayName || 'Kundan Kumar');
+  const [senderName, setSenderName] = useState(authUser?.displayName || '');
   const [customDetails, setCustomDetails] = useState<string[]>([]);
 
   useEffect(() => {
@@ -2127,8 +2127,8 @@ export function EmailComposer({
                 <span className="text-xl font-bold tracking-tight text-black">QuantMail</span>
               </div>
               <div className="text-xs text-[#3A404D] font-medium">
-                {senderName || authUser?.displayName || 'Kundan Kumar'} &lt;
-                {authUser?.email || 'kundan@quantmail.in'}&gt;
+                {senderName || authUser?.displayName || 'You'} &lt;
+                {authUser?.email || ''}&gt;
               </div>
             </div>
 
@@ -2140,9 +2140,9 @@ export function EmailComposer({
               <div className="space-y-1">
                 <div>
                   <strong className="text-black">
-                    {senderName || authUser?.displayName || 'Kundan Kumar'}
+                    {senderName || authUser?.displayName || 'You'}
                   </strong>{' '}
-                  &lt;{authUser?.email || 'kundan@quantmail.in'}&gt;
+                  &lt;{authUser?.email || ''}&gt;
                 </div>
                 <div>
                   <span className="text-[#3A404D]">Draft To: </span>

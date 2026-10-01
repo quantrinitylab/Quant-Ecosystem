@@ -423,7 +423,7 @@ export default function WorkspaceDetailPage() {
               <Input
                 value={inviteEmails}
                 onChange={(event) => setInviteEmails(event.target.value)}
-                placeholder="kundan@quantmail.in, dev@quantrinity.in"
+                placeholder="teammate@quantmail.in, dev@quantrinity.in"
                 fullWidth
                 /* Marks the first content control for the focus trap, which would
                    otherwise open this dialog on its close button. */

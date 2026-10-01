@@ -160,7 +160,7 @@ export function PullRequestsTab({
   setModalState,
   openPullDetail,
   repoId = 'quant-ecosystem',
-  currentUsername = 'kundansinghrajput31980',
+  currentUsername = '',
   showToast,
   onMergePR,
   initialSelectedPR = null,

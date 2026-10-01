@@ -13,6 +13,7 @@ export interface BranchesTabProps {
   onCreateBranch?: (name: string, sourceBranch: string) => Promise<void> | void;
   onDeleteBranch?: (name: string) => Promise<void> | void;
   showToast?: (msg: string) => void;
+  currentUsername?: string;
 }
 
 export function BranchesTab({
@@ -24,6 +25,7 @@ export function BranchesTab({
   onCreateBranch,
   onDeleteBranch,
   showToast = () => {},
+  currentUsername = '',
 }: BranchesTabProps) {
   const defaultBranch = propDefaultBranch || repo.defaultBranch || 'main';
   const [branchList, setBranchList] = useState<BranchItem[]>(
@@ -53,7 +55,7 @@ export function BranchesTab({
         protection: 'require_reviews',
         aheadBy: 0,
         behindBy: 0,
-        lastCommitAuthor: 'kundansinghrajput31980',
+        lastCommitAuthor: '',
         lastCommitMessage: repo.latestCommit || 'Initial commit',
         lastCommitTime: repo.latestCommitTime || 'recently',
       }
@@ -91,7 +93,7 @@ export function BranchesTab({
         protection: 'none',
         aheadBy: 0,
         behindBy: 0,
-        lastCommitAuthor: 'kundansinghrajput31980',
+        lastCommitAuthor: currentUsername || 'Unknown',
         lastCommitMessage: `Branch created from ${sourceBranch}`,
         lastCommitTime: 'just now',
       };
@@ -237,7 +239,7 @@ export function BranchesTab({
                 <span>
                   Updated {defaultBranchItem.lastCommitTime || 'recently'} by{' '}
                   <strong className="text-white">
-                    {defaultBranchItem.lastCommitAuthor || 'kundansinghrajput31980'}
+                    {defaultBranchItem.lastCommitAuthor || 'Unknown'}
                   </strong>
                 </span>
                 {defaultBranchItem.lastCommitMessage && (

@@ -90,7 +90,7 @@ export default function QuantGitPage() {
   // Navigation & Deck State
   const { user } = useAuth();
   const currentUsername =
-    user?.username || (user?.email ? user.email.split('@')[0] : 'kundansinghrajput31980');
+    user?.username || (user?.email ? user.email.split('@')[0] : '');
   const [activeDeckTab, setActiveDeckTab] = useState<MainDeckTab>('repos');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
   const [activeGitHubTab, setActiveGitHubTab] = useState<GitHubTab>('code');
@@ -2120,6 +2120,7 @@ export default function QuantGitPage() {
               {activeGitHubTab === 'branches' && (
                 <BranchesTab
                   repo={selectedRepo}
+                  currentUsername={currentUsername}
                   branches={
                     detailedBranches.length > 0
                       ? detailedBranches
