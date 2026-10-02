@@ -1,0 +1,61 @@
+# ============================================================================
+# quant_foundation - openapi-generator config (dart-dio)
+# ============================================================================
+#
+# Generates the TYPED QuantMail API client from the repaired OpenAPI spec.
+# Generated code is NEVER committed — it is produced by CI on every build
+# (see phase0/API_CLIENT.md "Codegen workflow").
+#
+# Run from the package root (`phase0/foundation/`), because `inputSpec` is
+# resolved relative to the working directory:
+#
+#   openapi-generator generate -c lib/src/codegen/openapi_config.yaml
+#
+# Requires: openapi-generator-cli >= 7.x (Java 11+). Pin the exact version in
+# CI (see API_CLIENT.md). Do NOT use `swagger_dart_code` — it is unmaintained.
+#
+# Why dart-dio: the generated client is Dio-based, so the app passes the
+# QuantApiClient's shared Dio (with the auth/refresh/retry interceptor stack)
+# into the generated `ApiClient(dio: ...)` instead of letting it build its own.
+
+# Repaired spec produced by the parallel Phase-0 workstream (A).
+# The file may not exist yet when this config is first read — generation
+# simply fails fast until workstream A lands it.
+inputSpec: ../openapi.repaired.yaml
+
+generatorName: dart-dio
+
+# Generated sources land here and are gitignored (see package .gitignore).
+# The barrel export `quant_api_client.dart` is created manually AFTER the
+# first successful generation and re-exports the generated entrypoint, so
+# `import 'package:quant_foundation/quant_api_client.dart'` stays stable.
+outputDir: lib/src/codegen/generated
+
+# Fail loudly on spec problems instead of emitting a broken client.
+globalProperties:
+  debugModels: "false"
+  debugOperations: "false"
+
+additionalProperties:
+  # --- pubspec of the generated client ------------------------------------
+  pubName: quant_api_client
+  pubVersion: 0.1.0
+  pubDescription: >-
+    Typed QuantMail API client generated from openapi.repaired.yaml
+    (dart-dio). Do not edit — regenerate via openapi-generator.
+  pubAuthor: Quant Trinity Lab
+
+  # --- dart-dio generator options ------------------------------------------
+  # Keep dates on dart:core (no timemachine dependency).
+  dateLibrary: core
+  # Stable, diff-friendly output.
+  hideGenerationTimestamp: "true"
+  # One file per model keeps generated diffs reviewable in CI logs.
+  # (Set explicitly; the generator default may change between versions.)
+  legacyDiscriminatorBehavior: "false"
+
+# Skip files we manage ourselves in the package.
+# (The generated pubspec would otherwise fight this package's own one when
+#  developers inspect the output tree; CI deletes it post-generation.)
+# NOTE: openapi-generator has no "skip pubspec" flag for dart-dio, so the CI
+# step removes `generated/pubspec.yaml` after generation — see API_CLIENT.md.

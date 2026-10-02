@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ==========================================================================
+  QuantAI Android manifest — MINIMAL placeholder (Shift 1, W3)
+  ==========================================================================
+
+  SETUP_NOTEs (release se pehle resolve karo):
+
+  (a) Ye MINIMAL manifest hai. Poora Android runner abhi scaffold NAHI hua:
+      `android/app/build.gradle.kts` (applicationId = com.quantrinity.quantai),
+      `MainActivity.kt` / `MainActivity.java`, Gradle wrapper, `settings.gradle`,
+      aur `android/build.gradle.kts` sab pending hain. Release build se pehle
+      poora runner scaffold chahiye — Flutter ke template se `flutter create`
+      karke compare karna sabse tez raasta hai.
+
+  (b) `applicationId` / package placeholder `com.quantrinity.quantai` hai.
+      Real applicationId abhi CONFIRM nahi hua (TODO(UNVERIFIED)) — Play Store
+      listing se match karo, ek baar publish ho gaya to change nahi hota.
+
+  (c) `android:allowBackup="false"` janboojh kar rakha hai (S5 lesson):
+      OAuth tokens / refresh tokens flutter_secure_storage me hain; system
+      backup me token leak ya stale-token restore se bachne ke liye backup
+      disabled. Agar kabhi backup chahiye hua to backup rules
+      (android:fullBackupContent / dataExtractionRules) ke saath allowlist
+      karna padega — tokens hamesha exclude rakho.
+
+  (d) OAuth deep link intent-filter: `quantai://oauth/callback` ko handle karta
+      hai (matches AppConfig.oauthRedirectUri). Scheme vs Android App Links
+      decision abhi pending hai (TODO(UNVERIFIED)): custom scheme simple hai
+      lekin dusre apps claim kar sakte hain; App Links (verified
+      assetlinks.json) zyada secure hai aur production me preferred. Decision
+      release se pehle finalize karo; agar App Links chuna to
+      `android:autoVerify="true"` + assetlinks.json hosting chahiye.
+
+  (e) S6: release keystore wiring TODO — signingConfigs.release abhi nahi hai;
+      CI secret se keystore inject karna hai (key.properties, kabhi repo me
+      commit mat karo).
+  ========================================================================== -->
+
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.quantrinity.quantai">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="QuantAI"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupOnly="false">
+
+        <!-- TODO(UNVERIFIED): MainActivity abhi scaffold nahi hui; neeche wala
+             intent-filter MainActivity par lagna hai jab runner scaffold ho. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <!-- OAuth2 deep-link: quantai://oauth/callback (AppConfig parity).
+                 SETUP_NOTE: custom scheme vs App Links decision pending
+                 (TODO(UNVERIFIED)) — production decision release se pehle. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="quantai"
+                    android:host="oauth"
+                    android:path="/callback" />
+            </intent-filter>
+
+            <!-- Main launcher intent (runner scaffold ke baad active). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Flutter embedding requirement (runner scaffold me define hoga). -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,22 @@
+# ads_app — lint configuration (flutter_lints, matching phase1 quant_app
+# conventions: exhaustive doc coverage on public API is preferred by habit,
+# trailing commas, single quotes, etc.).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - macos/**
+    - linux/**
+  language:
+    # Strict-ish casts help Riverpod `AsyncValue.when` branches stay honest.
+    strict-casts: true
+
+linter:
+  rules:
+    # Public symbols without doc comments are a real defect in an
+    # ecosystem package: they leak unnamed API into DartDoc / analyzer
+    # hints for every downstream package.
+    public_member_api_docs: true
