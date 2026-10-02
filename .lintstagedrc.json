@@ -1,5 +1,0 @@
-{
-  "*.{ts,tsx,js,jsx}": ["prettier --write --ignore-unknown"],
-  "*.{json,md,yaml,yml}": ["prettier --write --ignore-unknown"],
-  "packages/database/src/**/*.ts": ["eslint --fix"]
-}
