@@ -1,6 +1,63 @@
 // Sovereign QuantCalendar - Domain Models & Data Structures
 // Strictly ZERO raw Unicode emojis and ZERO clipPath throughout.
 
+/// Supported booking timezones with UTC offsets and conversion math.
+enum BookingTimezone {
+  ist('IST · UTC+5:30', 'IST', Duration(hours: 5, minutes: 30)),
+  pst('PST · UTC-8:00', 'PST', Duration(hours: -8)),
+  est('EST · UTC-5:00', 'EST', Duration(hours: -5)),
+  utc('UTC · UTC+0:00', 'UTC', Duration.zero),
+  local('Local Device TZ', 'LOCAL', Duration.zero);
+
+  final String label;
+  final String code;
+  final Duration offset;
+  const BookingTimezone(this.label, this.code, this.offset);
+
+  /// Effective duration offset accounting for dynamic local device timezone.
+  Duration get effectiveOffset {
+    if (this == BookingTimezone.local) {
+      return DateTime.now().timeZoneOffset;
+    }
+    return offset;
+  }
+
+  /// Converts a UTC [DateTime] to this timezone.
+  DateTime convertUtc(DateTime utcTime) {
+    final utc = utcTime.isUtc ? utcTime : utcTime.toUtc();
+    return utc.add(effectiveOffset);
+  }
+
+  /// Formats a UTC [DateTime] into a 12-hour formatted time string in this timezone.
+  String formatTime(DateTime utcTime) {
+    final dt = convertUtc(utcTime);
+    final hour = dt.hour;
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final ampm = hour >= 12 ? 'PM' : 'AM';
+    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+    return '$displayHour:$minute $ampm';
+  }
+
+  /// Formats time with the timezone code appended (e.g. "09:30 AM IST").
+  String formatTimeWithZone(DateTime utcTime) {
+    final codeStr = this == BookingTimezone.local ? 'LOCAL' : code;
+    return '${formatTime(utcTime)} $codeStr';
+  }
+
+  /// Calculates the time difference string between two timezones.
+  static String timeDifferenceString(BookingTimezone tzA, BookingTimezone tzB) {
+    final diff = tzA.effectiveOffset - tzB.effectiveOffset;
+    final totalMinutes = diff.inMinutes.abs();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    final sign = diff.isNegative ? '-' : '+';
+    if (minutes == 0) {
+      return '$sign${hours}h delta';
+    }
+    return '$sign${hours}h ${minutes}m delta';
+  }
+}
+
 /// Model representing a rich calendar event in QuantCalendar.
 class CalendarEvent {
   final String id;
@@ -18,6 +75,9 @@ class CalendarEvent {
   final String recurrenceRule;
   final List<String> tags;
   final bool isE2EE;
+  final bool isMultiDaySeries;
+  final int seriesDayIndex;
+  final int seriesTotalDays;
 
   const CalendarEvent({
     required this.id,
@@ -35,33 +95,32 @@ class CalendarEvent {
     this.recurrenceRule = '',
     this.tags = const [],
     this.isE2EE = true,
+    this.isMultiDaySeries = false,
+    this.seriesDayIndex = 1,
+    this.seriesTotalDays = 1,
   });
 
   /// Duration of the event in minutes.
   int get durationMinutes => endTime.difference(startTime).inMinutes;
 
-  /// IST (UTC+5:30) formatted time string.
-  String get istTimeString {
-    final istTime = startTime.toUtc().add(const Duration(hours: 5, minutes: 30));
-    final hour = istTime.hour;
-    final minute = istTime.minute.toString().padLeft(2, '0');
-    final ampm = hour >= 12 ? 'PM' : 'AM';
-    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$displayHour:$minute $ampm IST';
+  /// Formats the event start time in an arbitrary [BookingTimezone].
+  String formatInTimezone(BookingTimezone tz) {
+    return tz.formatTimeWithZone(startTime.toUtc());
   }
 
+  /// IST (UTC+5:30) formatted time string.
+  String get istTimeString => BookingTimezone.ist.formatTimeWithZone(startTime.toUtc());
+
   /// PST (UTC-8:00) formatted time string.
-  String get pstTimeString {
-    final pstTime = startTime.toUtc().subtract(const Duration(hours: 8));
-    final hour = pstTime.hour;
-    final minute = pstTime.minute.toString().padLeft(2, '0');
-    final ampm = hour >= 12 ? 'PM' : 'AM';
-    final displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return '$displayHour:$minute $ampm PST';
-  }
+  String get pstTimeString => BookingTimezone.pst.formatTimeWithZone(startTime.toUtc());
 
   /// Full dual-timezone formatted badge string.
   String get dualTimezoneLabel => '$istTimeString · $pstTimeString';
+
+  /// Multi-day series badge description.
+  String get seriesLabel => isMultiDaySeries
+      ? 'Series: Day $seriesDayIndex of $seriesTotalDays (RFC 5545)'
+      : '';
 
   /// Generates initial mock schedule for demo & test suites.
   static List<CalendarEvent> sampleEvents() {
@@ -69,6 +128,23 @@ class CalendarEvent {
     final today = DateTime(now.year, now.month, now.day);
 
     return [
+      CalendarEvent(
+        id: 'evt-series-01',
+        title: 'Wave 76 Tripartite Sovereign Architecture Sprint',
+        description: 'Multi-day engineering sprint aligning Node A, Node B, and Node C across all sovereign multiplatform runners and CalDAV RFC 5545 pipelines.',
+        startTime: today.add(const Duration(hours: 8, minutes: 0)),
+        endTime: today.add(const Duration(hours: 19, minutes: 0)),
+        location: 'QuantMeet Room: sprint-war-room',
+        meetingUrl: 'https://meet.quantrinity.in/sprint-war-room',
+        isQuantMeet: true,
+        colorHex: '#EC4899', // Hot Pink
+        organizer: 'node-a@quantrinity.in',
+        attendees: ['node-b@quantrinity.in', 'node-c@quantrinity.in', 'sentinel@quantrinity.in'],
+        tags: ['Multi-Day Sprint', 'RFC 5545', 'Sovereign'],
+        isMultiDaySeries: true,
+        seriesDayIndex: 1,
+        seriesTotalDays: 7,
+      ),
       CalendarEvent(
         id: 'evt-101',
         title: 'Tripartite Swarm Autonomous Sync',
@@ -139,15 +215,19 @@ class CalendarEvent {
   }
 }
 
-/// Model representing a Calendly-class public booking slot.
+/// Model representing a Calendly-class public booking slot with double-booking mutex protection.
 class BookingSlot {
   final String id;
   final String timeLabel;
-  final DateTime slotTime;
+  final DateTime slotTime; // Ground truth UTC DateTime
   final int durationMinutes;
   final bool isAvailable;
   final bool isSelected;
   final String hostSlug;
+  final bool isMutexLocked;
+  final String? lockedBy;
+  final DateTime? lockedAt;
+  final String? mutexTransactionId;
 
   const BookingSlot({
     required this.id,
@@ -157,7 +237,74 @@ class BookingSlot {
     this.isAvailable = true,
     this.isSelected = false,
     this.hostSlug = 'alex-dev',
+    this.isMutexLocked = false,
+    this.lockedBy,
+    this.lockedAt,
+    this.mutexTransactionId,
   });
+
+  /// Indicates whether the slot is effectively locked against double-booking.
+  bool get isLocked => isMutexLocked || !isAvailable;
+
+  /// Formatted slot start time localized to chosen timezone.
+  String formattedTime(BookingTimezone tz) {
+    return tz.formatTime(slotTime);
+  }
+
+  /// Formatted slot end time localized to chosen timezone based on [durationMinutes].
+  String formattedEndTime(BookingTimezone tz, [int? customDuration]) {
+    final effectiveDuration = customDuration ?? durationMinutes;
+    final endUtc = slotTime.add(Duration(minutes: effectiveDuration));
+    return tz.formatTime(endUtc);
+  }
+
+  /// Formatted slot time range (e.g. "09:00 AM - 09:30 AM").
+  String formattedSlotRange(BookingTimezone tz, [int? customDuration]) {
+    final start = formattedTime(tz);
+    final end = formattedEndTime(tz, customDuration);
+    final code = tz == BookingTimezone.local ? 'LOCAL' : tz.code;
+    return '$start - $end $code';
+  }
+
+  /// Dual-timezone slot conversion display string (e.g. "09:00 AM IST (08:30 PM PST)").
+  String dualTimezoneDisplay({
+    BookingTimezone primary = BookingTimezone.ist,
+    BookingTimezone secondary = BookingTimezone.pst,
+  }) {
+    final primStr = '${formattedTime(primary)} ${primary.code}';
+    final secStr = '${formattedTime(secondary)} ${secondary.code}';
+    return '$primStr ($secStr)';
+  }
+
+  /// Atomically acquires a double-booking mutex protection lock.
+  /// Throws [StateError] if slot is already mutex-locked.
+  BookingSlot acquireMutexLock({
+    required String guestIdentifier,
+    String? transactionId,
+  }) {
+    if (isLocked) {
+      throw StateError('Double-Booking Conflict: Slot $id is already locked by $lockedBy');
+    }
+    final txnId = transactionId ?? 'MTX-${DateTime.now().millisecondsSinceEpoch}-${id.hashCode.abs().toRadixString(16)}';
+    return copyWith(
+      isAvailable: false,
+      isMutexLocked: true,
+      lockedBy: guestIdentifier,
+      lockedAt: DateTime.now().toUtc(),
+      mutexTransactionId: txnId,
+    );
+  }
+
+  /// Releases the double-booking mutex lock.
+  BookingSlot releaseMutexLock() {
+    return copyWith(
+      isAvailable: true,
+      isMutexLocked: false,
+      lockedBy: null,
+      lockedAt: null,
+      mutexTransactionId: null,
+    );
+  }
 
   BookingSlot copyWith({
     String? id,
@@ -167,6 +314,10 @@ class BookingSlot {
     bool? isAvailable,
     bool? isSelected,
     String? hostSlug,
+    bool? isMutexLocked,
+    String? lockedBy,
+    DateTime? lockedAt,
+    String? mutexTransactionId,
   }) {
     return BookingSlot(
       id: id ?? this.id,
@@ -176,48 +327,62 @@ class BookingSlot {
       isAvailable: isAvailable ?? this.isAvailable,
       isSelected: isSelected ?? this.isSelected,
       hostSlug: hostSlug ?? this.hostSlug,
+      isMutexLocked: isMutexLocked ?? this.isMutexLocked,
+      lockedBy: lockedBy ?? this.lockedBy,
+      lockedAt: lockedAt ?? this.lockedAt,
+      mutexTransactionId: mutexTransactionId ?? this.mutexTransactionId,
     );
   }
 
-  static List<BookingSlot> sampleSlots() {
-    final now = DateTime.now();
-    final base = DateTime(now.year, now.month, now.day);
+  static List<BookingSlot> sampleSlots({String slug = 'alex-dev'}) {
+    final now = DateTime.now().toUtc();
+    final base = DateTime.utc(now.year, now.month, now.day);
     return [
       BookingSlot(
         id: 'slot-1',
         timeLabel: '09:00 AM',
-        slotTime: base.add(const Duration(hours: 9)),
+        slotTime: base.add(const Duration(hours: 3, minutes: 30)), // 09:00 AM IST / 20:30 PST (prev day)
         isAvailable: true,
+        hostSlug: slug,
       ),
       BookingSlot(
         id: 'slot-2',
         timeLabel: '10:00 AM',
-        slotTime: base.add(const Duration(hours: 10)),
+        slotTime: base.add(const Duration(hours: 4, minutes: 30)), // 10:00 AM IST / 21:30 PST (prev day)
         isAvailable: true,
+        hostSlug: slug,
       ),
       BookingSlot(
         id: 'slot-3',
         timeLabel: '11:30 AM',
-        slotTime: base.add(const Duration(hours: 11, minutes: 30)),
+        slotTime: base.add(const Duration(hours: 6)), // 11:30 AM IST / 23:00 PST (prev day)
         isAvailable: true,
+        hostSlug: slug,
       ),
       BookingSlot(
         id: 'slot-4',
         timeLabel: '02:00 PM',
-        slotTime: base.add(const Duration(hours: 14)),
+        slotTime: base.add(const Duration(hours: 8, minutes: 30)), // 02:00 PM IST / 00:30 PST
         isAvailable: true,
+        hostSlug: slug,
       ),
       BookingSlot(
         id: 'slot-5',
         timeLabel: '03:30 PM',
-        slotTime: base.add(const Duration(hours: 15, minutes: 30)),
-        isAvailable: false, // Booked mutex lock
+        slotTime: base.add(const Duration(hours: 10)), // 03:30 PM IST / 02:00 PST
+        isAvailable: false, // Mutex locked by peer node
+        isMutexLocked: true,
+        lockedBy: 'peer-node@quantrinity.in',
+        lockedAt: now.subtract(const Duration(minutes: 42)),
+        mutexTransactionId: 'MTX-LOCKED-PREV-005',
+        hostSlug: slug,
       ),
       BookingSlot(
         id: 'slot-6',
         timeLabel: '05:00 PM',
-        slotTime: base.add(const Duration(hours: 17)),
+        slotTime: base.add(const Duration(hours: 11, minutes: 30)), // 05:00 PM IST / 03:30 PST
         isAvailable: true,
+        hostSlug: slug,
       ),
     ];
   }
@@ -234,6 +399,9 @@ class MeetingCall {
   final int attendeeCount;
   final bool isLiveNow;
   final bool isHardwareReady;
+  final String? meetingUrl;
+  final int av1BitrateKbps;
+  final String audioCodec;
 
   const MeetingCall({
     required this.id,
@@ -245,7 +413,13 @@ class MeetingCall {
     this.attendeeCount = 1,
     this.isLiveNow = false,
     this.isHardwareReady = true,
+    this.meetingUrl,
+    this.av1BitrateKbps = 4500,
+    this.audioCodec = 'Opus 48kHz Beamforming',
   });
+
+  /// Canonical QuantMeet join URL.
+  String get joinUrl => meetingUrl ?? 'https://meet.quantrinity.in/$roomCode';
 
   static List<MeetingCall> sampleCalls() {
     final now = DateTime.now();
@@ -260,6 +434,7 @@ class MeetingCall {
         attendeeCount: 6,
         isLiveNow: true,
         isHardwareReady: true,
+        meetingUrl: 'https://meet.quantrinity.in/swarm-standup-76',
       ),
       MeetingCall(
         id: 'call-02',
@@ -271,6 +446,7 @@ class MeetingCall {
         attendeeCount: 12,
         isLiveNow: false,
         isHardwareReady: true,
+        meetingUrl: 'https://meet.quantrinity.in/exec-demo-room',
       ),
       MeetingCall(
         id: 'call-03',
@@ -282,6 +458,7 @@ class MeetingCall {
         attendeeCount: 4,
         isLiveNow: false,
         isHardwareReady: true,
+        meetingUrl: 'https://meet.quantrinity.in/webrtc-av1-review',
       ),
     ];
   }

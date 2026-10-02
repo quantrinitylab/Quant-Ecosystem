@@ -11,12 +11,32 @@ import 'package:quant_drive/screens/document_viewer_screen.dart';
 import 'package:quant_core/quant_core.dart';
 
 void main() {
+  setUp(() {
+    // Reset data source to baseline state before each test
+    final ds = DriveDataSource.instance;
+    ds.usedStorageGb = 14.2;
+    ds.totalStorageGb = 100.0;
+    ds.duplicateReclaimableGb = 4.8;
+    ds.bandwidthSavedPercent = 94.2;
+    ds.duplicateChunkCount = 76800;
+    ds.rawIngestedGb = 82.8;
+    ds.storedCasGb = 4.8;
+    ds.lockVault();
+  });
+
   group('QuantDrive Invariant & Domain Tests', () {
-    test('Storage quota and FastCDC calculations are mathematically accurate', () {
+    test('Storage quota and FastCDC calculations are mathematically accurate (>94% savings)', () {
       final ds = DriveDataSource.instance;
       expect(ds.usedStorageGb, 14.2);
       expect(ds.totalStorageGb, 100.0);
       expect(ds.duplicateReclaimableGb, 4.8);
+      expect(ds.rawIngestedGb, 82.8);
+      expect(ds.storedCasGb, 4.8);
+
+      // Verify >94% bandwidth savings calculation formula: 100% * (1 - Stored / Raw)
+      final calculatedSavings = ds.calculatedBandwidthSavedPercent;
+      expect(calculatedSavings, greaterThan(94.0));
+      expect(calculatedSavings, closeTo(94.2, 0.1));
       expect(ds.bandwidthSavedPercent, 94.2);
       expect(ds.duplicateClusters.length, greaterThanOrEqualTo(2));
     });
@@ -37,21 +57,79 @@ void main() {
       expect(ds.isVaultUnlocked, true);
     });
 
-    test('FastCDC storage reclamation prunes duplicate CAS blocks', () {
+    test('FastCDC storage reclamation prunes duplicate CAS blocks and elevates savings', () {
       final ds = DriveDataSource.instance;
       ds.reclaimStorage();
       expect(ds.duplicateReclaimableGb, 0.0);
       expect(ds.duplicateChunkCount, 0);
+      expect(ds.storedCasGb, 1.1);
       expect(ds.bandwidthSavedPercent, greaterThan(95.0));
+      expect(ds.calculatedBandwidthSavedPercent, greaterThan(98.0));
     });
   });
 
-  group('QuantDrive Widget Rendering Tests', () {
-    testWidgets('Renders QuantDriveApp shell and top bar', (tester) async {
+  group('QuantDrive Widget Rendering & Telemetry Tests', () {
+    testWidgets('Renders QuantDriveApp shell, top bar, and telemetry capsule', (tester) async {
       await tester.pumpWidget(const QuantDriveApp());
       expect(find.text('Quant'), findsWidgets);
       expect(find.text('Drive'), findsWidgets);
       expect(find.byType(QuantDriveShell), findsOneWidget);
+      expect(find.text('FastCDC CAS 64KB'), findsOneWidget);
+    });
+
+    testWidgets('Renders FastCdcCleanerScreen with telemetry meter and >94% savings badge', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: FastCdcCleanerScreen()),
+        ),
+      );
+
+      // Verify Telemetry Meter
+      expect(find.text('FastCDC CAS Telemetry Meter'), findsOneWidget);
+      expect(find.text('>94% SAVINGS'), findsOneWidget);
+      expect(find.text('Bandwidth Conservation Meter'), findsOneWidget);
+      expect(find.text('BANDWIDTH SAVINGS CALCULATION'), findsOneWidget);
+      expect(find.textContaining('76,800 identical 64KB CAS blocks'), findsWidgets);
+
+      // Verify Metrics Grid
+      expect(find.text('94.2% Bandwidth Saved'), findsOneWidget);
+      expect(find.text('64KB CAS Chunks'), findsOneWidget);
+    });
+
+    testWidgets('Renders CryptographicVaultScreen locked view with biometric auth trigger and zero-knowledge badge', (tester) async {
+      final ds = DriveDataSource.instance;
+      ds.lockVault();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: CryptographicVaultScreen()),
+        ),
+      );
+
+      // Verify Locked Vault view
+      expect(find.text('AES-256 E2EE Cryptographic Vault'), findsOneWidget);
+      expect(find.text('ZERO-KNOWLEDGE BADGE'), findsOneWidget);
+      expect(find.text('AES-256-GCM'), findsWidgets);
+      expect(find.text('Tap Sensor to Authenticate'), findsOneWidget);
+      expect(find.text('Unlock with Biometrics (StrongBox)'), findsOneWidget);
+      expect(find.text('Zero-Knowledge Security Invariant'), findsOneWidget);
+    });
+
+    testWidgets('Unlocking CryptographicVaultScreen reveals decrypted enclave session and documents', (tester) async {
+      final ds = DriveDataSource.instance;
+      ds.unlockVault();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: CryptographicVaultScreen()),
+        ),
+      );
+
+      // Verify Unlocked Enclave view
+      expect(find.text('Hardware Keystore Biometrics Verified'), findsOneWidget);
+      expect(find.text('Lock Vault Enclave'), findsOneWidget);
+      expect(find.textContaining('Encrypted Documents'), findsOneWidget);
+      expect(find.text('Decrypt & View'), findsWidgets);
     });
 
     testWidgets('Renders DocumentViewerScreen with QuantDocumentBridge', (tester) async {

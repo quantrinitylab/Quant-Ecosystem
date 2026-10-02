@@ -546,16 +546,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   }
 
   Widget _buildDeliveryTick(MessageDeliveryStatus status) {
-    switch (status) {
-      case MessageDeliveryStatus.sending:
-        return const Icon(Icons.access_time_rounded, size: 14, color: QuantColors.textMuted);
-      case MessageDeliveryStatus.sent:
-        return const Icon(Icons.check_rounded, size: 14, color: QuantColors.textMuted);
-      case MessageDeliveryStatus.delivered:
-        return const Icon(Icons.done_all_rounded, size: 14, color: QuantColors.textMuted);
-      case MessageDeliveryStatus.read:
-        return const Icon(Icons.done_all_rounded, size: 14, color: QuantColors.sovereignCyan);
-    }
+    return DeliveryTickWidget(status: status, size: 14);
   }
 
   Widget _buildTypingIndicator() {

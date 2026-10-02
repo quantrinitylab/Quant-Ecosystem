@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
-/// 🌐 Core Quant API Network Client
+/// Core Quant API Network Client
 class QuantApiClient {
   final String baseUrl;
   String? _bearerToken;
@@ -33,7 +33,7 @@ class QuantApiClient {
   }
 }
 
-/// ✉️ QuantMail Dedicated API Layer
+/// QuantMail Dedicated API Layer
 class QuantMailApi {
   final QuantApiClient client;
 

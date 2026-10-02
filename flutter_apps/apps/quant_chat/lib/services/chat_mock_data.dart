@@ -1,5 +1,6 @@
 // Sovereign Quant Ecosystem - QuantChat Mock Repository & Initial State
 // Strictly ZERO raw Unicode emojis throughout this file.
+// Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
 import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
@@ -99,7 +100,22 @@ class ChatMockData {
         isTyping: false,
         isPinned: false,
         lastSeenText: 'Last seen yesterday',
-        lastMessageStatus: MessageDeliveryStatus.read,
+        lastMessageStatus: MessageDeliveryStatus.delivered,
+      ),
+      const ChatConversation(
+        id: 'conv-7',
+        contactId: 'usr-dev-7',
+        name: 'Dev 7 (QuantAI & ONNX)',
+        avatarInitials: 'D7',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: 'Local ONNX embedding models loaded in 42ms.',
+        lastMessageTime: 'Wednesday',
+        unreadCount: 0,
+        isOnline: false,
+        isTyping: false,
+        isPinned: false,
+        lastSeenText: 'Offline',
+        lastMessageStatus: MessageDeliveryStatus.sent,
       ),
     ];
   }
@@ -111,7 +127,7 @@ class ChatMockData {
         conversationId: 'conv-1',
         senderId: 'usr-astra',
         senderName: 'CEO Astra',
-        text: 'Initiating Wave 77 Sovereign Mobile deployment for QuantChat standalone.',
+        text: 'Initiating Sovereign Tripartite Swarm sync. All agent nodes report status.',
         timestamp: '12:35',
         isOutgoing: false,
         deliveryStatus: MessageDeliveryStatus.read,
@@ -157,6 +173,40 @@ class ChatMockData {
         deliveryStatus: MessageDeliveryStatus.read,
         type: MessageType.text,
       ),
+      // Ephemeral message actively counting down
+      const ChatMessage(
+        id: 'msg-ephemeral-active',
+        conversationId: 'conv-1',
+        senderId: 'usr-me',
+        senderName: 'You',
+        text: 'Self-destructing ephemeral credentials for Staging Vault cluster access.',
+        timestamp: '12:43',
+        isOutgoing: true,
+        deliveryStatus: MessageDeliveryStatus.delivered,
+        type: MessageType.text,
+        isDisappearing: true,
+        disappearingDurationSeconds: 30,
+        secondsRemaining: 18,
+        isServerDestroyed: false,
+        serverDestructionCode: 410,
+      ),
+      // Expired message demonstrating HTTP 410 Server Destruction
+      const ChatMessage(
+        id: 'msg-ephemeral-destroyed',
+        conversationId: 'conv-1',
+        senderId: 'usr-astra',
+        senderName: 'CEO Astra',
+        text: 'HTTP 410 GONE · Server Destroyed & Purged from Sovereign Mesh',
+        timestamp: '12:41',
+        isOutgoing: false,
+        deliveryStatus: MessageDeliveryStatus.read,
+        type: MessageType.text,
+        isDisappearing: true,
+        disappearingDurationSeconds: 30,
+        secondsRemaining: 0,
+        isServerDestroyed: true,
+        serverDestructionCode: 410,
+      ),
       const ChatMessage(
         id: 'msg-5',
         conversationId: 'conv-1',
@@ -167,6 +217,63 @@ class ChatMockData {
         isOutgoing: false,
         deliveryStatus: MessageDeliveryStatus.read,
         type: MessageType.text,
+      ),
+    ];
+  }
+
+  static List<CallParticipant> getInitialCallParticipants() {
+    return const [
+      CallParticipant(
+        id: 'part-remote-1',
+        name: 'CEO Astra',
+        avatarInitials: 'AS',
+        avatarColor: QuantColors.moltenOrange,
+        isAudioMuted: false,
+        isVideoEnabled: true,
+        isSpeaking: true,
+        isScreenSharing: false,
+        latencyMs: 14,
+        videoResolution: '1080p60',
+        frameRateFps: 60,
+      ),
+      CallParticipant(
+        id: 'part-remote-2',
+        name: 'Node B (OS Lead)',
+        avatarInitials: 'NB',
+        avatarColor: QuantColors.sovereignCyan,
+        isAudioMuted: false,
+        isVideoEnabled: true,
+        isSpeaking: false,
+        isScreenSharing: false,
+        latencyMs: 18,
+        videoResolution: '1080p60',
+        frameRateFps: 60,
+      ),
+      CallParticipant(
+        id: 'part-remote-3',
+        name: 'Node C (Dev-Worker)',
+        avatarInitials: 'NC',
+        avatarColor: QuantColors.obsidianPurple,
+        isAudioMuted: true,
+        isVideoEnabled: true,
+        isSpeaking: false,
+        isScreenSharing: false,
+        latencyMs: 12,
+        videoResolution: '1080p60',
+        frameRateFps: 60,
+      ),
+      CallParticipant(
+        id: 'part-local-me',
+        name: 'You (Local Impeller)',
+        avatarInitials: 'ME',
+        avatarColor: QuantColors.moltenOrange,
+        isAudioMuted: false,
+        isVideoEnabled: true,
+        isSpeaking: false,
+        isScreenSharing: false,
+        latencyMs: 0,
+        videoResolution: '1080p60',
+        frameRateFps: 60,
       ),
     ];
   }

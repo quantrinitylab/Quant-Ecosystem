@@ -1,0 +1,57 @@
+{
+  "name": "QuantGram · Sovereign Creator Media",
+  "short_name": "QuantGram",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign Instagram & TikTok Killer 9:16 Video Platform with Impeller 120Hz Acceleration, 4-Reel Pre-Buffer, and Creator Sovereign Monetization.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "entertainment",
+    "social",
+    "photo",
+    "video"
+  ],
+  "shortcuts": [
+    {
+      "name": "Explore Reels",
+      "short_name": "Reels",
+      "description": "Zero latency 9:16 vertical video feed",
+      "url": "./#reels",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Create Reel",
+      "short_name": "Create",
+      "description": "Creator studio recording",
+      "url": "./#create",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -217,6 +217,8 @@ class GramRepository {
         likesCount: 245,
         isLiked: true,
         isCreatorPinned: true,
+        isVerifiedCreator: false,
+        creatorHearted: true,
         replies: [
           CommentItem(
             id: 'reply-1-1',
@@ -228,6 +230,8 @@ class GramRepository {
             timestampText: '1h',
             likesCount: 89,
             isLiked: false,
+            isVerifiedCreator: true,
+            creatorHearted: true,
           ),
           CommentItem(
             id: 'reply-1-2',

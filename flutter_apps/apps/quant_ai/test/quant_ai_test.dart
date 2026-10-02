@@ -3,6 +3,7 @@
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_ai/main.dart';
@@ -118,6 +119,7 @@ void main() {
       final aura = VoicePersona.aura;
       expect(aura.name, 'Aura');
       expect(aura.pulseSpeed, 1.0);
+      expect(aura.glowColor, QuantColors.cosmicCyan);
 
       final vesper = VoicePersona.vesper;
       expect(vesper.name, 'Vesper');
@@ -132,29 +134,69 @@ void main() {
       expect(zephyr.pulseSpeed, 1.4);
     });
 
-    test('AgentNode supports progress tracking, DAG dependencies and execution logging', () {
-      const node = AgentNode(
-        id: 'agent-sentinel',
-        name: 'Sentinel Agent',
-        role: AgentRole.sentinel,
+    test('AgentNode supports tripartite roles, track assignment, and subagent fleet counts', () {
+      const ceo = AgentNode(
+        id: 'agent-ceo-astra',
+        name: 'CEO Astra',
+        role: AgentRole.ceoAstra,
         status: AgentStatus.running,
-        progress: 0.75,
-        currentStep: 'Running Vitest and flutter_test harnesses.',
-        toolCallsCount: 12,
-        outputLog: ['Pass 1 complete.', 'Pass 2 complete.'],
-        dependencies: ['agent-coder'],
-        icon: Icons.verified_user_rounded,
-        roleColor: QuantColors.emeraldMatrix,
+        progress: 0.96,
+        currentStep: 'Executive Orchestrator & Gatekeeper dispatching Wave 80.',
+        toolCallsCount: 42,
+        outputLog: ['Swarm active.', '100% green gate enforced.'],
+        dependencies: [],
+        icon: Icons.shield_rounded,
+        roleColor: QuantColors.obsidianPurple,
+        assignedTrack: 'Executive Swarm Leadership',
+        subagentsCount: 15,
       );
 
-      expect(node.name, 'Sentinel Agent');
-      expect(node.progress, 0.75);
-      expect(node.toolCallsCount, 12);
-      expect(node.dependencies, ['agent-coder']);
+      expect(ceo.name, 'CEO Astra');
+      expect(ceo.role, AgentRole.ceoAstra);
+      expect(ceo.assignedTrack, 'Executive Swarm Leadership');
+      expect(ceo.subagentsCount, 15);
+      expect(ceo.progress, 0.96);
 
-      final completed = node.copyWith(status: AgentStatus.completed, progress: 1.0);
-      expect(completed.status, AgentStatus.completed);
-      expect(completed.progress, 1.0);
+      const nodeA = AgentNode(
+        id: 'agent-node-a',
+        name: 'Node A: IDE Orchestrator',
+        role: AgentRole.nodeA,
+        status: AgentStatus.running,
+        progress: 0.90,
+        currentStep: 'Track 3: GitHub Sovereign Parity.',
+        toolCallsCount: 31,
+        outputLog: ['Subagents A1-A5 dispatched.'],
+        dependencies: ['agent-ceo-astra'],
+        icon: Icons.laptop_chromebook_rounded,
+        roleColor: QuantColors.cosmicCyan,
+        assignedTrack: 'Track 3 (GitHub Sovereign Parity)',
+        subagentsCount: 5,
+      );
+
+      expect(nodeA.role, AgentRole.nodeA);
+      expect(nodeA.dependencies, ['agent-ceo-astra']);
+      expect(nodeA.subagentsCount, 5);
+
+      final updated = nodeA.copyWith(progress: 1.0, status: AgentStatus.completed);
+      expect(updated.progress, 1.0);
+      expect(updated.status, AgentStatus.completed);
+    });
+
+    test('SyntaxToken and CodeExecutionResult domain models verify AST execution contracts', () {
+      const token = SyntaxToken('class', TokenType.keyword);
+      expect(token.text, 'class');
+      expect(token.type, TokenType.keyword);
+
+      const result = CodeExecutionResult(
+        stdout: '[COMPILER] Build succeeded in 3.4ms',
+        exitCode: 0,
+        durationMs: 3.4,
+        memoryUsageKb: 14500,
+      );
+      expect(result.exitCode, 0);
+      expect(result.durationMs, 3.4);
+      expect(result.memoryUsageKb, 14500);
+      expect(result.stdout, contains('Build succeeded'));
     });
 
     test('QuantAiService initializes and provides graceful fallback', () async {
@@ -225,7 +267,7 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
 
-    testWidgets('DualCanvasScreen renders document tabs, version slider, and apply diff button', (tester) async {
+    testWidgets('DualCanvasScreen renders Split-Screen Dual Canvas: left AI chat and right code editor', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -233,19 +275,34 @@ void main() {
         ),
       );
 
-      // Document Switcher
+      // Document Switcher Tabs
       expect(find.text('Sovereign Swarm Architecture Plan'), findsOneWidget);
       expect(find.text('Impeller Fast Blur Shader'), findsOneWidget);
 
-      // Version control bar
-      expect(find.byType(Slider), findsOneWidget);
-      expect(find.text('Apply Diff'), findsOneWidget);
+      // Left Pane: AI Conversation
+      expect(find.text('AI CONVERSATION'), findsOneWidget);
+      expect(find.text('<18ms TTFT'), findsOneWidget);
+      expect(find.text('Add unit test'), findsOneWidget);
+      expect(find.text('Optimize memory cache'), findsOneWidget);
 
-      // Artifact view actions
-      expect(find.byIcon(Icons.copy_rounded), findsWidgets);
+      // Right Pane: Live Executable Code Editor & Controls
+      expect(find.text('Run Code'), findsOneWidget);
+      expect(find.text('Apply Diff'), findsOneWidget);
+      expect(find.byType(Slider), findsOneWidget);
+
+      // Live Execution Console Tray
+      expect(find.text('LIVE EXECUTION CONSOLE'), findsOneWidget);
+      expect(find.text('EXIT CODE 0'), findsOneWidget);
+
+      // Trigger Run Code execution
+      await tester.tap(find.text('Run Code'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+
+      expect(find.text('LIVE EXECUTION CONSOLE'), findsOneWidget);
     });
 
-    testWidgets('VoiceOrbScreen renders 3D Voice Orb, telemetry, persona chips and transcript ticker', (tester) async {
+    testWidgets('VoiceOrbScreen renders 3D Voice Orb with <120ms VAD and voice personas', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -269,11 +326,19 @@ void main() {
       expect(find.text('Tap to Interrupt'), findsOneWidget);
       expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
 
+      // Tap to interrupt to cycle VAD state
+      await tester.tap(find.text('Tap to Interrupt'));
+      await tester.pump();
+
+      // Switch to Vesper persona
+      await tester.tap(find.text('Vesper').first);
+      await tester.pump();
+
       // Advance animation frame cleanly
       await tester.pump(const Duration(milliseconds: 300));
     });
 
-    testWidgets('AgentSwarmScreen renders DAG execution pipeline and agent cards', (tester) async {
+    testWidgets('AgentSwarmScreen renders Tripartite Node Tree and Live Chat Ledger', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -283,17 +348,23 @@ void main() {
 
       // Header telemetry
       expect(find.text('AUTONOMOUS SWARM DAG'), findsOneWidget);
-      expect(find.text('Spawn Agent'), findsOneWidget);
+      expect(find.text('Dispatch Wave'), findsOneWidget);
 
-      // DAG Pipeline
-      expect(find.text('EXECUTION DAG TOPOLOGY'), findsOneWidget);
-      expect(find.text('Researcher Agent'), findsWidgets);
-      expect(find.text('Coder Agent'), findsWidgets);
-      expect(find.text('Sentinel Agent'), findsWidgets);
-      expect(find.text('Deployer Agent'), findsWidgets);
+      // Interactive Node Tree
+      expect(find.text('INTERACTIVE TRIPARTITE SWARM DAG'), findsOneWidget);
+      expect(find.text('CEO Astra'), findsWidgets);
+      expect(find.text('Node A: IDE Orchestrator'), findsWidgets);
+      expect(find.text('Node B: IDE Peer Agent'), findsWidgets);
+      expect(find.text('Node C: CLI Dev-Worker'), findsWidgets);
 
-      // Console
-      expect(find.byIcon(Icons.terminal_rounded), findsOneWidget);
+      // Inter-Agent Live Chat Ledger
+      expect(find.text('TRIPARTITE LIVE INTER-AGENT DISPATCH LEDGER'), findsOneWidget);
+
+      // Trigger Dispatch Wave
+      await tester.tap(find.text('Dispatch Wave'));
+      await tester.pump();
+
+      expect(find.text('Wave 80 Dispatched'), findsWidgets);
     });
 
     testWidgets('HistoryScreen renders search header, filters and thread entries', (tester) async {
@@ -312,6 +383,60 @@ void main() {
       // Categories and threads
       expect(find.text('TODAY'), findsOneWidget);
       expect(find.text('Sub-18ms TTFT & Dual Canvas Diff'), findsOneWidget);
+    });
+  });
+
+  group('QuantAI Strict Architecture Invariants Audit', () {
+    test('Strict Invariant: 100% ZERO raw Unicode emojis across lib/ and test/', () {
+      final libDir = Directory('lib');
+      final testDir = Directory('test');
+
+      final emojiRegex = RegExp(
+        r'[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]',
+        unicode: true,
+      );
+
+      final dartFiles = <File>[];
+      if (libDir.existsSync()) {
+        dartFiles.addAll(
+          libDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart')),
+        );
+      }
+      if (testDir.existsSync()) {
+        dartFiles.addAll(
+          testDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart')),
+        );
+      }
+
+      for (final file in dartFiles) {
+        final content = file.readAsStringSync();
+        final matches = emojiRegex.allMatches(content);
+        expect(
+          matches.isEmpty,
+          isTrue,
+          reason: 'Raw Unicode emoji detected in ${file.path}: ${matches.map((m) => m.group(0)).toList()}',
+        );
+      }
+    });
+
+    test('Strict Invariant: 100% ZERO Skia clipPath invocations across lib/', () {
+      final libDir = Directory('lib');
+      if (!libDir.existsSync()) return;
+
+      final dartFiles = libDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'));
+
+      for (final file in dartFiles) {
+        final content = file.readAsStringSync();
+        final forbiddenCall = '.${'clipPath'}(';
+        expect(
+          content.contains(forbiddenCall),
+          isFalse,
+          reason: 'Skia clipPath call detected in ${file.path}. Use hardware-accelerated drawRoundRect or borderRadius instead.',
+        );
+      }
     });
   });
 }

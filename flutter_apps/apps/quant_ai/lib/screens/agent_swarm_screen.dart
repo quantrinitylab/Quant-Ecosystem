@@ -1,6 +1,6 @@
 // Sovereign Quant Ecosystem - QuantAI Agent Swarm Screen
-// Autonomous agent visual flow builder with live running agent cards
-// (Researcher, Coder, Sentinel, Deployer) and task execution DAG.
+// Autonomous Agent Swarm DAG visualizer: Interactive node tree showing CEO Astra,
+// Node A, Node B, Node C task dispatch states and 15-subagent fleet execution ledger.
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
@@ -18,8 +18,35 @@ class AgentSwarmScreen extends StatefulWidget {
 
 class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
   late List<AgentNode> _agents;
-  String _selectedAgentId = 'agent-coder';
+  String _selectedAgentId = 'agent-ceo-astra';
   bool _isSwarmPaused = false;
+
+  final List<Map<String, String>> _interAgentLedger = [
+    {
+      'time': '17:45 IST',
+      'node': 'Node C (CLI Dev-Worker)',
+      'status': 'Wave 80 Dispatched',
+      'message': 'WAVE 80 MULTIPLATFORM OMNI-PRESENCE & DEEP SCREENS SPRINT LAUNCHED: 5 Subagents fleet mobilized for quant_chat, quant_gram, quant_calendar/drive, quant_ai, and Ecosystem Sentinel.',
+    },
+    {
+      'time': '17:42 IST',
+      'node': 'CEO Astra',
+      'status': 'Orchestration Active',
+      'message': 'Executive Orchestrator directive: Enforce 100% zero raw Unicode emojis and zero Skia clipPath across all Flutter runner targets.',
+    },
+    {
+      'time': '17:40 IST',
+      'node': 'Node A (IDE Orchestrator)',
+      'status': 'Track 3 In Sync',
+      'message': 'Track 3 GitHub Parity: Smart HTTP, real git tree, issues, PR 3-way merge streaming verified.',
+    },
+    {
+      'time': '17:38 IST',
+      'node': 'Node B (IDE Peer Agent)',
+      'status': 'Track 2 In Sync',
+      'message': 'Track 2 ChatGPT Parity: Split-Screen Dual Canvas & 3D Voice Orb <120ms VAD buffers synchronized.',
+    },
+  ];
 
   @override
   void initState() {
@@ -32,6 +59,27 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
         orElse: () => _agents.first,
       );
 
+  void _dispatchSprintWave() {
+    setState(() {
+      _interAgentLedger.insert(0, {
+        'time': 'Just now',
+        'node': 'CEO Astra',
+        'status': 'Wave 80 Dispatched',
+        'message': 'CEO Astra dispatched parallel execution payload across Node A, Node B, and Node C. Gatekeeper sentinel verified 0 clipPath invariants.',
+      });
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        content: Text(
+          'Wave 80 Dispatched: 15-Subagent Fleet synchronized across Tripartite Nodes.',
+          style: TextStyle(color: QuantColors.emeraldMatrix),
+        ),
+      ),
+    );
+  }
+
   void _spawnNewAgent() {
     final newId = 'agent-sub-${_agents.length + 1}';
     final newAgent = AgentNode(
@@ -39,16 +87,18 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
       name: 'Benchmark Optimizer',
       role: AgentRole.sentinel,
       status: AgentStatus.running,
-      progress: 0.15,
+      progress: 0.25,
       currentStep: 'Benchmarking 120Hz Impeller raster cache tile allocation.',
-      toolCallsCount: 3,
+      toolCallsCount: 4,
       outputLog: [
         'Initialized on-device latency benchmark harness.',
         'Spanning telemetry traces across frame budget (8.33ms).',
       ],
-      dependencies: ['agent-coder'],
+      dependencies: ['agent-sentinel'],
       icon: Icons.speed_rounded,
       roleColor: QuantColors.sunsetGold,
+      assignedTrack: 'Quality & Benchmarks',
+      subagentsCount: 0,
     );
 
     setState(() {
@@ -77,13 +127,13 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
             // Top Swarm Fleet Telemetry Bar
             _buildSwarmTelemetryBar(),
 
-            // Swarm DAG Visual Flow Pipeline
-            _buildDagPipelineGraph(),
+            // Interactive Node Tree DAG Visualizer (CEO Astra -> Node A, B, C)
+            _buildInteractiveDagNodeTree(),
 
-            // Live Agent Fleet Cards Carousel
+            // Swarm Fleet Cards Carousel
             _buildAgentCardsCarousel(),
 
-            // Real-Time Output Console Log
+            // Real-Time Output Console Log & Tripartite Ledger
             Expanded(
               child: _buildAgentConsoleLog(),
             ),
@@ -140,7 +190,7 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                     ),
                   ),
                   Text(
-                    '${_agents.length} Active Nodes | 15 Fleet Capacity',
+                    '${_agents.length} Nodes Active | 15 Subagents Fleet Capacity',
                     style: const TextStyle(
                       fontSize: 10,
                       color: QuantColors.textMuted,
@@ -180,15 +230,15 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   minimumSize: Size.zero,
                 ),
-                icon: const Icon(Icons.add_rounded, size: 15),
+                icon: const Icon(Icons.rocket_launch_rounded, size: 14),
                 label: const Text(
-                  'Spawn Agent',
+                  'Dispatch Wave',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                onPressed: _spawnNewAgent,
+                onPressed: _dispatchSprintWave,
               ),
             ],
           ),
@@ -197,7 +247,25 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
     );
   }
 
-  Widget _buildDagPipelineGraph() {
+  /// Interactive Node Tree showing CEO Astra, Node A, Node B, Node C task dispatch states
+  Widget _buildInteractiveDagNodeTree() {
+    final ceoAstra = _agents.firstWhere(
+      (a) => a.role == AgentRole.ceoAstra,
+      orElse: () => _agents.first,
+    );
+    final nodeA = _agents.firstWhere(
+      (a) => a.role == AgentRole.nodeA,
+      orElse: () => _agents[1],
+    );
+    final nodeB = _agents.firstWhere(
+      (a) => a.role == AgentRole.nodeB,
+      orElse: () => _agents[2],
+    );
+    final nodeC = _agents.firstWhere(
+      (a) => a.role == AgentRole.nodeC,
+      orElse: () => _agents[3],
+    );
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: const BoxDecoration(
@@ -207,89 +275,80 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Text(
-            'EXECUTION DAG TOPOLOGY',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: QuantColors.textMuted,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'INTERACTIVE TRIPARTITE SWARM DAG',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: QuantColors.textMuted,
+                ),
+              ),
+              InkWell(
+                onTap: _spawnNewAgent,
+                child: const Row(
+                  children: [
+                    Icon(Icons.add_circle_outline_rounded,
+                        size: 13, color: QuantColors.cosmicCyan),
+                    SizedBox(width: 4),
+                    Text(
+                      'Spawn Agent',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: QuantColors.cosmicCyan,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Master Node: CEO Astra
+          _buildDagNodeWidget(ceoAstra, isMasterNode: true),
+
+          // Downward Dispatch Connecting Lines
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 1.5,
+                  height: 14,
+                  color: QuantColors.hairlineBorder,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
+
+          // Horizontal Connecting Crossbar
+          Container(
+            height: 1.5,
+            width: 260,
+            color: QuantColors.hairlineBorder,
+          ),
+          const SizedBox(height: 6),
+
+          // Tripartite Branches: Node A, Node B, Node C
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: List.generate(_agents.length, (index) {
-                final agent = _agents[index];
-                final isSelected = agent.id == _selectedAgentId;
-                final isLast = index == _agents.length - 1;
-
-                return Row(
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () {
-                        setState(() {
-                          _selectedAgentId = agent.id;
-                        });
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? agent.roleColor.withOpacity(0.2)
-                              : QuantColors.darkSlateCard,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? agent.roleColor
-                                : QuantColors.hairlineBorder,
-                            width: isSelected ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              agent.icon,
-                              size: 14,
-                              color: agent.roleColor,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              agent.name,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: isSelected
-                                    ? QuantColors.textPrimary
-                                    : QuantColors.textSecondary,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            _buildStatusPill(agent.status),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (!isLast) ...[
-                      const SizedBox(width: 6),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: QuantColors.textMuted,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                  ],
-                );
-              }),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildDagNodeWidget(nodeA),
+                const SizedBox(width: 12),
+                _buildDagNodeWidget(nodeB),
+                const SizedBox(width: 12),
+                _buildDagNodeWidget(nodeC),
+              ],
             ),
           ),
         ],
@@ -297,32 +356,118 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
     );
   }
 
+  Widget _buildDagNodeWidget(AgentNode agent, {bool isMasterNode = false}) {
+    final isSelected = agent.id == _selectedAgentId;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () {
+        setState(() {
+          _selectedAgentId = agent.id;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? agent.roleColor.withOpacity(0.2)
+              : QuantColors.darkSlateCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? agent.roleColor
+                : isMasterNode
+                    ? QuantColors.obsidianPurple.withOpacity(0.6)
+                    : QuantColors.hairlineBorder,
+            width: isSelected ? 1.5 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: agent.roleColor.withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: agent.roleColor.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                agent.icon,
+                size: 13,
+                color: agent.roleColor,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  agent.name,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    color: isSelected
+                        ? QuantColors.textPrimary
+                        : QuantColors.textSecondary,
+                  ),
+                ),
+                if (agent.assignedTrack != null)
+                  Text(
+                    agent.assignedTrack!,
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: agent.roleColor,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            _buildStatusPill(agent.status),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildAgentCardsCarousel() {
     return Container(
-      height: 160,
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      height: 145,
+      padding: const EdgeInsets.symmetric(vertical: 10),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _agents.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
           final agent = _agents[index];
           final isSelected = agent.id == _selectedAgentId;
 
           return InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
             onTap: () {
               setState(() {
                 _selectedAgentId = agent.id;
               });
             },
             child: Container(
-              width: 250,
-              padding: const EdgeInsets.all(12),
+              width: 240,
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: QuantColors.darkSlateCard,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isSelected
                       ? agent.roleColor
@@ -333,7 +478,7 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                     ? [
                         BoxShadow(
                           color: agent.roleColor.withOpacity(0.2),
-                          blurRadius: 12,
+                          blurRadius: 10,
                           offset: const Offset(0, 2),
                         ),
                       ]
@@ -349,23 +494,23 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                       Row(
                         children: [
                           Container(
-                            width: 28,
-                            height: 28,
+                            width: 24,
+                            height: 24,
                             decoration: BoxDecoration(
                               color: agent.roleColor.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: Icon(
                               agent.icon,
-                              size: 16,
+                              size: 14,
                               color: agent.roleColor,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             agent.name,
                             style: const TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: FontWeight.w700,
                               color: QuantColors.textPrimary,
                             ),
@@ -375,7 +520,7 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                       Text(
                         '${(agent.progress * 100).toInt()}%',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                           color: agent.roleColor,
                           fontFamily: 'monospace',
@@ -388,9 +533,9 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 11,
+                      fontSize: 10,
                       color: QuantColors.textSecondary,
-                      height: 1.35,
+                      height: 1.3,
                     ),
                   ),
                   Column(
@@ -400,36 +545,24 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                         borderRadius: BorderRadius.circular(3),
                         child: LinearProgressIndicator(
                           value: agent.progress,
-                          minHeight: 4,
                           backgroundColor: QuantColors.voidObsidian,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(agent.roleColor),
+                          color: agent.roleColor,
+                          minHeight: 4,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Tools: ${agent.toolCallsCount}',
+                            '${agent.toolCallsCount} tools called',
                             style: const TextStyle(
-                              fontSize: 10,
+                              fontSize: 9,
                               color: QuantColors.textMuted,
                               fontFamily: 'monospace',
                             ),
                           ),
-                          Text(
-                            agent.status == AgentStatus.completed
-                                ? 'Pass Verified'
-                                : 'Executing...',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: agent.status == AgentStatus.completed
-                                  ? QuantColors.emeraldMatrix
-                                  : QuantColors.textSecondary,
-                            ),
-                          ),
+                          _buildStatusPill(agent.status),
                         ],
                       ),
                     ],
@@ -447,25 +580,17 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
     final agent = _selectedAgent;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0C12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: QuantColors.hairlineBorder, width: 1),
-      ),
+      color: const Color(0xFF0C0E14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Console Header
+          // Console header
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: const BoxDecoration(
               color: QuantColors.darkSlateCard,
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(15),
-                topRight: Radius.circular(15),
-              ),
               border: Border(
+                top: BorderSide(color: QuantColors.hairlineBorder, width: 1),
                 bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1),
               ),
             ),
@@ -474,20 +599,19 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.terminal_rounded,
-                      size: 15,
-                      color: QuantColors.cosmicCyan,
+                      size: 14,
+                      color: agent.roleColor,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'AGENT CONSOLE // ${agent.name.toUpperCase()}',
+                      '${agent.name.toUpperCase()} DISPATCH TRACE',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6,
+                        letterSpacing: 0.5,
                         color: QuantColors.textPrimary,
-                        fontFamily: 'monospace',
                       ),
                     ),
                   ],
@@ -500,11 +624,11 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    '${agent.outputLog.length} events logged',
+                    '${agent.outputLog.length} LOGS',
                     style: const TextStyle(
-                      fontSize: 10,
-                      color: QuantColors.textMuted,
+                      fontSize: 9,
                       fontFamily: 'monospace',
+                      color: QuantColors.textMuted,
                     ),
                   ),
                 ),
@@ -512,41 +636,112 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
             ),
           ),
 
-          // Log Content List
+          // Inter-Agent Live Chat & Output Logs
           Expanded(
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.all(12),
-              itemCount: agent.outputLog.length,
-              itemBuilder: (context, index) {
-                final logLine = agent.outputLog[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
+              children: [
+                // Live Chat Ledger Snippet
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: QuantColors.elevatedCard,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: QuantColors.hairlineBorder),
+                  ),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '[${index + 1}] ',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: QuantColors.textMuted,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          logLine,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontFamily: 'monospace',
-                            color: Color(0xFFE2E8F0),
-                            height: 1.35,
+                      const Row(
+                        children: [
+                          Icon(Icons.forum_rounded,
+                              size: 12, color: QuantColors.cosmicCyan),
+                          SizedBox(width: 6),
+                          Text(
+                            'TRIPARTITE LIVE INTER-AGENT DISPATCH LEDGER',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: QuantColors.cosmicCyan,
+                              letterSpacing: 0.4,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
+                      const SizedBox(height: 8),
+                      ..._interAgentLedger.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '[${entry['time']}] ',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontFamily: 'monospace',
+                                  color: QuantColors.textMuted,
+                                ),
+                              ),
+                              Text(
+                                '${entry['node']}: ',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: QuantColors.textSecondary,
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  entry['message']!,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: QuantColors.textPrimary,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
                     ],
                   ),
-                );
-              },
+                ),
+
+                // Selected Agent Terminal Logs
+                ...agent.outputLog.map((log) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '> ',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            color: agent.roleColor,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            log,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: Color(0xFFE2E8F0),
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -559,22 +754,22 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
     String label;
 
     switch (status) {
-      case AgentStatus.completed:
-        color = QuantColors.emeraldMatrix;
-        label = 'DONE';
-        break;
       case AgentStatus.running:
+        color = QuantColors.emeraldMatrix;
+        label = 'RUNNING';
+        break;
+      case AgentStatus.completed:
         color = QuantColors.cosmicCyan;
-        label = 'RUN';
+        label = 'COMPLETED';
         break;
       case AgentStatus.error:
         color = QuantColors.statusError;
-        label = 'ERR';
+        label = 'ERROR';
         break;
       case AgentStatus.idle:
       default:
         color = QuantColors.textMuted;
-        label = 'WAIT';
+        label = 'IDLE';
         break;
     }
 
@@ -588,7 +783,7 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 9,
+          fontSize: 8,
           fontWeight: FontWeight.w800,
           color: color,
           fontFamily: 'monospace',

@@ -10,6 +10,12 @@ class DriveDataSource {
   double duplicateReclaimableGb = 4.8;
   double bandwidthSavedPercent = 94.2;
   int duplicateChunkCount = 76800;
+  double rawIngestedGb = 82.8;
+  double storedCasGb = 4.8;
+
+  double get calculatedBandwidthSavedPercent =>
+      ((1.0 - (storedCasGb / rawIngestedGb)) * 100.0);
+
 
   bool isVaultUnlocked = false;
 
@@ -178,6 +184,7 @@ class DriveDataSource {
   void reclaimStorage() {
     usedStorageGb = (usedStorageGb - duplicateReclaimableGb).clamp(0.0, totalStorageGb);
     duplicateReclaimableGb = 0.0;
+    storedCasGb = 1.1;
     bandwidthSavedPercent = 98.7;
     duplicateChunkCount = 0;
   }

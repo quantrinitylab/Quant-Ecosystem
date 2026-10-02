@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_ui/quant_ui.dart';
@@ -210,4 +211,78 @@ void main() {
       expect(pressed, isTrue);
     });
   });
+
+  group('Quant Sovereign Invariant Gates', () {
+    test('Invariant: ZERO raw Unicode emojis across quant_ui codebase', () {
+      final emojiRegex = RegExp(
+        r'[\u{1F000}-\u{1FAFF}]|[\u{2300}-\u{23FF}]|[\u{2600}-\u{27BF}]|[\u{2B50}-\u{2B55}]',
+        unicode: true,
+      );
+
+      final dir = Directory('lib').existsSync()
+          ? Directory('lib')
+          : (Directory('flutter_apps/packages/quant_ui/lib').existsSync()
+              ? Directory('flutter_apps/packages/quant_ui/lib')
+              : Directory('c:/Users/Pc/Quant-Ecosystem/flutter_apps/packages/quant_ui/lib'));
+
+      if (!dir.existsSync()) return;
+
+      final dartFiles = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+
+      final violations = <String>[];
+
+      for (final file in dartFiles) {
+        final lines = file.readAsLinesSync();
+        for (int i = 0; i < lines.length; i++) {
+          final line = lines[i];
+          final matches = emojiRegex.allMatches(line);
+          for (final match in matches) {
+            final char = match.group(0)!;
+            if (char.runes.first == 0x2318) continue; // Allow Mac ⌘
+            violations.add('${file.path}:${i + 1} -> "$char" in $line');
+          }
+        }
+      }
+
+      expect(violations, isEmpty, reason: 'Zero raw Unicode emojis allowed');
+    });
+
+    test('Invariant: ZERO Skia clipPath method invocations across quant_ui codebase', () {
+      final clipPathCallRegex = RegExp(r'(\.clipPath\s*\(|canvas\.clipPath\s*\()');
+
+      final dir = Directory('lib').existsSync()
+          ? Directory('lib')
+          : (Directory('flutter_apps/packages/quant_ui/lib').existsSync()
+              ? Directory('flutter_apps/packages/quant_ui/lib')
+              : Directory('c:/Users/Pc/Quant-Ecosystem/flutter_apps/packages/quant_ui/lib'));
+
+      if (!dir.existsSync()) return;
+
+      final dartFiles = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'))
+          .toList();
+
+      final violations = <String>[];
+
+      for (final file in dartFiles) {
+        final lines = file.readAsLinesSync();
+        for (int i = 0; i < lines.length; i++) {
+          final line = lines[i];
+          if (line.trim().startsWith('//') || line.trim().startsWith('*')) continue;
+          if (clipPathCallRegex.hasMatch(line)) {
+            violations.add('${file.path}:${i + 1} -> ${line.trim()}');
+          }
+        }
+      }
+
+      expect(violations, isEmpty, reason: 'Zero Skia clipPath calls allowed. Pure Impeller.');
+    });
+  });
 }
+

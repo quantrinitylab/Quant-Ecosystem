@@ -98,6 +98,101 @@ enum SharePermission {
   }
 }
 
+/// Represents an immutable sovereign CAS snapshot of a file.
+class FileVersion {
+  final String versionId;
+  final int versionNumber;
+  final DateTime timestamp;
+  final int sizeBytes;
+  final String sha256Cas;
+  final String author;
+  final String changeSummary;
+  final bool isCurrent;
+
+  const FileVersion({
+    required this.versionId,
+    required this.versionNumber,
+    required this.timestamp,
+    required this.sizeBytes,
+    required this.sha256Cas,
+    required this.author,
+    required this.changeSummary,
+    this.isCurrent = false,
+  });
+
+  String get formattedSize {
+    if (sizeBytes < 1024) return '$sizeBytes B';
+    if (sizeBytes < 1024 * 1024) {
+      return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (sizeBytes < 1024 * 1024 * 1024) {
+      return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
+    return '${(sizeBytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  String get relativeTime {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    }
+    if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    }
+    return '${difference.inDays}d ago';
+  }
+
+  FileVersion copyWith({
+    String? versionId,
+    int? versionNumber,
+    DateTime? timestamp,
+    int? sizeBytes,
+    String? sha256Cas,
+    String? author,
+    String? changeSummary,
+    bool? isCurrent,
+  }) {
+    return FileVersion(
+      versionId: versionId ?? this.versionId,
+      versionNumber: versionNumber ?? this.versionNumber,
+      timestamp: timestamp ?? this.timestamp,
+      sizeBytes: sizeBytes ?? this.sizeBytes,
+      sha256Cas: sha256Cas ?? this.sha256Cas,
+      author: author ?? this.author,
+      changeSummary: changeSummary ?? this.changeSummary,
+      isCurrent: isCurrent ?? this.isCurrent,
+    );
+  }
+}
+
+/// Telemetry metrics for FastCDC 64KB Gear Table CAS chunker.
+class GearTableTelemetry {
+  final double rawBytesGb;
+  final double deduplicatedBytesGb;
+  final double bandwidthSavedPercent;
+  final int chunkCount;
+  final int gearTableSize;
+  final int nominalChunkSizeKb;
+  final int minChunkSizeKb;
+  final int maxChunkSizeKb;
+  final double dedupRatio;
+  final bool gearTableVerified;
+
+  const GearTableTelemetry({
+    required this.rawBytesGb,
+    required this.deduplicatedBytesGb,
+    required this.bandwidthSavedPercent,
+    required this.chunkCount,
+    this.gearTableSize = 256,
+    this.nominalChunkSizeKb = 64,
+    this.minChunkSizeKb = 16,
+    this.maxChunkSizeKb = 128,
+    required this.dedupRatio,
+    this.gearTableVerified = true,
+  });
+}
+
 /// Represents a sovereign file stored or chunked in QuantDrive.
 class DriveItem {
   final String id;
@@ -115,6 +210,7 @@ class DriveItem {
   final int dedupSavingsPercent;
   final int chunkCount;
   final String path;
+  final List<FileVersion> versions;
 
   const DriveItem({
     required this.id,
@@ -132,6 +228,7 @@ class DriveItem {
     this.dedupSavingsPercent = 0,
     this.chunkCount = 1,
     this.path = '/',
+    this.versions = const [],
   });
 
   String get formattedSize {
@@ -173,6 +270,7 @@ class DriveItem {
     int? dedupSavingsPercent,
     int? chunkCount,
     String? path,
+    List<FileVersion>? versions,
   }) {
     return DriveItem(
       id: id ?? this.id,
@@ -190,6 +288,7 @@ class DriveItem {
       dedupSavingsPercent: dedupSavingsPercent ?? this.dedupSavingsPercent,
       chunkCount: chunkCount ?? this.chunkCount,
       path: path ?? this.path,
+      versions: versions ?? this.versions,
     );
   }
 }

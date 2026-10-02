@@ -313,6 +313,10 @@ class VoicePersona {
 
 /// Autonomous Swarm Agent Roles
 enum AgentRole {
+  ceoAstra,
+  nodeA,
+  nodeB,
+  nodeC,
   researcher,
   coder,
   sentinel,
@@ -340,6 +344,8 @@ class AgentNode {
   final List<String> dependencies;
   final IconData icon;
   final Color roleColor;
+  final String? assignedTrack;
+  final int subagentsCount;
 
   const AgentNode({
     required this.id,
@@ -353,6 +359,8 @@ class AgentNode {
     required this.dependencies,
     required this.icon,
     required this.roleColor,
+    this.assignedTrack,
+    this.subagentsCount = 0,
   });
 
   AgentNode copyWith({
@@ -367,6 +375,8 @@ class AgentNode {
     List<String>? dependencies,
     IconData? icon,
     Color? roleColor,
+    String? assignedTrack,
+    int? subagentsCount,
   }) {
     return AgentNode(
       id: id ?? this.id,
@@ -380,8 +390,45 @@ class AgentNode {
       dependencies: dependencies ?? this.dependencies,
       icon: icon ?? this.icon,
       roleColor: roleColor ?? this.roleColor,
+      assignedTrack: assignedTrack ?? this.assignedTrack,
+      subagentsCount: subagentsCount ?? this.subagentsCount,
     );
   }
+}
+
+/// Syntax Highlighting Token Type for Dual Canvas
+enum TokenType {
+  keyword,
+  type,
+  string,
+  comment,
+  number,
+  punctuation,
+  identifier,
+  whitespace,
+}
+
+/// Tokenized Segment for Syntax Highlighting
+class SyntaxToken {
+  final String text;
+  final TokenType type;
+
+  const SyntaxToken(this.text, this.type);
+}
+
+/// Result of Live Executable Code in Dual Canvas
+class CodeExecutionResult {
+  final String stdout;
+  final int exitCode;
+  final double durationMs;
+  final int memoryUsageKb;
+
+  const CodeExecutionResult({
+    required this.stdout,
+    required this.exitCode,
+    required this.durationMs,
+    required this.memoryUsageKb,
+  });
 }
 
 /// Persistent Chat Thread Record in History

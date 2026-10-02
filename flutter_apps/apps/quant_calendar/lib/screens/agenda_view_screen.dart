@@ -3,11 +3,11 @@ import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/calendar_models.dart';
 
-/// Agenda View Screen - 7-Day Schedule Timeline
+/// Agenda View Screen - 7-Day Schedule Timeline with Multi-Day Event Series
 ///
 /// Features dual-timezone badges (IST UTC+5:30 / PST UTC-8:00),
-/// CalDAV sync status pill, 7-day horizontal day selector strip,
-/// and interactive Impeller-accelerated event cards.
+/// CalDAV RFC 5545 sync indicator with account parity counter,
+/// 7-day horizontal day selector strip, and multi-day event series visual trackers.
 /// Strictly ZERO raw Unicode emojis and ZERO Skia clipPath calls.
 class AgendaViewScreen extends StatefulWidget {
   final VoidCallback? onOpenQuantMeet;
@@ -25,7 +25,7 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
   late List<CalendarEvent> _events;
   int _selectedDayIndex = 0; // 0 = today, 1 = today + 1, etc.
   bool _isCalDavSyncing = false;
-  String _activeFilter = 'all'; // all, meetings, focus, audit
+  String _activeFilter = 'all'; // all, meetings, focus, series, audit
 
   @override
   void initState() {
@@ -87,7 +87,7 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
                 ),
                 const SizedBox(height: 20),
 
-                // Title & Security Tag
+                // Title & Multi-Day / Security Tags
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -99,15 +99,69 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
                         ),
                       ),
                     ),
-                    if (event.isE2EE)
+                    if (event.isMultiDaySeries) ...[
+                      const SizedBox(width: 8),
+                      const QuantBadge(
+                        label: 'MULTI-DAY SERIES',
+                        variant: QuantBadgeVariant.amber,
+                        leadingIcon: Icons.date_range_rounded,
+                      ),
+                    ] else if (event.isE2EE) ...[
+                      const SizedBox(width: 8),
                       const QuantBadge(
                         label: 'E2EE RATCHET',
                         variant: QuantBadgeVariant.success,
                         leadingIcon: Icons.lock_rounded,
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 12),
+
+                // Multi-Day Series Progress Bar
+                if (event.isMultiDaySeries) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: QuantColors.voidObsidian,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFEC4899).withOpacity(0.4)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              event.seriesLabel,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFEC4899),
+                              ),
+                            ),
+                            Text(
+                              'Day ${event.seriesDayIndex} of ${event.seriesTotalDays}',
+                              style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: LinearProgressIndicator(
+                            value: event.seriesDayIndex / event.seriesTotalDays,
+                            backgroundColor: QuantColors.darkSlateSurface,
+                            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFEC4899)),
+                            minHeight: 6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // Dual Timezone Pill
                 Container(
@@ -313,12 +367,20 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredEvents = _events.where((e) {
+      if (_activeFilter == 'meetings') return e.isQuantMeet;
+      if (_activeFilter == 'series') return e.isMultiDaySeries;
+      if (_activeFilter == 'focus') return e.tags.contains('Graphics') || e.tags.contains('Impeller');
+      if (_activeFilter == 'audit') return e.tags.contains('Security') || e.tags.contains('Audit');
+      return true;
+    }).toList();
+
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       body: SafeArea(
         child: Column(
           children: [
-            // CalDAV Sync Status Header Pill & Filter Controls
+            // CalDAV Sync Status Header Pill & Telemetry
             _buildSyncBar(),
 
             // 7-Day Timeline Selector Strip
@@ -333,13 +395,13 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
 
             // 7-Day Event Timeline Feed
             Expanded(
-              child: _events.isEmpty
+              child: filteredEvents.isEmpty
                   ? _buildEmptyState()
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      itemCount: _events.length,
+                      itemCount: filteredEvents.length,
                       itemBuilder: (context, index) {
-                        final event = _events[index];
+                        final event = filteredEvents[index];
                         return _buildEventCard(event);
                       },
                     ),
@@ -533,6 +595,7 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
   Widget _buildFilterPills() {
     final filters = [
       {'id': 'all', 'label': 'All Events'},
+      {'id': 'series', 'label': 'Multi-Day Series'},
       {'id': 'meetings', 'label': 'QuantMeet'},
       {'id': 'focus', 'label': 'Deep Work'},
       {'id': 'audit', 'label': 'Audits & QA'},
@@ -585,12 +648,12 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
         onTap: () => _showEventDetailSheet(event),
         borderRadius: 16,
         padding: const EdgeInsets.all(16),
-        borderColor: QuantColors.hairlineBorder,
+        borderColor: event.isMultiDaySeries ? accentColor.withOpacity(0.5) : QuantColors.hairlineBorder,
         backgroundColor: QuantColors.darkSlateCard,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Row: Dual Timezone Pill & Security Badge
+            // Top Row: Dual Timezone Pill & Multi-Day / QuantMeet Badge
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -623,7 +686,13 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                if (event.isQuantMeet)
+                if (event.isMultiDaySeries)
+                  QuantBadge(
+                    label: 'DAY ${event.seriesDayIndex}/${event.seriesTotalDays}',
+                    variant: QuantBadgeVariant.amber,
+                    leadingIcon: Icons.date_range_rounded,
+                  )
+                else if (event.isQuantMeet)
                   const QuantBadge(
                     label: 'QUANTMEET',
                     variant: QuantBadgeVariant.amber,
@@ -676,13 +745,36 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
             ),
             const SizedBox(height: 12),
 
+            // Multi-Day Series Timeline Indicator Bar
+            if (event.isMultiDaySeries) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 14, right: 4, bottom: 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.repeat_rounded, size: 14, color: Color(0xFFEC4899)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        event.seriesLabel,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEC4899),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             // Footer: Location & Tags & Join Button
             Padding(
               padding: const EdgeInsets.only(left: 14),
               child: Row(
                 children: [
                   if (event.location.isNotEmpty) ...[
-                    Icon(Icons.location_on_outlined, size: 14, color: QuantColors.textMuted),
+                    const Icon(Icons.location_on_outlined, size: 14, color: QuantColors.textMuted),
                     const SizedBox(width: 4),
                     Text(
                       event.location,

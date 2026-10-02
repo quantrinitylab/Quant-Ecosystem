@@ -20,6 +20,9 @@ class ReelItem {
   final int shareCount;
   final int bookmarksCount;
   final int viewsCount;
+  final int remixCount;
+  final bool isRemixable;
+  final String? audioAlbumArtUrl;
   final bool isLiked;
   final bool isBookmarked;
   final String videoUrl;
@@ -44,6 +47,9 @@ class ReelItem {
     required this.shareCount,
     required this.bookmarksCount,
     required this.viewsCount,
+    this.remixCount = 420,
+    this.isRemixable = true,
+    this.audioAlbumArtUrl,
     this.isLiked = false,
     this.isBookmarked = false,
     required this.videoUrl,
@@ -60,6 +66,7 @@ class ReelItem {
     int? bookmarksCount,
     int? commentsCount,
     int? shareCount,
+    int? remixCount,
   }) {
     return ReelItem(
       id: id,
@@ -77,6 +84,9 @@ class ReelItem {
       shareCount: shareCount ?? this.shareCount,
       bookmarksCount: bookmarksCount ?? this.bookmarksCount,
       viewsCount: viewsCount,
+      remixCount: remixCount ?? this.remixCount,
+      isRemixable: isRemixable,
+      audioAlbumArtUrl: audioAlbumArtUrl,
       isLiked: isLiked ?? this.isLiked,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       videoUrl: videoUrl,
@@ -100,6 +110,9 @@ class StoryItem {
   final bool hasCloseFriendsBorder;
   final String storyCaption;
   final List<Color> backgroundGradient;
+  final int slicesCount;
+  final int activeSliceIndex;
+  final int expiresInHours;
 
   const StoryItem({
     required this.id,
@@ -112,10 +125,14 @@ class StoryItem {
     this.hasCloseFriendsBorder = false,
     this.storyCaption = '',
     this.backgroundGradient = const [Color(0xFF311042), Color(0xFF090A0E)],
+    this.slicesCount = 3,
+    this.activeSliceIndex = 0,
+    this.expiresInHours = 24,
   });
 
   StoryItem copyWith({
     bool? isUnwatched,
+    int? activeSliceIndex,
   }) {
     return StoryItem(
       id: id,
@@ -128,6 +145,9 @@ class StoryItem {
       hasCloseFriendsBorder: hasCloseFriendsBorder,
       storyCaption: storyCaption,
       backgroundGradient: backgroundGradient,
+      slicesCount: slicesCount,
+      activeSliceIndex: activeSliceIndex ?? this.activeSliceIndex,
+      expiresInHours: expiresInHours,
     );
   }
 }
@@ -144,6 +164,8 @@ class CommentItem {
   final int likesCount;
   final bool isLiked;
   final bool isCreatorPinned;
+  final bool isVerifiedCreator;
+  final bool creatorHearted;
   final List<CommentItem> replies;
 
   const CommentItem({
@@ -157,12 +179,16 @@ class CommentItem {
     required this.likesCount,
     this.isLiked = false,
     this.isCreatorPinned = false,
+    this.isVerifiedCreator = false,
+    this.creatorHearted = false,
     this.replies = const [],
   });
 
   CommentItem copyWith({
     bool? isLiked,
     int? likesCount,
+    bool? isCreatorPinned,
+    bool? creatorHearted,
     List<CommentItem>? replies,
   }) {
     return CommentItem(
@@ -175,7 +201,9 @@ class CommentItem {
       timestampText: timestampText,
       likesCount: likesCount ?? this.likesCount,
       isLiked: isLiked ?? this.isLiked,
-      isCreatorPinned: isCreatorPinned,
+      isCreatorPinned: isCreatorPinned ?? this.isCreatorPinned,
+      isVerifiedCreator: isVerifiedCreator,
+      creatorHearted: creatorHearted ?? this.creatorHearted,
       replies: replies ?? this.replies,
     );
   }

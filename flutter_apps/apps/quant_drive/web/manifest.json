@@ -1,0 +1,57 @@
+{
+  "name": "QuantDrive · Sovereign FastCDC CAS Storage",
+  "short_name": "QuantDrive",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign Google Drive & Dropbox Killer with FastCDC 64KB CAS Deduplication, AES-256 E2EE Cryptographic Vault, and Sub-5ms Vector Search.",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "business",
+    "storage",
+    "utilities"
+  ],
+  "shortcuts": [
+    {
+      "name": "Cryptographic Vault",
+      "short_name": "Vault",
+      "description": "Unlock AES-256 E2EE Vault",
+      "url": "./#vault",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "FastCDC Cleaner",
+      "short_name": "Cleaner",
+      "description": "Prune duplicate CAS blocks",
+      "url": "./#cleaner",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

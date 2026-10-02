@@ -215,7 +215,9 @@ class _QuantCalendarHomeScreenState extends State<QuantCalendarHomeScreen> {
                   MonthGridScreen(
                     onOpenQuantMeet: () => _switchToTab(3),
                   ),
-                  const PublicBookingScreen(),
+                  PublicBookingScreen(
+                    onLaunchQuantMeet: () => _switchToTab(3),
+                  ),
                   const QuantMeetLauncherScreen(),
                   const RemindersScreen(),
                 ],

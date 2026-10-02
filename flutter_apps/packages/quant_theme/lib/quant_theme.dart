@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 🌌 Sovereign Obsidian Luxury Theme Tokens for Quant Ecosystem
+/// Sovereign Obsidian Luxury Theme Tokens for Quant Ecosystem
 class QuantColors {
   QuantColors._();
 
@@ -83,7 +83,7 @@ class QuantColors {
   }
 }
 
-/// 📐 Precision Typography Tokens
+/// Precision Typography Tokens
 class QuantTypography {
   QuantTypography._();
 
@@ -157,7 +157,7 @@ class QuantTypography {
   );
 }
 
-/// 🎨 Master Obsidian Theme Data (Zero clipPath)
+/// Master Obsidian Theme Data (Zero clipPath)
 class QuantTheme {
   QuantTheme._();
 

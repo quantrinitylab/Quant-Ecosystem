@@ -199,6 +199,196 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
       return true;
     }).toList();
 
+    if (!_dataSource.isVaultUnlocked) {
+      return _buildLockedVaultScreen();
+    }
+
+    return _buildUnlockedVaultScreen(items);
+  }
+
+  Widget _buildLockedVaultScreen() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [QuantColors.moltenAmber, Color(0xFFD97706)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: QuantColors.moltenAmber.withOpacity(0.35),
+                  blurRadius: 18,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.enhanced_encryption_rounded,
+                color: Colors.black,
+                size: 40,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'AES-256 E2EE Cryptographic Vault',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              color: QuantColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Hardware StrongBox HSM · Zero-Knowledge Sovereign Enclave',
+            style: TextStyle(fontSize: 12, color: QuantColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 14),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              QuantBadge(
+                label: 'ZERO-KNOWLEDGE BADGE',
+                variant: QuantBadgeVariant.amber,
+                leadingIcon: Icons.verified_user_rounded,
+              ),
+              SizedBox(width: 8),
+              QuantBadge(
+                label: 'AES-256-GCM',
+                variant: QuantBadgeVariant.neutral,
+                leadingIcon: Icons.lock_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          GestureDetector(
+            onTap: _toggleBiometricLock,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
+              decoration: BoxDecoration(
+                color: QuantColors.darkSlateCard,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: QuantColors.moltenAmber.withOpacity(0.5),
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: QuantColors.moltenAmber.withOpacity(0.12),
+                    blurRadius: 14,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: QuantColors.voidObsidian,
+                      border: Border.all(
+                        color: QuantColors.moltenAmber,
+                        width: 2,
+                      ),
+                    ),
+                    child: const Center(
+                      child: Icon(
+                        Icons.fingerprint_rounded,
+                        color: QuantColors.moltenAmber,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Tap Sensor to Authenticate',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: QuantColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Touch ID / Face ID / StrongBox KeyMint Biometrics',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: QuantColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          SquircleButton(
+            isFullWidth: true,
+            height: 48,
+            label: 'Unlock with Biometrics (StrongBox)',
+            icon: Icons.fingerprint_rounded,
+            backgroundColor: QuantColors.moltenAmber,
+            textColor: Colors.black,
+            onPressed: _toggleBiometricLock,
+          ),
+          const SizedBox(height: 18),
+          _buildVaultTelemetrySummary(),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: QuantColors.darkSlateCard,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.shield_outlined, size: 16, color: QuantColors.statusSuccess),
+                    SizedBox(width: 8),
+                    Text(
+                      'Zero-Knowledge Security Invariant',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: QuantColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Master encryption keys are derived on-device via Argon2id (m=64MB, t=3, p=4) '
+                  'and sealed inside hardware KeyMint StrongBox. Server and storage layers '
+                  'possess zero plaintext access.',
+                  style: TextStyle(fontSize: 11, color: QuantColors.textSecondary, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnlockedVaultScreen(List<DriveItem> items) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),

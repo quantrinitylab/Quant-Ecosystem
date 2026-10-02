@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
-import 'screens/reels_feed_screen.dart';
+import 'screens/reels_player_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/create_sheet.dart';
 import 'screens/inbox_screen.dart';
@@ -73,7 +73,7 @@ class _QuantGramMainScreenState extends State<QuantGramMainScreen> {
       body: IndexedStack(
         index: _currentIndex == 2 ? 0 : _currentIndex,
         children: [
-          ReelsFeedScreen(
+          ReelsPlayerScreen(
             onDirectMessagesTap: _navigateToInbox,
             onCreateTap: _openCreateStudio,
           ),

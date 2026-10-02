@@ -119,6 +119,8 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
         children: [
           _buildHeroReclaimBanner(reclaimableGb),
           const SizedBox(height: 16),
+          _buildFastCdcTelemetryMeter(),
+          const SizedBox(height: 16),
           _buildMetricsGrid(),
           const SizedBox(height: 20),
           _buildEngineArchitectureBanner(),
@@ -233,6 +235,174 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
             backgroundColor: _hasReclaimed ? QuantColors.elevatedCard : QuantColors.sovereignCyan,
             textColor: _hasReclaimed ? QuantColors.statusSuccess : Colors.black,
             onPressed: _hasReclaimed ? null : _triggerReclaim,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFastCdcTelemetryMeter() {
+    final rawGb = _dataSource.rawIngestedGb;
+    final storedGb = _dataSource.storedCasGb;
+    final savingsPercent = _dataSource.calculatedBandwidthSavedPercent;
+    final ratio = (rawGb / (storedGb > 0 ? storedGb : 0.1)).toStringAsFixed(1);
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: QuantColors.sovereignCyan.withOpacity(0.35),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: QuantColors.sovereignCyan.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.speed_rounded,
+                      color: QuantColors.sovereignCyan,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'FastCDC CAS Telemetry Meter',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: QuantColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Rabin Chunk Fingerprint · 64KB Nominal Window',
+                        style: TextStyle(fontSize: 10, color: QuantColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              QuantBadge(
+                label: '>94% SAVINGS',
+                variant: savingsPercent >= 94.0 ? QuantBadgeVariant.success : QuantBadgeVariant.amber,
+                leadingIcon: Icons.bolt_rounded,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Bandwidth Conservation Meter',
+                    style: QuantTypography.bodySmall.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '${savingsPercent.toStringAsFixed(1)}% Realized',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: QuantColors.statusSuccess,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 12,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: QuantColors.voidObsidian,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: QuantColors.hairlineBorder),
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: (savingsPercent / 100.0).clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [QuantColors.statusSuccess, QuantColors.sovereignCyan],
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('0%', style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted)),
+                  Text('Threshold: 90%', style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted)),
+                  Text('Target: 94%', style: QuantTypography.microCapsule.copyWith(color: QuantColors.sovereignCyan)),
+                  Text('100%', style: QuantTypography.microCapsule.copyWith(color: QuantColors.statusSuccess)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.functions_rounded, size: 14, color: QuantColors.sunsetGold),
+                    SizedBox(width: 6),
+                    Text(
+                      'BANDWIDTH SAVINGS CALCULATION',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: QuantColors.sunsetGold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '1 - (CAS Stored ${storedGb.toStringAsFixed(1)} GB / Raw Ingestion ${rawGb.toStringAsFixed(1)} GB) = ${savingsPercent.toStringAsFixed(1)}% savings ($ratio:1 dedup ratio)',
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: QuantColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '76,800 identical 64KB CAS blocks deduplicated across multi-tenant sovereign enclaves.',
+                  style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted),
+                ),
+              ],
+            ),
           ),
         ],
       ),

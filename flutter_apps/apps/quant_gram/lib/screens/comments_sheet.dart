@@ -401,6 +401,14 @@ class _CommentsSheetState extends State<CommentsSheet> {
                             color: QuantColors.textPrimary,
                           ),
                         ),
+                        if (comment.isVerifiedCreator) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified_rounded,
+                            size: 13,
+                            color: QuantColors.sovereignCyan,
+                          ),
+                        ],
                         const SizedBox(width: 6),
                         Text(
                           comment.timestampText,
@@ -421,16 +429,53 @@ class _CommentsSheetState extends State<CommentsSheet> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: () => _setReplyTarget(comment),
-                      child: Text(
-                        'Reply',
-                        style: QuantTypography.bodySmall.copyWith(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: QuantColors.moltenAmber,
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => _setReplyTarget(comment),
+                          child: Text(
+                            'Reply',
+                            style: QuantTypography.bodySmall.copyWith(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: QuantColors.moltenAmber,
+                            ),
+                          ),
                         ),
-                      ),
+                        if (comment.creatorHearted) ...[
+                          const SizedBox(width: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: QuantColors.sunriseRose.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: QuantColors.sunriseRose.withOpacity(0.3),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.favorite_rounded,
+                                  size: 10,
+                                  color: QuantColors.sunriseRose,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  'Liked by creator',
+                                  style: QuantTypography.bodySmall.copyWith(
+                                    fontSize: 9,
+                                    color: QuantColors.sunriseRose,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),
@@ -496,6 +541,14 @@ class _CommentsSheetState extends State<CommentsSheet> {
                                       color: QuantColors.textPrimary,
                                     ),
                                   ),
+                                  if (reply.isVerifiedCreator) ...[
+                                    const SizedBox(width: 4),
+                                    const Icon(
+                                      Icons.verified_rounded,
+                                      size: 11,
+                                      color: QuantColors.sovereignCyan,
+                                    ),
+                                  ],
                                   const SizedBox(width: 6),
                                   Text(
                                     reply.timestampText,

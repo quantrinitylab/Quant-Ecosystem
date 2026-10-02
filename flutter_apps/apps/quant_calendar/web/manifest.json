@@ -1,0 +1,56 @@
+{
+  "name": "QuantCalendar · Sovereign Scheduling Suite",
+  "short_name": "QuantCalendar",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#090A0E",
+  "theme_color": "#090A0E",
+  "description": "Sovereign Google Calendar & Calendly Killer with Atomic Mutex Slot Locking, QuantMeet HD Video Integration, and Dual Timezone Engine.",
+  "orientation": "any",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "business",
+    "calendar"
+  ],
+  "shortcuts": [
+    {
+      "name": "Public Booking",
+      "short_name": "Book Slot",
+      "description": "Open public booking engine",
+      "url": "./#booking",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Start QuantMeet",
+      "short_name": "QuantMeet",
+      "description": "Launch HD Sovereign Video Stage",
+      "url": "./#meet",
+      "icons": [{ "src": "icons/Icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

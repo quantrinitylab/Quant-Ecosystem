@@ -28,12 +28,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final Set<String> _playingAudioMsgIds = {};
   final Map<String, double> _audioProgress = {};
+  final Map<String, double> _audioPlaybackSpeeds = {}; // 1.0, 1.5, 2.0
   Timer? _audioPlaybackTimer;
+  Timer? _disappearingCountdownTimer;
+  bool _isDisappearingMode = false;
+  final int _disappearingTtlSeconds = 30;
 
   @override
   void initState() {
     super.initState();
-    _messages = ChatMockData.getInitialMessages(widget.conversation.id);
+    _messages = List.from(ChatMockData.getInitialMessages(widget.conversation.id));
+    _isDisappearingMode = widget.conversation.isDisappearingModeEnabled;
+    _startDisappearingCountdown();
   }
 
   @override
@@ -41,7 +47,38 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _composerController.dispose();
     _scrollController.dispose();
     _audioPlaybackTimer?.cancel();
+    _disappearingCountdownTimer?.cancel();
     super.dispose();
+  }
+
+  void _startDisappearingCountdown() {
+    _disappearingCountdownTimer?.cancel();
+    _disappearingCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      bool hasChanges = false;
+      for (int i = 0; i < _messages.length; i++) {
+        final m = _messages[i];
+        if (m.isDisappearing && !m.isServerDestroyed && m.secondsRemaining > 0) {
+          final nextRemaining = m.secondsRemaining - 1;
+          if (nextRemaining <= 0) {
+            _messages[i] = m.copyWith(
+              secondsRemaining: 0,
+              isServerDestroyed: true,
+              text: 'HTTP 410 GONE · Server Destroyed & Purged from Sovereign Mesh',
+            );
+          } else {
+            _messages[i] = m.copyWith(secondsRemaining: nextRemaining);
+          }
+          hasChanges = true;
+        }
+      }
+      if (hasChanges) {
+        setState(() {});
+      }
+    });
   }
 
   void _scrollToBottom() {
@@ -72,8 +109,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       text: text,
       timestamp: timeStr,
       isOutgoing: true,
-      deliveryStatus: MessageDeliveryStatus.sending,
+      deliveryStatus: MessageDeliveryStatus.pending,
       type: MessageType.text,
+      isDisappearing: _isDisappearingMode,
+      disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+      secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+      isServerDestroyed: false,
+      serverDestructionCode: 410,
     );
 
     setState(() {
@@ -82,7 +124,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
     _scrollToBottom();
 
-    // Advance delivery state machine: sending -> sent -> delivered -> read
+    // 4-stage tick progression:
+    // 1. pending (clock icon) -> immediate on send
+    // 2. sent (single check) -> 350ms
+    // 3. delivered (double check grey) -> 900ms
+    // 4. read (double check molten amber #FF8C42) -> 1800ms
     Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
       _updateMessageStatus(newId, MessageDeliveryStatus.sent);
@@ -112,7 +158,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       text: 'Encrypted Sovereign Voice Memo',
       timestamp: timeStr,
       isOutgoing: true,
-      deliveryStatus: MessageDeliveryStatus.sending,
+      deliveryStatus: MessageDeliveryStatus.pending,
       type: MessageType.audio,
       audioDurationSeconds: 18,
       audioWaveform: const [
@@ -120,6 +166,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
         0.8, 0.9, 0.5, 0.3, 0.7, 0.8, 0.6, 0.4,
         0.7, 0.9, 0.8, 0.5, 0.3, 0.6, 0.8, 0.4,
       ],
+      isDisappearing: _isDisappearingMode,
+      disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+      secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+      isServerDestroyed: false,
+      serverDestructionCode: 410,
     );
 
     setState(() {
@@ -127,6 +178,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
     _scrollToBottom();
 
+    // 4-stage tick progression
     Timer(const Duration(milliseconds: 400), () {
       if (!mounted) return;
       _updateMessageStatus(newId, MessageDeliveryStatus.sent);
@@ -134,6 +186,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
     Timer(const Duration(milliseconds: 1000), () {
       if (!mounted) return;
       _updateMessageStatus(newId, MessageDeliveryStatus.delivered);
+    });
+    Timer(const Duration(milliseconds: 2000), () {
+      if (!mounted) return;
+      _updateMessageStatus(newId, MessageDeliveryStatus.read);
     });
   }
 
@@ -159,15 +215,42 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
+  void _cycleAudioPlaybackSpeed(String msgId) {
+    final currentSpeed = _audioPlaybackSpeeds[msgId] ?? 1.0;
+    final nextSpeed = currentSpeed == 1.0
+        ? 1.5
+        : (currentSpeed == 1.5 ? 2.0 : 1.0);
+
+    setState(() {
+      _audioPlaybackSpeeds[msgId] = nextSpeed;
+    });
+
+    // If currently playing this message, restart timer to adopt new speed
+    if (_playingAudioMsgIds.contains(msgId)) {
+      final msg = _messages.firstWhere((m) => m.id == msgId);
+      _startAudioPlaybackSimulation(msg);
+    }
+  }
+
+  void _scrubAudioProgress(String msgId, double progress) {
+    setState(() {
+      _audioProgress[msgId] = progress.clamp(0.0, 1.0);
+    });
+  }
+
   void _startAudioPlaybackSimulation(ChatMessage message) {
     _audioPlaybackTimer?.cancel();
-    _audioPlaybackTimer = Timer.periodic(const Duration(milliseconds: 200), (timer) {
+    final speed = _audioPlaybackSpeeds[message.id] ?? 1.0;
+    final durationSecs = message.audioDurationSeconds > 0 ? message.audioDurationSeconds : 10;
+    final tickIntervalMs = (100 / speed).round();
+
+    _audioPlaybackTimer = Timer.periodic(Duration(milliseconds: tickIntervalMs), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
       final current = _audioProgress[message.id] ?? 0.0;
-      final step = 0.2 / (message.audioDurationSeconds > 0 ? message.audioDurationSeconds : 10);
+      final step = 0.1 / durationSecs;
       final next = current + step;
 
       if (next >= 1.0) {
@@ -182,6 +265,34 @@ class _ConversationScreenState extends State<ConversationScreen> {
         });
       }
     });
+  }
+
+  void _toggleDisappearingMode() {
+    setState(() {
+      _isDisappearingMode = !_isDisappearingMode;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(
+              _isDisappearingMode ? Icons.auto_delete_rounded : Icons.timer_off_rounded,
+              color: QuantColors.moltenOrange,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _isDisappearingMode
+                  ? 'Disappearing Mode ON: ${_disappearingTtlSeconds}s HTTP 410 server destruction'
+                  : 'Disappearing Mode OFF: Standard persistent E2EE',
+              style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _launchCall(QuantCallType callType) {
@@ -205,6 +316,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
           children: [
             // E2EE Sovereign Encryption Security Banner
             _buildEncryptionBadge(),
+
+            // Disappearing Messages Status Bar (if active)
+            if (_isDisappearingMode) _buildDisappearingModeNotice(),
 
             // Message Stream
             Expanded(
@@ -320,6 +434,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
       actions: [
         IconButton(
+          icon: Icon(
+            _isDisappearingMode ? Icons.auto_delete_rounded : Icons.timer_outlined,
+            color: _isDisappearingMode ? QuantColors.moltenOrange : QuantColors.textSecondary,
+            size: 22,
+          ),
+          tooltip: 'Toggle Disappearing Messages (HTTP 410)',
+          onPressed: _toggleDisappearingMode,
+        ),
+        IconButton(
           icon: const Icon(Icons.call_outlined, color: Colors.white, size: 22),
           tooltip: 'E2EE Audio Call',
           onPressed: () => _launchCall(QuantCallType.audio),
@@ -378,6 +501,35 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  Widget _buildDisappearingModeNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      decoration: BoxDecoration(
+        color: QuantColors.moltenOrange.withOpacity(0.12),
+        border: const Border(
+          bottom: BorderSide(color: QuantColors.moltenOrange, width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.auto_delete_rounded, size: 14, color: QuantColors.moltenOrange),
+          const SizedBox(width: 6),
+          Text(
+            'Disappearing Messages Active (${_disappearingTtlSeconds}s) · 410 Server Destruction',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+              color: QuantColors.moltenOrange,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageItem(ChatMessage msg) {
     if (msg.isOutgoing) {
       return _buildOutgoingBubble(msg);
@@ -395,7 +547,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         children: [
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.76,
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -406,12 +558,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 bottomRight: Radius.circular(16),
                 bottomLeft: Radius.circular(4),
               ),
-              border: Border.all(color: QuantColors.hairlineBorder, width: 1),
+              border: Border.all(
+                color: msg.isServerDestroyed
+                    ? QuantColors.statusError.withOpacity(0.5)
+                    : (msg.isDisappearing
+                        ? QuantColors.moltenOrange.withOpacity(0.4)
+                        : QuantColors.hairlineBorder),
+                width: 1,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (msg.type == MessageType.audio)
+                // Disappearing message timer header (if applicable)
+                if (msg.isDisappearing) _buildDisappearingHeader(msg),
+
+                if (msg.isServerDestroyed)
+                  _buildServerDestroyedTombstone(msg)
+                else if (msg.type == MessageType.audio)
                   _buildAudioPlayer(msg, isOutgoing: false)
                 else
                   Text(
@@ -447,20 +611,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
         children: [
           Container(
             constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.76,
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFFFF8C42), // Outgoing bubble: #FF8C42
+              color: msg.isServerDestroyed
+                  ? const Color(0xFF1F1418)
+                  : const Color(0xFFFF8C42), // Outgoing bubble: #FF8C42
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
                 bottomLeft: Radius.circular(16),
                 bottomRight: Radius.circular(4),
               ),
+              border: msg.isServerDestroyed
+                  ? Border.all(color: QuantColors.statusError.withOpacity(0.5))
+                  : null,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFF8C42).withOpacity(0.2),
+                  color: (msg.isServerDestroyed ? QuantColors.statusError : const Color(0xFFFF8C42))
+                      .withOpacity(0.2),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -469,7 +639,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (msg.type == MessageType.audio)
+                // Disappearing message timer header (if applicable)
+                if (msg.isDisappearing) _buildDisappearingHeader(msg),
+
+                if (msg.isServerDestroyed)
+                  _buildServerDestroyedTombstone(msg)
+                else if (msg.type == MessageType.audio)
                   _buildAudioPlayer(msg, isOutgoing: true)
                 else
                   Text(
@@ -504,107 +679,264 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  /// 4-stage tick progression:
+  /// - pending (clock icon)
+  /// - sent (single check)
+  /// - delivered (double check grey)
+  /// - read (double check molten amber #FF8C42)
   Widget _buildDeliveryTick(MessageDeliveryStatus status, {bool isOutgoing = false}) {
-    final tickColor = isOutgoing ? Colors.white : QuantColors.textMuted;
-    final cyanTickColor = isOutgoing ? Colors.white : QuantColors.sovereignCyan;
-
     switch (status) {
-      case MessageDeliveryStatus.sending:
-        return Icon(Icons.access_time_rounded, size: 13, color: tickColor.withOpacity(0.7));
+      case MessageDeliveryStatus.pending:
+        return const Icon(
+          Icons.access_time_rounded,
+          size: 13,
+          color: Color(0xFFE2E8F0),
+        );
       case MessageDeliveryStatus.sent:
-        return Icon(Icons.check_rounded, size: 14, color: tickColor);
+        return const Icon(
+          Icons.check_rounded,
+          size: 14,
+          color: Colors.white,
+        );
       case MessageDeliveryStatus.delivered:
-        return Icon(Icons.done_all_rounded, size: 14, color: tickColor);
+        return const Icon(
+          Icons.done_all_rounded,
+          size: 14,
+          color: Color(0xFF94A3B8), // Double check grey
+        );
       case MessageDeliveryStatus.read:
-        return Icon(Icons.done_all_rounded, size: 14, color: isOutgoing ? Colors.white : cyanTickColor);
+        return const Icon(
+          Icons.done_all_rounded,
+          size: 14,
+          color: Color(0xFFFF8C42), // Double check molten amber #FF8C42
+        );
     }
   }
 
+  Widget _buildDisappearingHeader(ChatMessage msg) {
+    if (msg.isServerDestroyed) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: QuantColors.statusError.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_forever_rounded, size: 11, color: QuantColors.statusError),
+            SizedBox(width: 4),
+            Text(
+              'HTTP 410 GONE · DESTROYED',
+              style: TextStyle(
+                color: QuantColors.statusError,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: QuantColors.moltenOrange.withOpacity(0.5),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.timer_outlined, size: 11, color: QuantColors.moltenOrange),
+          const SizedBox(width: 4),
+          Text(
+            '410 Server Destruction: ${msg.secondsRemaining}s',
+            style: const TextStyle(
+              color: QuantColors.moltenOrange,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildServerDestroyedTombstone(ChatMessage msg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.delete_forever_rounded, size: 16, color: QuantColors.statusError),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              msg.text,
+              style: const TextStyle(
+                color: QuantColors.textMuted,
+                fontSize: 12,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Waveform audio message player with scrubber and 1.0x/1.5x/2.0x speed toggle.
   Widget _buildAudioPlayer(ChatMessage msg, {required bool isOutgoing}) {
     final isPlaying = _playingAudioMsgIds.contains(msg.id);
     final progress = _audioProgress[msg.id] ?? 0.0;
+    final speed = _audioPlaybackSpeeds[msg.id] ?? 1.0;
     final waveform = msg.audioWaveform.isNotEmpty
         ? msg.audioWaveform
         : [0.3, 0.6, 0.9, 0.4, 0.7, 0.8, 0.5, 0.9, 0.6, 0.3, 0.7, 0.5];
 
+    final currentSeconds = (msg.audioDurationSeconds * progress).toInt();
+    final remainingSeconds = msg.audioDurationSeconds - currentSeconds;
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Play / Pause Circle Button
-          InkWell(
-            borderRadius: BorderRadius.circular(20),
-            onTap: () => _toggleAudioPlayback(msg),
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: isOutgoing
-                    ? Colors.white.withOpacity(0.25)
-                    : QuantColors.moltenOrange.withOpacity(0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                size: 22,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-
-          // Waveform and Duration Bar
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 24,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: List.generate(waveform.length, (idx) {
-                      final barHeight = 8.0 + (waveform[idx] * 16.0);
-                      final barProgress = idx / waveform.length;
-                      final isPast = barProgress <= progress;
-
-                      return Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 1),
-                          height: barHeight,
-                          decoration: BoxDecoration(
-                            color: isOutgoing
-                                ? (isPast ? Colors.white : Colors.white.withOpacity(0.4))
-                                : (isPast
-                                    ? QuantColors.moltenOrange
-                                    : QuantColors.hairlineBorder),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      );
-                    }),
+          Row(
+            children: [
+              // Play / Pause Circle Button
+              InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () => _toggleAudioPlayback(msg),
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: isOutgoing
+                        ? Colors.white.withOpacity(0.25)
+                        : QuantColors.moltenOrange.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 22,
+                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '0:${((msg.audioDurationSeconds * progress).toInt()).toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: isOutgoing ? Colors.white.withOpacity(0.9) : QuantColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+
+              // Interactive Waveform Scrubber
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onHorizontalDragUpdate: (details) {
+                        final width = constraints.maxWidth;
+                        if (width > 0) {
+                          final scrubProgress = (details.localPosition.dx / width).clamp(0.0, 1.0);
+                          _scrubAudioProgress(msg.id, scrubProgress);
+                        }
+                      },
+                      onTapDown: (details) {
+                        final width = constraints.maxWidth;
+                        if (width > 0) {
+                          final scrubProgress = (details.localPosition.dx / width).clamp(0.0, 1.0);
+                          _scrubAudioProgress(msg.id, scrubProgress);
+                        }
+                      },
+                      child: SizedBox(
+                        height: 28,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: List.generate(waveform.length, (idx) {
+                            final barHeight = 8.0 + (waveform[idx] * 18.0);
+                            final barProgress = idx / waveform.length;
+                            final isPast = barProgress <= progress;
+
+                            return Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 1),
+                                height: barHeight,
+                                decoration: BoxDecoration(
+                                  color: isOutgoing
+                                      ? (isPast ? Colors.white : Colors.white.withOpacity(0.35))
+                                      : (isPast
+                                          ? QuantColors.moltenOrange
+                                          : QuantColors.hairlineBorder),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
                       ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 1.0x / 1.5x / 2.0x Speed Toggle Button
+              InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _cycleAudioPlaybackSpeed(msg.id),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isOutgoing
+                        ? Colors.white.withOpacity(0.25)
+                        : QuantColors.darkSlateSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isOutgoing
+                          ? Colors.white.withOpacity(0.4)
+                          : QuantColors.hairlineBorder,
                     ),
-                    Text(
-                      '0:${msg.audioDurationSeconds.toString().padLeft(2, '0')}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: isOutgoing ? Colors.white.withOpacity(0.9) : QuantColors.textMuted,
-                      ),
+                  ),
+                  child: Text(
+                    '${speed.toStringAsFixed(1)}x',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: isOutgoing ? Colors.white : QuantColors.moltenOrange,
                     ),
-                  ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Padding(
+            padding: const EdgeInsets.only(left: 46, right: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '0:${currentSeconds.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isOutgoing ? Colors.white.withOpacity(0.9) : QuantColors.textMuted,
+                  ),
+                ),
+                Text(
+                  '-0:${remainingSeconds.toString().padLeft(2, '0')}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: isOutgoing ? Colors.white.withOpacity(0.9) : QuantColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -649,7 +981,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
               decoration: BoxDecoration(
                 color: QuantColors.darkSlateCard,
                 borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: QuantColors.hairlineBorder),
+                border: Border.all(
+                  color: _isDisappearingMode
+                      ? QuantColors.moltenOrange.withOpacity(0.6)
+                      : QuantColors.hairlineBorder,
+                ),
               ),
               child: TextField(
                 controller: _composerController,
@@ -657,12 +993,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 minLines: 1,
                 maxLines: 4,
                 onSubmitted: (_) => _sendMessage(),
-                decoration: const InputDecoration(
-                  hintText: 'Type an encrypted message...',
-                  hintStyle: TextStyle(color: QuantColors.textMuted, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: _isDisappearingMode
+                      ? 'Type disappearing message (${_disappearingTtlSeconds}s)...'
+                      : 'Type an encrypted message...',
+                  hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(vertical: 10),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
             ),

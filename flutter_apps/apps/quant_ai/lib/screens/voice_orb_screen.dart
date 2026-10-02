@@ -1,7 +1,6 @@
 // Sovereign Quant Ecosystem - QuantAI 3D Voice Orb Screen
-// Interactive 3D Voice Orb with pulsing concentric glowing rings,
-// live speech-to-text transcript ticker, persona chips (Aura, Vesper, Zenith, Zephyr),
-// and low-latency voice telemetry (<120ms VAD).
+// Impeller-accelerated pulsing molten sphere (<120ms VAD response simulation)
+// with Aura/Vesper/Zenith/Zephyr voice personas, real-time transcript ticker, and voice telemetry.
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
 
@@ -9,6 +8,13 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/ai_models.dart';
+
+enum VadState {
+  listening,
+  detected,
+  thinking,
+  speaking,
+}
 
 class VoiceOrbScreen extends StatefulWidget {
   const VoiceOrbScreen({super.key});
@@ -18,30 +24,37 @@ class VoiceOrbScreen extends StatefulWidget {
 }
 
 class _VoiceOrbScreenState extends State<VoiceOrbScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late AnimationController _pulseController;
+  late AnimationController _rotationController;
   late Animation<double> _pulseAnimation;
   late VoicePersona _selectedPersona;
+
+  VadState _vadState = VadState.speaking;
+  int _simulatedVadLatencyMs = 94;
   bool _isMicMuted = false;
-  bool _isSpeaking = true;
-  int _transcriptStep = 0;
+  int _activeAudioRoute = 0; // 0: Speaker, 1: Bluetooth, 2: Earpiece
 
   final List<Map<String, String>> _transcriptHistory = [
     {
       'speaker': 'User',
       'text': 'QuantAI, analyze the latency overhead of WebRTC audio packetization.',
+      'latency': 'Client Input',
     },
     {
       'speaker': 'Aura',
-      'text': 'Under 16kHz Opus with 20ms frames, packetization jitter buffers maintain sub-24ms end-to-end latency.',
+      'text': 'Under 16kHz Opus with 20ms frames, jitter buffers maintain sub-24ms end-to-end latency.',
+      'latency': '88ms VAD Turn',
     },
     {
       'speaker': 'User',
       'text': 'Confirm voice activity detection responsiveness on edge mobile NPU.',
+      'latency': 'Client Input',
     },
     {
       'speaker': 'Aura',
       'text': 'Silero VAD ONNX model executes in 4.2ms per 30ms audio chunk. Full turn-detection latency is strictly under 118ms.',
+      'latency': '94ms VAD Turn',
     },
   ];
 
@@ -52,8 +65,13 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
 
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2400),
+      duration: const Duration(milliseconds: 2200),
     )..repeat(reverse: true);
+
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 16),
+    )..repeat();
 
     _pulseAnimation = CurvedAnimation(
       parent: _pulseController,
@@ -64,18 +82,41 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
   @override
   void dispose() {
     _pulseController.dispose();
+    _rotationController.dispose();
     super.dispose();
   }
 
   void _switchPersona(VoicePersona persona) {
     setState(() {
       _selectedPersona = persona;
-      // Adjust pulse duration based on persona tempo
       _pulseController.duration = Duration(
-        milliseconds: (2400 / persona.pulseSpeed).round(),
+        milliseconds: (2200 / persona.pulseSpeed).round(),
       );
       if (_pulseController.isAnimating) {
         _pulseController.repeat(reverse: true);
+      }
+    });
+  }
+
+  void _cycleVadState() {
+    setState(() {
+      switch (_vadState) {
+        case VadState.speaking:
+          _vadState = VadState.listening;
+          _simulatedVadLatencyMs = 14;
+          break;
+        case VadState.listening:
+          _vadState = VadState.detected;
+          _simulatedVadLatencyMs = 18;
+          break;
+        case VadState.detected:
+          _vadState = VadState.thinking;
+          _simulatedVadLatencyMs = 82;
+          break;
+        case VadState.thinking:
+          _vadState = VadState.speaking;
+          _simulatedVadLatencyMs = 94;
+          break;
       }
     });
   }
@@ -89,20 +130,23 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // Top Telemetry Header
+            // Top Voice Link & VAD Telemetry Bar
             _buildVoiceTelemetryBar(),
 
-            // Persona Selector Chips
+            // Persona Selector Chips (Aura, Vesper, Zenith, Zephyr)
             _buildPersonaSelector(),
 
-            // Interactive 3D Voice Orb Centerpiece
+            // Centerpiece: Impeller-Accelerated Pulsing Molten Sphere
             Expanded(
               child: Center(
-                child: AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (context, child) {
-                    return _buildConcentricVoiceOrb(glowColor);
-                  },
+                child: GestureDetector(
+                  onTap: _cycleVadState,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_pulseAnimation, _rotationController]),
+                    builder: (context, child) {
+                      return _buildMoltenVoiceOrbCenterpiece(glowColor);
+                    },
+                  ),
                 ),
               ),
             ),
@@ -110,7 +154,7 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
             // Live Speech-to-Text Transcript Ticker
             _buildTranscriptTicker(),
 
-            // Audio Waveform Visualization & Control Dock
+            // Interactive Audio Controls & Equalizer Dock
             _buildControlDock(glowColor),
           ],
         ),
@@ -119,6 +163,23 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
   }
 
   Widget _buildVoiceTelemetryBar() {
+    final isSpeaking = _vadState == VadState.speaking;
+    final isThinking = _vadState == VadState.thinking;
+
+    final statusColor = isSpeaking
+        ? QuantColors.emeraldMatrix
+        : isThinking
+            ? QuantColors.sunsetGold
+            : QuantColors.cosmicCyan;
+
+    final statusLabel = isSpeaking
+        ? 'VOICE LINK ACTIVE'
+        : isThinking
+            ? 'SYNTHESIZING RESPONSE'
+            : _vadState == VadState.detected
+                ? 'VOICE DETECTED (<18MS)'
+                : 'LISTENING (VAD STANDBY)';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: const BoxDecoration(
@@ -136,24 +197,20 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
                 width: 8,
                 height: 8,
                 decoration: BoxDecoration(
-                  color: _isSpeaking
-                      ? QuantColors.emeraldMatrix
-                      : QuantColors.textMuted,
+                  color: statusColor,
                   shape: BoxShape.circle,
-                  boxShadow: _isSpeaking
-                      ? [
-                          BoxShadow(
-                            color: QuantColors.emeraldMatrix.withOpacity(0.8),
-                            blurRadius: 6,
-                            spreadRadius: 2,
-                          ),
-                        ]
-                      : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: statusColor.withOpacity(0.8),
+                      blurRadius: 6,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                _isSpeaking ? 'VOICE LINK ACTIVE' : 'LISTENING (VAD STANDBY)',
+                statusLabel,
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -170,22 +227,40 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: QuantColors.hairlineBorder),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.speed_rounded,
                   size: 13,
                   color: QuantColors.cosmicCyan,
                 ),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Text(
                   '<120ms VAD | WebRTC Opus 16kHz',
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
                     color: QuantColors.cosmicCyan,
                     fontFamily: 'monospace',
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: QuantColors.voidObsidian,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${_simulatedVadLatencyMs}ms',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: QuantColors.emeraldMatrix,
+                      fontFamily: 'monospace',
+                    ),
                   ),
                 ),
               ],
@@ -295,21 +370,23 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
     );
   }
 
-  Widget _buildConcentricVoiceOrb(Color glowColor) {
-    final pulse = _pulseAnimation.value; // 0.0 to 1.0
+  /// Impeller-Accelerated Pulsing Molten Sphere Centerpiece (Strictly zero clipPath)
+  Widget _buildMoltenVoiceOrbCenterpiece(Color glowColor) {
+    final pulse = _pulseAnimation.value;
+    final rotation = _rotationController.value * 2 * math.pi;
 
-    // Concentric scale dimensions (Strictly zero clipPath)
-    final outerRingSize = 250.0 + (pulse * 30.0);
-    final middleRingSize = 190.0 + (pulse * 20.0);
-    final innerSphereSize = 140.0 + (pulse * 10.0);
+    // Dimensions for concentric molten rings
+    final outerRingSize = 270.0 + (pulse * 32.0);
+    final middleRingSize = 200.0 + (pulse * 22.0);
+    final innerSphereSize = 145.0 + (pulse * 12.0);
 
     return SizedBox(
-      width: 320,
-      height: 320,
+      width: 340,
+      height: 340,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // 1. Outermost Ambient Atmospheric Glow Halo
+          // 1. Ambient Atmospheric Molten Plasma Halo
           Container(
             width: outerRingSize,
             height: outerRingSize,
@@ -317,24 +394,21 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: glowColor.withOpacity(0.12 * (1.0 - pulse * 0.4)),
-                  blurRadius: 60 + (pulse * 20),
-                  spreadRadius: 20 + (pulse * 10),
+                  color: glowColor.withOpacity(0.18 * (1.0 - pulse * 0.3)),
+                  blurRadius: 65 + (pulse * 25),
+                  spreadRadius: 22 + (pulse * 12),
                 ),
               ],
             ),
           ),
 
-          // 2. Outer Concentric Resonant Ring
-          Container(
-            width: outerRingSize,
-            height: outerRingSize,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: glowColor.withOpacity(0.25 * (1.0 - pulse * 0.3)),
-                width: 1.5,
-              ),
+          // 2. Custom Painter: Impeller Molten Plasma Energy Ripples (Zero clipPath)
+          CustomPaint(
+            size: Size(outerRingSize, outerRingSize),
+            painter: _MoltenPlasmaPainter(
+              pulse: pulse,
+              rotation: rotation,
+              color: glowColor,
             ),
           ),
 
@@ -345,57 +419,89 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: glowColor.withOpacity(0.5 + (pulse * 0.3)),
+                color: glowColor.withOpacity(0.45 + (pulse * 0.35)),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: glowColor.withOpacity(0.25 * (0.8 + pulse * 0.2)),
-                  blurRadius: 30,
-                  spreadRadius: 5,
+                  blurRadius: 32,
+                  spreadRadius: 6,
                 ),
               ],
             ),
           ),
 
-          // 4. Core 3D Volumetric Sphere with Dynamic Lighting Shading
+          // 4. Core 3D Volumetric Molten Sphere with Incandescent Core Shading
           Container(
             width: innerSphereSize,
             height: innerSphereSize,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: RadialGradient(
-                center: const Alignment(-0.35, -0.35), // 3D specular highlight
-                radius: 0.85,
+                center: const Alignment(-0.32, -0.32), // 3D specular highlight
+                radius: 0.88,
                 colors: [
-                  Colors.white.withOpacity(0.85),
-                  glowColor,
-                  glowColor.withOpacity(0.8),
-                  const Color(0xFF090A0E),
+                  Colors.white.withOpacity(0.95), // Specular light hit
+                  const Color(0xFFFFF7ED), // Incandescent white-hot glow
+                  glowColor, // Persona plasma hue
+                  glowColor.withOpacity(0.75),
+                  const Color(0xFF090A0E), // Void ambient shadow
                 ],
-                stops: const [0.0, 0.35, 0.7, 1.0],
+                stops: const [0.0, 0.22, 0.52, 0.82, 1.0],
               ),
               boxShadow: [
                 BoxShadow(
-                  color: glowColor.withOpacity(0.6),
-                  blurRadius: 40 + (pulse * 15),
-                  spreadRadius: 6,
+                  color: glowColor.withOpacity(0.65),
+                  blurRadius: 44 + (pulse * 18),
+                  spreadRadius: 7,
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.8),
-                  blurRadius: 20,
-                  offset: const Offset(10, 15),
+                  color: Colors.black.withOpacity(0.85),
+                  blurRadius: 24,
+                  offset: const Offset(12, 16),
                 ),
               ],
             ),
             child: Center(
               child: Icon(
-                Icons.graphic_eq_rounded,
-                size: 36,
-                color: Colors.white.withOpacity(0.9),
+                _vadState == VadState.speaking
+                    ? Icons.graphic_eq_rounded
+                    : _vadState == VadState.thinking
+                        ? Icons.psychology_rounded
+                        : Icons.mic_rounded,
+                size: 38,
+                color: Colors.white.withOpacity(0.92),
               ),
             ),
           ),
+
+          // 5. Orbiting Plasma Satellites
+          ...List.generate(3, (index) {
+            final angle = rotation + (index * (2 * math.pi / 3));
+            final radius = (middleRingSize / 2) + (math.sin(angle * 2) * 8);
+            final x = radius * math.cos(angle);
+            final y = radius * math.sin(angle);
+
+            return Transform.translate(
+              offset: Offset(x, y),
+              child: Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: glowColor,
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -403,16 +509,16 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
 
   Widget _buildTranscriptTicker() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
         color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: QuantColors.hairlineBorder, width: 1),
+        border: Border(
+          top: BorderSide(color: QuantColors.hairlineBorder, width: 1),
+          bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -421,7 +527,7 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
                 children: [
                   Icon(
                     Icons.subtitles_rounded,
-                    size: 14,
+                    size: 13,
                     color: QuantColors.cosmicCyan,
                   ),
                   SizedBox(width: 6),
@@ -439,58 +545,78 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: QuantColors.elevatedCard,
+                  color: QuantColors.voidObsidian,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  _selectedPersona.name,
-                  style: TextStyle(
-                    fontSize: 10,
+                  'VAD Response <120ms',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'monospace',
+                    color: QuantColors.emeraldMatrix,
                     fontWeight: FontWeight.w700,
-                    color: _selectedPersona.glowColor,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 90),
-            child: SingleChildScrollView(
-              reverse: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: _transcriptHistory.map((item) {
-                  final isUser = item['speaker'] == 'User';
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: RichText(
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${item['speaker']}: ',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: isUser
-                                  ? QuantColors.textSecondary
-                                  : _selectedPersona.glowColor,
-                            ),
-                          ),
-                          TextSpan(
-                            text: item['text']!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              height: 1.4,
-                              color: QuantColors.textPrimary,
-                            ),
-                          ),
-                        ],
+          const SizedBox(height: 8),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 110),
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: _transcriptHistory.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 6),
+              itemBuilder: (context, index) {
+                final entry = _transcriptHistory[index];
+                final isUser = entry['speaker'] == 'User';
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isUser
+                            ? QuantColors.elevatedCard
+                            : _selectedPersona.glowColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        entry['speaker']!,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: isUser
+                              ? QuantColors.textSecondary
+                              : _selectedPersona.glowColor,
+                        ),
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        entry['text']!,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: QuantColors.textPrimary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      entry['latency']!,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontFamily: 'monospace',
+                        color: QuantColors.textMuted,
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -500,59 +626,56 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
 
   Widget _buildControlDock(Color glowColor) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: const BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        border: Border(
-          top: BorderSide(color: QuantColors.hairlineBorder, width: 1),
-        ),
+        color: QuantColors.voidObsidian,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Visualizer Frequency Waveform Bars (7 bars)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(7, (index) {
-              final heights = [16.0, 26.0, 36.0, 48.0, 34.0, 22.0, 14.0];
-              final pulse = _pulseAnimation.value;
-              final animatedHeight = heights[index] *
-                  (_isSpeaking ? (0.6 + pulse * 0.5) : 0.2);
+          // Audio Waveform Equalizer (24 bars)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(24, (index) {
+                final height = (_vadState == VadState.speaking)
+                    ? 6.0 + (math.sin((index * 0.4) + _pulseAnimation.value * math.pi) * 14.0).abs()
+                    : 3.0;
 
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 4,
-                height: math.max(6.0, animatedHeight),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: _isSpeaking
-                      ? glowColor
-                      : QuantColors.hairlineBorder,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              );
-            }),
+                return Container(
+                  width: 3,
+                  height: height,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: glowColor.withOpacity(0.6 + (index % 3) * 0.15),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
+            ),
           ),
-          const SizedBox(height: 14),
 
-          // Control buttons: Mute, Interrupt, End Call
+          // Action Buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              // Mute / Unmute Mic
-              IconButton.filledTonal(
-                iconSize: 24,
+              // Mute Button
+              IconButton(
                 style: IconButton.styleFrom(
                   backgroundColor: _isMicMuted
                       ? QuantColors.statusError.withOpacity(0.2)
-                      : QuantColors.elevatedCard,
-                  foregroundColor: _isMicMuted
-                      ? QuantColors.statusError
-                      : QuantColors.textPrimary,
-                  padding: const EdgeInsets.all(14),
+                      : QuantColors.darkSlateCard,
+                  padding: const EdgeInsets.all(12),
                 ),
                 icon: Icon(
-                  _isMicMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  _isMicMuted
+                      ? Icons.mic_off_rounded
+                      : Icons.mic_rounded,
+                  color: _isMicMuted
+                      ? QuantColors.statusError
+                      : QuantColors.textPrimary,
+                  size: 20,
                 ),
                 onPressed: () {
                   setState(() {
@@ -561,75 +684,49 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
                 },
               ),
 
-              // Tap to Interrupt button
-              InkWell(
-                borderRadius: BorderRadius.circular(28),
-                onTap: () {
-                  setState(() {
-                    _isSpeaking = !_isSpeaking;
-                  });
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: QuantColors.darkSlateCard,
-                      content: Text(
-                        _isSpeaking
-                            ? 'AI Voice resumed.'
-                            : 'AI speech interrupted. Microphone listening.',
-                        style: const TextStyle(color: QuantColors.textPrimary),
-                      ),
-                      duration: const Duration(seconds: 1),
-                    ),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: glowColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: glowColor, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: glowColor.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _isSpeaking
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _isSpeaking ? 'Tap to Interrupt' : 'Resume Speech',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
+              // Tap to Interrupt / Cycle VAD Button
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: glowColor,
+                  foregroundColor: Colors.black,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
                   ),
                 ),
+                icon: const Icon(Icons.touch_app_rounded, size: 16),
+                label: const Text(
+                  'Tap to Interrupt',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                onPressed: _cycleVadState,
               ),
 
-              // End Conversation
-              IconButton.filled(
-                iconSize: 24,
+              // End Call Button
+              IconButton(
                 style: IconButton.styleFrom(
-                  backgroundColor: QuantColors.statusError,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(14),
+                  backgroundColor: QuantColors.statusError.withOpacity(0.2),
+                  padding: const EdgeInsets.all(12),
                 ),
-                icon: const Icon(Icons.call_end_rounded),
+                icon: const Icon(
+                  Icons.call_end_rounded,
+                  color: QuantColors.statusError,
+                  size: 20,
+                ),
                 onPressed: () {
-                  Navigator.of(context).maybePop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      backgroundColor: QuantColors.darkSlateCard,
+                      content: Text(
+                        'Voice session closed. Telemetry saved to session ledger.',
+                        style: TextStyle(color: QuantColors.textPrimary),
+                      ),
+                    ),
+                  );
                 },
               ),
             ],
@@ -637,5 +734,41 @@ class _VoiceOrbScreenState extends State<VoiceOrbScreen>
         ],
       ),
     );
+  }
+}
+
+/// Impeller-Accelerated Molten Plasma Energy Rings Painter
+/// Strictly ZERO Skia clipPath method invocations!
+class _MoltenPlasmaPainter extends CustomPainter {
+  final double pulse;
+  final double rotation;
+  final Color color;
+
+  _MoltenPlasmaPainter({
+    required this.pulse,
+    required this.rotation,
+    required this.color,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final baseRadius = (size.width / 2) * 0.88;
+
+    final ringPaint = Paint()
+      ..color = color.withOpacity(0.22 * (1.0 - pulse * 0.2))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8;
+
+    // Draw concentric harmonic circles without any clipPath
+    canvas.drawCircle(center, baseRadius, ringPaint);
+    canvas.drawCircle(center, baseRadius * 0.72 + (pulse * 4), ringPaint..strokeWidth = 1.2);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MoltenPlasmaPainter oldDelegate) {
+    return oldDelegate.pulse != pulse ||
+        oldDelegate.rotation != rotation ||
+        oldDelegate.color != color;
   }
 }

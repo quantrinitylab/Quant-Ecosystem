@@ -19,8 +19,35 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
   late AudioSpaceRoom _room;
   bool _isMyMicMuted = true;
   bool _isMyHandRaised = false;
+  bool _isStageScreenSharing = false;
   late AnimationController _waveController;
   late Animation<double> _waveAnimation;
+
+  void _toggleStageScreenShare() {
+    setState(() => _isStageScreenSharing = !_isStageScreenSharing);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(
+              _isStageScreenSharing ? Icons.screen_share_rounded : Icons.stop_screen_share_rounded,
+              color: QuantColors.moltenOrange,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _isStageScreenSharing
+                  ? 'Stage Screen Share Broadcasting: 1080p 60fps'
+                  : 'Stage Screen Share Ended',
+              style: const TextStyle(color: QuantColors.textPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -110,6 +137,11 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
                   // Host VIP Spotlight Card
                   _buildHostSection(),
                   const SizedBox(height: 18),
+
+                  if (_isStageScreenSharing) ...[
+                    _buildStageScreenShareBanner(),
+                    const SizedBox(height: 18),
+                  ],
 
                   // Active Speakers Grid
                   _buildSectionTitle(
@@ -740,6 +772,35 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
               ),
               const SizedBox(width: 8),
 
+              // Stage Screen Share Toggle Button
+              InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: _toggleStageScreenShare,
+                child: Container(
+                  height: 42,
+                  width: 42,
+                  decoration: BoxDecoration(
+                    color: _isStageScreenSharing
+                        ? QuantColors.moltenOrange
+                        : QuantColors.elevatedCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isStageScreenSharing
+                          ? QuantColors.moltenOrange
+                          : QuantColors.hairlineBorder,
+                    ),
+                  ),
+                  child: Icon(
+                    _isStageScreenSharing
+                        ? Icons.stop_screen_share_rounded
+                        : Icons.screen_share_rounded,
+                    size: 18,
+                    color: _isStageScreenSharing ? Colors.white : QuantColors.moltenOrange,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
               // Share Invite Button
               InkWell(
                 borderRadius: BorderRadius.circular(12),
@@ -770,6 +831,98 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStageScreenShareBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuantColors.moltenOrange.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: QuantColors.moltenOrange.withOpacity(0.15),
+            blurRadius: 16,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.screen_share_rounded, size: 18, color: QuantColors.moltenOrange),
+                  SizedBox(width: 8),
+                  Text(
+                    'STAGE PRESENTATION LIVE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: QuantColors.moltenOrange.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  '1080p 60fps',
+                  style: TextStyle(
+                    color: QuantColors.moltenOrange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 140,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.monitor_rounded, size: 36, color: QuantColors.sovereignCyan),
+                  SizedBox(height: 8),
+                  Text(
+                    'Impeller WebRTC Desktop Stream',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Low-latency peer video canvas',
+                    style: TextStyle(
+                      color: QuantColors.textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
