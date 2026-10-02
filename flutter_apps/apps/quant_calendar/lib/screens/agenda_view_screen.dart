@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/calendar_models.dart';
+import 'event_editor_sheet.dart';
 
 /// Agenda View Screen - 7-Day Schedule Timeline with Multi-Day Event Series
 ///
@@ -250,7 +251,21 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
                           },
                         ),
                       ),
-                    if (event.isQuantMeet) const SizedBox(width: 12),
+                    if (event.isQuantMeet) const SizedBox(width: 10),
+                    Expanded(
+                      child: SquircleButton(
+                        label: 'Edit',
+                        icon: Icons.edit_calendar_rounded,
+                        backgroundColor: QuantColors.elevatedCard,
+                        textColor: QuantColors.textPrimary,
+                        border: const BorderSide(color: QuantColors.hairlineBorder),
+                        onPressed: () {
+                          Navigator.pop(context);
+                          _openEditEventSheet(event);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: SquircleButton(
                         label: 'Dismiss',
@@ -268,6 +283,39 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
         );
       },
     );
+  }
+
+  void _openEditEventSheet(CalendarEvent event) async {
+    final updated = await EventEditorSheet.show(
+      context,
+      initialEvent: event,
+      onEventSaved: (evt) {
+        final idx = _events.indexWhere((e) => e.id == evt.id);
+        if (idx != -1) {
+          setState(() => _events[idx] = evt);
+        }
+      },
+    );
+    if (updated != null) {
+      final idx = _events.indexWhere((e) => e.id == updated.id);
+      if (idx != -1) {
+        setState(() => _events[idx] = updated);
+      }
+    }
+  }
+
+  void _openNewEventComposer() async {
+    final created = await EventEditorSheet.show(
+      context,
+      onEventSaved: (evt) {
+        setState(() => _events.insert(0, evt));
+      },
+    );
+    if (created != null) {
+      if (!_events.any((e) => e.id == created.id)) {
+        setState(() => _events.insert(0, created));
+      }
+    }
   }
 
   void _showAddEventDialog() {
@@ -333,6 +381,14 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel', style: TextStyle(color: QuantColors.textMuted)),
+            ),
+            TextButton.icon(
+              icon: const Icon(Icons.tune_rounded, size: 16, color: QuantColors.sunsetGold),
+              label: const Text('Full Composer', style: TextStyle(color: QuantColors.sunsetGold)),
+              onPressed: () {
+                Navigator.pop(context);
+                _openNewEventComposer();
+              },
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(

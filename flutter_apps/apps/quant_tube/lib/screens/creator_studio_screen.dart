@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/tube_models.dart';
 import '../data/tube_repository.dart';
+import 'studio/video_upload_sheet.dart';
 
 /// Creator Studio Dashboard & Multi-Stage Video Upload Studio for QuanTube
 /// Features:
@@ -906,118 +907,12 @@ class _CreatorStudioScreenState extends State<CreatorStudioScreen> {
   }
 
   void _showUploadVideoModal() {
-    String selectedCat = 'Coding';
-    String enteredTitle = '';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: QuantColors.darkSlateCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Upload Sovereign Video',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: QuantColors.textPrimary,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-
-                  TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Video Title',
-                      labelStyle: TextStyle(color: QuantColors.textSecondary, fontSize: 13),
-                      hintText: 'e.g. Sovereign Tripartite Swarm Architecture',
-                      hintStyle: TextStyle(color: QuantColors.textMuted, fontSize: 13),
-                      filled: true,
-                      fillColor: QuantColors.voidObsidian,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide: BorderSide(color: QuantColors.hairlineBorder),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                    onChanged: (val) => enteredTitle = val,
-                  ),
-                  const SizedBox(height: 14),
-
-                  Row(
-                    children: [
-                      const Text(
-                        'Category:',
-                        style: TextStyle(fontSize: 13, color: QuantColors.textSecondary),
-                      ),
-                      const SizedBox(width: 12),
-                      DropdownButton<String>(
-                        value: selectedCat,
-                        dropdownColor: QuantColors.elevatedCard,
-                        style: const TextStyle(color: Colors.white, fontSize: 13),
-                        underline: const SizedBox(),
-                        items: ['Coding', 'Gaming', 'AI', 'Music', 'Tech'].map((c) {
-                          return DropdownMenuItem(value: c, child: Text(c));
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setModalState(() => selectedCat = val);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _startUploadSimulation(
-                          title: enteredTitle.isEmpty ? 'Sovereign 4K Stream' : enteredTitle,
-                          category: selectedCat,
-                        );
-                      },
-                      icon: const Icon(Icons.rocket_launch_rounded, size: 18),
-                      label: const Text('Start 4-Stage Multi-Progress Upload'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: QuantColors.crimsonRed,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+    VideoUploadSheet.show(
+      context,
+      onVideoPublished: (video) {
+        _startUploadSimulation(
+          title: video.title,
+          category: video.category,
         );
       },
     );

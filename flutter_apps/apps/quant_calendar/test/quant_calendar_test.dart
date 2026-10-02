@@ -11,6 +11,7 @@ import 'package:quant_calendar/screens/month_grid_screen.dart';
 import 'package:quant_calendar/screens/public_booking_screen.dart';
 import 'package:quant_calendar/screens/quantmeet_launcher_screen.dart';
 import 'package:quant_calendar/screens/reminders_screen.dart';
+import 'package:quant_calendar/screens/event_editor_sheet.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -538,4 +539,229 @@ void main() {
       expect(find.text('Quanty AI Schedule Copilot'), findsNothing);
     });
   });
+
+  // ===========================================================================
+  // 5. EVENT EDITOR SHEET (RFC 5545 COMPOSER) TESTS
+  // ===========================================================================
+  group('EventEditorSheet Full RFC 5545 Composer Tests', () {
+    testWidgets('Renders all fields, dual-timezone calculations, and default settings', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: EventEditorSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Header & title
+      expect(find.text('New Sovereign Event'), findsOneWidget);
+      expect(find.text('Event title (e.g. Wave 76 Architecture Sync)'), findsOneWidget);
+
+      // Dual timezone card
+      expect(find.textContaining('IST'), findsWidgets);
+      expect(find.textContaining('PST'), findsWidgets);
+      expect(find.text('RFC 5545'), findsOneWidget);
+      expect(find.textContaining('Dual-Timezone Synchronization'), findsOneWidget);
+
+      // All day toggle
+      expect(find.text('All-day event'), findsOneWidget);
+      expect(find.text('Starts'), findsOneWidget);
+      expect(find.text('Ends'), findsOneWidget);
+
+      // Recurrence selector
+      expect(find.text('Recurrence (RFC 5545 RRULE)'), findsOneWidget);
+      expect(find.text('Does not repeat'), findsOneWidget);
+
+      // QuantMeet HD Video Section
+      expect(find.text('QuantMeet HD Video Stage'), findsOneWidget);
+      expect(find.textContaining('AV1 1080p60 Hardware Encoder'), findsOneWidget);
+
+      // Attendees section
+      expect(find.textContaining('Attendees (2)'), findsOneWidget);
+      expect(find.text('CALDAV DISPATCH'), findsOneWidget);
+      expect(find.text('node-b@quantrinity.in'), findsOneWidget);
+      expect(find.text('node-c@quantrinity.in'), findsOneWidget);
+
+      // Color Tag & Action buttons
+      expect(find.text('Event Color Tag'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Save Event'), findsOneWidget);
+    });
+
+    testWidgets('Attendees input: Adds new attendee chip and removes existing attendee chip', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: EventEditorSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('node-b@quantrinity.in'), findsOneWidget);
+
+      // Add a new attendee
+      final attendeeField = find.widgetWithText(TextField, 'Enter attendee email...');
+      expect(attendeeField, findsOneWidget);
+
+      await tester.enterText(attendeeField, 'sentinel@quantrinity.in');
+      await tester.pump();
+
+      // Tap add attendee button
+      await tester.tap(find.byTooltip('Add Attendee'));
+      await tester.pump();
+
+      // Verify new attendee chip appears
+      expect(find.text('sentinel@quantrinity.in'), findsOneWidget);
+      expect(find.textContaining('Attendees (3)'), findsOneWidget);
+
+      // Remove an attendee chip
+      final closeIcons = find.byIcon(Icons.close_rounded);
+      expect(closeIcons, findsWidgets);
+
+      await tester.tap(closeIcons.at(1)); // Remove first chip
+      await tester.pump();
+      expect(find.textContaining('Attendees (2)'), findsOneWidget);
+    });
+
+    testWidgets('Recurrence picker: Switches to Daily, Weekly, and Custom RRULE', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: EventEditorSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Initially 'Does not repeat'
+      expect(find.text('Does not repeat'), findsOneWidget);
+
+      // Open Dropdown
+      await tester.tap(find.text('Does not repeat'));
+      await tester.pumpAndSettle();
+
+      // Select Daily
+      expect(find.text('Daily (RFC 5545)'), findsWidgets);
+      await tester.tap(find.text('Daily (RFC 5545)').last);
+      await tester.pumpAndSettle();
+
+      // Verify RRULE badge shows
+      expect(find.text('RRULE:FREQ=DAILY'), findsOneWidget);
+
+      // Switch to Custom
+      await tester.tap(find.text('Daily (RFC 5545)'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Custom recurrence...'), findsWidgets);
+      await tester.tap(find.text('Custom recurrence...').last);
+      await tester.pumpAndSettle();
+
+      // Custom RRULE text field appears
+      expect(find.widgetWithText(TextFormField, 'RRULE:FREQ=WEEKLY;INTERVAL=2'), findsOneWidget);
+    });
+
+    testWidgets('QuantMeet toggle switches HD stage on/off', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: EventEditorSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // QuantMeet is ON by default
+      expect(find.textContaining('AV1 1080p60 Hardware Encoder'), findsOneWidget);
+
+      // Find switch in QuantMeet section
+      final switches = find.byType(Switch);
+      expect(switches, findsNWidgets(2)); // All-day and QuantMeet
+
+      // Toggle QuantMeet OFF
+      await tester.tap(switches.last);
+      await tester.pump();
+
+      // Hardware spec card disappears and physical location field appears
+      expect(find.textContaining('AV1 1080p60 Hardware Encoder'), findsNothing);
+      expect(find.text('Physical Location / Room'), findsOneWidget);
+    });
+
+    testWidgets('Validation blocks saving with empty title and saves valid event', (WidgetTester tester) async {
+      CalendarEvent? savedEvent;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: EventEditorSheet(
+              onEventSaved: (evt) => savedEvent = evt,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Tap Save with empty title
+      await tester.tap(find.text('Save Event'));
+      await tester.pump();
+
+      // Validation error appears
+      expect(find.text('Event title is required'), findsOneWidget);
+      expect(savedEvent, isNull);
+
+      // Enter Title
+      final titleField = find.widgetWithText(TextFormField, 'Event title (e.g. Wave 76 Architecture Sync)');
+      await tester.enterText(titleField, 'Sovereign Sprint 76 Review');
+      await tester.pump();
+
+      // Tap Save Event
+      await tester.tap(find.text('Save Event'));
+      await tester.pumpAndSettle();
+
+      // Verify event is saved with correct attributes
+      expect(savedEvent, isNotNull);
+      expect(savedEvent!.title, 'Sovereign Sprint 76 Review');
+      expect(savedEvent!.isQuantMeet, isTrue);
+      expect(savedEvent!.attendees.length, 2);
+      expect(savedEvent!.colorHex, '#F59E0B');
+    });
+
+    testWidgets('Pre-populates fields when initialEvent is passed for editing', (WidgetTester tester) async {
+      final initial = CalendarEvent(
+        id: 'evt-custom-009',
+        title: 'Impeller Architecture Review',
+        description: 'Zero clipPath and 120Hz pipeline review',
+        startTime: DateTime.utc(2026, 10, 2, 14, 0),
+        endTime: DateTime.utc(2026, 10, 2, 15, 30),
+        isQuantMeet: true,
+        colorHex: '#38BDF8',
+        recurrenceRule: 'RRULE:FREQ=DAILY;INTERVAL=1',
+        attendees: const ['alex@quantmail.in', 'lead@quantrinity.in'],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: EventEditorSheet(initialEvent: initial),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Edit Sovereign Event'), findsOneWidget);
+      expect(find.text('Update Event'), findsOneWidget);
+      expect(find.text('Impeller Architecture Review'), findsOneWidget);
+      expect(find.text('RRULE:FREQ=DAILY'), findsOneWidget);
+      expect(find.text('alex@quantmail.in'), findsOneWidget);
+      expect(find.text('lead@quantrinity.in'), findsOneWidget);
+    });
+  });
 }
+

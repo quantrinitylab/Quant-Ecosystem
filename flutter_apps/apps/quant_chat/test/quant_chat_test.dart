@@ -15,6 +15,10 @@ import 'package:quant_chat/screens/audio_space_screen.dart';
 import 'package:quant_chat/screens/calls_tab_screen.dart';
 import 'package:quant_chat/screens/settings_screen.dart';
 import 'package:quant_chat/widgets/call_sheet.dart';
+import 'package:quant_chat/widgets/chat_media_sheet.dart';
+import 'package:quant_chat/screens/group/create_group_sheet.dart';
+import 'package:quant_chat/screens/group/group_detail_screen.dart';
+import 'package:quant_chat/screens/security/safety_number_screen.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
@@ -461,6 +465,242 @@ void main() {
       expect(find.text('Hardware Keystore Storage'), findsOneWidget);
       expect(find.text('120Hz Impeller GPU Acceleration'), findsOneWidget);
       expect(find.text('WEBRTC AUDIO/VIDEO MESH'), findsOneWidget);
+    });
+
+    testWidgets('CreateGroupSheet: renders avatar picker, subject input, contact chips, admin toggles, and disappearing dropdown', (tester) async {
+      ChatConversation? createdConversation;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: CreateGroupSheet(
+              onGroupCreated: (conv) {
+                createdConversation = conv;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verify Header
+      expect(find.text('Create Sovereign Group'), findsOneWidget);
+      expect(find.text('End-to-End Encrypted Group Mesh'), findsOneWidget);
+
+      // Verify Subject Input Field
+      expect(find.byType(TextField), findsWidgets);
+      expect(find.text('Group Subject'), findsOneWidget);
+
+      // Verify Disappearing Messages Dropdown
+      expect(find.text('Disappearing Messages'), findsOneWidget);
+      expect(find.text('Off'), findsOneWidget);
+
+      // Verify Admin Governance Toggles
+      expect(find.text('Only Admins Can Send Messages'), findsOneWidget);
+      expect(find.text('Only Admins Can Edit Info'), findsOneWidget);
+      expect(find.text('Approve New Members'), findsOneWidget);
+
+      // Verify Member Search
+      expect(find.text('ADD PARTICIPANTS'), findsOneWidget);
+
+      // Enter group subject
+      await tester.enterText(find.widgetWithText(TextField, 'Group Subject'), 'Sovereign Core Mesh');
+      await tester.pump();
+
+      // Toggle Admin Permissions
+      await tester.tap(find.widgetWithText(SwitchListTile, 'Only Admins Can Send Messages'));
+      await tester.pump();
+
+      // Tap Create Group button
+      await tester.tap(find.textContaining('Create Group'));
+      await tester.pump();
+
+      // Verify callback triggered
+      expect(createdConversation, isNotNull);
+      expect(createdConversation!.name, 'Sovereign Core Mesh');
+      expect(createdConversation!.isGroup, isTrue);
+    });
+
+    testWidgets('GroupDetailScreen: member list with Admin badges, add member, media/docs/links gallery tabs, mute toggle, exit/delete actions', (tester) async {
+      const groupConv = ChatConversation(
+        id: 'grp-test-1',
+        contactId: 'group-broadcast',
+        name: 'Sovereign Core Mesh',
+        avatarInitials: 'SC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: 'All systems green',
+        lastMessageTime: '12:00',
+        isGroup: true,
+        memberCount: 7,
+        groupDescription: 'Core Tripartite Swarm architectural dispatch channel.',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const GroupDetailScreen(conversation: groupConv),
+        ),
+      );
+      await tester.pump();
+
+      // Verify Header details
+      expect(find.text('Group Info'), findsOneWidget);
+      expect(find.text('Sovereign Core Mesh'), findsOneWidget);
+      expect(find.text('Signal Double Ratchet E2EE Active'), findsOneWidget);
+
+      // Verify Quick Action Buttons
+      expect(find.text('Audio Call'), findsOneWidget);
+      expect(find.text('Video Call'), findsOneWidget);
+      expect(find.text('Add Member'), findsWidgets);
+      expect(find.text('Search'), findsOneWidget);
+
+      // Verify Shared Repository Tabs
+      expect(find.textContaining('Media'), findsOneWidget);
+      expect(find.textContaining('Docs'), findsOneWidget);
+      expect(find.textContaining('Links'), findsOneWidget);
+
+      // Switch to Docs tab
+      await tester.tap(find.textContaining('Docs'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('E2EE_Signal_Protocol_Spec_v3.pdf'), findsOneWidget);
+
+      // Switch to Links tab
+      await tester.tap(find.textContaining('Links'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Quant Ecosystem Staging Gateway'), findsOneWidget);
+
+      // Verify Mute Notifications toggle
+      expect(find.text('Mute Notifications'), findsOneWidget);
+      await tester.tap(find.text('Mute Notifications'));
+      await tester.pump();
+      expect(find.text('Muted'), findsOneWidget);
+
+      // Verify Member list items and badges
+      expect(find.text('PARTICIPANTS (7)'), findsOneWidget);
+      expect(find.text('CEO Astra (Notion AI Swarm)'), findsOneWidget);
+      expect(find.text('Group Admin'), findsOneWidget);
+      expect(find.text('Admin'), findsOneWidget);
+
+      // Verify Exit and Delete actions exist
+      expect(find.text('Exit Group'), findsOneWidget);
+      expect(find.text('Delete Sovereign Group'), findsOneWidget);
+
+      // Tap Exit Group to open confirmation dialog
+      await tester.tap(find.text('Exit Group'));
+      await tester.pump();
+      expect(find.text('Exit Sovereign Group?'), findsOneWidget);
+
+      // Dismiss dialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pump();
+    });
+
+    testWidgets('ChatMediaSheet: renders 6 squircle actions and FastCDC/Location previews', (tester) async {
+      ChatMediaType? selectedType;
+      Map<String, dynamic>? selectedData;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: ChatMediaSheet(
+              onActionSelected: (type, data) {
+                selectedType = type;
+                selectedData = data;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verify Header
+      expect(find.text('Share Encrypted Media & Data'), findsOneWidget);
+      expect(find.textContaining('FastCDC Content-Defined Chunking'), findsOneWidget);
+
+      // Verify 6 Squircle Actions
+      expect(find.text('Document'), findsOneWidget);
+      expect(find.text('Camera'), findsOneWidget);
+      expect(find.text('Gallery'), findsOneWidget);
+      expect(find.text('Audio Note'), findsOneWidget);
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.text('Contact'), findsOneWidget);
+
+      // Tap Document action to show FastCDC preview panel
+      await tester.tap(find.text('Document'));
+      await tester.pump();
+
+      // Verify FastCDC preview panel appears
+      expect(find.text('FILE SIZE'), findsOneWidget);
+      expect(find.text('CHUNKS'), findsOneWidget);
+      expect(find.text('DEDUP'), findsOneWidget);
+      expect(find.textContaining('SHA-256:'), findsOneWidget);
+      expect(find.textContaining('Send FastCDC Document'), findsOneWidget);
+
+      // Send FastCDC document
+      await tester.tap(find.textContaining('Send FastCDC Document'));
+      await tester.pump();
+
+      expect(selectedType, ChatMediaType.document);
+      expect(selectedData!['fileName'], 'Quant_Mesh_Specification_v3.pdf');
+    });
+
+    testWidgets('SafetyNumberScreen: 60 digits displayed in 12 blocks of 5, copy chip, QR matrix, scanner toggle, verification toggle', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SafetyNumberScreen(
+            contactName: 'CEO Astra',
+            contactInitials: 'AS',
+            contactAvatarColor: QuantColors.moltenOrange,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verify Title and Peer
+      expect(find.text('Verify Safety Number'), findsOneWidget);
+      expect(find.text('CEO Astra'), findsOneWidget);
+      expect(find.text('UNVERIFIED'), findsOneWidget);
+
+      // Verify Advisory banner
+      expect(find.textContaining('If the safety number changed, it might mean someone is trying to intercept'), findsOneWidget);
+
+      // Verify 60-digit safety number section and Copy chip
+      expect(find.text('60-DIGIT SAFETY NUMBER'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+
+      // Verify QR Code CustomPainter is present
+      expect(find.byType(CustomPaint), findsWidgets);
+
+      // Toggle to Scan Mode
+      expect(find.text('Scan Peer Code'), findsOneWidget);
+      await tester.tap(find.text('Scan Peer Code'));
+      await tester.pump();
+
+      // Verify Viewfinder active
+      expect(find.text('Point camera at peer QR code'), findsOneWidget);
+      expect(find.text('Show QR Code'), findsOneWidget);
+
+      // Toggle back to Show QR Code
+      await tester.tap(find.text('Show QR Code'));
+      await tester.pump();
+      expect(find.text('Scan Peer Code'), findsOneWidget);
+
+      // Verify Telemetry rows
+      expect(find.text('Cryptographic Protocol'), findsOneWidget);
+      expect(find.text('Signal Double Ratchet + X3DH'), findsOneWidget);
+      expect(find.text('Post-Quantum Defense'), findsOneWidget);
+      expect(find.text('Kyber-1024 Lattice KEM'), findsOneWidget);
+
+      // Mark as Verified CTA
+      expect(find.text('Mark as Verified'), findsOneWidget);
+      await tester.tap(find.text('Mark as Verified'));
+      await tester.pump();
+
+      // Verify status flipped to Verified
+      expect(find.text('VERIFIED'), findsOneWidget);
+      expect(find.text('Mark as Unverified'), findsOneWidget);
     });
   });
 

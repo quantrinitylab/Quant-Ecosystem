@@ -6,6 +6,8 @@ import 'screens/shared_files_screen.dart';
 import 'screens/cryptographic_vault_screen.dart';
 import 'screens/starred_files_screen.dart';
 import 'screens/fastcdc_cleaner_screen.dart';
+import 'screens/drive_upload_sheet.dart';
+import 'screens/file_preview_lightbox.dart';
 import 'data/drive_data_source.dart';
 import 'models/drive_models.dart';
 
@@ -103,7 +105,19 @@ class _QuantDriveShellState extends State<QuantDriveShell> {
                   'Redundant blocks are deduplicated across the sovereign cluster.',
                   style: TextStyle(fontSize: 12, color: QuantColors.textSecondary),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
+                SquircleButton(
+                  label: 'Open Multi-File Chunked Ingestion Sheet',
+                  icon: Icons.upload_file_rounded,
+                  isFullWidth: true,
+                  backgroundColor: QuantColors.sovereignCyan,
+                  textColor: Colors.black,
+                  onPressed: () {
+                    Navigator.pop(context);
+                    DriveUploadSheet.show(context);
+                  },
+                ),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     Expanded(

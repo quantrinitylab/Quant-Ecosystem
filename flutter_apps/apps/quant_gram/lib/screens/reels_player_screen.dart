@@ -6,6 +6,8 @@ import '../models/gram_models.dart';
 import '../data/gram_repository.dart';
 import 'comments_sheet.dart';
 import 'stories_tray.dart';
+import 'gifts/virtual_gifts_sheet.dart';
+import 'remix/sovereign_remix_studio.dart';
 
 /// Sovereign 9:16 Vertical Reels Player Screen
 ///
@@ -113,9 +115,7 @@ class _ReelsPlayerScreenState extends State<ReelsPlayerScreen>
         reel: reel,
         onStartRemix: () {
           Navigator.of(ctx).pop();
-          if (widget.onCreateTap != null) {
-            widget.onCreateTap!();
-          }
+          SovereignRemixStudio.show(context, reel);
         },
       ),
     );
@@ -833,6 +833,21 @@ class _SingleReelPlayerViewportState extends State<SingleReelPlayerViewport>
                   iconColor: QuantColors.sunsetGold,
                   label: _formatCount(widget.reel.remixCount),
                   onTap: widget.onRemixTap,
+                ),
+                const SizedBox(height: 18),
+
+                // Virtual Creator Gifting Action Trigger Button
+                _buildActionItem(
+                  icon: Icons.card_giftcard_rounded,
+                  iconColor: QuantColors.moltenAmber,
+                  label: 'Gift',
+                  onTap: () {
+                    VirtualGiftsSheet.show(
+                      context,
+                      creatorHandle: widget.reel.creatorHandle,
+                      creatorAvatarUrl: widget.reel.creatorAvatarUrl,
+                    );
+                  },
                 ),
                 const SizedBox(height: 18),
 

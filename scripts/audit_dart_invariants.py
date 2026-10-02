@@ -310,7 +310,7 @@ def main():
     print("\n[1/3] AUDITING ZERO-CLIPPATH INVARIANT...")
     clip_findings = audit_clippath(dart_files, base_dir)
     if not clip_findings:
-        print("  -> PASSED: ZERO Skia clipPath invocations detected across all 133 files!")
+        print(f"  -> PASSED: ZERO Skia clipPath invocations detected across all {len(dart_files)} files!")
     else:
         print(f"  -> FAILED: Found {len(clip_findings)} clipPath invocations:")
         for cf in clip_findings:
@@ -320,7 +320,7 @@ def main():
     print("\n[2/3] AUDITING ZERO-EMOJI INVARIANT (⌘ Command Key Permitted)...")
     emoji_findings = audit_emojis(dart_files, base_dir)
     if not emoji_findings:
-        print("  -> PASSED: ZERO raw Unicode emojis detected across all 133 files!")
+        print(f"  -> PASSED: ZERO raw Unicode emojis detected across all {len(dart_files)} files!")
     else:
         print(f"  -> FAILED: Found {len(emoji_findings)} raw Unicode emoji occurrences:")
         for ef in emoji_findings:
@@ -337,7 +337,7 @@ def main():
             bracket_errors[rel] = errs
 
     if not bracket_errors:
-        print("  -> PASSED: 100% Balanced brackets & string literals across all 133 files!")
+        print(f"  -> PASSED: 100% Balanced brackets & string literals across all {len(dart_files)} files!")
     else:
         print(f"  -> FAILED: Bracket/syntax errors found in {len(bracket_errors)} files:")
         for rel, errs in bracket_errors.items():

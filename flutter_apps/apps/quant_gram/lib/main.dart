@@ -4,6 +4,7 @@ import 'screens/reels_player_screen.dart';
 import 'screens/explore_screen.dart';
 import 'screens/create_sheet.dart';
 import 'screens/inbox_screen.dart';
+import 'screens/dms/dms_inbox_screen.dart';
 import 'screens/profile_matrix_screen.dart';
 
 /// Sovereign Instagram & TikTok Killer 9:16 Video Flutter Application
@@ -79,7 +80,7 @@ class _QuantGramMainScreenState extends State<QuantGramMainScreen> {
           ),
           const ExploreScreen(),
           const SizedBox.shrink(), // Placeholder for Create tab (handled via modal)
-          const InboxScreen(),
+          const DmsInboxScreen(),
           const ProfileMatrixScreen(),
         ],
       ),

@@ -8,6 +8,8 @@ import 'package:quant_drive/screens/shared_files_screen.dart';
 import 'package:quant_drive/screens/cryptographic_vault_screen.dart';
 import 'package:quant_drive/screens/fastcdc_cleaner_screen.dart';
 import 'package:quant_drive/screens/document_viewer_screen.dart';
+import 'package:quant_drive/screens/file_preview_lightbox.dart';
+import 'package:quant_drive/screens/drive_upload_sheet.dart';
 import 'package:quant_core/quant_core.dart';
 
 void main() {
@@ -154,4 +156,305 @@ void main() {
       expect(find.text('Obsidian Invert'), findsOneWidget);
     });
   });
+
+  // ===========================================================================
+  // 3. FILE PREVIEW LIGHTBOX TESTS
+  // ===========================================================================
+  group('FilePreviewLightbox Fullscreen Tests', () {
+    testWidgets('Renders Code/Text syntax highlighting with line numbers, tokens, and CAS chip', (WidgetTester tester) async {
+      final codeItem = DriveItem(
+        id: 'code-test-01',
+        name: 'kernel_fastcdc_engine.rs',
+        fileType: DriveFileType.code,
+        sizeBytes: 1887436,
+        modifiedAt: DateTime.now(),
+        isStarred: true,
+        sha256Cas: '2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae',
+        dedupSavingsPercent: 92,
+        chunkCount: 29,
+        path: '/Core',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: FilePreviewLightbox(item: codeItem),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Top app bar verification
+      expect(find.text('kernel_fastcdc_engine.rs'), findsOneWidget);
+      expect(find.textContaining('FastCDC 64KB CAS'), findsWidgets);
+
+      // Telemetry chip bar
+      expect(find.text('FASTCDC 64KB CAS'), findsOneWidget);
+      expect(find.text('92% DEDUP SAVED'), findsOneWidget);
+      expect(find.text('29 Chunks'), findsOneWidget);
+      expect(find.textContaining('CAS: 2c26b46b68'), findsOneWidget);
+
+      // Code syntax and line numbers verification
+      expect(find.textContaining('Rust / FastCDC CAS Engine'), findsOneWidget);
+      expect(find.text('1'), findsWidgets);
+      expect(find.textContaining('NOMINAL_CHUNK_SIZE'), findsWidgets);
+      expect(find.textContaining('GearTable'), findsWidgets);
+
+      // Star icon state
+      expect(find.byIcon(Icons.star_rounded), findsOneWidget);
+
+      // Export action
+      expect(find.text('Export CAS'), findsOneWidget);
+    });
+
+    testWidgets('Renders PDF document view with multi-page navigation and obsidian canvas inversion', (WidgetTester tester) async {
+      final pdfItem = DriveItem(
+        id: 'pdf-test-01',
+        name: 'quant_architecture_whitepaper_2026.pdf',
+        fileType: DriveFileType.pdf,
+        sizeBytes: 15518924,
+        modifiedAt: DateTime.now(),
+        sha256Cas: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        dedupSavingsPercent: 74,
+        chunkCount: 231,
+        path: '/Architecture',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: FilePreviewLightbox(item: pdfItem),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Header verification
+      expect(find.text('quant_architecture_whitepaper_2026.pdf'), findsOneWidget);
+      expect(find.text('PAGE 1 OF 14'), findsOneWidget);
+      expect(find.text('QUANT ECOSYSTEM SOVEREIGN ARCHITECTURE'), findsOneWidget);
+      expect(find.textContaining('FastCDC CAS 64KB Deduplication Protocol'), findsOneWidget);
+
+      // Navigation: Next Page
+      expect(find.text('1 / 14'), findsOneWidget);
+      await tester.tap(find.byTooltip('Next Page'));
+      await tester.pump();
+
+      expect(find.text('2 / 14'), findsOneWidget);
+      expect(find.text('PAGE 2 OF 14'), findsOneWidget);
+
+      // Previous Page
+      await tester.tap(find.byTooltip('Previous Page'));
+      await tester.pump();
+      expect(find.text('1 / 14'), findsOneWidget);
+
+      // Obsidian Canvas Inversion Toggle
+      expect(find.byTooltip('Toggle Obsidian Canvas'), findsOneWidget);
+      await tester.tap(find.byTooltip('Toggle Obsidian Canvas'));
+      await tester.pump();
+
+      // Zoom In and Out
+      expect(find.text('100%'), findsOneWidget);
+      await tester.tap(find.byTooltip('Zoom In'));
+      await tester.pump();
+      expect(find.text('120%'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Zoom Out'));
+      await tester.pump();
+      expect(find.text('100%'), findsOneWidget);
+    });
+
+    testWidgets('Renders Image Viewer with InteractiveViewer zoom/pan controls', (WidgetTester tester) async {
+      final imgItem = DriveItem(
+        id: 'img-test-01',
+        name: 'cluster_topology_2026.png',
+        fileType: DriveFileType.image,
+        sizeBytes: 4194304,
+        modifiedAt: DateTime.now(),
+        sha256Cas: 'fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9',
+        dedupSavingsPercent: 88,
+        chunkCount: 64,
+        path: '/Images',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: FilePreviewLightbox(item: imgItem),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verifies InteractiveViewer exists for pan/zoom
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.text('cluster_topology_2026.png'), findsWidgets);
+      expect(find.textContaining('3840 x 2160 UHD'), findsOneWidget);
+      expect(find.textContaining('Interactive Pinch & Pan Zoom Active'), findsOneWidget);
+
+      // Floating reset zoom button
+      expect(find.byTooltip('Reset Image Zoom'), findsOneWidget);
+    });
+
+    testWidgets('Opens FastCDC Telemetry details modal and dismisses', (WidgetTester tester) async {
+      final item = DriveItem(
+        id: 'doc-telemetry-01',
+        name: 'specs_telemetry_audit.pdf',
+        fileType: DriveFileType.pdf,
+        sizeBytes: 1048576,
+        modifiedAt: DateTime.now(),
+        sha256Cas: 'a591a6d40bf420404a011733cfb7b190d62c65bf0bcda32b57b277d9ad9f146e',
+        dedupSavingsPercent: 80,
+        chunkCount: 16,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: FilePreviewLightbox(item: item),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Tap info icon in app bar
+      await tester.tap(find.byTooltip('CAS Telemetry Info'));
+      await tester.pumpAndSettle();
+
+      // Modal appears
+      expect(find.text('FastCDC CAS Telemetry'), findsOneWidget);
+      expect(find.textContaining('256-Entry 64-Bit Gear Table'), findsOneWidget);
+      expect(find.text('MIME Classification'), findsOneWidget);
+      expect(find.text('16 blocks'), findsOneWidget);
+      expect(find.text('80% conserved'), findsOneWidget);
+
+      // Dismiss
+      await tester.tap(find.text('Dismiss Telemetry'));
+      await tester.pumpAndSettle();
+      expect(find.text('FastCDC CAS Telemetry'), findsNothing);
+    });
+  });
+
+  // ===========================================================================
+  // 4. DRIVE UPLOAD SHEET TESTS
+  // ===========================================================================
+  group('DriveUploadSheet Multi-File Chunked Ingestion Tests', () {
+    testWidgets('Renders multi-file queue, progress bars, and FastCDC Gear-hash badge', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: DriveUploadSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Sheet title
+      expect(find.text('FastCDC CAS Chunk Ingestion'), findsOneWidget);
+
+      // Gear Hash Badge & Telemetry
+      expect(find.text('FastCDC Gear-Hash Engine'), findsOneWidget);
+      expect(find.text('88% DEDUP SAVED'), findsOneWidget);
+      expect(find.text('Gear Mask: 64KB CAS'), findsOneWidget);
+      expect(find.text('Sub-5ms Latency'), findsOneWidget);
+
+      // Queue state
+      expect(find.textContaining('Upload Queue (3 files)'), findsOneWidget);
+      expect(find.text('quant_cas_kernel_spec_v2.pdf'), findsOneWidget);
+      expect(find.text('gear_table_simd_avx512.rs'), findsOneWidget);
+      expect(find.text('cluster_helm_snapshot_2026.zip'), findsOneWidget);
+
+      // Vault toggle
+      expect(find.text('AES-256 E2EE Cryptographic Vault'), findsOneWidget);
+
+      // Action button
+      expect(find.text('Start Ingestion'), findsOneWidget);
+      expect(find.text('Cancel'), findsOneWidget);
+    });
+
+    testWidgets('Toggles AES-256 E2EE Cryptographic Vault switch', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: DriveUploadSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('STRONGBOX'), findsNothing);
+
+      // Toggle Switch
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+
+      // StrongBox badge appears
+      expect(find.text('STRONGBOX'), findsOneWidget);
+      expect(find.textContaining('Sealed with Argon2id KDF'), findsOneWidget);
+    });
+
+    testWidgets('Adds new file to the upload queue dynamically', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const Scaffold(
+            body: DriveUploadSheet(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('Upload Queue (3 files)'), findsOneWidget);
+
+      // Tap Add File
+      await tester.tap(find.text('Add File'));
+      await tester.pump();
+
+      // Queue increased to 4 files
+      expect(find.textContaining('Upload Queue (4 files)'), findsOneWidget);
+      expect(find.text('financial_audit_dataset_04.parquet'), findsOneWidget);
+    });
+
+    testWidgets('Simulates chunk ingestion progression across files to completion', (WidgetTester tester) async {
+      List<DriveItem>? completedItems;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: DriveUploadSheet(
+              onUploadComplete: (items) => completedItems = items,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Start Ingestion
+      await tester.tap(find.text('Start Ingestion'));
+      await tester.pump();
+
+      expect(find.text('Chunk Ingestion Streaming...'), findsOneWidget);
+
+      // Fast forward upload timer ticks until all items complete
+      for (int i = 0; i < 35; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await tester.pumpAndSettle();
+
+      // Verify finished state
+      expect(find.text('All Chunks Ingested Successfully'), findsOneWidget);
+      expect(find.text('Done (3 Ingested)'), findsOneWidget);
+      expect(completedItems, isNotNull);
+      expect(completedItems!.length, 3);
+      expect(completedItems!.first.dedupSavingsPercent, 88);
+    });
+  });
 }
+

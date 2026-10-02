@@ -9,7 +9,10 @@ import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
 import '../services/chat_mock_data.dart';
 import '../widgets/call_sheet.dart';
+import '../widgets/chat_media_sheet.dart';
 import 'call_screen.dart';
+import 'group/group_detail_screen.dart';
+import 'security/safety_number_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -393,6 +396,102 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  void _navigateToDetails() {
+    if (widget.conversation.isGroup) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => GroupDetailScreen(conversation: widget.conversation),
+        ),
+      );
+    } else {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => SafetyNumberScreen(
+            contactName: widget.conversation.name,
+            contactInitials: widget.conversation.avatarInitials,
+            contactAvatarColor: widget.conversation.avatarColor,
+          ),
+        ),
+      );
+    }
+  }
+
+  void _openMediaSheet() {
+    ChatMediaSheet.show(
+      context,
+      onActionSelected: (type, data) {
+        final now = TimeOfDay.now();
+        final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+        final newId = 'msg-${DateTime.now().millisecondsSinceEpoch}';
+
+        String textMsg = '';
+        MessageType msgType = MessageType.text;
+        String? fileName;
+        int? fileSizeBytes;
+
+        switch (type) {
+          case ChatMediaType.document:
+            textMsg = 'Sent encrypted FastCDC document: ${data['fileName'] ?? 'Document.pdf'}';
+            msgType = MessageType.document;
+            fileName = data['fileName'] as String?;
+            fileSizeBytes = data['fileSizeBytes'] as int?;
+            break;
+          case ChatMediaType.camera:
+            textMsg = 'Encrypted Photo (1080p60 captured locally)';
+            msgType = MessageType.image;
+            break;
+          case ChatMediaType.gallery:
+            textMsg = 'Encrypted Media (4K HDR zero-loss)';
+            msgType = MessageType.image;
+            break;
+          case ChatMediaType.audio:
+            textMsg = 'Voice Note (Opus 48kHz encrypted)';
+            msgType = MessageType.audio;
+            break;
+          case ChatMediaType.location:
+            textMsg = 'Live Sovereign GPS: ${data['locationName'] ?? '37.7749 deg N, 122.4194 deg W'}';
+            msgType = MessageType.text;
+            break;
+          case ChatMediaType.contact:
+            textMsg = 'Sovereign Contact Card: ${data['contactName']} (${data['handle']})';
+            msgType = MessageType.text;
+            break;
+        }
+
+        final outgoing = ChatMessage(
+          id: newId,
+          conversationId: widget.conversation.id,
+          senderId: 'usr-me',
+          senderName: 'You',
+          text: textMsg,
+          timestamp: timeStr,
+          isOutgoing: true,
+          deliveryStatus: MessageDeliveryStatus.pending,
+          type: msgType,
+          fileName: fileName,
+          fileSizeBytes: fileSizeBytes,
+          isDisappearing: _isDisappearingMode,
+          disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+          secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
+        );
+
+        setState(() {
+          _messages.add(outgoing);
+        });
+        _scrollToBottom();
+
+        Timer(const Duration(milliseconds: 350), () {
+          if (!mounted) return;
+          _updateMessageStatus(newId, MessageDeliveryStatus.sent);
+        });
+        Timer(const Duration(milliseconds: 900), () {
+          if (!mounted) return;
+          _updateMessageStatus(newId, MessageDeliveryStatus.delivered);
+        });
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -442,82 +541,90 @@ class _ConversationScreenState extends State<ConversationScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20, color: Colors.white),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          Stack(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: conv.avatarColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: conv.avatarColor.withOpacity(0.6), width: 1),
-                ),
-                child: Center(
-                  child: Text(
-                    conv.avatarInitials,
-                    style: TextStyle(
-                      color: conv.avatarColor,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+          GestureDetector(
+            onTap: _navigateToDetails,
+            child: Stack(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: conv.avatarColor.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: conv.avatarColor.withOpacity(0.6), width: 1),
+                  ),
+                  child: Center(
+                    child: Text(
+                      conv.avatarInitials,
+                      style: TextStyle(
+                        color: conv.avatarColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (conv.isOnline)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 9,
-                    height: 9,
-                    decoration: BoxDecoration(
-                      color: QuantColors.statusSuccess,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: QuantColors.voidObsidian, width: 1.5),
+                if (conv.isOnline)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: QuantColors.statusSuccess,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: QuantColors.voidObsidian, width: 1.5),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
       titleSpacing: 8,
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            conv.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: Colors.white,
+      title: GestureDetector(
+        onTap: _navigateToDetails,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              conv.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: conv.isOnline ? QuantColors.statusSuccess : QuantColors.textMuted,
-                  shape: BoxShape.circle,
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: conv.isOnline ? QuantColors.statusSuccess : QuantColors.textMuted,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                conv.isOnline ? 'Online | E2EE Active' : conv.lastSeenText,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: conv.isOnline ? QuantColors.statusSuccess : QuantColors.textMuted,
+                const SizedBox(width: 5),
+                Text(
+                  conv.isGroup
+                      ? '${conv.memberCount} members · E2EE Active'
+                      : (conv.isOnline ? 'Online | E2EE Active' : conv.lastSeenText),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: conv.isOnline ? QuantColors.statusSuccess : QuantColors.textMuted,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
       actions: [
         IconButton(
@@ -541,17 +648,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ),
         IconButton(
           icon: const Icon(Icons.more_vert_rounded, color: QuantColors.textSecondary, size: 22),
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: QuantColors.darkSlateCard,
-                content: Text(
-                  'Sovereign Signal Double Ratchet Key: Active & Verified',
-                  style: TextStyle(color: QuantColors.textPrimary),
-                ),
-              ),
-            );
-          },
+          onPressed: _navigateToDetails,
         ),
       ],
       bottom: PreferredSize(
@@ -1033,17 +1130,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // Attachment Button
           IconButton(
             icon: const Icon(Icons.add_circle_outline_rounded, color: QuantColors.textSecondary, size: 24),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: QuantColors.darkSlateCard,
-                  content: Text(
-                    'E2EE Media Bridge: File / Photo encrypted locally.',
-                    style: TextStyle(color: QuantColors.textPrimary),
-                  ),
-                ),
-              );
-            },
+            tooltip: 'Share Media & Encrypted Data',
+            onPressed: _openMediaSheet,
           ),
 
           // Message Input Field

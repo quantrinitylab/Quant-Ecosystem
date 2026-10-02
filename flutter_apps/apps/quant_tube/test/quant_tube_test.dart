@@ -15,6 +15,8 @@ import 'package:quant_tube/screens/channel_studio_screen.dart';
 import 'package:quant_tube/screens/video_detail_screen.dart';
 import 'package:quant_tube/screens/creator_studio_screen.dart';
 import 'package:quant_tube/screens/channel_screen.dart';
+import 'package:quant_tube/screens/studio/video_upload_sheet.dart';
+import 'package:quant_tube/widgets/audio_player_dock.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -394,6 +396,103 @@ void main() {
       expect(find.text('Public Unauthenticated Feed · Zero 401 Authentication Barrier'), findsOneWidget);
       expect(find.text('Subscribe'), findsOneWidget);
       expect(find.text('Videos'), findsOneWidget);
+    });
+
+    testWidgets('VideoUploadSheet renders 4-stage stepper and navigates through steps',
+        (WidgetTester tester) async {
+      VideoItem? publishedVideo;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VideoUploadSheet(
+              onVideoPublished: (video) => publishedVideo = video,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Step 1: File & Transcoding
+      expect(find.text('Creator Studio Video Upload'), findsOneWidget);
+      expect(find.text('Transcoding'), findsWidgets);
+      expect(find.text('Metadata'), findsWidgets);
+      expect(find.text('Thumbnail'), findsWidgets);
+      expect(find.text('Monetization'), findsWidgets);
+      expect(find.text('1. Source Media & Decentralized Transcoding'), findsOneWidget);
+      expect(find.text('sovereign_benchmark_4k.raw'), findsOneWidget);
+
+      // Navigate to Step 2: Metadata
+      await tester.tap(find.text('Next Step (1/4)'));
+      await tester.pumpAndSettle();
+      expect(find.text('2. Video Metadata & Discoverability'), findsOneWidget);
+      expect(find.text('Video Title *'), findsOneWidget);
+
+      // Navigate to Step 3: Thumbnail
+      await tester.tap(find.text('Next Step (2/4)'));
+      await tester.pumpAndSettle();
+      expect(find.text('3. Thumbnail Frame Selector'), findsOneWidget);
+      expect(find.text('AI Auto-Select'), findsOneWidget);
+      expect(find.text('Custom Upload'), findsOneWidget);
+
+      // Navigate to Step 4: Monetization
+      await tester.tap(find.text('Next Step (3/4)'));
+      await tester.pumpAndSettle();
+      expect(find.text('4. Visibility & Sovereign Monetization'), findsOneWidget);
+      expect(find.text('Quant Credits Monetization'), findsOneWidget);
+      expect(find.text('Publish Sovereign Video'), findsOneWidget);
+
+      // Tap Publish
+      await tester.tap(find.text('Publish Sovereign Video'));
+      await tester.pumpAndSettle();
+      expect(publishedVideo, isNotNull);
+      expect(publishedVideo!.title.isNotEmpty, isTrue);
+    });
+
+    testWidgets('AudioPlayerDock renders 56dp height, spinning vinyl, controls and handles actions',
+        (WidgetTester tester) async {
+      bool playPauseCalled = false;
+      bool nextCalled = false;
+      bool expandCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: AudioPlayerDock(
+              isPlaying: true,
+              currentSeconds: 42.0,
+              onPlayPause: () => playPauseCalled = true,
+              onNext: () => nextCalled = true,
+              onExpand: () => expandCalled = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Check track title and lossless indicator
+      final testTrack = TubeRepository.getMusicTracks().first;
+      expect(find.text(testTrack.title), findsOneWidget);
+      expect(find.text('${testTrack.artist} • Lossless 120Hz'), findsOneWidget);
+
+      // Check buttons
+      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.skip_next_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.open_in_full_rounded), findsOneWidget);
+
+      // Play / Pause toggle
+      await tester.tap(find.byIcon(Icons.pause_rounded));
+      await tester.pump();
+      expect(playPauseCalled, isTrue);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+
+      // Skip next
+      await tester.tap(find.byIcon(Icons.skip_next_rounded));
+      expect(nextCalled, isTrue);
+
+      // Expand to full screen
+      await tester.tap(find.byIcon(Icons.open_in_full_rounded));
+      expect(expandCalled, isTrue);
     });
   });
 

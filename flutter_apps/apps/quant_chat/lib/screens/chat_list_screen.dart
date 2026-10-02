@@ -8,6 +8,7 @@ import 'package:quant_ui/quant_ui.dart';
 import '../models/chat_models.dart';
 import '../services/chat_mock_data.dart';
 import 'conversation_screen.dart';
+import 'group/create_group_sheet.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -110,18 +111,119 @@ class _ChatListScreenState extends State<ChatListScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                backgroundColor: QuantColors.darkSlateCard,
-                content: Text(
-                  'Starting new sovereign E2EE channel...',
-                  style: TextStyle(color: QuantColors.textPrimary),
+          onPressed: _showNewChannelDialog,
+          child: const Icon(Icons.edit_square, size: 24),
+        ),
+      ),
+    );
+  }
+
+  void _showNewChannelDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        decoration: const BoxDecoration(
+          color: QuantColors.darkSlateCard,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(24),
+            topRight: Radius.circular(24),
+          ),
+          border: Border(
+            top: BorderSide(color: QuantColors.hairlineBorder, width: 1.5),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: QuantColors.activeBorder,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-            );
-          },
-          child: const Icon(Icons.edit_square, size: 24),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'NEW SOVEREIGN CHANNEL',
+              style: TextStyle(
+                color: QuantColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: QuantColors.sovereignCyan.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.group_add_rounded, color: QuantColors.sovereignCyan),
+              ),
+              title: const Text(
+                'New Sovereign Group Mesh',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Multi-contact encrypted broadcast & group permissions',
+                style: TextStyle(color: QuantColors.textSecondary, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                CreateGroupSheet.show(
+                  context,
+                  onCreated: (newGroup) {
+                    setState(() {
+                      _conversations.insert(0, newGroup);
+                    });
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ConversationScreen(conversation: newGroup),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+            const Divider(color: QuantColors.hairlineBorder, height: 16),
+            ListTile(
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: QuantColors.moltenOrange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.chat_bubble_outline_rounded, color: QuantColors.moltenOrange),
+              ),
+              title: const Text(
+                'New Encrypted 1-on-1 Chat',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+              subtitle: const Text(
+                'Direct Signal Double Ratchet session with peer',
+                style: TextStyle(color: QuantColors.textSecondary, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    backgroundColor: QuantColors.darkSlateCard,
+                    content: Text('Starting new peer session...'),
+                  ),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );

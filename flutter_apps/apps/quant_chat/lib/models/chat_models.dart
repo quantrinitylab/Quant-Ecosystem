@@ -219,6 +219,10 @@ class ChatConversation {
   final MessageDeliveryStatus? lastMessageStatus;
   final bool isDisappearingModeEnabled;
   final int defaultDisappearingDurationSeconds;
+  final bool isGroup;
+  final int memberCount;
+  final String? groupDescription;
+  final DisappearingTimerOption disappearingOption;
 
   const ChatConversation({
     required this.id,
@@ -237,6 +241,10 @@ class ChatConversation {
     this.lastMessageStatus,
     this.isDisappearingModeEnabled = false,
     this.defaultDisappearingDurationSeconds = 30,
+    this.isGroup = false,
+    this.memberCount = 1,
+    this.groupDescription,
+    this.disappearingOption = DisappearingTimerOption.off,
   });
 
   ChatConversation copyWith({
@@ -256,6 +264,10 @@ class ChatConversation {
     MessageDeliveryStatus? lastMessageStatus,
     bool? isDisappearingModeEnabled,
     int? defaultDisappearingDurationSeconds,
+    bool? isGroup,
+    int? memberCount,
+    String? groupDescription,
+    DisappearingTimerOption? disappearingOption,
   }) {
     return ChatConversation(
       id: id ?? this.id,
@@ -274,6 +286,10 @@ class ChatConversation {
       lastMessageStatus: lastMessageStatus ?? this.lastMessageStatus,
       isDisappearingModeEnabled: isDisappearingModeEnabled ?? this.isDisappearingModeEnabled,
       defaultDisappearingDurationSeconds: defaultDisappearingDurationSeconds ?? this.defaultDisappearingDurationSeconds,
+      isGroup: isGroup ?? this.isGroup,
+      memberCount: memberCount ?? this.memberCount,
+      groupDescription: groupDescription ?? this.groupDescription,
+      disappearingOption: disappearingOption ?? this.disappearingOption,
     );
   }
 }
@@ -458,4 +474,144 @@ class CallHistoryItem {
     required this.duration,
     this.latencyMs = 18,
   });
+}
+
+/// Disappearing message timer settings
+enum DisappearingTimerOption {
+  off,
+  h24,
+  d7,
+  d90;
+
+  String get label {
+    switch (this) {
+      case DisappearingTimerOption.off:
+        return 'Off';
+      case DisappearingTimerOption.h24:
+        return '24 Hours';
+      case DisappearingTimerOption.d7:
+        return '7 Days';
+      case DisappearingTimerOption.d90:
+        return '90 Days';
+    }
+  }
+
+  int get seconds {
+    switch (this) {
+      case DisappearingTimerOption.off:
+        return 0;
+      case DisappearingTimerOption.h24:
+        return 86400;
+      case DisappearingTimerOption.d7:
+        return 604800;
+      case DisappearingTimerOption.d90:
+        return 7776000;
+    }
+  }
+}
+
+/// Domain model for group members with role permissions
+class ChatGroupMember {
+  final String id;
+  final String name;
+  final String avatarInitials;
+  final Color avatarColor;
+  final bool isAdmin;
+  final bool isCreator;
+  final String phoneOrHandle;
+  final bool isOnline;
+
+  const ChatGroupMember({
+    required this.id,
+    required this.name,
+    required this.avatarInitials,
+    required this.avatarColor,
+    this.isAdmin = false,
+    this.isCreator = false,
+    this.phoneOrHandle = '',
+    this.isOnline = false,
+  });
+
+  ChatGroupMember copyWith({
+    String? id,
+    String? name,
+    String? avatarInitials,
+    Color? avatarColor,
+    bool? isAdmin,
+    bool? isCreator,
+    String? phoneOrHandle,
+    bool? isOnline,
+  }) {
+    return ChatGroupMember(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      avatarInitials: avatarInitials ?? this.avatarInitials,
+      avatarColor: avatarColor ?? this.avatarColor,
+      isAdmin: isAdmin ?? this.isAdmin,
+      isCreator: isCreator ?? this.isCreator,
+      phoneOrHandle: phoneOrHandle ?? this.phoneOrHandle,
+      isOnline: isOnline ?? this.isOnline,
+    );
+  }
+}
+
+/// Category classification for shared media, documents, and links
+enum ChatMediaCategory {
+  media,
+  document,
+  link,
+}
+
+/// Domain model for shared gallery items (media, documents, links)
+class ChatMediaItem {
+  final String id;
+  final String title;
+  final String subtitle;
+  final ChatMediaCategory category;
+  final String timestamp;
+  final int fileSizeBytes;
+  final String? url;
+  final IconData iconData;
+  final Color accentColor;
+
+  const ChatMediaItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.category,
+    required this.timestamp,
+    this.fileSizeBytes = 0,
+    this.url,
+    this.iconData = Icons.insert_drive_file_rounded,
+    this.accentColor = QuantColors.sovereignCyan,
+  });
+}
+
+/// FastCDC (Fast Content-Defined Chunking) telemetry preview metadata
+class FastCDCPreview {
+  final String fileName;
+  final int fileSizeBytes;
+  final int chunkCount;
+  final int averageChunkSizeKb;
+  final String sha256Fingerprint;
+  final double deduplicationRatio;
+
+  const FastCDCPreview({
+    required this.fileName,
+    required this.fileSizeBytes,
+    required this.chunkCount,
+    this.averageChunkSizeKb = 64,
+    required this.sha256Fingerprint,
+    this.deduplicationRatio = 3.4,
+  });
+}
+
+/// Media bottom sheet action types
+enum ChatMediaType {
+  document,
+  camera,
+  gallery,
+  audio,
+  location,
+  contact,
 }

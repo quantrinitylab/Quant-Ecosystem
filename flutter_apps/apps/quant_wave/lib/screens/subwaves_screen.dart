@@ -8,6 +8,7 @@ import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
 import '../services/wave_mock_data.dart';
+import 'subwaves_hub_screen.dart';
 
 class SubWavesScreen extends StatefulWidget {
   const SubWavesScreen({super.key});
@@ -362,6 +363,45 @@ class _SubWavesScreenState extends State<SubWavesScreen> {
               memberCount: c.memberCount,
             );
           }),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (ctx) => const SubWavesHubScreen(),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: QuantColors.elevatedCard,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: QuantColors.sovereignCyan,
+                    width: 1,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.explore_rounded, size: 16, color: QuantColors.sovereignCyan),
+                    SizedBox(width: 6),
+                    Text(
+                      'Explore Hub',
+                      style: TextStyle(
+                        color: QuantColors.sovereignCyan,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

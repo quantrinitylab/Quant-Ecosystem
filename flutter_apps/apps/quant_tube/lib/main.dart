@@ -6,6 +6,7 @@ import 'screens/music_player_screen.dart';
 import 'screens/channel_studio_screen.dart';
 import 'screens/subscriptions_screen.dart';
 import 'screens/library_screen.dart';
+import 'widgets/audio_player_dock.dart';
 
 /// Sovereign YouTube & Spotify Killer Segment-Skipping Video & Music Flutter Application
 /// Strictly ZERO raw Unicode emojis throughout this application.
@@ -68,7 +69,16 @@ class _QuantTubeMainScreenState extends State<QuantTubeMainScreen> {
           LibraryScreen(),
         ],
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_currentIndex != 1)
+            AudioPlayerDock(
+              onExpand: () => _onTabTapped(1),
+            ),
+          _buildBottomNavigationBar(),
+        ],
+      ),
     );
   }
 

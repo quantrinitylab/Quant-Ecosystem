@@ -8,6 +8,7 @@ import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
 import '../services/wave_mock_data.dart';
+import 'spaces_controller_sheet.dart';
 
 class AudioStageScreen extends StatefulWidget {
   final WaveSpaceRoom? room;
@@ -138,6 +139,13 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.tune_rounded, color: QuantColors.moltenAmber),
+            tooltip: 'Host Controls',
+            onPressed: () => SpacesControllerSheet.show(context, room: _room),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(

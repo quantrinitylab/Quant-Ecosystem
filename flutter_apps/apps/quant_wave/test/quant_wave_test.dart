@@ -16,6 +16,8 @@ import 'package:quant_wave/screens/audio_stage_screen.dart';
 import 'package:quant_wave/screens/games_lobby_screen.dart';
 import 'package:quant_wave/screens/party_games_screen.dart';
 import 'package:quant_wave/screens/profile_screen.dart';
+import 'package:quant_wave/screens/subwaves_hub_screen.dart';
+import 'package:quant_wave/screens/spaces_controller_sheet.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 
@@ -374,6 +376,102 @@ void main() {
       expect(find.text('Replies'), findsOneWidget);
       expect(find.text('Highlights'), findsOneWidget);
       expect(find.text('Media'), findsOneWidget);
+    });
+
+    testWidgets('SubWavesHubScreen renders community cards, flairs, rules and join/leave toggle', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const SubWavesHubScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Verify Header & Search
+      expect(find.text('SubWaves Community Hub'), findsOneWidget);
+      expect(find.text('Search communities, flairs, and topics...'), findsOneWidget);
+
+      // Verify Communities & Categories
+      expect(find.text('w/tech'), findsOneWidget);
+      expect(find.text('w/devs'), findsOneWidget);
+      expect(find.text('w/quantai'), findsOneWidget);
+      expect(find.text('All'), findsOneWidget);
+      expect(find.text('Systems'), findsWidgets);
+
+      // Verify Flairs
+      expect(find.text('#BENCHMARK'), findsOneWidget);
+      expect(find.text('#120HZ'), findsOneWidget);
+
+      // Expand Rules
+      expect(find.textContaining('Community Rules'), findsWidgets);
+      await tester.tap(find.textContaining('Community Rules').first);
+      await tester.pump();
+      expect(find.text('Community Post Rules'), findsOneWidget);
+      expect(find.text('Hide Rules'), findsOneWidget);
+
+      // Toggle Join / Leave on first joined community ('w/tech' is joined initially)
+      expect(find.text('Joined'), findsWidgets);
+      await tester.tap(find.text('Joined').first);
+      await tester.pump();
+      expect(find.text('Join Wave'), findsWidgets);
+    });
+
+    testWidgets('SpacesControllerSheet renders equalizer monitor, master controls and actions', (tester) async {
+      bool spaceEndedCalled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: SpacesControllerSheet(
+              onSpaceEnded: () => spaceEndedCalled = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Equalizer Monitor & Telemetry
+      expect(find.text('Host Controller Dashboard'), findsOneWidget);
+      expect(find.text('Audio Stage Equalizer Monitor'), findsOneWidget);
+      expect(find.text('128 kbps Opus HD'), findsOneWidget);
+      expect(find.text('14ms'), findsOneWidget);
+      expect(find.text('0.00%'), findsOneWidget);
+
+      // Master Controls
+      expect(find.text('Mute All Speakers'), findsOneWidget);
+      expect(find.text('Host Mic'), findsOneWidget);
+
+      // Tap Mute All
+      await tester.tap(find.text('Mute All Speakers'));
+      await tester.pump();
+      expect(find.text('Unmute All'), findsOneWidget);
+
+      // Tap Host Mic
+      await tester.tap(find.text('Host Mic'));
+      await tester.pump();
+      expect(find.text('Host Muted'), findsOneWidget);
+
+      // Speakers section
+      expect(find.text('Stage Speakers Management'), findsOneWidget);
+      expect(find.text('CEO Astra'), findsWidgets);
+      expect(find.text('Node A Lead'), findsWidgets);
+
+      // Audience Invite pipeline
+      expect(find.text('Audience Invitation Pipeline'), findsOneWidget);
+      expect(find.text('Invite'), findsWidgets);
+
+      // End Space trigger
+      expect(find.text('End Live Space (Disconnect All)'), findsOneWidget);
+      await tester.tap(find.text('End Live Space (Disconnect All)'));
+      await tester.pump();
+      expect(find.text('End Live Space?'), findsOneWidget);
+      expect(find.text('End Space'), findsOneWidget);
+
+      // Confirm end space
+      await tester.tap(find.text('End Space'));
+      await tester.pump();
+      expect(spaceEndedCalled, isTrue);
     });
   });
 }

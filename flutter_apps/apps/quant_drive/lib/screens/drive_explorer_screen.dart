@@ -5,6 +5,7 @@ import 'package:quant_core/quant_core.dart';
 import '../models/drive_models.dart';
 import '../data/drive_data_source.dart';
 import 'document_viewer_screen.dart';
+import 'file_preview_lightbox.dart';
 
 /// Sovereign File & Folder Explorer Screen
 ///
@@ -53,6 +54,14 @@ class _DriveExplorerScreenState extends State<DriveExplorerScreen> {
       MaterialPageRoute(
         builder: (context) => DocumentViewerScreen(document: descriptor),
       ),
+    );
+  }
+
+  void _openLightbox(DriveItem item) {
+    FilePreviewLightbox.show(
+      context,
+      item: item,
+      onToggleStar: () => setState(() {}),
     );
   }
 
@@ -111,6 +120,15 @@ class _DriveExplorerScreenState extends State<DriveExplorerScreen> {
                   onTap: () {
                     Navigator.pop(context);
                     _openDocument(item);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.fullscreen_rounded, color: QuantColors.sovereignCyan),
+                  title: const Text('Open in Fullscreen Lightbox'),
+                  subtitle: const Text('Syntax highlighting, PDF canvas & CAS telemetry', style: QuantTypography.bodySmall),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openLightbox(item);
                   },
                 ),
                 ListTile(

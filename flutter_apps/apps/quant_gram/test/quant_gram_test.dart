@@ -8,6 +8,9 @@ import 'package:quant_gram/models/gram_models.dart';
 import 'package:quant_gram/screens/reels_player_screen.dart';
 import 'package:quant_gram/screens/stories_tray.dart';
 import 'package:quant_gram/screens/comments_sheet.dart';
+import 'package:quant_gram/screens/dms/dms_inbox_screen.dart';
+import 'package:quant_gram/screens/remix/sovereign_remix_studio.dart';
+import 'package:quant_gram/screens/gifts/virtual_gifts_sheet.dart';
 import 'package:quant_gram/main.dart';
 
 void main() {
@@ -214,6 +217,166 @@ void main() {
       expect(find.byType(StoriesTray), findsOneWidget);
       expect(find.text('Your Story'), findsOneWidget);
       expect(find.text('quantrinity'), findsOneWidget);
+    });
+
+    testWidgets('DmsInboxScreen renders search bar, notes strip, and filter tabs', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const DmsInboxScreen(),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(DmsInboxScreen), findsOneWidget);
+      expect(find.text('quantrinity'), findsWidgets);
+      expect(find.text('Search sovereign chats...'), findsOneWidget);
+      expect(find.text('Primary'), findsOneWidget);
+      expect(find.text('General'), findsOneWidget);
+      expect(find.text('Requests'), findsOneWidget);
+      expect(find.text('Unread'), findsOneWidget);
+
+      // Verify online beacons and DM threads
+      expect(find.text('Astra Executive AI'), findsOneWidget);
+      expect(find.text('Nikhil Engineering'), findsOneWidget);
+    });
+
+    testWidgets('DmsInboxScreen filters threads when entering query in search bar', (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const DmsInboxScreen(),
+        ),
+      );
+      await tester.pump();
+
+      // Enter search query
+      await tester.enterText(find.byType(TextField).first, 'Astra');
+      await tester.pump();
+
+      expect(find.text('Astra Executive AI'), findsOneWidget);
+      expect(find.text('Nikhil Engineering'), findsNothing);
+    });
+
+    testWidgets('SovereignRemixStudio renders 3 remix modes and controls', (WidgetTester tester) async {
+      final reels = GramRepository.getReels();
+      final reel = reels.first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: SovereignRemixStudio(reel: reel),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(SovereignRemixStudio), findsOneWidget);
+      expect(find.text('Duet'), findsOneWidget);
+      expect(find.text('Green Screen'), findsOneWidget);
+      expect(find.text('Reaction PiP'), findsOneWidget);
+
+      // Default is Duet mode
+      expect(find.text('Duet Mode'), findsOneWidget);
+      expect(find.text('Your Duet Cam (120Hz)'), findsOneWidget);
+
+      // Switch to Green Screen Mode
+      await tester.tap(find.text('Green Screen'));
+      await tester.pump();
+
+      expect(find.text('Green Screen'), findsWidgets);
+      expect(find.text('AI Chroma Cutout Active'), findsOneWidget);
+
+      // Switch to Reaction PiP Mode
+      await tester.tap(find.text('Reaction PiP'));
+      await tester.pump();
+
+      expect(find.text('Reaction PiP'), findsWidgets);
+      expect(find.text('Tap to move'), findsOneWidget);
+    });
+
+    test('VirtualGiftsSheet giftsCatalog contains 8 distinct gifts with correct diamond payouts', () {
+      expect(VirtualGiftsSheet.giftsCatalog.length, equals(8));
+
+      final names = VirtualGiftsSheet.giftsCatalog.map((g) => g.name).toList();
+      expect(names, containsAll([
+        'Rose',
+        'Neon Star',
+        'Quantum Ring',
+        'Crown',
+        'Supercar',
+        'Galaxy',
+        'Falcon',
+        'Sovereign Throne',
+      ]));
+
+      // Verify diamond payouts
+      final rose = VirtualGiftsSheet.giftsCatalog.firstWhere((g) => g.name == 'Rose');
+      expect(rose.coinCost, equals(1));
+      expect(rose.diamondPayout, equals(1));
+
+      final throne = VirtualGiftsSheet.giftsCatalog.firstWhere((g) => g.name == 'Sovereign Throne');
+      expect(throne.coinCost, equals(9999));
+      expect(throne.diamondPayout, equals(5000));
+    });
+
+    testWidgets('VirtualGiftsSheet renders gifts grid, coin balance, and multiplier selector', (WidgetTester tester) async {
+      VirtualGiftItem? sentGift;
+      int sentMultiplier = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: VirtualGiftsSheet(
+              creatorHandle: 'quantrinity',
+              creatorAvatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+              onGiftSent: (gift, mult) {
+                sentGift = gift;
+                sentMultiplier = mult;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(VirtualGiftsSheet), findsOneWidget);
+      expect(find.text('Send to @quantrinity'), findsOneWidget);
+      expect(find.text('2450'), findsOneWidget); // User coin balance
+
+      // Verify all 8 gifts rendered
+      expect(find.text('Rose'), findsOneWidget);
+      expect(find.text('Neon Star'), findsOneWidget);
+      expect(find.text('Quantum Ring'), findsOneWidget);
+      expect(find.text('Crown'), findsOneWidget);
+      expect(find.text('Supercar'), findsOneWidget);
+      expect(find.text('Galaxy'), findsOneWidget);
+      expect(find.text('Falcon'), findsOneWidget);
+      expect(find.text('Sovereign Throne'), findsOneWidget);
+
+      // Verify multiplier buttons
+      expect(find.text('1x'), findsOneWidget);
+      expect(find.text('5x'), findsOneWidget);
+      expect(find.text('10x'), findsOneWidget);
+      expect(find.text('99x'), findsOneWidget);
+
+      // Tap Crown to select it
+      await tester.tap(find.text('Crown'));
+      await tester.pump();
+
+      // Tap 5x multiplier
+      await tester.tap(find.text('5x'));
+      await tester.pump();
+
+      expect(find.text('Creator receives: 500 Diamonds'), findsOneWidget);
+      expect(find.text('Send Crown (995 Coins)'), findsOneWidget);
+
+      // Tap Send Gift
+      await tester.tap(find.text('Send Crown (995 Coins)'));
+      await tester.pump();
+
+      expect(sentGift?.name, equals('Crown'));
+      expect(sentMultiplier, equals(5));
     });
   });
 
