@@ -8,6 +8,7 @@ import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
 import '../services/chat_mock_data.dart';
+import '../widgets/call_sheet.dart';
 import 'call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -34,6 +35,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _isDisappearingMode = false;
   final int _disappearingTtlSeconds = 30;
 
+  // Voice memo recording state
+  bool _isRecordingVoiceMemo = false;
+  int _recordingDurationSeconds = 0;
+  List<double> _liveRecordingWaveform = [];
+  Timer? _recordingTimer;
+  Timer? _liveWaveformTimer;
+
   @override
   void initState() {
     super.initState();
@@ -48,6 +56,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _scrollController.dispose();
     _audioPlaybackTimer?.cancel();
     _disappearingCountdownTimer?.cancel();
+    _recordingTimer?.cancel();
+    _liveWaveformTimer?.cancel();
     super.dispose();
   }
 
@@ -145,7 +155,69 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
-  void _sendVoiceNote() {
+  void _startVoiceMemoRecording() {
+    setState(() {
+      _isRecordingVoiceMemo = true;
+      _recordingDurationSeconds = 0;
+      _liveRecordingWaveform = [0.3, 0.5, 0.4, 0.7, 0.9, 0.6, 0.4];
+    });
+
+    _recordingTimer?.cancel();
+    _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _recordingDurationSeconds++;
+      });
+    });
+
+    _liveWaveformTimer?.cancel();
+    _liveWaveformTimer = Timer.periodic(const Duration(milliseconds: 140), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        final nextAmp = 0.2 + ((DateTime.now().millisecond % 80) / 100.0);
+        if (_liveRecordingWaveform.length >= 28) {
+          _liveRecordingWaveform.removeAt(0);
+        }
+        _liveRecordingWaveform.add(nextAmp.clamp(0.15, 1.0));
+      });
+    });
+  }
+
+  void _cancelVoiceMemoRecording() {
+    _recordingTimer?.cancel();
+    _liveWaveformTimer?.cancel();
+    setState(() {
+      _isRecordingVoiceMemo = false;
+      _recordingDurationSeconds = 0;
+      _liveRecordingWaveform.clear();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        duration: Duration(seconds: 1),
+        content: Text(
+          'Voice memo discarded.',
+          style: TextStyle(color: QuantColors.textPrimary),
+        ),
+      ),
+    );
+  }
+
+  void _sendRecordedVoiceMemo() {
+    _recordingTimer?.cancel();
+    _liveWaveformTimer?.cancel();
+
+    final duration = _recordingDurationSeconds > 0 ? _recordingDurationSeconds : 3;
+    final waveform = _liveRecordingWaveform.isNotEmpty
+        ? List<double>.from(_liveRecordingWaveform)
+        : const [0.3, 0.6, 0.8, 0.5, 0.9, 0.7, 0.4, 0.8, 0.6, 0.3];
+
     final newId = 'msg-vn-${DateTime.now().millisecondsSinceEpoch}';
     final now = TimeOfDay.now();
     final timeStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
@@ -155,17 +227,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       conversationId: widget.conversation.id,
       senderId: 'usr-me',
       senderName: 'You',
-      text: 'Encrypted Sovereign Voice Memo',
+      text: 'Encrypted Sovereign Voice Memo (${duration}s)',
       timestamp: timeStr,
       isOutgoing: true,
       deliveryStatus: MessageDeliveryStatus.pending,
       type: MessageType.audio,
-      audioDurationSeconds: 18,
-      audioWaveform: const [
-        0.2, 0.5, 0.8, 0.4, 0.9, 0.7, 0.3, 0.6,
-        0.8, 0.9, 0.5, 0.3, 0.7, 0.8, 0.6, 0.4,
-        0.7, 0.9, 0.8, 0.5, 0.3, 0.6, 0.8, 0.4,
-      ],
+      audioDurationSeconds: duration,
+      audioWaveform: waveform,
       isDisappearing: _isDisappearingMode,
       disappearingDurationSeconds: _isDisappearingMode ? _disappearingTtlSeconds : 0,
       secondsRemaining: _isDisappearingMode ? _disappearingTtlSeconds : 0,
@@ -174,11 +242,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
 
     setState(() {
+      _isRecordingVoiceMemo = false;
+      _recordingDurationSeconds = 0;
+      _liveRecordingWaveform.clear();
       _messages.add(outgoingAudio);
     });
     _scrollToBottom();
 
-    // 4-stage tick progression
+    // 4-stage tick progression: Clock -> SingleGrey -> DoubleGrey -> DoubleCyan
     Timer(const Duration(milliseconds: 400), () {
       if (!mounted) return;
       _updateMessageStatus(newId, MessageDeliveryStatus.sent);
@@ -191,6 +262,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (!mounted) return;
       _updateMessageStatus(newId, MessageDeliveryStatus.read);
     });
+  }
+
+  void _sendVoiceNote() {
+    _sendRecordedVoiceMemo();
   }
 
   void _updateMessageStatus(String msgId, MessageDeliveryStatus status) {
@@ -295,7 +370,19 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  void _launchCallSheet(QuantCallType callType) {
+    WebRTCCallSheet.show(
+      context,
+      conversation: widget.conversation,
+      callType: callType,
+    );
+  }
+
   void _launchCall(QuantCallType callType) {
+    _launchCallSheet(callType);
+  }
+
+  void _launchFullscreenCall(QuantCallType callType) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CallScreen(
@@ -679,38 +766,19 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  /// 4-stage tick progression:
-  /// - pending (clock icon)
-  /// - sent (single check)
-  /// - delivered (double check grey)
-  /// - read (double check molten amber #FF8C42)
+  /// 4-stage delivery tick progression:
+  /// - Clock: Sending (Icons.access_time_rounded, grey)
+  /// - SingleGrey: Sent to server (Icons.check_rounded, grey)
+  /// - DoubleGrey: Delivered to recipient device (Icons.done_all_rounded, grey)
+  /// - DoubleCyan: Read by recipient (Icons.done_all_rounded, cyan #00E5FF)
   Widget _buildDeliveryTick(MessageDeliveryStatus status, {bool isOutgoing = false}) {
-    switch (status) {
-      case MessageDeliveryStatus.pending:
-        return const Icon(
-          Icons.access_time_rounded,
-          size: 13,
-          color: Color(0xFFE2E8F0),
-        );
-      case MessageDeliveryStatus.sent:
-        return const Icon(
-          Icons.check_rounded,
-          size: 14,
-          color: Colors.white,
-        );
-      case MessageDeliveryStatus.delivered:
-        return const Icon(
-          Icons.done_all_rounded,
-          size: 14,
-          color: Color(0xFF94A3B8), // Double check grey
-        );
-      case MessageDeliveryStatus.read:
-        return const Icon(
-          Icons.done_all_rounded,
-          size: 14,
-          color: Color(0xFFFF8C42), // Double check molten amber #FF8C42
-        );
-    }
+    return DeliveryTickWidget(
+      status: status,
+      size: 14,
+      overrideColor: status == MessageDeliveryStatus.read
+          ? QuantColors.sovereignCyan
+          : (isOutgoing ? const Color(0xFFCBD5E1) : const Color(0xFF94A3B8)),
+    );
   }
 
   Widget _buildDisappearingHeader(ChatMessage msg) {
@@ -947,6 +1015,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Widget _buildComposerBar() {
+    if (_isRecordingVoiceMemo) {
+      return _buildVoiceRecordingDock();
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: const BoxDecoration(
@@ -1007,11 +1079,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           const SizedBox(width: 6),
 
-          // Voice Note Record Button
+          // Voice Note Record Button (triggers voice memo recording state)
           IconButton(
             icon: const Icon(Icons.mic_rounded, color: QuantColors.moltenOrange, size: 24),
             tooltip: 'Record Voice Memo',
-            onPressed: _sendVoiceNote,
+            onPressed: _startVoiceMemoRecording,
           ),
 
           // Send Button
@@ -1024,6 +1096,120 @@ class _ConversationScreenState extends State<ConversationScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFFF8C42),
                 borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Live Voice Memo Recording Dock with REC indicator, timer, waveform, and discard/send
+  Widget _buildVoiceRecordingDock() {
+    final mins = (_recordingDurationSeconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (_recordingDurationSeconds % 60).toString().padLeft(2, '0');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: QuantColors.voidObsidian,
+        border: Border(
+          top: BorderSide(color: QuantColors.hairlineBorder, width: 1),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Discard / Trash Button
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, color: QuantColors.statusError, size: 24),
+            tooltip: 'Discard Voice Memo',
+            onPressed: _cancelVoiceMemoRecording,
+          ),
+          const SizedBox(width: 4),
+
+          // Pulsing REC Badge & Live Duration
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: QuantColors.statusError.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.statusError.withOpacity(0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: QuantColors.statusError,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$mins:$secs',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Live Recording Waveform Scrubber / Visualizer
+          Expanded(
+            child: Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: QuantColors.darkSlateCard,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: QuantColors.hairlineBorder),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: List.generate(_liveRecordingWaveform.length, (idx) {
+                  final barHeight = (6.0 + (_liveRecordingWaveform[idx] * 20.0)).clamp(4.0, 26.0);
+                  return Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 1),
+                      height: barHeight,
+                      decoration: BoxDecoration(
+                        color: QuantColors.moltenOrange,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+
+          // Send Recorded Voice Memo
+          InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: _sendRecordedVoiceMemo,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF8C42),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF8C42).withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
             ),

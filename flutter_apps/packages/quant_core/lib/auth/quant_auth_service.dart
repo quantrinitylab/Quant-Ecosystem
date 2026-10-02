@@ -199,14 +199,23 @@ class QuantAuthService {
 
   void Function()? onSessionExpired;
 
-  QuantAuthService({FlutterSecureStorage? secureStorage})
-      : _secureStorage = secureStorage ??
-            const FlutterSecureStorage(
+  QuantAuthService({
+    FlutterSecureStorage? secureStorage,
+    String? keychainAccessGroup = 'group.com.quant.ecosystem',
+    String? androidSharedPrefs = 'quant_shared_sso_vault',
+  })  : _secureStorage = secureStorage ??
+            FlutterSecureStorage(
               aOptions: AndroidOptions(
                 encryptedSharedPreferences: true,
+                sharedPreferencesName: androidSharedPrefs,
                 resetOnError: true,
               ),
               iOptions: IOSOptions(
+                groupId: keychainAccessGroup,
+                accessibility: KeychainAccessibility.first_unlock,
+              ),
+              mOptions: MacOsOptions(
+                groupId: keychainAccessGroup,
                 accessibility: KeychainAccessibility.first_unlock,
               ),
             );

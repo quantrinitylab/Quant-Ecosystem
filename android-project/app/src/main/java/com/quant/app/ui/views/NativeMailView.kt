@@ -75,6 +75,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -287,6 +288,7 @@ object TagColors {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NativeMailView(
+    subTabId: String? = null,
     modifier: Modifier = Modifier,
     accentColor: Color = Color(0xFFFF, 0x8C, 0x42),
     onThreadClick: ((MailThread) -> Unit)? = null
@@ -308,6 +310,19 @@ fun NativeMailView(
         )
     }
     var selectedLens by remember { mutableStateOf("all") }
+
+    LaunchedEffect(subTabId) {
+        if (subTabId != null) {
+            selectedLens = when (subTabId) {
+                "inbox" -> "all"
+                "priority" -> "important"
+                "teams" -> "updates"
+                "sent" -> "all"
+                "archive" -> "starred"
+                else -> subTabId
+            }
+        }
+    }
 
     // ─── Pre-populated 12 Canonical Ecosystem Threads ────────────────────────
     val threads = remember {

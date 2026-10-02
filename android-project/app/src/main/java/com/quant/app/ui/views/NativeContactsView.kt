@@ -55,6 +55,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,6 +99,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun NativeContactsView(
+    subTabId: String? = null,
     onNewContactClick: () -> Unit = {},
     onComposeEmail: (String) -> Unit = {},
     accentColor: Color = Color(0xFF10, 0xB9, 0x81), // Emerald accent #10B981
@@ -111,6 +113,18 @@ fun NativeContactsView(
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("All 8") }
     var selectedContactForDetail by remember { mutableStateOf<EcosystemStateStore.ContactItem?>(null) }
+
+    LaunchedEffect(subTabId) {
+        if (subTabId != null) {
+            selectedFilter = when (subTabId) {
+                "all" -> "All 8"
+                "vip" -> "VIPs 4"
+                "org" -> "Leadership"
+                "circles" -> "Engineering"
+                else -> selectedFilter
+            }
+        }
+    }
 
     var activeJumpLetter by remember { mutableStateOf<Char?>(null) }
     var jumpDismissJob by remember { mutableStateOf<Job?>(null) }

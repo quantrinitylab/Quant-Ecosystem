@@ -63,5 +63,37 @@
 	<string>UIStatusBarStyleLightContent</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+
+	<!-- Sovereign Deep Linking URL Schemes -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.quant.mail</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>quantmail</string>
+				<string>mailto</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- Sibling Quant Ecosystem App Discovery Schemes -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>quantchat</string>
+		<string>quantgram</string>
+		<string>quantube</string>
+		<string>quanttube</string>
+		<string>quantai</string>
+		<string>quantwave</string>
+		<string>quantdrive</string>
+		<string>quant-vault</string>
+		<string>quantcalendar</string>
+		<string>quantads</string>
+		<string>quantcooks</string>
+	</array>
 </dict>
 </plist>

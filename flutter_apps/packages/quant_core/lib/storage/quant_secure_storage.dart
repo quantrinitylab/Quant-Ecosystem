@@ -1,19 +1,39 @@
+// Sovereign Quant Ecosystem - Hardware-Backed Secure Storage
+// Encrypted Keystore & Keychain wrapper with cross-app SSO session sharing support.
+// Invariants: Strictly ZERO raw Unicode emojis, ZERO Skia clipPath.
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Hardware-backed Encrypted Keystore & Keychain wrapper for Quant Sovereign Ecosystem.
 ///
 /// Uses Android Keystore (AES-256 GCM) with EncryptedSharedPreferences and
-/// Apple Keychain with kSecAttrAccessibleAfterFirstUnlock.
+/// Apple Keychain with kSecAttrAccessibleAfterFirstUnlock and Shared Keychain Access Group.
 class QuantSecureStorage {
+  /// Apple Keychain Access Group shared across all 10 apps.
+  static const String defaultKeychainAccessGroup = 'group.com.quant.ecosystem';
+
+  /// Android SharedPreferences file name protected by hardware Keystore AES-256 GCM.
+  static const String defaultAndroidSharedPrefs = 'quant_shared_sso_vault';
+
   final FlutterSecureStorage _storage;
 
-  QuantSecureStorage({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
+  QuantSecureStorage({
+    FlutterSecureStorage? storage,
+    String? keychainAccessGroup = defaultKeychainAccessGroup,
+    String? androidSharedPreferencesName = defaultAndroidSharedPrefs,
+  }) : _storage = storage ??
+            FlutterSecureStorage(
               aOptions: AndroidOptions(
                 encryptedSharedPreferences: true,
+                sharedPreferencesName: androidSharedPreferencesName,
+                resetOnError: true,
               ),
               iOptions: IOSOptions(
+                groupId: keychainAccessGroup,
+                accessibility: KeychainAccessibility.first_unlock,
+              ),
+              mOptions: MacOsOptions(
+                groupId: keychainAccessGroup,
                 accessibility: KeychainAccessibility.first_unlock,
               ),
             );

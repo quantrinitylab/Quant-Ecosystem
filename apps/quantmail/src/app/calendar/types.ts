@@ -101,6 +101,16 @@ export interface CalendarEventLike {
 
 export type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
+export type CalendarContextTab = 'agenda' | 'month' | 'booking' | 'quantmeet' | 'reminders';
+
+export const CALENDAR_CONTEXT_TABS: ReadonlyArray<{ key: CalendarContextTab; label: string }> = [
+  { key: 'agenda', label: 'Agenda' },
+  { key: 'month', label: 'Month' },
+  { key: 'booking', label: 'Booking' },
+  { key: 'quantmeet', label: 'QuantMeet' },
+  { key: 'reminders', label: 'Reminders' },
+];
+
 export const CALENDAR_VIEWS: ReadonlyArray<{ key: CalendarView; label: string }> = [
   { key: 'agenda', label: 'Agenda' },
   { key: 'week', label: 'Week' },

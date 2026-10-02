@@ -7,6 +7,9 @@ import path from 'node:path';
 
 const rawArgs = process.argv.slice(2);
 const normalizedArgs = rawArgs.map((arg) => {
+  if (arg === '--pool=threads' || arg.startsWith('--pool=threads')) {
+    return '--pool=forks';
+  }
   let cleaned = arg.replace(/^[./\\]*apps[/\\]quantmail[/\\]/i, '');
   if (!fs.existsSync(cleaned)) {
     const baseName = path.basename(cleaned);

@@ -114,6 +114,18 @@ class _DriveExplorerScreenState extends State<DriveExplorerScreen> {
                   },
                 ),
                 ListTile(
+                  leading: const Icon(Icons.history_rounded, color: QuantColors.sovereignCyan),
+                  title: const Text('Version History & 1-Click Restore'),
+                  subtitle: Text(
+                    '${item.versions.length} versions stored in CAS tree',
+                    style: QuantTypography.bodySmall,
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showVersionHistoryModal(item);
+                  },
+                ),
+                ListTile(
                   leading: const Icon(Icons.star_rounded, color: QuantColors.sunsetGold),
                   title: Text(item.isStarred ? 'Remove from Starred' : 'Add to Starred'),
                   onTap: () {
@@ -154,6 +166,253 @@ class _DriveExplorerScreenState extends State<DriveExplorerScreen> {
                       ),
                     );
                   },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showVersionHistoryModal(DriveItem item) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: QuantColors.darkSlateCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: item.fileType.color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(item.fileType.icon, color: item.fileType.color, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: QuantColors.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'FastCDC CAS 64KB Version Tree · 1-Click Pointer Restore',
+                            style: TextStyle(fontSize: 11, color: QuantColors.sovereignCyan),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, color: QuantColors.textMuted, size: 20),
+                      onPressed: () => Navigator.pop(modalContext),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: QuantColors.voidObsidian,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: QuantColors.hairlineBorder),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.hub_rounded, size: 16, color: QuantColors.statusSuccess),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Restoring a version performs an instant CAS root pointer swap in <1ms '
+                          'without re-uploading duplicated 64KB chunks.',
+                          style: TextStyle(fontSize: 11, color: QuantColors.textSecondary, height: 1.3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Recorded Versions (${item.versions.length})',
+                  style: QuantTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: item.versions.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final version = item.versions[index];
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: version.isCurrent
+                              ? QuantColors.elevatedCard
+                              : QuantColors.voidObsidian,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: version.isCurrent
+                                ? QuantColors.sovereignCyan.withOpacity(0.5)
+                                : QuantColors.hairlineBorder,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: version.isCurrent
+                                            ? QuantColors.sovereignCyan.withOpacity(0.2)
+                                            : QuantColors.elevatedCard,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'v${version.versionNumber}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          fontFamily: 'monospace',
+                                          color: version.isCurrent
+                                              ? QuantColors.sovereignCyan
+                                              : QuantColors.textPrimary,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    if (version.isCurrent)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: QuantColors.statusSuccess.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'CURRENT ACTIVE',
+                                          style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.w800,
+                                            color: QuantColors.statusSuccess,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                Text(
+                                  version.relativeTime,
+                                  style: const TextStyle(fontSize: 11, color: QuantColors.textMuted),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              version.changeSummary,
+                              style: const TextStyle(fontSize: 12, color: QuantColors.textPrimary),
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline_rounded, size: 12, color: QuantColors.textMuted),
+                                const SizedBox(width: 4),
+                                Text(
+                                  version.author,
+                                  style: const TextStyle(fontSize: 10, color: QuantColors.textMuted),
+                                ),
+                                const SizedBox(width: 10),
+                                Text('·', style: const TextStyle(color: QuantColors.textMuted)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  version.formattedSize,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontFamily: 'monospace',
+                                    color: QuantColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: QuantColors.darkSlateCard,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'CAS: ${version.sha256Cas}',
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        fontFamily: 'monospace',
+                                        color: QuantColors.textMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                if (!version.isCurrent) ...[
+                                  const SizedBox(width: 10),
+                                  SquircleButton(
+                                    height: 32,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                                    label: '1-Click Restore',
+                                    icon: Icons.restore_rounded,
+                                    backgroundColor: QuantColors.sovereignCyan,
+                                    textColor: Colors.black,
+                                    onPressed: () {
+                                      _dataSource.restoreFileVersion(item.id, version.versionId);
+                                      Navigator.pop(modalContext);
+                                      setState(() {});
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          backgroundColor: QuantColors.darkSlateSurface,
+                                          content: Text(
+                                            'Restored ${item.name} to v${version.versionNumber} in 0.8ms without re-upload.',
+                                            style: const TextStyle(color: QuantColors.statusSuccess),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -365,77 +624,150 @@ class _DriveExplorerScreenState extends State<DriveExplorerScreen> {
   }
 
   Widget _buildFastCdcTelemetryCard() {
+    final rawGb = _dataSource.rawIngestedGb;
+    final storedGb = _dataSource.storedCasGb;
+    final savingsPercent = _dataSource.calculatedBandwidthSavedPercent;
+    final ratio = (rawGb / (storedGb > 0 ? storedGb : 0.1)).toStringAsFixed(1);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: QuantColors.elevatedCard,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: QuantColors.hairlineBorder),
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: QuantColors.sovereignCyan.withOpacity(0.35),
+          width: 1,
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: QuantColors.statusSuccess.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.auto_awesome_rounded,
-              color: QuantColors.statusSuccess,
-              size: 18,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      'FastCDC 64KB CAS Engine',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: QuantColors.textPrimary,
-                      ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: QuantColors.sovereignCyan.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: QuantColors.statusSuccess.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '${_dataSource.bandwidthSavedPercent}% Saved',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: QuantColors.statusSuccess,
-                          fontFamily: 'monospace',
+                    child: const Icon(
+                      Icons.speed_rounded,
+                      color: QuantColors.sovereignCyan,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'FastCDC 64KB Gear Table Telemetry',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: QuantColors.textPrimary,
                         ),
                       ),
+                      SizedBox(height: 2),
+                      Text(
+                        '256-Entry 64-Bit Gear Table · Rabin Window',
+                        style: TextStyle(fontSize: 10, color: QuantColors.textMuted),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  QuantBadge(
+                    label: '${savingsPercent.toStringAsFixed(1)}% SAVED',
+                    variant: QuantBadgeVariant.success,
+                    leadingIcon: Icons.bolt_rounded,
+                  ),
+                  if (widget.onOpenCleaner != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.cleaning_services_rounded, color: QuantColors.sovereignCyan, size: 20),
+                      tooltip: 'Open FastCDC Cleaner',
+                      onPressed: widget.onOpenCleaner,
                     ),
                   ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Content Addressable Storage · Sub-5ms chunk indexing',
-                  style: QuantTypography.bodySmall,
-                ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Raw vs Deduplicated Storage Row
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTelemetryStatItem('Raw Ingestion', '${rawGb.toStringAsFixed(1)} GB', QuantColors.textSecondary),
+                Container(width: 1, height: 24, color: QuantColors.hairlineBorder),
+                _buildTelemetryStatItem('CAS Stored', '${storedGb.toStringAsFixed(1)} GB', QuantColors.sovereignCyan),
+                Container(width: 1, height: 24, color: QuantColors.hairlineBorder),
+                _buildTelemetryStatItem('Chunk Count', '${_dataSource.duplicateChunkCount}', QuantColors.sunsetGold),
+                Container(width: 1, height: 24, color: QuantColors.hairlineBorder),
+                _buildTelemetryStatItem('Dedup Ratio', '${ratio}x', QuantColors.statusSuccess),
               ],
             ),
           ),
-          if (widget.onOpenCleaner != null)
-            IconButton(
-              icon: const Icon(Icons.cleaning_services_rounded, color: QuantColors.sovereignCyan),
-              tooltip: 'Open FastCDC Cleaner',
-              onPressed: widget.onOpenCleaner,
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (storedGb / rawGb).clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: QuantColors.elevatedCard,
+              valueColor: const AlwaysStoppedAnimation<Color>(QuantColors.statusSuccess),
             ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'CAS Footprint: ${storedGb.toStringAsFixed(1)} GB / ${rawGb.toStringAsFixed(1)} GB Raw',
+                style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted),
+              ),
+              Text(
+                'Sub-5ms CAS Deduplication Engine',
+                style: QuantTypography.microCapsule.copyWith(color: QuantColors.sovereignCyan),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTelemetryStatItem(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'monospace',
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 9, color: QuantColors.textMuted),
+        ),
+      ],
     );
   }
 

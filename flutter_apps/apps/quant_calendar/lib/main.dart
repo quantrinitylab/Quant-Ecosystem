@@ -29,7 +29,30 @@ class QuantCalendarApp extends StatelessWidget {
           primary: QuantColors.sunsetGold,
         ),
       ),
-      home: const QuantCalendarHomeScreen(),
+      initialRoute: '/',
+      onGenerateRoute: (settings) {
+        final uri = Uri.parse(settings.name ?? '/');
+        if (uri.pathSegments.isNotEmpty && uri.pathSegments[0] == 'booking') {
+          final slug = uri.pathSegments.length > 1 ? uri.pathSegments[1] : 'alex-dev';
+          return MaterialPageRoute(
+            builder: (_) => Scaffold(
+              backgroundColor: QuantColors.voidObsidian,
+              appBar: AppBar(
+                backgroundColor: QuantColors.darkSlateCard,
+                elevation: 0,
+                leading: const BackButton(color: QuantColors.sunsetGold),
+                title: Text('/booking/$slug', style: QuantTypography.titleMedium),
+              ),
+              body: PublicBookingScreen(slug: slug),
+            ),
+            settings: settings,
+          );
+        }
+        return MaterialPageRoute(
+          builder: (_) => const QuantCalendarHomeScreen(),
+          settings: settings,
+        );
+      },
     );
   }
 }

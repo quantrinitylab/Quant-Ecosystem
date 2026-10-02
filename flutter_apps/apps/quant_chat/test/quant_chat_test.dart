@@ -14,6 +14,7 @@ import 'package:quant_chat/screens/call_screen.dart';
 import 'package:quant_chat/screens/audio_space_screen.dart';
 import 'package:quant_chat/screens/calls_tab_screen.dart';
 import 'package:quant_chat/screens/settings_screen.dart';
+import 'package:quant_chat/widgets/call_sheet.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
@@ -25,7 +26,7 @@ void main() {
   // 1. DOMAIN MODEL & 4-STAGE TICK PROGRESSION UNIT TESTS
   // ===========================================================================
   group('QuantChat Domain Models & 4-Stage Tick Pipeline', () {
-    test('MessageDeliveryStatus: 4-stage tick progression and sending backward alias', () {
+    test('MessageDeliveryStatus: 4-stage tick progression, stage names, vector icons and colors', () {
       expect(MessageDeliveryStatus.values.length, 4);
       expect(MessageDeliveryStatus.pending.index, 0);
       expect(MessageDeliveryStatus.sent.index, 1);
@@ -34,6 +35,45 @@ void main() {
 
       // Verify backward-compatible alias
       expect(MessageDeliveryStatus.sending, equals(MessageDeliveryStatus.pending));
+
+      // Verify 4-stage names
+      expect(MessageDeliveryStatus.pending.stageName, 'Clock');
+      expect(MessageDeliveryStatus.sent.stageName, 'SingleGrey');
+      expect(MessageDeliveryStatus.delivered.stageName, 'DoubleGrey');
+      expect(MessageDeliveryStatus.read.stageName, 'DoubleCyan');
+
+      // Verify vector icons
+      expect(MessageDeliveryStatus.pending.icon, Icons.access_time_rounded);
+      expect(MessageDeliveryStatus.sent.icon, Icons.check_rounded);
+      expect(MessageDeliveryStatus.delivered.icon, Icons.done_all_rounded);
+      expect(MessageDeliveryStatus.read.icon, Icons.done_all_rounded);
+
+      // Verify color palette
+      expect(MessageDeliveryStatus.pending.color, const Color(0xFF94A3B8));
+      expect(MessageDeliveryStatus.sent.color, const Color(0xFF94A3B8));
+      expect(MessageDeliveryStatus.delivered.color, const Color(0xFF94A3B8));
+      expect(MessageDeliveryStatus.read.color, QuantColors.sovereignCyan);
+    });
+
+    testWidgets('DeliveryTickWidget renders appropriate vector icons and cyan tint on read', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Column(
+              children: const [
+                DeliveryTickWidget(status: MessageDeliveryStatus.pending),
+                DeliveryTickWidget(status: MessageDeliveryStatus.sent),
+                DeliveryTickWidget(status: MessageDeliveryStatus.delivered),
+                DeliveryTickWidget(status: MessageDeliveryStatus.read),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.access_time_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.done_all_rounded), findsNWidgets(2));
     });
 
     test('ChatMessage properties, copyWith, and ephemeral HTTP 410 fields', () {
@@ -63,7 +103,7 @@ void main() {
       expect(msg.isServerDestroyed, isFalse);
       expect(msg.serverDestructionCode, 410);
 
-      // Advance through tick progression: pending -> sent -> delivered -> read
+      // Advance through tick progression: Clock (pending) -> SingleGrey (sent) -> DoubleGrey (delivered) -> DoubleCyan (read)
       final sentMsg = msg.copyWith(deliveryStatus: MessageDeliveryStatus.sent);
       expect(sentMsg.deliveryStatus, MessageDeliveryStatus.sent);
 
@@ -236,13 +276,97 @@ void main() {
       // Verify HTTP 410 GONE Destroyed Tombstone
       expect(find.textContaining('HTTP 410 GONE'), findsWidgets);
 
-      // Verify Composer
+      // Verify Composer and Mic Record Button
       expect(find.byType(TextField), findsOneWidget);
       expect(find.byIcon(Icons.send_rounded), findsOneWidget);
       expect(find.byIcon(Icons.mic_rounded), findsWidgets);
     });
 
-    testWidgets('CallScreen: HD WebRTC layout, floating participant grid, mute mic, switch camera, screen share', (tester) async {
+    testWidgets('ConversationScreen: Voice Memo Recording state, waveform visualizer, discard and send', (tester) async {
+      final conv = ChatMockData.getInitialConversations().first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: ConversationScreen(conversation: conv),
+        ),
+      );
+      await tester.pump();
+
+      // Tap mic button to enter Voice Memo Recording state
+      await tester.tap(find.byTooltip('Record Voice Memo'));
+      await tester.pump();
+
+      // Verify Voice Recording Dock is active
+      expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+      expect(find.text('00:00'), findsOneWidget);
+
+      // Cancel / Discard voice recording
+      await tester.tap(find.byIcon(Icons.delete_outline_rounded));
+      await tester.pump();
+
+      // Verify returned to standard composer
+      expect(find.byType(TextField), findsOneWidget);
+
+      // Start recording again and send it
+      await tester.tap(find.byTooltip('Record Voice Memo'));
+      await tester.pump();
+      expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
+
+      // Send the recorded voice memo
+      await tester.tap(find.byIcon(Icons.send_rounded).last);
+      await tester.pump();
+
+      // Verify normal composer restored and audio message created
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('WebRTCCallSheet: E2EE badge, contact info, mute, speaker, video toggle and end call', (tester) async {
+      final conv = ChatMockData.getInitialConversations().first;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: Scaffold(
+            body: WebRTCCallSheet(
+              conversation: conv,
+              callType: QuantCallType.video,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Verify E2EE hardware keystore badge
+      expect(find.text('Hardware Keystore E2EE | Zero-Cloud Plaintext'), findsOneWidget);
+      expect(find.text('CEO Astra (Notion AI Swarm)'), findsOneWidget);
+      expect(find.textContaining('VP9 1080p60'), findsOneWidget);
+
+      // Verify interactive controls exist
+      expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.flip_camera_ios_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
+
+      // Test Mute Mic Toggle
+      await tester.tap(find.byIcon(Icons.mic_rounded));
+      await tester.pump();
+      expect(find.byIcon(Icons.mic_off_rounded), findsOneWidget);
+
+      // Test Speaker Toggle
+      await tester.tap(find.byIcon(Icons.volume_up_rounded));
+      await tester.pump();
+      expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
+
+      // Test Video Camera Toggle
+      await tester.tap(find.byIcon(Icons.videocam_rounded));
+      await tester.pump();
+      expect(find.byIcon(Icons.videocam_off_rounded), findsOneWidget);
+    });
+
+    testWidgets('CallScreen: HD WebRTC layout, floating participant grid, mute mic, speaker, switch camera, screen share', (tester) async {
       final conv = ChatMockData.getInitialConversations().first;
 
       await tester.pumpWidget(
@@ -266,8 +390,9 @@ void main() {
       expect(find.text('Node C (Dev-Worker)'), findsOneWidget);
       expect(find.text('You (Local Impeller)'), findsOneWidget);
 
-      // Verify Call Control Buttons
+      // Verify Call Control Buttons (including speakerphone)
       expect(find.byIcon(Icons.mic_rounded), findsWidgets);
+      expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
       expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
       expect(find.byIcon(Icons.flip_camera_ios_rounded), findsOneWidget);
       expect(find.byIcon(Icons.screen_share_rounded), findsOneWidget);
@@ -278,6 +403,11 @@ void main() {
       await tester.tap(find.byIcon(Icons.mic_rounded).first);
       await tester.pump();
       expect(find.byIcon(Icons.mic_off_rounded), findsWidgets);
+
+      // Test Speaker Toggle
+      await tester.tap(find.byIcon(Icons.volume_up_rounded));
+      await tester.pump();
+      expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
 
       // Test Screen Share Toggle
       await tester.tap(find.byIcon(Icons.screen_share_rounded).first);

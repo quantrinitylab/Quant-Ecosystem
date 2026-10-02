@@ -1,0 +1,141 @@
+'use client';
+
+import React from 'react';
+import {
+  FolderIcon,
+  SharedUsersIcon,
+  PadlockIcon,
+  StarFilledIcon,
+  CleanerSparkleIcon,
+} from './DriveIcons';
+
+export type DriveSubTab = 'files' | 'shared' | 'vault' | 'starred' | 'cleaner';
+
+export interface DriveContextTabsHeaderProps {
+  activeTab: DriveSubTab;
+  onTabChange: (tab: DriveSubTab) => void;
+  sharedCount?: number;
+  starredCount?: number;
+}
+
+interface TabDef {
+  id: DriveSubTab;
+  label: string;
+  shortLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badgeText?: string;
+  badgeCount?: number;
+  ariaLabel: string;
+}
+
+export function DriveContextTabsHeader({
+  activeTab,
+  onTabChange,
+  sharedCount = 0,
+  starredCount = 0,
+}: DriveContextTabsHeaderProps) {
+  const tabs: TabDef[] = [
+    {
+      id: 'files',
+      label: 'My Files',
+      shortLabel: 'Files',
+      icon: FolderIcon,
+      ariaLabel: 'My Files view with storage quota and FastCDC chunking',
+    },
+    {
+      id: 'shared',
+      label: 'Shared with me',
+      shortLabel: 'Shared',
+      icon: SharedUsersIcon,
+      badgeCount: sharedCount > 0 ? sharedCount : undefined,
+      ariaLabel: 'Shared files view with collaborator permissions',
+    },
+    {
+      id: 'vault',
+      label: 'Sovereign Vault',
+      shortLabel: 'Vault',
+      icon: PadlockIcon,
+      badgeText: 'E2EE',
+      ariaLabel: 'AES-256 E2EE Sovereign Cryptographic Vault',
+    },
+    {
+      id: 'starred',
+      label: 'Starred',
+      shortLabel: 'Starred',
+      icon: StarFilledIcon,
+      badgeCount: starredCount > 0 ? starredCount : undefined,
+      ariaLabel: 'Starred and pinned documents list',
+    },
+    {
+      id: 'cleaner',
+      label: 'FastCDC Cleaner',
+      shortLabel: 'Cleaner',
+      icon: CleanerSparkleIcon,
+      badgeText: '64KB CDC',
+      ariaLabel: 'FastCDC 64KB deduplication cleaner view',
+    },
+  ];
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Drive Context Sub-Navigation"
+      className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[#090A0E]/95 backdrop-blur-md sticky top-0 z-20"
+    >
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = activeTab === tab.id;
+
+        return (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            aria-label={tab.ariaLabel}
+            id={`drive-tab-${tab.id}`}
+            aria-controls={`drive-panel-${tab.id}`}
+            tabIndex={isActive ? 0 : -1}
+            onClick={() => onTabChange(tab.id)}
+            className={`group inline-flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-medium transition-all duration-150 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] select-none ${
+              isActive
+                ? 'bg-[#12151E] text-[#38BDF8] border border-[#38BDF8]/40 shadow-[0_0_16px_rgba(56,189,248,0.12),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                : 'bg-transparent text-[#94A3B8] border border-transparent hover:bg-[#12151E]/60 hover:text-[#F8FAFC] hover:border-[#232938]'
+            }`}
+          >
+            <Icon
+              className={`size-4 shrink-0 transition-colors ${
+                isActive ? 'text-[#38BDF8]' : 'text-[#64748B] group-hover:text-[#94A3B8]'
+              }`}
+            />
+            <span className="hidden md:inline">{tab.label}</span>
+            <span className="inline md:hidden">{tab.shortLabel}</span>
+
+            {tab.badgeText && (
+              <span
+                className={`ml-0.5 px-1.5 py-0.2 rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
+                  isActive
+                    ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
+                    : 'bg-[#1E293B] text-[#94A3B8] border border-[#334155]'
+                }`}
+              >
+                {tab.badgeText}
+              </span>
+            )}
+
+            {tab.badgeCount !== undefined && (
+              <span
+                className={`ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center ${
+                  isActive
+                    ? 'bg-[#38BDF8] text-[#090A0E]'
+                    : 'bg-[#334155] text-[#E2E8F0]'
+                }`}
+              >
+                {tab.badgeCount}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}

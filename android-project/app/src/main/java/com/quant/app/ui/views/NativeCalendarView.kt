@@ -54,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -206,6 +207,7 @@ fun QuantCalendarMark(modifier: Modifier = Modifier) {
  */
 @Composable
 fun NativeCalendarView(
+    subTabId: String? = null,
     modifier: Modifier = Modifier,
     onEventClick: ((ScheduleTimelineItem) -> Unit)? = null,
     onNewEventClick: (() -> Unit)? = null
@@ -218,6 +220,18 @@ fun NativeCalendarView(
     var selectedDayNumber by remember { mutableIntStateOf(30) }
     var selectedDayTitle by remember { mutableStateOf("Wednesday, September 30") }
     var selectedEventDetail by remember { mutableStateOf<ScheduleTimelineItem?>(null) }
+
+    LaunchedEffect(subTabId) {
+        if (subTabId != null) {
+            when (subTabId) {
+                "agenda" -> viewMode = CalendarViewMode.WEEK
+                "month" -> viewMode = CalendarViewMode.MONTH
+                "booking" -> {
+                    // booking engine or agenda
+                }
+            }
+        }
+    }
 
     // 7-day strip data for the week (Mon Sep 28 – Sun Oct 4, 2026)
     val daysOfWeek = remember {

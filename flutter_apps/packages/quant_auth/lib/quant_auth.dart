@@ -4,3 +4,4 @@
 
 export 'package:quant_core/auth/quant_auth_service.dart';
 export 'package:quant_core/auth/quant_auth_session.dart';
+export 'package:quant_core/omnipresence/quant_cross_app_sso.dart';

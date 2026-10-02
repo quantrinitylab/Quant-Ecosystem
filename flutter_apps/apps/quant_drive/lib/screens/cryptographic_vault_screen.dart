@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:quant_theme/quant_theme.dart';
@@ -9,9 +10,10 @@ import 'document_viewer_screen.dart';
 
 /// Sovereign AES-256 E2EE Cryptographic Vault Screen
 ///
-/// Features Hardware Keystore biometric unlock badge, encrypted document cards
-/// with padlock vectors, SHA-256 copy chips, and on-demand decrypt action.
-/// Zero Skia clipPath calls and zero raw Unicode emojis.
+/// Features Hardware Keystore biometric unlock badge, master password Argon2id challenge,
+/// zero-knowledge recovery key chip, configurable auto-lock timer countdown,
+/// encrypted document cards with padlock vectors, SHA-256 copy chips, and on-demand decrypt action.
+/// Zero Skia clipPath calls and strictly zero raw Unicode emojis.
 class CryptographicVaultScreen extends StatefulWidget {
   final String searchQuery;
 
@@ -28,38 +30,92 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
   final DriveDataSource _dataSource = DriveDataSource.instance;
   bool _isDecrypting = false;
   String? _decryptingItemId;
+  Timer? _autoLockPeriodicTimer;
 
-  void _toggleBiometricLock() {
-    setState(() {
+  @override
+  void initState() {
+    super.initState();
+    if (_dataSource.isVaultUnlocked) {
+      _startAutoLockTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _autoLockPeriodicTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startAutoLockTimer() {
+    _autoLockPeriodicTimer?.cancel();
+    _autoLockPeriodicTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
       if (_dataSource.isVaultUnlocked) {
-        _dataSource.lockVault();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: QuantColors.darkSlateCard,
-            content: Text(
-              'Cryptographic Vault locked. Encryption keys purged from RAM.',
-              style: TextStyle(color: QuantColors.moltenAmber),
-            ),
-          ),
-        );
+        setState(() {
+          _dataSource.tickAutoLockTimer();
+        });
       } else {
-        _dataSource.unlockVault();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: QuantColors.darkSlateCard,
-            content: Text(
-              'Hardware Keystore biometric authenticated. Master keys unwrapped.',
-              style: TextStyle(color: QuantColors.statusSuccess),
-            ),
-          ),
-        );
+        timer.cancel();
       }
     });
   }
 
+  void _lockVault() {
+    setState(() {
+      _autoLockPeriodicTimer?.cancel();
+      _dataSource.lockVault();
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        content: Text(
+          'Cryptographic Vault locked. Encryption keys purged from RAM.',
+          style: TextStyle(color: QuantColors.moltenAmber),
+        ),
+      ),
+    );
+  }
+
+  void _showUnlockSheet({int initialTab = 0, DriveItem? pendingItem}) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: QuantColors.darkSlateCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (modalContext) {
+        return _VaultUnlockBottomSheet(
+          initialTab: initialTab,
+          onUnlocked: (method) {
+            Navigator.pop(modalContext);
+            setState(() {
+              _startAutoLockTimer();
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: QuantColors.darkSlateCard,
+                content: Text(
+                  'Vault unlocked via $method. Enclave session active.',
+                  style: const TextStyle(color: QuantColors.statusSuccess),
+                ),
+              ),
+            );
+            if (pendingItem != null) {
+              _decryptAndOpen(pendingItem);
+            }
+          },
+        );
+      },
+    );
+  }
+
   void _decryptAndOpen(DriveItem item) async {
     if (!_dataSource.isVaultUnlocked) {
-      _showBiometricPrompt(item);
+      _showUnlockSheet(pendingItem: item);
       return;
     }
 
@@ -100,82 +156,6 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
     );
   }
 
-  void _showBiometricPrompt(DriveItem pendingItem) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: QuantColors.darkSlateCard,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: QuantColors.hairlineBorder),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.fingerprint_rounded, color: QuantColors.sovereignCyan, size: 28),
-              SizedBox(width: 10),
-              Text('Biometric Authentication', style: QuantTypography.titleMedium),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Unlock Sovereign AES-256 Vault using Hardware Keystore biometric sensor.',
-                style: TextStyle(fontSize: 13, color: QuantColors.textSecondary),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: QuantColors.elevatedCard,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: QuantColors.hairlineBorder),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.verified_user_rounded, color: QuantColors.statusSuccess, size: 18),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Enclave Level: StrongBox HSM Level 3',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: QuantColors.statusSuccess,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: QuantColors.textMuted)),
-            ),
-            SquircleButton(
-              height: 40,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              label: 'Verify Biometric',
-              icon: Icons.fingerprint_rounded,
-              backgroundColor: QuantColors.sovereignCyan,
-              textColor: Colors.black,
-              onPressed: () {
-                Navigator.pop(context);
-                _toggleBiometricLock();
-                _decryptAndOpen(pendingItem);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _copySha256(String hash) {
     Clipboard.setData(ClipboardData(text: hash));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -187,6 +167,25 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
         ),
       ),
     );
+  }
+
+  void _copyRecoveryKey() {
+    Clipboard.setData(ClipboardData(text: _dataSource.zeroKnowledgeRecoveryKey));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: QuantColors.darkSlateCard,
+        content: Text(
+          'Zero-Knowledge Recovery Key copied to secure clipboard.',
+          style: TextStyle(color: QuantColors.statusSuccess),
+        ),
+      ),
+    );
+  }
+
+  String _formatTimerCountdown(int totalSeconds) {
+    final minutes = (totalSeconds / 60).floor().toString().padLeft(2, '0');
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
@@ -275,7 +274,7 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
           ),
           const SizedBox(height: 20),
           GestureDetector(
-            onTap: _toggleBiometricLock,
+            onTap: () => _showUnlockSheet(initialTab: 0),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 20),
               decoration: BoxDecoration(
@@ -336,16 +335,38 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          SquircleButton(
-            isFullWidth: true,
-            height: 48,
-            label: 'Unlock with Biometrics (StrongBox)',
-            icon: Icons.fingerprint_rounded,
-            backgroundColor: QuantColors.moltenAmber,
-            textColor: Colors.black,
-            onPressed: _toggleBiometricLock,
+          Row(
+            children: [
+              Expanded(
+                child: SquircleButton(
+                  height: 48,
+                  label: 'Unlock with Biometrics',
+                  icon: Icons.fingerprint_rounded,
+                  backgroundColor: QuantColors.moltenAmber,
+                  textColor: Colors.black,
+                  onPressed: () => _showUnlockSheet(initialTab: 0),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: SquircleButton(
+                  height: 42,
+                  label: 'Master Password / Recovery Key',
+                  icon: Icons.key_rounded,
+                  backgroundColor: QuantColors.elevatedCard,
+                  textColor: QuantColors.textPrimary,
+                  onPressed: () => _showUnlockSheet(initialTab: 1),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 18),
+          _buildZeroKnowledgeRecoveryChip(isUnlocked: false),
+          const SizedBox(height: 16),
           _buildVaultTelemetrySummary(),
           const SizedBox(height: 14),
           Container(
@@ -396,6 +417,10 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildBiometricKeystoreBadge(),
+          const SizedBox(height: 12),
+          _buildAutoLockTimerBar(),
+          const SizedBox(height: 12),
+          _buildZeroKnowledgeRecoveryChip(isUnlocked: true),
           const SizedBox(height: 16),
           _buildVaultTelemetrySummary(),
           const SizedBox(height: 20),
@@ -449,15 +474,19 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
   }
 
   Widget _buildBiometricKeystoreBadge() {
-    final isUnlocked = _dataSource.isVaultUnlocked;
-    final accentColor = isUnlocked ? QuantColors.statusSuccess : QuantColors.moltenAmber;
+    final method = _dataSource.vaultUnlockMethod;
+    final methodLabel = method == 'biometric'
+        ? 'Biometric Hardware StrongBox'
+        : method == 'master_password'
+            ? 'Argon2id Master Password'
+            : 'Zero-Knowledge Recovery Key';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: QuantColors.darkSlateCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withOpacity(0.5), width: 1),
+        border: Border.all(color: QuantColors.statusSuccess.withOpacity(0.5), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -467,12 +496,12 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.15),
+                  color: QuantColors.statusSuccess.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  isUnlocked ? Icons.lock_open_rounded : Icons.lock_rounded,
-                  color: accentColor,
+                child: const Icon(
+                  Icons.lock_open_rounded,
+                  color: QuantColors.statusSuccess,
                   size: 24,
                 ),
               ),
@@ -481,21 +510,17 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isUnlocked
-                          ? 'Hardware Keystore Biometrics Verified'
-                          : 'Hardware Keystore Biometric Locked',
+                    const Text(
+                      'Hardware Keystore Unlocked',
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: accentColor,
+                        color: QuantColors.statusSuccess,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isUnlocked
-                          ? 'Zero-Knowledge Session Active · Argon2id memory-hard KDF'
-                          : 'Biometric authorization required to release AES-256 master keys',
+                      'Session: $methodLabel · Argon2id memory-hard KDF active',
                       style: QuantTypography.bodySmall,
                     ),
                   ],
@@ -508,17 +533,129 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
             children: [
               Expanded(
                 child: SquircleButton(
-                  height: 42,
-                  label: isUnlocked ? 'Lock Vault Enclave' : 'Unlock with Biometrics',
-                  icon: isUnlocked ? Icons.lock_outline_rounded : Icons.fingerprint_rounded,
-                  backgroundColor: isUnlocked ? QuantColors.elevatedCard : QuantColors.moltenAmber,
-                  textColor: isUnlocked ? QuantColors.textPrimary : Colors.black,
-                  onPressed: _toggleBiometricLock,
+                  height: 40,
+                  label: 'Lock Vault Enclave',
+                  icon: Icons.lock_outline_rounded,
+                  backgroundColor: QuantColors.elevatedCard,
+                  textColor: QuantColors.moltenAmber,
+                  onPressed: _lockVault,
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAutoLockTimerBar() {
+    final remaining = _dataSource.remainingAutoLockSeconds;
+    final isLow = remaining < 60;
+    final countdownStr = _formatTimerCountdown(remaining);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: QuantColors.elevatedCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isLow ? QuantColors.statusError.withOpacity(0.5) : QuantColors.hairlineBorder,
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 16,
+                color: isLow ? QuantColors.statusError : QuantColors.sovereignCyan,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Auto-Lock Timer',
+                style: QuantTypography.bodySmall.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: QuantColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: isLow
+                  ? QuantColors.statusError.withOpacity(0.15)
+                  : QuantColors.sovereignCyan.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              countdownStr,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: isLow ? QuantColors.statusError : QuantColors.sovereignCyan,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildZeroKnowledgeRecoveryChip({required bool isUnlocked}) {
+    return InkWell(
+      onTap: _copyRecoveryKey,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: QuantColors.voidObsidian,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: QuantColors.hairlineBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: QuantColors.moltenAmber.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.key_rounded, size: 16, color: QuantColors.moltenAmber),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Zero-Knowledge Recovery Key Sealed',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: QuantColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _dataSource.zeroKnowledgeRecoveryKey,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10,
+                      color: QuantColors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.copy_rounded, size: 16, color: QuantColors.textMuted),
+          ],
+        ),
       ),
     );
   }
@@ -696,6 +833,431 @@ class _CryptographicVaultScreenState extends State<CryptographicVaultScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// AES-256 E2EE Cryptographic Vault Unlock Bottom Sheet
+class _VaultUnlockBottomSheet extends StatefulWidget {
+  final int initialTab;
+  final ValueChanged<String> onUnlocked;
+
+  const _VaultUnlockBottomSheet({
+    required this.initialTab,
+    required this.onUnlocked,
+  });
+
+  @override
+  State<_VaultUnlockBottomSheet> createState() => _VaultUnlockBottomSheetState();
+}
+
+class _VaultUnlockBottomSheetState extends State<_VaultUnlockBottomSheet> {
+  final DriveDataSource _dataSource = DriveDataSource.instance;
+  late int _activeTab;
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _recoveryKeyController = TextEditingController();
+  bool _obscurePassword = true;
+  String? _errorMessage;
+  int _selectedAutoLockSeconds = 300;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeTab = widget.initialTab;
+    _selectedAutoLockSeconds = _dataSource.autoLockDurationSeconds;
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _recoveryKeyController.dispose();
+    super.dispose();
+  }
+
+  void _verifyBiometric() {
+    _dataSource.setAutoLockDuration(_selectedAutoLockSeconds);
+    _dataSource.unlockVaultBiometric();
+    widget.onUnlocked('Biometrics (StrongBox HSM)');
+  }
+
+  void _verifyPassword() {
+    final password = _passwordController.text.trim();
+    if (password.isEmpty) {
+      setState(() => _errorMessage = 'Please enter master password');
+      return;
+    }
+
+    _dataSource.setAutoLockDuration(_selectedAutoLockSeconds);
+    final success = _dataSource.unlockVaultWithPassword(password);
+    if (success) {
+      widget.onUnlocked('Argon2id Master Password');
+    } else {
+      setState(() => _errorMessage = 'Invalid master password');
+    }
+  }
+
+  void _verifyRecoveryKey() {
+    final key = _recoveryKeyController.text.trim();
+    if (key.isEmpty) {
+      setState(() => _errorMessage = 'Please enter recovery key');
+      return;
+    }
+
+    _dataSource.setAutoLockDuration(_selectedAutoLockSeconds);
+    final success = _dataSource.unlockVaultWithRecoveryKey(key);
+    if (success) {
+      widget.onUnlocked('Zero-Knowledge Recovery Key');
+    } else {
+      setState(() => _errorMessage = 'Invalid recovery key format');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.shield_rounded, color: QuantColors.moltenAmber, size: 24),
+                  SizedBox(width: 10),
+                  Text(
+                    'Unlock Cryptographic Vault',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: QuantColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: QuantColors.textMuted, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Authenticate to derive AES-256 master keys via Argon2id hardware enclave.',
+            style: TextStyle(fontSize: 12, color: QuantColors.textSecondary),
+          ),
+          const SizedBox(height: 16),
+          // Tab Switcher
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: Row(
+              children: [
+                _buildTabButton(0, 'Biometrics', Icons.fingerprint_rounded),
+                _buildTabButton(1, 'Password', Icons.key_rounded),
+                _buildTabButton(2, 'Recovery', Icons.restore_rounded),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          if (_errorMessage != null) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: QuantColors.statusError.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: QuantColors.statusError.withOpacity(0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 16, color: QuantColors.statusError),
+                  const SizedBox(width: 8),
+                  Text(_errorMessage!, style: const TextStyle(fontSize: 12, color: QuantColors.statusError)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (_activeTab == 0) _buildBiometricTab(),
+          if (_activeTab == 1) _buildPasswordTab(),
+          if (_activeTab == 2) _buildRecoveryTab(),
+          const SizedBox(height: 16),
+          _buildAutoLockSelector(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index, String label, IconData icon) {
+    final isSelected = _activeTab == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _activeTab = index;
+            _errorMessage = null;
+          });
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? QuantColors.darkSlateCard : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: isSelected ? Border.all(color: QuantColors.moltenAmber.withOpacity(0.5)) : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? QuantColors.moltenAmber : QuantColors.textMuted,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? QuantColors.textPrimary : QuantColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBiometricTab() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: QuantColors.elevatedCard,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: QuantColors.hairlineBorder),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.verified_user_rounded, color: QuantColors.statusSuccess, size: 24),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hardware StrongBox Enclave Ready',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: QuantColors.textPrimary),
+                    ),
+                    Text(
+                      'Touch ID / Face ID / Android KeyMint Level 3',
+                      style: TextStyle(fontSize: 11, color: QuantColors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        SquircleButton(
+          isFullWidth: true,
+          height: 46,
+          label: 'Authenticate with Biometrics',
+          icon: Icons.fingerprint_rounded,
+          backgroundColor: QuantColors.moltenAmber,
+          textColor: Colors.black,
+          onPressed: _verifyBiometric,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _passwordController,
+          obscureText: _obscurePassword,
+          style: const TextStyle(color: QuantColors.textPrimary, fontSize: 14),
+          decoration: InputDecoration(
+            labelText: 'Master Vault Password',
+            labelStyle: const TextStyle(color: QuantColors.textSecondary, fontSize: 13),
+            hintText: 'Enter sovereign passphrase (default: quant2026)',
+            hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
+            prefixIcon: const Icon(Icons.password_rounded, color: QuantColors.sovereignCyan, size: 20),
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                color: QuantColors.textMuted,
+                size: 20,
+              ),
+              onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            ),
+            filled: true,
+            fillColor: QuantColors.voidObsidian,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: QuantColors.voidObsidian,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.memory_rounded, size: 14, color: QuantColors.sovereignCyan),
+              SizedBox(width: 6),
+              Text(
+                'KDF: Argon2id (m=64MB, t=3 iterations, p=4 lanes)',
+                style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: QuantColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        SquircleButton(
+          isFullWidth: true,
+          height: 46,
+          label: 'Unlock with Password',
+          icon: Icons.lock_open_rounded,
+          backgroundColor: QuantColors.sovereignCyan,
+          textColor: Colors.black,
+          onPressed: _verifyPassword,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecoveryTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: _recoveryKeyController,
+          style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13, fontFamily: 'monospace'),
+          decoration: InputDecoration(
+            labelText: '24-Word Seed or Recovery Hex Key',
+            labelStyle: const TextStyle(color: QuantColors.textSecondary, fontSize: 13),
+            hintText: '0x7F4A-E39B-88D1-C95B...',
+            hintStyle: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
+            prefixIcon: const Icon(Icons.key_rounded, color: QuantColors.sunsetGold, size: 20),
+            filled: true,
+            fillColor: QuantColors.voidObsidian,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        const SizedBox(height: 10),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: _dataSource.zeroKnowledgeRecoveryKey));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: QuantColors.darkSlateCard,
+                content: Text(
+                  'Sealed Recovery Key copied to clipboard',
+                  style: TextStyle(color: QuantColors.statusSuccess),
+                ),
+              ),
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.copy_rounded, size: 14, color: QuantColors.sunsetGold),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Sealed Key: ${_dataSource.zeroKnowledgeRecoveryKey}',
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 10, color: QuantColors.textMuted),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SquircleButton(
+          isFullWidth: true,
+          height: 46,
+          label: 'Restore Access via Recovery Key',
+          icon: Icons.restore_rounded,
+          backgroundColor: QuantColors.sunsetGold,
+          textColor: Colors.black,
+          onPressed: _verifyRecoveryKey,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoLockSelector() {
+    final durations = [
+      {'label': '30s', 'seconds': 30},
+      {'label': '1m', 'seconds': 60},
+      {'label': '5m', 'seconds': 300},
+      {'label': '15m', 'seconds': 900},
+    ];
+
+    return Row(
+      children: [
+        const Icon(Icons.timer_outlined, size: 14, color: QuantColors.textMuted),
+        const SizedBox(width: 6),
+        const Text('Auto-Lock Duration:', style: TextStyle(fontSize: 11, color: QuantColors.textSecondary)),
+        const Spacer(),
+        ...durations.map((d) {
+          final isSelected = _selectedAutoLockSeconds == d['seconds'];
+          return Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: InkWell(
+              onTap: () => setState(() => _selectedAutoLockSeconds = d['seconds'] as int),
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isSelected ? QuantColors.sovereignCyan.withOpacity(0.18) : QuantColors.voidObsidian,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isSelected ? QuantColors.sovereignCyan : QuantColors.hairlineBorder,
+                  ),
+                ),
+                child: Text(
+                  d['label'] as String,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    fontWeight: FontWeight.w700,
+                    color: isSelected ? QuantColors.sovereignCyan : QuantColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 }

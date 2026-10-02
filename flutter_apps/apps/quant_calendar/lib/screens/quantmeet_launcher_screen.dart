@@ -358,14 +358,36 @@ class _QuantMeetLauncherScreenState extends State<QuantMeetLauncherScreen> {
             ),
           ),
           const SizedBox(height: 18),
-          SquircleButton(
-            label: 'Start Instant Meeting',
-            icon: Icons.videocam_rounded,
-            isFullWidth: true,
-            height: 48,
-            backgroundColor: QuantColors.voidObsidian,
-            textColor: QuantColors.sunsetGold,
-            onPressed: _startInstantMeeting,
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: SquircleButton(
+                  label: 'Start Instant Meeting',
+                  icon: Icons.videocam_rounded,
+                  height: 48,
+                  backgroundColor: QuantColors.voidObsidian,
+                  textColor: QuantColors.sunsetGold,
+                  onPressed: _startInstantMeeting,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: SquircleButton(
+                  label: 'Copy Link',
+                  icon: Icons.link_rounded,
+                  height: 48,
+                  backgroundColor: QuantColors.voidObsidian.withOpacity(0.15),
+                  textColor: QuantColors.voidObsidian,
+                  border: BorderSide(color: QuantColors.voidObsidian.withOpacity(0.3)),
+                  onPressed: () {
+                    final defaultCode = 'qm-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+                    _copyMeetingLink(defaultCode);
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),

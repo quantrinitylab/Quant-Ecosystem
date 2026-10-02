@@ -17,6 +17,43 @@ export interface CalendarHeaderProps {
   onOpenBookingLinks?: () => void;
 }
 
+function HeaderGlobeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-3.5'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+}
+
+function HeaderLinkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-3.5'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
 export function CalendarHeader({
   activeMonthName,
   activeYear,
@@ -83,7 +120,7 @@ export function CalendarHeader({
                 ))}
               </select>
               <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
-                🌐
+                <HeaderGlobeIcon className="size-3 text-[#A1A4AC]" />
               </span>
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
                 ▼
@@ -117,7 +154,7 @@ export function CalendarHeader({
               className="px-3 py-1.5 rounded-lg font-medium text-xs text-[#F5F5F5] bg-[#16181D] hover:bg-[#20232B] border border-[#282C35] flex items-center gap-1.5 shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               title="Share Booking Links"
             >
-              <span className="text-[#FF8C42]">🔗</span>
+              <HeaderLinkIcon className="size-3.5 text-[#FF8C42]" />
               <span>Booking Links</span>
             </button>
           )}
@@ -180,7 +217,7 @@ export function CalendarHeader({
                 className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-2.5 text-xs font-medium text-[#FF8C42] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 title="Share Booking Links"
               >
-                🔗
+                <HeaderLinkIcon className="size-4 text-[#FF8C42]" />
               </button>
             )}
           </div>
@@ -201,7 +238,7 @@ export function CalendarHeader({
               ))}
             </select>
             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
-              🌐
+              <HeaderGlobeIcon className="size-3 text-[#A1A4AC]" />
             </span>
             <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
               ▼

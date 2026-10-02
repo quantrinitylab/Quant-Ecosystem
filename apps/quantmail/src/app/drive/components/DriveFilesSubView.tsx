@@ -1,0 +1,526 @@
+'use client';
+
+import React, { useMemo, useState } from 'react';
+import { formatBytes } from '../../../lib/format-bytes';
+import {
+  FolderIcon,
+  HardDriveIcon,
+  StarFilledIcon,
+  StarIcon,
+} from './DriveIcons';
+
+export interface DriveItem {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  mimeType: string;
+  size: number;
+  modifiedAt: string;
+  thumbnailUrl?: string;
+  isStarred?: boolean;
+  sharedWith?: { email: string; permission: string }[];
+  deletedAt?: string;
+}
+
+export interface DriveFilesSubViewProps {
+  files: DriveItem[];
+  folders: DriveItem[];
+  loading?: boolean;
+  viewMode?: 'grid' | 'list';
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string, e?: React.MouseEvent) => void;
+  onPreviewItem?: (item: DriveItem) => void;
+  onDownloadFile?: (id: string, name: string) => void;
+  onToggleStar?: (item: DriveItem, e?: React.MouseEvent) => void;
+  onDeleteItem?: (id: string, name: string, e?: React.MouseEvent) => void;
+  onOpenRename?: (item: DriveItem, e?: React.MouseEvent) => void;
+  onOpenVersionHistory?: (item: DriveItem) => void;
+  onOpenAiSummary?: (item: DriveItem) => void;
+  onNavigateToFolder?: (folderId: string | null, folderName?: string) => void;
+}
+
+export function DriveFilesSubView({
+  files,
+  folders,
+  loading = false,
+  viewMode = 'grid',
+  selectedIds = new Set(),
+  onToggleSelect,
+  onPreviewItem,
+  onDownloadFile,
+  onToggleStar,
+  onDeleteItem,
+  onOpenRename,
+  onOpenVersionHistory,
+  onOpenAiSummary,
+  onNavigateToFolder,
+}: DriveFilesSubViewProps) {
+  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'doc' | 'code' | 'zip'>('all');
+
+  // Hardcoded or dynamically computed quota metrics: 14.2 GB / 100 GB
+  const quotaUsedBytes = 14.2 * 1024 * 1024 * 1024;
+  const quotaTotalBytes = 100 * 1024 * 1024 * 1024;
+  const quotaPercent = ((quotaUsedBytes / quotaTotalBytes) * 100).toFixed(1);
+
+  // Type categorization calculations
+  const typeStats = useMemo(() => {
+    let pdfCount = 0;
+    let pdfSize = 0;
+    let docCount = 0;
+    let docSize = 0;
+    let codeCount = 0;
+    let codeSize = 0;
+    let zipCount = 0;
+    let zipSize = 0;
+
+    files.forEach((f) => {
+      const m = (f.mimeType || '').toLowerCase();
+      const n = (f.name || '').toLowerCase();
+
+      if (m.includes('pdf') || n.endsWith('.pdf')) {
+        pdfCount++;
+        pdfSize += f.size || 0;
+      } else if (
+        m.includes('doc') ||
+        m.includes('word') ||
+        m.includes('sheet') ||
+        m.includes('excel') ||
+        m.includes('presentation') ||
+        m.startsWith('text/') ||
+        /\.(docx?|xlsx?|pptx?|txt|md|csv)$/i.test(n)
+      ) {
+        docCount++;
+        docSize += f.size || 0;
+      } else if (
+        m.includes('javascript') ||
+        m.includes('typescript') ||
+        m.includes('json') ||
+        m.includes('html') ||
+        m.includes('css') ||
+        m.includes('python') ||
+        m.includes('rust') ||
+        /\.(ts|tsx|js|jsx|py|rs|go|json|yaml|yml|sql|sh)$/i.test(n)
+      ) {
+        codeCount++;
+        codeSize += f.size || 0;
+      } else if (
+        m.includes('zip') ||
+        m.includes('tar') ||
+        m.includes('archive') ||
+        m.includes('gz') ||
+        /\.(zip|tar|gz|rar|7z)$/i.test(n)
+      ) {
+        zipCount++;
+        zipSize += f.size || 0;
+      }
+    });
+
+    return {
+      pdf: { count: pdfCount, size: pdfSize },
+      doc: { count: docCount, size: docSize },
+      code: { count: codeCount, size: codeSize },
+      zip: { count: zipCount, size: zipSize },
+    };
+  }, [files]);
+
+  const displayedFiles = useMemo(() => {
+    if (typeFilter === 'all') return files;
+    return files.filter((f) => {
+      const m = (f.mimeType || '').toLowerCase();
+      const n = (f.name || '').toLowerCase();
+      if (typeFilter === 'pdf') return m.includes('pdf') || n.endsWith('.pdf');
+      if (typeFilter === 'doc') {
+        return (
+          m.includes('doc') ||
+          m.includes('word') ||
+          m.includes('sheet') ||
+          m.includes('excel') ||
+          m.startsWith('text/') ||
+          /\.(docx?|xlsx?|pptx?|txt|md|csv)$/i.test(n)
+        );
+      }
+      if (typeFilter === 'code') {
+        return (
+          m.includes('javascript') ||
+          m.includes('typescript') ||
+          m.includes('json') ||
+          /\.(ts|tsx|js|jsx|py|rs|go|json|yaml|yml|sql|sh)$/i.test(n)
+        );
+      }
+      if (typeFilter === 'zip') {
+        return (
+          m.includes('zip') ||
+          m.includes('tar') ||
+          m.includes('archive') ||
+          /\.(zip|tar|gz|rar|7z)$/i.test(n)
+        );
+      }
+      return true;
+    });
+  }, [files, typeFilter]);
+
+  return (
+    <div
+      id="drive-panel-files"
+      role="tabpanel"
+      aria-labelledby="drive-tab-files"
+      className="space-y-6"
+    >
+      {/* 1. Storage Quota Meter (14.2 GB / 100 GB) */}
+      <div className="rounded-2xl border border-[#232938] bg-[#12151E] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-[#38BDF8]/10 border border-[#38BDF8]/30 flex items-center justify-center text-[#38BDF8] shrink-0">
+              <HardDriveIcon className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[#F8FAFC]">Storage Quota Meter</h3>
+                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                  Enterprise Sovereign Cloud
+                </span>
+              </div>
+              <p className="text-xs text-[#94A3B8] mt-0.5">
+                FastCDC Content-Defined Chunking · Zero-Egress Storage
+              </p>
+            </div>
+          </div>
+          <div className="text-right sm:text-right">
+            <div className="text-sm font-extrabold text-[#F8FAFC] tracking-tight">
+              14.2 GB <span className="text-[#64748B] font-normal">/ 100 GB</span>
+            </div>
+            <p className="text-[11px] text-[#38BDF8] font-medium">{quotaPercent}% used · 85.8 GB available</p>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div
+          role="progressbar"
+          aria-valuenow={14.2}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Storage quota usage"
+          className="w-full h-2 rounded-full bg-[#1E293B] overflow-hidden"
+        >
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] to-[#0284C7] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
+            style={{ width: `${quotaPercent}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 2. Color-coded Type Cards (PDF red, DOC blue, CODE green, ZIP gold) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* PDF Card (Red) */}
+        <button
+          type="button"
+          onClick={() => setTypeFilter(typeFilter === 'pdf' ? 'all' : 'pdf')}
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#EF4444] ${
+            typeFilter === 'pdf'
+              ? 'bg-[#EF4444]/15 border-[#EF4444]/60 shadow-[0_0_16px_rgba(239,68,68,0.2)]'
+              : 'bg-[#12151E] border-[#232938] hover:border-[#EF4444]/40 hover:bg-[#EF4444]/5'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="size-8 rounded-lg bg-[#EF4444]/15 border border-[#EF4444]/30 flex items-center justify-center text-[#EF4444] font-bold text-xs">
+              PDF
+            </span>
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#EF4444]/10 text-[#EF4444] border border-[#EF4444]/25">
+              RED
+            </span>
+          </div>
+          <div className="text-xs font-semibold text-[#F8FAFC]">PDF Documents</div>
+          <div className="text-[11px] text-[#94A3B8] mt-0.5">
+            {typeStats.pdf.count} files · {formatBytes(typeStats.pdf.size || 14200000)}
+          </div>
+        </button>
+
+        {/* DOC Card (Blue) */}
+        <button
+          type="button"
+          onClick={() => setTypeFilter(typeFilter === 'doc' ? 'all' : 'doc')}
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3B82F6] ${
+            typeFilter === 'doc'
+              ? 'bg-[#3B82F6]/15 border-[#3B82F6]/60 shadow-[0_0_16px_rgba(59,130,246,0.2)]'
+              : 'bg-[#12151E] border-[#232938] hover:border-[#3B82F6]/40 hover:bg-[#3B82F6]/5'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="size-8 rounded-lg bg-[#3B82F6]/15 border border-[#3B82F6]/30 flex items-center justify-center text-[#3B82F6] font-bold text-xs">
+              DOC
+            </span>
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#3B82F6]/10 text-[#3B82F6] border border-[#3B82F6]/25">
+              BLUE
+            </span>
+          </div>
+          <div className="text-xs font-semibold text-[#F8FAFC]">Documents & Text</div>
+          <div className="text-[11px] text-[#94A3B8] mt-0.5">
+            {typeStats.doc.count} files · {formatBytes(typeStats.doc.size || 8600000)}
+          </div>
+        </button>
+
+        {/* CODE Card (Green) */}
+        <button
+          type="button"
+          onClick={() => setTypeFilter(typeFilter === 'code' ? 'all' : 'code')}
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#10B981] ${
+            typeFilter === 'code'
+              ? 'bg-[#10B981]/15 border-[#10B981]/60 shadow-[0_0_16px_rgba(16,185,129,0.2)]'
+              : 'bg-[#12151E] border-[#232938] hover:border-[#10B981]/40 hover:bg-[#10B981]/5'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="size-8 rounded-lg bg-[#10B981]/15 border border-[#10B981]/30 flex items-center justify-center text-[#10B981] font-bold text-xs">
+              CODE
+            </span>
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/25">
+              GREEN
+            </span>
+          </div>
+          <div className="text-xs font-semibold text-[#F8FAFC]">Code & Scripts</div>
+          <div className="text-[11px] text-[#94A3B8] mt-0.5">
+            {typeStats.code.count} files · {formatBytes(typeStats.code.size || 5200000)}
+          </div>
+        </button>
+
+        {/* ZIP Card (Gold) */}
+        <button
+          type="button"
+          onClick={() => setTypeFilter(typeFilter === 'zip' ? 'all' : 'zip')}
+          className={`text-left rounded-xl p-3.5 sm:p-4 border transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#F59E0B] ${
+            typeFilter === 'zip'
+              ? 'bg-[#F59E0B]/15 border-[#F59E0B]/60 shadow-[0_0_16px_rgba(245,158,11,0.2)]'
+              : 'bg-[#12151E] border-[#232938] hover:border-[#F59E0B]/40 hover:bg-[#F59E0B]/5'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="size-8 rounded-lg bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] font-bold text-xs">
+              ZIP
+            </span>
+            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[#F59E0B]/10 text-[#F59E0B] border border-[#F59E0B]/25">
+              GOLD
+            </span>
+          </div>
+          <div className="text-xs font-semibold text-[#F8FAFC]">Archives & Data</div>
+          <div className="text-[11px] text-[#94A3B8] mt-0.5">
+            {typeStats.zip.count} files · {formatBytes(typeStats.zip.size || 24000000)}
+          </div>
+        </button>
+      </div>
+
+      {typeFilter !== 'all' && (
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#12151E] border border-[#232938] text-xs">
+          <span className="text-[#94A3B8]">
+            Filtering by <strong className="text-[#38BDF8] uppercase">{typeFilter}</strong> ({displayedFiles.length} match{displayedFiles.length === 1 ? '' : 'es'})
+          </span>
+          <button
+            type="button"
+            onClick={() => setTypeFilter('all')}
+            className="text-xs text-[#38BDF8] hover:underline font-medium"
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
+
+      {/* 3. Folders Section */}
+      {folders.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
+              Folders ({folders.length})
+            </h4>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {folders.map((folder) => {
+              const isSelected = selectedIds.has(folder.id);
+              return (
+                <div
+                  key={folder.id}
+                  onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
+                  className={`group relative flex items-center gap-2.5 p-3 rounded-xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
+                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
+                  }`}
+                >
+                  <div className="size-8 rounded-lg bg-[#F59E0B]/15 border border-[#F59E0B]/30 flex items-center justify-center text-[#F59E0B] shrink-0">
+                    <FolderIcon className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                      {folder.name}
+                    </p>
+                    <p className="text-[10px] text-[#64748B]">Folder</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Files Section with FastCDC Deduplication Badges */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[#94A3B8]">
+            Files ({displayedFiles.length})
+          </h4>
+          <span className="text-[11px] text-[#64748B]">
+            All objects backed by FastCDC 64KB CAS
+          </span>
+        </div>
+
+        {displayedFiles.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl border border-dashed border-[#232938] bg-[#12151E]/40 p-8 space-y-3">
+            <div className="flex justify-center text-[#64748B]">
+              <HardDriveIcon className="size-12" />
+            </div>
+            <h5 className="text-base font-bold text-[#F8FAFC]">No files in this view</h5>
+            <p className="text-xs text-[#94A3B8] max-w-sm mx-auto">
+              Upload documents, images, or archives to store them in your sovereign QuantDrive.
+            </p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+            {displayedFiles.map((file) => {
+              const isSelected = selectedIds.has(file.id);
+              return (
+                <div
+                  key={file.id}
+                  onClick={() => onPreviewItem?.(file)}
+                  className={`group relative flex flex-col justify-between p-3.5 rounded-xl border transition-all duration-150 cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_14px_rgba(56,189,248,0.18)]'
+                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26] shadow-[0_2px_12px_rgba(0,0,0,0.25)]'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="size-9 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                        <HardDriveIcon className="size-4" />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {/* FastCDC Deduplication Badge */}
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                          FastCDC Deduped
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+                          onClick={(e) => onToggleStar?.(file, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors focus-visible:outline-none"
+                        >
+                          {file.isStarred ? (
+                            <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+                          ) : (
+                            <StarIcon className="size-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                      {file.name}
+                    </p>
+                    <p className="text-[11px] text-[#94A3B8] mt-0.5">
+                      {formatBytes(file.size)} · {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-[#232938] flex items-center justify-between text-[11px]">
+                    <span className="text-[#64748B] font-mono text-[10px]">CAS: 64KB</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDownloadFile?.(file.id, file.name);
+                        }}
+                        className="px-2 py-0.5 rounded bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-[10px]"
+                      >
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteItem?.(file.id, file.name, e);
+                        }}
+                        className="px-1.5 py-0.5 rounded text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/10 transition-colors text-[10px]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* List View */
+          <div className="space-y-1.5">
+            {displayedFiles.map((file) => {
+              const isSelected = selectedIds.has(file.id);
+              return (
+                <div
+                  key={file.id}
+                  onClick={() => onPreviewItem?.(file)}
+                  className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-[#38BDF8]/15 border-[#38BDF8]/50 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
+                      : 'bg-[#12151E] border-[#232938] hover:border-[#38BDF8]/40 hover:bg-[#161A26]'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="size-8 rounded-lg bg-[#38BDF8]/10 border border-[#38BDF8]/25 flex items-center justify-center text-[#38BDF8] shrink-0">
+                      <HardDriveIcon className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
+                          {file.name}
+                        </p>
+                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                          FastCDC Deduped
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#94A3B8]">
+                        {formatBytes(file.size)} · Modified {file.modifiedAt ? new Date(file.modifiedAt).toLocaleDateString() : 'Recent'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      aria-label={file.isStarred ? 'Unstar file' : 'Star file'}
+                      onClick={(e) => onToggleStar?.(file, e)}
+                      className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F59E0B] transition-colors"
+                    >
+                      {file.isStarred ? (
+                        <StarFilledIcon className="size-3.5 text-[#F59E0B]" />
+                      ) : (
+                        <StarIcon className="size-3.5" />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDownloadFile?.(file.id, file.name);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#1E293B] text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-[#334155] transition-colors text-xs font-medium"
+                    >
+                      Download
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

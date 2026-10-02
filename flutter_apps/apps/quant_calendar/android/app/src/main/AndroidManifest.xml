@@ -49,7 +49,14 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
 
-            <!-- Sovereign Calendar Deep Linking (webcal: and https://quant.me/booking/) -->
+            <!-- Sovereign Calendar Deep Linking (quantcalendar://, webcal: and https://calendar.quantmail.in) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="quantcalendar" />
+            </intent-filter>
+
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

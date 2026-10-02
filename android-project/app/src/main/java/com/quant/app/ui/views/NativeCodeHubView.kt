@@ -69,6 +69,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -121,6 +122,7 @@ data class GitCopilotMessage(
  */
 @Composable
 fun NativeCodeHubView(
+    subTabId: String? = null,
     onNewRepoClick: () -> Unit = {},
     onPrClick: (Int) -> Unit = {},
     onCommitClick: (String) -> Unit = {},
@@ -142,6 +144,19 @@ fun NativeCodeHubView(
         )
     }
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(subTabId) {
+        if (subTabId != null) {
+            selectedTabIndex = when (subTabId) {
+                "repos" -> 0
+                "prs" -> 1
+                "issues" -> 2
+                "actions" -> 3
+                "copilot" -> 4
+                else -> selectedTabIndex
+            }
+        }
+    }
 
     // In-Repo Quanty Copilot state
     var isCopilotChatOpen by remember { mutableStateOf(false) }

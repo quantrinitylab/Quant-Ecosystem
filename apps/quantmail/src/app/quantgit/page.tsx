@@ -5,9 +5,9 @@
 // Modularized Architecture: Tabs, Modals, Header & Copilot decoupled.
 // ============================================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import type { FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/auth-provider';
 import { browserAuthSession } from '../../services/browser-auth-session';
 import { AgentOfficeCanvas, type OfficeAgent } from '../../components/AgentOfficeCanvas';
@@ -83,9 +83,60 @@ import { CopilotFleetModeView } from './components/CopilotFleetModeView';
 import { DeveloperAppearanceSettings } from './components/DeveloperAppearanceSettings';
 import { NotificationsInbox } from './components/NotificationsInbox';
 import { RepoImportModal } from './components/RepoImportModal';
+import {
+  QuantGitSubViews,
+  type ContextSubViewTab,
+} from './components/QuantGitSubViews';
 
-export default function QuantGitPage() {
+function QuantGitContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams?.get('tab');
+  const initialSubTab: ContextSubViewTab =
+    tabParam && ['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)
+      ? (tabParam as ContextSubViewTab)
+      : 'repos';
+
+  const [activeContextSubTab, setActiveContextSubTab] = useState<ContextSubViewTab>(initialSubTab);
+
+  // Sync with ?tab=... query param
+  useEffect(() => {
+    if (tabParam && ['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabParam)) {
+      setActiveContextSubTab(tabParam as ContextSubViewTab);
+      if (tabParam !== 'repos') {
+        setSelectedRepo(null);
+      }
+    }
+  }, [tabParam]);
+
+  // Synchronize with custom events from ContextBottomNavBar (AppShell)
+  useEffect(() => {
+    const handleSubTabChange = (e: Event) => {
+      const custom = e as CustomEvent<{ pillar?: string; tabId?: string }>;
+      if (custom.detail?.pillar === 'quantgit' && custom.detail?.tabId) {
+        const tabId = custom.detail.tabId as ContextSubViewTab;
+        if (['repos', 'prs', 'issues', 'actions', 'copilot'].includes(tabId)) {
+          setActiveContextSubTab(tabId);
+          if (tabId !== 'repos') {
+            setSelectedRepo(null);
+          }
+        }
+      }
+    };
+
+    const handleCopilotOpen = () => {
+      setActiveContextSubTab('copilot');
+      setSelectedRepo(null);
+    };
+
+    window.addEventListener('quant:subtab-change', handleSubTabChange);
+    window.addEventListener('quant:copilot:open', handleCopilotOpen);
+
+    return () => {
+      window.removeEventListener('quant:subtab-change', handleSubTabChange);
+      window.removeEventListener('quant:copilot:open', handleCopilotOpen);
+    };
+  }, []);
 
   // Navigation & Deck State
   const { user } = useAuth();
@@ -1983,7 +2034,11 @@ export default function QuantGitPage() {
                 onClick={() => showToast('Notification settings updated')}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
               >
-                👁 Watch{' '}
+                <svg className="size-3.5 text-[#7D8590]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span>Watch</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.watching}
                 </span>
@@ -1993,7 +2048,14 @@ export default function QuantGitPage() {
                 onClick={() => showToast('Fork copied to your workspace')}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
               >
-                ⑂ Fork{' '}
+                <svg className="size-3.5 text-[#7D8590]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="18" r="3" />
+                  <circle cx="6" cy="6" r="3" />
+                  <circle cx="18" cy="6" r="3" />
+                  <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9" />
+                  <path d="M12 12v3" />
+                </svg>
+                <span>Fork</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.forks}
                 </span>
@@ -2003,7 +2065,10 @@ export default function QuantGitPage() {
                 onClick={handleStarRepo}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors font-semibold"
               >
-                ★ Star{' '}
+                <svg className="size-3.5 text-[#E3B341]" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+                <span>Star</span>
                 <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.stars}
                 </span>
@@ -2013,24 +2078,24 @@ export default function QuantGitPage() {
 
           <nav className="flex items-center gap-1 overflow-x-auto scrollbar-none border-t border-[#21262D] text-xs font-semibold">
             {[
-              { id: 'code', label: '<> Code', badge: null },
-              { id: 'commits', label: '⎇ Commits', badge: commits.length },
+              { id: 'code', label: 'Code', badge: null },
+              { id: 'commits', label: 'Commits', badge: commits.length },
               {
                 id: 'branches',
-                label: '⎇ Branches',
+                label: 'Branches',
                 badge: detailedBranches.length || repoBranches.length,
               },
-              { id: 'issues', label: '⨀ Issues', badge: openIssuesCount },
-              { id: 'pulls', label: '⑂ Pull requests', badge: openPullsCount },
-              { id: 'agents', label: '✨ Copilot Fleet', badge: 'Cloud OS' },
-              { id: 'mcp', label: '🔌 MCP Registry', badge: '288+' },
-              { id: 'actions', label: '▶ Actions', badge: actions.length },
-              { id: 'notifications', label: '🔔 Notifications', badge: 3 },
-              { id: 'discussions', label: '💬 Discussions', badge: discussions.length },
-              { id: 'projects', label: '📊 Projects', badge: projects.length },
-              { id: 'security', label: '🛡️ Security', badge: securityAlerts.length },
-              { id: 'insights', label: '📈 Insights', badge: null },
-              { id: 'settings', label: '⚙️ Settings', badge: null },
+              { id: 'issues', label: 'Issues', badge: openIssuesCount },
+              { id: 'pulls', label: 'Pull requests', badge: openPullsCount },
+              { id: 'agents', label: 'Copilot Fleet', badge: 'Cloud OS' },
+              { id: 'mcp', label: 'MCP Registry', badge: '288+' },
+              { id: 'actions', label: 'Actions', badge: actions.length },
+              { id: 'notifications', label: 'Notifications', badge: 3 },
+              { id: 'discussions', label: 'Discussions', badge: discussions.length },
+              { id: 'projects', label: 'Projects', badge: projects.length },
+              { id: 'security', label: 'Security', badge: securityAlerts.length },
+              { id: 'insights', label: 'Insights', badge: null },
+              { id: 'settings', label: 'Settings', badge: null },
             ].map((t) => {
               const active = activeGitHubTab === t.id;
               return (
@@ -2065,19 +2130,35 @@ export default function QuantGitPage() {
 
       {/* 3. Main Workspace / Tab Content Body */}
       <div className="flex-1 w-full min-h-0 flex flex-col overflow-hidden">
-        {/* VIEW A: All Repositories Directory */}
+        {/* VIEW A: Contextual Sub-Views (repos, prs, issues, actions, copilot) */}
         {activeDeckTab === 'repos' && !selectedRepo && (
-          <ReposDirectoryView
-            repoSearchQuery={repoSearchQuery}
-            setRepoSearchQuery={setRepoSearchQuery}
-            repoTypeFilter={repoTypeFilter}
-            setRepoTypeFilter={setRepoTypeFilter}
-            repoLangFilter={repoLangFilter}
-            setRepoLangFilter={setRepoLangFilter}
-            filteredRepos={filteredRepos}
-            openRepository={openRepository}
-            setSelectedRepo={setSelectedRepo}
-            setModalState={setModalState}
+          <QuantGitSubViews
+            activeTab={activeContextSubTab}
+            onSelectTab={(tab) => {
+              setActiveContextSubTab(tab);
+              router.push(`/quantgit?tab=${tab}`);
+            }}
+            onSelectRepo={(repoName) => {
+              const matched = repos.find(
+                (r) => r.name === repoName || r.fullName.includes(repoName),
+              );
+              if (matched) {
+                openRepository(matched);
+              } else {
+                showToast(`Opened repository: ${repoName}`);
+              }
+            }}
+            onMergePR={(prId) => {
+              showToast(`1-Click 3-Way Merge completed for ${prId}`);
+            }}
+            onOpenPR={(prId) => {
+              showToast(`Opened PR details: ${prId}`);
+            }}
+            onSelectIssue={(issueId) => {
+              showToast(`Opened Issue details: ${issueId}`);
+            }}
+            onNewRepo={() => setModalState('new-repo')}
+            onNewIssue={() => setModalState('new-issue')}
             showToast={showToast}
           />
         )}
@@ -2496,40 +2577,116 @@ export default function QuantGitPage() {
       {/* 5. Bottom Navigation Dock */}
       <nav
         aria-label="Bottom primary workspace navigation"
-        className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-[#30363D] bg-[#0D1117]/95 backdrop-blur-md flex items-center justify-around px-4 sm:px-8 select-none shadow-2xl"
+        className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-[#232938] bg-[#090A0E]/95 backdrop-blur-md flex items-center justify-around px-3 sm:px-6 select-none shadow-2xl"
       >
         <button
           type="button"
           onClick={() => {
-            setIsCopilotDrawerOpen((prev) => !prev);
+            setActiveContextSubTab('repos');
+            setActiveDeckTab('repos');
+            setSelectedRepo(null);
+            router.push('/quantgit?tab=repos');
           }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            isCopilotDrawerOpen
-              ? 'bg-[#FF8C42] text-black shadow-lg'
-              : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeContextSubTab === 'repos' && !selectedRepo && activeDeckTab === 'repos'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
           }`}
         >
-          <span>✨</span>
-          <span>Quanty</span>
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+            <path d="M6 6h10" />
+            <path d="M6 10h7" />
+          </svg>
+          <span>Repos</span>
         </button>
 
         <button
           type="button"
           onClick={() => {
+            setActiveContextSubTab('prs');
             setActiveDeckTab('repos');
             setSelectedRepo(null);
-            setViewingFile(null);
-            setModalState('none');
-            navigateQuantGit({ kind: 'repositories' });
+            router.push('/quantgit?tab=prs');
           }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-            activeDeckTab === 'repos'
-              ? 'bg-[#FF8C42] text-black shadow-lg'
-              : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeContextSubTab === 'prs' && !selectedRepo && activeDeckTab === 'repos'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
           }`}
         >
-          <span>📁</span>
-          <span>Repos</span>
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="18" cy="18" r="3" />
+            <circle cx="6" cy="6" r="3" />
+            <path d="M13 6h3a2 2 0 0 1 2 2v7" />
+            <line x1="6" y1="9" x2="6" y2="21" />
+          </svg>
+          <span>PRs</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveContextSubTab('issues');
+            setActiveDeckTab('repos');
+            setSelectedRepo(null);
+            router.push('/quantgit?tab=issues');
+          }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeContextSubTab === 'issues' && !selectedRepo && activeDeckTab === 'repos'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
+          }`}
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>Issues</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveContextSubTab('actions');
+            setActiveDeckTab('repos');
+            setSelectedRepo(null);
+            router.push('/quantgit?tab=actions');
+          }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeContextSubTab === 'actions' && !selectedRepo && activeDeckTab === 'repos'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
+          }`}
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+          <span>Actions</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveContextSubTab('copilot');
+            setActiveDeckTab('repos');
+            setSelectedRepo(null);
+            router.push('/quantgit?tab=copilot');
+          }}
+          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+            activeContextSubTab === 'copilot' && !selectedRepo && activeDeckTab === 'repos'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
+          }`}
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+            <path d="M5 3v4" />
+            <path d="M19 17v4" />
+            <path d="M3 5h4" />
+            <path d="M17 19h4" />
+          </svg>
+          <span>Copilot</span>
         </button>
 
         <button
@@ -2541,22 +2698,29 @@ export default function QuantGitPage() {
             setModalState('none');
             navigateQuantGit({ kind: 'agentlab' });
           }}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          className={`hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
             activeDeckTab === 'lab'
-              ? 'bg-[#FF8C42] text-black shadow-lg'
-              : 'text-[#7D8590] hover:text-white hover:bg-[#161B22]'
+              ? 'bg-[#A78BFA] text-black shadow-lg shadow-[#A78BFA]/20'
+              : 'text-[#8B949E] hover:text-white hover:bg-[#12151E]'
           }`}
         >
-          <span>🧪</span>
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10 2v7.31L4.14 19.3A2 2 0 0 0 5.86 22h12.28a2 2 0 0 0 1.72-2.7L14 9.31V2" />
+            <line x1="8.5" y1="2" x2="15.5" y2="2" />
+            <line x1="7" y1="16" x2="17" y2="16" />
+          </svg>
           <span>Agent Lab</span>
         </button>
 
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-[#7D8590] hover:text-white hover:bg-[#161B22] transition-all"
+          className="flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-bold text-[#8B949E] hover:text-white hover:bg-[#12151E] transition-all"
         >
-          <span>↗</span>
+          <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="7" y1="17" x2="17" y2="7" />
+            <polyline points="7 7 17 7 17 17" />
+          </svg>
           <span>Exit</span>
         </button>
       </nav>
@@ -2565,15 +2729,17 @@ export default function QuantGitPage() {
       <button
         type="button"
         onClick={() => setIsCopilotDrawerOpen((prev) => !prev)}
-        className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#FF8C42] hover:bg-[#ff9b5a] text-black font-bold text-xs shadow-2xl transition-all hover:scale-105 active:scale-95"
+        className="fixed bottom-24 right-6 z-40 flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-2xl transition-all hover:scale-105 active:scale-95"
         title="Toggle Quanty AI Copilot Drawer"
       >
-        <span className="text-sm">✨</span>
+        <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+        </svg>
         <span className="font-semibold">Quanty Copilot</span>
         {isCopilotDrawerOpen ? (
-          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full">✕</span>
+          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full font-bold">Close</span>
         ) : (
-          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full">AI</span>
+          <span className="text-[10px] ml-1 bg-black/20 px-1.5 py-0.5 rounded-full font-bold">AI</span>
         )}
       </button>
 
@@ -2585,7 +2751,9 @@ export default function QuantGitPage() {
         >
           <div className="flex items-center justify-between px-4 py-3 border-b border-[#21262D] bg-[#161B22]">
             <div className="flex items-center gap-2">
-              <span className="text-lg">✨</span>
+              <svg className="size-5 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+              </svg>
               <div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-white text-sm">Quanty Copilot</span>
@@ -2601,8 +2769,12 @@ export default function QuantGitPage() {
               onClick={() => setIsCopilotDrawerOpen(false)}
               className="p-1.5 rounded-md text-[#7D8590] hover:text-white hover:bg-[#21262D] transition-colors"
               title="Close Copilot"
+              aria-label="Close Copilot"
             >
-              ✕
+              <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
             </button>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
@@ -2665,5 +2837,19 @@ export default function QuantGitPage() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function QuantGitPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="h-dvh max-h-dvh w-full flex items-center justify-center bg-[#090A0E] text-[#A78BFA] font-mono text-xs">
+          Loading QuantGit Workspace...
+        </div>
+      }
+    >
+      <QuantGitContent />
+    </Suspense>
   );
 }

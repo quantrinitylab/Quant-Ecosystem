@@ -1,0 +1,472 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import {
+  QuantPillarTopBar,
+  PILLAR_TILES,
+  PILLAR_LENSES,
+  executePillarTileClick,
+  executeLensClick,
+  executeLiveCapsuleClick,
+  executeVoiceMicClick,
+  executeSearchKeyDown,
+  type PillarId,
+} from '../components/QuantPillarTopBar';
+
+// Mock Window EventTarget
+class MockWindow {
+  listeners: Record<string, Function[]> = {};
+
+  addEventListener(type: string, callback: Function) {
+    if (!this.listeners[type]) this.listeners[type] = [];
+    this.listeners[type].push(callback);
+  }
+
+  removeEventListener(type: string, callback: Function) {
+    if (this.listeners[type]) {
+      this.listeners[type] = this.listeners[type].filter((cb) => cb !== callback);
+    }
+  }
+
+  dispatchEvent(event: any) {
+    const list = this.listeners[event.type] || [];
+    for (const cb of list) {
+      cb(event);
+    }
+    return true;
+  }
+}
+
+const mockWindow = new MockWindow() as any;
+(globalThis as any).window = mockWindow;
+
+// Mock Next.js navigation hooks
+const mockPush = vi.fn();
+const mockReplace = vi.fn();
+const mockPrefetch = vi.fn();
+let mockCurrentPathname = '/';
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+    replace: mockReplace,
+    prefetch: mockPrefetch,
+  }),
+  usePathname: () => mockCurrentPathname,
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCurrentPathname = '/';
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // ==========================================================================
+  // 1. Amazon & Flipkart Super-App 5 Squircle Mode Switcher Tiles Rendering
+  // ==========================================================================
+  describe('Amazon & Flipkart Super-App 5 Squircle Mode Switcher Tiles', () => {
+    it('renders all 5 sovereign pillars with their exact identifiers and labels', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+
+      // Verify all 5 pillar labels exist
+      expect(html).toContain('Mail');
+      expect(html).toContain('Calendar');
+      expect(html).toContain('Drive');
+      expect(html).toContain('Contacts');
+      expect(html).toContain('QuantGit');
+
+      // Check pillar tiles count and configuration
+      expect(PILLAR_TILES).toHaveLength(5);
+      expect(PILLAR_TILES.map((p) => p.id)).toEqual([
+        'mail',
+        'calendar',
+        'drive',
+        'contacts',
+        'quantgit',
+      ]);
+    });
+
+    it('applies Molten Amber active styling to Mail tile when active', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+
+      expect(html).toContain('#FF8C42');
+      expect(html).toContain('border-[#FF8C42]/50');
+      expect(html).toContain('shadow-[0_0_12px_rgba(255,140,66,0.18)]');
+    });
+
+    it('applies Sunset Gold active styling to Calendar tile when active', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
+
+      expect(html).toContain('#F59E0B');
+      expect(html).toContain('border-[#F59E0B]/50');
+    });
+
+    it('applies Sovereign Cyan active styling to Drive tile when active', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
+
+      expect(html).toContain('#38BDF8');
+      expect(html).toContain('border-[#38BDF8]/50');
+    });
+
+    it('applies Emerald Matrix active styling to Contacts tile when active', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
+
+      expect(html).toContain('#10B981');
+      expect(html).toContain('border-[#10B981]/50');
+    });
+
+    it('applies Obsidian Purple active styling to QuantGit tile when active', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
+
+      expect(html).toContain('#A78BFA');
+      expect(html).toContain('border-[#A78BFA]/50');
+    });
+
+    it('renders unread/count badges when provided in unreadCounts prop', () => {
+      const html = renderToStaticMarkup(
+        <QuantPillarTopBar
+          activePillarOverride="mail"
+          unreadCounts={{ mail: 7, calendar: 2, drive: 0, contacts: 14, quantgit: 3 }}
+        />,
+      );
+
+      expect(html).toContain('7');
+      expect(html).toContain('2');
+      expect(html).toContain('14');
+      expect(html).toContain('3');
+    });
+  });
+
+  // ==========================================================================
+  // 2. Click Interactions for Pillar Tiles & Routing
+  // ==========================================================================
+  describe('Pillar Tiles Click Interactions & Routing Callbacks', () => {
+    it('clicking each pillar tile invokes onPillarSelect, onPillarChange, router.push, and dispatches quant:pillar-change event', () => {
+      const onPillarSelect = vi.fn();
+      const onPillarChange = vi.fn();
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      // 1. Calendar tile click
+      const calTile = PILLAR_TILES.find((t) => t.id === 'calendar')!;
+      executePillarTileClick(calTile, {
+        pathname: '/',
+        router: { push: mockPush },
+        onPillarSelect,
+        onPillarChange,
+      });
+
+      expect(onPillarSelect).toHaveBeenCalledWith('calendar');
+      expect(onPillarChange).toHaveBeenCalledWith('calendar', '/calendar');
+      expect(mockPush).toHaveBeenCalledWith('/calendar');
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'quant:pillar-change',
+          detail: { pillar: 'calendar', path: '/calendar' },
+        }),
+      );
+
+      // 2. Drive tile click
+      const driveTile = PILLAR_TILES.find((t) => t.id === 'drive')!;
+      executePillarTileClick(driveTile, {
+        pathname: '/',
+        router: { push: mockPush },
+        onPillarSelect,
+        onPillarChange,
+      });
+
+      expect(onPillarSelect).toHaveBeenCalledWith('drive');
+      expect(onPillarChange).toHaveBeenCalledWith('drive', '/drive');
+      expect(mockPush).toHaveBeenCalledWith('/drive');
+
+      // 3. Contacts tile click
+      const contactsTile = PILLAR_TILES.find((t) => t.id === 'contacts')!;
+      executePillarTileClick(contactsTile, {
+        pathname: '/',
+        router: { push: mockPush },
+        onPillarSelect,
+        onPillarChange,
+      });
+
+      expect(onPillarSelect).toHaveBeenCalledWith('contacts');
+      expect(onPillarChange).toHaveBeenCalledWith('contacts', '/contacts');
+      expect(mockPush).toHaveBeenCalledWith('/contacts');
+
+      // 4. QuantGit tile click
+      const gitTile = PILLAR_TILES.find((t) => t.id === 'quantgit')!;
+      executePillarTileClick(gitTile, {
+        pathname: '/',
+        router: { push: mockPush },
+        onPillarSelect,
+        onPillarChange,
+      });
+
+      expect(onPillarSelect).toHaveBeenCalledWith('quantgit');
+      expect(onPillarChange).toHaveBeenCalledWith('quantgit', '/quantgit');
+      expect(mockPush).toHaveBeenCalledWith('/quantgit');
+
+      // 5. Mail tile click
+      const mailTile = PILLAR_TILES.find((t) => t.id === 'mail')!;
+      executePillarTileClick(mailTile, {
+        pathname: '/calendar',
+        router: { push: mockPush },
+        onPillarSelect,
+        onPillarChange,
+      });
+
+      expect(onPillarSelect).toHaveBeenCalledWith('mail');
+      expect(onPillarChange).toHaveBeenCalledWith('mail', '/');
+      expect(mockPush).toHaveBeenCalledWith('/');
+    });
+  });
+
+  // ==========================================================================
+  // 3. Dynamic Island Quant AI Live Capsule
+  // ==========================================================================
+  describe('Dynamic Island Quant AI Live Capsule', () => {
+    it('renders the frosted obsidian capsule with pulsing molten orb and live text', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      // Frosted pill container
+      expect(html).toContain('rounded-full bg-[#111318]/90 border border-[#232938]');
+
+      // Molten pulsing orb
+      expect(html).toContain('animate-ping rounded-full bg-[#FF8C42]');
+      expect(html).toContain('rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]');
+
+      // Live text
+      expect(html).toContain('Quant AI:');
+      expect(html).toContain('3 urgent items prioritized');
+      expect(html).toContain('&lt;5ms E2EE');
+    });
+
+    it('renders custom live AI text when aiLiveText prop is supplied', () => {
+      const html = renderToStaticMarkup(
+        <QuantPillarTopBar aiLiveText="Quant AI: All 12 drafts analyzed and synced" />,
+      );
+
+      expect(html).toContain('Quant AI: All 12 drafts analyzed and synced');
+    });
+
+    it('clicking live capsule invokes onQuantyClick, onOpenCopilot, and dispatches window events', () => {
+      const onQuantyClick = vi.fn();
+      const onOpenCopilot = vi.fn();
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      executeLiveCapsuleClick({
+        onQuantyClick,
+        onOpenCopilot,
+      });
+
+      expect(onQuantyClick).toHaveBeenCalledTimes(1);
+      expect(onOpenCopilot).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'quant:copilot:open' }),
+      );
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ type: 'quant:quanty:open' }),
+      );
+    });
+  });
+
+  // ==========================================================================
+  // 4. Sticky Voice Search Bar & Mic Button
+  // ==========================================================================
+  describe('Sticky Voice Search Bar & Mic Button', () => {
+    it('renders search input with 12dp rounded corners and contextual placeholder for Mail', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+
+      expect(html).toContain('rounded-xl bg-[#111318]/90 border border-[#232938]');
+      expect(html).toContain('placeholder="Search emails, senders, keywords… &lt;5ms"');
+    });
+
+    it('swaps contextual placeholder when active pillar changes to Calendar, Drive, Contacts, or QuantGit', () => {
+      const calHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
+      expect(calHtml).toContain('placeholder="Search events, meetings, attendees… &lt;5ms"');
+
+      const driveHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
+      expect(driveHtml).toContain('placeholder="Search files, documents, FastCDC tags… &lt;5ms"');
+
+      const contactsHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
+      expect(contactsHtml).toContain('placeholder="Search VIPs, contacts, companies… &lt;5ms"');
+
+      const gitHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
+      expect(gitHtml).toContain('placeholder="Search repositories, pull requests, commits… &lt;5ms"');
+    });
+
+    it('renders dedicated microphone button for voice search', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      expect(html).toContain('aria-label="Voice Search"');
+      expect(html).toContain('title="Voice Search"');
+    });
+
+    it('renders clear search button when search input contains text', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar searchValue="urgent quarterly invoice" />);
+
+      expect(html).toContain('aria-label="Clear search"');
+      expect(html).toContain('value="urgent quarterly invoice"');
+    });
+
+    it('handles search input Enter key submit and Escape key reset via executeSearchKeyDown', () => {
+      const onSearchSubmit = vi.fn();
+      const onSearchClear = vi.fn();
+      const onSearchChange = vi.fn();
+
+      // Enter key
+      executeSearchKeyDown('Enter', 'project-x roadmap', {
+        onSearchSubmit,
+        onSearchClear,
+        onSearchChange,
+      });
+      expect(onSearchSubmit).toHaveBeenCalledWith('project-x roadmap');
+
+      // Escape key
+      executeSearchKeyDown('Escape', 'temp text', {
+        onSearchSubmit,
+        onSearchClear,
+        onSearchChange,
+      });
+      expect(onSearchChange).toHaveBeenCalledWith('');
+      expect(onSearchClear).toHaveBeenCalledTimes(1);
+    });
+
+    it('clicking voice search mic button dispatches quant:voice-search-start event', () => {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      executeVoiceMicClick('calendar');
+
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'quant:voice-search-start',
+          detail: { pillar: 'calendar' },
+        }),
+      );
+    });
+  });
+
+  // ==========================================================================
+  // 5. Horizontal Sub-Category Lenses Strip
+  // ==========================================================================
+  describe('Horizontal Sub-Category Lenses Strip', () => {
+    it('renders Mail sub-category lenses: All 12, Important 3, Teams 5, Updates, Promos, Spam', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+
+      expect(html).toContain('All');
+      expect(html).toContain('12');
+      expect(html).toContain('Important');
+      expect(html).toContain('3');
+      expect(html).toContain('Teams');
+      expect(html).toContain('5');
+      expect(html).toContain('Updates');
+      expect(html).toContain('Promos');
+      expect(html).toContain('Spam');
+    });
+
+    it('renders Calendar sub-category lenses: Today, Upcoming, Meetings, Reminders', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
+
+      expect(html).toContain('Today');
+      expect(html).toContain('Upcoming');
+      expect(html).toContain('Meetings');
+      expect(html).toContain('Reminders');
+    });
+
+    it('renders Drive sub-category lenses: All Files, Docs, Media, Vault E2EE, FastCDC Clean', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
+
+      expect(html).toContain('All Files');
+      expect(html).toContain('Docs');
+      expect(html).toContain('Media');
+      expect(html).toContain('Vault');
+      expect(html).toContain('E2EE');
+      expect(html).toContain('FastCDC Clean');
+    });
+
+    it('renders Contacts sub-category lenses: All 8, VIPs 4, Teams, AI Dedup', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
+
+      expect(html).toContain('All');
+      expect(html).toContain('8');
+      expect(html).toContain('VIPs');
+      expect(html).toContain('4');
+      expect(html).toContain('Teams');
+      expect(html).toContain('AI Dedup');
+    });
+
+    it('renders QuantGit sub-category lenses: All Repos, Open PRs 1, Issues, CI Runs', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
+
+      expect(html).toContain('All Repos');
+      expect(html).toContain('Open PRs');
+      expect(html).toContain('1');
+      expect(html).toContain('Issues');
+      expect(html).toContain('CI Runs');
+    });
+
+    it('clicking a lens invokes onLensSelect, onLensChange, router.push with query param, and dispatches quant:lens-change', () => {
+      const onLensSelect = vi.fn();
+      const onLensChange = vi.fn();
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      const importantLens = PILLAR_LENSES.mail.find((l) => l.id === 'important')!;
+
+      executeLensClick(importantLens, 'mail', {
+        pathname: '/',
+        router: { push: mockPush },
+        onLensSelect,
+        onLensChange,
+      });
+
+      expect(onLensSelect).toHaveBeenCalledWith('important');
+      expect(onLensChange).toHaveBeenCalledWith('important', 'mail');
+      expect(mockPush).toHaveBeenCalledWith('/?lens=important');
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'quant:lens-change',
+          detail: { pillar: 'mail', lensId: 'important' },
+        }),
+      );
+    });
+  });
+
+  // ==========================================================================
+  // 6. Pure SVG Vector Engine — Strictly ZERO Raw Unicode Emojis Invariant
+  // ==========================================================================
+  describe('Pure SVG Vector Engine — Strictly ZERO Raw Unicode Emojis Invariant', () => {
+    it('verifies that no raw Unicode emojis exist anywhere in the rendered HTML markup', () => {
+      const pillars: PillarId[] = ['mail', 'calendar', 'drive', 'contacts', 'quantgit'];
+
+      for (const pillar of pillars) {
+        const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride={pillar} />);
+
+        const emojiRegex =
+          /[\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+
+        expect(emojiRegex.test(html)).toBe(false);
+
+        // Explicit check against common raw emojis
+        expect(html).not.toContain('🔍');
+        expect(html).not.toContain('⚡');
+        expect(html).not.toContain('🎤');
+        expect(html).not.toContain('✉️');
+        expect(html).not.toContain('📅');
+        expect(html).not.toContain('📁');
+        expect(html).not.toContain('👥');
+        expect(html).not.toContain('✨');
+      }
+    });
+
+    it('ensures all icons are rendered using SVG vector elements', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      expect(html).toContain('<svg');
+      expect(html).toContain('viewBox="0 0 24 24"');
+      expect(html).toContain('aria-hidden="true"');
+    });
+  });
+});

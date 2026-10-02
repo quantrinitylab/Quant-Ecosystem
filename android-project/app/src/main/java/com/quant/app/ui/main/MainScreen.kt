@@ -53,6 +53,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -82,8 +86,11 @@ import com.quant.app.ui.components.NativeSearchOverlay
 import com.quant.app.ui.components.NativeThreadDetailModal
 import com.quant.app.ui.components.NativeVoiceChatSheet
 import com.quant.app.ui.components.QuantBrandLogo
+import com.quant.app.ui.components.QuantPillarTopBar
 import com.quant.app.ui.components.QuantTopAppBar
 import com.quant.app.ui.components.SearchResultItem
+import com.quant.app.ui.navigation.ContextBottomNavBar
+import com.quant.app.ui.navigation.ContextNavDestination
 import com.quant.app.ui.navigation.ProductivityTab
 import com.quant.app.ui.navigation.QuantBottomNavBar
 import com.quant.app.ui.views.NativeCalendarView
@@ -191,6 +198,23 @@ fun MainScreen(
     mutableStateOf(ProductivityTab.fromUrl(deepLinkUrl ?: BuildConfig.DEFAULT_APP_URL))
   }
 
+  var currentSubTabId by remember(activeTab) { mutableStateOf<String?>(null) }
+  var selectedLensId by remember(activeTab) { mutableStateOf("all") }
+  var isBottomNavVisible by remember { mutableStateOf(true) }
+
+  val nestedScrollConnection = remember {
+    object : NestedScrollConnection {
+      override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+        if (available.y < -15f) {
+          isBottomNavVisible = false
+        } else if (available.y > 15f) {
+          isBottomNavVisible = true
+        }
+        return Offset.Zero
+      }
+    }
+  }
+
   // Handle deep link restoration in active WebView
   LaunchedEffect(deepLinkUrl) {
     if (!deepLinkUrl.isNullOrBlank()) {
@@ -294,76 +318,52 @@ fun MainScreen(
     Scaffold(
       modifier = Modifier
         .fillMaxSize()
+        .nestedScroll(nestedScrollConnection)
         .background(Color(0xFF0B, 0x0C, 0x0E)),
       containerColor = Color(0xFF0B, 0x0C, 0x0E),
       topBar = {
         if (isProductivitySuite && !isError) {
-          QuantTopAppBar(
+          QuantPillarTopBar(
             activeTab = activeTab,
-            title = when (activeTab) {
-              ProductivityTab.Mail -> "QuantMail"
-              ProductivityTab.Calendar -> "QuantCalendar"
-              ProductivityTab.Drive -> "QuantDrive"
-              ProductivityTab.Contacts -> "QuantContacts"
-              ProductivityTab.QuantGit -> "QuantGit"
-            },
-            appId = when (activeTab) {
-              ProductivityTab.Mail -> "quantmail"
-              ProductivityTab.Calendar -> "quantcalendar"
-              ProductivityTab.Drive -> "quantdrive"
-              ProductivityTab.Contacts -> "quantcontacts"
-              ProductivityTab.QuantGit -> "quantgit"
-            },
-            appInitials = when (activeTab) {
-              ProductivityTab.Mail -> "QM"
-              ProductivityTab.Calendar -> "QC"
-              ProductivityTab.Drive -> "QD"
-              ProductivityTab.Contacts -> "CT"
-              ProductivityTab.QuantGit -> "QG"
-            },
-            accentColor = activeTab.tabAccentColor,
-            isNativeMode = isNativeMode,
-            onToggleViewMode = {
+            onTabSelected = { tab ->
               nativeBridge?.triggerHaptic("medium")
-              isNativeMode = !isNativeMode
+              if (activeTab != tab) {
+                activeTab = tab
+                currentSubTabId = null
+                selectedLensId = "all"
+                webViewRef?.loadUrl(tab.url)
+              }
+            },
+            selectedLensId = selectedLensId,
+            onLensSelected = { lensId ->
+              nativeBridge?.triggerHaptic("light")
+              selectedLensId = lensId
             },
             onSearchClick = {
               nativeBridge?.triggerHaptic("light")
               isSearchOpen = true
-              webViewRef?.evaluateJavascript(
-                "window.dispatchEvent(new CustomEvent('quant:search:open'));",
-                null
-              )
             },
-            onOpenAccountProfile = {
+            onVoiceClick = {
               nativeBridge?.triggerHaptic("medium")
-              isAppSwitcherOpen = true
+              isVoiceChatSheetOpen = true
             },
-            onOpenAppSwitcher = {
+            onAiCapsuleClick = {
               nativeBridge?.triggerHaptic("medium")
-              isAppSwitcherOpen = true
-            },
-            userInitials = currentUser.initials
+              isVoiceChatSheetOpen = true
+            }
           )
         }
       },
       bottomBar = {
         if (isProductivitySuite && !isError) {
-          QuantBottomNavBar(
-            activeTab = activeTab,
+          ContextBottomNavBar(
+            activePillar = activeTab,
+            selectedTabId = currentSubTabId,
             accentColor = activeTab.tabAccentColor,
-            onTabSelected = { tab ->
+            isVisible = isBottomNavVisible,
+            onTabSelected = { dest ->
               nativeBridge?.triggerHaptic("light")
-              if (activeTab == tab) {
-                // Smooth scroll to top when tapping the already active tab
-                webViewRef?.evaluateJavascript(
-                  "window.scrollTo({ top: 0, behavior: 'smooth' });",
-                  null
-                )
-              } else {
-                activeTab = tab
-                webViewRef?.loadUrl(tab.url)
-              }
+              currentSubTabId = dest.id
             }
           )
         }
@@ -483,6 +483,7 @@ fun MainScreen(
           when (activeTab) {
             ProductivityTab.Mail -> {
               NativeMailView(
+                subTabId = currentSubTabId,
                 accentColor = Color(0xFFFF, 0x8C, 0x42),
                 onThreadClick = { thread ->
                   nativeBridge?.triggerHaptic("light")
@@ -492,6 +493,7 @@ fun MainScreen(
             }
             ProductivityTab.Calendar -> {
               NativeCalendarView(
+                subTabId = currentSubTabId,
                 onNewEventClick = {
                   nativeBridge?.triggerHaptic("medium")
                   isEventSheetOpen = true
@@ -500,6 +502,7 @@ fun MainScreen(
             }
             ProductivityTab.Drive -> {
               NativeDriveView(
+                subTabId = currentSubTabId,
                 accentColor = Color(0xFF38, 0xBD, 0xF8),
                 onFileClick = { file ->
                   nativeBridge?.triggerHaptic("light")
@@ -508,6 +511,7 @@ fun MainScreen(
             }
             ProductivityTab.Contacts -> {
               NativeContactsView(
+                subTabId = currentSubTabId,
                 onNewContactClick = {
                   nativeBridge?.triggerHaptic("medium")
                   isContactSheetOpen = true
@@ -521,6 +525,7 @@ fun MainScreen(
             }
             ProductivityTab.QuantGit -> {
               NativeCodeHubView(
+                subTabId = currentSubTabId,
                 onNewRepoClick = {
                   nativeBridge?.triggerHaptic("medium")
                   isRepoSheetOpen = true

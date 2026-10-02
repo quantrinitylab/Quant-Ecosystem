@@ -2,7 +2,7 @@
 // Hardware keystore secure storage, multi-tenant session management,
 // Dio API client with race-free 401 token refresh queue, telemetry latency tracking,
 // domain models for 5 sovereign productivity pillars, SQLite FTS5 instant search blueprint,
-// offline Drift DB, and mutation sync queue.
+// offline Drift DB, mutation sync queue, and Omni-Presence Deep-Link Mesh.
 // Strictly ZERO raw Unicode emojis throughout this library.
 
 library quant_core;
@@ -20,3 +20,10 @@ export 'models/sync_operation.dart';
 export 'data/quant_offline_database.dart';
 export 'database/quant_database.dart';
 export 'database/quant_offline_store.dart';
+
+// Sovereign Omni-Presence & Deep-Link Mesh
+export 'omnipresence/quant_app_registry.dart';
+export 'omnipresence/quant_omni_route.dart';
+export 'omnipresence/quant_fallback_web_resolver.dart';
+export 'omnipresence/quant_cross_app_sso.dart';
+export 'omnipresence/quant_omni_router.dart';

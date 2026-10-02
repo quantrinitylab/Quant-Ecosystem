@@ -7,6 +7,7 @@ import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
 import '../services/chat_mock_data.dart';
+import '../widgets/call_sheet.dart';
 import 'call_screen.dart';
 
 class CallsTabScreen extends StatefulWidget {
@@ -37,13 +38,10 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
       isOnline: true,
     );
 
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          conversation: conv,
-          callType: item.callType,
-        ),
-      ),
+    WebRTCCallSheet.show(
+      context,
+      conversation: conv,
+      callType: item.callType,
     );
   }
 

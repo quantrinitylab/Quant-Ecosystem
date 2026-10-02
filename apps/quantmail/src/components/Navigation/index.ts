@@ -1,0 +1,28 @@
+export {
+  QuantMailSuperAppHeader,
+  SUPER_APP_PILLARS,
+  QuantMonogramSvg,
+  MailPillarSvg,
+  CalendarPillarSvg,
+  DrivePillarSvg,
+  ContactsPillarSvg,
+  QuantGitPillarSvg,
+  SearchMagnifierSvg,
+  MicrophoneSvg,
+  ScanBarcodeLensSvg,
+  BellNotificationSvg,
+  ZapCreditsSvg,
+  ChevronDownSvg,
+  CheckMarkSvg,
+  PlusSvg,
+  VideoCallSvg,
+  StarFilledSvg,
+  HardDriveQuotaSvg,
+  CrossSvg,
+} from './QuantMailSuperAppHeader';
+export type {
+  SuperAppPillarId,
+  SuperAppPillar,
+  WorkspaceItem,
+  QuantMailSuperAppHeaderProps,
+} from './QuantMailSuperAppHeader';

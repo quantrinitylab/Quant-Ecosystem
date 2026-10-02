@@ -20,6 +20,8 @@ import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
 import { UndoSendProvider } from './UndoSendCountdownBar';
+import { QuantPillarTopBar } from './QuantPillarTopBar';
+import { ContextBottomNavBar } from './ContextBottomNavBar';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -62,160 +64,7 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation — ONLY visible on mobile screens (md:hidden) — 100% SVG Vector Engine */
-const BOTTOM_NAV: Array<{ id: string; label: string; path: string; icon: ReactNode }> = [
-  {
-    id: 'mail',
-    label: 'Mail',
-    path: '/',
-    icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="2" y="4" width="20" height="16" rx="2" />
-        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-      </svg>
-    ),
-  },
-  {
-    id: 'calendar',
-    label: 'Calendar',
-    path: '/calendar',
-    icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <path d="M16 2v4M8 2v4M3 10h18" />
-      </svg>
-    ),
-  },
-  {
-    id: 'drive',
-    label: 'Drive',
-    path: '/drive',
-    icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'contacts',
-    label: 'Contacts',
-    path: '/contacts',
-    icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="9" cy="8" r="3" />
-        <path d="M3 20c0-4 2-6 6-6s6 2 6 6M16 7a3 3 0 0 1 0 6M17 14c2.7.4 4 2.4 4 5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'code',
-    label: 'QuantGit',
-    path: '/quantgit',
-    icon: (
-      <svg
-        className="size-5"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" />
-      </svg>
-    ),
-  },
-];
-
-const MAIL_PREFIXES = [
-  '/thread',
-  '/sent',
-  '/drafts',
-  '/archive',
-  '/spam',
-  '/trash',
-  '/snoozed',
-  '/starred',
-  '/search',
-  '/labels',
-  '/compose',
-];
-
-function MobileBottomNav() {
-  const router = useRouter();
-  const pathname = usePathname() ?? '/';
-
-  // Do not render bottom mobile tab bar inside individual thread chat view or compose view
-  if (pathname.startsWith('/thread') || pathname.startsWith('/compose')) {
-    return null;
-  }
-
-  const isActive = (item: (typeof BOTTOM_NAV)[number]) => {
-    if (item.path === '/') {
-      return pathname === '/' || MAIL_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-    }
-    return pathname.startsWith(item.path);
-  };
-
-  return (
-    <nav
-      className="fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[#282C35] bg-[#090A0C]/95 backdrop-blur-md px-2 shadow-lg md:hidden"
-      aria-label="Mobile primary navigation"
-    >
-      {BOTTOM_NAV.map((item) => {
-        const active = isActive(item);
-        return (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => router.push(item.path)}
-            className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1 text-[10px] font-medium transition-colors ${
-              active ? 'text-[#FF8C42] font-semibold' : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-            }`}
-            aria-current={active ? 'page' : undefined}
-          >
-            <span className={`transition-transform duration-200 ${active ? 'scale-105' : ''}`}>
-              {item.icon}
-            </span>
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-}
+/* Mobile bottom navigation is powered by <ContextBottomNavBar /> (Context-Specific Bottom Navigation) */
 
 export function AppShell({
   children,
@@ -315,6 +164,14 @@ export function AppShell({
         : pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')
           ? 'code'
           : 'mail';
+
+  const isMainSuiteRoute =
+    pathname === '/' ||
+    pathname.startsWith('/calendar') ||
+    pathname.startsWith('/drive') ||
+    pathname.startsWith('/contacts') ||
+    pathname.startsWith('/quantgit') ||
+    pathname.startsWith('/codehub');
 
   const handleLogoClick = useCallback(() => {
     void refetchInbox();
@@ -993,7 +850,18 @@ export function AppShell({
               </div>
             )}
 
-            {topBar}
+            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar */}
+            {topBar !== undefined ? (
+              topBar
+            ) : isMainSuiteRoute && !customHeader ? (
+              <QuantPillarTopBar
+                searchValue={searchValue}
+                onSearchChange={onSearchChange}
+                searchPlaceholder={searchPlaceholder}
+                onQuantyClick={openQuanty}
+                unreadCounts={{ mail: unreadCount }}
+              />
+            ) : null}
 
             {/*
           The app's only `<main>`, and the target of the root layout's skip link.
@@ -1022,8 +890,8 @@ export function AppShell({
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
 
-          {/* Mobile Bottom Navigation — strictly md:hidden */}
-          <MobileBottomNav />
+          {/* Context-Specific Bottom Navigation — strictly md:hidden */}
+          <ContextBottomNavBar />
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />

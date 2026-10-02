@@ -15,8 +15,9 @@ import { useConfirm } from '../../hooks/useConfirm';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
 import { QuantFab } from '../../components/QuantFab';
+import { useSearchParams } from 'next/navigation';
 import { IconCalendar, IconTarget, IconFlower, IconCake } from '../../components/icons';
-import type { CalendarEventLike, FormState, CalendarView, EntryType } from './types';
+import type { CalendarEventLike, FormState, CalendarView, EntryType, CalendarContextTab } from './types';
 import { FULL_WEEKDAYS, MONTHS_SHORT, MONTH_NAMES } from './types';
 import {
   dayKey,
@@ -34,6 +35,12 @@ import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';
+import { CalendarContextSubTabs } from './components/CalendarContextSubTabs';
+import { CalendarAgendaView } from './components/CalendarAgendaView';
+import { CalendarMonthView } from './components/CalendarMonthView';
+import { CalendarBookingView } from './components/CalendarBookingView';
+import { CalendarQuantMeetView } from './components/CalendarQuantMeetView';
+import { CalendarRemindersView } from './components/CalendarRemindersView';
 
 const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
   title: '',
@@ -77,15 +84,95 @@ const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
   currentCycleDay: 1,
 });
 
-export default function CalendarPage() {
+const isValidContextTab = (t: string | null): t is CalendarContextTab => {
+  return (
+    t === 'agenda' ||
+    t === 'month' ||
+    t === 'booking' ||
+    t === 'quantmeet' ||
+    t === 'reminders'
+  );
+};
+
+function CalendarPageContent() {
   const today = useMemo(() => new Date(), []);
   const { user } = useAuth();
   const currentUserEmail = user?.email || '';
+
+  const searchParams = useSearchParams();
+  const queryTab = searchParams?.get('tab');
+
+  const [activeContextTab, setActiveContextTab] = useState<CalendarContextTab>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search).get('tab');
+      if (isValidContextTab(p)) return p;
+    }
+    return 'agenda';
+  });
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [activeView, setActiveView] = useState<CalendarView>('agenda');
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+
+  // Synchronize with URL searchParams changes (?tab=...)
+  useEffect(() => {
+    if (isValidContextTab(queryTab)) {
+      setActiveContextTab(queryTab);
+      if (queryTab === 'month') {
+        setIsMonthExpanded(true);
+        setActiveView('month');
+      } else if (queryTab === 'agenda') {
+        setActiveView('agenda');
+      }
+    }
+  }, [queryTab]);
+
+  // Synchronize with quant:subtab-change custom event dispatched by ContextBottomNavBar
+  useEffect(() => {
+    const handleSubtabChange = (e: Event) => {
+      const custom = e as CustomEvent<{ pillar: string; tabId: string }>;
+      if (custom.detail?.pillar === 'calendar' && isValidContextTab(custom.detail.tabId)) {
+        setActiveContextTab(custom.detail.tabId);
+        if (custom.detail.tabId === 'month') {
+          setIsMonthExpanded(true);
+          setActiveView('month');
+        } else if (custom.detail.tabId === 'agenda') {
+          setActiveView('agenda');
+        }
+      }
+    };
+    window.addEventListener('quant:subtab-change', handleSubtabChange);
+    return () => window.removeEventListener('quant:subtab-change', handleSubtabChange);
+  }, []);
+
+  const handleSelectContextTab = useCallback(
+    (nextTab: CalendarContextTab) => {
+      setActiveContextTab(nextTab);
+      if (nextTab === 'month') {
+        setIsMonthExpanded(true);
+        setActiveView('month');
+      } else if (nextTab === 'agenda') {
+        setActiveView('agenda');
+      }
+
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', nextTab);
+        window.history.pushState(null, '', url.toString());
+        window.dispatchEvent(
+          new CustomEvent('quant:subtab-change', {
+            detail: {
+              pillar: 'calendar',
+              tabId: nextTab,
+              queryParam: { key: 'tab', value: nextTab },
+            },
+          }),
+        );
+      }
+    },
+    [],
+  );
 
   // Active Creation Sheet Type (Dedicated sheet per mode)
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
@@ -898,38 +985,64 @@ export default function CalendarPage() {
           goMonth={goMonth}
           goToday={goToday}
           activeView={activeView}
-          selectView={selectView}
+          selectView={(v) => {
+            selectView(v);
+            if (v === 'month') handleSelectContextTab('month');
+            else if (v === 'agenda') handleSelectContextTab('agenda');
+          }}
           openDedicatedSheet={openDedicatedSheet}
           activeTimezone={activeTimezone}
           onChangeTimezone={handleTimezoneChange}
-          onOpenBookingLinks={() => setIsBookingLinksOpen(true)}
+          onOpenBookingLinks={() => {
+            handleSelectContextTab('booking');
+            setIsBookingLinksOpen(true);
+          }}
         />
 
-        <CalendarViews
-          currentHeight={currentHeight}
-          isDragging={isDragging}
-          isMonthExpanded={isMonthExpanded}
-          currentWeekDays={currentWeekDays}
-          monthWeeks={monthWeeks}
-          selectDate={selectDate}
-          handlePointerDown={handlePointerDown}
-          handlePointerMove={handlePointerMove}
-          handlePointerUp={handlePointerUp}
-          scrollHostRef={scrollHostRef}
-          handleScroll={handleScroll}
-          isLoadingPast={isLoadingPast}
-          isLoadingFuture={isLoadingFuture}
-          isInitialLoading={isInitialLoading}
-          error={error}
-          refetch={() => void refetch()}
-          visibleAgendaDays={visibleAgendaDays}
-          searchFilter={searchFilter}
-          selectedDate={selectedDate}
-          dateItemRefs={dateItemRefs}
-          openDedicatedSheet={openDedicatedSheet}
-          setSelectedEvent={setSelectedEvent}
-          handleDeleteEvent={handleDeleteEvent}
+        {/* Desktop Context Sub-Tabs Selector */}
+        <CalendarContextSubTabs
+          activeTab={activeContextTab}
+          onSelectTab={handleSelectContextTab}
         />
+
+        {/* 5 Sovereign Contextual Sub-Views */}
+        {activeContextTab === 'agenda' && (
+          <CalendarAgendaView
+            events={events}
+            holidaysByDay={holidaysByDay}
+            selectedDate={selectedDate}
+            onSelectDate={selectDate}
+            openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
+            searchFilter={searchFilter}
+          />
+        )}
+
+        {activeContextTab === 'month' && (
+          <CalendarMonthView
+            events={events}
+            holidaysByDay={holidaysByDay}
+            selectedDate={selectedDate}
+            onSelectDate={selectDate}
+            openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
+          />
+        )}
+
+        {activeContextTab === 'booking' && (
+          <CalendarBookingView
+            userEmail={currentUserEmail}
+            bookingSlug={currentUserEmail ? currentUserEmail.split('@')[0] : 'sundar'}
+          />
+        )}
+
+        {activeContextTab === 'quantmeet' && (
+          <CalendarQuantMeetView />
+        )}
+
+        {activeContextTab === 'reminders' && (
+          <CalendarRemindersView />
+        )}
 
         <QuantFab
           label="New calendar entry"
@@ -1016,5 +1129,13 @@ export default function CalendarPage() {
         {dialog}
       </div>
     </AppShell>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <React.Suspense fallback={<div className="h-full w-full bg-[#08080a]" />}>
+      <CalendarPageContent />
+    </React.Suspense>
   );
 }

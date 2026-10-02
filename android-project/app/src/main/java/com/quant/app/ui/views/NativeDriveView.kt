@@ -63,6 +63,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -258,6 +259,7 @@ val DRIVE_FILTER_OPTIONS = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NativeDriveView(
+    subTabId: String? = null,
     modifier: Modifier = Modifier,
     accentColor: Color = Color(0xFF0E, 0xA5, 0xE9), // Sky Blue accent
     onFileClick: (DriveItem) -> Unit = {}
@@ -265,6 +267,18 @@ fun NativeDriveView(
     val context = LocalContext.current
     var selectedFilter by remember { mutableStateOf("All Files") }
     var isGridView by remember { mutableStateOf(false) }
+
+    LaunchedEffect(subTabId) {
+        if (subTabId != null) {
+            selectedFilter = when (subTabId) {
+                "files" -> "All Files"
+                "shared" -> "Documents"
+                "starred" -> "Offline"
+                "vault" -> "Code"
+                else -> selectedFilter
+            }
+        }
+    }
 
     // State map to track user-toggled stars persistently during session
     val starredStates = remember {

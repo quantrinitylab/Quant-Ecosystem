@@ -873,6 +873,18 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
             onPressed: _toggleMute,
           ),
 
+          // Speakerphone Toggle
+          _buildControlButton(
+            icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+            isActive: _isSpeakerOn,
+            activeColor: QuantColors.elevatedCard,
+            activeIconColor: Colors.white,
+            inactiveColor: QuantColors.elevatedCard,
+            inactiveIconColor: QuantColors.textMuted,
+            tooltip: 'Toggle Speaker',
+            onPressed: _toggleSpeaker,
+          ),
+
           // Video Camera Toggle
           _buildControlButton(
             icon: _isVideoEnabled ? Icons.videocam_rounded : Icons.videocam_off_rounded,

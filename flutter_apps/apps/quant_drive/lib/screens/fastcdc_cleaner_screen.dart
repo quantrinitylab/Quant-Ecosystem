@@ -282,7 +282,7 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'FastCDC CAS Telemetry Meter',
+                        'FastCDC 64KB Gear Table CAS Telemetry Meter',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
@@ -291,7 +291,7 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                       ),
                       SizedBox(height: 2),
                       Text(
-                        'Rabin Chunk Fingerprint · 64KB Nominal Window',
+                        '256-Entry 64-Bit Gear Table · 64KB Nominal CAS Window',
                         style: TextStyle(fontSize: 10, color: QuantColors.textMuted),
                       ),
                     ],
@@ -299,11 +299,33 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                 ],
               ),
               QuantBadge(
-                label: '>94% SAVINGS',
+                label: '${savingsPercent.toStringAsFixed(1)}% SAVED',
                 variant: savingsPercent >= 94.0 ? QuantBadgeVariant.success : QuantBadgeVariant.amber,
                 leadingIcon: Icons.bolt_rounded,
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          // Raw vs Deduplicated Grid
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: QuantColors.hairlineBorder),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildTelemetrySubStat('Raw Ingestion', '${rawGb.toStringAsFixed(1)} GB', QuantColors.textSecondary),
+                Container(width: 1, height: 28, color: QuantColors.hairlineBorder),
+                _buildTelemetrySubStat('CAS Stored', '${storedGb.toStringAsFixed(1)} GB', QuantColors.sovereignCyan),
+                Container(width: 1, height: 28, color: QuantColors.hairlineBorder),
+                _buildTelemetrySubStat('Chunk Count', '${_dataSource.duplicateChunkCount} Chunks', QuantColors.sunsetGold),
+                Container(width: 1, height: 28, color: QuantColors.hairlineBorder),
+                _buildTelemetrySubStat('Dedup Ratio', '${ratio}x', QuantColors.statusSuccess),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
           Column(
@@ -377,7 +399,7 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                     Icon(Icons.functions_rounded, size: 14, color: QuantColors.sunsetGold),
                     SizedBox(width: 6),
                     Text(
-                      'BANDWIDTH SAVINGS CALCULATION',
+                      'GEAR TABLE CAS DEDUPLICATION FORMULA',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -389,7 +411,7 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '1 - (CAS Stored ${storedGb.toStringAsFixed(1)} GB / Raw Ingestion ${rawGb.toStringAsFixed(1)} GB) = ${savingsPercent.toStringAsFixed(1)}% savings ($ratio:1 dedup ratio)',
+                  '1 - (CAS Stored ${storedGb.toStringAsFixed(1)} GB / Raw Ingested ${rawGb.toStringAsFixed(1)} GB) = ${savingsPercent.toStringAsFixed(1)}% savings ($ratio:1 dedup ratio)',
                   style: const TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11,
@@ -398,7 +420,7 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '76,800 identical 64KB CAS blocks deduplicated across multi-tenant sovereign enclaves.',
+                  '${_dataSource.duplicateChunkCount} nominal 64KB CAS blocks sliced with 256-entry 64-bit Gear Table hash without multiplication.',
                   style: QuantTypography.microCapsule.copyWith(color: QuantColors.textMuted),
                 ),
               ],
@@ -406,6 +428,27 @@ class _FastCdcCleanerScreenState extends State<FastCdcCleanerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTelemetrySubStat(String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            fontFamily: 'monospace',
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 9, color: QuantColors.textMuted),
+        ),
+      ],
     );
   }
 
