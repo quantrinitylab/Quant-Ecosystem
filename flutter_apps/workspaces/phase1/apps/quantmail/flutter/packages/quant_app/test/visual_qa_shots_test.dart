@@ -10,12 +10,13 @@
 //  - NO pumpAndSettle on screens with infinite animations (spinners)
 //  - only fakes: no network, no browser, no timers that outlive the test
 //
-// Run: flutter test --timeout 90s test/visual_qa_shots_test.dart
-// Shots land in: ~/workspace/quantmail-omnipresent/visual-qa/shots/<date>/
+// Run: flutter test --update-goldens --timeout 90s test/visual_qa_shots_test.dart
+// PNGs land in test/shots_tmp/; copy them to
+// ~/workspace/quantmail-omnipresent/visual-qa/shots/<date>/ for review.
+// Without --update-goldens the run diffs against test/shots_tmp/ baselines.
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,9 +28,6 @@ import 'package:quant_app/src/screens/login_screen.dart';
 import 'package:quant_app/src/screens/thread_screen.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_foundation/quant_foundation.dart';
-
-/// Date bucket the PNGs go into (update when re-running on another day).
-const String _shotDate = '2026-10-03';
 
 /// Loads the brand font so screenshots render real glyphs (Inter).
 Future<void> _loadBrandFonts() async {
@@ -161,6 +159,9 @@ Future<void> _capture(
   String name, {
   required Widget screen,
   List<Override> overrides = const [],
+  // Advance fake-async time before capture so indeterminate animations
+  // (spinners) are caught mid-arc instead of at frame 0.
+  Duration? settleFor,
 }) async {
   final GlobalKey boundaryKey = GlobalKey();
   await tester.pumpWidget(
@@ -179,26 +180,17 @@ Future<void> _capture(
   );
   await tester.binding.setSurfaceSize(const Size(390, 844));
   await tester.pump(); // one frame; never pumpAndSettle (spinners)
+  if (settleFor != null) await tester.pump(settleFor);
 
-  // captureImage (flutter_test's OffsetLayer-based capture) works in the
-  // fake-async zone; real file I/O must go through runAsync or it hangs.
-  final ui.Image image =
-      await captureImage(tester.element(find.byKey(boundaryKey)));
-  final ByteData? data =
-      await image.toByteData(format: ui.ImageByteFormat.png);
-  if (data == null) throw StateError('toByteData returned null');
-  final Uint8List bytes = Uint8List.fromList(data.buffer.asUint8List());
-  expect(bytes, isNotEmpty);
-
-  const String shotDir =
-      '/home/hatch/workspace/quantmail-omnipresent/visual-qa/shots/$_shotDate';
-  final String path = '$shotDir/$name.png';
-  // Sync I/O only: async file writes (even inside runAsync) can deadlock the
-  // test's fake-async zone; writeAsBytesSync completes inline.
-  Directory(shotDir).createSync(recursive: true);
-  File(path).writeAsBytesSync(bytes);
-
-  expect(File(path).existsSync(), isTrue);
+  // Golden-file mechanism: the framework's own render->PNG->file path, which
+  // is proven to work in the test's fake-async zone. Run the harness with
+  // --update-goldens to (re)write PNGs into test/shots_tmp/, then copy them
+  // to visual-qa/shots/<date>/. Without --update-goldens the same run diffs
+  // against the baselines (regression check).
+  await expectLater(
+    find.byKey(boundaryKey),
+    matchesGoldenFile('shots_tmp/$name.png'),
+  );
   addTearDown(() => tester.binding.setSurfaceSize(null));
 }
 
@@ -226,6 +218,7 @@ void main() {
       tester,
       'login_loading',
       screen: const LoginScreen(),
+      settleFor: const Duration(milliseconds: 600),
       overrides: [
         authSessionProvider
             .overrideWith(() => _ShotAuthNotifier(const AuthLoading())),
@@ -281,6 +274,7 @@ void main() {
       tester,
       'inbox_loading',
       screen: const InboxScreen(),
+      settleFor: const Duration(milliseconds: 600),
       overrides: [inboxProvider.overrideWith(() => loading)],
     );
 

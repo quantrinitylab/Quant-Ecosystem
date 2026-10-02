@@ -18,6 +18,7 @@ import 'package:quant_app/src/router/app_router.dart';
 import 'package:quant_core/quant_core.dart';
 
 import 'helpers/fake_auth_session.dart';
+import 'helpers/fake_inbox.dart';
 
 typedef _RouterBundle = ({
   ProviderContainer container,
@@ -27,11 +28,20 @@ typedef _RouterBundle = ({
 
 /// Builds the real router against a container whose auth provider is the
 /// given fake session state.
+///
+/// The inbox provider is overridden with an empty deterministic state: the
+/// real [InboxListNotifier] would hit the network on first paint, which
+/// router tests must never depend on. The empty state renders the M4
+/// "You're all caught up" copy, which also proves the inbox screen itself
+/// painted (not just the route).
 _RouterBundle _buildTestRouter(AuthSessionState initial) {
   final FakeAuthSessionNotifier auth = FakeAuthSessionNotifier(initial);
   final ProviderContainer container = ProviderContainer(
     overrides: <Override>[
       authSessionProvider.overrideWith(() => auth),
+      inboxProvider.overrideWith(
+        () => FakeInboxNotifier.data(const InboxListState()),
+      ),
     ],
   );
   final GoRouter router = container.read(appRouterProvider);
@@ -114,10 +124,10 @@ void main() {
       await _settleNavigation(tester);
 
       expect(_currentLocation(router), '/inbox');
-      expect(
-        find.text('Inbox \u2014 mail list lands here (M3)'),
-        findsOneWidget,
-      );
+      // Navigation intent: the real M4 inbox screen painted (empty state),
+      // not the login page.
+      expect(find.widgetWithText(AppBar, 'Inbox'), findsOneWidget);
+      expect(find.text("You're all caught up"), findsOneWidget);
     });
 
     testWidgets('opens a thread route with its id for an authenticated user',
@@ -180,10 +190,8 @@ void main() {
 
       // No redirect: in-flight states stay parked where they are.
       expect(_currentLocation(router), '/inbox');
-      expect(
-        find.text('Inbox \u2014 mail list lands here (M3)'),
-        findsOneWidget,
-      );
+      expect(find.widgetWithText(AppBar, 'Inbox'), findsOneWidget);
+      expect(find.text("You're all caught up"), findsOneWidget);
     });
 
     testWidgets('holds the consent screen on the login route',
