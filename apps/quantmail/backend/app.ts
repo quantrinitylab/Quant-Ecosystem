@@ -1,6 +1,7 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
 import emailsRoutes from './routes/emails';
+import emailsChangesRoutes from './routes/emails-changes';
 import labelsRoutes from './routes/labels';
 import threadsRoutes from './routes/threads';
 import foldersRoutes from './routes/folders';
@@ -359,6 +360,7 @@ export async function buildApp(config?: AppConfig) {
     learnedCategory,
     smartInbox,
   });
+  await app.register(emailsChangesRoutes, { prefix: '/emails' });
   await app.register(labelsRoutes, { prefix: '/labels' });
   await app.register(threadsRoutes, { prefix: '/threads' });
   await app.register(foldersRoutes, { prefix: '/folders' });

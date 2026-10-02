@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ==========================================================================
+  QuantAI iOS Info.plist — MINIMAL placeholder (Shift 1, W3)
+  ==========================================================================
+
+  SETUP_NOTEs (release se pehle resolve karo):
+
+  (a) Ye MINIMAL plist hai. Poora iOS runner abhi scaffold NAHI hua:
+      `ios/Runner.xcodeproj` (project.pbxproj), `AppDelegate.swift`,
+      `Runner-Bridging-Header.h`, `LaunchScreen.storyboard`, entitlements,
+      aur `Flutter/` pod setup sab pending hain. Release se pehle poora
+      runner scaffold chahiye.
+
+  (b) `CFBundleURLTypes` me `quantai` scheme registered hai — matches
+      `quantai://oauth/callback` (AppConfig.oauthRedirectUri). SETUP_NOTE:
+      custom scheme vs Universal/App Links decision pending
+      (TODO(UNVERIFIED)). Production me Universal Links (applinks: +
+      apple-app-site-association) zyada secure hain; decision release se
+      pehle finalize karo.
+
+  (c) `CFBundleDisplayName` = QuantAI. Bundle identifier
+      (`com.quantrinity.quantai`) Xcode project me set hoga (TODO(UNVERIFIED)
+      — Apple Developer account se match karo).
+
+  (d) OAuth login ke liye system browser (ASWebAuthenticationSession via
+      url_launcher) use hota hai; is plist me koi extra entitlement nahi
+      chahiye. `LSApplicationQueriesSchemes` ki zaroorat tabhi padegi agar
+      app kisi third-party scheme ko directly open kare.
+  ========================================================================== -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>QuantAI</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>quantai</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+
+	<!-- OAuth2 deep-link: quantai://oauth/callback (AppConfig parity).
+	     SETUP_NOTE: Universal Links alternative TODO(UNVERIFIED). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.quantrinity.quantai.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>quantai</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

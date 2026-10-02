@@ -1,0 +1,15 @@
+# Dart/Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.log
+
+# Generated API client — NEVER commit; produced by CI from openapi.repaired.yaml
+lib/src/codegen/generated/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store

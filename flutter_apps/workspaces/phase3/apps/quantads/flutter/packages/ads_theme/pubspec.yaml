@@ -1,0 +1,22 @@
+name: ads_theme
+description: >-
+  QuantAds design-system package: @quant/brand token ports (colors,
+  typography, motion) plus the ads-specific accent ramp, semantic colors
+  (earning/spend/credits-gold), and the Material 3 light/dark AdsTheme.
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

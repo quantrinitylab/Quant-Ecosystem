@@ -1,0 +1,39 @@
+name: ads_core
+description: >-
+  QuantAds shared core — app config, auth (OAuth2+PKCE), Riverpod providers,
+  and bootstrap helpers for the QuantAds Flutter clients. Ported from
+  QuantMail's quant_core (Phase 1) for Shift 1 of the QuantAds build.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management (plain providers; no codegen / build_runner).
+  flutter_riverpod: ^2.5.3
+
+  # HTTP client (used directly by AuthRepository's bare login Dio).
+  dio: ^5.9.0
+
+  # Secure token persistence backend for TokenManager (also re-exported by
+  # the foundation; pinned here so direct imports resolve deterministically).
+  flutter_secure_storage: ^10.0.0
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers,
+  # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+  # QuantAds theme (design tokens). Sibling package in this Flutter workspace.
+  ads_theme:
+    path: ../ads_theme
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

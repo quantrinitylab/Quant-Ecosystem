@@ -1,0 +1,39 @@
+name: gram_app
+description: >-
+  QuantGram omnipresent Flutter app — Instagram-class social/photo client.
+  Shift 1 (W1): melos scaffold + config + bootstrap only; theme (W2),
+  auth/api (W3), router + login (W4) land in this same shift.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management + navigation (W4 router lands here).
+  flutter_riverpod: ^2.5.3
+  go_router: ^14.2.0
+
+  # System browser for the OAuth2+PKCE consent step (W4 login).
+  url_launcher: ^6.3.0
+
+  # Image caching — QuantGram's lifeblood (feed smooth scroll, avatar
+  # prefetch). Declared now so W4+ shifts import without a pubspec change;
+  # not imported yet.
+  cached_network_image: ^3.4.1
+
+  # Local workspace packages.
+  gram_core:
+    path: ../gram_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

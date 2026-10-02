@@ -1,0 +1,28 @@
+name: quantai_core
+description: >-
+  QuantAI shared core — config, authentication, API client, SSE streaming, and
+  Riverpod providers for the AI-first Flutter clients (D5).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management (plain providers; no codegen / build_runner in Phase 3
+  # shift 1).
+  flutter_riverpod: ^2.5.3
+
+  # Phase 0 foundation: Dio API client, TokenManager, OAuth2 PKCE helpers,
+  # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
+  quant_foundation:
+    path: ../../../../../../phase0/foundation
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

@@ -1,0 +1,37 @@
+# Flutter / Dart build artifacts
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.pub-cache/
+.pub/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Android / iOS generated files
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Pods/
+
+# melos generated links
+.melos_tool/
+
+# Generated code
+*.g.dart
+*.freezed.dart
+
+# Environment / secrets — never commit tokens
+.env
+*.env
+
+# Coverage
+coverage/

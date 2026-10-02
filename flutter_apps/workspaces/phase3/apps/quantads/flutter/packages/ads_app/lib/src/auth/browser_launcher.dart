@@ -1,0 +1,43 @@
+// Copyright (c) 2026 Quatrinity Labs. All rights reserved.
+// QuantAds omnipresent — Shift 1 (OAuth2 + PKCE login).
+//
+// System-browser launcher for the OAuth2 authorization step.
+//
+// TODO(UNVERIFIED): custom-scheme delivery of `quantads://oauth/callback`
+// has NOT yet been proven on a real device. The OS plumbing (Android
+// intent-filter, iOS CFBundleURLTypes — W1's platform runner dirs) registers
+// the scheme so the system browser can hand the redirect back to the app,
+// but the end-to-end round-trip must be verified on hardware before release.
+//
+// Future hardening (not yet): use Custom Tabs (Android) /
+// ASWebAuthenticationSession (iOS) via `flutter_custom_tabs` for an
+// in-app authentication tab. `url_launcher` with
+// [LaunchMode.externalApplication] is sufficient for now: the consent screen
+// is a first-time/edge case — the primary path is the app calling the
+// authorize endpoint directly rather than rendering the consent page in a
+// browser.
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+/// Riverpod provider for [BrowserAuthLauncher].
+final browserLauncherProvider =
+    Provider<BrowserAuthLauncher>((ref) => const BrowserAuthLauncher());
+
+/// Opens OAuth2 authorization URLs in the system browser.
+///
+/// The router's `/oauth/callback` route captures
+/// `quantads://oauth/callback?code=…&state=…` deep links — this class's job
+/// is only the OS-level handoff so that URL reaches the app.
+class BrowserAuthLauncher {
+  /// Creates a const browser launcher (no per-instance state).
+  const BrowserAuthLauncher();
+
+  /// Opens [url] in the system browser.
+  ///
+  /// Returns `true` when the browser was launched, `false` if the launch
+  /// failed (e.g. no browser available or the platform rejected the URL).
+  Future<bool> openAuthorizeUrl(Uri url) async {
+    return launchUrl(url, mode: LaunchMode.externalApplication);
+  }
+}

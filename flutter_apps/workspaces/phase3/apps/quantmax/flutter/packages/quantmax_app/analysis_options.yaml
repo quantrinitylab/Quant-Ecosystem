@@ -1,0 +1,17 @@
+# Package-level analyzer configuration for quantmax_app (Phase 3b, Shift 1).
+#
+# Mirrors phase1's workspace convention: `flutter_lints` via the package
+# itself. W1's melos workspace file may lift this up later; keep this file
+# until then so the package analyzes standalone.
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - macos/**
+    - linux/**
+  language:
+    strict-casts: true
+    strict-raw-types: true
