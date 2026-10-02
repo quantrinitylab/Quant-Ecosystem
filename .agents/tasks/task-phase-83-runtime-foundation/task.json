@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase-83-runtime-foundation",
-  "task_description": "Phase 83: Fix the broken runtime foundation that prevents every app from working end-to-end. (1) Inject the Prisma client into Fastify (fastify.prisma is read by 36 route files but never decorated, so every DB call throws). (2) Enforce auth (requireAuth exists in server-core but is attached to ZERO routes; request.auth is always undefined and JWTs are never verified). (3) Reconcile the three conflicting frontend<->backend proxy port schemes so pnpm dev can actually reach backends. (4) Commit a baseline Prisma migration (schema is applied via db push --force-reset; no migration history). (5) Remove the dead duplicate @quant/server package and give smtp-inbound + ci-runner real entrypoints. This phase unblocks ALL subsequent feature wiring.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
-  "blocked_reason": null
-}

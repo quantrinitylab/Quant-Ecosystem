@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase8-frontend",
-  "task_description": "Phase 8 - Frontend & Deep AI Integration: Build the real user-facing layer with production shared design system, Next.js 14 App Router setup for top 3 apps, universal AI assistant with cross-app action system, voice interface, and typed API client SDK.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
-  "blocked_reason": null
-}

@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase65-build-4-frontends",
-  "task_description": "Build complete Next.js frontends for 4 apps (QuantCalendar, QuantDocs, QuantDrive, QuantMeet) that currently only have backends. Each needs full App Router structure, components, hooks, and must pass typecheck and build.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
-}

@@ -1,7 +1,0 @@
-{
-  "task_id": "task-phase-84-deployability",
-  "task_description": "Phase 84: Make the whole system deployable. Today ONLY ws-gateway ships: it is the sole service with a Dockerfile, the only workload in Helm (infra/helm/quant-platform/values.yaml), and the only entry in the CI docker matrix and deploy workflows (SERVICES=\"ws-gateway\"). 12 of 13 app backends and 7 of 8 services have no container, no Helm workload, and no CI deploy; docker-compose.*.yml define only backing infra (postgres/redis/minio/kafka/livekit) with zero application containers. Add Dockerfiles, Helm charts, CI build+deploy, and compose app services so the platform can be stood up end-to-end.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
-}

@@ -1,7 +1,0 @@
-{
-  "task_id": "task-polish-wireup-5apps",
-  "task_description": "Polish UI/UX and wire real data for 5 apps: quantcalendar, quantdocs, quantdrive, quantmeet, quantads. Each app gets brand integration (@quant/brand), real API wiring via React Query, spring Framer Motion animations, loading/empty/error/success states, responsive 360-1440px, 44px tap targets, 60fps performance, dark mode, and accessibility.",
-  "status": "in_progress",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004", "FEAT-005"],
-  "blocked_reason": null
-}
