@@ -18,16 +18,27 @@ class PayoutsScreen extends StatefulWidget {
 class _PayoutsScreenState extends State<PayoutsScreen> {
   late List<PayoutTransaction> _payoutHistory;
   late List<TaxInvoice> _taxInvoices;
+  late CreatorBalanceSummary _balanceSummary;
   double _availableBalance = 8420.50;
+  double _pendingBalance = 2845.00;
+  double _autoThreshold = 50.0;
+  bool _autoDisburseEnabled = true;
 
   static const Color adsAmber = Color(0xFFF59E0B);
   static const Color sovereignCyan = Color(0xFF38BDF8);
+
+  final List<double> _thresholdOptions = const [50.0, 100.0, 250.0, 500.0, 1000.0];
 
   @override
   void initState() {
     super.initState();
     _payoutHistory = AdsMockData.getPayoutHistory();
     _taxInvoices = AdsMockData.getTaxInvoices();
+    _balanceSummary = AdsMockData.getCreatorBalanceSummary();
+    _availableBalance = _balanceSummary.availableBalance;
+    _pendingBalance = _balanceSummary.pendingBalance;
+    _autoThreshold = _balanceSummary.minimumThreshold;
+    _autoDisburseEnabled = _balanceSummary.autoDisburseEnabled;
   }
 
   void _showInstantCashoutModal(PayoutMethodType defaultMethod) {
@@ -76,9 +87,9 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   const Text(
-                    'Zero-delay automated settlement via Razorpay UPI or Stripe Express.',
+                    'Multi-rail sovereign settlement: Zero delay, direct bank & wallet liquidity.',
                     style: TextStyle(color: QuantColors.textMuted, fontSize: 12),
                   ),
                   const SizedBox(height: 16),
@@ -110,87 +121,58 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Payout Gateway',
+                    'Disbursement Rail Selection',
                     style: TextStyle(color: QuantColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  // Multi-rail selector grid (4 rails)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildModalRailOption(
+                          label: 'UPI / RZP',
+                          icon: Icons.account_balance_rounded,
+                          color: adsAmber,
+                          type: PayoutMethodType.upi,
+                          selected: selectedMethod == PayoutMethodType.upi,
+                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.upi),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildModalRailOption(
+                          label: 'Stripe',
+                          icon: Icons.credit_card_rounded,
+                          color: sovereignCyan,
+                          type: PayoutMethodType.stripeExpress,
+                          selected: selectedMethod == PayoutMethodType.stripeExpress,
+                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.stripeExpress),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.upi),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: selectedMethod == PayoutMethodType.upi
-                                  ? adsAmber.withOpacity(0.15)
-                                  : QuantColors.darkSlateCard,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: selectedMethod == PayoutMethodType.upi
-                                    ? adsAmber
-                                    : QuantColors.hairlineBorder,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.account_balance_rounded,
-                                  color: selectedMethod == PayoutMethodType.upi ? adsAmber : QuantColors.textMuted,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'UPI / Razorpay',
-                                  style: TextStyle(
-                                    color: selectedMethod == PayoutMethodType.upi ? adsAmber : QuantColors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        child: _buildModalRailOption(
+                          label: 'SEPA (EUR)',
+                          icon: Icons.euro_symbol_rounded,
+                          color: const Color(0xFF10B981),
+                          type: PayoutMethodType.sepa,
+                          selected: selectedMethod == PayoutMethodType.sepa,
+                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.sepa),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: GestureDetector(
-                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.stripeExpress),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: selectedMethod == PayoutMethodType.stripeExpress
-                                  ? sovereignCyan.withOpacity(0.15)
-                                  : QuantColors.darkSlateCard,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: selectedMethod == PayoutMethodType.stripeExpress
-                                    ? sovereignCyan
-                                    : QuantColors.hairlineBorder,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.credit_card_rounded,
-                                  color: selectedMethod == PayoutMethodType.stripeExpress ? sovereignCyan : QuantColors.textMuted,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Stripe Express',
-                                  style: TextStyle(
-                                    color: selectedMethod == PayoutMethodType.stripeExpress ? sovereignCyan : QuantColors.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        child: _buildModalRailOption(
+                          label: 'SWIFT Wire',
+                          icon: Icons.swap_horiz_rounded,
+                          color: const Color(0xFFA78BFA),
+                          type: PayoutMethodType.wireTransfer,
+                          selected: selectedMethod == PayoutMethodType.wireTransfer,
+                          onTap: () => setModalState(() => selectedMethod = PayoutMethodType.wireTransfer),
                         ),
                       ),
                     ],
@@ -249,6 +231,22 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                           ? null
                           : () {
                               final now = DateTime.now();
+                              String refId;
+                              switch (selectedMethod) {
+                                case PayoutMethodType.upi:
+                                  refId = 'UPI-RZP-${now.millisecondsSinceEpoch.toString().substring(4)}';
+                                  break;
+                                case PayoutMethodType.stripeExpress:
+                                  refId = 'po_stripe_${now.millisecondsSinceEpoch.toString().substring(6)}';
+                                  break;
+                                case PayoutMethodType.sepa:
+                                  refId = 'SEPA-EU-${now.millisecondsSinceEpoch.toString().substring(5)}';
+                                  break;
+                                case PayoutMethodType.wireTransfer:
+                                  refId = 'SWIFT-WIRE-${now.millisecondsSinceEpoch.toString().substring(5)}';
+                                  break;
+                              }
+
                               final tx = PayoutTransaction(
                                 id: 'tx-po-${now.millisecondsSinceEpoch.toString().substring(8)}',
                                 creatorName: 'Primary Creator Enclave',
@@ -259,9 +257,7 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                                 method: selectedMethod,
                                 status: PayoutStatus.completed,
                                 timestamp: now,
-                                referenceId: selectedMethod == PayoutMethodType.upi
-                                    ? 'UPI-RZP-${now.millisecondsSinceEpoch.toString().substring(4)}'
-                                    : 'po_stripe_${now.millisecondsSinceEpoch.toString().substring(6)}',
+                                referenceId: refId,
                                 invoiceNumber: 'INV-2026-${now.month}${now.day}',
                               );
 
@@ -274,7 +270,7 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                                 SnackBar(
                                   backgroundColor: QuantColors.darkSlateCard,
                                   content: Text(
-                                    'Instant Payout of \$${netDisbursement.toStringAsFixed(2)} disbursed successfully.',
+                                    'Instant Payout of \$${netDisbursement.toStringAsFixed(2)} disbursed successfully via ${_getMethodName(selectedMethod)}.',
                                     style: const TextStyle(color: QuantColors.statusSuccess),
                                   ),
                                 ),
@@ -295,6 +291,44 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
     );
   }
 
+  Widget _buildModalRailOption({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required PayoutMethodType type,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.15) : QuantColors.darkSlateCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? color : QuantColors.hairlineBorder,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: selected ? color : QuantColors.textMuted, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : QuantColors.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -304,18 +338,23 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Creator Revenue Hub Card
-            _buildCreatorBalanceCard(),
+            // Top Creator Balance Cards (Available vs Pending)
+            _buildAvailableVsPendingCards(),
 
             const SizedBox(height: 16),
 
-            // Instant Cashout CTA Buttons (UPI & Stripe)
-            _buildInstantCashoutActions(),
+            // Multi-Rail Instant Cashout Actions (SEPA, Stripe Express, UPI, Wire Transfer)
+            _buildMultiRailCashoutGrid(),
+
+            const SizedBox(height: 20),
+
+            // Automatic Threshold Triggers ($50 default)
+            _buildAutomaticThresholdCard(),
 
             const SizedBox(height: 24),
 
-            // Payout History Ledger
-            _buildPayoutHistoryLedger(),
+            // Payout Transaction Audit Log Ledger
+            _buildPayoutAuditLogLedger(),
 
             const SizedBox(height: 24),
 
@@ -329,39 +368,39 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
     );
   }
 
-  Widget _buildCreatorBalanceCard() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: adsAmber.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+  Widget _buildAvailableVsPendingCards() {
+    return Column(
+      children: [
+        // Top 70% Rev-Share Guarantee Header Banner
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: QuantColors.darkSlateCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: adsAmber.withOpacity(0.3)),
+          ),
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Row(
                 children: [
-                  Icon(Icons.monetization_on_rounded, color: adsAmber, size: 20),
+                  Icon(Icons.monetization_on_rounded, color: adsAmber, size: 18),
                   SizedBox(width: 8),
                   Text(
                     'Creator Revenue Share Hub',
                     style: TextStyle(
                       color: QuantColors.textPrimary,
-                      fontSize: 15,
+                      fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: QuantColors.statusSuccess.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: QuantColors.statusSuccess.withOpacity(0.4)),
                 ),
                 child: const Text(
@@ -375,64 +414,310 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Available for Instant Cashout',
-            style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '\$${_availableBalance.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: QuantColors.textPrimary,
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.8,
+        ),
+
+        const SizedBox(height: 12),
+
+        // Available vs Pending Balance Split Cards
+        Row(
+          children: [
+            // Available Balance Card
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: QuantColors.darkSlateCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: adsAmber.withOpacity(0.4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Available Balance',
+                          style: TextStyle(color: QuantColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: QuantColors.statusSuccess,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '\$${_availableBalance.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: QuantColors.textPrimary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Ready for instant cashout',
+                      style: TextStyle(color: QuantColors.statusSuccess, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              const Text(
-                'USD',
-                style: TextStyle(color: QuantColors.textMuted, fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 12),
+            // Pending Clearance Card
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: QuantColors.darkSlateCard,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: QuantColors.hairlineBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Pending Balance',
+                          style: TextStyle(color: QuantColors.textMuted, fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                        const Icon(Icons.schedule_rounded, color: sovereignCyan, size: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '\$${_pendingBalance.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        color: QuantColors.textSecondary,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Clearing in 48h RTB cycle',
+                      style: TextStyle(color: sovereignCyan, fontSize: 10, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMultiRailCashoutGrid() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Instant Multi-Rail Disbursement',
+          style: TextStyle(color: QuantColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildRailButton(
+                label: 'UPI Instant',
+                sublabel: '<2s Settlement',
+                icon: Icons.flash_on_rounded,
+                color: adsAmber,
+                onTap: () => _showInstantCashoutModal(PayoutMethodType.upi),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRailButton(
+                label: 'Stripe Express',
+                sublabel: 'Debit & Bank',
+                icon: Icons.credit_card_rounded,
+                color: sovereignCyan,
+                onTap: () => _showInstantCashoutModal(PayoutMethodType.stripeExpress),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildRailButton(
+                label: 'SEPA Instant',
+                sublabel: 'EU Enclave',
+                icon: Icons.euro_symbol_rounded,
+                color: const Color(0xFF10B981),
+                onTap: () => _showInstantCashoutModal(PayoutMethodType.sepa),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildRailButton(
+                label: 'Wire Transfer',
+                sublabel: 'Global SWIFT',
+                icon: Icons.swap_horiz_rounded,
+                color: const Color(0xFFA78BFA),
+                onTap: () => _showInstantCashoutModal(PayoutMethodType.wireTransfer),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRailButton({
+    required String label,
+    required String sublabel,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: QuantColors.darkSlateCard,
+        foregroundColor: QuantColors.textPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: color.withOpacity(0.3)),
+        ),
+      ),
+      onPressed: onTap,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: QuantColors.textPrimary, fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  sublabel,
+                  style: const TextStyle(color: QuantColors.textMuted, fontSize: 9),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutomaticThresholdCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuantColors.hairlineBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.tune_rounded, color: adsAmber, size: 18),
+                  SizedBox(width: 6),
+                  Text(
+                    'Automatic Payout Threshold Trigger',
+                    style: TextStyle(
+                      color: QuantColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              Switch(
+                value: _autoDisburseEnabled,
+                activeColor: adsAmber,
+                onChanged: (val) {
+                  setState(() => _autoDisburseEnabled = val);
+                },
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          const Divider(color: QuantColors.subtleDivider, height: 1),
+          const SizedBox(height: 6),
+          const Text(
+            'Automatically sweeps creator revenue share to primary rail whenever available balance crosses the threshold.',
+            style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
+          ),
           const SizedBox(height: 12),
           Row(
+            children: _thresholdOptions.map((opt) {
+              final isSelected = _autoThreshold == opt;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() => _autoThreshold = opt);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? adsAmber : QuantColors.elevatedCard,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isSelected ? adsAmber : QuantColors.hairlineBorder,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '\$${opt.toInt()}',
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : QuantColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: _buildMiniStat(
-                  'Gross Accrued',
-                  '\$13,365.87',
-                  QuantColors.textSecondary,
-                ),
+              Text(
+                'Default: \$50.00 Trigger',
+                style: TextStyle(color: adsAmber.withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.w600),
               ),
-              Container(width: 1, height: 28, color: QuantColors.subtleDivider),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: _buildMiniStat(
-                    'Platform Cut (30%)',
-                    '\$4,009.76',
-                    QuantColors.textMuted,
-                  ),
-                ),
-              ),
-              Container(width: 1, height: 28, color: QuantColors.subtleDivider),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: _buildMiniStat(
-                    'TDS Withheld (10%)',
-                    '\$935.61',
-                    QuantColors.statusWarning,
-                  ),
+              Text(
+                _autoDisburseEnabled ? 'Status: Active Auto-Sweep' : 'Status: Paused',
+                style: TextStyle(
+                  color: _autoDisburseEnabled ? QuantColors.statusSuccess : QuantColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -442,63 +727,7 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
     );
   }
 
-  Widget _buildMiniStat(String label, String value, Color valueColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: QuantColors.textMuted, fontSize: 10),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(color: valueColor, fontSize: 12, fontWeight: FontWeight.w700),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInstantCashoutActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: adsAmber,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => _showInstantCashoutModal(PayoutMethodType.upi),
-            icon: const Icon(Icons.flash_on_rounded, color: Colors.black, size: 18),
-            label: const Text(
-              'UPI Instant Cashout',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.w700, fontSize: 13),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: sovereignCyan,
-              side: const BorderSide(color: sovereignCyan),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => _showInstantCashoutModal(PayoutMethodType.stripeExpress),
-            icon: const Icon(Icons.credit_card_rounded, color: sovereignCyan, size: 18),
-            label: const Text(
-              'Stripe Express',
-              style: TextStyle(color: sovereignCyan, fontWeight: FontWeight.w700, fontSize: 13),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPayoutHistoryLedger() {
+  Widget _buildPayoutAuditLogLedger() {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -517,7 +746,7 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
                   Icon(Icons.history_rounded, color: adsAmber, size: 18),
                   SizedBox(width: 6),
                   Text(
-                    'Payout Ledger & History',
+                    'Payout Transaction Audit Log',
                     style: TextStyle(
                       color: QuantColors.textPrimary,
                       fontSize: 14,
@@ -549,7 +778,33 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
   }
 
   Widget _buildPayoutItemTile(PayoutTransaction tx) {
-    final isUPI = tx.method == PayoutMethodType.upi;
+    IconData railIcon;
+    Color railColor;
+    String railName;
+
+    switch (tx.method) {
+      case PayoutMethodType.upi:
+        railIcon = Icons.account_balance_rounded;
+        railColor = adsAmber;
+        railName = 'UPI Instant';
+        break;
+      case PayoutMethodType.stripeExpress:
+        railIcon = Icons.credit_card_rounded;
+        railColor = sovereignCyan;
+        railName = 'Stripe Express';
+        break;
+      case PayoutMethodType.sepa:
+        railIcon = Icons.euro_symbol_rounded;
+        railColor = const Color(0xFF10B981);
+        railName = 'SEPA Direct';
+        break;
+      case PayoutMethodType.wireTransfer:
+        railIcon = Icons.swap_horiz_rounded;
+        railColor = const Color(0xFFA78BFA),
+        railName = 'SWIFT Wire';
+        break;
+    }
+
     final isCompleted = tx.status == PayoutStatus.completed;
 
     return Row(
@@ -558,31 +813,47 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: isUPI ? adsAmber.withOpacity(0.15) : sovereignCyan.withOpacity(0.15),
+            color: railColor.withOpacity(0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            isUPI ? Icons.account_balance_rounded : Icons.credit_card_rounded,
-            color: isUPI ? adsAmber : sovereignCyan,
-            size: 18,
-          ),
+          child: Icon(railIcon, color: railColor, size: 18),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                tx.creatorName,
-                style: const TextStyle(
-                  color: QuantColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+              Row(
+                children: [
+                  Text(
+                    tx.creatorName,
+                    style: const TextStyle(
+                      color: QuantColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: QuantColors.elevatedCard,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      railName,
+                      style: TextStyle(
+                        color: railColor,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 2),
               Text(
-                'Ref: ${tx.referenceId}',
+                'Ref: ${tx.referenceId} • Gross \$${tx.grossRevenue.toStringAsFixed(0)} (70%)',
                 style: const TextStyle(color: QuantColors.textMuted, fontSize: 10),
               ),
             ],
@@ -713,5 +984,18 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
         ],
       ),
     );
+  }
+
+  String _getMethodName(PayoutMethodType method) {
+    switch (method) {
+      case PayoutMethodType.upi:
+        return 'UPI / Razorpay';
+      case PayoutMethodType.stripeExpress:
+        return 'Stripe Express';
+      case PayoutMethodType.sepa:
+        return 'SEPA Direct Credit';
+      case PayoutMethodType.wireTransfer:
+        return 'SWIFT Wire Transfer';
+    }
   }
 }

@@ -7,7 +7,11 @@ import '../models/cooks_models.dart';
 class CooksRepository {
   CooksRepository._();
 
-  /// Default active project loaded into the Studio timeline.
+  /// Default active project loaded into the Studio timeline with 4 synchronized tracks:
+  /// 1) Primary Video Track (thumbnail reel, trim handles)
+  /// 2) Background Music Track (waveform visualizer, volume envelope)
+  /// 3) Sound Effects (SFX) Track (cue markers)
+  /// 4) Dynamic Kinetic Captions Track (word-level sync markers)
   static TimelineProject getDefaultProject() {
     return TimelineProject(
       id: 'proj_cooks_master_001',
@@ -46,10 +50,10 @@ class CooksRepository {
         ),
       ],
       tracks: [
-        // Track 0: Video Master Track
+        // Track 0: Primary Video Track (thumbnail reel, trim handles)
         TimelineTrack(
           id: 'track_vid_0',
-          name: 'Video Master (A-Roll)',
+          name: 'Primary Video Track',
           type: TrackType.video,
           clips: [
             const TimelineClip(
@@ -64,6 +68,7 @@ class CooksRepository {
               color: QuantColors.sovereignCyan,
               assetUrl: 'assets/video/cyber_drone.mp4',
               transitionName: 'Whip Pan Right',
+              thumbnailFrames: ['reel_frame_1', 'reel_frame_2', 'reel_frame_3'],
             ),
             const TimelineClip(
               id: 'clip_v2',
@@ -77,6 +82,7 @@ class CooksRepository {
               color: QuantColors.moltenAmber,
               assetUrl: 'assets/video/ai_neural.mp4',
               transitionName: 'Zoom In 2x',
+              thumbnailFrames: ['reel_frame_4', 'reel_frame_5', 'reel_frame_6'],
             ),
             const TimelineClip(
               id: 'clip_v3',
@@ -89,50 +95,20 @@ class CooksRepository {
               speed: 1.0,
               color: QuantColors.obsidianPurple,
               assetUrl: 'assets/video/holo_outro.mp4',
+              thumbnailFrames: ['reel_frame_7', 'reel_frame_8'],
             ),
           ],
         ),
 
-        // Track 1: B-Roll & Overlay VFX Track
+        // Track 1: Background Music Track (waveform visualizer, volume envelope)
         TimelineTrack(
-          id: 'track_broll_1',
-          name: 'B-Roll & Alpha VFX',
-          type: TrackType.broll,
-          clips: [
-            const TimelineClip(
-              id: 'clip_br1',
-              name: 'Glitch Light Leak FX',
-              trackType: TrackType.broll,
-              startTimeMs: 3800,
-              durationMs: 1200,
-              speed: 1.0,
-              volume: 0.8,
-              color: QuantColors.sunsetGold,
-              assetUrl: 'assets/vfx/light_leak.mov',
-            ),
-            const TimelineClip(
-              id: 'clip_br2',
-              name: 'HUD Telemetry Overlay',
-              trackType: TrackType.broll,
-              startTimeMs: 8200,
-              durationMs: 4000,
-              speed: 1.0,
-              volume: 1.0,
-              color: QuantColors.statusSuccess,
-              assetUrl: 'assets/vfx/hud_overlay.mov',
-            ),
-          ],
-        ),
-
-        // Track 2: Music Bed Track
-        TimelineTrack(
-          id: 'track_aud_2',
-          name: 'Synthwave Sound Bed',
+          id: 'track_bgm_1',
+          name: 'Background Music Track',
           type: TrackType.audio,
           clips: [
             TimelineClip(
               id: 'clip_aud1',
-              name: 'Sub-Bass Euphoria 140BPM',
+              name: 'Synthwave Sound Bed 140BPM',
               trackType: TrackType.audio,
               startTimeMs: 0,
               durationMs: 15000,
@@ -145,38 +121,46 @@ class CooksRepository {
                 0.7, 0.9, 0.5, 0.4, 0.8, 0.9, 0.6, 0.3, 0.7, 0.8,
                 0.9, 0.5, 0.6, 0.8, 1.0, 0.7, 0.4, 0.8, 0.9, 0.5
               ],
+              volumeEnvelopePoints: [0.75, 0.9, 1.0, 0.85, 0.6, 0.9, 0.8, 0.65],
             ),
           ],
         ),
 
-        // Track 3: Voice / Mic Track
+        // Track 2: Sound Effects (SFX) Track (cue markers)
         TimelineTrack(
-          id: 'track_vox_3',
-          name: 'Neural Studio Voice',
-          type: TrackType.voiceover,
+          id: 'track_sfx_2',
+          name: 'Sound Effects (SFX) Track',
+          type: TrackType.sfx,
           clips: [
-            TimelineClip(
-              id: 'clip_vox1',
-              name: 'AI Voiceover: "Experience Infinity"',
-              trackType: TrackType.voiceover,
-              startTimeMs: 800,
-              durationMs: 13200,
+            const TimelineClip(
+              id: 'clip_sfx1',
+              name: 'Cinematic Whoosh & Impact',
+              trackType: TrackType.sfx,
+              startTimeMs: 3800,
+              durationMs: 2200,
+              volume: 0.9,
+              color: QuantColors.sunsetGold,
+              assetUrl: 'assets/audio/sfx_whoosh.wav',
+              cueMarkersMs: [400, 1100, 1800],
+            ),
+            const TimelineClip(
+              id: 'clip_sfx2',
+              name: 'Sub-Bass Drop Marker',
+              trackType: TrackType.sfx,
+              startTimeMs: 9600,
+              durationMs: 3400,
               volume: 1.0,
-              color: QuantColors.sunriseRose,
-              assetUrl: 'assets/audio/voiceover.wav',
-              waveformPeaks: [
-                0.1, 0.6, 0.8, 0.9, 0.2, 0.1, 0.8, 0.7, 0.5, 0.2,
-                0.0, 0.7, 0.9, 0.6, 0.3, 0.0, 0.5, 0.8, 0.9, 0.4,
-                0.2, 0.7, 0.9, 0.8, 0.1, 0.0, 0.6, 0.8, 0.7, 0.3
-              ],
+              color: QuantColors.statusError,
+              assetUrl: 'assets/audio/sfx_sub_drop.wav',
+              cueMarkersMs: [300, 1500, 2800],
             ),
           ],
         ),
 
-        // Track 4: Kinetic Captions
+        // Track 3: Dynamic Kinetic Captions Track (word-level sync markers)
         TimelineTrack(
-          id: 'track_cap_4',
-          name: 'Kinetic Captions Whisper V3',
+          id: 'track_cap_3',
+          name: 'Dynamic Kinetic Captions Track',
           type: TrackType.captions,
           clips: [
             const TimelineClip(
@@ -187,6 +171,11 @@ class CooksRepository {
               durationMs: 3200,
               color: QuantColors.moltenAmber,
               assetUrl: 'text/cap1',
+              kineticWords: [
+                KineticWordSync(word: 'TRANSFORM', startMs: 1000, endMs: 1800),
+                KineticWordSync(word: 'YOUR', startMs: 1800, endMs: 2400),
+                KineticWordSync(word: 'WORKFLOW', startMs: 2400, endMs: 4200),
+              ],
             ),
             const TimelineClip(
               id: 'clip_cap2',
@@ -196,6 +185,11 @@ class CooksRepository {
               durationMs: 4600,
               color: QuantColors.sovereignCyan,
               assetUrl: 'text/cap2',
+              kineticWords: [
+                KineticWordSync(word: '120HZ', startMs: 4400, endMs: 5400),
+                KineticWordSync(word: 'HARDWARE', startMs: 5400, endMs: 6800),
+                KineticWordSync(word: 'RENDERING', startMs: 6800, endMs: 9000),
+              ],
             ),
             const TimelineClip(
               id: 'clip_cap3',
@@ -205,6 +199,11 @@ class CooksRepository {
               durationMs: 5000,
               color: QuantColors.sunsetGold,
               assetUrl: 'text/cap3',
+              kineticWords: [
+                KineticWordSync(word: 'AI', startMs: 9200, endMs: 10200),
+                KineticWordSync(word: 'CREATION', startMs: 10200, endMs: 11800),
+                KineticWordSync(word: 'UNLEASHED', startMs: 11800, endMs: 14200),
+              ],
             ),
           ],
         ),
@@ -240,6 +239,18 @@ class CooksRepository {
         estimatedSeconds: 3,
       ),
       AiToolItem(
+        id: 'ai_silence_remover',
+        type: AiToolType.autoSilenceRemover,
+        title: 'Auto Silence Remover',
+        subtitle: 'Sub-1ms Voice Activity Detection',
+        description:
+            'Instantly trim dead pauses, breath gaps, and silent intervals across speech footage automatically.',
+        badgeText: 'ZERO DEAD AIR',
+        icon: Icons.graphic_eq_rounded,
+        accentColor: QuantColors.statusSuccess,
+        estimatedSeconds: 2,
+      ),
+      AiToolItem(
         id: 'ai_bg_remover',
         type: AiToolType.backgroundRemover,
         title: 'Background Remover / Green Screen',
@@ -260,7 +271,7 @@ class CooksRepository {
             'Remove background hum, wind noise, and room reverb. Elevates budget phone mics to broadcast studio clarity.',
         badgeText: 'STUDIO GRADE',
         icon: Icons.mic_external_on_rounded,
-        accentColor: QuantColors.statusSuccess,
+        accentColor: QuantColors.emeraldMatrix,
         estimatedSeconds: 4,
       ),
       AiToolItem(

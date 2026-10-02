@@ -19,8 +19,9 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
   late AuctionTelemetry _telemetry;
   late List<RtbBidEvent> _bidStream;
   late List<EcpmHeatmapCell> _heatmapCells;
+  late List<DspLatencyMetric> _dspLatencies;
+  late List<WaterfallTier> _waterfallTiers;
   double _floorPrice = 1.50;
-  bool _isAutoRefresh = true;
 
   static const Color adsAmber = Color(0xFFF59E0B);
   static const Color sovereignCyan = Color(0xFF38BDF8);
@@ -34,6 +35,8 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
     _telemetry = AdsMockData.getInitialAuctionTelemetry();
     _bidStream = AdsMockData.getRecentBidStream();
     _heatmapCells = AdsMockData.getHeatmapData();
+    _dspLatencies = AdsMockData.getDspLatencyMetrics();
+    _waterfallTiers = AdsMockData.getWaterfallTiers();
     _floorPrice = _telemetry.floorPrice;
   }
 
@@ -45,7 +48,7 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
       latencyMs: (3.2 + (now.millisecond % 45) / 10).clamp(3.0, 7.8),
       bidPriceEcpm: 5.20 + (now.millisecond % 20) / 10,
       winningPriceEcpm: 4.85,
-      adFormat: '9:16 Vertical Video',
+      adFormat: 'Rewarded Video',
       outcome: BidOutcome.won,
       slotId: 'slot-gram-feed-01',
       timestamp: now,
@@ -68,22 +71,27 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top Live Telemetry Capsule
+            // Top Live Telemetry Capsule (<18ms Hard SLA)
             _buildLiveStatusBanner(),
 
             const SizedBox(height: 16),
 
-            // Telemetry Gauges Grid (QPS, p99 Latency, Avg eCPM, Win Rate)
+            // Win-Rate Telemetry Gauges Grid (QPS, p99 Latency, Avg eCPM, Win Rate)
             _buildTelemetryGauges(),
 
             const SizedBox(height: 20),
 
-            // Latency Distribution (<8ms p99 Hard SLA Section)
-            _buildLatencyDistributionCard(),
+            // DSP Latency Bar Chart (<18ms SLA Visualizer)
+            _buildDspLatencyBarChartSection(),
 
             const SizedBox(height: 20),
 
-            // Interactive Floor Price Controls
+            // Bid Waterfall Graph (Tiers 0 through 4)
+            _buildBidWaterfallSection(),
+
+            const SizedBox(height: 20),
+
+            // Interactive Floor Price Controls & Slider
             _buildFloorPriceControls(),
 
             const SizedBox(height: 20),
@@ -93,7 +101,7 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
 
             const SizedBox(height: 20),
 
-            // Live Real-Time Bidding Stream
+            // Live Real-Time Bidding Stream Feed
             _buildBidStreamSection(),
 
             const SizedBox(height: 32),
@@ -202,7 +210,7 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
                   value: '${_telemetry.p99LatencyMs}',
                   unit: 'ms',
                   statusColor: adsAmber,
-                  subtext: '< 8ms SLA',
+                  subtext: '< 18ms SLA',
                   icon: Icons.timer_outlined,
                 ),
               ),
@@ -219,16 +227,17 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
                   value: '\$${_telemetry.averageEcpm.toStringAsFixed(2)}',
                   unit: '',
                   statusColor: sovereignCyan,
-                  icon: Icons.attach_money_rounded,
+                  icon: Icons.payments_rounded,
                 ),
               ),
               Container(width: 1, height: 44, color: QuantColors.subtleDivider),
               Expanded(
                 child: _buildGaugeItem(
-                  title: 'Win Rate',
+                  title: 'Win Rate Gauge',
                   value: '${_telemetry.winRatePercent}%',
                   unit: '',
                   statusColor: QuantColors.statusSuccess,
+                  subtext: 'High Yield',
                   icon: Icons.check_circle_outline_rounded,
                 ),
               ),
@@ -316,7 +325,9 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
     );
   }
 
-  Widget _buildLatencyDistributionCard() {
+  Widget _buildDspLatencyBarChartSection() {
+    const double maxSlaMs = 18.0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -332,10 +343,10 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
             children: [
               const Row(
                 children: [
-                  Icon(Icons.bolt_rounded, color: adsAmber, size: 18),
+                  Icon(Icons.bar_chart_rounded, color: sovereignCyan, size: 18),
                   SizedBox(width: 6),
                   Text(
-                    'Auction Latency Distribution',
+                    'DSP Latency Benchmarks',
                     style: TextStyle(
                       color: QuantColors.textPrimary,
                       fontSize: 14,
@@ -351,7 +362,7 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
-                  '100% Within <8ms SLA',
+                  '< 18ms SLA Guarantee',
                   style: TextStyle(
                     color: QuantColors.statusSuccess,
                     fontSize: 10,
@@ -361,39 +372,87 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           const Text(
-            'Hardware-accelerated edge auctioneer ensures instantaneous programmatic bid resolution before frame rendering.',
+            'Edge auctioneer resolves RTB bids within SLA before client frame execution.',
             style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
           ),
           const SizedBox(height: 16),
-          // Multi-color segmented bar for latency brackets
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              height: 12,
-              child: Row(
-                children: [
-                  Expanded(flex: 18, child: Container(color: QuantColors.statusSuccess)),
-                  const SizedBox(width: 1),
-                  Expanded(flex: 46, child: Container(color: sovereignCyan)),
-                  const SizedBox(width: 1),
-                  Expanded(flex: 24, child: Container(color: adsAmber)),
-                  const SizedBox(width: 1),
-                  Expanded(flex: 12, child: Container(color: const Color(0xFFE1306C))),
-                ],
-              ),
-            ),
+          Column(
+            children: _dspLatencies.map((dsp) {
+              final ratio = (dsp.latencyMs / maxSlaMs).clamp(0.05, 1.0);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          dsp.dspName,
+                          style: const TextStyle(
+                            color: QuantColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '${dsp.latencyMs.toStringAsFixed(1)} ms',
+                              style: TextStyle(
+                                color: dsp.barColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Win: ${dsp.winRatePercent.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: QuantColors.textMuted,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Stack(
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: QuantColors.subtleDivider,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: ratio,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: dsp.barColor,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildLatencyLegendItem('<2ms (18%)', QuantColors.statusSuccess),
-              _buildLatencyLegendItem('2-4ms (46%)', sovereignCyan),
-              _buildLatencyLegendItem('4-6ms (24%)', adsAmber),
-              _buildLatencyLegendItem('6-8ms (12%)', const Color(0xFFE1306C)),
-              _buildLatencyLegendItem('>8ms (0%)', QuantColors.textMuted),
+              const Text('0ms', style: TextStyle(color: QuantColors.textMuted, fontSize: 9)),
+              const Text('9ms (Median)', style: TextStyle(color: QuantColors.textMuted, fontSize: 9)),
+              Text('18ms SLA Limit', style: TextStyle(color: adsAmber.withOpacity(0.9), fontSize: 9, fontWeight: FontWeight.w700)),
             ],
           ),
         ],
@@ -401,25 +460,143 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
     );
   }
 
-  Widget _buildLatencyLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: QuantColors.textSecondary,
-            fontSize: 9,
-            fontWeight: FontWeight.w600,
+  Widget _buildBidWaterfallSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuantColors.hairlineBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.waterfall_chart_rounded, color: adsAmber, size: 18),
+                  SizedBox(width: 6),
+                  Text(
+                    'Bid Waterfall Graph',
+                    style: TextStyle(
+                      color: QuantColors.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: adsAmber.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '5-Tier Priority Cascade',
+                  style: TextStyle(
+                    color: adsAmber,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          const Text(
+            'Autonomous mediation router dynamically maximizes publisher yield across programmatic tiers.',
+            style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
+          ),
+          const SizedBox(height: 14),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _waterfallTiers.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final tier = _waterfallTiers[index];
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: QuantColors.elevatedCard,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: tier.tierColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: tier.tierColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'P${tier.priority}',
+                          style: TextStyle(
+                            color: tier.tierColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            tier.tierName,
+                            style: const TextStyle(
+                              color: QuantColors.textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Floor: \$${tier.floorEcpm.toStringAsFixed(2)} • ${tier.dspCount} DSPs connected',
+                            style: const TextStyle(
+                              color: QuantColors.textMuted,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${tier.fillRatePercent.toStringAsFixed(1)}% Fill',
+                          style: TextStyle(
+                            color: tier.tierColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          '+\$${tier.yieldAmount.toStringAsFixed(0)} Yield',
+                          style: const TextStyle(
+                            color: QuantColors.statusSuccess,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 

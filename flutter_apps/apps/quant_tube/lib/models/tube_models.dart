@@ -4,9 +4,10 @@ import 'package:quant_theme/quant_theme.dart';
 /// Segment types for Sovereign Segment-Skipping (SponsorBlock parity).
 enum SegmentType {
   sponsor,
+  selfPromo,
+  intermission,
   intro,
   outro,
-  selfPromo,
   highlight,
 }
 
@@ -15,27 +16,33 @@ extension SegmentTypeExtension on SegmentType {
     switch (this) {
       case SegmentType.sponsor:
         return 'Sponsor Segment';
+      case SegmentType.selfPromo:
+        return 'Self Promotion';
+      case SegmentType.intermission:
+        return 'Intermission';
       case SegmentType.intro:
         return 'Intro Animation';
       case SegmentType.outro:
         return 'Outro / Credits';
-      case SegmentType.selfPromo:
-        return 'Self Promotion';
       case SegmentType.highlight:
         return 'Chapter Highlight';
     }
   }
 
+  /// Sovereign Segment Indicator Colors:
+  /// Sponsor #F59E0B, Self-promo #3B82F6, Intermission #10B981
   Color get indicatorColor {
     switch (this) {
       case SegmentType.sponsor:
-        return QuantColors.moltenAmber;
+        return const Color(0xFFF59E0B);
+      case SegmentType.selfPromo:
+        return const Color(0xFF3B82F6);
+      case SegmentType.intermission:
+        return const Color(0xFF10B981);
       case SegmentType.intro:
         return QuantColors.statusSuccess;
       case SegmentType.outro:
         return QuantColors.obsidianPurple;
-      case SegmentType.selfPromo:
-        return QuantColors.sunsetGold;
       case SegmentType.highlight:
         return QuantColors.sovereignCyan;
     }
@@ -45,12 +52,14 @@ extension SegmentTypeExtension on SegmentType {
     switch (this) {
       case SegmentType.sponsor:
         return Icons.campaign_rounded;
+      case SegmentType.selfPromo:
+        return Icons.star_border_rounded;
+      case SegmentType.intermission:
+        return Icons.hourglass_empty_rounded;
       case SegmentType.intro:
         return Icons.play_circle_outline_rounded;
       case SegmentType.outro:
         return Icons.stop_circle_outlined;
-      case SegmentType.selfPromo:
-        return Icons.star_border_rounded;
       case SegmentType.highlight:
         return Icons.bookmark_border_rounded;
     }
@@ -133,6 +142,7 @@ class VideoItem {
   final List<VideoSegment> segments;
   final int commentsCount;
   final bool isSavedToLibrary;
+  final bool isPublicFeed;
 
   const VideoItem({
     required this.id,
@@ -153,6 +163,7 @@ class VideoItem {
     required this.segments,
     required this.commentsCount,
     this.isSavedToLibrary = false,
+    this.isPublicFeed = true,
   });
 
   String get formattedViews {
@@ -186,7 +197,11 @@ class VideoItem {
     return '$minutes:$secondsStr';
   }
 
-  bool get hasSponsorBlockSegments => segments.any((s) => s.type == SegmentType.sponsor);
+  bool get hasSponsorBlockSegments => segments.any(
+    (s) => s.type == SegmentType.sponsor ||
+           s.type == SegmentType.selfPromo ||
+           s.type == SegmentType.intermission,
+  );
 }
 
 /// Rich comment on video
@@ -296,4 +311,137 @@ class CreatorStudioMetrics {
 
   String get formattedMonthlyRevenue => '\$${monthlyRevenueUsd.toStringAsFixed(2)}';
   String get formattedQuantCredits => '${quantCreditsEarned.toStringAsFixed(0)} QC';
+}
+
+/// 4-Stage Multi-Progress Studio Pipeline:
+/// Uploading -> Transcoding -> Thumbnail -> Published
+enum UploadStage {
+  uploading,
+  transcoding,
+  thumbnail,
+  published,
+}
+
+extension UploadStageExtension on UploadStage {
+  String get title {
+    switch (this) {
+      case UploadStage.uploading:
+        return 'Uploading (4K RAW)';
+      case UploadStage.transcoding:
+        return 'Transcoding (AV1 / 120Hz)';
+      case UploadStage.thumbnail:
+        return 'Thumbnail & CID Verification';
+      case UploadStage.published:
+        return 'Published (Decentralized Stream)';
+    }
+  }
+
+  int get stepNumber {
+    switch (this) {
+      case UploadStage.uploading:
+        return 1;
+      case UploadStage.transcoding:
+        return 2;
+      case UploadStage.thumbnail:
+        return 3;
+      case UploadStage.published:
+        return 4;
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case UploadStage.uploading:
+        return Icons.cloud_upload_rounded;
+      case UploadStage.transcoding:
+        return Icons.memory_rounded;
+      case UploadStage.thumbnail:
+        return Icons.image_search_rounded;
+      case UploadStage.published:
+        return Icons.check_circle_rounded;
+    }
+  }
+
+  Color get accentColor {
+    switch (this) {
+      case UploadStage.uploading:
+        return const Color(0xFFF59E0B); // Amber
+      case UploadStage.transcoding:
+        return const Color(0xFF38BDF8); // Cyan
+      case UploadStage.thumbnail:
+        return const Color(0xFFA855F7); // Purple
+      case UploadStage.published:
+        return const Color(0xFF10B981); // Emerald Green
+    }
+  }
+}
+
+/// Creator Video Upload Session State
+class VideoUploadSession {
+  final String id;
+  final String title;
+  final String category;
+  final UploadStage stage;
+  final double stageProgress; // 0.0 to 1.0
+  final double overallProgress; // 0.0 to 1.0
+  final double speedMbps;
+  final int etaSeconds;
+  final String contentCid;
+  final bool isMonetized;
+  final bool autoSkipScanEnabled;
+
+  const VideoUploadSession({
+    required this.id,
+    required this.title,
+    required this.category,
+    required this.stage,
+    required this.stageProgress,
+    required this.overallProgress,
+    required this.speedMbps,
+    required this.etaSeconds,
+    required this.contentCid,
+    this.isMonetized = true,
+    this.autoSkipScanEnabled = true,
+  });
+
+  String get formattedProgress => '${(overallProgress * 100).toStringAsFixed(0)}%';
+  String get formattedSpeed => '${speedMbps.toStringAsFixed(1)} MB/s';
+  String get formattedEta => '${etaSeconds}s remaining';
+  bool get isCompleted => stage == UploadStage.published && overallProgress >= 1.0;
+}
+
+/// Sovereign Channel Profile & Public Unauthenticated Manifest
+class ChannelProfile {
+  final String id;
+  final String name;
+  final String handle;
+  final String avatarUrl;
+  final String bannerUrl;
+  final int subscribersCount;
+  final bool isVerified;
+  final String description;
+  final List<VideoItem> publicVideos;
+  final bool allowUnauthenticatedAccess;
+
+  const ChannelProfile({
+    required this.id,
+    required this.name,
+    required this.handle,
+    required this.avatarUrl,
+    required this.bannerUrl,
+    required this.subscribersCount,
+    required this.isVerified,
+    required this.description,
+    required this.publicVideos,
+    this.allowUnauthenticatedAccess = true,
+  });
+
+  String get formattedSubscribers {
+    if (subscribersCount >= 1000000) {
+      return '${(subscribersCount / 1000000).toStringAsFixed(2)}M';
+    } else if (subscribersCount >= 1000) {
+      return '${(subscribersCount / 1000).toStringAsFixed(1)}K';
+    }
+    return '$subscribersCount';
+  }
 }

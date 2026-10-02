@@ -183,29 +183,169 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            // Video Player Viewport (16:9)
-            _buildPlayerViewport(),
+            Column(
+              children: [
+                // Video Player Viewport (16:9)
+                _buildPlayerViewport(),
 
-            // Video Details, Actions, Comments & Recommendations
-            Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildVideoMetadataSection(),
-                  const Divider(color: QuantColors.hairlineBorder, height: 1),
-                  _buildChannelBar(),
-                  const Divider(color: QuantColors.hairlineBorder, height: 1),
-                  _buildCommentsPreview(),
-                  const Divider(color: QuantColors.hairlineBorder, height: 1),
-                  _buildRecommendationsSection(),
-                ],
-              ),
+                // Video Details, Actions, Comments & Recommendations
+                Expanded(
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: EdgeInsets.zero,
+                    children: [
+                      _buildVideoMetadataSection(),
+                      const Divider(color: QuantColors.hairlineBorder, height: 1),
+                      _buildChannelBar(),
+                      const Divider(color: QuantColors.hairlineBorder, height: 1),
+                      _buildCommentsPreview(),
+                      const Divider(color: QuantColors.hairlineBorder, height: 1),
+                      _buildRecommendationsSection(),
+                    ],
+                  ),
+                ),
+              ],
             ),
+
+            // Floating Mini-Player / PiP Mode (Docked compact player)
+            if (_isPiPActive)
+              Positioned(
+                left: 12,
+                right: 12,
+                bottom: 12,
+                child: _buildFloatingMiniPlayer(),
+              ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildFloatingMiniPlayer() {
+    final totalDuration = _currentVideo.durationSeconds.toDouble();
+    final progressFraction = totalDuration > 0
+        ? (_currentSeconds / totalDuration).clamp(0.0, 1.0)
+        : 0.0;
+
+    return Container(
+      height: 68,
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: QuantColors.hairlineBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.55),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          // Top hairline progress indicator
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+              child: LinearProgressIndicator(
+                value: progressFraction,
+                backgroundColor: Colors.white12,
+                valueColor: const AlwaysStoppedAnimation<Color>(QuantColors.crimsonRed),
+                minHeight: 2.5,
+              ),
+            ),
+          ),
+
+          // Content row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 82,
+                    height: 48,
+                    child: Image.network(
+                      _currentVideo.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.black45,
+                        child: const Icon(Icons.play_arrow_rounded, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _currentVideo.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: QuantColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_currentVideo.channelTitle} • 120Hz',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: QuantColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Controls: Play/Pause, Expand, Close
+                IconButton(
+                  icon: Icon(
+                    _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  onPressed: _togglePlayPause,
+                  tooltip: _isPlaying ? 'Pause' : 'Play',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.open_in_full_rounded, color: Colors.white70, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _isPiPActive = false;
+                      _showControls = true;
+                    });
+                  },
+                  tooltip: 'Expand Player',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _isPiPActive = false;
+                    });
+                  },
+                  tooltip: 'Close Mini-Player',
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

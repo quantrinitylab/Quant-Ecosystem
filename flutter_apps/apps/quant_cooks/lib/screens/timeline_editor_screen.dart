@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/cooks_models.dart';
 
-/// Multi-track video and audio timeline scrubber with playhead,
-/// pinch-to-zoom timeline ruler, clip trimming handles, audio waveform track,
-/// and transition markers.
+/// Multi-track video and audio timeline scrubber with 4 synchronized tracks:
+/// 1) Primary Video Track (thumbnail reel, trim handles)
+/// 2) Background Music Track (waveform visualizer, volume envelope)
+/// 3) Sound Effects (SFX) Track (cue markers)
+/// 4) Dynamic Kinetic Captions Track (word-level sync markers)
 ///
+/// Features track mute/solo toggles, snap-to-cut magnetic tool, and precise millisecond playhead (00:01:24.350).
 /// Strictly ZERO raw Unicode emojis throughout this screen.
 /// Strictly ZERO Skia clipPath calls (pure 120Hz Impeller hardware acceleration).
 class TimelineEditorScreen extends StatefulWidget {
   final TimelineProject project;
   final ValueChanged<int> onSeekToMs;
   final ValueChanged<TimelineClip>? onClipSelected;
-  final Function(String trackId, String clipId, int trimStart, int trimEnd)? onClipTrimmed;
+  final Function(String trackId, String clipId, int trimStart, int trimEnd)?
+      onClipTrimmed;
   final VoidCallback? onSplitClipAtPlayhead;
   final VoidCallback? onDeleteSelectedClip;
 
@@ -36,6 +40,11 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
   String? _selectedClipId;
   bool _isDraggingTrimLeft = false;
   bool _isDraggingTrimRight = false;
+  bool _snapToCutEnabled = true;
+
+  // Track mute / solo states local overrides for responsive interactivity
+  late Map<String, bool> _trackMutedMap;
+  late Map<String, bool> _trackSoloMap;
 
   // Pixels per second at zoom scale 1.0
   static const double _basePixelsPerSecond = 100.0;
@@ -47,9 +56,41 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
   int _pixelsToMs(double px) => (px / _pixelsPerMs).round();
 
   @override
+  void initState() {
+    super.initState();
+    _initTrackStates();
+  }
+
+  @override
+  void didUpdateWidget(covariant TimelineEditorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.project.tracks.length != widget.project.tracks.length) {
+      _initTrackStates();
+    }
+  }
+
+  void _initTrackStates() {
+    _trackMutedMap = {
+      for (final track in widget.project.tracks) track.id: track.isMuted,
+    };
+    _trackSoloMap = {
+      for (final track in widget.project.tracks) track.id: track.isSoloed,
+    };
+  }
+
+  @override
   void dispose() {
     _timelineScrollController.dispose();
     super.dispose();
+  }
+
+  /// Format milliseconds into precise SMPTE millisecond timecode: HH:MM:SS.mmm
+  static String formatTimestampPrecise(int ms) {
+    final hours = ms ~/ 3600000;
+    final minutes = (ms % 3600000) ~/ 60000;
+    final seconds = (ms % 60000) ~/ 1000;
+    final milliseconds = ms % 1000;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${milliseconds.toString().padLeft(3, '0')}';
   }
 
   void _onTimelineScrub(double localDx) {
@@ -57,8 +98,43 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
         ? _timelineScrollController.offset
         : 0.0;
     final totalX = localDx + scrollOffset;
-    final newTimeMs = _pixelsToMs(totalX).clamp(0, widget.project.totalDurationMs);
+    var newTimeMs =
+        _pixelsToMs(totalX).clamp(0, widget.project.totalDurationMs);
+
+    // Magnetic Snap-to-Cut logic
+    if (_snapToCutEnabled) {
+      const snapThresholdMs = 120;
+      for (final track in widget.project.tracks) {
+        for (final clip in track.clips) {
+          final clipStart = clip.startTimeMs;
+          final clipEnd = clip.startTimeMs + clip.effectiveDurationMs;
+
+          if ((newTimeMs - clipStart).abs() < snapThresholdMs) {
+            newTimeMs = clipStart;
+            break;
+          } else if ((newTimeMs - clipEnd).abs() < snapThresholdMs) {
+            newTimeMs = clipEnd;
+            break;
+          }
+        }
+      }
+    }
+
     widget.onSeekToMs(newTimeMs);
+  }
+
+  void _toggleTrackMute(String trackId) {
+    setState(() {
+      final current = _trackMutedMap[trackId] ?? false;
+      _trackMutedMap[trackId] = !current;
+    });
+  }
+
+  void _toggleTrackSolo(String trackId) {
+    setState(() {
+      final current = _trackSoloMap[trackId] ?? false;
+      _trackSoloMap[trackId] = !current;
+    });
   }
 
   @override
@@ -69,7 +145,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
       color: QuantColors.voidObsidian,
       child: Column(
         children: [
-          // Timeline Quick Action Toolbar (Split, Speed, Transitions, Delete, Zoom)
+          // Timeline Quick Action Toolbar (Split, Snap, Speed, Delete, Timecode, Zoom)
           _buildTimelineActionToolbar(),
 
           // Main Multi-Track Scrubber Area
@@ -77,10 +153,10 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Fixed Left Track Headers (Video, B-Roll, Audio, Captions)
+                // Fixed Left Track Headers (Mute/Solo, Names, Track Icons)
                 _buildFixedTrackHeaders(),
 
-                // Horizontally Scrollable Timeline with Playhead & Tracks
+                // Horizontally Scrollable Timeline with Playhead & 4 Synchronized Tracks
                 Expanded(
                   child: Stack(
                     children: [
@@ -93,10 +169,10 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Time Ruler (Seconds and Frame Ticks)
+                              // Time Ruler (Seconds and Sub-second Frame Ticks)
                               _buildTimeRuler(totalWidth),
 
-                              // Track lanes
+                              // 4 Synchronized Track Lanes
                               Expanded(
                                 child: GestureDetector(
                                   onTapDown: (details) =>
@@ -132,8 +208,11 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
   }
 
   Widget _buildTimelineActionToolbar() {
+    final precisePlayheadStr =
+        formatTimestampPrecise(widget.project.currentPlayheadMs);
+
     return Container(
-      height: 44,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: const BoxDecoration(
         color: QuantColors.darkSlateCard,
@@ -145,7 +224,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Left Tool buttons: Split (Blade), Speed, VFX, Delete
+          // Left Tool buttons: Split (Blade), Snap-to-Cut, Speed, Delete
           Row(
             children: [
               // Split Tool (Blade)
@@ -153,7 +232,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                 onTap: widget.onSplitClipAtPlayhead,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: QuantColors.darkSlateSurface,
                     borderRadius: BorderRadius.circular(8),
@@ -182,6 +261,66 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
 
               const SizedBox(width: 8),
 
+              // Snap-to-Cut Tool (Magnet)
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _snapToCutEnabled = !_snapToCutEnabled;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: QuantColors.darkSlateCard,
+                      content: Text(
+                        _snapToCutEnabled
+                            ? 'Snap-to-Cut Active (Magnetic Alignment)'
+                            : 'Snap-to-Cut Disabled (Free Scrub)',
+                        style: const TextStyle(color: QuantColors.textPrimary),
+                      ),
+                      duration: const Duration(milliseconds: 900),
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _snapToCutEnabled
+                        ? QuantColors.sovereignCyan.withOpacity(0.18)
+                        : QuantColors.darkSlateSurface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: _snapToCutEnabled
+                          ? QuantColors.sovereignCyan
+                          : QuantColors.hairlineBorder,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.auto_fix_high_rounded,
+                        size: 14,
+                        color: _snapToCutEnabled
+                            ? QuantColors.sovereignCyan
+                            : QuantColors.textMuted,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Snap',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: _snapToCutEnabled
+                              ? QuantColors.sovereignCyan
+                              : QuantColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
               // Speed Ramp Tool
               InkWell(
                 onTap: () {
@@ -198,7 +337,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                 },
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: QuantColors.darkSlateSurface,
                     borderRadius: BorderRadius.circular(8),
@@ -209,7 +348,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                       Icon(
                         Icons.speed_rounded,
                         size: 14,
-                        color: QuantColors.sovereignCyan,
+                        color: QuantColors.sunriseRose,
                       ),
                       SizedBox(width: 5),
                       Text(
@@ -232,7 +371,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                 onTap: widget.onDeleteSelectedClip,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: QuantColors.darkSlateSurface,
                     borderRadius: BorderRadius.circular(8),
@@ -259,6 +398,37 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                 ),
               ),
             ],
+          ),
+
+          // Center Precise Millisecond Playhead Timecode Display (00:01:24.350)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: QuantColors.voidObsidian,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: QuantColors.moltenAmber.withOpacity(0.4)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.timer_rounded,
+                  size: 13,
+                  color: QuantColors.moltenAmber,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  precisePlayheadStr,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: QuantColors.moltenAmber,
+                  ),
+                ),
+              ],
+            ),
           ),
 
           // Right Zoom Controls (+ / - Pinch Simulation)
@@ -302,7 +472,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
 
   Widget _buildFixedTrackHeaders() {
     return Container(
-      width: 130,
+      width: 140,
       decoration: const BoxDecoration(
         color: QuantColors.darkSlateSurface,
         border: Border(
@@ -332,15 +502,18 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
             ),
           ),
 
-          // Track lane headers
+          // Track lane headers with Mute (M) & Solo (S) controls
           Expanded(
             child: ListView.builder(
               itemCount: widget.project.tracks.length,
               physics: const NeverScrollableScrollPhysics(),
               itemBuilder: (context, index) {
                 final track = widget.project.tracks[index];
+                final isMuted = _trackMutedMap[track.id] ?? false;
+                final isSoloed = _trackSoloMap[track.id] ?? false;
+
                 return Container(
-                  height: 64,
+                  height: 68,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: const BoxDecoration(
                     border: Border(
@@ -376,14 +549,27 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          _buildMiniHeaderToggle(
-                            icon: track.isMuted
-                                ? Icons.volume_off_rounded
-                                : Icons.volume_up_rounded,
-                            isActive: !track.isMuted,
+                          // Mute Toggle (M)
+                          _buildMuteSoloButton(
+                            label: 'M',
+                            isActive: isMuted,
+                            activeColor: QuantColors.statusError,
                             tooltip: 'Mute Track',
+                            onTap: () => _toggleTrackMute(track.id),
                           ),
                           const SizedBox(width: 4),
+
+                          // Solo Toggle (S)
+                          _buildMuteSoloButton(
+                            label: 'S',
+                            isActive: isSoloed,
+                            activeColor: QuantColors.sovereignCyan,
+                            tooltip: 'Solo Track',
+                            onTap: () => _toggleTrackSolo(track.id),
+                          ),
+                          const SizedBox(width: 6),
+
+                          // Lock icon
                           _buildMiniHeaderToggle(
                             icon: track.isLocked
                                 ? Icons.lock_rounded
@@ -392,6 +578,8 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                             tooltip: 'Lock Track',
                           ),
                           const SizedBox(width: 4),
+
+                          // Hide icon
                           _buildMiniHeaderToggle(
                             icon: track.isHidden
                                 ? Icons.visibility_off_rounded
@@ -408,6 +596,41 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMuteSoloButton({
+    required String label,
+    required bool isActive,
+    required Color activeColor,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          color: isActive ? activeColor.withOpacity(0.2) : QuantColors.voidObsidian,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: isActive ? activeColor : QuantColors.hairlineBorder,
+            width: 1.0,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: isActive ? activeColor : QuantColors.textMuted,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -462,7 +685,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
 
   Widget _buildTrackLane(TimelineTrack track) {
     return Container(
-      height: 64,
+      height: 68,
       decoration: const BoxDecoration(
         border: Border(
           bottom: BorderSide(color: QuantColors.hairlineBorder, width: 0.8),
@@ -512,13 +735,38 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
           ),
           child: Stack(
             children: [
-              // Audio Waveform Visualization if peaks are present
-              if (clip.waveformPeaks != null)
+              // 1) Primary Video Track: Thumbnail Reel Visualizer
+              if (track.type == TrackType.video)
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    child: _buildVideoThumbnailReel(clip),
+                  ),
+                ),
+
+              // 2) Background Music Track: Waveform Visualizer + Volume Envelope
+              if (track.type == TrackType.audio && clip.waveformPeaks != null)
                 Positioned.fill(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: _buildWaveformBars(clip.waveformPeaks!, clip.color),
+                    child: _buildAudioWaveformWithEnvelope(
+                      clip.waveformPeaks!,
+                      clip.volumeEnvelopePoints,
+                      clip.color,
+                    ),
                   ),
+                ),
+
+              // 3) Sound Effects (SFX) Track: Cue Markers
+              if (track.type == TrackType.sfx && clip.cueMarkersMs != null)
+                Positioned.fill(
+                  child: _buildSfxCueMarkers(clip, clipWidth),
+                ),
+
+              // 4) Dynamic Kinetic Captions Track: Word-Level Sync Markers
+              if (track.type == TrackType.captions && clip.kineticWords != null)
+                Positioned.fill(
+                  child: _buildKineticWordMarkers(clip),
                 ),
 
               // Clip Name Label & Duration
@@ -564,7 +812,10 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                     decoration: BoxDecoration(
                       color: QuantColors.voidObsidian,
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: QuantColors.moltenAmber, width: 0.8),
+                      border: Border.all(
+                        color: QuantColors.moltenAmber,
+                        width: 0.8,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -597,17 +848,22 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                   bottom: 0,
                   width: 14,
                   child: GestureDetector(
-                    onHorizontalDragStart: (_) => setState(() => _isDraggingTrimLeft = true),
-                    onHorizontalDragEnd: (_) => setState(() => _isDraggingTrimLeft = false),
+                    onHorizontalDragStart: (_) =>
+                        setState(() => _isDraggingTrimLeft = true),
+                    onHorizontalDragEnd: (_) =>
+                        setState(() => _isDraggingTrimLeft = false),
                     onHorizontalDragUpdate: (details) {
                       final deltaMs = _pixelsToMs(details.delta.dx);
-                      final newTrim = (clip.trimStartMs + deltaMs).clamp(0, clip.durationMs - 500);
-                      widget.onClipTrimmed?.call(track.id, clip.id, newTrim, clip.trimEndMs);
+                      final newTrim = (clip.trimStartMs + deltaMs)
+                          .clamp(0, clip.durationMs - 500);
+                      widget.onClipTrimmed?.call(
+                          track.id, clip.id, newTrim, clip.trimEndMs);
                     },
                     child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.horizontal(left: Radius.circular(7)),
+                        borderRadius:
+                            BorderRadius.horizontal(left: Radius.circular(7)),
                       ),
                       child: const Center(
                         child: Icon(
@@ -627,17 +883,22 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
                   bottom: 0,
                   width: 14,
                   child: GestureDetector(
-                    onHorizontalDragStart: (_) => setState(() => _isDraggingTrimRight = true),
-                    onHorizontalDragEnd: (_) => setState(() => _isDraggingTrimRight = false),
+                    onHorizontalDragStart: (_) =>
+                        setState(() => _isDraggingTrimRight = true),
+                    onHorizontalDragEnd: (_) =>
+                        setState(() => _isDraggingTrimRight = false),
                     onHorizontalDragUpdate: (details) {
                       final deltaMs = _pixelsToMs(-details.delta.dx);
-                      final newTrim = (clip.trimEndMs + deltaMs).clamp(0, clip.durationMs - 500);
-                      widget.onClipTrimmed?.call(track.id, clip.id, clip.trimStartMs, newTrim);
+                      final newTrim = (clip.trimEndMs + deltaMs)
+                          .clamp(0, clip.durationMs - 500);
+                      widget.onClipTrimmed?.call(
+                          track.id, clip.id, clip.trimStartMs, newTrim);
                     },
                     child: Container(
                       decoration: const BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.horizontal(right: Radius.circular(7)),
+                        borderRadius:
+                            BorderRadius.horizontal(right: Radius.circular(7)),
                       ),
                       child: const Center(
                         child: Icon(
@@ -657,21 +918,167 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
     );
   }
 
-  Widget _buildWaveformBars(List<double> peaks, Color barColor) {
+  /// 1) Primary Video Track: Thumbnail filmstrip reel
+  Widget _buildVideoThumbnailReel(TimelineClip clip) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: peaks.map((p) {
+      children: List.generate(4, (index) {
         return Expanded(
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 1.0),
-            height: (p * 32.0).clamp(4.0, 36.0),
+            margin: const EdgeInsets.symmetric(horizontal: 2),
             decoration: BoxDecoration(
-              color: barColor.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(1.5),
+              color: QuantColors.voidObsidian.withOpacity(0.6),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: clip.color.withOpacity(0.3),
+                width: 0.6,
+              ),
+            ),
+            child: Center(
+              child: Icon(
+                Icons.movie_creation_rounded,
+                size: 16,
+                color: clip.color.withOpacity(0.4),
+              ),
             ),
           ),
         );
-      }).toList(),
+      }),
+    );
+  }
+
+  /// 2) Background Music Track: Waveform visualizer + volume envelope curve
+  Widget _buildAudioWaveformWithEnvelope(
+    List<double> peaks,
+    List<double>? envelopePoints,
+    Color barColor,
+  ) {
+    return Stack(
+      children: [
+        // Waveform Visualizer Bars
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: peaks.map((p) {
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 1.0),
+                height: (p * 32.0).clamp(4.0, 36.0),
+                decoration: BoxDecoration(
+                  color: barColor.withOpacity(0.75),
+                  borderRadius: BorderRadius.circular(1.5),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+
+        // Volume Envelope Overlay Line
+        if (envelopePoints != null && envelopePoints.isNotEmpty)
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _VolumeEnvelopePainter(
+                envelopePoints: envelopePoints,
+                lineColor: Colors.white.withOpacity(0.8),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 3) Sound Effects (SFX) Track: Cue Markers
+  Widget _buildSfxCueMarkers(TimelineClip clip, double clipWidth) {
+    final markers = clip.cueMarkersMs ?? [];
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.graphic_eq_rounded,
+                  size: 14,
+                  color: clip.color.withOpacity(0.5),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'SFX CUES',
+                  style: TextStyle(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                    color: clip.color.withOpacity(0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        ...markers.map((cueMs) {
+          final ratio = (cueMs / clip.effectiveDurationMs).clamp(0.0, 1.0);
+          final xPos = ratio * (clipWidth - 16);
+          return Positioned(
+            left: xPos,
+            top: 20,
+            child: Container(
+              width: 12,
+              height: 12,
+              decoration: BoxDecoration(
+                color: clip.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.2),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.lens,
+                  size: 4,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  /// 4) Dynamic Kinetic Captions Track: Word-Level Sync Markers
+  Widget _buildKineticWordMarkers(TimelineClip clip) {
+    final words = clip.kineticWords ?? [];
+    return Positioned(
+      left: 6,
+      right: 6,
+      bottom: 6,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        child: Row(
+          children: words.map((w) {
+            return Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: QuantColors.voidObsidian.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: QuantColors.moltenAmber.withOpacity(0.5),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                w.word,
+                style: const TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.4,
+                  color: QuantColors.moltenAmber,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
 
@@ -729,6 +1136,49 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
   }
 }
 
+/// Custom painter for volume envelope overlay line across audio clips.
+class _VolumeEnvelopePainter extends CustomPainter {
+  final List<double> envelopePoints;
+  final Color lineColor;
+
+  _VolumeEnvelopePainter({
+    required this.envelopePoints,
+    required this.lineColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (envelopePoints.length < 2) return;
+
+    final paint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    final stepX = size.width / (envelopePoints.length - 1);
+
+    for (int i = 0; i < envelopePoints.length; i++) {
+      final x = i * stepX;
+      // Invert Y: 1.0 volume is near top, 0.0 is near bottom
+      final y = size.height - (envelopePoints[i] * size.height).clamp(4.0, size.height - 4);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _VolumeEnvelopePainter oldDelegate) {
+    return oldDelegate.envelopePoints != envelopePoints ||
+        oldDelegate.lineColor != lineColor;
+  }
+}
+
 /// Custom painter for timeline ruler ticks (Zero Skia clipPath).
 class _TimeRulerPainter extends CustomPainter {
   final double pixelsPerSecond;
@@ -760,7 +1210,8 @@ class _TimeRulerPainter extends CustomPainter {
       final x = sec * pixelsPerSecond;
 
       // Draw full second marker line
-      canvas.drawLine(Offset(x, size.height - 12), Offset(x, size.height), secondTickPaint);
+      canvas.drawLine(
+          Offset(x, size.height - 12), Offset(x, size.height), secondTickPaint);
 
       // Draw second text label
       final textSpan = TextSpan(text: '${sec}s', style: textStyle);
@@ -772,7 +1223,8 @@ class _TimeRulerPainter extends CustomPainter {
 
       // Sub-second 500ms and frame subdivisions
       final subX = x + (pixelsPerSecond / 2);
-      canvas.drawLine(Offset(subX, size.height - 6), Offset(subX, size.height), tickPaint);
+      canvas.drawLine(
+          Offset(subX, size.height - 6), Offset(subX, size.height), tickPaint);
     }
   }
 

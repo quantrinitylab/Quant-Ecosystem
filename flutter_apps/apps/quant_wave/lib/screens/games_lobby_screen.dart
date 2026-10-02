@@ -1,8 +1,9 @@
 // Sovereign Quant Ecosystem - QuantWave Party Games Lobby Screen
-// Sovereign Interactive Party Games Lobby (Uno, Trivia, Speed Chess)
+// Sovereign Interactive Party Games Lobby (Trivia Blitz, Werewolf, Word Clue, Uno, Speed Chess)
 // Strictly ZERO raw Unicode emojis throughout this file.
-// Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
+// Pure 120Hz Impeller & Skia hardware acceleration.
 
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
@@ -20,12 +21,37 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
   int _activeTab = 0; // 0: Games Lobby, 1: Leaderboard
   late List<LobbyGame> _games;
   late List<GameLeaderboardEntry> _leaderboard;
+  Timer? _countdownTimer;
+  int _roundCountdown = 15;
+  int _liveScoreTicker = 2840;
 
   @override
   void initState() {
     super.initState();
     _games = WaveMockData.getLobbyGames();
     _leaderboard = WaveMockData.getGameLeaderboard();
+    _startTicker();
+  }
+
+  void _startTicker() {
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_roundCountdown > 1) {
+            _roundCountdown--;
+          } else {
+            _roundCountdown = 20;
+            _liveScoreTicker += 150;
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _countdownTimer?.cancel();
+    super.dispose();
   }
 
   void _showCreateGameTableModal(LobbyGame game) {
@@ -145,6 +171,9 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
         // Top Switcher: Games vs Leaderboard
         _buildTopNavTabs(),
 
+        // Real-Time Countdown & Score Ticker Bar
+        _buildRealTimeScoreTickerBar(),
+
         // Body
         Expanded(
           child: _activeTab == 0 ? _buildGamesView() : _buildLeaderboardView(),
@@ -157,59 +186,123 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
     return Container(
       decoration: const BoxDecoration(
         color: QuantColors.voidObsidian,
-        border: Border(
-          bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1)),
       ),
       child: Row(
         children: [
-          Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _activeTab = 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _activeTab == 0 ? QuantColors.moltenAmber : Colors.transparent,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  'Games Lobby',
-                  style: TextStyle(
-                    color: _activeTab == 0 ? QuantColors.textPrimary : QuantColors.textMuted,
-                    fontWeight: _activeTab == 0 ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
+          Expanded(child: _buildTabButton(0, 'Games Lobby', Icons.sports_esports_rounded)),
+          Expanded(child: _buildTabButton(1, 'Leaderboard', Icons.military_tech_rounded)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButton(int index, String label, IconData icon) {
+    final isSelected = _activeTab == index;
+    return InkWell(
+      onTap: () => setState(() => _activeTab = index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? QuantColors.moltenAmber : Colors.transparent,
+              width: 2.5,
             ),
           ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: isSelected ? QuantColors.moltenAmber : QuantColors.textMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? QuantColors.textPrimary : QuantColors.textMuted,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRealTimeScoreTickerBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: const BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        border: Border(bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1)),
+      ),
+      child: Row(
+        children: [
+          // Real-time Countdown Timer Capsule
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: QuantColors.crimsonRed.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: QuantColors.crimsonRed.withOpacity(0.6), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.timer_outlined, color: QuantColors.crimsonRed, size: 14),
+                const SizedBox(width: 5),
+                Text(
+                  'ROUND: ${_roundCountdown}s',
+                  style: const TextStyle(
+                    color: QuantColors.crimsonRed,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // Real-time Score Ticker Capsule
           Expanded(
-            child: InkWell(
-              onTap: () => setState(() => _activeTab = 1),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: _activeTab == 1 ? QuantColors.sunsetGold : Colors.transparent,
-                      width: 2.5,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: QuantColors.elevatedCard,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: QuantColors.hairlineBorder, width: 1),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.bolt_rounded, color: QuantColors.moltenAmber, size: 14),
+                  const SizedBox(width: 4),
+                  const Text(
+                    'LIVE TICKER:',
+                    style: TextStyle(color: QuantColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$_liveScoreTicker PTS',
+                    style: const TextStyle(
+                      color: QuantColors.sovereignCyan,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-                child: Text(
-                  'Leaderboard',
-                  style: TextStyle(
-                    color: _activeTab == 1 ? QuantColors.textPrimary : QuantColors.textMuted,
-                    fontWeight: _activeTab == 1 ? FontWeight.w700 : FontWeight.w500,
-                    fontSize: 14,
+                  const Spacer(),
+                  const Text(
+                    'ACTIVE',
+                    style: TextStyle(color: QuantColors.emeraldMatrix, fontSize: 9, fontWeight: FontWeight.w800),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -222,226 +315,241 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // User Credits Capsule Card
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [QuantColors.darkSlateCard, QuantColors.elevatedCard],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: QuantColors.hairlineBorder),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: QuantColors.moltenAmber.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.token_rounded, color: QuantColors.moltenAmber, size: 24),
-              ),
-              const SizedBox(width: 14),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'QUANT CREDITS BALANCE',
-                    style: TextStyle(
-                      color: QuantColors.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    '12,500 QC',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 16, color: Colors.white),
-                label: const Text(
-                  'Deposit',
-                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: QuantColors.moltenAmber,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: QuantColors.darkSlateCard,
-                      content: Text(
-                        'On-chain sovereign credit refill engaged.',
-                        style: TextStyle(color: QuantColors.textPrimary),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
+        // Credits Balance Capsule
+        _buildCreditsCapsule(),
+        const SizedBox(height: 16),
 
-        // Games Grid Header
-        const Text(
-          'SOVEREIGN MULTIPLAYER MINI-GAMES',
-          style: TextStyle(
-            color: QuantColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
+        // Featured Party Games Header
+        Row(
+          children: [
+            const Text(
+              'Featured Party Games',
+              style: TextStyle(
+                color: QuantColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_games.length} Games Online',
+              style: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
 
-        // Games List
-        ...List.generate(_games.length, (idx) {
-          final game = _games[idx];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: _buildGameCard(game),
-          );
-        }),
+        // Games Grid / Cards
+        ..._games.map((game) => _buildGameCard(game)),
       ],
+    );
+  }
+
+  Widget _buildCreditsCapsule() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            QuantColors.darkSlateCard,
+            QuantColors.moltenAmber.withOpacity(0.12),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuantColors.hairlineBorder, width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'QUANT CREDITS BALANCE',
+                style: TextStyle(
+                  color: QuantColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '12,500 QC',
+                style: TextStyle(
+                  color: QuantColors.moltenAmber,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Rank: Sovereign Adept • Win Rate: 72%',
+                style: TextStyle(color: QuantColors.textSecondary.withOpacity(0.8), fontSize: 11),
+              ),
+            ],
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add_card_rounded, size: 16, color: Colors.white),
+            label: const Text('Top Up', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: QuantColors.moltenAmber,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            ),
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  backgroundColor: QuantColors.darkSlateCard,
+                  content: Text('Free daily 500 QC credited to your account.', style: TextStyle(color: QuantColors.textPrimary)),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildGameCard(LobbyGame game) {
     return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: QuantColors.darkSlateCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: QuantColors.hairlineBorder, width: 1),
       ),
-      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: game.accentColor.withOpacity(0.15),
+                  color: game.accentColor.withOpacity(0.18),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: game.accentColor.withOpacity(0.4), width: 1),
                 ),
-                child: Icon(game.icon, color: game.accentColor, size: 26),
+                child: Center(
+                  child: Icon(game.icon, color: game.accentColor, size: 24),
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      game.title,
-                      style: const TextStyle(
-                        color: QuantColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            game.title,
+                            style: const TextStyle(
+                              color: QuantColors.textPrimary,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: QuantColors.elevatedCard,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            game.category.toUpperCase(),
+                            style: const TextStyle(
+                              color: QuantColors.textMuted,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
-                      game.category,
-                      style: const TextStyle(
-                        color: QuantColors.textMuted,
-                        fontSize: 12,
-                      ),
+                      game.description,
+                      style: const TextStyle(color: QuantColors.textSecondary, fontSize: 12, height: 1.3),
                     ),
                   ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: QuantColors.elevatedCard,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: QuantColors.hairlineBorder),
-                ),
-                child: Text(
-                  '${game.stakeCredits} QC Entry',
-                  style: const TextStyle(
-                    color: QuantColors.moltenAmber,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            game.description,
-            style: const TextStyle(
-              color: QuantColors.textSecondary,
-              fontSize: 13,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 14),
+          const Divider(color: QuantColors.hairlineBorder, height: 1),
+          const SizedBox(height: 10),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.people_alt_rounded, size: 14, color: QuantColors.sovereignCyan),
-              const SizedBox(width: 4),
-              Text(
-                '${game.playersCount} Players (${game.activeTables} tables)',
-                style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
+              Row(
+                children: [
+                  Icon(Icons.table_restaurant_rounded, size: 14, color: QuantColors.textMuted),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${game.activeTables} tables',
+                    style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
+                  ),
+                  const SizedBox(width: 10),
+                  Icon(Icons.people_alt_rounded, size: 14, color: QuantColors.textMuted),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${game.playersCount} players',
+                    style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${game.stakeCredits} QC stake',
+                    style: TextStyle(color: game.accentColor, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              const Icon(Icons.speed_rounded, size: 14, color: QuantColors.statusSuccess),
-              const SizedBox(width: 4),
-              Text(
-                game.difficulty,
-                style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
-              ),
-              const Spacer(),
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: QuantColors.textPrimary,
-                  side: const BorderSide(color: QuantColors.hairlineBorder),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  minimumSize: const Size(60, 32),
-                ),
-                onPressed: () => _showCreateGameTableModal(game),
-                child: const Text('Host', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: game.accentColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  minimumSize: const Size(70, 32),
-                ),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: QuantColors.darkSlateCard,
-                      content: Text(
-                        'Matchmaking for ${game.title} engaged. Connecting to peer table...',
-                        style: const TextStyle(color: QuantColors.textPrimary),
-                      ),
+              Row(
+                children: [
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: QuantColors.textPrimary,
+                      side: const BorderSide(color: QuantColors.hairlineBorder),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      minimumSize: const Size(50, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     ),
-                  );
-                },
-                child: const Text('Play Now', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                    onPressed: () => _showCreateGameTableModal(game),
+                    child: const Text('Host', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: game.accentColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      minimumSize: const Size(60, 32),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          backgroundColor: QuantColors.darkSlateCard,
+                          content: Text(
+                            'Joined quick matchmaking for ${game.title}...',
+                            style: const TextStyle(color: QuantColors.textPrimary),
+                          ),
+                        ),
+                      );
+                    },
+                    child: const Text('Play Now', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ],
               ),
             ],
           ),
@@ -454,123 +562,80 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // Trophy Banner
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [QuantColors.darkSlateCard, Color(0xFF221A10)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: QuantColors.sunsetGold.withOpacity(0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: QuantColors.sunsetGold.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.emoji_events_rounded, color: QuantColors.sunsetGold, size: 28),
-              ),
-              const SizedBox(width: 14),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'WEEKLY SOVEREIGN LEAGUE',
-                    style: TextStyle(
-                      color: QuantColors.sunsetGold,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Prize Pool: 250,000 QC',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-
         const Text(
-          'TOP SOVEREIGN PLAYERS',
+          'Victory Leaderboard',
           style: TextStyle(
-            color: QuantColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
+            color: QuantColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 12),
-
-        ...List.generate(_leaderboard.length, (idx) {
-          final entry = _leaderboard[idx];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _buildLeaderboardCard(entry),
-          );
-        }),
+        const SizedBox(height: 4),
+        const Text(
+          'Top champions ranked by net Quant Credits won across all party games.',
+          style: TextStyle(color: QuantColors.textMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 16),
+        ..._leaderboard.map((entry) => _buildLeaderboardCard(entry)),
       ],
     );
   }
 
   Widget _buildLeaderboardCard(GameLeaderboardEntry entry) {
-    Color rankColor = QuantColors.textSecondary;
-    if (entry.rank == 1) rankColor = QuantColors.sunsetGold;
-    if (entry.rank == 2) rankColor = const Color(0xFFC0C0C0);
-    if (entry.rank == 3) rankColor = const Color(0xFFCD7F32);
+    Color rankBadgeColor = QuantColors.elevatedCard;
+    IconData? trophyIcon;
+
+    if (entry.rank == 1) {
+      rankBadgeColor = QuantColors.moltenAmber;
+      trophyIcon = Icons.emoji_events_rounded;
+    } else if (entry.rank == 2) {
+      rankBadgeColor = QuantColors.sovereignCyan;
+      trophyIcon = Icons.military_tech_rounded;
+    } else if (entry.rank == 3) {
+      rankBadgeColor = QuantColors.emeraldMatrix;
+      trophyIcon = Icons.military_tech_rounded;
+    }
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: entry.rank == 1 ? QuantColors.sunsetGold.withOpacity(0.5) : QuantColors.hairlineBorder,
+          color: entry.rank == 1 ? QuantColors.moltenAmber : QuantColors.hairlineBorder,
+          width: entry.rank == 1 ? 1.5 : 1,
         ),
       ),
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
-            alignment: Alignment.center,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: rankColor.withOpacity(0.2),
+              color: rankBadgeColor.withOpacity(0.2),
               shape: BoxShape.circle,
+              border: Border.all(color: rankBadgeColor, width: 1),
             ),
-            child: Text(
-              '#${entry.rank}',
-              style: TextStyle(
-                color: rankColor,
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-              ),
+            child: Center(
+              child: trophyIcon != null
+                  ? Icon(trophyIcon, color: rankBadgeColor, size: 16)
+                  : Text(
+                      '#${entry.rank}',
+                      style: TextStyle(color: rankBadgeColor, fontWeight: FontWeight.w800, fontSize: 11),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
           CircleAvatar(
-            radius: 16,
+            radius: 18,
             backgroundColor: entry.avatarColor,
             child: Text(
-              entry.username.substring(0, 1),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+              entry.username.isNotEmpty ? entry.username.substring(0, 1) : 'U',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -580,15 +645,12 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
                   style: const TextStyle(
                     color: QuantColors.textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: 14,
                   ),
                 ),
                 Text(
-                  '${entry.gameSpecialty} • ${entry.winStreak} win streak',
-                  style: const TextStyle(
-                    color: QuantColors.textMuted,
-                    fontSize: 11,
-                  ),
+                  '${entry.handle} • ${entry.gameSpecialty}',
+                  style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
                 ),
               ],
             ),
@@ -599,16 +661,17 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
               Text(
                 '+${entry.creditsWon} QC',
                 style: const TextStyle(
-                  color: QuantColors.statusSuccess,
-                  fontWeight: FontWeight.w700,
+                  color: QuantColors.moltenAmber,
+                  fontWeight: FontWeight.w800,
                   fontSize: 13,
                 ),
               ),
-              const Text(
-                'Weekly Won',
-                style: TextStyle(
-                  color: QuantColors.textMuted,
-                  fontSize: 10,
+              Text(
+                'Streak: ${entry.winStreak}W',
+                style: const TextStyle(
+                  color: QuantColors.statusSuccess,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 11,
                 ),
               ),
             ],

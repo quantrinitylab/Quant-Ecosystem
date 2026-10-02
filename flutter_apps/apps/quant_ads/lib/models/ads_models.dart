@@ -156,6 +156,46 @@ class AuctionTelemetry {
   }
 }
 
+class DspLatencyMetric {
+  final String dspName;
+  final double latencyMs;
+  final double p99LatencyMs;
+  final double bidSharePercent;
+  final double winRatePercent;
+  final bool active;
+  final Color barColor;
+
+  const DspLatencyMetric({
+    required this.dspName,
+    required this.latencyMs,
+    required this.p99LatencyMs,
+    required this.bidSharePercent,
+    required this.winRatePercent,
+    this.active = true,
+    required this.barColor,
+  });
+}
+
+class WaterfallTier {
+  final String tierName;
+  final int priority;
+  final double floorEcpm;
+  final int dspCount;
+  final double fillRatePercent;
+  final double yieldAmount;
+  final Color tierColor;
+
+  const WaterfallTier({
+    required this.tierName,
+    required this.priority,
+    required this.floorEcpm,
+    required this.dspCount,
+    required this.fillRatePercent,
+    required this.yieldAmount,
+    required this.tierColor,
+  });
+}
+
 class EcpmHeatmapCell {
   final int dayIndex; // 0=Mon, 6=Sun
   final int hourIndex; // 0..23
@@ -167,6 +207,28 @@ class EcpmHeatmapCell {
     required this.hourIndex,
     required this.ecpm,
     required this.fillRate,
+  });
+}
+
+class GeoYieldBreakdown {
+  final String regionCode; // US, IN, EU, APAC
+  final String regionName;
+  final double rewardedVideoEcpm;
+  final double nativeFeedEcpm;
+  final double interstitialEcpm;
+  final double bannerEcpm;
+  final double overallFillRate;
+  final int totalImpressions;
+
+  const GeoYieldBreakdown({
+    required this.regionCode,
+    required this.regionName,
+    required this.rewardedVideoEcpm,
+    required this.nativeFeedEcpm,
+    required this.interstitialEcpm,
+    required this.bannerEcpm,
+    required this.overallFillRate,
+    required this.totalImpressions,
   });
 }
 
@@ -220,6 +282,7 @@ enum PayoutMethodType {
   upi,
   stripeExpress,
   wireTransfer,
+  sepa,
 }
 
 enum PayoutStatus {
@@ -227,6 +290,50 @@ enum PayoutStatus {
   processing,
   scheduled,
   failed,
+}
+
+class CreatorBalanceSummary {
+  final double availableBalance;
+  final double pendingBalance;
+  final double minimumThreshold;
+  final bool autoDisburseEnabled;
+  final double grossRevenue;
+  final double platformShareRate; // 0.30
+  final double creatorShareRate;  // 0.70
+  final double totalDisbursedYtd;
+
+  const CreatorBalanceSummary({
+    required this.availableBalance,
+    required this.pendingBalance,
+    this.minimumThreshold = 50.0,
+    this.autoDisburseEnabled = true,
+    required this.grossRevenue,
+    this.platformShareRate = 0.30,
+    this.creatorShareRate = 0.70,
+    required this.totalDisbursedYtd,
+  });
+
+  CreatorBalanceSummary copyWith({
+    double? availableBalance,
+    double? pendingBalance,
+    double? minimumThreshold,
+    bool? autoDisburseEnabled,
+    double? grossRevenue,
+    double? platformShareRate,
+    double? creatorShareRate,
+    double? totalDisbursedYtd,
+  }) {
+    return CreatorBalanceSummary(
+      availableBalance: availableBalance ?? this.availableBalance,
+      pendingBalance: pendingBalance ?? this.pendingBalance,
+      minimumThreshold: minimumThreshold ?? this.minimumThreshold,
+      autoDisburseEnabled: autoDisburseEnabled ?? this.autoDisburseEnabled,
+      grossRevenue: grossRevenue ?? this.grossRevenue,
+      platformShareRate: platformShareRate ?? this.platformShareRate,
+      creatorShareRate: creatorShareRate ?? this.creatorShareRate,
+      totalDisbursedYtd: totalDisbursedYtd ?? this.totalDisbursedYtd,
+    );
+  }
 }
 
 class PayoutTransaction {

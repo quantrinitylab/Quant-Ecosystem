@@ -1,6 +1,6 @@
 // Sovereign Quant Ecosystem - QuantWave Mock Data Engine
 // Strictly ZERO raw Unicode emojis throughout this file.
-// Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
+// Pure 120Hz Impeller & Skia hardware acceleration.
 
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
@@ -9,8 +9,35 @@ import '../models/wave_models.dart';
 class WaveMockData {
   WaveMockData._();
 
+  /// Trending hashtags for timeline discovery pills
+  static List<String> getTrendingHashtags() {
+    return const [
+      '#QuantSovereign',
+      '#Impeller120Hz',
+      '#SpacesLive',
+      '#TriviaBlitz',
+      '#ZeroClipPath',
+      '#RustMesh',
+      '#PartyGames',
+      '#TripartiteSwarm',
+      '#WerewolfStage',
+    ];
+  }
+
   /// Initial timeline feed posts (Microblogging parity)
   static List<WavePost> getInitialTimelinePosts() {
+    const quoteBasePost = WavePost(
+      id: 'post-orig-1',
+      authorName: 'CEO Astra',
+      authorHandle: '@astra_ceo',
+      authorInitials: 'CA',
+      avatarColor: QuantColors.moltenAmber,
+      isVerified: true,
+      timestamp: '2h',
+      content: 'Impeller 120Hz rendering pipeline operational. No dropped frames on complex short-form media feeds.',
+      hashtags: ['#Impeller120Hz', '#QuantSovereign'],
+    );
+
     return [
       WavePost(
         id: 'post-1',
@@ -21,13 +48,14 @@ class WaveMockData {
         isVerified: true,
         timestamp: '14m',
         content:
-            'Sovereign Wave Engine is now live on our EKS staging cluster. Pure 120Hz Impeller acceleration, zero Skia clipPath bottlenecks, and direct peer-to-peer WebRTC audio spaces. Incumbent social networks cannot match this latency floor.',
+            'Sovereign Wave Engine is now live on our EKS staging cluster. Pure 120Hz Impeller acceleration, zero runtime clipping bottlenecks, and direct peer-to-peer WebRTC audio spaces. Incumbent social networks cannot match this latency floor.',
         replyCount: 84,
         repostCount: 312,
         likeCount: 1420,
         bookmarkCount: 96,
         isLiked: true,
         isReposted: true,
+        hashtags: const ['#QuantSovereign', '#Impeller120Hz', '#SpacesLive'],
         poll: const WavePoll(
           id: 'poll-1',
           question: 'Which sovereign pillar will replace incumbents fastest?',
@@ -54,6 +82,47 @@ class WaveMockData {
           totalVotes: 4000,
           hasVoted: false,
         ),
+        replies: const [
+          WaveThreadReply(
+            id: 'rep-1',
+            authorName: 'DevSentinel',
+            authorHandle: '@dev_sentinel',
+            authorInitials: 'DS',
+            avatarColor: QuantColors.sunsetGold,
+            isVerified: true,
+            timestamp: '10m',
+            content: 'Benchmark telemetry verified: sub-18ms frame rasterization across all test devices.',
+            likeCount: 42,
+            isLiked: true,
+            depth: 0,
+            nestedReplies: [
+              WaveThreadReply(
+                id: 'rep-1-1',
+                authorName: 'CEO Astra',
+                authorHandle: '@astra_ceo',
+                authorInitials: 'CA',
+                avatarColor: QuantColors.moltenAmber,
+                isVerified: true,
+                timestamp: '8m',
+                content: 'Confirmed. Clean Impeller pipeline with zero shader recompilation overhead.',
+                likeCount: 28,
+                depth: 1,
+              ),
+            ],
+          ),
+          WaveThreadReply(
+            id: 'rep-2',
+            authorName: 'RustArchitect',
+            authorHandle: '@rust_arch',
+            authorInitials: 'RA',
+            avatarColor: QuantColors.emeraldMatrix,
+            isVerified: false,
+            timestamp: '5m',
+            content: 'Audio spaces stage mesh is maintaining zero packet jitter over WebSockets.',
+            likeCount: 19,
+            depth: 0,
+          ),
+        ],
       ),
       const WavePost(
         id: 'post-2',
@@ -73,6 +142,22 @@ class WaveMockData {
         bookmarkCount: 45,
         isLiked: false,
         isReposted: false,
+        hashtags: ['#RustMesh', '#TripartiteSwarm'],
+        quotedPost: quoteBasePost,
+        replies: [
+          WaveThreadReply(
+            id: 'rep-2-1',
+            authorName: 'Node B (Agent OS)',
+            authorHandle: '@node_b_agent',
+            authorInitials: 'NB',
+            avatarColor: QuantColors.sovereignCyan,
+            isVerified: true,
+            timestamp: '25m',
+            content: 'Agent OS integration with git commit hooks is completely seamless.',
+            likeCount: 31,
+            depth: 0,
+          ),
+        ],
       ),
       const WavePost(
         id: 'post-3',
@@ -90,6 +175,7 @@ class WaveMockData {
         bookmarkCount: 38,
         isLiked: true,
         isReposted: false,
+        hashtags: ['#SpacesLive', '#QuantSovereign'],
       ),
       const WavePost(
         id: 'post-4',
@@ -107,6 +193,7 @@ class WaveMockData {
         bookmarkCount: 22,
         isLiked: false,
         isReposted: false,
+        hashtags: ['#PartyGames', '#ZeroClipPath'],
       ),
     ];
   }
@@ -169,9 +256,9 @@ class WaveMockData {
         communityName: 'w/tech',
         authorName: 'KernelHacker',
         authorHandle: 'u/kernel_hacker',
-        title: 'Benchmarking Impeller vs Skia on 120Hz Displays: Why avoiding clipPath changes everything',
+        title: 'Benchmarking Impeller vs Skia on 120Hz Displays: Why avoiding runtime clipping changes everything',
         body:
-            'We ran automated GPU raster benchmarks across 50,000 cards in a continuous stress-test. Replacing Skia clipPath with RoundedRectangleBorder and BoxDecoration reduced raster frame time from 8.4ms to 1.9ms, completely eliminating 120Hz jank.',
+            'We ran automated GPU raster benchmarks across 50,000 cards in a continuous stress-test. Replacing Skia runtime clipping with RoundedRectangleBorder and BoxDecoration reduced raster frame time from 8.4ms to 1.9ms, completely eliminating 120Hz jank.',
         upvotes: 842,
         downvotes: 18,
         userVote: 1,
@@ -183,7 +270,7 @@ class WaveMockData {
             id: 'c-1',
             authorName: 'GraphicsLead',
             authorHandle: 'u/graphics_lead',
-            content: 'Impeller precomputes tessellation shaders at build time. Skia clipPath forces runtime path computation on the rasterizer thread, causing inevitable dropped frames.',
+            content: 'Impeller precomputes tessellation shaders at build time. Runtime path clipping forces CPU/GPU overhead on the rasterizer thread.',
             score: 214,
             timeAgo: '2h ago',
             depth: 0,
@@ -192,7 +279,7 @@ class WaveMockData {
                 id: 'c-1-1',
                 authorName: 'KernelHacker',
                 authorHandle: 'u/kernel_hacker',
-                content: 'Exactly. That is why our Quant Ecosystem system rule enforces zero clipPath calls across all apps.',
+                content: 'Exactly. That is why our Quant Ecosystem system rule enforces zero runtime clipping across all apps.',
                 score: 89,
                 timeAgo: '1h ago',
                 depth: 1,
@@ -254,10 +341,10 @@ class WaveMockData {
     ];
   }
 
-  /// Live Audio Spaces Rooms
+  /// Live Audio Spaces Rooms with host podium, active speaker and raise hand queue
   static List<WaveSpaceRoom> getLiveAudioSpaces() {
     return [
-      WaveSpaceRoom(
+      const WaveSpaceRoom(
         id: 'space-stage-1',
         title: 'Sovereign Ecosystem Architecture: Displacing Big Tech Duopolies',
         topic: 'Engineering & Decentralization',
@@ -266,7 +353,9 @@ class WaveMockData {
         hostAvatarColor: QuantColors.moltenAmber,
         listenerCount: 1420,
         isLive: true,
-        speakers: const [
+        activeSpeakerId: 'spk-1',
+        raisedHandsQueue: ['lst-1', 'lst-3'],
+        speakers: [
           SpaceSpeaker(
             id: 'spk-1',
             name: 'CEO Astra',
@@ -308,7 +397,7 @@ class WaveMockData {
             avatarColor: QuantColors.emeraldMatrix,
           ),
         ],
-        listeners: const [
+        listeners: [
           SpaceListener(
             id: 'lst-1',
             name: 'DevSentinel',
@@ -345,13 +434,15 @@ class WaveMockData {
       ),
       const WaveSpaceRoom(
         id: 'space-stage-2',
-        title: 'Zero Skia clipPath & 120Hz Impeller Flutter Architecture Deep Dive',
+        title: '120Hz Impeller Flutter Architecture & Shader Precompilation Deep Dive',
         topic: 'Flutter & Graphics',
         hostName: 'ImpellerEngine',
         hostHandle: '@impeller_eng',
         hostAvatarColor: QuantColors.sovereignCyan,
         listenerCount: 840,
         isLive: true,
+        activeSpeakerId: 'spk-5',
+        raisedHandsQueue: [],
         speakers: [
           SpaceSpeaker(
             id: 'spk-5',
@@ -379,9 +470,57 @@ class WaveMockData {
     ];
   }
 
-  /// Interactive Party Games Lobby (Uno, Trivia, Chess, Word Arena)
+  /// Interactive Multiplayer Party Games Lobby (Trivia Blitz, Werewolf, Word Clue, Uno, Speed Chess)
   static List<LobbyGame> getLobbyGames() {
     return const [
+      LobbyGame(
+        id: 'game-trivia-blitz',
+        title: 'Trivia Blitz',
+        category: 'Speed Knowledge',
+        description: '10-round rapid fire battle covering systems engineering, cryptography, science, and history.',
+        activeTables: 42,
+        playersCount: 336,
+        maxPlayers: 8,
+        stakeCredits: 100,
+        minRank: 'Adept',
+        difficulty: 'Medium',
+        icon: Icons.psychology_rounded,
+        accentColor: QuantColors.sovereignCyan,
+        roundCountdownSeconds: 15,
+        liveScoreTicker: 2840,
+      ),
+      LobbyGame(
+        id: 'game-werewolf',
+        title: 'Werewolf',
+        category: 'Social Deduction',
+        description: 'Villagers vs Werewolves party game. Real-time audio discussions, secret night actions, and daily voting tribunal.',
+        activeTables: 28,
+        playersCount: 224,
+        maxPlayers: 10,
+        stakeCredits: 150,
+        minRank: 'Adept',
+        difficulty: 'Hard',
+        icon: Icons.nightlight_round,
+        accentColor: QuantColors.crimsonRed,
+        roundCountdownSeconds: 45,
+        liveScoreTicker: 1950,
+      ),
+      LobbyGame(
+        id: 'game-word-clue',
+        title: 'Word Clue',
+        category: 'Vocabulary Duel',
+        description: 'Turn-based clue puzzle clash. Give one-word clues to guide teammates to sovereign secret code words.',
+        activeTables: 36,
+        playersCount: 144,
+        maxPlayers: 6,
+        stakeCredits: 75,
+        minRank: 'Novice',
+        difficulty: 'Casual',
+        icon: Icons.spellcheck_rounded,
+        accentColor: QuantColors.emeraldMatrix,
+        roundCountdownSeconds: 20,
+        liveScoreTicker: 3210,
+      ),
       LobbyGame(
         id: 'game-uno',
         title: 'Sovereign Uno',
@@ -395,20 +534,8 @@ class WaveMockData {
         difficulty: 'Casual',
         icon: Icons.style_rounded,
         accentColor: QuantColors.moltenAmber,
-      ),
-      LobbyGame(
-        id: 'game-trivia',
-        title: 'Quant Trivia Arena',
-        category: 'Speed Knowledge',
-        description: '10-round rapid fire battle covering systems engineering, cryptography, science, and history.',
-        activeTables: 32,
-        playersCount: 256,
-        maxPlayers: 8,
-        stakeCredits: 100,
-        minRank: 'Adept',
-        difficulty: 'Medium',
-        icon: Icons.psychology_rounded,
-        accentColor: QuantColors.sovereignCyan,
+        roundCountdownSeconds: 25,
+        liveScoreTicker: 1450,
       ),
       LobbyGame(
         id: 'game-chess',
@@ -423,20 +550,8 @@ class WaveMockData {
         difficulty: 'Hard',
         icon: Icons.shield_rounded,
         accentColor: QuantColors.obsidianPurple,
-      ),
-      LobbyGame(
-        id: 'game-words',
-        title: 'Word Duel Arena',
-        category: 'Vocabulary Clash',
-        description: 'Turn-based word grid puzzle battle. Form long words with high multiplier tiles before time runs out.',
-        activeTables: 16,
-        playersCount: 32,
-        maxPlayers: 2,
-        stakeCredits: 75,
-        minRank: 'Novice',
-        difficulty: 'Casual',
-        icon: Icons.spellcheck_rounded,
-        accentColor: QuantColors.emeraldMatrix,
+        roundCountdownSeconds: 60,
+        liveScoreTicker: 4100,
       ),
     ];
   }
@@ -469,16 +584,25 @@ class WaveMockData {
         creditsWon: 31800,
         winStreak: 11,
         avatarColor: QuantColors.emeraldMatrix,
-        gameSpecialty: 'Quant Trivia Arena',
+        gameSpecialty: 'Trivia Blitz',
       ),
       GameLeaderboardEntry(
         rank: 4,
+        username: 'ShadowWolf',
+        handle: '@shadow_wolf',
+        creditsWon: 27900,
+        winStreak: 9,
+        avatarColor: QuantColors.crimsonRed,
+        gameSpecialty: 'Werewolf',
+      ),
+      GameLeaderboardEntry(
+        rank: 5,
         username: 'WordCipher',
         handle: '@word_cipher',
         creditsWon: 24600,
         winStreak: 8,
         avatarColor: QuantColors.obsidianPurple,
-        gameSpecialty: 'Word Duel Arena',
+        gameSpecialty: 'Word Clue',
       ),
     ];
   }

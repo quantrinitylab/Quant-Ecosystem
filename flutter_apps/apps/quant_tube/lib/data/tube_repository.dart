@@ -78,6 +78,14 @@ class TubeRepository {
     return all.where((v) => v.category.toLowerCase() == category.toLowerCase()).toList();
   }
 
+  /// Public Unauthenticated Feed Fallback:
+  /// Guarantees guest visitors without auth tokens never encounter 401 errors.
+  static List<VideoItem> getPublicUnauthenticatedFeed({String category = 'All'}) {
+    final publicItems = _allVideos.where((v) => v.isPublicFeed).toList();
+    if (category == 'All') return publicItems;
+    return publicItems.where((v) => v.category.toLowerCase() == category.toLowerCase()).toList();
+  }
+
   static VideoItem? getVideoById(String id) {
     try {
       return _allVideos.firstWhere((v) => v.id == id);
@@ -88,6 +96,21 @@ class TubeRepository {
 
   static List<VideoItem> getRecommendedVideos(String currentVideoId) {
     return _allVideos.where((v) => v.id != currentVideoId).toList();
+  }
+
+  static ChannelProfile getChannelProfile(String handle) {
+    return ChannelProfile(
+      id: 'ch-quantrinity',
+      name: 'Quantrinity Sovereign Tech',
+      handle: handle.isEmpty ? '@quantrinity' : handle,
+      avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=200',
+      bannerUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=1200',
+      subscribersCount: 2450000,
+      isVerified: true,
+      description: 'Sovereign decentralization, 120Hz Impeller streaming, AI Swarms, and peer-to-peer protocols.',
+      publicVideos: _allVideos,
+      allowUnauthenticatedAccess: true,
+    );
   }
 
   static List<VideoComment> getCommentsForVideo(String videoId) {
@@ -226,6 +249,7 @@ class TubeRepository {
       dislikesCount: 420,
       description: 'Complete breakdown of QuanTube architecture: Segment-Skipping (SponsorBlock parity), hardware decoders, PiP support, zero clipPath 120Hz Impeller rendering, and peer-to-peer streaming distribution.',
       commentsCount: 2840,
+      isPublicFeed: true,
       segments: [
         VideoSegment(
           id: 'seg-1-intro',
@@ -240,7 +264,15 @@ class TubeRepository {
           title: 'Sponsor: NordVPN / Cloud Hosting',
           startSeconds: 85,
           endSeconds: 125,
-          type: SegmentType.sponsor,
+          type: SegmentType.sponsor, // #F59E0B
+          autoSkip: true,
+        ),
+        VideoSegment(
+          id: 'seg-1-selfpromo',
+          title: 'Self-Promo: Join Sovereign Swarm Devs',
+          startSeconds: 190,
+          endSeconds: 215,
+          type: SegmentType.selfPromo, // #3B82F6
           autoSkip: true,
         ),
         VideoSegment(
@@ -250,6 +282,14 @@ class TubeRepository {
           endSeconds: 310,
           type: SegmentType.highlight,
           autoSkip: false,
+        ),
+        VideoSegment(
+          id: 'seg-1-intermission',
+          title: 'Intermission: Code Compilation Break',
+          startSeconds: 420,
+          endSeconds: 445,
+          type: SegmentType.intermission, // #10B981
+          autoSkip: true,
         ),
         VideoSegment(
           id: 'seg-1-outro',
@@ -278,6 +318,7 @@ class TubeRepository {
       dislikesCount: 190,
       description: 'Deep dive into Tripartite Swarm orchestration across Node A, Node B, Node C, and Notion AI Swarm. Zero-hallucination protocols, self-critique loops, and live dispatch ledgers.',
       commentsCount: 1540,
+      isPublicFeed: true,
       segments: [
         VideoSegment(
           id: 'seg-2-sponsor',
@@ -285,6 +326,14 @@ class TubeRepository {
           startSeconds: 120,
           endSeconds: 165,
           type: SegmentType.sponsor,
+          autoSkip: true,
+        ),
+        VideoSegment(
+          id: 'seg-2-selfpromo',
+          title: 'Self-Promo: Astra Model Hub',
+          startSeconds: 320,
+          endSeconds: 345,
+          type: SegmentType.selfPromo,
           autoSkip: true,
         ),
       ],
@@ -306,6 +355,7 @@ class TubeRepository {
       dislikesCount: 850,
       description: 'Full ray-traced benchmark analysis running on RTX 5090. Nanite geometry density, Lumen global illumination, and direct hardware frame generation comparison.',
       commentsCount: 4120,
+      isPublicFeed: true,
       segments: [
         VideoSegment(
           id: 'seg-3-sponsor',
@@ -313,6 +363,14 @@ class TubeRepository {
           startSeconds: 180,
           endSeconds: 220,
           type: SegmentType.sponsor,
+          autoSkip: true,
+        ),
+        VideoSegment(
+          id: 'seg-3-intermission',
+          title: 'Intermission: Raytracing Load Phase',
+          startSeconds: 520,
+          endSeconds: 545,
+          type: SegmentType.intermission,
           autoSkip: true,
         ),
       ],
@@ -334,6 +392,7 @@ class TubeRepository {
       dislikesCount: 110,
       description: 'How QuanTube delivers 24-bit/192kHz FLAC streaming with synchronized millisecond lyrics, turntable analog warmth DSP, and background low-power hardware decoders.',
       commentsCount: 960,
+      isPublicFeed: true,
       segments: [],
     ),
     const VideoItem(
@@ -353,6 +412,7 @@ class TubeRepository {
       dislikesCount: 90,
       description: 'Content-Defined Chunking using FastCDC algorithm: gear hash matrix, 64KB normalized target size, BLAKE3 content addressing, and client-side ChaCha20-Poly1305 encryption.',
       commentsCount: 1320,
+      isPublicFeed: true,
       segments: [
         VideoSegment(
           id: 'seg-5-sponsor',

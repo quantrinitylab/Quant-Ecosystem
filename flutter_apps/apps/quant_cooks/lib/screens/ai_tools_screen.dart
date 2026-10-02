@@ -7,13 +7,14 @@ import '../models/cooks_models.dart';
 /// AI Video & Audio Creation Tools Screen.
 ///
 /// Features:
-/// 1. Text-to-Video Synthesis (Sora & Gen-3 diffusion prompt runner)
-/// 2. Auto-Captions with Animated Kinetic Typography (Whisper V3 sync)
-/// 3. Background Remover / Magic Green Screen (Neural rotoscoping & alpha matte)
-/// 4. Voice Enhancer / Studio Noise Cleaner (Sub-10ms denoiser & de-reverb)
+/// 1. Kinetic Captions Generator with word-level speech-to-text sync & typography presets (Pop-Up, Neon Glow, Typewriter)
+/// 2. Auto Silence Remover (Voice Activity Detection & dead space cutting)
+/// 3. Text-to-Video Synthesis (Sora & Gen-3 diffusion prompt runner)
+/// 4. Background Remover / Magic Green Screen (Neural rotoscoping & alpha matte)
+/// 5. Voice Enhancer / Studio Noise Cleaner (Sub-10ms denoiser & de-reverb)
 ///
 /// Strictly ZERO raw Unicode emojis throughout this screen.
-/// Strictly ZERO Skia clipPath calls (120Hz Impeller acceleration).
+/// Strictly ZERO Skia clipPath calls (pure 120Hz Impeller acceleration).
 class AiToolsScreen extends StatefulWidget {
   final Function(String toolTitle)? onApplyToolResult;
 
@@ -24,24 +25,41 @@ class AiToolsScreen extends StatefulWidget {
 }
 
 class _AiToolsScreenState extends State<AiToolsScreen> {
-  int _selectedToolIndex = 0;
+  int _selectedToolIndex = 1; // Default to Kinetic Captions
   final TextEditingController _promptController = TextEditingController(
-    text: 'Cinematic hyperlapse of neon cyberpunk metropolis with flying taxis and rain reflections 4K 60fps',
+    text:
+        'Cinematic hyperlapse of neon cyberpunk metropolis with flying taxis and rain reflections 4K 60fps',
   );
 
   bool _isGenerating = false;
   double _generationProgress = 0.0;
   String _activeToolStatus = 'Idle';
 
-  // Kinetic Caption styles
-  int _selectedCaptionStyle = 0;
-  final List<String> _captionStyles = const [
-    'Kinetic Bounce',
-    'Neon Cyber Glow',
-    'Highlighter Pill',
-    'Karaoke Fill',
-    'Retro Typewriter',
+  // Kinetic Caption Animated Typography Presets
+  int _selectedCaptionPresetIndex = 0;
+  final List<KineticCaptionPreset> _typographyPresets = const [
+    KineticCaptionPreset.popUp,
+    KineticCaptionPreset.neonGlow,
+    KineticCaptionPreset.typewriter,
   ];
+
+  // Sample word-level sync tokens for kinetic captions visualizer
+  final List<KineticWordSync> _sampleSyncedWords = const [
+    KineticWordSync(word: 'TRANSFORM', startMs: 0, endMs: 800),
+    KineticWordSync(word: 'YOUR', startMs: 800, endMs: 1400),
+    KineticWordSync(word: 'WORKFLOW', startMs: 1400, endMs: 2400),
+    KineticWordSync(word: 'WITH', startMs: 2400, endMs: 2900),
+    KineticWordSync(word: '120HZ', startMs: 2900, endMs: 3800),
+    KineticWordSync(word: 'IMPELLER', startMs: 3800, endMs: 5000),
+  ];
+  int _activeWordIndex = 2;
+
+  // Auto Silence Remover Settings
+  double _silenceThresholdDb = -32.0;
+  double _minSilenceDurationMs = 350.0;
+  double _paddingBufferMs = 45.0;
+  int _detectedSilencesCount = 14;
+  double _savedDurationSeconds = 4.2;
 
   // Background Remover Settings
   double _featherEdge = 1.8;
@@ -68,20 +86,21 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
     setState(() {
       _isGenerating = true;
       _generationProgress = 0.0;
-      _activeToolStatus = 'Initializing Neural Pipeline...';
+      _activeToolStatus = 'Initializing Neural Tensor Pipeline...';
     });
 
     for (int i = 1; i <= 10; i++) {
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 140));
       if (!mounted) return;
       setState(() {
         _generationProgress = i / 10.0;
         if (i < 4) {
           _activeToolStatus = 'Allocating MediaCodec Tensor Cores...';
         } else if (i < 8) {
-          _activeToolStatus = 'Synthesizing 60fps Frames & Diffusion Tokens...';
+          _activeToolStatus =
+              'Synthesizing 60fps Frames & Word-Level Tokens...';
         } else {
-          _activeToolStatus = 'Finalizing Multi-Track Asset Insertion...';
+          _activeToolStatus = 'Finalizing Multi-Track Studio Insertion...';
         }
       });
     }
@@ -98,7 +117,7 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
       SnackBar(
         backgroundColor: QuantColors.darkSlateCard,
         content: Text(
-          '$toolName generated successfully and appended to timeline.',
+          '$toolName generated successfully and synchronized with timeline.',
           style: const TextStyle(color: QuantColors.textPrimary),
         ),
         duration: const Duration(seconds: 2),
@@ -109,7 +128,7 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
   @override
   Widget build(BuildContext context) {
     final aiTools = CooksRepository.getAiTools();
-    final activeTool = aiTools[_selectedToolIndex];
+    final activeTool = aiTools[_selectedToolIndex.clamp(0, aiTools.length - 1)];
 
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
@@ -136,10 +155,12 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                     const SizedBox(height: 20),
 
                     // Specific Tool Interactive Controls
-                    if (activeTool.type == AiToolType.textToVideo)
+                    if (activeTool.type == AiToolType.autoCaptions)
+                      _buildKineticCaptionsGeneratorControls()
+                    else if (activeTool.type == AiToolType.autoSilenceRemover)
+                      _buildAutoSilenceRemoverControls()
+                    else if (activeTool.type == AiToolType.textToVideo)
                       _buildTextToVideoControls()
-                    else if (activeTool.type == AiToolType.autoCaptions)
-                      _buildAutoCaptionsControls()
                     else if (activeTool.type == AiToolType.backgroundRemover)
                       _buildBackgroundRemoverControls()
                     else if (activeTool.type == AiToolType.voiceEnhancer)
@@ -180,7 +201,10 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                 height: 36,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [QuantColors.obsidianPurple, QuantColors.sovereignCyan],
+                    colors: [
+                      QuantColors.obsidianPurple,
+                      QuantColors.sovereignCyan
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -203,7 +227,7 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                     ),
                   ),
                   Text(
-                    'Sora & Whisper V3 Neural Core',
+                    'Sora, Whisper V3 & Kinetic Typography',
                     style: QuantTypography.microCapsule.copyWith(
                       color: QuantColors.textSecondary,
                     ),
@@ -234,7 +258,7 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                 ),
                 const SizedBox(width: 6),
                 const Text(
-                  '120Hz ONLINE',
+                  '120HZ ONLINE',
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -303,8 +327,10 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                       tool.title,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        color: isSelected ? Colors.white : QuantColors.textSecondary,
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        color:
+                            isSelected ? Colors.white : QuantColors.textSecondary,
                       ),
                     ),
                   ],
@@ -346,18 +372,22 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      tool.title,
-                      style: QuantTypography.titleMedium.copyWith(
-                        fontWeight: FontWeight.w800,
+                    Expanded(
+                      child: Text(
+                        tool.title,
+                        style: QuantTypography.titleMedium.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: tool.accentColor.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: tool.accentColor.withOpacity(0.3)),
+                        border:
+                            Border.all(color: tool.accentColor.withOpacity(0.3)),
                       ),
                       child: Text(
                         tool.badgeText,
@@ -394,6 +424,414 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
     );
   }
 
+  /// Kinetic Captions Generator Controls with Animated Typography Presets (Pop-Up, Neon Glow, Typewriter)
+  /// and Word-Level Speech-to-Text Sync.
+  Widget _buildKineticCaptionsGeneratorControls() {
+    final activePreset = _typographyPresets[_selectedCaptionPresetIndex];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'ANIMATED TYPOGRAPHY PRESETS',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: QuantColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: _typographyPresets.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final preset = entry.value;
+            final isSelected = _selectedCaptionPresetIndex == idx;
+
+            return Expanded(
+              child: Container(
+                margin: const EdgeInsets.only(right: 6),
+                child: InkWell(
+                  onTap: () =>
+                      setState(() => _selectedCaptionPresetIndex = idx),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? QuantColors.moltenAmber.withOpacity(0.18)
+                          : QuantColors.darkSlateCard,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected
+                            ? QuantColors.moltenAmber
+                            : QuantColors.hairlineBorder,
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Icon(
+                              preset.icon,
+                              size: 16,
+                              color: isSelected
+                                  ? QuantColors.moltenAmber
+                                  : QuantColors.textMuted,
+                            ),
+                            if (isSelected)
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 12,
+                                color: QuantColors.moltenAmber,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          preset.label,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white
+                                : QuantColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          preset.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 8,
+                            color: QuantColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+
+        const SizedBox(height: 18),
+
+        // Live Animated Kinetic Typography Preview Card
+        const Text(
+          'WORD-LEVEL SPEECH-TO-TEXT SYNC PREVIEW',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            color: QuantColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 110,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: QuantColors.voidObsidian,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: QuantColors.moltenAmber.withOpacity(0.4)),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Animated preview word with active style
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Text(
+                  _sampleSyncedWords[_activeWordIndex].word,
+                  key: ValueKey<int>(_activeWordIndex),
+                  style: activePreset == KineticCaptionPreset.neonGlow
+                      ? const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                          color: QuantColors.sovereignCyan,
+                          shadows: [
+                            Shadow(
+                              color: QuantColors.sovereignCyan,
+                              blurRadius: 18,
+                            ),
+                          ],
+                        )
+                      : (activePreset == KineticCaptionPreset.popUp
+                          ? const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                              color: QuantColors.moltenAmber,
+                            )
+                          : const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2.0,
+                              color: Colors.white,
+                            )),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Word timestamps sequence strip
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _sampleSyncedWords.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final w = entry.value;
+                    final isWordActive = _activeWordIndex == idx;
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _activeWordIndex = idx),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: isWordActive
+                              ? QuantColors.moltenAmber
+                              : QuantColors.darkSlateCard,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '${w.word} (${(w.startMs / 1000).toStringAsFixed(1)}s)',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: isWordActive
+                                ? QuantColors.voidObsidian
+                                : QuantColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Whisper V3 Telemetry Info
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: QuantColors.darkSlateCard,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: QuantColors.hairlineBorder),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.mic_none_rounded,
+                  color: QuantColors.statusSuccess, size: 18),
+              SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Whisper V3 Word-Level Sync Active',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: QuantColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Sub-5ms phoneme alignment across 52 sovereign languages',
+                      style: TextStyle(
+                          fontSize: 10, color: QuantColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Auto Silence Remover Controls (Voice Activity Detection & Pause Trimming)
+  Widget _buildAutoSilenceRemoverControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Silence Threshold Slider
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'SILENCE DECIBEL THRESHOLD',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: QuantColors.textMuted,
+              ),
+            ),
+            Text(
+              '${_silenceThresholdDb.toStringAsFixed(0)} dB',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: QuantColors.statusSuccess,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _silenceThresholdDb,
+          min: -50.0,
+          max: -15.0,
+          divisions: 35,
+          activeColor: QuantColors.statusSuccess,
+          inactiveColor: QuantColors.hairlineBorder,
+          onChanged: (val) => setState(() => _silenceThresholdDb = val),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Minimum Silence Duration Slider
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'MINIMUM PAUSE DURATION',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: QuantColors.textMuted,
+              ),
+            ),
+            Text(
+              '${_minSilenceDurationMs.toStringAsFixed(0)} ms',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: QuantColors.sovereignCyan,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _minSilenceDurationMs,
+          min: 150.0,
+          max: 1000.0,
+          divisions: 17,
+          activeColor: QuantColors.sovereignCyan,
+          inactiveColor: QuantColors.hairlineBorder,
+          onChanged: (val) => setState(() => _minSilenceDurationMs = val),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Buffer Padding Slider
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'VOICE CUSHION PADDING',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: QuantColors.textMuted,
+              ),
+            ),
+            Text(
+              '${_paddingBufferMs.toStringAsFixed(0)} ms',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: QuantColors.moltenAmber,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _paddingBufferMs,
+          min: 10.0,
+          max: 100.0,
+          divisions: 9,
+          activeColor: QuantColors.moltenAmber,
+          inactiveColor: QuantColors.hairlineBorder,
+          onChanged: (val) => setState(() => _paddingBufferMs = val),
+        ),
+
+        const SizedBox(height: 14),
+
+        // Telemetry Summary Card: Dead Air Detected
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: QuantColors.voidObsidian,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: QuantColors.hairlineBorder),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: QuantColors.statusSuccess.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.content_cut_rounded,
+                  size: 18,
+                  color: QuantColors.statusSuccess,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Detected $_detectedSilencesCount dead air segments',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: QuantColors.textPrimary,
+                      ),
+                    ),
+                    Text(
+                      'Will trim ~${_savedDurationSeconds}s of dead silence and tighten pacing',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: QuantColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildTextToVideoControls() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,7 +861,8 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
               height: 1.4,
             ),
             decoration: const InputDecoration(
-              hintText: 'Describe scene, lighting, camera movement, and aesthetic...',
+              hintText:
+                  'Describe scene, lighting, camera movement, and aesthetic...',
               hintStyle: TextStyle(color: QuantColors.textMuted, fontSize: 13),
               contentPadding: EdgeInsets.all(14),
               border: InputBorder.none,
@@ -445,95 +884,11 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
           children: [
             _buildPresetChip('Orbital Drone', Icons.flight_takeoff_rounded, true),
             const SizedBox(width: 8),
-            _buildPresetChip('Crane Down', Icons.vertical_align_bottom_rounded, false),
+            _buildPresetChip(
+                'Crane Down', Icons.vertical_align_bottom_rounded, false),
             const SizedBox(width: 8),
             _buildPresetChip('Push In 4K', Icons.zoom_in_rounded, false),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAutoCaptionsControls() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'ANIMATED KINETIC TYPOGRAPHY STYLE',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.8,
-            color: QuantColors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: List.generate(_captionStyles.length, (idx) {
-            final isSelected = _selectedCaptionStyle == idx;
-            return InkWell(
-              onTap: () => setState(() => _selectedCaptionStyle = idx),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? QuantColors.moltenAmber.withOpacity(0.2)
-                      : QuantColors.darkSlateCard,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? QuantColors.moltenAmber
-                        : QuantColors.hairlineBorder,
-                  ),
-                ),
-                child: Text(
-                  _captionStyles[idx],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                    color: isSelected ? QuantColors.moltenAmber : QuantColors.textSecondary,
-                  ),
-                ),
-              ),
-            );
-          }),
-        ),
-        const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: QuantColors.voidObsidian,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: QuantColors.hairlineBorder),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.mic_none_rounded, color: QuantColors.statusSuccess, size: 20),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Whisper V3 Word-Level Sync',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: QuantColors.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      '99.4% precision with sub-5ms latency across 52 languages',
-                      style: TextStyle(fontSize: 11, color: QuantColors.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ],
     );
@@ -595,7 +950,8 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                 onTap: () => setState(() => _selectedBackdrop = idx),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? QuantColors.obsidianPurple.withOpacity(0.18)
@@ -623,8 +979,11 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                         _backdrops[idx],
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          color: isSelected ? Colors.white : QuantColors.textSecondary,
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w500,
+                          color: isSelected
+                              ? Colors.white
+                              : QuantColors.textSecondary,
                         ),
                       ),
                     ],
@@ -719,7 +1078,7 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
         children: [
           Icon(tool.icon, size: 36, color: tool.accentColor),
           const SizedBox(height: 10),
-          Text(
+          const Text(
             'One-Tap Automated AI Pipeline',
             style: QuantTypography.titleMedium,
           ),
@@ -754,7 +1113,9 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
           Icon(
             icon,
             size: 14,
-            color: isSelected ? QuantColors.sovereignCyan : QuantColors.textMuted,
+            color: isSelected
+                ? QuantColors.sovereignCyan
+                : QuantColors.textMuted,
           ),
           const SizedBox(width: 6),
           Text(
@@ -762,7 +1123,9 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected ? QuantColors.sovereignCyan : QuantColors.textSecondary,
+              color: isSelected
+                  ? QuantColors.sovereignCyan
+                  : QuantColors.textSecondary,
             ),
           ),
         ],
@@ -799,9 +1162,9 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                       '${(_generationProgress * 100).toInt()}%',
                       style: const TextStyle(
                         fontFamily: 'monospace',
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w800,
-                        color: QuantColors.statusSuccess,
+                        color: QuantColors.textPrimary,
                       ),
                     ),
                   ],
@@ -810,25 +1173,25 @@ class _AiToolsScreenState extends State<AiToolsScreen> {
                 LinearProgressIndicator(
                   value: _generationProgress,
                   backgroundColor: QuantColors.voidObsidian,
-                  valueColor: AlwaysStoppedAnimation<Color>(activeTool.accentColor),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    activeTool.accentColor,
+                  ),
                   minHeight: 6,
                   borderRadius: BorderRadius.circular(3),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
+        ] else ...[
+          SquircleButton(
+            label: 'Generate ${activeTool.title}',
+            isFullWidth: true,
+            backgroundColor: activeTool.accentColor,
+            textColor: QuantColors.voidObsidian,
+            icon: Icons.auto_awesome_rounded,
+            onPressed: () => _runAiGeneration(activeTool.title),
+          ),
         ],
-        SquircleButton(
-          label: _isGenerating
-              ? 'Synthesizing AI Neural Asset...'
-              : 'Execute ${activeTool.title} (Est. ${activeTool.estimatedSeconds}s)',
-          isFullWidth: true,
-          backgroundColor: activeTool.accentColor,
-          textColor: QuantColors.voidObsidian,
-          icon: activeTool.icon,
-          onPressed: _isGenerating ? null : () => _runAiGeneration(activeTool.title),
-        ),
       ],
     );
   }

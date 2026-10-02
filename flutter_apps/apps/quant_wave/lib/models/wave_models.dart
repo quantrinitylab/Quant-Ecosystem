@@ -1,8 +1,69 @@
 // Sovereign Quant Ecosystem - QuantWave Domain Models
 // Strictly ZERO raw Unicode emojis throughout this file.
-// Strictly ZERO Skia clipPath calls (120Hz Impeller & Skia acceleration).
+// Pure 120Hz Impeller & Skia hardware acceleration.
 
 import 'package:flutter/material.dart';
+
+/// Microblogging thread reply model (nested replies)
+class WaveThreadReply {
+  final String id;
+  final String authorName;
+  final String authorHandle;
+  final String authorInitials;
+  final Color avatarColor;
+  final bool isVerified;
+  final String timestamp;
+  final String content;
+  final int likeCount;
+  final bool isLiked;
+  final int depth;
+  final List<WaveThreadReply> nestedReplies;
+
+  const WaveThreadReply({
+    required this.id,
+    required this.authorName,
+    required this.authorHandle,
+    required this.authorInitials,
+    required this.avatarColor,
+    this.isVerified = false,
+    required this.timestamp,
+    required this.content,
+    this.likeCount = 0,
+    this.isLiked = false,
+    this.depth = 0,
+    this.nestedReplies = const [],
+  });
+
+  WaveThreadReply copyWith({
+    String? id,
+    String? authorName,
+    String? authorHandle,
+    String? authorInitials,
+    Color? avatarColor,
+    bool? isVerified,
+    String? timestamp,
+    String? content,
+    int? likeCount,
+    bool? isLiked,
+    int? depth,
+    List<WaveThreadReply>? nestedReplies,
+  }) {
+    return WaveThreadReply(
+      id: id ?? this.id,
+      authorName: authorName ?? this.authorName,
+      authorHandle: authorHandle ?? this.authorHandle,
+      authorInitials: authorInitials ?? this.authorInitials,
+      avatarColor: avatarColor ?? this.avatarColor,
+      isVerified: isVerified ?? this.isVerified,
+      timestamp: timestamp ?? this.timestamp,
+      content: content ?? this.content,
+      likeCount: likeCount ?? this.likeCount,
+      isLiked: isLiked ?? this.isLiked,
+      depth: depth ?? this.depth,
+      nestedReplies: nestedReplies ?? this.nestedReplies,
+    );
+  }
+}
 
 /// Microblogging post model (X / Twitter parity)
 class WavePost {
@@ -24,6 +85,9 @@ class WavePost {
   final bool isReposted;
   final bool isBookmarked;
   final WavePoll? poll;
+  final WavePost? quotedPost;
+  final List<WaveThreadReply> replies;
+  final List<String> hashtags;
 
   const WavePost({
     required this.id,
@@ -44,6 +108,9 @@ class WavePost {
     this.isReposted = false,
     this.isBookmarked = false,
     this.poll,
+    this.quotedPost,
+    this.replies = const [],
+    this.hashtags = const [],
   });
 
   WavePost copyWith({
@@ -65,6 +132,9 @@ class WavePost {
     bool? isReposted,
     bool? isBookmarked,
     WavePoll? poll,
+    WavePost? quotedPost,
+    List<WaveThreadReply>? replies,
+    List<String>? hashtags,
   }) {
     return WavePost(
       id: id ?? this.id,
@@ -85,6 +155,9 @@ class WavePost {
       isReposted: isReposted ?? this.isReposted,
       isBookmarked: isBookmarked ?? this.isBookmarked,
       poll: poll ?? this.poll,
+      quotedPost: quotedPost ?? this.quotedPost,
+      replies: replies ?? this.replies,
+      hashtags: hashtags ?? this.hashtags,
     );
   }
 }
@@ -300,6 +373,9 @@ class WaveSpaceRoom {
   final String? scheduledTime;
   final List<SpaceSpeaker> speakers;
   final List<SpaceListener> listeners;
+  final String? activeSpeakerId;
+  final List<String> raisedHandsQueue;
+  final bool isMicMuted;
 
   const WaveSpaceRoom({
     required this.id,
@@ -313,6 +389,9 @@ class WaveSpaceRoom {
     this.scheduledTime,
     this.speakers = const [],
     this.listeners = const [],
+    this.activeSpeakerId,
+    this.raisedHandsQueue = const [],
+    this.isMicMuted = false,
   });
 
   WaveSpaceRoom copyWith({
@@ -327,6 +406,9 @@ class WaveSpaceRoom {
     String? scheduledTime,
     List<SpaceSpeaker>? speakers,
     List<SpaceListener>? listeners,
+    String? activeSpeakerId,
+    List<String>? raisedHandsQueue,
+    bool? isMicMuted,
   }) {
     return WaveSpaceRoom(
       id: id ?? this.id,
@@ -340,6 +422,9 @@ class WaveSpaceRoom {
       scheduledTime: scheduledTime ?? this.scheduledTime,
       speakers: speakers ?? this.speakers,
       listeners: listeners ?? this.listeners,
+      activeSpeakerId: activeSpeakerId ?? this.activeSpeakerId,
+      raisedHandsQueue: raisedHandsQueue ?? this.raisedHandsQueue,
+      isMicMuted: isMicMuted ?? this.isMicMuted,
     );
   }
 }
@@ -431,7 +516,7 @@ class SpaceListener {
   }
 }
 
-/// Interactive Party Games Lobby (Uno, Trivia, Chess, Word Arena)
+/// Interactive Party Games Lobby (Uno, Trivia, Werewolf, Word Clue, Speed Chess)
 class LobbyGame {
   final String id;
   final String title;
@@ -445,6 +530,8 @@ class LobbyGame {
   final String difficulty;
   final IconData icon;
   final Color accentColor;
+  final int roundCountdownSeconds;
+  final int liveScoreTicker;
 
   const LobbyGame({
     required this.id,
@@ -459,7 +546,43 @@ class LobbyGame {
     required this.difficulty,
     required this.icon,
     required this.accentColor,
+    this.roundCountdownSeconds = 30,
+    this.liveScoreTicker = 1200,
   });
+
+  LobbyGame copyWith({
+    String? id,
+    String? title,
+    String? category,
+    String? description,
+    int? activeTables,
+    int? playersCount,
+    int? maxPlayers,
+    int? stakeCredits,
+    String? minRank,
+    String? difficulty,
+    IconData? icon,
+    Color? accentColor,
+    int? roundCountdownSeconds,
+    int? liveScoreTicker,
+  }) {
+    return LobbyGame(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      category: category ?? this.category,
+      description: description ?? this.description,
+      activeTables: activeTables ?? this.activeTables,
+      playersCount: playersCount ?? this.playersCount,
+      maxPlayers: maxPlayers ?? this.maxPlayers,
+      stakeCredits: stakeCredits ?? this.stakeCredits,
+      minRank: minRank ?? this.minRank,
+      difficulty: difficulty ?? this.difficulty,
+      icon: icon ?? this.icon,
+      accentColor: accentColor ?? this.accentColor,
+      roundCountdownSeconds: roundCountdownSeconds ?? this.roundCountdownSeconds,
+      liveScoreTicker: liveScoreTicker ?? this.liveScoreTicker,
+    );
+  }
 }
 
 class GameLeaderboardEntry {

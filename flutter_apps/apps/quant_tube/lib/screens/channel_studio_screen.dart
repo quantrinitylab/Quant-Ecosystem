@@ -48,6 +48,10 @@ class _ChannelStudioScreenState extends State<ChannelStudioScreen> {
                   _buildChannelSummaryHeader(),
                   const SizedBox(height: 16),
 
+                  // Public Unauthenticated Feed Fallback Card
+                  _buildPublicFeedFallbackBanner(),
+                  const SizedBox(height: 16),
+
                   // Quant Credits Revenue Meter Card
                   _buildRevenueMeterCard(),
                   const SizedBox(height: 16),
@@ -191,6 +195,48 @@ class _ChannelStudioScreenState extends State<ChannelStudioScreen> {
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                     color: QuantColors.statusSuccess,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPublicFeedFallbackBanner() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.5), width: 1),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.public_rounded, color: Color(0xFF10B981), size: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Public Feed Active (Zero 401 Authentication Barrier)',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: QuantColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Your channel videos are served via unauthenticated sovereign CDN edge. Guest visitors stream seamlessly without login prompts or 401 errors.',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: QuantColors.textMuted,
+                    height: 1.35,
                   ),
                 ),
               ],

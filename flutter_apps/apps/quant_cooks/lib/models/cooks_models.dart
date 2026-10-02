@@ -40,8 +40,16 @@ enum AspectRatioMode {
   final IconData icon;
 }
 
-/// Resolution presets for timeline & 4K 60fps export engine.
+/// Resolution presets for timeline & 4K/8K 60fps export engine.
 enum ResolutionPreset {
+  k8_60fps(
+    label: '8K 60fps',
+    badge: '8K UHD',
+    width: 7680,
+    height: 4320,
+    fps: 60,
+    isUltra: true,
+  ),
   k4_60fps(
     label: '4K 60fps',
     badge: 'UHD 60',
@@ -100,11 +108,41 @@ enum ResolutionPreset {
   final bool isUltra;
 }
 
+/// Professional color profile presets for master cinema grading.
+enum ColorProfilePreset {
+  rec709(
+    label: 'Rec.709',
+    badge: 'Broadcast Standard',
+    description: 'Standard Dynamic Range (SDR) for Universal Displays',
+  ),
+  dciP3(
+    label: 'DCI-P3',
+    badge: 'Cinema Wide Gamut',
+    description: 'Wide Color Gamut Cinema Profile with Extended Range',
+  ),
+  appleLog(
+    label: 'Apple Log',
+    badge: 'ProRes 12-Bit Log',
+    description: 'Direct Camera Sensor Dynamic Range with 12-Bit Grayscale',
+  );
+
+  const ColorProfilePreset({
+    required this.label,
+    required this.badge,
+    required this.description,
+  });
+
+  final String label;
+  final String badge;
+  final String description;
+}
+
 /// Track classification in the multi-track timeline engine.
 enum TrackType {
   video(label: 'Video Master', icon: Icons.videocam_rounded),
   broll(label: 'B-Roll Overlay', icon: Icons.layers_rounded),
-  audio(label: 'Music Bed', icon: Icons.music_note_rounded),
+  audio(label: 'Background Music', icon: Icons.music_note_rounded),
+  sfx(label: 'Sound Effects (SFX)', icon: Icons.graphic_eq_rounded),
   voiceover(label: 'Voice / Mic', icon: Icons.mic_rounded),
   captions(label: 'Kinetic Captions', icon: Icons.subtitles_rounded),
   effects(label: 'VFX & Filters', icon: Icons.auto_awesome_rounded);
@@ -112,6 +150,50 @@ enum TrackType {
   const TrackType({required this.label, required this.icon});
 
   final String label;
+  final IconData icon;
+}
+
+/// Word-level sync unit for Kinetic Captions.
+class KineticWordSync {
+  final String word;
+  final int startMs;
+  final int endMs;
+  final double confidence;
+
+  const KineticWordSync({
+    required this.word,
+    required this.startMs,
+    required this.endMs,
+    this.confidence = 0.99,
+  });
+}
+
+/// Animated typography style presets for Kinetic Captions.
+enum KineticCaptionPreset {
+  popUp(
+    label: 'Pop-Up',
+    description: 'Dynamic scale spring animation per active word',
+    icon: Icons.open_in_full_rounded,
+  ),
+  neonGlow(
+    label: 'Neon Glow',
+    description: 'High-energy cyberpunk lumen glow with active color fill',
+    icon: Icons.wb_incandescent_rounded,
+  ),
+  typewriter(
+    label: 'Typewriter',
+    description: 'Mechanical letter-by-letter kinetic stream with cursor',
+    icon: Icons.keyboard_rounded,
+  );
+
+  const KineticCaptionPreset({
+    required this.label,
+    required this.description,
+    required this.icon,
+  });
+
+  final String label;
+  final String description;
   final IconData icon;
 }
 
@@ -130,6 +212,10 @@ class TimelineClip {
   final String assetUrl;
   final String? transitionName;
   final List<double>? waveformPeaks;
+  final List<double>? volumeEnvelopePoints;
+  final List<int>? cueMarkersMs;
+  final List<KineticWordSync>? kineticWords;
+  final List<String>? thumbnailFrames;
 
   const TimelineClip({
     required this.id,
@@ -145,6 +231,10 @@ class TimelineClip {
     required this.assetUrl,
     this.transitionName,
     this.waveformPeaks,
+    this.volumeEnvelopePoints,
+    this.cueMarkersMs,
+    this.kineticWords,
+    this.thumbnailFrames,
   });
 
   int get effectiveDurationMs =>
@@ -164,6 +254,10 @@ class TimelineClip {
     String? assetUrl,
     String? transitionName,
     List<double>? waveformPeaks,
+    List<double>? volumeEnvelopePoints,
+    List<int>? cueMarkersMs,
+    List<KineticWordSync>? kineticWords,
+    List<String>? thumbnailFrames,
   }) {
     return TimelineClip(
       id: id ?? this.id,
@@ -179,6 +273,10 @@ class TimelineClip {
       assetUrl: assetUrl ?? this.assetUrl,
       transitionName: transitionName ?? this.transitionName,
       waveformPeaks: waveformPeaks ?? this.waveformPeaks,
+      volumeEnvelopePoints: volumeEnvelopePoints ?? this.volumeEnvelopePoints,
+      cueMarkersMs: cueMarkersMs ?? this.cueMarkersMs,
+      kineticWords: kineticWords ?? this.kineticWords,
+      thumbnailFrames: thumbnailFrames ?? this.thumbnailFrames,
     );
   }
 }
@@ -190,6 +288,7 @@ class TimelineTrack {
   final TrackType type;
   final List<TimelineClip> clips;
   final bool isMuted;
+  final bool isSoloed;
   final bool isLocked;
   final bool isHidden;
   final double volume;
@@ -200,6 +299,7 @@ class TimelineTrack {
     required this.type,
     required this.clips,
     this.isMuted = false,
+    this.isSoloed = false,
     this.isLocked = false,
     this.isHidden = false,
     this.volume = 1.0,
@@ -221,6 +321,7 @@ class TimelineTrack {
     TrackType? type,
     List<TimelineClip>? clips,
     bool? isMuted,
+    bool? isSoloed,
     bool? isLocked,
     bool? isHidden,
     double? volume,
@@ -231,6 +332,7 @@ class TimelineTrack {
       type: type ?? this.type,
       clips: clips ?? this.clips,
       isMuted: isMuted ?? this.isMuted,
+      isSoloed: isSoloed ?? this.isSoloed,
       isLocked: isLocked ?? this.isLocked,
       isHidden: isHidden ?? this.isHidden,
       volume: volume ?? this.volume,
@@ -350,23 +452,29 @@ class TimelineProject {
 
 /// Render engine export formats.
 enum ExportFormat {
+  appleProRes(
+    label: 'Apple ProRes 422 HQ',
+    codec: 'prores_ks',
+    extension: 'mov',
+    badge: 'ProRes 422HQ Studio Master',
+  ),
   mp4H265(
-    label: 'MP4 (H.265 / HEVC)',
+    label: 'H.265 HEVC',
     codec: 'hevc_nvenc',
     extension: 'mp4',
-    badge: 'Hardware 10-Bit',
+    badge: 'Hardware 10-Bit HEVC',
+  ),
+  av1(
+    label: 'AV1 Next-Gen',
+    codec: 'libsvtav1',
+    extension: 'mp4',
+    badge: 'AV1 Sovereign Master',
   ),
   mp4H264(
     label: 'MP4 (H.264 Universal)',
     codec: 'h264_mediacodec',
     extension: 'mp4',
     badge: 'Universal Web',
-  ),
-  appleProRes(
-    label: 'Apple ProRes 422 HQ',
-    codec: 'prores_ks',
-    extension: 'mov',
-    badge: 'Studio Master',
   ),
   animatedGif(
     label: 'Animated GIF (60fps)',
@@ -392,6 +500,7 @@ enum ExportFormat {
 class ExportSettings {
   final ExportFormat format;
   final ResolutionPreset resolution;
+  final ColorProfilePreset colorProfile;
   final int bitrateMbps;
   final int audioBitrateKbps;
   final String hardwareEngine;
@@ -401,16 +510,22 @@ class ExportSettings {
   const ExportSettings({
     required this.format,
     required this.resolution,
+    this.colorProfile = ColorProfilePreset.rec709,
     this.bitrateMbps = 45,
     this.audioBitrateKbps = 320,
-    this.hardwareEngine = 'MediaCodec / NVENC Hybrid Engine',
+    this.hardwareEngine = 'MediaCodec / NVENC / VideoToolbox Hybrid Engine',
     this.enableColorGradingLut = true,
     this.twoPassEncoding = true,
   });
 
   double estimateFileSizeMb(int durationMs) {
     final durationSeconds = durationMs / 1000.0;
-    final totalBitrateBitsPerSec = (bitrateMbps * 1000000) + (audioBitrateKbps * 1000);
+    // ProRes uses elevated bitrates (~220 Mbps for 4K)
+    final effectiveBitrateMbps = format == ExportFormat.appleProRes
+        ? (bitrateMbps < 150 ? 220 : bitrateMbps)
+        : bitrateMbps;
+    final totalBitrateBitsPerSec =
+        (effectiveBitrateMbps * 1000000) + (audioBitrateKbps * 1000);
     final totalBytes = (totalBitrateBitsPerSec * durationSeconds) / 8.0;
     return totalBytes / (1024 * 1024);
   }
@@ -418,6 +533,7 @@ class ExportSettings {
   ExportSettings copyWith({
     ExportFormat? format,
     ResolutionPreset? resolution,
+    ColorProfilePreset? colorProfile,
     int? bitrateMbps,
     int? audioBitrateKbps,
     String? hardwareEngine,
@@ -427,6 +543,7 @@ class ExportSettings {
     return ExportSettings(
       format: format ?? this.format,
       resolution: resolution ?? this.resolution,
+      colorProfile: colorProfile ?? this.colorProfile,
       bitrateMbps: bitrateMbps ?? this.bitrateMbps,
       audioBitrateKbps: audioBitrateKbps ?? this.audioBitrateKbps,
       hardwareEngine: hardwareEngine ?? this.hardwareEngine,
@@ -440,6 +557,7 @@ class ExportSettings {
 enum AiToolType {
   textToVideo,
   autoCaptions,
+  autoSilenceRemover,
   backgroundRemover,
   voiceEnhancer,
   colorMatch,
