@@ -106,7 +106,7 @@ export interface SendMessageInput {
 export class MessageService {
   private readonly outbox: OutboxService;
   private readonly streaks: StreakService;
-  private readonly storage: StorageClient;
+  private readonly storage: StorageClient | null;
 
   /**
    * @param prisma  Prisma client used for all persistence.
@@ -127,7 +127,33 @@ export class MessageService {
   ) {
     this.outbox = outbox ?? new PrismaOutboxService(prisma);
     this.streaks = streaks ?? new StreakService(prisma as never);
-    this.storage = storage ?? new StorageClient(resolveStorageConfigFromEnv());
+    if (storage) {
+      this.storage = storage;
+    } else {
+      const storageConfig = resolveStorageConfigFromEnv();
+      if (storageConfig) {
+        this.storage = new StorageClient(storageConfig);
+      } else {
+        // Optional storage: warn at startup, fail 503 on use — never crash boot.
+        console.warn(
+          '[quantchat] object storage not configured \u2014 media uploads disabled ' +
+            '(set S3/R2 env vars)',
+        );
+        this.storage = null;
+      }
+    }
+  }
+
+  /** Fail-closed storage guard: 503 STORAGE_NOT_CONFIGURED, never a silent no-op. */
+  private requireStorage(): StorageClient {
+    if (!this.storage) {
+      throw createAppError(
+        'Object storage is not configured \u2014 set S3/R2 env vars',
+        503,
+        'STORAGE_NOT_CONFIGURED',
+      );
+    }
+    return this.storage;
   }
 
   /**
@@ -532,8 +558,9 @@ export class MessageService {
         );
       }
 
+      const storageClient = this.requireStorage();
       try {
-        return await this.storage.getSignedUrl(storageKey, 60);
+        return await storageClient.getSignedUrl(storageKey, 60);
       } catch (error: unknown) {
         throw createAppError(
           `Failed to mint ephemeral presigned URL: ${error instanceof Error ? error.message : 'Storage signing failure'}`,
@@ -609,8 +636,9 @@ export class MessageService {
     // Hard delete media payload from S3/storage and mark consumed
     const storageKey = extractStorageKey(rawMediaUrl);
     if (storageKey) {
+      const storageClient = this.requireStorage();
       try {
-        await this.storage.delete(storageKey);
+        await storageClient.delete(storageKey);
       } catch {
         // ignore deletion errors if already removed
       }

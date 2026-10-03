@@ -152,7 +152,18 @@ export class PersistenceAdapter {
       );
     } else {
       this.allowInlineFallback = false;
-      this.storage = new StorageClient(resolveStorageConfigFromEnv());
+      const storageConfig = resolveStorageConfigFromEnv();
+      if (storageConfig) {
+        this.storage = new StorageClient(storageConfig);
+      } else {
+        // Optional storage: snapshots degrade to a clear 503 instead of
+        // crashing process startup (the no-storage path below stays fail-closed).
+        console.warn(
+          '[quantmail] object storage not configured \u2014 collab snapshots disabled ' +
+            '(set S3/R2 env vars)',
+        );
+        this.storage = undefined;
+      }
     }
   }
 
