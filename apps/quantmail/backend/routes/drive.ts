@@ -131,6 +131,22 @@ function requireStorage(): void {
   if (!driveStorageReady())
     throw createAppError(driveStorageUnavailableReason(), 503, 'STORAGE_UNAVAILABLE');
 }
+/**
+ * Object storage via the generic R2/S3 resolver. Optional at startup like the
+ * rest of the storage layer: missing env fails the request with a clear 503
+ * instead of crashing the process or surfacing an opaque 500.
+ */
+function requireObjectStorage(): StorageClient {
+  const config = resolveStorageConfigFromEnv();
+  if (!config) {
+    throw createAppError(
+      'Object storage is not configured \u2014 set S3/R2 env vars',
+      503,
+      'STORAGE_NOT_CONFIGURED',
+    );
+  }
+  return new StorageClient(config);
+}
 function requireAiTextFile(file: { mimeType: string }): void {
   const mimeType = file.mimeType.split(';', 1)[0]?.trim().toLowerCase() ?? '';
   if (!mimeType.startsWith('text/') && !AI_TEXT_MIME_TYPES.has(mimeType)) {
@@ -1537,7 +1553,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       `multipart/${randomUUID()}-${safeFileName(parsed.data.name)}`,
     );
 
-    const storage = new StorageClient(resolveStorageConfigFromEnv());
+    const storage = requireObjectStorage();
     const { uploadId } = await storage.createMultipartUpload(
       storageKey,
       parsed.data.mimeType || 'application/octet-stream',
@@ -1561,7 +1577,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const parsed = multipartPartUrlSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
 
-      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      const storage = requireObjectStorage();
       const presignedUrl = await storage.getUploadPartPresignedUrl({
         key: parsed.data.key,
         uploadId: request.params.uploadId,
@@ -1583,7 +1599,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const parsed = completeMultipartSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
 
-      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      const storage = requireObjectStorage();
       const completeRes = await storage.completeMultipartUpload({
         key: parsed.data.key,
         uploadId: request.params.uploadId,
@@ -1643,7 +1659,7 @@ export default async function driveRoutes(fastify: FastifyInstance) {
       const parsed = abortMultipartSchema.safeParse(request.body);
       if (!parsed.success) throw parsed.error;
 
-      const storage = new StorageClient(resolveStorageConfigFromEnv());
+      const storage = requireObjectStorage();
       await storage.abortMultipartUpload({
         key: parsed.data.key,
         uploadId: request.params.uploadId,
