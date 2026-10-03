@@ -6,6 +6,7 @@ import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useModelSelector } from '../../hooks/useModelSelector';
 import { PROVIDER_COLORS } from '../../types/models';
+import { useBrandName } from '../../components/BrandProvider';
 
 const SUGGESTION_CARDS = [
   { id: 'email', label: 'Summarize my unread emails', icon: '📧', color: '#EF4444' },
@@ -23,6 +24,7 @@ const sidebarItems: SidebarItem[] = [
 ];
 
 export default function AskQuantPage() {
+  const brandName = useBrandName();
   const { currentModel } = useModelSelector();
   const [query, setQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,7 +66,7 @@ export default function AskQuantPage() {
   return (
     <AppShell
       sidebar={
-        <Sidebar items={sidebarItems} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />
+        <Sidebar items={sidebarItems} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />
       }
     >
       <AnimatedPage>
