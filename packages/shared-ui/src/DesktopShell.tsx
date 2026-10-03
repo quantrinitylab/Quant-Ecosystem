@@ -5,7 +5,7 @@
 // Amazon & Flipkart-parity 5-Pillar Squircle Mode Switcher & Dynamic Island
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -690,8 +690,10 @@ export const DesktopShell: React.FC<DesktopShellProps> = ({
 
       if (num >= 1 && num <= DESKTOP_PILLARS.length) {
         e.preventDefault();
-        const targetPillar = DESKTOP_PILLARS[num - 1].id;
-        handleSelectPillar(targetPillar);
+        const targetPillar = DESKTOP_PILLARS[num - 1];
+        if (targetPillar) {
+          handleSelectPillar(targetPillar.id);
+        }
       }
     };
 
@@ -700,7 +702,7 @@ export const DesktopShell: React.FC<DesktopShellProps> = ({
   }, [handleSelectPillar]);
 
   const activeConfig = useMemo(
-    () => DESKTOP_PILLARS.find((p) => p.id === activePillar) || DESKTOP_PILLARS[0],
+    () => DESKTOP_PILLARS.find((p) => p.id === activePillar) || DESKTOP_PILLARS[0]!,
     [activePillar],
   );
 
