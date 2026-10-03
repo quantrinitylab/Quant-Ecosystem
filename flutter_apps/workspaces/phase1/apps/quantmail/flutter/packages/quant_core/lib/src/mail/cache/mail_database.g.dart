@@ -1084,6 +1084,465 @@ class SyncStateCompanion extends UpdateCompanion<SyncStateEntry> {
   }
 }
 
+class $OutboxOperationsTable extends OutboxOperations
+    with TableInfo<$OutboxOperationsTable, OutboxOperation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $OutboxOperationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+      'op_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _actionMeta = const VerificationMeta('action');
+  @override
+  late final GeneratedColumn<String> action = GeneratedColumn<String>(
+      'action', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _emailIdsMeta =
+      const VerificationMeta('emailIds');
+  @override
+  late final GeneratedColumn<String> emailIds = GeneratedColumn<String>(
+      'email_ids', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payloadJsonMeta =
+      const VerificationMeta('payloadJson');
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+      'payload_json', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _idempotencyKeyMeta =
+      const VerificationMeta('idempotencyKey');
+  @override
+  late final GeneratedColumn<String> idempotencyKey = GeneratedColumn<String>(
+      'idempotency_key', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: true,
+      defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'));
+  static const VerificationMeta _createdAtEpochMeta =
+      const VerificationMeta('createdAtEpoch');
+  @override
+  late final GeneratedColumn<int> createdAtEpoch = GeneratedColumn<int>(
+      'created_at_epoch', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _attemptsMeta =
+      const VerificationMeta('attempts');
+  @override
+  late final GeneratedColumn<int> attempts = GeneratedColumn<int>(
+      'attempts', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+      'state', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('pending'));
+  @override
+  List<GeneratedColumn> get $columns => [
+        opId,
+        action,
+        emailIds,
+        payloadJson,
+        idempotencyKey,
+        createdAtEpoch,
+        attempts,
+        state
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'outbox_operations';
+  @override
+  VerificationContext validateIntegrity(Insertable<OutboxOperation> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('op_id')) {
+      context.handle(
+          _opIdMeta, opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta));
+    } else if (isInserting) {
+      context.missing(_opIdMeta);
+    }
+    if (data.containsKey('action')) {
+      context.handle(_actionMeta,
+          action.isAcceptableOrUnknown(data['action']!, _actionMeta));
+    } else if (isInserting) {
+      context.missing(_actionMeta);
+    }
+    if (data.containsKey('email_ids')) {
+      context.handle(_emailIdsMeta,
+          emailIds.isAcceptableOrUnknown(data['email_ids']!, _emailIdsMeta));
+    } else if (isInserting) {
+      context.missing(_emailIdsMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+          _payloadJsonMeta,
+          payloadJson.isAcceptableOrUnknown(
+              data['payload_json']!, _payloadJsonMeta));
+    }
+    if (data.containsKey('idempotency_key')) {
+      context.handle(
+          _idempotencyKeyMeta,
+          idempotencyKey.isAcceptableOrUnknown(
+              data['idempotency_key']!, _idempotencyKeyMeta));
+    } else if (isInserting) {
+      context.missing(_idempotencyKeyMeta);
+    }
+    if (data.containsKey('created_at_epoch')) {
+      context.handle(
+          _createdAtEpochMeta,
+          createdAtEpoch.isAcceptableOrUnknown(
+              data['created_at_epoch']!, _createdAtEpochMeta));
+    } else if (isInserting) {
+      context.missing(_createdAtEpochMeta);
+    }
+    if (data.containsKey('attempts')) {
+      context.handle(_attemptsMeta,
+          attempts.isAcceptableOrUnknown(data['attempts']!, _attemptsMeta));
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+          _stateMeta, state.isAcceptableOrUnknown(data['state']!, _stateMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {opId};
+  @override
+  OutboxOperation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return OutboxOperation(
+      opId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}op_id'])!,
+      action: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}action'])!,
+      emailIds: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}email_ids'])!,
+      payloadJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payload_json']),
+      idempotencyKey: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}idempotency_key'])!,
+      createdAtEpoch: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}created_at_epoch'])!,
+      attempts: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}attempts'])!,
+      state: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}state'])!,
+    );
+  }
+
+  @override
+  $OutboxOperationsTable createAlias(String alias) {
+    return $OutboxOperationsTable(attachedDatabase, alias);
+  }
+}
+
+class OutboxOperation extends DataClass implements Insertable<OutboxOperation> {
+  /// Client-generated uuid v4, primary key.
+  final String opId;
+
+  /// [OutboxAction] name (e.g. `markRead`) — the enum's `name`, NOT the
+  /// wire name; the drainer maps it to the wire action at send time.
+  final String action;
+
+  /// JSON array of target email ids, e.g. `["m1","m2"]`.
+  final String emailIds;
+
+  /// Optional JSON object of extra batch parameters (e.g.
+  /// `{"folderId": "...", "hard": true}` for delete). Nullable.
+  final String? payloadJson;
+
+  /// Dedupe key, unique: enqueue with an existing key is a no-op
+  /// (returns the existing op). Default shape is `"<threadId>:<action>"`.
+  final String idempotencyKey;
+
+  /// Enqueue time, milliseconds since epoch — the drain order.
+  final int createdAtEpoch;
+
+  /// Failed attempt count; the drainer escalates to `failed` past
+  /// [OutboxDrainer.maxAttempts] (poison-op guard).
+  final int attempts;
+
+  /// `pending` | `dispatched` | `failed`.
+  final String state;
+  const OutboxOperation(
+      {required this.opId,
+      required this.action,
+      required this.emailIds,
+      this.payloadJson,
+      required this.idempotencyKey,
+      required this.createdAtEpoch,
+      required this.attempts,
+      required this.state});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['op_id'] = Variable<String>(opId);
+    map['action'] = Variable<String>(action);
+    map['email_ids'] = Variable<String>(emailIds);
+    if (!nullToAbsent || payloadJson != null) {
+      map['payload_json'] = Variable<String>(payloadJson);
+    }
+    map['idempotency_key'] = Variable<String>(idempotencyKey);
+    map['created_at_epoch'] = Variable<int>(createdAtEpoch);
+    map['attempts'] = Variable<int>(attempts);
+    map['state'] = Variable<String>(state);
+    return map;
+  }
+
+  OutboxOperationsCompanion toCompanion(bool nullToAbsent) {
+    return OutboxOperationsCompanion(
+      opId: Value(opId),
+      action: Value(action),
+      emailIds: Value(emailIds),
+      payloadJson: payloadJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(payloadJson),
+      idempotencyKey: Value(idempotencyKey),
+      createdAtEpoch: Value(createdAtEpoch),
+      attempts: Value(attempts),
+      state: Value(state),
+    );
+  }
+
+  factory OutboxOperation.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return OutboxOperation(
+      opId: serializer.fromJson<String>(json['opId']),
+      action: serializer.fromJson<String>(json['action']),
+      emailIds: serializer.fromJson<String>(json['emailIds']),
+      payloadJson: serializer.fromJson<String?>(json['payloadJson']),
+      idempotencyKey: serializer.fromJson<String>(json['idempotencyKey']),
+      createdAtEpoch: serializer.fromJson<int>(json['createdAtEpoch']),
+      attempts: serializer.fromJson<int>(json['attempts']),
+      state: serializer.fromJson<String>(json['state']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'opId': serializer.toJson<String>(opId),
+      'action': serializer.toJson<String>(action),
+      'emailIds': serializer.toJson<String>(emailIds),
+      'payloadJson': serializer.toJson<String?>(payloadJson),
+      'idempotencyKey': serializer.toJson<String>(idempotencyKey),
+      'createdAtEpoch': serializer.toJson<int>(createdAtEpoch),
+      'attempts': serializer.toJson<int>(attempts),
+      'state': serializer.toJson<String>(state),
+    };
+  }
+
+  OutboxOperation copyWith(
+          {String? opId,
+          String? action,
+          String? emailIds,
+          Value<String?> payloadJson = const Value.absent(),
+          String? idempotencyKey,
+          int? createdAtEpoch,
+          int? attempts,
+          String? state}) =>
+      OutboxOperation(
+        opId: opId ?? this.opId,
+        action: action ?? this.action,
+        emailIds: emailIds ?? this.emailIds,
+        payloadJson: payloadJson.present ? payloadJson.value : this.payloadJson,
+        idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+        createdAtEpoch: createdAtEpoch ?? this.createdAtEpoch,
+        attempts: attempts ?? this.attempts,
+        state: state ?? this.state,
+      );
+  OutboxOperation copyWithCompanion(OutboxOperationsCompanion data) {
+    return OutboxOperation(
+      opId: data.opId.present ? data.opId.value : this.opId,
+      action: data.action.present ? data.action.value : this.action,
+      emailIds: data.emailIds.present ? data.emailIds.value : this.emailIds,
+      payloadJson:
+          data.payloadJson.present ? data.payloadJson.value : this.payloadJson,
+      idempotencyKey: data.idempotencyKey.present
+          ? data.idempotencyKey.value
+          : this.idempotencyKey,
+      createdAtEpoch: data.createdAtEpoch.present
+          ? data.createdAtEpoch.value
+          : this.createdAtEpoch,
+      attempts: data.attempts.present ? data.attempts.value : this.attempts,
+      state: data.state.present ? data.state.value : this.state,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OutboxOperation(')
+          ..write('opId: $opId, ')
+          ..write('action: $action, ')
+          ..write('emailIds: $emailIds, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('idempotencyKey: $idempotencyKey, ')
+          ..write('createdAtEpoch: $createdAtEpoch, ')
+          ..write('attempts: $attempts, ')
+          ..write('state: $state')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(opId, action, emailIds, payloadJson,
+      idempotencyKey, createdAtEpoch, attempts, state);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OutboxOperation &&
+          other.opId == this.opId &&
+          other.action == this.action &&
+          other.emailIds == this.emailIds &&
+          other.payloadJson == this.payloadJson &&
+          other.idempotencyKey == this.idempotencyKey &&
+          other.createdAtEpoch == this.createdAtEpoch &&
+          other.attempts == this.attempts &&
+          other.state == this.state);
+}
+
+class OutboxOperationsCompanion extends UpdateCompanion<OutboxOperation> {
+  final Value<String> opId;
+  final Value<String> action;
+  final Value<String> emailIds;
+  final Value<String?> payloadJson;
+  final Value<String> idempotencyKey;
+  final Value<int> createdAtEpoch;
+  final Value<int> attempts;
+  final Value<String> state;
+  final Value<int> rowid;
+  const OutboxOperationsCompanion({
+    this.opId = const Value.absent(),
+    this.action = const Value.absent(),
+    this.emailIds = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.idempotencyKey = const Value.absent(),
+    this.createdAtEpoch = const Value.absent(),
+    this.attempts = const Value.absent(),
+    this.state = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  OutboxOperationsCompanion.insert({
+    required String opId,
+    required String action,
+    required String emailIds,
+    this.payloadJson = const Value.absent(),
+    required String idempotencyKey,
+    required int createdAtEpoch,
+    this.attempts = const Value.absent(),
+    this.state = const Value.absent(),
+    this.rowid = const Value.absent(),
+  })  : opId = Value(opId),
+        action = Value(action),
+        emailIds = Value(emailIds),
+        idempotencyKey = Value(idempotencyKey),
+        createdAtEpoch = Value(createdAtEpoch);
+  static Insertable<OutboxOperation> custom({
+    Expression<String>? opId,
+    Expression<String>? action,
+    Expression<String>? emailIds,
+    Expression<String>? payloadJson,
+    Expression<String>? idempotencyKey,
+    Expression<int>? createdAtEpoch,
+    Expression<int>? attempts,
+    Expression<String>? state,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (opId != null) 'op_id': opId,
+      if (action != null) 'action': action,
+      if (emailIds != null) 'email_ids': emailIds,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (idempotencyKey != null) 'idempotency_key': idempotencyKey,
+      if (createdAtEpoch != null) 'created_at_epoch': createdAtEpoch,
+      if (attempts != null) 'attempts': attempts,
+      if (state != null) 'state': state,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  OutboxOperationsCompanion copyWith(
+      {Value<String>? opId,
+      Value<String>? action,
+      Value<String>? emailIds,
+      Value<String?>? payloadJson,
+      Value<String>? idempotencyKey,
+      Value<int>? createdAtEpoch,
+      Value<int>? attempts,
+      Value<String>? state,
+      Value<int>? rowid}) {
+    return OutboxOperationsCompanion(
+      opId: opId ?? this.opId,
+      action: action ?? this.action,
+      emailIds: emailIds ?? this.emailIds,
+      payloadJson: payloadJson ?? this.payloadJson,
+      idempotencyKey: idempotencyKey ?? this.idempotencyKey,
+      createdAtEpoch: createdAtEpoch ?? this.createdAtEpoch,
+      attempts: attempts ?? this.attempts,
+      state: state ?? this.state,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (action.present) {
+      map['action'] = Variable<String>(action.value);
+    }
+    if (emailIds.present) {
+      map['email_ids'] = Variable<String>(emailIds.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (idempotencyKey.present) {
+      map['idempotency_key'] = Variable<String>(idempotencyKey.value);
+    }
+    if (createdAtEpoch.present) {
+      map['created_at_epoch'] = Variable<int>(createdAtEpoch.value);
+    }
+    if (attempts.present) {
+      map['attempts'] = Variable<int>(attempts.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('OutboxOperationsCompanion(')
+          ..write('opId: $opId, ')
+          ..write('action: $action, ')
+          ..write('emailIds: $emailIds, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('idempotencyKey: $idempotencyKey, ')
+          ..write('createdAtEpoch: $createdAtEpoch, ')
+          ..write('attempts: $attempts, ')
+          ..write('state: $state, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$MailDatabase extends GeneratedDatabase {
   _$MailDatabase(QueryExecutor e) : super(e);
   $MailDatabaseManager get managers => $MailDatabaseManager(this);
@@ -1092,12 +1551,20 @@ abstract class _$MailDatabase extends GeneratedDatabase {
   late final $EmailPagesTable emailPages = $EmailPagesTable(this);
   late final $ThreadPagesTable threadPages = $ThreadPagesTable(this);
   late final $SyncStateTable syncState = $SyncStateTable(this);
+  late final $OutboxOperationsTable outboxOperations =
+      $OutboxOperationsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      [cachedThreads, cachedEmails, emailPages, threadPages, syncState];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+        cachedThreads,
+        cachedEmails,
+        emailPages,
+        threadPages,
+        syncState,
+        outboxOperations
+      ];
 }
 
 typedef $$CachedThreadsTableCreateCompanionBuilder = CachedThreadsCompanion
@@ -1757,6 +2224,229 @@ typedef $$SyncStateTableProcessedTableManager = ProcessedTableManager<
     ),
     SyncStateEntry,
     PrefetchHooks Function()>;
+typedef $$OutboxOperationsTableCreateCompanionBuilder
+    = OutboxOperationsCompanion Function({
+  required String opId,
+  required String action,
+  required String emailIds,
+  Value<String?> payloadJson,
+  required String idempotencyKey,
+  required int createdAtEpoch,
+  Value<int> attempts,
+  Value<String> state,
+  Value<int> rowid,
+});
+typedef $$OutboxOperationsTableUpdateCompanionBuilder
+    = OutboxOperationsCompanion Function({
+  Value<String> opId,
+  Value<String> action,
+  Value<String> emailIds,
+  Value<String?> payloadJson,
+  Value<String> idempotencyKey,
+  Value<int> createdAtEpoch,
+  Value<int> attempts,
+  Value<String> state,
+  Value<int> rowid,
+});
+
+class $$OutboxOperationsTableFilterComposer
+    extends Composer<_$MailDatabase, $OutboxOperationsTable> {
+  $$OutboxOperationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get opId => $composableBuilder(
+      column: $table.opId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get action => $composableBuilder(
+      column: $table.action, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get emailIds => $composableBuilder(
+      column: $table.emailIds, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get idempotencyKey => $composableBuilder(
+      column: $table.idempotencyKey,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get createdAtEpoch => $composableBuilder(
+      column: $table.createdAtEpoch,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get attempts => $composableBuilder(
+      column: $table.attempts, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get state => $composableBuilder(
+      column: $table.state, builder: (column) => ColumnFilters(column));
+}
+
+class $$OutboxOperationsTableOrderingComposer
+    extends Composer<_$MailDatabase, $OutboxOperationsTable> {
+  $$OutboxOperationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get opId => $composableBuilder(
+      column: $table.opId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get action => $composableBuilder(
+      column: $table.action, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get emailIds => $composableBuilder(
+      column: $table.emailIds, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get idempotencyKey => $composableBuilder(
+      column: $table.idempotencyKey,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get createdAtEpoch => $composableBuilder(
+      column: $table.createdAtEpoch,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get attempts => $composableBuilder(
+      column: $table.attempts, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get state => $composableBuilder(
+      column: $table.state, builder: (column) => ColumnOrderings(column));
+}
+
+class $$OutboxOperationsTableAnnotationComposer
+    extends Composer<_$MailDatabase, $OutboxOperationsTable> {
+  $$OutboxOperationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<String> get action =>
+      $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<String> get emailIds =>
+      $composableBuilder(column: $table.emailIds, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+      column: $table.payloadJson, builder: (column) => column);
+
+  GeneratedColumn<String> get idempotencyKey => $composableBuilder(
+      column: $table.idempotencyKey, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAtEpoch => $composableBuilder(
+      column: $table.createdAtEpoch, builder: (column) => column);
+
+  GeneratedColumn<int> get attempts =>
+      $composableBuilder(column: $table.attempts, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+}
+
+class $$OutboxOperationsTableTableManager extends RootTableManager<
+    _$MailDatabase,
+    $OutboxOperationsTable,
+    OutboxOperation,
+    $$OutboxOperationsTableFilterComposer,
+    $$OutboxOperationsTableOrderingComposer,
+    $$OutboxOperationsTableAnnotationComposer,
+    $$OutboxOperationsTableCreateCompanionBuilder,
+    $$OutboxOperationsTableUpdateCompanionBuilder,
+    (
+      OutboxOperation,
+      BaseReferences<_$MailDatabase, $OutboxOperationsTable, OutboxOperation>
+    ),
+    OutboxOperation,
+    PrefetchHooks Function()> {
+  $$OutboxOperationsTableTableManager(
+      _$MailDatabase db, $OutboxOperationsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$OutboxOperationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$OutboxOperationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$OutboxOperationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> opId = const Value.absent(),
+            Value<String> action = const Value.absent(),
+            Value<String> emailIds = const Value.absent(),
+            Value<String?> payloadJson = const Value.absent(),
+            Value<String> idempotencyKey = const Value.absent(),
+            Value<int> createdAtEpoch = const Value.absent(),
+            Value<int> attempts = const Value.absent(),
+            Value<String> state = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              OutboxOperationsCompanion(
+            opId: opId,
+            action: action,
+            emailIds: emailIds,
+            payloadJson: payloadJson,
+            idempotencyKey: idempotencyKey,
+            createdAtEpoch: createdAtEpoch,
+            attempts: attempts,
+            state: state,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String opId,
+            required String action,
+            required String emailIds,
+            Value<String?> payloadJson = const Value.absent(),
+            required String idempotencyKey,
+            required int createdAtEpoch,
+            Value<int> attempts = const Value.absent(),
+            Value<String> state = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              OutboxOperationsCompanion.insert(
+            opId: opId,
+            action: action,
+            emailIds: emailIds,
+            payloadJson: payloadJson,
+            idempotencyKey: idempotencyKey,
+            createdAtEpoch: createdAtEpoch,
+            attempts: attempts,
+            state: state,
+            rowid: rowid,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$OutboxOperationsTableProcessedTableManager = ProcessedTableManager<
+    _$MailDatabase,
+    $OutboxOperationsTable,
+    OutboxOperation,
+    $$OutboxOperationsTableFilterComposer,
+    $$OutboxOperationsTableOrderingComposer,
+    $$OutboxOperationsTableAnnotationComposer,
+    $$OutboxOperationsTableCreateCompanionBuilder,
+    $$OutboxOperationsTableUpdateCompanionBuilder,
+    (
+      OutboxOperation,
+      BaseReferences<_$MailDatabase, $OutboxOperationsTable, OutboxOperation>
+    ),
+    OutboxOperation,
+    PrefetchHooks Function()>;
 
 class $MailDatabaseManager {
   final _$MailDatabase _db;
@@ -1771,4 +2461,6 @@ class $MailDatabaseManager {
       $$ThreadPagesTableTableManager(_db, _db.threadPages);
   $$SyncStateTableTableManager get syncState =>
       $$SyncStateTableTableManager(_db, _db.syncState);
+  $$OutboxOperationsTableTableManager get outboxOperations =>
+      $$OutboxOperationsTableTableManager(_db, _db.outboxOperations);
 }
