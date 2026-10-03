@@ -23,6 +23,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quant_core/quant_core.dart';
 
+import '../screens/compose_screen.dart';
 import '../screens/inbox_screen.dart';
 import '../screens/login_screen.dart';
 import '../screens/thread_screen.dart';
@@ -135,6 +136,32 @@ GoRouter buildAppRouter(Ref ref) {
         builder: (BuildContext context, GoRouterState state) {
           final String threadId = state.pathParameters['threadId'] ?? '';
           return ThreadScreen(threadId: threadId);
+        },
+      ),
+      // Compose: new message or reply. Query parameters carry the reply
+      // prefill (set by the thread screen's Reply action):
+      //   ?threadId=<id>&inReplyTo=<messageId>&to=a@b.com,c@d.com&subject=Re: …
+      // The auth gate above already covers /compose (unauthenticated
+      // bounces to /login), so no extra guard here.
+      GoRoute(
+        path: '/compose',
+        name: 'compose',
+        builder: (BuildContext context, GoRouterState state) {
+          final Map<String, String> query = state.uri.queryParameters;
+          final String? threadId = query['threadId'];
+          final String? inReplyTo = query['inReplyTo'];
+          final List<EmailAddress> to = (query['to'] ?? '')
+              .split(',')
+              .map((String part) => part.trim())
+              .where((String part) => part.isNotEmpty)
+              .map((String part) => EmailAddress(email: part))
+              .toList(growable: false);
+          return ComposeScreen(
+            threadId: threadId,
+            inReplyTo: inReplyTo,
+            initialTo: to,
+            initialSubject: query['subject'] ?? '',
+          );
         },
       ),
       // OAuth2 PKCE return leg. The OS hands the deep link here
