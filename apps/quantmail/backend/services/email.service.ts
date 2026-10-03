@@ -785,7 +785,7 @@ export class EmailService {
 
       const result = await transaction.email.updateMany({
         where: { id: { in: ids }, userId, deletedAt: null },
-        data: { aiCategory: category },
+        data: { aiCategory: category, updatedAt: new Date() },
       });
       if (result.count !== ids.length) {
         throw createAppError(
@@ -814,7 +814,7 @@ export class EmailService {
         userId,
         deletedAt: null,
       },
-      data: { isRead },
+      data: { isRead, updatedAt: new Date() },
     });
     return { count: result.count };
   }
@@ -831,7 +831,7 @@ export class EmailService {
         userId,
         deletedAt: null,
       },
-      data: { folderId: archiveFolderId },
+      data: { folderId: archiveFolderId, updatedAt: new Date() },
     });
     return { count: result.count };
   }
@@ -841,13 +841,13 @@ export class EmailService {
     if (hard) {
       const result = await this.prisma.email.updateMany({
         where: { id: { in: emailIds }, userId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: new Date(), updatedAt: new Date() },
       });
       return { count: result.count };
     }
     const result = await this.prisma.email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
-      data: { isTrash: true },
+      data: { isTrash: true, updatedAt: new Date() },
     });
     return { count: result.count };
   }
@@ -860,7 +860,7 @@ export class EmailService {
     if (emailIds.length === 0) return { count: 0 };
     const result = await this.prisma.email.updateMany({
       where: { id: { in: emailIds }, userId, deletedAt: null },
-      data: { isStarred },
+      data: { isStarred, updatedAt: new Date() },
     });
     return { count: result.count };
   }

@@ -976,7 +976,7 @@ export default async function emailsRoutes(
       where.AND.push({ OR: [{ aiCategory: null }, { aiCategory: 'primary' }] });
     }
 
-    const result = await prisma.email.updateMany({ where, data: { isRead: true } });
+    const result = await prisma.email.updateMany({ where, data: { isRead: true, updatedAt: new Date() } });
     return reply.send({
       success: true,
       data: { message: 'All caught up', updated: result.count ?? 0 },
