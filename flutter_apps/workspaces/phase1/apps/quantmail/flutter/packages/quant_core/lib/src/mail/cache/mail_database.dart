@@ -2,7 +2,7 @@
 // quant_core - drift mail database (M4: drift persistence layer)
 // ============================================================================
 //
-// SQLite backing store for the offline mail caches. Schema v1:
+// SQLite backing store for the offline mail caches. Schema v2:
 //
 // - `CachedThreads`  — one row per thread summary, JSON payload by threadId
 // - `CachedEmails`   — one row per email message, JSON payload by id
@@ -16,17 +16,18 @@
 //                      full payloads.
 // - `SyncState`      — small key/value store (e.g. the
 //                      `GET /emails/changes?since=` cursor under 'emails_since')
+// - `OutboxOperations` (v2, M6) — persistent modifier-queue: one row per
+//                      deferred server mutation, drained in enqueue order.
 //
-// Migration note: this is schemaVersion 1 (initial release). Any future
-// column/table addition must bump [schemaVersion] and add a `MigrationStep`
-// in [migration]; never silently widen v1.
-
-import 'dart:io';
+// Migration note: this is schemaVersion 2. v1 was the initial release;
+// v1 → v2 adds `OutboxOperations` via a `MigrationStep` in [migration]
+// (new table only — existing data untouched). Any future column/table
+// addition must bump [schemaVersion] and add a `MigrationStep` in
+// [migration]; never silently widen a released version.
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+import 'database_connection.dart';
 
 part 'mail_database.g.dart';
 
@@ -109,33 +110,101 @@ class SyncState extends Table {
   Set<Column> get primaryKey => {key};
 }
 
-/// Opens the on-disk mail database at `<app-documents>/quantmail.db`.
+/// Persistent outbox for offline-first mutations (M6: modifier queue).
 ///
-/// Deferred via [LazyDatabase] so path_provider is only touched on first
-/// query (never at provider-construction time).
-LazyDatabase _openConnection() => LazyDatabase(() async {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File(p.join(dir.path, 'quantmail.db'));
-      return NativeDatabase(file);
-    });
+/// Every row is one deferred server mutation, written BEFORE the network
+/// call is attempted (write-ahead): the app can be killed between the
+/// local optimistic flip and the drain, and the mutation still reaches the
+/// server on the next drain. Rows are drained in [createdAtEpoch] order
+/// (per-thread FIFO falls out of the idempotency-key + timestamp design),
+/// retried on transient failures, and moved to `failed` on permanent
+/// (4xx) failures for user-visible retry/discard — never silently dropped.
+///
+/// `state` is one of `pending` / `dispatched` / `failed`. `dispatched` rows
+/// are reaped by the drainer once recorded; `failed` rows stay until the
+/// user retries or discards them via [ThreadMutationService].
+@DataClassName('OutboxOperation')
+class OutboxOperations extends Table {
+  /// Client-generated uuid v4, primary key.
+  TextColumn get opId => text()();
+
+  /// [OutboxAction] name (e.g. `markRead`) — the enum's `name`, NOT the
+  /// wire name; the drainer maps it to the wire action at send time.
+  TextColumn get action => text()();
+
+  /// JSON array of target email ids, e.g. `["m1","m2"]`.
+  TextColumn get emailIds => text()();
+
+  /// Optional JSON object of extra batch parameters (e.g.
+  /// `{"folderId": "...", "hard": true}` for delete). Nullable.
+  TextColumn get payloadJson => text().nullable()();
+
+  /// Dedupe key, unique: enqueue with an existing key is a no-op
+  /// (returns the existing op). Default shape is `"<threadId>:<action>"`.
+  TextColumn get idempotencyKey => text().unique()();
+
+  /// Enqueue time, milliseconds since epoch — the drain order.
+  IntColumn get createdAtEpoch => integer()();
+
+  /// Failed attempt count; the drainer escalates to `failed` past
+  /// [OutboxDrainer.maxAttempts] (poison-op guard).
+  IntColumn get attempts => integer().withDefault(const Constant(0))();
+
+  /// `pending` | `dispatched` | `failed`.
+  TextColumn get state => text().withDefault(const Constant('pending'))();
+
+  @override
+  Set<Column> get primaryKey => {opId};
+}
 
 /// The drift database backing the offline mail caches.
+///
+/// The platform connection comes from the [database_connection] seam
+/// (conditional import): native sqlite on IO platforms, documented
+/// limitation on web (see `database_connection_web.dart`).
 @DriftDatabase(
-  tables: [CachedThreads, CachedEmails, EmailPages, ThreadPages, SyncState],
+  tables: [
+    CachedThreads,
+    CachedEmails,
+    EmailPages,
+    ThreadPages,
+    SyncState,
+    OutboxOperations,
+  ],
 )
 class MailDatabase extends _$MailDatabase {
   /// Injectable constructor: pass any [QueryExecutor].
   MailDatabase(super.executor);
 
-  /// Production constructor: opens the on-disk database
-  /// (`<app-documents>/quantmail.db`) via a lazy connection.
-  MailDatabase.disk() : super(_openConnection());
+  /// Production constructor: opens the platform database connection
+  /// (`<app-documents>/quantmail.db` on IO) via the [database_connection]
+  /// seam. Opening is lazy — the file is only touched on first query,
+  /// never at construction time.
+  MailDatabase.disk() : super(openDatabaseConnection());
 
   /// In-memory database for unit tests — no filesystem, no path_provider.
-  MailDatabase.memory() : super(NativeDatabase.memory());
+  /// Routed through the seam (IO: `NativeDatabase.memory()`).
+  MailDatabase.memory() : super(openInMemoryDatabaseConnection());
 
-  /// Initial release of the offline mail schema (see module doc for the
-  /// migration note).
+  /// Schema v2: v1 (initial release) + the M6 [OutboxOperations] table.
+  ///
+  /// Any future column/table addition must bump this again and add a
+  /// `MigrationStep` in [migration]; never silently widen a released
+  /// version.
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  /// Creates the full schema fresh; upgrades additively per version.
+  ///
+  /// v1 → v2: creates [OutboxOperations] (new table only — existing data
+  /// untouched; covered by `test/outbox_migration_test.dart`).
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) => m.createAll(),
+        onUpgrade: (Migrator m, int from, int to) async {
+          if (from < 2) {
+            await m.createTable(outboxOperations);
+          }
+        },
+      );
 }

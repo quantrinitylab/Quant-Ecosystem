@@ -22,11 +22,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:quant_app/src/widgets/failed_ops_banner.dart';
+import 'package:quant_app/src/widgets/send_undo_host.dart';
 import 'package:quant_core/quant_core.dart';
 
 /// Inbox list screen: watches [inboxProvider] and renders loading / error /
 /// empty / list states. Pull-to-refresh and paged load-more are driven by the
 /// notifier; this widget never touches the network or the cache itself.
+///
+/// A [FailedOpsBannerHost] sits above the list: permanently-failed outbox
+/// ops (from the M6 modifier queue) surface there with retry/discard
+/// affordances.
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({super.key});
 
@@ -44,6 +50,12 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inbox'),
+        // VQA-P2-07: bottom hairline — the bar (surface #111318) otherwise
+        // blends straight into the list with no structural edge.
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(height: 1, thickness: 1),
+        ),
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -52,35 +64,53 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           ),
         ],
       ),
-      body: inbox.when(
-        // First load with nothing cached yet: full-screen spinner.
-        // Refreshing with rows on screen: keep the list (stale-while-refresh).
-        loading: () {
-          final InboxListState? previous = inbox.valueOrNull;
-          if (previous != null && previous.threads.isNotEmpty) {
-            return _buildList(previous);
-          }
-          return const Center(child: CircularProgressIndicator());
-        },
-        // Hard failure with no rows to show: error + retry.
-        // Failure with rows on screen: keep the list (data wins).
-        error: (Object err, StackTrace _) {
-          final InboxListState? previous = inbox.valueOrNull;
-          if (previous != null && previous.threads.isNotEmpty) {
-            return _buildList(previous);
-          }
-          return _buildError(_errorMessage(err));
-        },
-        data: (InboxListState state) {
-          if (state.threads.isEmpty) {
-            // The notifier can surface a soft failure as errorMessage on an
-            // otherwise-valid (empty) state; treat it like a hard error.
-            final String? softError = state.errorMessage;
-            if (softError != null) return _buildError(softError);
-            return _buildEmpty();
-          }
-          return _buildList(state);
-        },
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.pushNamed('compose'),
+        icon: const Icon(Icons.edit_outlined),
+        label: const Text('Compose'),
+      ),
+      body: Column(
+        children: <Widget>[
+          const FailedOpsBannerHost(),
+          // Server-confirmed sends surface here ("Message sent" + Undo)
+          // via W2's sentMessagesProvider; sits next to the failed-ops
+          // banner so both queue surfaces live in one place.
+          const SendUndoHost(),
+          Expanded(
+            child: inbox.when(
+              // First load with nothing cached yet: full-screen spinner.
+              // Refreshing with rows on screen: keep the list
+              // (stale-while-refresh).
+              loading: () {
+                final InboxListState? previous = inbox.valueOrNull;
+                if (previous != null && previous.threads.isNotEmpty) {
+                  return _buildList(previous);
+                }
+                return const Center(child: CircularProgressIndicator());
+              },
+              // Hard failure with no rows to show: error + retry.
+              // Failure with rows on screen: keep the list (data wins).
+              error: (Object err, StackTrace _) {
+                final InboxListState? previous = inbox.valueOrNull;
+                if (previous != null && previous.threads.isNotEmpty) {
+                  return _buildList(previous);
+                }
+                return _buildError(_errorMessage(err));
+              },
+              data: (InboxListState state) {
+                if (state.threads.isEmpty) {
+                  // The notifier can surface a soft failure as errorMessage
+                  // on an otherwise-valid (empty) state; treat it like a
+                  // hard error.
+                  final String? softError = state.errorMessage;
+                  if (softError != null) return _buildError(softError);
+                  return _buildEmpty();
+                }
+                return _buildList(state);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -91,7 +121,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       onRefresh: _refresh,
       child: ListView.builder(
         // Fixed row height: no measurement pass, jank-free for 10k rows.
-        itemExtent: 76,
+        // 76 row + 1 divider (VQA-P2-01).
+        itemExtent: 77,
         itemCount: state.threads.length + (state.hasMore ? 1 : 0),
         physics: const AlwaysScrollableScrollPhysics(),
         itemBuilder: (BuildContext context, int index) {
@@ -105,7 +136,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   unawaited(ref.read(inboxProvider.notifier).loadMore()),
             );
           }
-          return _ThreadRow(thread: state.threads[index]);
+          // VQA-P2-01: hairline divider between rows (theme `dividerColor`
+          // via DividerThemeData). It lives inside the fixed-extent item so
+          // the list keeps its jank-free itemExtent.
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              SizedBox(
+                height: 76,
+                child: _ThreadRow(
+                  thread: state.threads[index],
+                  // The injectable clock (VQA-P2-10): golden-safe labels.
+                  clock: ref.watch(clockProvider),
+                ),
+              ),
+              const Divider(height: 1),
+            ],
+          );
         },
       ),
     );
@@ -133,6 +180,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
+              // VQA-P2-06: touch target >= 48dp (program standard).
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(64, 48),
+              ),
               onPressed: () => unawaited(_refresh()),
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
@@ -160,6 +211,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
             ),
             const SizedBox(height: 16),
             Text("You're all caught up", style: textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Naya mail aate hi yahan dikhega.',
+              style: textTheme.bodyMedium
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -221,11 +279,16 @@ class _LoadMoreItemState extends State<_LoadMoreItem> {
 
 /// One inbox row: avatar, subject/snippet, date + unread dot / count badge.
 ///
-/// Taps navigate to the named 'thread' route (app_router.dart).
+/// Taps PUSH the named 'thread' route (app_router.dart) so the system
+/// back gesture and the thread screen's explicit back button both return
+/// to the inbox — VQA-P1-02: the thread view is never a dead end.
 class _ThreadRow extends StatelessWidget {
-  const _ThreadRow({required this.thread});
+  const _ThreadRow({required this.thread, required this.clock});
 
   final ThreadSummary thread;
+
+  /// Injectable clock for golden-deterministic relative dates (VQA-P2-10).
+  final QuantClock clock;
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +302,7 @@ class _ThreadRow extends StatelessWidget {
       button: true,
       label: _rowSemanticsLabel(subject, snippet),
       child: InkWell(
-        onTap: () => context.goNamed(
+        onTap: () => context.pushNamed(
           'thread',
           pathParameters: <String, String>{'threadId': thread.id},
         ),
@@ -249,11 +312,15 @@ class _ThreadRow extends StatelessWidget {
             children: <Widget>[
               CircleAvatar(
                 radius: 20,
-                backgroundColor: scheme.primaryContainer,
+                // VQA-P2-02: per-sender hue variation (Gmail/Superhuman
+                // pattern) — hashed from the thread id across a small
+                // brand-token-derived palette instead of one orange wall.
+                backgroundColor:
+                    _avatarBackground(_avatarSeed(), scheme),
                 child: Text(
                   _avatarInitial(subject),
                   style: textTheme.titleMedium?.copyWith(
-                    color: scheme.onPrimaryContainer,
+                    color: _avatarForeground(_avatarSeed(), scheme),
                   ),
                 ),
               ),
@@ -292,7 +359,7 @@ class _ThreadRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: <Widget>[
                   Text(
-                    _relativeDate(thread.lastMessageDate),
+                    formatRelativeDate(thread.lastMessageDate, clock),
                     style: textTheme.labelSmall?.copyWith(
                       color:
                           unread ? scheme.primary : scheme.onSurfaceVariant,
@@ -353,7 +420,7 @@ class _ThreadRow extends StatelessWidget {
     label.write('Thread');
     if (subject.isNotEmpty) label.write(': $subject');
     if (snippet.isNotEmpty) label.write('. $snippet');
-    final String date = _relativeDate(thread.lastMessageDate);
+    final String date = formatRelativeDate(thread.lastMessageDate, clock);
     if (date.isNotEmpty) label.write('. $date');
     return label.toString();
   }
@@ -369,49 +436,56 @@ class _ThreadRow extends StatelessWidget {
     if (subject.isNotEmpty) return subject.characters.first.toUpperCase();
     return '?';
   }
+
+  /// Hash seed for the avatar hue: the stable thread id, falling back to
+  /// the first participant name.
+  String _avatarSeed() {
+    if (thread.id.isNotEmpty) return thread.id;
+    for (final String name in thread.participantNames) {
+      if (name.trim().isNotEmpty) return name.trim();
+    }
+    return '?';
+  }
 }
 
-/// Compact relative date for the row: "now" / "5m" / "2h" / "Tue" /
-/// "Oct 2" / "Oct 2, 2025".
-String _relativeDate(DateTime? date) {
-  if (date == null) return '';
-  final DateTime now = DateTime.now();
-  final Duration diff = now.difference(date);
-  if (diff.isNegative || diff.inMinutes < 1) return 'now';
-  if (diff.inHours < 1) return '${diff.inMinutes}m';
-  if (diff.inHours < 24) return '${diff.inHours}h';
-  if (diff.inDays < 7) return _weekdayShort(date.weekday);
-  if (now.year == date.year) return '${_monthShort(date.month)} ${date.day}';
-  return '${_monthShort(date.month)} ${date.day}, ${date.year}';
+/// VQA-P2-02: brand-derived avatar palette. The theme primary's hue is
+/// rotated across 6 stops, so per-sender avatars vary (Gmail/Superhuman
+/// scanning aid) while staying on-brand. FNV-1a keeps the seed -> hue
+/// mapping deterministic across runs (golden-safe; `String.hashCode`
+/// is not stable across executions).
+double _avatarHue(String seed, ColorScheme scheme) {
+  final double baseHue = HSLColor.fromColor(scheme.primary).hue;
+  return (baseHue + (_fnv1a32(seed) % 6) * 60.0) % 360.0;
 }
 
-String _weekdayShort(int weekday) {
-  const List<String> names = <String>[
-    'Mon',
-    'Tue',
-    'Wed',
-    'Thu',
-    'Fri',
-    'Sat',
-    'Sun'
-  ];
-  return names[weekday - 1];
+/// Muted container tint for the avatar at the row's seed hue.
+Color _avatarBackground(String seed, ColorScheme scheme) {
+  final bool isDark = scheme.brightness == Brightness.dark;
+  return HSLColor.fromAHSL(
+    1,
+    _avatarHue(seed, scheme),
+    isDark ? 0.45 : 0.55,
+    isDark ? 0.30 : 0.86,
+  ).toColor();
 }
 
-String _monthShort(int month) {
-  const List<String> names = <String>[
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  ];
-  return names[month - 1];
+/// Legible initial color on [_avatarBackground] at the same hue.
+Color _avatarForeground(String seed, ColorScheme scheme) {
+  final bool isDark = scheme.brightness == Brightness.dark;
+  return HSLColor.fromAHSL(
+    1,
+    _avatarHue(seed, scheme),
+    isDark ? 0.50 : 0.45,
+    isDark ? 0.90 : 0.25,
+  ).toColor();
+}
+
+/// FNV-1a 32-bit: tiny, dependency-free, deterministic string hash.
+int _fnv1a32(String s) {
+  int hash = 0x811C9DC5;
+  for (int i = 0; i < s.length; i++) {
+    hash ^= s.codeUnitAt(i);
+    hash = (hash * 0x01000193) & 0xFFFFFFFF;
+  }
+  return hash;
 }
