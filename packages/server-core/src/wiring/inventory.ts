@@ -297,11 +297,11 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['server-core'],
     stage: 1,
     dependsOn: ['prisma'],
-    status: 'done',
+    status: 'deferred',
     reason:
-      "Task 15.1 reconciliation. Beyond the design's authoritative engine set, but DoD-1 " +
-      '[DONE] via wiring:dod — imported by apps/quant-mobile (src/offline/offline-sync.ts) + ' +
-      'declared dependency. Marked done on real importer evidence per Req 5.1.',
+      'CORRECTED 2026-10-04: was marked done on claimed apps/quant-mobile evidence, ' +
+      'but apps/quant-mobile does not exist in this repo tree — no real importer, so ' +
+      'DoD-1 cannot hold. Deferred until a real consumer imports the engine.',
   },
   {
     engine: '@quant/cross-app-workflows',
@@ -939,22 +939,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['quant-mobile'],
     stage: 6,
     dependsOn: [],
-    status: 'done',
+    status: 'deferred',
     reason:
-      'Task 14.3 quant-mobile wiring. quant-mobile is a pure Vite + React + Capacitor ' +
-      'CLIENT SHELL (no Fastify backend, no Next app/api proxy), so the standard 5-layer ' +
-      'backend seam does not apply (documented per-app deviation, Req 6.7). The seam the ' +
-      'architecture supports is a client-side service consuming the engine directly ' +
-      '(mirrors the existing MobileOfflineSync -> @quant/sync-engine pattern). DoD-1 ' +
-      '(wiring:dod) — imported by apps/quant-mobile (src/maps/maps-service.ts -> ' +
-      'MobileMapsService, exported from src/index.ts) AND declared in apps/quant-mobile ' +
-      'dependencies ([DONE]). @quant/maps is WebView-friendly: Photon geocoding + OSRM ' +
-      'routing use fetch, LocationService uses navigator.geolocation (available in the ' +
-      'Capacitor WebView), PlaceSearch/TripPlanner are pure compute. Client seam test: ' +
-      'src/__tests__/maps-service.test.ts traverses MobileMapsService -> @quant/maps ' +
-      '(geocode/searchPlaces/route/planTrip) with injected providers. DoD-2/3/4 (backend ' +
-      'route / Next proxy / inject() seam test) are N/A in a Capacitor shell with no ' +
-      'host backend.',
+      'CORRECTED 2026-10-04: was marked done on claimed apps/quant-mobile evidence, ' +
+      'but apps/quant-mobile does not exist in this repo tree — no real importer, so ' +
+      'DoD-1 cannot hold. Deferred until the quant-mobile client shell lands and ' +
+      'actually imports the engine.',
   },
   {
     engine: '@quant/quant-health',
@@ -1038,19 +1028,12 @@ export const ENGINE_INVENTORY: EngineWiring[] = [
     targets: ['quant-mobile'],
     stage: 6,
     dependsOn: ['@quant/sync-engine'],
-    status: 'done',
+    status: 'deferred',
     reason:
-      'Task 14.3 quant-mobile wiring. Client-shell seam (no Fastify backend / Next proxy ' +
-      'in this Capacitor app; documented per-app deviation, Req 6.7). DoD-1 (wiring:dod) — ' +
-      'imported by apps/quant-mobile (src/local-first/local-store.ts -> MobileLocalStore, ' +
-      'exported from src/index.ts) AND declared in apps/quant-mobile dependencies ([DONE]). ' +
-      '@quant/local-first is pure client logic (in-memory CRDT OfflineStore + SyncManager ' +
-      'replication log, no native/backend dependency) and is the natural offline substrate ' +
-      'for the mega-shell alongside MobileOfflineSync. dependsOn @quant/sync-engine, already ' +
-      'a quant-mobile dependency (consumed by src/offline/offline-sync.ts) — dependency ' +
-      'present before dependent. Client seam test: src/__tests__/local-store.test.ts ' +
-      'traverses MobileLocalStore -> OfflineStore/SyncManager (put/get/delete/flush + ' +
-      'offline pending state). DoD-2/3/4 are N/A in a Capacitor shell with no host backend.',
+      'CORRECTED 2026-10-04: was marked done on claimed apps/quant-mobile evidence, ' +
+      'but apps/quant-mobile does not exist in this repo tree — no real importer, so ' +
+      'DoD-1 cannot hold. Deferred until the quant-mobile client shell lands and ' +
+      'actually imports the engine.',
   },
   {
     engine: '@quant/app-store',

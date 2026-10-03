@@ -450,7 +450,7 @@ interface EndpointDef<B> {
   buildPrompt: (body: B) => string;
 }
 
-const ENDPOINTS: EndpointDef<never>[] = [
+const ENDPOINTS: EndpointDef<any>[] = [
   { name: 'summarize', tier: 'balanced', parseBody: parseSummarizeBody, buildPrompt: buildSummarizePrompt },
   {
     name: 'summarize-thread',
@@ -467,7 +467,7 @@ const ENDPOINTS: EndpointDef<never>[] = [
     buildPrompt: buildImprovePrompt,
   },
   { name: 'triage', tier: 'fast', parseBody: parseTriageBody, buildPrompt: buildTriagePrompt },
-] as EndpointDef<never>[];
+] as EndpointDef<any>[];
 
 interface HandlerCtx {
   streamProvider: AIStreamProvider;

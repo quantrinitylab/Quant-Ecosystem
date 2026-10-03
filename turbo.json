@@ -1,0 +1,1 @@
+{"$schema":"https://turbo.build/schema.json","tasks":{"@quant/auth#build":{"dependsOn":["@quant/database#build","^build"],"outputs":["dist/**",".next/**"]},"@quant/auth#typecheck":{"dependsOn":["@quant/database#build","^build"]},"build":{"dependsOn":["^build"],"outputs":["dist/**",".next/**"]},"lint":{},"test":{"dependsOn":["^build"]},"typecheck":{"dependsOn":["^build"]}}}

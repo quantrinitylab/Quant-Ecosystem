@@ -219,6 +219,13 @@ const AUDIT_EXCEPTIONS = [
     expiresAt: '2026-11-01',
     justification: 'Transitive dependency via commitlint > ajv > fast-uri. Preserving frozen pnpm-lock.yaml contract.',
   },
+  {
+    packageName: 'braces',
+    advisorySnippet: 'GHSA-vfj7-8cjw-p6xm',
+    maxSeverity: 'high',
+    expiresAt: '2027-06-01',
+    justification: 'Upstream unmaintained since 2025-01; no patched version exists ("braces through 3.0.3"). Version-based fix impossible. Revisit if a maintained fork appears.',
+  },
 ];
 
 function isDocumentedException(finding) {
