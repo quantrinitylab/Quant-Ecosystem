@@ -3,6 +3,8 @@ node_modules/
 .next/
 dist/
 build/
+# Exception: quant-studio's SOURCE directory is named "build" (not build output)
+!packages/quant-studio/src/build/
 coverage/
 .env
 .env.*

@@ -1,1 +1,6 @@
-aW1wb3J0IHsgTmV4dFJlcXVlc3QgfSBmcm9tICduZXh0L3NlcnZlcic7CmltcG9ydCB7IHByb3h5VG9CYWNrZW5kIH0gZnJvbSAnLi4vLi4vX2xpYi9wcm94eSc7CgpleHBvcnQgYXN5bmMgZnVuY3Rpb24gUE9TVChyZXF1ZXN0OiBOZXh0UmVxdWVzdCkgewogIHJldHVybiBwcm94eVRvQmFja2VuZChyZXF1ZXN0LCAnL2VtYWlscy9jb21wb3NlLWFzc2lzdCcpOwp9Cg==
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '../../_lib/proxy';
+
+export async function POST(request: NextRequest) {
+  return proxyToBackend(request, '/emails/compose-assist');
+}

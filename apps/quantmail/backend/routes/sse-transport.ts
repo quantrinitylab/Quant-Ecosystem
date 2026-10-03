@@ -150,7 +150,6 @@ export function createSseStream(
   heartbeat = setInterval(() => {
     writeRaw(': ping\n\n'); // SSE comment — client ignore karta hai, proxies ko alive rakhta hai
   }, heartbeatMs);
-  // @ts-expect-error unref may not exist on browser-ish timers; node me hota hai
   if (typeof heartbeat.unref === 'function') heartbeat.unref();
 
   const stream: SseStream = {
