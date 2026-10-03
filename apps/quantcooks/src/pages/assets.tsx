@@ -7,6 +7,8 @@ import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useAssets } from '../hooks/useAssets';
 import { PageTransition } from '../components/PageTransition';
+import { SignInRequired } from '../components/SignInRequired';
+import { isUnauthorizedError } from '../lib/auth-errors';
 
 interface Asset {
   id: string;
@@ -161,6 +163,9 @@ const AssetLibrary: React.FC<AssetLibraryProps> = ({ projectId, onDragToTimeline
   }
 
   if (error) {
+    // Never show the raw backend 401 ("Missing or invalid authorization header"):
+    // an unauthenticated visitor gets the friendly sign-in state instead.
+    if (isUnauthorizedError(error)) return <SignInRequired />;
     return <ErrorState message={error.message} onRetry={() => void refetch()} />;
   }
 
