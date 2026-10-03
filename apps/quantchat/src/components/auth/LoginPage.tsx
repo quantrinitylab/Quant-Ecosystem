@@ -291,7 +291,7 @@ export default function LoginPage(props: LoginPageProps) {
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            ⚡ QuantMail SSO
+            ⚡ Continue with Quant Account
           </button>
         </div>
 
@@ -342,7 +342,7 @@ export default function LoginPage(props: LoginPageProps) {
                 onClick={handleQuantSSO}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 py-3 text-sm font-medium text-white transition-colors cursor-pointer"
               >
-                <span>Continue with QuantMail SSO</span>
+                <span>Continue with Quant Account</span>
                 <svg
                   width="16"
                   height="16"
@@ -420,20 +420,6 @@ export default function LoginPage(props: LoginPageProps) {
               </div>
             </div>
 
-            <div className="flex justify-center">
-              <button
-                type="button"
-                data-testid="quick-test-chip"
-                onClick={() => {
-                  setCountryCode('+91');
-                  setPhoneNumber('9876543210');
-                }}
-                className="flex items-center gap-2 text-xs font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 px-4 py-2 rounded-full transition-colors border border-emerald-500/20 cursor-pointer"
-              >
-                ⚡ Quick Test: +91 9876543210
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={busy || !phoneNumber}
@@ -450,7 +436,7 @@ export default function LoginPage(props: LoginPageProps) {
                 onClick={handleQuantSSO}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 py-2.5 text-xs font-medium text-slate-300 hover:text-white transition-colors cursor-pointer"
               >
-                <span>Or continue with QuantMail SSO</span>
+                <span>Or continue with Quant Account</span>
                 <svg
                   width="14"
                   height="14"
