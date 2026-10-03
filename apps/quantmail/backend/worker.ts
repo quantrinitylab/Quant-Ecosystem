@@ -22,6 +22,7 @@ import {
   NetSmtpTransport,
 } from './services/delivery-worker.service';
 import { resolveRedisConnection } from './services/outbound-delivery.service';
+import { ProactiveReminderWorker } from './services/proactive-reminder-worker.service';
 
 function buildWorker(): ReturnType<typeof createDeliveryWorker> {
   // The generated @quant/database client and the backend's structural Prisma
@@ -46,14 +47,20 @@ function buildWorker(): ReturnType<typeof createDeliveryWorker> {
 
 async function main(): Promise<void> {
   const worker = buildWorker();
+  // Also drain QuantMail's dedicated proactive queue (meeting_reminder jobs) in
+  // the standalone worker deployment. Competing consumers on this app-owned
+  // queue are safe: each reminder is delivered to exactly one worker instance.
+  const reminderWorker = new ProactiveReminderWorker();
+  reminderWorker.start();
 
   // eslint-disable-next-line no-console
-  console.log('[quantmail:worker] outbound-delivery worker started');
+  console.log('[quantmail:worker] outbound-delivery + reminder workers started');
 
   const shutdown = async (signal: string): Promise<void> => {
     // eslint-disable-next-line no-console
     console.log(`[quantmail:worker] received ${signal}, draining...`);
     await worker.close();
+    await reminderWorker.stop();
     process.exit(0);
   };
 
