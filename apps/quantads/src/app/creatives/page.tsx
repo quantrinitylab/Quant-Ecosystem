@@ -14,6 +14,8 @@ import {
 } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../../services/api-client';
+import { SignInRequired } from '../../components/SignInRequired';
+import { isUnauthorizedError } from '../../lib/auth-errors';
 import type { Creative } from '../../types';
 
 const staggerItem = {
@@ -94,12 +96,15 @@ export default function CreativesPage() {
 
         {isLoading && <LoadingState text="Loading creatives..." />}
 
-        {isError && (
-          <ErrorState
-            message={error instanceof Error ? error.message : 'Failed to load creatives'}
-            onRetry={() => refetch()}
-          />
-        )}
+        {isError &&
+          (isUnauthorizedError(error) ? (
+            <SignInRequired />
+          ) : (
+            <ErrorState
+              message={error instanceof Error ? error.message : 'Failed to load creatives'}
+              onRetry={() => refetch()}
+            />
+          ))}
 
         {!isLoading && !isError && creatives && creatives.length === 0 && (
           <EmptyState
