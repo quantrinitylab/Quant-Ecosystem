@@ -8,5 +8,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params;
   const q = request.nextUrl.searchParams.get('q');
   const query = q ? `?q=${encodeURIComponent(q)}` : '';
-  return proxyToBackend(request, `/emails/${id}/unsubscribe${query}`);
+  return proxyToBackend(request, `/emails/${encodeURIComponent(id)}/unsubscribe${query}`);
 }

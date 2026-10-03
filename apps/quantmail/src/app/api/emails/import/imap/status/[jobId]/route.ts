@@ -1,1 +1,7 @@
-aW1wb3J0IHsgTmV4dFJlcXVlc3QgfSBmcm9tICduZXh0L3NlcnZlcic7CmltcG9ydCB7IHByb3h5VG9CYWNrZW5kIH0gZnJvbSAnLi4vLi4vLi4vLi4vX2xpYi9wcm94eSc7CgpleHBvcnQgYXN5bmMgZnVuY3Rpb24gR0VUKHJlcXVlc3Q6IE5leHRSZXF1ZXN0LCB7IHBhcmFtcyB9OiB7IHBhcmFtczogUHJvbWlzZTx7IGpvYklkOiBzdHJpbmcgfT4gfSkgewogIGNvbnN0IHsgam9iSWQgfSA9IGF3YWl0IHBhcmFtczsKICByZXR1cm4gcHJveHlUb0JhY2tlbmQocmVxdWVzdCwgYC9lbWFpbHMvaW1wb3J0L2ltYXAvc3RhdHVzLyR7am9iSWR9YCk7Cn0K
+import { NextRequest } from 'next/server';
+import { proxyToBackend } from '../../../../_lib/proxy';
+
+export async function GET(request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
+  const { jobId } = await params;
+  return proxyToBackend(request, `/emails/import/imap/status/${encodeURIComponent(jobId)}`);
+}
