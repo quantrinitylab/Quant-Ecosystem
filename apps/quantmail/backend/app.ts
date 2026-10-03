@@ -61,13 +61,14 @@ import davRoutes from './routes/dav';
 import wellKnownRoutes from './routes/well-known';
 import * as jose from 'jose';
 import { InMemoryE2EERelay } from './lib/e2ee-relay';
+import { parsePort } from './lib/parse-port';
 
 export function getConfig(): AppConfig {
   const env = (process.env['NODE_ENV'] as AppConfig['env']) ?? 'development';
   if (env === 'production' && !process.env['JWT_SECRET'])
     throw new Error('JWT_SECRET environment variable is required in production');
   return {
-    port: Number(process.env['PORT'] ?? 3010),
+    port: parsePort(),
     host: process.env['HOST'] ?? '0.0.0.0',
     logLevel: process.env['LOG_LEVEL'] ?? 'info',
     corsOrigins: (process.env['CORS_ORIGINS'] ?? 'http://localhost:3000').split(','),
