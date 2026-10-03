@@ -11,6 +11,8 @@ import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useFeed } from '../hooks/useFeed';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
 import { CommentsSheet } from '../components/CommentsSheet';
+import { SignInRequired } from '../components/SignInRequired';
+import { isUnauthorizedError } from '../lib/auth-errors';
 
 type FeedTab = 'following' | 'foryou';
 
@@ -67,6 +69,13 @@ const ForYouFeedPage: React.FC = () => {
   }
 
   if (state.error) {
+    // The For You feed is a public route, so a logged-out visitor's 401 must
+    // never surface as the raw backend text ("Missing or invalid authorization
+    // header") — show the friendly sign-in prompt instead (no auto-redirect:
+    // the route is intentionally browsable logged-out).
+    if (isUnauthorizedError(state.error)) {
+      return <SignInRequired appName="QuantMax" autoRedirect={false} />;
+    }
     return <ErrorState message={state.error} onRetry={() => window.location.reload()} />;
   }
 
