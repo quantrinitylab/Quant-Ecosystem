@@ -118,7 +118,7 @@ function mapServerSession(s: ServerSession): ChatConversation {
 }
 
 export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
-  const { defaultModel = 'gpt-4' } = options;
+  const { defaultModel = 'muse-spark-1.3' } = options;
 
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
