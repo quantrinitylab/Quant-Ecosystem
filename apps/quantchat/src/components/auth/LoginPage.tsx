@@ -460,7 +460,8 @@ export default function LoginPage(props: LoginPageProps) {
               void verifyCode();
             }}
           >
-            {/* Auto-Fill Demo OTP banner */}
+            {/* Auto-Fill Demo OTP banner — DEVELOPMENT ONLY, never in production */}
+            {process.env.NODE_ENV === 'development' && (
             <div
               className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3.5 flex flex-col items-center gap-2"
               data-testid="demo-otp-banner"
@@ -478,6 +479,7 @@ export default function LoginPage(props: LoginPageProps) {
                 Development sandbox mode — no SMS gateway required
               </span>
             </div>
+            )}
 
             <div className="space-y-3">
               <label htmlFor="otp" className="block text-xs font-medium text-slate-400 text-center">
