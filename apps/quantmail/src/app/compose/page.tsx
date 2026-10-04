@@ -242,7 +242,8 @@ export default function ComposePage() {
 
   return (
     <UndoSendProvider>
-      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017]">
+      <div className="h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[#0d1017] flex justify-center">
+        <div className="w-full max-w-[880px] h-full">
         <EmailComposer
           // Handed over as the raw string, not wrapped in a one-entry array: `?to=`
           // can carry a whole group's members, and the composer is the thing that
@@ -259,6 +260,7 @@ export default function ComposePage() {
           onDiscard={handleDiscard}
           onAIAssist={handleAIAssist}
         />
+        </div>
       </div>
     </UndoSendProvider>
   );
