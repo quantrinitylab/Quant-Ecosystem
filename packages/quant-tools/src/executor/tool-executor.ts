@@ -1,13 +1,21 @@
 import type { AuditEntry, ToolExecutionContext, ToolPlan, ToolResult } from '../types.js';
 
+/**
+ * A tool handler receives the resolved params plus the full execution context.
+ * The context carries the userId and, via `metadata`, request-scoped secrets
+ * such as the caller's JWT (used by HTTP handlers for delegated auth).
+ * Handlers that only need params may ignore the second argument.
+ */
+export type ToolHandler = (
+  params: Record<string, unknown>,
+  context: ToolExecutionContext,
+) => Promise<unknown>;
+
 export class ToolExecutor {
   private auditEntries: AuditEntry[] = [];
-  private handlers: Map<string, (params: Record<string, unknown>) => Promise<unknown>> = new Map();
+  private handlers: Map<string, ToolHandler> = new Map();
 
-  registerHandler(
-    toolId: string,
-    handler: (params: Record<string, unknown>) => Promise<unknown>,
-  ): void {
+  registerHandler(toolId: string, handler: ToolHandler): void {
     this.handlers.set(toolId, handler);
   }
 
@@ -99,7 +107,7 @@ export class ToolExecutor {
     }
 
     try {
-      const data = await handler(params);
+      const data = await handler(params, context);
       const latencyMs = performance.now() - start;
 
       this.logAudit({
