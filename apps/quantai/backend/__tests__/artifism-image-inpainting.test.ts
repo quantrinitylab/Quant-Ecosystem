@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import imageInpaintingRoutes from '../routes/image-inpainting';
 import {
   createInpaintingJob,
@@ -377,6 +377,11 @@ describe('Artifism v6.6.0 AI Image Inpainting & Mask Brush Engine', () => {
     beforeEach(async () => {
       clearJobsForTesting();
       app = Fastify();
+      // Simulate the production verified-auth layer: identity is set
+      // server-side on request.user (never from client headers — P0).
+      app.addHook('onRequest', async (request: FastifyRequest) => {
+        (request as any).user = { id: 'usr-inpaint-test-01' };
+      });
       await app.register(imageInpaintingRoutes);
     });
 
@@ -384,9 +389,6 @@ describe('Artifism v6.6.0 AI Image Inpainting & Mask Brush Engine', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/image/inpaint',
-        headers: {
-          'x-user-id': 'usr_http_1',
-        },
         payload: {
           originalImageUrl: 'https://cdn.quantmail.in/photos/cat.png',
           maskBox: {
@@ -406,7 +408,7 @@ describe('Artifism v6.6.0 AI Image Inpainting & Mask Brush Engine', () => {
       expect(body.success).toBe(true);
       expect(body.data.id).toMatch(/^inpaint_/);
       expect(body.data.status).toBe('QUEUED');
-      expect(body.data.userId).toBe('usr_http_1');
+      expect(body.data.userId).toBe('usr-inpaint-test-01');
     });
 
     it('POST /image/inpaint with autoProcess completes job immediately', async () => {
