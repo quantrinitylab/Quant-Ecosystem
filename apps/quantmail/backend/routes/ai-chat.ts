@@ -411,6 +411,123 @@ function buildContextBlock(context: z.infer<typeof chatSchema>['context']): stri
   return `On-screen context:\n${lines.join('\n')}`;
 }
 
+// ---------------------------------------------------------------------------
+// Mailbox grounding (bug 4, 2026-10-04).
+//
+// "Summarize my inbox" used to reach the model with NO mailbox data at all —
+// only the persona prompt and whatever text happened to be on screen — so the
+// model invented numbers ("5 unread emails and 17 total messages") for a
+// mailbox that actually held 1 conversation and 0 unread. Nothing in the
+// codebase hardcodes those numbers; they are pure LLM hallucination from an
+// ungrounded prompt.
+//
+// The fix: read the real message store on every chat request — the same
+// `email` rows the inbox list reads, with the same default-inbox scoping as
+// `GET /emails` in routes/emails.ts — and hand the numbers to the model as an
+// explicit system block with a strict use-only-what-is-provided rule. If the
+// read fails (no prisma, DB down), the model is told to admit it could not
+// load mailbox data instead of guessing. The rule is absolute: real data or an
+// honest empty/error state, never fabricated counts.
+// ---------------------------------------------------------------------------
+
+const MAILBOX_SNAPSHOT_LIMIT = 6;
+
+interface MailboxSnapshotMessage {
+  from: string;
+  subject: string;
+  unread: boolean;
+  receivedAt: string;
+}
+
+interface MailboxSnapshot {
+  available: boolean;
+  total: number;
+  unread: number;
+  recent: MailboxSnapshotMessage[];
+}
+
+function formatSnapshotSender(fromName: unknown, fromAddress: unknown): string {
+  const name = typeof fromName === 'string' ? fromName.trim() : '';
+  const address = typeof fromAddress === 'string' ? fromAddress.trim() : '';
+  if (name && address) return `${name} <${address}>`;
+  return name || address || '(unknown sender)';
+}
+
+async function readMailboxSnapshot(prisma: any, userId: string): Promise<MailboxSnapshot> {
+  const empty: MailboxSnapshot = { available: false, total: 0, unread: 0, recent: [] };
+  if (!prisma?.email?.count || typeof prisma.email.findMany !== 'function') return empty;
+  try {
+    // Same core scoping as the default inbox in routes/emails.ts: this user's
+    // mail, not deleted, and not in draft/spam/trash. Snooze/archive-folder
+    // refinements are deliberately left out — this snapshot answers "my inbox"
+    // as the app badge does, not as one filtered tab does.
+    const where = { userId, deletedAt: null, isDraft: false, isSpam: false, isTrash: false };
+    const [total, unread, recent] = await Promise.all([
+      prisma.email.count({ where }),
+      prisma.email.count({ where: { ...where, isRead: false } }),
+      prisma.email.findMany({
+        where,
+        orderBy: [{ receivedAt: 'desc' }, { createdAt: 'desc' }],
+        take: MAILBOX_SNAPSHOT_LIMIT,
+        select: {
+          fromName: true,
+          fromAddress: true,
+          subject: true,
+          isRead: true,
+          receivedAt: true,
+        },
+      }),
+    ]);
+    return {
+      available: true,
+      total: typeof total === 'number' ? total : 0,
+      unread: typeof unread === 'number' ? unread : 0,
+      recent: (Array.isArray(recent) ? recent : []).map((m: any) => ({
+        from: formatSnapshotSender(m?.fromName, m?.fromAddress),
+        subject:
+          typeof m?.subject === 'string' && m.subject.trim().length > 0
+            ? m.subject.trim()
+            : '(no subject)',
+        unread: m?.isRead === false,
+        receivedAt: m?.receivedAt ? new Date(m.receivedAt).toISOString() : '(unknown date)',
+      })),
+    };
+  } catch {
+    // A snapshot read must never fail the chat turn: the model gets the honest
+    // "unavailable" block instead, and says so to the user.
+    return empty;
+  }
+}
+
+function buildMailboxSystemBlock(snapshot: MailboxSnapshot): string {
+  if (!snapshot.available) {
+    return [
+      'Mailbox data unavailable: the live mailbox could not be read for this request.',
+      'If the user asks about their inbox, mail, messages, unread counts, or message contents,',
+      'say honestly that you could not load their mailbox data right now.',
+      'NEVER invent counts, senders, subjects, dates, or message content.',
+    ].join(' ');
+  }
+  const lines = [
+    "LIVE MAILBOX SNAPSHOT — authoritative, read from the user's real mailbox just now. Treat every number and name below as ground truth:",
+    `Inbox: ${snapshot.total} total message(s), ${snapshot.unread} unread.`,
+  ];
+  if (snapshot.recent.length > 0) {
+    lines.push('Most recent messages (newest first):');
+    snapshot.recent.forEach((m, i) => {
+      lines.push(
+        `${i + 1}. [${m.unread ? 'UNREAD' : 'read'}] From: ${m.from} — Subject: ${m.subject} — ${m.receivedAt}`,
+      );
+    });
+  } else {
+    lines.push('The inbox is currently empty — there are no messages to list.');
+  }
+  lines.push(
+    'RULES: when the user asks about their inbox, mail, messages, or unread counts, answer ONLY from this snapshot and quote its numbers exactly. Never invent counts, senders, subjects, dates, or content not listed here. If they ask about something not in the snapshot, say you do not have that information rather than guessing.',
+  );
+  return lines.join('\n');
+}
+
 export default async function aiChatRoutes(fastify: FastifyInstance) {
   fastify.get('/chat/health', async (_request, reply) => {
     if (!isAIConfigured()) {
@@ -434,6 +551,11 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     const { messages, context, intent, tools } = parsed.data;
     const contextBlock = buildContextBlock(context);
 
+    // Ground every turn in the real mailbox (bug 4): without this the model
+    // answers "Summarize my inbox" from nothing and fabricates the numbers.
+    const mailboxSnapshot = await readMailboxSnapshot(getPrisma(fastify), userId);
+    const mailboxBlock = buildMailboxSystemBlock(mailboxSnapshot);
+
     // `auto` decides from the size and depth of what actually arrived, not from
     // anything the client asserts about itself.
     const plan = resolveAIIntent(intent, measureAISignals(messages, context));
@@ -445,6 +567,10 @@ export default async function aiChatRoutes(fastify: FastifyInstance) {
     if (contextBlock) {
       modelMessages.push({ role: 'system', content: contextBlock });
     }
+    // Always present: the grounding block is the anti-hallucination guard, and
+    // the "unavailable" variant is the honest state when the store cannot be
+    // read — never a fabricated count.
+    modelMessages.push({ role: 'system', content: mailboxBlock });
     modelMessages.push(...messages);
 
     if (!isAIConfigured()) {
