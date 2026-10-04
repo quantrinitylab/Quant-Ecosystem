@@ -15,7 +15,6 @@ import { useModelSelector } from '../hooks/useModelSelector';
 import { useUsageStats } from '../hooks/useUsageStats';
 import { useConversationSearch } from '../hooks/useConversationSearch';
 import { ModelSelector } from '../components/ModelSelector';
-import { VoiceToggle } from '../components/VoiceToggle';
 import { ExportMenu } from '../components/ExportMenu';
 import { AgenticMessage } from '../components/AgenticMessage';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -472,7 +471,9 @@ export default function AIPage() {
                   aria-pressed={activeMode === 'chat'}
                   title="ChatGPT / Claude Conversational Chat"
                 >
-                  <span>💬</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                  </svg>
                   <span className="hidden sm:inline">Chat Mode</span>
                 </button>
                 <button
@@ -486,7 +487,9 @@ export default function AIPage() {
                   aria-pressed={activeMode === 'agent'}
                   title="Claude Code / Codex / Replit Agentic Terminal"
                 >
-                  <span>⚡</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                  </svg>
                   <span className="hidden sm:inline">Agent / Code Mode</span>
                 </button>
               </div>
@@ -518,7 +521,9 @@ export default function AIPage() {
                   }`}
                   title="Toggle Split-Screen Canvas / Artifacts Panel"
                 >
-                  <span>🎨</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.995 15.995 0 00-4.648 4.764m3.42 3.42a15.952 15.952 0 01-5.339 2.03" />
+                  </svg>
                   <span className="hidden md:inline">
                     {isCanvasOpen ? 'Close Canvas' : 'Work Canvas'}
                   </span>
@@ -630,7 +635,6 @@ export default function AIPage() {
                   </span>
                 </button>
 
-                <VoiceToggle isActive={voiceActive} onToggle={() => setVoiceActive(!voiceActive)} />
               </div>
             </div>
             <StatsHeader />
@@ -739,6 +743,8 @@ export default function AIPage() {
                     onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
                     onClearImage={() => setImagePreview(null)}
                     onClearFile={() => setAttachedFile(null)}
+                    currentModel={currentModel}
+                    onStop={stopStreaming}
                   />
 
                   {/* Hidden file inputs */}
@@ -1120,6 +1126,8 @@ interface ChatInputProps {
   onVoiceToggle: () => void;
   onClearImage: () => void;
   onClearFile: () => void;
+  currentModel?: string;
+  onStop?: () => void;
 }
 
 function ChatInput({
@@ -1133,9 +1141,12 @@ function ChatInput({
   onVoiceToggle,
   onClearImage,
   onClearFile,
+  currentModel,
+  onStop,
 }: ChatInputProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -1145,9 +1156,6 @@ function ChatInput({
         setInput('');
         onClearImage();
         onClearFile();
-        // Keep the caret in the composer. Without this, submitting drops focus
-        // to the document body, so a keyboard user has to tab back in before
-        // they can ask a follow-up.
         textareaRef.current?.focus();
       }
     },
@@ -1164,175 +1172,187 @@ function ChatInput({
     [handleSubmit],
   );
 
+  // Auto-grow textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 192) + 'px';
+  }, [input]);
+
+  // Trailing button state: mic (empty) -> send (has text) -> stop (streaming)
+  const trailingState: 'mic' | 'send' | 'stop' = isStreaming ? 'stop' : input.trim() ? 'send' : 'mic';
+
+  const handleTrailingClick = () => {
+    if (trailingState === 'stop' && onStop) {
+      onStop();
+    } else if (trailingState === 'send') {
+      handleSubmit(new Event('submit') as unknown as React.FormEvent);
+    } else {
+      onVoiceToggle();
+    }
+  };
+
   return (
-    <div className="border-t border-[var(--quant-border)] p-3">
-      {/* Attachments preview */}
-      <AnimatePresence>
-        {(imagePreview || attachedFile || voiceRecording) && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mb-2 flex items-center gap-2 flex-wrap"
-          >
-            {imagePreview && (
-              <div className="relative group">
-                <img
-                  src={imagePreview}
-                  alt="Upload preview"
-                  className="h-16 w-16 object-cover rounded-lg border border-[var(--quant-border)]"
-                />
-                <button
-                  onClick={onClearImage}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  x
-                </button>
-              </div>
-            )}
-            {attachedFile && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[var(--quant-surface-hover)] border border-[var(--quant-border)]">
-                <span className="text-sm">📎</span>
-                <span className="text-xs font-medium text-[var(--foreground)] truncate max-w-[120px]">
-                  {attachedFile.name}
+    <div className="border-t border-[var(--quant-border)] px-3 sm:px-4 pt-3 pb-3"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+      <div className="mx-auto max-w-3xl">
+        {/* Attachment chips / recording indicator row */}
+        <AnimatePresence>
+          {(imagePreview || attachedFile || voiceRecording) && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-2 flex items-center gap-2 flex-wrap"
+            >
+              {imagePreview && (
+                <div className="relative group">
+                  <img
+                    src={imagePreview}
+                    alt="Upload preview"
+                    className="h-16 w-16 object-cover rounded-xl border border-[var(--quant-border)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={onClearImage}
+                    aria-label="Remove image"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {attachedFile && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-[var(--quant-surface-hover)] border border-[var(--quant-border)]">
+                  <svg className="w-4 h-4 text-[var(--foreground-secondary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                  <span className="text-xs font-medium text-[var(--foreground)] truncate max-w-[120px]">
+                    {attachedFile.name}
+                  </span>
+                  <span className="text-[10px] text-[var(--foreground-secondary)]">
+                    {attachedFile.size}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClearFile}
+                    aria-label="Remove file"
+                    className="text-[var(--foreground-secondary)] hover:text-red-500 ml-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+              {voiceRecording && (
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-red-500/10 border border-red-500/30">
+                  <motion.span
+                    className="w-2 h-2 rounded-full bg-red-500"
+                    animate={prefersReducedMotion ? {} : { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  />
+                  <span className="text-xs font-medium text-red-500">
+                    Listening…
+                  </span>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Pill composer */}
+        <form onSubmit={handleSubmit}>
+          <div className="rounded-[24px] border border-[var(--quant-border)] bg-[var(--quant-surface)]
+            focus-within:border-[var(--quant-accent)] focus-within:ring-2 focus-within:ring-[var(--quant-accent)]/25
+            transition-all duration-150 cursor-text"
+            onClick={() => textareaRef.current?.focus()}>
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything…"
+              aria-label="Message Quanty"
+              aria-describedby="composer-hint"
+              disabled={isStreaming}
+              rows={1}
+              className="w-full bg-transparent resize-none outline-none px-5 pt-3.5 pb-1
+                text-[15px] text-[var(--foreground)] placeholder-[var(--foreground-secondary)]
+                disabled:opacity-50 max-h-48"
+            />
+            {/* Action row */}
+            <div className="flex items-center gap-1 px-3 pb-2.5">
+              <button
+                type="button"
+                onClick={onImageUpload}
+                aria-label="Upload image"
+                className="min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+              </button>
+              {currentModel && (
+                <span className="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium
+                  bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] border border-[var(--quant-border)]">
+                  {currentModel}
                 </span>
-                <span className="text-[10px] text-[var(--foreground-secondary)]">
-                  {attachedFile.size}
-                </span>
-                <button
-                  onClick={onClearFile}
-                  className="text-xs text-[var(--foreground-secondary)] hover:text-red-500 ml-1"
-                >
-                  x
-                </button>
-              </div>
-            )}
-            {voiceRecording && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <motion.span
-                  className="w-2 h-2 rounded-full bg-red-500"
-                  animate={{ scale: [1, 1.3, 1], opacity: [1, 0.6, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
-                <span className="text-xs font-medium text-red-600 dark:text-red-400">
-                  Recording...
-                </span>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+              )}
+              <div className="flex-1" />
+              {/* Morphing trailing button: mic -> send -> stop */}
+              <button
+                type={trailingState === 'send' ? 'submit' : 'button'}
+                onClick={trailingState === 'send' ? undefined : handleTrailingClick}
+                disabled={trailingState === 'send' && !input.trim()}
+                aria-label={trailingState === 'stop' ? 'Stop generating' : trailingState === 'send' ? 'Send message' : 'Voice input'}
+                className={`size-9 rounded-full grid place-items-center shrink-0 transition-all active:scale-95 ${
+                  trailingState === 'send'
+                    ? 'bg-[var(--foreground)] text-[var(--quant-base)]'
+                    : trailingState === 'stop'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
+                } disabled:opacity-40`}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={trailingState}
+                    initial={prefersReducedMotion ? false : { scale: 0.6, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={prefersReducedMotion ? {} : { scale: 0.6, opacity: 0 }}
+                    transition={{ duration: 0.12 }}
+                    className="grid place-items-center"
+                  >
+                    {trailingState === 'mic' && (
+                      <svg className="w-4.5 h-4.5 w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                      </svg>
+                    )}
+                    {trailingState === 'send' && (
+                      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                      </svg>
+                    )}
+                    {trailingState === 'stop' && (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="6" width="12" height="12" rx="2" />
+                      </svg>
+                    )}
+                  </motion.span>
+                </AnimatePresence>
+              </button>
+            </div>
+          </div>
+        </form>
 
-      {/* Input row */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
-        {/* Image upload button */}
-        <button
-          type="button"
-          onClick={onImageUpload}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors"
-          aria-label="Upload image"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-            />
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-        </button>
-
-        {/* File attachment button */}
-        <button
-          type="button"
-          onClick={onFileAttach}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)] transition-colors"
-          aria-label="Attach file"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-            />
-          </svg>
-        </button>
-
-        {/* Voice toggle */}
-        <button
-          type="button"
-          onClick={onVoiceToggle}
-          className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors ${
-            voiceRecording
-              ? 'bg-red-100 dark:bg-red-900/30 text-red-500'
-              : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)] hover:bg-[var(--quant-surface-hover)]'
-          }`}
-          aria-label={voiceRecording ? 'Stop recording' : 'Start voice input'}
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-            />
-          </svg>
-        </button>
-
-        {/* Text input. A placeholder is not an accessible name — it disappears
-            on first keystroke and several screen readers ignore it outright — so
-            the composer had no name at all. aria-describedby carries the
-            Enter/Shift+Enter affordance that was previously invisible to
-            assistive tech and to anyone who never guessed it. */}
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask anything..."
-          aria-label="Message Quanty"
-          aria-describedby="composer-hint"
-          disabled={isStreaming}
-          rows={1}
-          className="flex-1 min-h-[44px] max-h-32 resize-none rounded-xl border border-[var(--quant-border)] px-4 py-2.5 text-sm bg-[var(--quant-surface)] text-[var(--foreground)] placeholder-[var(--foreground-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--quant-accent)]/30 focus:border-[var(--quant-accent)] disabled:opacity-50 transition-colors"
-        />
-
-        {/* Send button */}
-        <button
-          type="submit"
-          disabled={!input.trim() || isStreaming}
-          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-[var(--quant-accent)] text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          aria-label="Send message"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-            />
-          </svg>
-        </button>
-      </form>
-
-      {/* The keyboard contract, stated once. Visible to sighted users and
-          referenced by the composer's aria-describedby, rather than being folk
-          knowledge. */}
-      <p
-        id="composer-hint"
-        className="mt-2 text-center text-[11px] text-[var(--foreground-secondary)]"
-      >
-        <kbd className="font-sans font-medium">Enter</kbd> to send ·{' '}
-        <kbd className="font-sans font-medium">Shift</kbd>+
-        <kbd className="font-sans font-medium">Enter</kbd> for a new line
-      </p>
+        <p id="composer-hint" className="mt-2 text-center text-[11px] text-[var(--foreground-secondary)]">
+          <kbd className="font-sans font-medium">Enter</kbd> to send ·{' '}
+          <kbd className="font-sans font-medium">Shift</kbd>+<kbd className="font-sans font-medium">Enter</kbd> for a new line
+        </p>
+      </div>
     </div>
   );
 }
