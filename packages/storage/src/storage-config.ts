@@ -20,7 +20,10 @@ const LOCAL_HOST_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1|minio)(:\d+)?/i;
 const INSECURE_CREDENTIALS = new Set(['minioadmin', 'minio', 'changeme', '']);
 
 function stripTrailingSlashes(value: string): string {
-  return value.replace(/\/+$/, '');
+  // ReDoS-safe: manual scan instead of /\/+$/ (CodeQL js/polynomial-redos).
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end--;
+  return value.slice(0, end);
 }
 
 function detectProvider(endpoint: string, explicitR2: boolean): StorageProviderName {
