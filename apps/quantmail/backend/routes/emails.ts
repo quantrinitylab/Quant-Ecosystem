@@ -52,6 +52,9 @@ async function getOrCreateFolder(
 // Recipients typed as a bare handle ("krish") or as "Name <a@b.com>" or { email, name }
 // are normalised to a real address before validation, so the composer no longer
 // rejects what the user actually typed.
+//
+// Canonical sender domain (merge-gate G2): matches the delivery-worker fallback
+// in delivery-worker.service.ts. See imap-smtp/deploy/MAIL_SENDER_DOMAIN_DECISION.md.
 const DEFAULT_MAIL_DOMAIN = process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
 
 function normalizeAddress(value: unknown): unknown {
