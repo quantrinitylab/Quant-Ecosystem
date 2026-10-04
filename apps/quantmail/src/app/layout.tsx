@@ -39,6 +39,8 @@ export const metadata: Metadata = {
     shortcut: '/quantmail-mascot.svg',
     apple: '/quantmail-mascot.svg',
   },
+  manifest: '/manifest.json',
+  themeColor: '#0d1017',
 };
 
 const themeBootstrap = `

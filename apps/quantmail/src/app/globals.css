@@ -1133,7 +1133,7 @@ body {
 @media (max-width: 1023px) {
   .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.075); }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
 }
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .inbox-list-pane { width: 100%; min-width: 0; border-right: 0; }.reading-pane { display: none; }
 }
 /*
