@@ -743,7 +743,7 @@ export default function AIPage() {
                     onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
                     onClearImage={() => setImagePreview(null)}
                     onClearFile={() => setAttachedFile(null)}
-                    currentModel={currentModel}
+                    currentModel={currentModel.name}
                     onStop={stopStreaming}
                   />
 
