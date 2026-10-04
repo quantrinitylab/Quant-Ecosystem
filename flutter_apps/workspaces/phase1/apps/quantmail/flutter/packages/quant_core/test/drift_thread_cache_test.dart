@@ -147,7 +147,76 @@ void main() {
     await cache.clear();
 
     expect(await cache.readThreadPage(page: 1, pageSize: 50), isNull);
+    expect(await cache.readThread('t1'), isNull);
     expect(await cache.readSyncCursor(), isNull,
         reason: 'the sync cursor is cleared too (sign-out semantics)');
+  });
+
+  group('readThread (single-thread lookup, M6 seam)', () {
+    test('write page -> readThread finds each thread', () async {
+      await cache.writeThreadPage(
+        page: 1,
+        pageSize: 50,
+        threads: [_thread('t1'), _thread('t2')],
+        hasMore: false,
+      );
+
+      final t1 = await cache.readThread('t1');
+      expect(t1, isNotNull);
+      expect(t1!.id, 't1');
+      expect(t1.subject, 'Subject t1');
+
+      final t2 = await cache.readThread('t2');
+      expect(t2, isNotNull);
+      expect(t2!.id, 't2');
+    });
+
+    test('unknown id returns null', () async {
+      await cache.writeThreadPage(
+        page: 1,
+        pageSize: 50,
+        threads: [_thread('t1')],
+        hasMore: false,
+      );
+      expect(await cache.readThread('nope'), isNull);
+    });
+
+    test('upsert-only threads are readable without any page write', () async {
+      await cache.upsertThread(_thread('solo', subject: 'Solo subject'));
+      final found = await cache.readThread('solo');
+      expect(found, isNotNull);
+      expect(found!.subject, 'Solo subject');
+    });
+
+    test('readThread sees upsert updates and deleteThread tombstones',
+        () async {
+      await cache.upsertThread(_thread('t1', subject: 'v1'));
+      await cache.upsertThread(_thread('t1', subject: 'v2'));
+      expect((await cache.readThread('t1'))?.subject, 'v2',
+          reason: 'upserts replace the payload readThread returns');
+
+      await cache.deleteThread('t1');
+      expect(await cache.readThread('t1'), isNull,
+          reason: 'deleted threads are gone from single-thread reads too');
+    });
+
+    test('readThread is eviction-free: reads do not disturb pages', () async {
+      await cache.writeThreadPage(
+        page: 1,
+        pageSize: 50,
+        threads: [_thread('t1'), _thread('t2')],
+        hasMore: true,
+      );
+
+      // Repeated reads of the same and unknown ids.
+      await cache.readThread('t1');
+      await cache.readThread('t1');
+      await cache.readThread('missing');
+
+      final page = await cache.readThreadPage(page: 1, pageSize: 50);
+      expect(page, isNotNull);
+      expect(page!.hasMore, isTrue);
+      expect(page.threads.map((t) => t.id).toList(), ['t1', 't2']);
+    });
   });
 }
