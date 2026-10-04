@@ -1,4 +1,10 @@
-// ============================================================================
+successfully downloaded text file (SHA: a5e5485a6ce236a10f352668c66870daef6d6522)",
+        "type": "text"
+      },
+      {
+        "resource": {
+          "mimeType": "text/plain; charset=utf-8",
+          "text": "// ============================================================================
 // AI Core - Model Router
 // ============================================================================
 
@@ -336,6 +342,48 @@ export class ModelRouter {
    */
   private registerDefaultModels(): void {
     const defaultModels: AIModelConfig[] = [
+      // Meta AI models (primary provider — Muse Spark, multimodal, voice, agentic)
+      {
+        id: 'muse-spark-1.3',
+        name: 'Muse Spark 1.3 (Meta AI)',
+        provider: 'meta',
+        capabilities: [
+          'text_generation',
+          'text_summarization',
+          'code_generation',
+          'translation',
+          'sentiment_analysis',
+          'content_moderation',
+          'recommendation',
+          'device_control',
+          'long_context',
+          'image_analysis',
+          'audio_transcription',
+        ],
+        maxContextLength: 128000,
+        maxOutputTokens: 8192,
+        costPerInputToken: 0.0000001,
+        costPerOutputToken: 0.0000004,
+        latencyMs: 150,
+        qualityScore: 0.97,
+      },
+      {
+        id: 'muse-spark-1.3-voice',
+        name: 'Muse Spark 1.3 Voice (Meta AI)',
+        provider: 'meta',
+        capabilities: [
+          'text_generation',
+          'audio_transcription',
+          'translation',
+          'long_context',
+        ],
+        maxContextLength: 64000,
+        maxOutputTokens: 4096,
+        costPerInputToken: 0.0000001,
+        costPerOutputToken: 0.0000004,
+        latencyMs: 120,
+        qualityScore: 0.95,
+      },
       // Cloudflare Workers AI models (serverless edge inference)
       {
         id: '@cf/meta/llama-3.1-70b-instruct',
