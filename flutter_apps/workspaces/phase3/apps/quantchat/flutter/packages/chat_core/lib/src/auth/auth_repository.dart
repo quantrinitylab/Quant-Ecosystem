@@ -26,8 +26,16 @@
 // browser-bootstrap UX.
 
 import 'package:dio/dio.dart';
-import 'package:quant_foundation/quant_foundation.dart';
+// Foundation's canonical `requireHttpsBaseUrl` is deliberately stricter
+// (loopback-only http). Chat's local guard (../config/app_config.dart) keeps
+// the RFC1918 LAN allowlist (QuantAI S4 template: LAN http in dev stays
+// release-safe-but-local). All call sites in this file use local semantics,
+// so the local definition wins — the `hide` below makes that explicit.
+// Behavior unchanged: explicitness only, zero behavior delta.
+import 'package:quant_foundation/quant_foundation.dart'
+    hide requireHttpsBaseUrl;
 
+import '../config/app_config.dart';
 import 'auth_exceptions.dart';
 
 /// Orchestrates QuantChat authentication via the QuantMail SSO: password
@@ -99,20 +107,41 @@ class AuthRepository {
     Duration timeout = const Duration(seconds: 30),
     Dio? loginDio,
   }) : _loginDio = loginDio ??
-            Dio(
-              BaseOptions(
-                // Both the /auth/* bootstrap and /oauth/authorize run
-                // against the QuantMail SSO server.
-                baseUrl: ssoBaseUrl.replaceAll(RegExp(r'/+$'), ''),
-                connectTimeout: timeout,
-                receiveTimeout: timeout,
-                sendTimeout: timeout,
-                contentType: Headers.jsonContentType,
-                // The SSO backend requires an allowlisted Origin header on
-                // /auth/login and /auth/2fa/verify.
-                headers: <String, dynamic>{'Origin': webOrigin},
-              ),
+            _buildLoginDio(
+              ssoBaseUrl: ssoBaseUrl,
+              webOrigin: webOrigin,
+              timeout: timeout,
             );
+
+  /// Builds the bare login Dio for the SSO bootstrap transport.
+  ///
+  /// SECURITY (Q4 remainder — zero-defect 2026-10-03): [requireHttpsBaseUrl]
+  /// is release-safe — the `AppConfig` constructor asserts are stripped in
+  /// release builds, so the guard lives here, on the transport-construction
+  /// path. It throws [ArgumentError] in ALL build modes before any
+  /// credential (password, refresh token) touches the wire. An injected
+  /// [loginDio] test double bypasses the guard (it is not a real transport).
+  static Dio _buildLoginDio({
+    required String ssoBaseUrl,
+    required String webOrigin,
+    required Duration timeout,
+  }) {
+    requireHttpsBaseUrl(ssoBaseUrl);
+    return Dio(
+      BaseOptions(
+        // Both the /auth/* bootstrap and /oauth/authorize run
+        // against the QuantMail SSO server.
+        baseUrl: ssoBaseUrl.replaceAll(RegExp(r'/+$'), ''),
+        connectTimeout: timeout,
+        receiveTimeout: timeout,
+        sendTimeout: timeout,
+        contentType: Headers.jsonContentType,
+        // The SSO backend requires an allowlisted Origin header on
+        // /auth/login and /auth/2fa/verify.
+        headers: <String, dynamic>{'Origin': webOrigin},
+      ),
+    );
+  }
 
   /// The in-flight PKCE authorization request (non-null while a browser
   /// consent round-trip is outstanding).
