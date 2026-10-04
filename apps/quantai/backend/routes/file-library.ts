@@ -77,10 +77,9 @@ export default async function fileLibraryRoutes(fastify: FastifyInstance) {
     if (auth?.userId) {
       return auth.userId;
     }
-    const headerUserId = request.headers['x-user-id'];
-    if (typeof headerUserId === 'string' && headerUserId.trim()) {
-      return headerUserId.trim();
-    }
+    // SECURITY (P0-7): identity comes ONLY from verified auth (request.auth).
+    // Never trust the client-supplied identity header - any caller could set
+    // it and act as another user.
     throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
 

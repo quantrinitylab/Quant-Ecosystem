@@ -44,11 +44,11 @@ export default async function mcpConnectorsRoutes(fastify: FastifyInstance) {
     if (auth?.userId) {
       return auth.userId;
     }
-    const headerUserId = request.headers['x-user-id'] as string;
-    if (headerUserId) {
-      return headerUserId;
-    }
-    return 'user-default';
+    // SECURITY (P0-8): identity comes ONLY from verified auth (request.auth).
+    // Never trust the client-supplied identity header, and never fall back
+    // to a shared default identity (it let any caller read/mutate another
+    // user's connector state).
+    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
 
   // GET / or /connectors — List all connectors with user installation state
