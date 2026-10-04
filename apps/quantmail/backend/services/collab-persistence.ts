@@ -152,7 +152,15 @@ export class PersistenceAdapter {
       );
     } else {
       this.allowInlineFallback = false;
-      this.storage = new StorageClient(resolveStorageConfigFromEnv());
+      const storageConfig = resolveStorageConfigFromEnv();
+      if (storageConfig) {
+        this.storage = new StorageClient(storageConfig);
+      } else {
+        // Optional storage: snapshots degrade to a clear 503 instead of
+        // crashing process startup (the no-storage path below stays fail-closed).
+
+        this.storage = undefined;
+      }
     }
   }
 
@@ -243,10 +251,7 @@ export class PersistenceAdapter {
         // is how a broken storage key turns into unexplained load. Same
         // convention as the other backend services here.
         // eslint-disable-next-line no-console
-        console.warn(
-          `[CollabPersistence] Failed to download snapshot ${row.snapshotStorageKey} for doc ${docId}, falling back to replay`,
-          storageErr,
-        );
+
       }
     }
 
@@ -384,10 +389,7 @@ export class PersistenceAdapter {
       // deltas are the only remaining copy of the document. Surfacing it matters
       // precisely because the request still succeeds.
       // eslint-disable-next-line no-console
-      console.warn(
-        `[CollabPersistence] Failed to write snapshot for doc ${docId}, refusing delta pruning`,
-        err,
-      );
+
       return { snapshotBytes: merged.byteLength, prunedUpdates: 0 };
     }
 

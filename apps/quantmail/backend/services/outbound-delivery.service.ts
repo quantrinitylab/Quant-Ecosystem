@@ -3,6 +3,7 @@ import { createAppError } from '@quant/server-core';
 import { TypedQueue, SendEmailJobSchema, type SendEmailJob } from '@quant/queue';
 // Observability (Task 23.1, Req 23.2): every delivery operation emits a span.
 import { noopSpanPort, withSpan, type SpanPort } from '../shared/observability';
+import { parsePort, DEFAULT_PORT } from '../lib/parse-port';
 
 /**
  * OutboundDeliveryPipeline (QuantMail SuperHub — Pillar 1, Phase 2).
@@ -42,6 +43,28 @@ export interface RedisConnectionOptions {
   tls?: Record<string, never>;
 }
 
+/** Default Redis port when REDIS_PORT is unset or invalid. */
+export const DEFAULT_REDIS_PORT = 6379;
+
+/**
+ * Parse REDIS_PORT with the same fail-safe rules as parsePort() (Bug 2):
+ * a valid TCP port (integer 1–65535) wins; anything else warns and falls back
+ * to 6379 instead of producing a NaN port. parsePort() itself falls back to
+ * its own DEFAULT_PORT (3010), so the fallback is remapped here for Redis.
+ */
+export function parseRedisPort(raw?: string): number {
+  const value = raw ?? process.env['REDIS_PORT'];
+  if (value === undefined || value.trim() === '') return DEFAULT_REDIS_PORT;
+  const port = parsePort(value);
+  if (port === DEFAULT_PORT && value.trim() !== String(DEFAULT_PORT)) {
+    // parsePort() rejected the value and used its own fallback — remap to Redis'.
+    // eslint-disable-next-line no-console
+    console.warn(`Invalid REDIS_PORT="${value}" — falling back to ${DEFAULT_REDIS_PORT}.`);
+    return DEFAULT_REDIS_PORT;
+  }
+  return port;
+}
+
 export function resolveRedisConnection(
   env: Record<string, string | undefined> = process.env,
 ): RedisConnectionOptions {
@@ -49,7 +72,7 @@ export function resolveRedisConnection(
   if (!redisUrl) {
     return {
       host: env['REDIS_HOST'] ?? 'localhost',
-      port: Number(env['REDIS_PORT'] ?? 6379),
+      port: parseRedisPort(env['REDIS_PORT']),
     };
   }
 

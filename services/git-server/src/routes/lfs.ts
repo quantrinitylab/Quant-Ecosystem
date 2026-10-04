@@ -40,6 +40,9 @@ export default async function lfsRoutes(
   if (!lfsHandler) {
     try {
       const storageConfig = resolveStorageConfigFromEnv();
+      if (!storageConfig) {
+        throw new Error('Object storage is not configured \u2014 set S3/R2 env vars');
+      }
       const storageClient = new StorageClient(storageConfig);
       const lfsStorage = new LfsStorageService(storageClient);
       lfsHandler = new LfsHandlerService(lfsStorage);

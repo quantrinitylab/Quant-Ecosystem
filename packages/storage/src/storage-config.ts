@@ -41,10 +41,15 @@ function detectProvider(endpoint: string, explicitR2: boolean): StorageProviderN
  *   CLOUDFLARE_R2_ENDPOINT  ->  R2_ENDPOINT  ->  S3_ENDPOINT
  * with CLOUDFLARE_R2_ACCOUNT_ID able to derive the canonical R2 endpoint.
  *
- * In production this throws rather than silently falling back to MinIO defaults.
- * A storage layer that quietly points at nothing is how mock buffers survive.
+ * Returns `null` (instead of throwing) when object storage is not configured,
+ * so services can start without storage and degrade gracefully: every storage
+ * operation must null-check and fail with a clear 503 (STORAGE_NOT_CONFIGURED).
+ * Explicitly insecure development credentials in production still throw —
+ * a storage layer that quietly points at nothing is how mock buffers survive.
  */
-export function resolveStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env): StorageConfig {
+export function resolveStorageConfigFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): StorageConfig | null {
   const explicitR2Endpoint = env.CLOUDFLARE_R2_ENDPOINT ?? env.R2_ENDPOINT;
   const accountId = env.CLOUDFLARE_R2_ACCOUNT_ID;
   const derivedR2Endpoint = accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined;
@@ -73,7 +78,8 @@ export function resolveStorageConfigFromEnv(env: NodeJS.ProcessEnv = process.env
     if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID | S3_ACCESS_KEY');
     if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY | S3_SECRET_KEY');
     if (missing.length > 0) {
-      throw new Error(`Object storage is not configured. Missing: ${missing.join(', ')}`);
+      // Optional storage: do not crash process startup. Callers degrade to 503.
+      return null;
     }
     if (
       INSECURE_CREDENTIALS.has(accessKeyId) ||
