@@ -185,7 +185,7 @@ class AuthSessionNotifier extends AsyncNotifier<AuthSessionState> {
     final current = state.valueOrNull;
     if (current is! AuthTwoFactorRequired) {
       state = const AsyncData(
-        AuthFailure('No two-factor challenge is pending.'),
+        AuthFailure('Abhi koi verification pending nahi hai.'),
       );
       return;
     }

@@ -117,6 +117,39 @@ class DriftMailCache implements MailCache {
   }
 
   @override
+  Future<List<Email>> readEmailsForThread(String threadId) async {
+    // Scale note (honest): this is a full-table read with a Dart-side
+    // filter — fine at Phase-1 cache volumes (thread views + page upserts,
+    // hundreds of rows). If the cache ever grows to thousands of rows,
+    // schema v3 should add an indexed `threadId` column on CachedEmails
+    // (the perf program's domain). NO schema migration in this shift.
+    final rows = await _db.select(_db.cachedEmails).get();
+    final matches = <Email>[];
+    for (final row in rows) {
+      try {
+        final decoded = jsonDecode(row.payloadJson);
+        if (decoded is! Map<String, dynamic>) continue;
+        final email = Email.fromJson(decoded);
+        if (email.threadId == threadId) matches.add(email);
+      } on Object {
+        // Corrupt payload row: skip defensively, never poison the read.
+        continue;
+      }
+    }
+    // Date-ascending (oldest first), matching `resolveThread` ordering;
+    // null dates sort last.
+    matches.sort((a, b) {
+      final ad = a.date;
+      final bd = b.date;
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return ad.compareTo(bd);
+    });
+    return matches;
+  }
+
+  @override
   Future<void> clear() async {
     // Sign-out / account-switch semantics: drop every mail row AND the
     // sync cursor so the next account starts from a clean slate.
