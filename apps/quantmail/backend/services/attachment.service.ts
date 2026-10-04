@@ -137,10 +137,7 @@ export class AttachmentService {
       } else {
         this.storage = null;
         // Warn, don't crash: attachments are disabled until S3/R2 env is set.
-        console.warn(
-          '[quantmail] object storage not configured \u2014 attachments/drive uploads disabled ' +
-            '(set S3/R2 env vars: CLOUDFLARE_R2_ENDPOINT | R2_ENDPOINT | S3_ENDPOINT + keys)',
-        );
+
       }
     }
     this.db = options.db ?? (defaultPrisma as unknown as AttachmentPrismaClient);

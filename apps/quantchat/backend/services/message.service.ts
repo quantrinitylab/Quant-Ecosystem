@@ -135,10 +135,7 @@ export class MessageService {
         this.storage = new StorageClient(storageConfig);
       } else {
         // Optional storage: warn at startup, fail 503 on use — never crash boot.
-        console.warn(
-          '[quantchat] object storage not configured \u2014 media uploads disabled ' +
-            '(set S3/R2 env vars)',
-        );
+
         this.storage = null;
       }
     }

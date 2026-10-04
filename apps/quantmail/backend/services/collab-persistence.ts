@@ -158,10 +158,7 @@ export class PersistenceAdapter {
       } else {
         // Optional storage: snapshots degrade to a clear 503 instead of
         // crashing process startup (the no-storage path below stays fail-closed).
-        console.warn(
-          '[quantmail] object storage not configured \u2014 collab snapshots disabled ' +
-            '(set S3/R2 env vars)',
-        );
+
         this.storage = undefined;
       }
     }
@@ -254,10 +251,7 @@ export class PersistenceAdapter {
         // is how a broken storage key turns into unexplained load. Same
         // convention as the other backend services here.
         // eslint-disable-next-line no-console
-        console.warn(
-          `[CollabPersistence] Failed to download snapshot ${row.snapshotStorageKey} for doc ${docId}, falling back to replay`,
-          storageErr,
-        );
+
       }
     }
 
@@ -395,10 +389,7 @@ export class PersistenceAdapter {
       // deltas are the only remaining copy of the document. Surfacing it matters
       // precisely because the request still succeeds.
       // eslint-disable-next-line no-console
-      console.warn(
-        `[CollabPersistence] Failed to write snapshot for doc ${docId}, refusing delta pruning`,
-        err,
-      );
+
       return { snapshotBytes: merged.byteLength, prunedUpdates: 0 };
     }
 
