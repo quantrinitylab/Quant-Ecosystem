@@ -4,7 +4,6 @@
 // Amazon & Flipkart-parity 5-Pillar Squircle Mode Switcher & Dynamic Island
 // ============================================================================
 
-import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 

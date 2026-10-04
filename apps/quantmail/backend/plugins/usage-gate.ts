@@ -1099,7 +1099,7 @@ export async function usageGateRoutes(
       reserve: async () => ({ ok: true as const }),
       settle: async () => {},
     } satisfies StreamMetering);
-    fastify.decorateRequest('checkUsage', null);
+    fastify.decorateRequest('checkUsage', null as unknown as (input: CheckUsageInput) => Promise<Reservation>);
     fastify.addHook('onRequest', async (req) => {
       (req as unknown as { checkUsage: unknown }).checkUsage = async () => ({
         id: 'noop',
@@ -1166,6 +1166,7 @@ export async function usageGateRoutes(
     });
 
     gate = new QuantmailUsageGate(inner, {
+      inner,
       store,
       entitlements: opts.entitlementPort,
       overagePort: opts.overagePort ?? overageDisabledPort,
@@ -1196,7 +1197,7 @@ export async function usageGateRoutes(
   );
 
   // --- request.checkUsage: JSON routes ke liye per-request reserve -------------
-  fastify.decorateRequest('checkUsage', null);
+  fastify.decorateRequest('checkUsage', null as unknown as (input: CheckUsageInput) => Promise<Reservation>);
   fastify.addHook('onRequest', async (req: FastifyRequest) => {
     (req as unknown as { checkUsage: (input: CheckUsageInput) => Promise<Reservation> }).checkUsage =
       async (input: CheckUsageInput): Promise<Reservation> => {

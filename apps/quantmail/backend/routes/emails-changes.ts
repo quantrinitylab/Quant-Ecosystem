@@ -132,7 +132,7 @@ export default async function emailsChangesRoutes(fastify: FastifyInstance) {
       },
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       take: limit + 1,
-    })) as Array<{
+    })) as unknown as Array<{
       id: string;
       threadId: string | null;
       updatedAt: Date | string;

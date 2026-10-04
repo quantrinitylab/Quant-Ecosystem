@@ -955,7 +955,11 @@ export function QuantMailSuperAppHeader({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  onJoinMeeting ? onJoinMeeting() : router.push('/meet/staging-sync');
+                  if (onJoinMeeting) {
+                    onJoinMeeting();
+                  } else {
+                    router.push('/meet/staging-sync');
+                  }
                 }}
                 className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-sm ml-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
                 aria-label="1-Tap Join Meeting"

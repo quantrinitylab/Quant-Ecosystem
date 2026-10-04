@@ -596,7 +596,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isRead: true },
+        data: { isRead: true, updatedAt: expect.any(Date) },
       });
     });
 
@@ -611,7 +611,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { folderId: 'archive-folder-id' },
+        data: { folderId: 'archive-folder-id', updatedAt: expect.any(Date) },
       });
     });
 
@@ -626,7 +626,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isTrash: true },
+        data: { isTrash: true, updatedAt: expect.any(Date) },
       });
     });
 
@@ -640,7 +640,7 @@ describe('EmailService', () => {
           id: { in: ['e1', 'e2'] },
           userId: 'user-1',
         },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date), updatedAt: expect.any(Date) },
       });
     });
 
@@ -655,7 +655,7 @@ describe('EmailService', () => {
           userId: 'user-1',
           deletedAt: null,
         },
-        data: { isStarred: true },
+        data: { isStarred: true, updatedAt: expect.any(Date) },
       });
     });
 

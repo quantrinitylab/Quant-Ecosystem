@@ -40,7 +40,7 @@ function expectAppError(res: { statusCode: number; body: string }, code: string)
 
 describe('GET /emails/changes', () => {
   let app: FastifyInstance;
-  let findManyMock: ReturnType<typeof vi.fn>;
+  let findManyMock: ReturnType<typeof vi.fn<(...args: any[]) => Promise<any>>>;
 
   beforeEach(async () => {
     app = Fastify({ logger: false });
@@ -49,8 +49,8 @@ describe('GET /emails/changes', () => {
       const id = (request.headers['x-test-user'] as string) || '';
       if (id) (request as any).auth = { userId: id };
     });
-    findManyMock = vi.fn();
-    app.decorate('prisma', { email: { findMany: findManyMock } });
+    findManyMock = vi.fn<(...args: any[]) => Promise<any>>();
+    app.decorate('prisma', { email: { findMany: findManyMock } } as any);
     await app.register(emailsChangesRoutes, { prefix: '/emails' });
     await app.ready();
   });

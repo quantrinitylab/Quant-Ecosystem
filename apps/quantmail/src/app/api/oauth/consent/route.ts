@@ -1,1 +1,87 @@
-aW1wb3J0IHsgTmV4dFJlcXVlc3QsIE5leHRSZXNwb25zZSB9IGZyb20gJ25leHQvc2VydmVyJzsKCmV4cG9ydCBjb25zdCBkeW5hbWljID0gJ2ZvcmNlLWR5bmFtaWMnOwoKLy8gTmV4dC5qcyBwcm94eSBmb3IgYmFja2VuZCBQT1NUIC9vYXV0aC9jb25zZW50LgovLwovLyBKVVNUSUZJRUQgREVWSUFUSU9OIGZyb20gcHJveHlUb0JhY2tlbmQgKGFwcHMvcXVhbnRtYWlsL3NyYy9hcHAvYXBpL19saWIvcHJveHkudHMpOgovLyB0aGlzIGVuZHBvaW50IGlzIHJlZGlyZWN0LWJhc2VkLiBUaGUgYmFja2VuZCBhbnN3ZXJzIDMwMgovLyAoTG9jYXRpb246IDxyZWRpcmVjdF91cmk+P2NvZGU9PGFjX2NvZGU+IG9uIGFwcHJvdmUsIG9yID9lcnJvcj1hY2Nlc3NfZGVuaWVkIG9uCi8vIGRlbnkpLiBwcm94eVRvQmFja2VuZCB1bmNvbmRpdGlvbmFsbHkgY2FsbHMgYGF3YWl0IHJlcy5qc29uKClgLCBzbyBhIDMwMiB3b3VsZAovLyB0aHJvdyBhbmQgYmUgdHVybmVkIGludG8gNTAyIHsgY29kZTogJ0lOVkFMSURfUkVTUE9OU0UnIH0sIGFuZCB0aGUgTG9jYXRpb24KLy8gaGVhZGVyIHdvdWxkIG5ldmVyIHJlYWNoIHRoZSBicm93c2VyIOKAlCBicmVha2luZyB0aGUgY29uc2VudCBmbG93IGVudGlyZWx5LiBUaGlzCi8vIHJvdXRlIGZvbGxvd3MgdGhlIGhlbHBlcidzIGNvbnZlbnRpb25zIChmb3J3YXJkZWQgaGVhZGVycywgSlNPTiBib2R5LCBiYXNlIFVSTCwKLy8gbm8tc3RvcmUsIEJBQ0tFTkRfVU5BVkFJTEFCTEUgc2hhcGUpIGJ1dCBwYXNzZXMgM3h4IHJlc3BvbnNlcyAoc3RhdHVzICsKLy8gTG9jYXRpb24gKyBTZXQtQ29va2llKSB0aHJvdWdoIHZlcmJhdGltLgoKZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIFBPU1QocmVxdWVzdDogTmV4dFJlcXVlc3QpIHsKICBjb25zdCBiYXNlID0gcHJvY2Vzcy5lbnYuUVVBTlRNQUlMX0JBQ0tFTkRfVVJMIHx8ICdodHRwOi8vbG9jYWxob3N0OjMwMTAnOwogIGNvbnN0IHVybCA9IG5ldyBVUkwoJy9vYXV0aC9jb25zZW50JywgYmFzZSk7CgogIGNvbnN0IGhlYWRlcnM6IFJlY29yZDxzdHJpbmcsIHN0cmluZz4gPSB7ICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbicgfTsKICAvLyBTcGVjOiBwcm90ZWN0ZWQgZW5kcG9pbnQsIEJlYXJlciByZXF1aXJlZAogIGNvbnN0IGF1dGhIZWFkZXIgPSByZXF1ZXN0LmhlYWRlcnMuZ2V0KCdBdXRob3JpemF0aW9uJyk7CiAgaWYgKGF1dGhIZWFkZXIpIGhlYWRlcnNbJ0F1dGhvcml6YXRpb24nXSA9IGF1dGhIZWFkZXI7CiAgLy8gRm9yd2FyZCBPcmlnaW4gZm9yIHRydXN0ZWQtb3JpZ2luIHZhbGlkYXRpb24KICBjb25zdCBvcmlnaW5IZWFkZXIgPSByZXF1ZXN0LmhlYWRlcnMuZ2V0KCdPcmlnaW4nKTsKICBpZiAob3JpZ2luSGVhZGVyKSBoZWFkZXJzWydPcmlnaW4nXSA9IG9yaWdpbkhlYWRlcjsKICBjb25zdCBjb29raWVIZWFkZXIgPSByZXF1ZXN0LmhlYWRlcnMuZ2V0KCdDb29raWUnKTsKICBpZiAoY29va2llSGVhZGVyKSBoZWFkZXJzWydDb29raWUnXSA9IGNvb2tpZUhlYWRlcjsKCiAgLy8gRm9yd2FyZCBKU09OIGJvZHk6IGFjdGlvbiogKGFwcHJvdmV8ZGVueSksIGNsaWVudF9pZCosIHJlZGlyZWN0X3VyaSosIHVzZXJfaWQKICAvLyAobXVzdCBtYXRjaCBCZWFyZXIgdXNlciksIHNjb3BlLCBzdGF0ZSwgY29kZV9jaGFsbGVuZ2UsIGNvZGVfY2hhbGxlbmdlX21ldGhvZCwgbm9uY2UKICBjb25zdCBmZXRjaE9wdGlvbnM6IFJlcXVlc3RJbml0ID0geyBtZXRob2Q6ICdQT1NUJywgaGVhZGVycyB9OwogIHRyeSB7CiAgICBjb25zdCBib2R5ID0gYXdhaXQgcmVxdWVzdC5qc29uKCk7CiAgICBmZXRjaE9wdGlvbnMuYm9keSA9IEpTT04uc3RyaW5naWZ5KGJvZHkpOwogIH0gY2F0Y2ggewogICAgLyogbm8gYm9keSDigJQgYmFja2VuZCB3aWxsIGFuc3dlciA0MDAgaW52YWxpZF9yZXF1ZXN0ICovCiAgfQoKICBsZXQgcmVzOiBSZXNwb25zZTsKICB0cnkgewogICAgLy8gcmVkaXJlY3Q6ICdtYW51YWwnIHNvIHRoZSBiYWNrZW5kJ3MgMzAyIHJlYWNoZXMgdGhlIHByb3h5IGludGFjdCBpbnN0ZWFkIG9mCiAgICAvLyBiZWluZyBmb2xsb3dlZCBzZXJ2ZXItc2lkZSAodGhlIExvY2F0aW9uIG11c3QgcmVhY2ggdGhlIGJyb3dzZXIpLgogICAgcmVzID0gYXdhaXQgZmV0Y2godXJsLnRvU3RyaW5nKCksIHsKICAgICAgLi4uZmV0Y2hPcHRpb25zLAogICAgICBjYWNoZTogJ25vLXN0b3JlJywKICAgICAgcmVkaXJlY3Q6ICdtYW51YWwnLAogICAgfSk7CiAgfSBjYXRjaCB7CiAgICByZXR1cm4gTmV4dFJlc3BvbnNlLmpzb24oCiAgICAgIHsKICAgICAgICBzdWNjZXNzOiBmYWxzZSwKICAgICAgICBlcnJvcjogewogICAgICAgICAgY29kZTogJ0JBQ0tFTkRfVU5BVkFJTEFCTEUnLAogICAgICAgICAgbWVzc2FnZTogJ1RoZSByZXF1ZXN0ZWQgc2VydmljZSBpcyB0ZW1wb3JhcmlseSB1bmF2YWlsYWJsZS4nLAogICAgICAgICAgc3RhdHVzQ29kZTogNTAyLAogICAgICAgIH0sCiAgICAgIH0sCiAgICAgIHsgc3RhdHVzOiA1MDIsIGhlYWRlcnM6IHsgJ2NhY2hlLWNvbnRyb2wnOiAnbm8tc3RvcmUnIH0gfSwKICAgICk7CiAgfQoKICAvLyAzeHg6IHBhc3Mgc3RhdHVzICsgTG9jYXRpb24gKCsgU2V0LUNvb2tpZSkgdGhyb3VnaCB0byB0aGUgYnJvd3NlcgogIGlmIChyZXMuc3RhdHVzID49IDMwMCAmJiByZXMuc3RhdHVzIDwgNDAwKSB7CiAgICBjb25zdCByZWRpcmVjdFJlc3BvbnNlID0gbmV3IE5leHRSZXNwb25zZShudWxsLCB7CiAgICAgIHN0YXR1czogcmVzLnN0YXR1cywKICAgICAgaGVhZGVyczogeyAnY2FjaGUtY29udHJvbCc6ICduby1zdG9yZScgfSwKICAgIH0pOwogICAgY29uc3QgbG9jYXRpb24gPSByZXMuaGVhZGVycy5nZXQoJ2xvY2F0aW9uJyk7CiAgICBpZiAobG9jYXRpb24pIHJlZGlyZWN0UmVzcG9uc2UuaGVhZGVycy5zZXQoJ0xvY2F0aW9uJywgbG9jYXRpb24pOwogICAgY29uc3Qgc2V0Q29va2llID0gcmVzLmhlYWRlcnMuZ2V0KCdzZXQtY29va2llJyk7CiAgICBpZiAoc2V0Q29va2llKSByZWRpcmVjdFJlc3BvbnNlLmhlYWRlcnMuc2V0KCdTZXQtQ29va2llJywgc2V0Q29va2llKTsKICAgIHJldHVybiByZWRpcmVjdFJlc3BvbnNlOwogIH0KCiAgLy8gSlNPTiByZXNwb25zZXMgKDQwMCBpbnZhbGlkX3JlcXVlc3QsIDQwMSB1bmF1dGhvcml6ZWQsIDQwMyB1c2VyX2lkIG1pc21hdGNoKToKICAvLyBzYW1lIHBhc3N0aHJvdWdoIGFzIHRoZSBoZWxwZXIKICBjb25zdCBkYXRhID0gYXdhaXQgcmVzLmpzb24oKTsKICBjb25zdCBqc29uUmVzcG9uc2UgPSBOZXh0UmVzcG9uc2UuanNvbihkYXRhLCB7CiAgICBzdGF0dXM6IHJlcy5zdGF0dXMsCiAgICBoZWFkZXJzOiB7ICdjYWNoZS1jb250cm9sJzogJ25vLXN0b3JlJyB9LAogIH0pOwogIGNvbnN0IHNldENvb2tpZSA9IHJlcy5oZWFkZXJzLmdldCgnc2V0LWNvb2tpZScpOwogIGlmIChzZXRDb29raWUpIGpzb25SZXNwb25zZS5oZWFkZXJzLnNldCgnU2V0LUNvb2tpZScsIHNldENvb2tpZSk7CiAgcmV0dXJuIGpzb25SZXNwb25zZTsKfQo=
+import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+// Next.js proxy for backend POST /oauth/consent.
+//
+// JUSTIFIED DEVIATION from proxyToBackend (apps/quantmail/src/app/api/_lib/proxy.ts):
+// this endpoint is redirect-based. The backend answers 302
+// (Location: <redirect_uri>?code=<ac_code> on approve, or ?error=access_denied on
+// deny). proxyToBackend unconditionally calls `await res.json()`, so a 302 would
+// throw and be turned into 502 { code: 'INVALID_RESPONSE' }, and the Location
+// header would never reach the browser — breaking the consent flow entirely. This
+// route follows the helper's conventions (forwarded headers, JSON body, base URL,
+// no-store, BACKEND_UNAVAILABLE shape) but passes 3xx responses (status +
+// Location + Set-Cookie) through verbatim.
+
+export async function POST(request: NextRequest) {
+  const base = process.env.QUANTMAIL_BACKEND_URL || 'http://localhost:3010';
+  const url = new URL('/oauth/consent', base);
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Spec: protected endpoint, Bearer required
+  const authHeader = request.headers.get('Authorization');
+  if (authHeader) headers['Authorization'] = authHeader;
+  // Forward Origin for trusted-origin validation
+  const originHeader = request.headers.get('Origin');
+  if (originHeader) headers['Origin'] = originHeader;
+  const cookieHeader = request.headers.get('Cookie');
+  if (cookieHeader) headers['Cookie'] = cookieHeader;
+
+  // Forward JSON body: action* (approve|deny), client_id*, redirect_uri*, user_id
+  // (must match Bearer user), scope, state, code_challenge, code_challenge_method, nonce
+  const fetchOptions: RequestInit = { method: 'POST', headers };
+  try {
+    const body = await request.json();
+    fetchOptions.body = JSON.stringify(body);
+  } catch {
+    /* no body — backend will answer 400 invalid_request */
+  }
+
+  let res: Response;
+  try {
+    // redirect: 'manual' so the backend's 302 reaches the proxy intact instead of
+    // being followed server-side (the Location must reach the browser).
+    res = await fetch(url.toString(), {
+      ...fetchOptions,
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+  } catch {
+    return NextResponse.json(
+      {
+        success: false,
+        error: {
+          code: 'BACKEND_UNAVAILABLE',
+          message: 'The requested service is temporarily unavailable.',
+          statusCode: 502,
+        },
+      },
+      { status: 502, headers: { 'cache-control': 'no-store' } },
+    );
+  }
+
+  // 3xx: pass status + Location (+ Set-Cookie) through to the browser
+  if (res.status >= 300 && res.status < 400) {
+    const redirectResponse = new NextResponse(null, {
+      status: res.status,
+      headers: { 'cache-control': 'no-store' },
+    });
+    const location = res.headers.get('location');
+    if (location) redirectResponse.headers.set('Location', location);
+    const setCookie = res.headers.get('set-cookie');
+    if (setCookie) redirectResponse.headers.set('Set-Cookie', setCookie);
+    return redirectResponse;
+  }
+
+  // JSON responses (400 invalid_request, 401 unauthorized, 403 user_id mismatch):
+  // same passthrough as the helper
+  const data = await res.json();
+  const jsonResponse = NextResponse.json(data, {
+    status: res.status,
+    headers: { 'cache-control': 'no-store' },
+  });
+  const setCookie = res.headers.get('set-cookie');
+  if (setCookie) jsonResponse.headers.set('Set-Cookie', setCookie);
+  return jsonResponse;
+}

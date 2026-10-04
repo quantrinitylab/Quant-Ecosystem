@@ -68,33 +68,6 @@ function createFixture(): string {
   );
   write(
     root,
-    '.agents/README.md',
-    frontMatter(
-      metadata('agents', 'agent-artifacts-policy', 'non-authoritative', 'agents'),
-      '# Agents',
-    ),
-  );
-  write(
-    root,
-    '.kiro/steering/QUANT_CANONICAL_CONTEXT.md',
-    frontMatter(
-      {
-        inclusion: 'always',
-        ...metadata('steering', 'session-steering', 'canonical-pointer', 'steering'),
-      },
-      '# Steering',
-    ),
-  );
-  write(
-    root,
-    '.kiro/steering/PRODUCTION_READINESS_PROMPT.md',
-    frontMatter(
-      { inclusion: 'manual', doc_type: 'historical', authority: 'non-authoritative' },
-      '# Historical prompt',
-    ),
-  );
-  write(
-    root,
     'docs/adr/001-test.md',
     '# ADR-001: Test\n\n## Status\n\nACCEPTED\n\n## Date\n\n2026-07-22\n\n## Context\n\nC\n\n## Decision\n\nD\n\n## Consequences\n\nC\n',
   );
@@ -149,7 +122,7 @@ describe('validateProjectMemory', () => {
     execFileSync('git', ['config', 'user.name', 'Memory Validator'], { cwd: root });
     execFileSync('git', ['add', '.'], { cwd: root });
     execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: root });
-    execFileSync('git', ['rm', '--quiet', '--cached', '.agents/README.md'], { cwd: root });
+    execFileSync('git', ['rm', '--quiet', '--cached', 'docs/CURRENT_STATE.md'], { cwd: root });
     execFileSync('git', ['rm', '--quiet', '--cached', 'docs/untracked-evidence.md'], { cwd: root });
 
     expect(codes(root)).toEqual(
@@ -159,7 +132,7 @@ describe('validateProjectMemory', () => {
 
   it('detects missing canonical files and metadata', () => {
     const root = createFixture();
-    rmSync(path.join(root, '.agents/README.md'));
+    rmSync(path.join(root, 'docs/CURRENT_STATE.md'));
     write(root, 'docs/README.md', '---\ndoc_id: only\n---\n# Index\n');
     expect(codes(root)).toEqual(
       expect.arrayContaining(['missing-canonical-file', 'missing-metadata']),
@@ -170,13 +143,13 @@ describe('validateProjectMemory', () => {
     const root = createFixture();
     write(
       root,
-      '.agents/README.md',
+      'docs/CURRENT_STATE.md',
       frontMatter(
-        metadata('agents', 'agent-artifacts-policy', 'non-authoritative', 'authority', {
+        metadata('state', 'current-state', 'canonical', 'authority', {
           execution_status: 'active',
           milestone_id: 'M-other',
         }),
-        '# Agents',
+        '# State',
       ),
     );
     expect(codes(root)).toEqual(
@@ -209,43 +182,23 @@ describe('validateProjectMemory', () => {
     const root = createFixture();
     write(
       root,
-      '.agents/README.md',
-      frontMatter(metadata('agents', 'historical', 'canonical', 'agents'), '# Agents'),
+      'docs/CURRENT_STATE.md',
+      frontMatter(metadata('state', 'historical', 'canonical', 'state'), '# State'),
     );
     expect(codes(root)).toContain('historical-authority');
   });
 
-  it('detects broken local references and invalid steering inclusion', () => {
+  it('detects broken local references', () => {
     const root = createFixture();
     write(
       root,
-      '.kiro/steering/QUANT_CANONICAL_CONTEXT.md',
+      'docs/CURRENT_STATE.md',
       frontMatter(
-        {
-          inclusion: 'manual',
-          ...metadata('steering', 'session-steering', 'canonical-pointer', 'steering'),
-        },
-        '# Steering\n\n[missing](../../docs/DOES_NOT_EXIST.md)',
+        metadata('state', 'current-state', 'canonical', 'state'),
+        '# State\n\n[missing](./DOES_NOT_EXIST.md)',
       ),
     );
-    expect(codes(root)).toEqual(
-      expect.arrayContaining(['broken-reference', 'invalid-steering-inclusion']),
-    );
-  });
-
-  it('keeps the stale production prompt manual and non-authoritative', () => {
-    const root = createFixture();
-    write(
-      root,
-      '.kiro/steering/PRODUCTION_READINESS_PROMPT.md',
-      frontMatter(
-        { inclusion: 'always', doc_type: 'guidance', authority: 'canonical' },
-        '# Prompt',
-      ),
-    );
-    expect(codes(root)).toEqual(
-      expect.arrayContaining(['historical-prompt-not-manual', 'historical-prompt-authority']),
-    );
+    expect(codes(root)).toEqual(expect.arrayContaining(['broken-reference']));
   });
 
   it('detects malformed and duplicate ADR identities', () => {

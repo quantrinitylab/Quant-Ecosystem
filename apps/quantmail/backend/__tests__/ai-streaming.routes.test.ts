@@ -14,7 +14,7 @@ import {
   type AIStreamProvider,
   type AIStreamingOptions,
   type StreamMetering,
-} from '../ai-streaming';
+} from '../routes/ai-streaming';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -183,7 +183,7 @@ const SUMMARIZE_BODY = { subject: 'Hi', body: 'Hello world', from: 'alice@exampl
 
 describe('aiStreamingRoutes', () => {
   it('registers exactly 6 POST routes under /stream/*', async () => {
-    const fastify = await register({ streamProvider: fakeProvider([], {}) });
+    const fastify = await register({ streamProvider: fakeProvider([], { prompt: '' }) });
     const urls = fastify.routes.map((r) => r.url).sort();
     expect(urls).toEqual(
       [
@@ -298,7 +298,7 @@ describe('aiStreamingRoutes', () => {
   });
 
   it('invalid body → 400 VALIDATION_ERROR BEFORE hijack', async () => {
-    const fastify = await register({ streamProvider: fakeProvider(['x'], {}) });
+    const fastify = await register({ streamProvider: fakeProvider(['x'], { prompt: '' }) });
     const reply = makeReply();
     const err = await route(fastify, '/stream/summarize')(makeReq({ body: { subject: 'no from/body' } }), reply).catch(
       (e) => e,
@@ -310,7 +310,7 @@ describe('aiStreamingRoutes', () => {
   });
 
   it('invalid enum (compose tone) → 400 before hijack', async () => {
-    const fastify = await register({ streamProvider: fakeProvider(['x'], {}) });
+    const fastify = await register({ streamProvider: fakeProvider(['x'], { prompt: '' }) });
     const reply = makeReply();
     const err = await route(fastify, '/stream/compose')(
       makeReq({ body: { bullets: ['a'], context: { tone: 'royal' } } }),
@@ -321,7 +321,7 @@ describe('aiStreamingRoutes', () => {
   });
 
   it('missing auth → 401 UNAUTHORIZED before hijack', async () => {
-    const fastify = await register({ streamProvider: fakeProvider(['x'], {}) });
+    const fastify = await register({ streamProvider: fakeProvider(['x'], { prompt: '' }) });
     const reply = makeReply();
     const err = await route(fastify, '/stream/summarize')(
       makeReq({ body: SUMMARIZE_BODY, auth: undefined }),
@@ -334,7 +334,7 @@ describe('aiStreamingRoutes', () => {
 
   it('rate limit exceeded → 429 RATE_LIMITED + Retry-After, before hijack', async () => {
     const fastify = await register({
-      streamProvider: fakeProvider(['x'], {}),
+      streamProvider: fakeProvider(['x'], { prompt: '' }),
       rateLimitPerMin: 1,
     });
     const h = route(fastify, '/stream/summarize');
@@ -349,7 +349,7 @@ describe('aiStreamingRoutes', () => {
 
   it('metering reserve fail-closed → 402 INSUFFICIENT_CREDITS, before hijack, no settle', async () => {
     const { metering, calls } = recordingMetering({ ok: false, code: 'INSUFFICIENT_CREDITS' });
-    const fastify = await register({ streamProvider: fakeProvider(['x'], {}), metering });
+    const fastify = await register({ streamProvider: fakeProvider(['x'], { prompt: '' }), metering });
     const reply = makeReply();
     const err = await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), reply).catch(
       (e) => e,
@@ -363,7 +363,7 @@ describe('aiStreamingRoutes', () => {
 
   it('metering QUOTA_EXHAUSTED → 429', async () => {
     const { metering } = recordingMetering({ ok: false, code: 'QUOTA_EXHAUSTED' });
-    const fastify = await register({ streamProvider: fakeProvider(['x'], {}), metering });
+    const fastify = await register({ streamProvider: fakeProvider(['x'], { prompt: '' }), metering });
     const err = await route(fastify, '/stream/triage')(
       makeReq({ body: { subject: 's', body: 'b', from: 'f' } }),
       makeReply(),
@@ -374,7 +374,7 @@ describe('aiStreamingRoutes', () => {
 
   it('provider setup throw (pre-first-byte) → handler throws, no error frame, no [DONE]', async () => {
     const fastify = await register({
-      streamProvider: fakeProvider(['x'], {}, { throwAtSetup: new Error('no api key') }),
+      streamProvider: fakeProvider(['x'], { prompt: '' }, { throwAtSetup: new Error('no api key') }),
     });
     const reply = makeReply();
     const err = await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), reply).catch(
@@ -390,7 +390,7 @@ describe('aiStreamingRoutes', () => {
     const boom: any = new Error('provider died');
     boom.code = 'PROVIDER_DOWN';
     const fastify = await register({
-      streamProvider: fakeProvider(['tok1', 'tok2'], {}, { throwAfterChunks: 1, throwError: boom }),
+      streamProvider: fakeProvider(['tok1', 'tok2'], { prompt: '' }, { throwAfterChunks: 1, throwError: boom }),
     });
     const reply = makeReply();
     await route(fastify, '/stream/summarize')(makeReq({ body: SUMMARIZE_BODY }), reply);
