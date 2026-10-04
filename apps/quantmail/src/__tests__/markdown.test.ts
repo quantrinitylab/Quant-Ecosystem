@@ -10,7 +10,6 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  extractTextFromHtml,
   isPlainWrapperHtml,
   looksLikeMarkdown,
   renderMarkdownBlocks,
@@ -107,16 +106,6 @@ describe('renderMarkdownToSafeHtml', () => {
   });
 });
 
-describe('extractTextFromHtml', () => {
-  it('fails closed without a DOM (SSR contract)', () => {
-    // Under the node test environment there is no document, so text
-    // extraction cannot run — the reader falls back to the plain-text body.
-    expect(extractTextFromHtml('<p>**bold** and normal</p>')).toBe('');
-    expect(extractTextFromHtml('')).toBe('');
-    expect(extractTextFromHtml(undefined)).toBe('');
-  });
-});
-
 describe('isPlainWrapperHtml', () => {
   it('accepts composer-style plain wrappers', () => {
     expect(isPlainWrapperHtml('<p>**bold**</p>')).toBe(true);
@@ -126,10 +115,21 @@ describe('isPlainWrapperHtml', () => {
     expect(isPlainWrapperHtml(undefined)).toBe(true);
   });
 
+  it('accepts the signature separator the composer appends', () => {
+    // composeMessageBodies emits [plainTextToHtml(text), '<hr />', signature].
+    expect(isPlainWrapperHtml('<p>**bold**</p>\n<hr />\n<p>Jane</p>')).toBe(true);
+  });
+
   it('rejects genuinely formatted HTML', () => {
     expect(isPlainWrapperHtml('<p><strong>bold</strong></p>')).toBe(false);
     expect(isPlainWrapperHtml('<p>see <a href="https://x.com">this</a></p>')).toBe(false);
     expect(isPlainWrapperHtml('<ul><li>a</li></ul>')).toBe(false);
     expect(isPlainWrapperHtml('<h1>Title</h1>')).toBe(false);
+  });
+
+  it('rejects attributes on wrapper tags (deliberate formatting)', () => {
+    expect(isPlainWrapperHtml('<p style="color:red">hi</p>')).toBe(false);
+    expect(isPlainWrapperHtml('<div class="x">hi</div>')).toBe(false);
+    expect(isPlainWrapperHtml('<br clear="all" />')).toBe(false);
   });
 });

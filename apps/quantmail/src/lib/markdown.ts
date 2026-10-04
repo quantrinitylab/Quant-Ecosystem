@@ -230,42 +230,24 @@ export function useSafeMarkdownHtml(markdown: string | undefined, enabled: boole
 }
 
 /**
- * Recover the text content of sanitized HTML. Used when a `bodyHtml` is just
- * plain text wrapped in `<p>` tags — which is exactly what the composer
- * produces via `plainTextToHtml` — so Markdown signals hiding inside it can
- * be detected and rendered as rich text instead of printed verbatim.
- *
- * DOM-based (not regex) so entity decoding and nesting are handled by the
- * browser's parser. Only `textContent` is ever read — the result is never
- * inserted as HTML — and callers pass DOMPurify-sanitized input, so this
- * cannot introduce markup. Returns '' without a DOM (SSR contract).
- */
-export function extractTextFromHtml(html: string | undefined): string {
-  if (!html || typeof document === 'undefined') return '';
-  const div = document.createElement('div');
-  // <br> has no textContent of its own; normalize to newlines first so list
-  // and paragraph structure survives for Markdown signal detection.
-  div.innerHTML = html.replace(/<br\s*\/?>/gi, '\n');
-  const text = div.textContent || '';
-  div.remove();
-  return text.replace(/\n{3,}/g, '\n\n').trim();
-}
-
-/**
- * True when the HTML carries no real formatting — only structural wrappers
- * (`p`, `div`, `br`). Such HTML is what `plainTextToHtml` emits for
- * composer-sent mail, so its text content is eligible for Markdown rendering.
- * Any real formatting tag (`b`, `strong`, `a`, `ul`, `h1`…) means the sender
- * formatted the mail deliberately and the HTML must win as-is.
+ * True when the HTML carries no real formatting — only bare structural
+ * wrappers (`p`, `div`, `br`, `hr`). Such HTML is what `plainTextToHtml` (and
+ * `composeMessageBodies`, which appends `<hr />` before a signature) emits
+ * for composer-sent mail, so its text content is eligible for Markdown
+ * rendering. Any other tag — or any attribute on a wrapper, which signals
+ * deliberate formatting — means the sender formatted the mail and the HTML
+ * must win as-is.
  */
 export function isPlainWrapperHtml(html: string | undefined): boolean {
   if (!html) return true;
   const clean = html.replace(/<!--[\s\S]*?-->/g, '');
-  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
+  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
   let m: RegExpExecArray | null;
   while ((m = tagRe.exec(clean)) !== null) {
     const tag = m[1].toLowerCase();
-    if (tag !== 'p' && tag !== 'div' && tag !== 'br') return false;
+    const attrs = m[2].trim();
+    if (!['p', 'div', 'br', 'hr'].includes(tag)) return false;
+    if (attrs !== '' && attrs !== '/') return false;
   }
   return true;
 }

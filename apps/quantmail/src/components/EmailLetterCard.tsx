@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
 import { repairMojibake, useSafeEmailHtml } from '../lib/safe-html';
+import { htmlToPlainText } from '../lib/email-body';
 import {
-  extractTextFromHtml,
   isPlainWrapperHtml,
   looksLikeMarkdown,
   useSafeMarkdownHtml,
@@ -59,18 +59,25 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
   // HTML is just a plain wrapper and its text content looks like Markdown,
   // the Markdown rendering wins. Genuinely formatted HTML (bold/links/lists
   // from the sender) always wins as-is.
+  //
+  // When `safeHtml` exists the HTML's own text is preferred over `mainText`:
+  // for third-party mail the text/plain and text/html parts can diverge, and
+  // the HTML is the rendered version the sender's client produced.
   const htmlIsPlainWrapper = useMemo(() => isPlainWrapperHtml(safeHtml), [safeHtml]);
   const markdownSource = useMemo(() => {
     if (!htmlIsPlainWrapper) return '';
+    if (safeHtml) {
+      const htmlText = htmlToPlainText(safeHtml);
+      if (htmlText && looksLikeMarkdown(htmlText)) return htmlText;
+      return '';
+    }
     if (looksLikeMarkdown(mainText)) return mainText;
-    const htmlText = extractTextFromHtml(safeHtml);
-    if (htmlText && looksLikeMarkdown(htmlText)) return htmlText;
     return '';
   }, [mainText, safeHtml, htmlIsPlainWrapper]);
   const mainMarkdownHtml = useSafeMarkdownHtml(markdownSource, Boolean(markdownSource));
   const quotedMarkdownHtml = useSafeMarkdownHtml(
     quotedText,
-    !safeHtml && looksLikeMarkdown(quotedText),
+    htmlIsPlainWrapper && looksLikeMarkdown(quotedText),
   );
 
   const attachments: EmailAttachment[] = email.attachments || [];
