@@ -326,7 +326,10 @@ export class DeliveryWorker {
   ) {
     this.now = deps.now ?? (() => new Date());
     this.retryBackoffMs = deps.retryBackoffMs ?? 5 * 60_000;
-    this.fallbackDomain = deps.senderDomain ?? process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.app';
+    // Canonical sender domain (merge-gate G2): DKIM alignment is measured against
+    // the From domain, so this must match the API path default (emails.ts).
+    // See imap-smtp/deploy/MAIL_SENDER_DOMAIN_DECISION.md.
+    this.fallbackDomain = deps.senderDomain ?? process.env['MAIL_SENDER_DOMAIN'] ?? 'quantmail.in';
   }
 
   /**
