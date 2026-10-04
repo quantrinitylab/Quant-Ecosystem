@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
 import { repairMojibake, useSafeEmailHtml } from '../lib/safe-html';
-import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
+import {
+  extractTextFromHtml,
+  isPlainWrapperHtml,
+  looksLikeMarkdown,
+  useSafeMarkdownHtml,
+} from '../lib/markdown';
 import type { Email, EmailAttachment } from '../types';
 
 export interface EmailLetterCardProps {
@@ -46,9 +51,23 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
 
   // Plain-text bodies are increasingly Markdown (`**bold**`, lists, headings).
   // When the text carries Markdown signals it is rendered as sanitized rich
-  // HTML; plain prose keeps the exact pre-wrap path it always had. The HTML
-  // branch above (`bodyHtml`) is untouched — this only affects text bodies.
-  const mainMarkdownHtml = useSafeMarkdownHtml(mainText, !safeHtml && looksLikeMarkdown(mainText));
+  // HTML; plain prose keeps the exact pre-wrap path it always had.
+  //
+  // Subtlety: our own composer always sets `bodyHtml` via `plainTextToHtml`,
+  // which wraps the raw text in `<p>` tags — so a Markdown body ALSO arrives
+  // with a truthy `safeHtml` that would print the markers verbatim. When the
+  // HTML is just a plain wrapper and its text content looks like Markdown,
+  // the Markdown rendering wins. Genuinely formatted HTML (bold/links/lists
+  // from the sender) always wins as-is.
+  const htmlIsPlainWrapper = useMemo(() => isPlainWrapperHtml(safeHtml), [safeHtml]);
+  const markdownSource = useMemo(() => {
+    if (!htmlIsPlainWrapper) return '';
+    if (looksLikeMarkdown(mainText)) return mainText;
+    const htmlText = extractTextFromHtml(safeHtml);
+    if (htmlText && looksLikeMarkdown(htmlText)) return htmlText;
+    return '';
+  }, [mainText, safeHtml, htmlIsPlainWrapper]);
+  const mainMarkdownHtml = useSafeMarkdownHtml(markdownSource, Boolean(markdownSource));
   const quotedMarkdownHtml = useSafeMarkdownHtml(
     quotedText,
     !safeHtml && looksLikeMarkdown(quotedText),
@@ -60,15 +79,15 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
     <div className={`relative ${className}`}>
       {/* Email Body */}
       <div className="text-sm leading-7 text-[#F5F5F5] sm:text-[15px]">
-        {safeHtml ? (
-          <div
-            className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
-          />
-        ) : mainMarkdownHtml ? (
+        {mainMarkdownHtml ? (
           <div
             className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
             dangerouslySetInnerHTML={{ __html: mainMarkdownHtml }}
+          />
+        ) : safeHtml ? (
+          <div
+            className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
           />
         ) : (
           <div className="space-y-3 whitespace-pre-wrap font-sans font-normal leading-7 text-[#F5F5F5]">

@@ -228,3 +228,44 @@ export function useSafeMarkdownHtml(markdown: string | undefined, enabled: boole
     [hasDom, enabled, markdown],
   );
 }
+
+/**
+ * Strip HTML tags to recover the text content. Used when a `bodyHtml` is just
+ * plain text wrapped in `<p>` tags — which is exactly what the composer
+ * produces via `plainTextToHtml` — so Markdown signals hiding inside it can
+ * be detected and rendered as rich text instead of printed verbatim.
+ */
+export function extractTextFromHtml(html: string | undefined): string {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * True when the HTML carries no real formatting — only structural wrappers
+ * (`p`, `div`, `br`). Such HTML is what `plainTextToHtml` emits for
+ * composer-sent mail, so its text content is eligible for Markdown rendering.
+ * Any real formatting tag (`b`, `strong`, `a`, `ul`, `h1`…) means the sender
+ * formatted the mail deliberately and the HTML must win as-is.
+ */
+export function isPlainWrapperHtml(html: string | undefined): boolean {
+  if (!html) return true;
+  const clean = html.replace(/<!--[\s\S]*?-->/g, '');
+  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(clean)) !== null) {
+    const tag = m[1].toLowerCase();
+    if (tag !== 'p' && tag !== 'div' && tag !== 'br') return false;
+  }
+  return true;
+}

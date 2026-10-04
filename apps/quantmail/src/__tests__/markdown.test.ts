@@ -10,6 +10,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  extractTextFromHtml,
+  isPlainWrapperHtml,
   looksLikeMarkdown,
   renderMarkdownBlocks,
   renderMarkdownToSafeHtml,
@@ -102,5 +104,36 @@ describe('renderMarkdownToSafeHtml', () => {
     expect(renderMarkdownToSafeHtml('**hi**')).toBe('');
     expect(renderMarkdownToSafeHtml('')).toBe('');
     expect(renderMarkdownToSafeHtml('   ')).toBe('');
+  });
+});
+
+describe('extractTextFromHtml', () => {
+  it('recovers text from composer-style plain wrappers', () => {
+    expect(extractTextFromHtml('<p>**bold** and normal</p>')).toBe('**bold** and normal');
+    expect(extractTextFromHtml('<p>line one<br />line two</p>')).toBe('line one\nline two');
+    expect(extractTextFromHtml('<div><p>- a</p><p>- b</p></div>')).toBe('- a\n- b');
+  });
+
+  it('decodes entities and handles empty input', () => {
+    expect(extractTextFromHtml('<p>fish &amp; chips</p>')).toBe('fish & chips');
+    expect(extractTextFromHtml('')).toBe('');
+    expect(extractTextFromHtml(undefined)).toBe('');
+  });
+});
+
+describe('isPlainWrapperHtml', () => {
+  it('accepts composer-style plain wrappers', () => {
+    expect(isPlainWrapperHtml('<p>**bold**</p>')).toBe(true);
+    expect(isPlainWrapperHtml('<p>a</p><p>b<br />c</p>')).toBe(true);
+    expect(isPlainWrapperHtml('<div><p>hi</p></div>')).toBe(true);
+    expect(isPlainWrapperHtml('')).toBe(true);
+    expect(isPlainWrapperHtml(undefined)).toBe(true);
+  });
+
+  it('rejects genuinely formatted HTML', () => {
+    expect(isPlainWrapperHtml('<p><strong>bold</strong></p>')).toBe(false);
+    expect(isPlainWrapperHtml('<p>see <a href="https://x.com">this</a></p>')).toBe(false);
+    expect(isPlainWrapperHtml('<ul><li>a</li></ul>')).toBe(false);
+    expect(isPlainWrapperHtml('<h1>Title</h1>')).toBe(false);
   });
 });
