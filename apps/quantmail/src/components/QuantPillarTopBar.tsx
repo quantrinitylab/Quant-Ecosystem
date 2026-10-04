@@ -26,6 +26,12 @@ export interface PillarTile {
 export interface PillarLens {
   id: string;
   label: string;
+  /**
+   * Badge shown next to the lens label. Only static string labels belong in the
+   * pillar config (e.g. `'E2EE'`); numeric counts are NEVER hardcoded here —
+   * they arrive per-render through the `lensCounts` prop, computed from the
+   * data actually loaded. A lens with no supplied count shows no badge.
+   */
   badge?: number | string;
   queryParam?: { key: string; value: string };
 }
@@ -286,9 +292,9 @@ export const PILLAR_TILES: PillarTile[] = [
 
 export const PILLAR_LENSES: Record<PillarId, PillarLens[]> = {
   mail: [
-    { id: 'all', label: 'All', badge: 12, queryParam: { key: 'lens', value: 'all' } },
-    { id: 'important', label: 'Important', badge: 3, queryParam: { key: 'lens', value: 'important' } },
-    { id: 'teams', label: 'Teams', badge: 5, queryParam: { key: 'lens', value: 'teams' } },
+    { id: 'all', label: 'All', queryParam: { key: 'lens', value: 'all' } },
+    { id: 'important', label: 'Important', queryParam: { key: 'lens', value: 'important' } },
+    { id: 'teams', label: 'Teams', queryParam: { key: 'lens', value: 'teams' } },
     { id: 'updates', label: 'Updates', queryParam: { key: 'lens', value: 'updates' } },
     { id: 'promos', label: 'Promos', queryParam: { key: 'lens', value: 'promos' } },
     { id: 'spam', label: 'Spam', queryParam: { key: 'lens', value: 'spam' } },
@@ -307,14 +313,14 @@ export const PILLAR_LENSES: Record<PillarId, PillarLens[]> = {
     { id: 'cleaner', label: 'FastCDC Clean', queryParam: { key: 'filter', value: 'cleaner' } },
   ],
   contacts: [
-    { id: 'all-contacts', label: 'All', badge: 8, queryParam: { key: 'filter', value: 'all' } },
-    { id: 'vips', label: 'VIPs', badge: 4, queryParam: { key: 'filter', value: 'vips' } },
+    { id: 'all-contacts', label: 'All', queryParam: { key: 'filter', value: 'all' } },
+    { id: 'vips', label: 'VIPs', queryParam: { key: 'filter', value: 'vips' } },
     { id: 'teams', label: 'Teams', queryParam: { key: 'filter', value: 'teams' } },
     { id: 'dedup', label: 'AI Dedup', queryParam: { key: 'filter', value: 'dedup' } },
   ],
   quantgit: [
     { id: 'all-repos', label: 'All Repos', queryParam: { key: 'filter', value: 'repos' } },
-    { id: 'open-prs', label: 'Open PRs', badge: 1, queryParam: { key: 'filter', value: 'prs' } },
+    { id: 'open-prs', label: 'Open PRs', queryParam: { key: 'filter', value: 'prs' } },
     { id: 'issues', label: 'Issues', queryParam: { key: 'filter', value: 'issues' } },
     { id: 'ci-runs', label: 'CI Runs', queryParam: { key: 'filter', value: 'ci' } },
   ],
@@ -341,6 +347,14 @@ export interface QuantPillarTopBarProps {
   aiLiveText?: string;
   onVoiceSearch?: (transcript: string) => void;
   unreadCounts?: Partial<Record<PillarId, number>>;
+  /**
+   * Real per-lens counts, keyed by pillar then lens id. Computed from the data
+   * actually loaded (e.g. the shell's inbox query) and re-computed on every
+   * render, so the strip can never show a stale or fabricated number. A lens
+   * id absent from the map — or mapped to a non-positive value — renders no
+   * badge at all.
+   */
+  lensCounts?: Partial<Record<PillarId, Partial<Record<string, number>>>>;
 }
 
 export function executePillarTileClick(
@@ -456,6 +470,7 @@ export function QuantPillarTopBar({
   aiLiveText,
   onVoiceSearch,
   unreadCounts,
+  lensCounts,
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -815,6 +830,17 @@ export function QuantPillarTopBar({
       >
         {activeLenses.map((lens) => {
           const isSelected = selectedLens === lens.id;
+          // Badge resolution: a live count from the caller's real data wins;
+          // a static string label (e.g. 'E2EE') is decorative, never a count.
+          // Anything else — including a fabricated number in config — shows
+          // nothing. Absence of data is rendered as absence, not as zero.
+          const liveCount = lensCounts?.[currentPillar]?.[lens.id];
+          const lensBadge: number | string | undefined =
+            typeof liveCount === 'number' && Number.isFinite(liveCount) && liveCount > 0
+              ? liveCount
+              : typeof lens.badge === 'string'
+                ? lens.badge
+                : undefined;
           return (
             <button
               key={lens.id}
@@ -838,7 +864,7 @@ export function QuantPillarTopBar({
               }
             >
               <span>{lens.label}</span>
-              {lens.badge !== undefined && (
+              {lensBadge !== undefined && (
                 <span
                   className="px-1 py-0.2 rounded-full text-[9px] font-bold leading-none font-mono"
                   style={
@@ -853,7 +879,7 @@ export function QuantPillarTopBar({
                         }
                   }
                 >
-                  {lens.badge}
+                  {lensBadge}
                 </span>
               )}
             </button>
