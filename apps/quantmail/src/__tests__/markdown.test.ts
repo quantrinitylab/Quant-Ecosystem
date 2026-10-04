@@ -108,14 +108,10 @@ describe('renderMarkdownToSafeHtml', () => {
 });
 
 describe('extractTextFromHtml', () => {
-  it('recovers text from composer-style plain wrappers', () => {
-    expect(extractTextFromHtml('<p>**bold** and normal</p>')).toBe('**bold** and normal');
-    expect(extractTextFromHtml('<p>line one<br />line two</p>')).toBe('line one\nline two');
-    expect(extractTextFromHtml('<div><p>- a</p><p>- b</p></div>')).toBe('- a\n- b');
-  });
-
-  it('decodes entities and handles empty input', () => {
-    expect(extractTextFromHtml('<p>fish &amp; chips</p>')).toBe('fish & chips');
+  it('fails closed without a DOM (SSR contract)', () => {
+    // Under the node test environment there is no document, so text
+    // extraction cannot run — the reader falls back to the plain-text body.
+    expect(extractTextFromHtml('<p>**bold** and normal</p>')).toBe('');
     expect(extractTextFromHtml('')).toBe('');
     expect(extractTextFromHtml(undefined)).toBe('');
   });

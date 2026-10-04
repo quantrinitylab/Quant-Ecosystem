@@ -230,25 +230,25 @@ export function useSafeMarkdownHtml(markdown: string | undefined, enabled: boole
 }
 
 /**
- * Strip HTML tags to recover the text content. Used when a `bodyHtml` is just
+ * Recover the text content of sanitized HTML. Used when a `bodyHtml` is just
  * plain text wrapped in `<p>` tags — which is exactly what the composer
  * produces via `plainTextToHtml` — so Markdown signals hiding inside it can
  * be detected and rendered as rich text instead of printed verbatim.
+ *
+ * DOM-based (not regex) so entity decoding and nesting are handled by the
+ * browser's parser. Only `textContent` is ever read — the result is never
+ * inserted as HTML — and callers pass DOMPurify-sanitized input, so this
+ * cannot introduce markup. Returns '' without a DOM (SSR contract).
  */
 export function extractTextFromHtml(html: string | undefined): string {
-  if (!html) return '';
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|li|h[1-6]|blockquote|tr)>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  if (!html || typeof document === 'undefined') return '';
+  const div = document.createElement('div');
+  // <br> has no textContent of its own; normalize to newlines first so list
+  // and paragraph structure survives for Markdown signal detection.
+  div.innerHTML = html.replace(/<br\s*\/?>/gi, '\n');
+  const text = div.textContent || '';
+  div.remove();
+  return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
