@@ -134,6 +134,21 @@ class DriftThreadCache implements ThreadListCache {
   }
 
   @override
+  Future<ThreadSummary?> readThread(String threadId) async {
+    // Single-thread lookup against CachedThreads (threadId primary key),
+    // decoding the same JSON payload written by [_upsertThreadRow]. Reads
+    // only this table, so it is unaffected by the schema-version-2
+    // migration (new tables) landing in mail_database.dart.
+    final row = await (_db.select(_db.cachedThreads)
+          ..where((t) => t.threadId.equals(threadId)))
+        .getSingleOrNull();
+    if (row == null) return null;
+    final decoded = jsonDecode(row.payloadJson);
+    if (decoded is! Map<String, dynamic>) return null;
+    return ThreadSummary.fromJson(decoded);
+  }
+
+  @override
   Future<String?> readSyncCursor() async {
     final row = await (_db.select(_db.syncState)
           ..where((t) => t.key.equals(syncCursorKey)))

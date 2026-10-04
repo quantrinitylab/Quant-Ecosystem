@@ -46,6 +46,15 @@ abstract class ThreadListCache {
   /// or `null` when no sync has been recorded yet.
   Future<String?> readSyncCursor();
 
+  /// Returns the cached summary for [threadId], or `null` when nothing is
+  /// cached under that id.
+  ///
+  /// Single-thread lookup for the M6 cross-session offline tier:
+  /// [ThreadDetailRepository.getCachedThread] restores the summary (subject,
+  /// read state, counts) without a session-scoped index hit. Implemented by
+  /// [DriftThreadCache] as a `CachedThreads` row lookup.
+  Future<ThreadSummary?> readThread(String threadId);
+
   /// Persists the sync cursor returned by the changes endpoint.
   Future<void> writeSyncCursor(String cursor);
 

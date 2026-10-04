@@ -131,8 +131,8 @@ void main() {
       // Empty form: both validators fire, no login attempt.
       await tester.tap(find.widgetWithText(ElevatedButton, 'Sign in'));
       await tester.pump();
-      expect(find.text('Email address is required'), findsOneWidget);
-      expect(find.text('Password is required'), findsOneWidget);
+      expect(find.text('Email dalna zaroori hai'), findsOneWidget);
+      expect(find.text('Password dalna zaroori hai'), findsOneWidget);
       expect(auth.lastEmail, isNull);
 
       // Invalid email: blocked before login.
@@ -142,7 +142,7 @@ void main() {
       );
       await tester.tap(find.widgetWithText(ElevatedButton, 'Sign in'));
       await tester.pump();
-      expect(find.text('Enter a valid email address'), findsOneWidget);
+      expect(find.text('Sahi email likho'), findsOneWidget);
       expect(auth.lastEmail, isNull);
 
       // Valid input: login is called with trimmed values.
@@ -203,20 +203,20 @@ void main() {
 
       expect(find.text('Two-step verification'), findsOneWidget);
       expect(
-        find.widgetWithText(ElevatedButton, 'Verify'),
+        find.widgetWithText(ElevatedButton, 'Verify code'),
         findsOneWidget,
       );
 
       // Short code: validation error, no submit.
       await tester.enterText(find.byType(TextFormField), '123');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Verify'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Verify code'));
       await tester.pump();
-      expect(find.text('Code must be 6 digits'), findsOneWidget);
+      expect(find.text('Code 6 digit ka hona chahiye'), findsOneWidget);
       expect(auth.lastTotp, isNull);
 
       // Valid code: submitted to the notifier.
       await tester.enterText(find.byType(TextFormField), '654321');
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Verify'));
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Verify code'));
       await tester.pump();
       expect(auth.lastTotp, '654321');
     });
@@ -230,7 +230,7 @@ void main() {
       auth.emit(AuthTwoFactorRequired('challenge-123'));
       await tester.pump();
       expect(
-        find.widgetWithText(ElevatedButton, 'Verify'),
+        find.widgetWithText(ElevatedButton, 'Verify code'),
         findsOneWidget,
       );
 
@@ -258,11 +258,11 @@ void main() {
 
       expect(find.text('Browser me permission do'), findsOneWidget);
       expect(
-        find.textContaining('Pehli baar browser me permission'),
+        find.textContaining('Pehli baar browser me approve karna hoga.'),
         findsOneWidget,
       );
       expect(
-        find.text('Approve karne ke baad app par wapas aa jao.'),
+        find.textContaining('Continue dabao'),
         findsOneWidget,
       );
 

@@ -149,20 +149,23 @@ void main() {
       expect(await store.pendingOps(), isEmpty);
     });
 
-    test('malformed-but-non-empty address passes service validation '
-        '(defense-in-depth gap: only the chips-field regex gates format; '
-        'server 400s surface on failedOps — see board defect)', () async {
-      // Pinned as CURRENT behavior; strengthen only via the board defect.
-      final opId = await service.send(
-        _request(to: const [EmailAddress(email: 'not-an-email')]),
+    test('malformed-but-non-empty address: throws, nothing enqueued '
+        '(board defect fixed: format authority moved to core)', () async {
+      // zero-defect-qa P2 (2026-10-03): `not-an-email` used to pass service
+      // validation and die as a server 400 on failedOps. Now
+      // [EmailAddress.isWellFormed] is the single authority and
+      // [ComposeService.send] rejects malformed addresses up front.
+      await expectLater(
+        service.send(_request(to: const [EmailAddress(email: 'not-an-email')])),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'message',
+            contains('not-an-email'),
+          ),
+        ),
       );
-      expect(opId, isNotEmpty);
-      final pending = await store.pendingOps();
-      expect(pending, hasLength(1));
-      expect(
-        (pending.single.payloadJson ?? '').contains('not-an-email'),
-        isTrue,
-      );
+      expect(await store.pendingOps(), isEmpty);
     });
 
     test('empty body is allowed: enqueues and dispatches normally', () async {

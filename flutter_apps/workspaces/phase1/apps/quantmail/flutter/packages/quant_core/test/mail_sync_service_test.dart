@@ -177,6 +177,10 @@ class _FakeThreadListCache implements ThreadListCache {
   }
 
   @override
+  Future<ThreadSummary?> readThread(String threadId) async =>
+      _threads[threadId];
+
+  @override
   Future<void> deleteThread(String threadId) async {
     _threads.remove(threadId);
     for (final key in _pages.keys.toList()) {
@@ -372,6 +376,50 @@ void main() {
       // The cursor was cleared before the resync (a crash there retries the
       // resync instead of resuming mid-feed).
       expect(await cache.readSyncCursor(), isEmpty);
+    });
+
+    test('concurrent syncNow() calls share one in-flight run (P2-1)',
+        () async {
+      final cache = _FakeThreadListCache();
+      final release = Completer<void>();
+      var changesCalls = 0;
+      final changesAdapter = _RecordingAdapter()
+        ..responder = (req) async {
+          changesCalls++;
+          await release.future; // hold the run open mid-flight
+          return _json(
+            {
+              'success': true,
+              'data': {'changes': <dynamic>[]},
+            },
+            200,
+          );
+        };
+      final threadsAdapter = _RecordingAdapter();
+      final container = _makeContainer(
+        cache: cache,
+        changesAdapter: changesAdapter,
+        threadsAdapter: threadsAdapter,
+      );
+      final service = container.read(mailSyncServiceProvider);
+
+      // The check-and-set in syncNow() is synchronous: by the time the
+      // second call runs, the guard is already set — no scheduling delay
+      // needed to force the overlap.
+      final f1 = service.syncNow();
+      final f2 = service.syncNow();
+      release.complete();
+      final r1 = await f1;
+      final r2 = await f2;
+
+      // Exactly ONE underlying /emails/changes request for both callers.
+      expect(changesCalls, 1);
+      expect(r1.succeeded, isTrue);
+      expect(r2.succeeded, isTrue);
+
+      // Sequential calls still run fully — the guard clears on completion.
+      await service.syncNow();
+      expect(changesCalls, 2);
     });
   });
 }

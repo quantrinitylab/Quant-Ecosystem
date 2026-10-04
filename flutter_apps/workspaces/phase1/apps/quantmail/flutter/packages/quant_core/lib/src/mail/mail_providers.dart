@@ -75,6 +75,13 @@ abstract class MailCache {
   /// Stores (or replaces) a single email by id.
   Future<void> writeEmail(Email email);
 
+  /// Returns the cached emails belonging to [threadId], date-ascending
+  /// (oldest first — the `resolveThread` display ordering).
+  ///
+  /// Corrupt rows are skipped defensively; returns an empty list when no
+  /// cached email matches [threadId].
+  Future<List<Email>> readEmailsForThread(String threadId);
+
   /// Drops all cached mail data (used on sign-out / account switch).
   Future<void> clear();
 }

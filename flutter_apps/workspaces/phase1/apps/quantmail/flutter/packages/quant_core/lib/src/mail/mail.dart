@@ -18,3 +18,4 @@ export 'cache/cache.dart';
 export 'compose/compose.dart';
 export 'outbox/outbox.dart';
 export 'realtime/realtime.dart';
+export 'search/search.dart';

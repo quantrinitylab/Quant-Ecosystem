@@ -99,6 +99,22 @@ class EmailAddress {
   /// Whether this address carries a usable email value.
   bool get isValid => email.isNotEmpty;
 
+  /// Pragmatic RFC-5322-subset address shape — the SINGLE validation
+  /// authority for well-formedness (moved here from the compose UI's
+  /// recipient chips field so non-UI paths can't enqueue garbage).
+  /// Deliberately strict on the domain (dot + 2-letter TLD) so `foo@bar`
+  /// never passes.
+  static final RegExp wellFormedPattern =
+      RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+
+  /// Whether the address looks syntactically like an email address.
+  ///
+  /// Strictly stronger than [isValid]: `not-an-email` is "valid"
+  /// (non-empty) but NOT well-formed. Service layers must gate on this;
+  /// [isValid] stays for backend payloads that legitimately lack an
+  /// `email` key.
+  bool get isWellFormed => wellFormedPattern.hasMatch(email);
+
   /// Human-friendly label: name if present, otherwise the email.
   String get display => name?.isNotEmpty == true ? name! : email;
 

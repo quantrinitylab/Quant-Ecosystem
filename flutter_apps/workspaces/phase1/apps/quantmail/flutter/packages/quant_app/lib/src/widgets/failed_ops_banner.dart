@@ -152,6 +152,8 @@ class FailedOpsBanner extends StatelessWidget {
               onPressed: () => _showReviewSheet(context),
               style: TextButton.styleFrom(
                 foregroundColor: scheme.onErrorContainer,
+                // VQA-P2-06: touch target >= 48dp (program standard).
+                minimumSize: const Size(64, 48),
               ),
               child: const Text('Details'),
             ),

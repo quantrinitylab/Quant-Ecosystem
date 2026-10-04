@@ -14,10 +14,11 @@
 import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 
-/// Pragmatic RFC-5322-subset address check. Deliberately strict on the
-/// domain (needs a dot + 2-letter TLD) so `foo@bar` never becomes a chip.
-final RegExp recipientEmailPattern =
-    RegExp(r'^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+/// UI-facing alias of the single validation authority
+/// ([EmailAddress.wellFormedPattern] in quant_core). The chips field keeps
+/// this name as its UX gate; the invariant itself lives in core so non-UI
+/// paths (service validation, reply prefill) can never diverge from it.
+final RegExp recipientEmailPattern = EmailAddress.wellFormedPattern;
 
 /// Recipient editor: chips + inline text input with real validation.
 ///
@@ -99,7 +100,7 @@ class _RecipientChipsFieldState extends State<RecipientChipsField> {
           TextSelection.collapsed(offset: tail.length);
       _error = firstInvalid == null
           ? null
-          : '“$firstInvalid” is not a valid email address';
+          : '“$firstInvalid” sahi email nahi lag raha';
     });
     widget.onChanged(List<EmailAddress>.unmodifiable(_chips));
   }

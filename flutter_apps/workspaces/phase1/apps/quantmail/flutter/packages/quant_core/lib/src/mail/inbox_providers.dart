@@ -1,1 +1,274 @@
-Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBxdWFudF9jb3JlIC0gaW5ib3ggcHJvdmlkZXJzIChNNDogVzQpCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KLy8KLy8gUml2ZXJwb2Qgc3RhdGUgbWFuYWdlbWVudCBmb3IgdGhlIGluYm94IGxpc3Qgc2NyZWVuIChxdWFudF9hcHAncwovLyBgaW5ib3hfc2NyZWVuLmRhcnRgLCBidWlsdCBieSBXMiB0aGlzIHNoaWZ0IG9uIHRoZSBjb250cmFjdCBiZWxvdyk6Ci8vCi8vIC0gW3RocmVhZExpc3RSZXBvc2l0b3J5UHJvdmlkZXJdIOKAlCB0aGUgY2FjaGUtdGhyb3VnaCBbVGhyZWFkTGlzdFJlcG9zaXRvcnldCi8vICAgb3ZlciBbdGhyZWFkc0FwaVByb3ZpZGVyXSArIFcxJ3MgW3RocmVhZExpc3RDYWNoZVByb3ZpZGVyXS4KLy8gLSBbSW5ib3hMaXN0U3RhdGVdIOKAlCBpbW11dGFibGUgVUkgc3RhdGUgZm9yIHRoZSBsaXN0LgovLyAtIFtpbmJveFByb3ZpZGVyXSDigJQgW0FzeW5jTm90aWZpZXJQcm92aWRlcl0gb3duaW5nIHBhZ2luYXRpb24sIHJlZnJlc2ggYW5kCi8vICAgdGhlIHBvc3QtZmlyc3QtcGFpbnQgYmFja2VuZCBzeW5jIChXMydzIFtNYWlsU3luY1NlcnZpY2VdKS4KLy8KLy8gQ29udHJhY3QgZm9yIFcyIChpbmJveF9zY3JlZW4uZGFydCk6Ci8vICAgYHJlZi53YXRjaChpbmJveFByb3ZpZGVyKWAgZ2l2ZXMgYEFzeW5jVmFsdWU8SW5ib3hMaXN0U3RhdGU+YDoKLy8gICAtIGBkYXRhLnRocmVhZHNgIC4uLi4uLi4uLi4gdGhyZWFkcyB0byByZW5kZXIgKG5ldmVyIG51bGwpCi8vICAgLSBgZGF0YS5oYXNNb3JlYCAuLi4uLi4uLi4uIHRydWUgLT4gc2hvdyAibG9hZCBtb3JlIiBhZmZvcmRhbmNlCi8vICAgLSBgZGF0YS5pc0xvYWRpbmdNb3JlYCAuLi4uIHRydWUgLT4gbmV4dCBwYWdlIGlzIGZldGNoaW5nCi8vICAgLSBgZGF0YS5lcnJvck1lc3NhZ2VgIC4uLi4uIG5vbi1udWxsIC0+IHNob3cgZXJyb3IgKG9ubHkgc2V0IHdoZW4KLy8gICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgYHRocmVhZHNgIGlzIGVtcHR5LCBpLmUuIG5vdGhpbmcgdG8gc2hvdykKLy8gICBDYWxsIGByZWYucmVhZChpbmJveFByb3ZpZGVyLm5vdGlmaWVyKS5yZWZyZXNoKClgIGZvciBwdWxsLXRvLXJlZnJlc2ggYW5kCi8vICAgYC5sb2FkTW9yZSgpYCB3aGVuIHRoZSBsaXN0IHJlYWNoZXMgdGhlIGVuZC4KCmltcG9ydCAnZGFydDphc3luYyc7CgppbXBvcnQgJ3BhY2thZ2U6Zmx1dHRlcl9yaXZlcnBvZC9mbHV0dGVyX3JpdmVycG9kLmRhcnQnOwoKaW1wb3J0ICdjYWNoZS9jYWNoZV9wcm92aWRlcnMuZGFydCc7CmltcG9ydCAnbWFpbF9wcm92aWRlcnMuZGFydCc7CmltcG9ydCAnbW9kZWxzL3RocmVhZC5kYXJ0JzsKaW1wb3J0ICdzeW5jL3N5bmMuZGFydCc7CmltcG9ydCAndGhyZWFkX2xpc3RfcmVwb3NpdG9yeS5kYXJ0JzsKCi8vLyBQYWdlIHNpemUgdXNlZCBieSB0aGUgaW5ib3ggbm90aWZpZXIgKG1hdGNoZXMgdGhlIEFQSSdzIGBwYWdlU2l6ZWAgY2xhbXAKLy8vIHJhbmdlIDEuLjEwMCBhbmQgdGhlIHJlcG9zaXRvcnkgZGVmYXVsdCBvZiA1MCkuCmNvbnN0IGludCBfaW5ib3hQYWdlU2l6ZSA9IDUwOwoKLy8vIENhY2hlLXRocm91Z2ggdGhyZWFkLWxpc3QgcmVwb3NpdG9yeSBmb3IgdGhlIGluYm94LCB3aXJlZCB0byB0aGUgVzEgY2FjaGUKLy8vIHZpYSBbdGhyZWFkTGlzdENhY2hlUHJvdmlkZXJdLiBVbnRpbCB0aGUgZHJpZnQgaW1wbGVtZW50YXRpb24gbGFuZHMsIHRoZQovLy8gcHJvdmlkZXIgc2VydmVzIG5ldHdvcmstb25seSAodGhlIGNhY2hlIHByb3ZpZGVyIHJldHVybnMgYG51bGxgIC8gYW4KLy8vIHVuYm91bmQgY2FjaGUg4oCUIHNlZSBgY2FjaGUvY2FjaGUuZGFydGApLgpmaW5hbCB0aHJlYWRMaXN0UmVwb3NpdG9yeVByb3ZpZGVyID0gUHJvdmlkZXI8VGhyZWFkTGlzdFJlcG9zaXRvcnk+KAogIChyZWYpID0+IFRocmVhZExpc3RSZXBvc2l0b3J5KAogICAgcmVmLndhdGNoKHRocmVhZHNBcGlQcm92aWRlciksCiAgICByZWYud2F0Y2godGhyZWFkTGlzdENhY2hlUHJvdmlkZXIpLAogICksCiAgbmFtZTogJ3RocmVhZExpc3RSZXBvc2l0b3J5UHJvdmlkZXInLAopOwoKLy8vIEltbXV0YWJsZSBVSSBzdGF0ZSBmb3IgdGhlIGluYm94IHRocmVhZCBsaXN0LgpjbGFzcyBJbmJveExpc3RTdGF0ZSB7CiAgLy8vIENyZWF0ZXMgdGhlIGluYm94IGxpc3Qgc3RhdGUuIEFsbCBmaWVsZHMgYXJlIGZpbmFsLgogIGNvbnN0IEluYm94TGlzdFN0YXRlKHsKICAgIHRoaXMudGhyZWFkcyA9IGNvbnN0IFtdLAogICAgdGhpcy5pc0xvYWRpbmdNb3JlID0gZmFsc2UsCiAgICB0aGlzLmhhc01vcmUgPSBmYWxzZSwKICAgIHRoaXMuZXJyb3JNZXNzYWdlLAogIH0pOwoKICAvLy8gVGhyZWFkcyBjdXJyZW50bHkgc2hvd24sIG5ld2VzdCBwYWdlIGFwcGVuZGVkIGF0IHRoZSBlbmQuCiAgZmluYWwgTGlzdDxUaHJlYWRTdW1tYXJ5PiB0aHJlYWRzOwoKICAvLy8gVHJ1ZSB3aGlsZSBhIGBsb2FkTW9yZSgpYCBwYWdlIGZldGNoIGlzIGluIGZsaWdodC4KICBmaW5hbCBib29sIGlzTG9hZGluZ01vcmU7CgogIC8vLyBUcnVlIHdoZW4gdGhlIGJhY2tlbmQgcmVwb3J0ZWQgKG9yIHdlIGRlcml2ZWQpIHRoYXQgbW9yZSBwYWdlcyBleGlzdC4KICBmaW5hbCBib29sIGhhc01vcmU7CgogIC8vLyBOb24tbnVsbCBvbmx5IHdoZW4gdGhlcmUgaXMgbm90aGluZyBlbHNlIHRvIHNob3cgKFt0aHJlYWRzXSBpcyBlbXB0eSkKICAvLy8gYW5kIHRoZSBsYXN0IGZldGNoIGZhaWxlZC4KICBmaW5hbCBTdHJpbmc/IGVycm9yTWVzc2FnZTsKCiAgLy8vIENvcGllcyB0aGlzIHN0YXRlIHdpdGggdGhlIGdpdmVuIGZpZWxkcyByZXBsYWNlZC4KICBJbmJveExpc3RTdGF0ZSBjb3B5V2l0aCh7CiAgICBMaXN0PFRocmVhZFN1bW1hcnk+PyB0aHJlYWRzLAogICAgYm9vbD8gaXNMb2FkaW5nTW9yZSwKICAgIGJvb2w/IGhhc01vcmUsCiAgICBTdHJpbmc/IGVycm9yTWVzc2FnZSwKICAgIGJvb2wgY2xlYXJFcnJvciA9IGZhbHNlLAogIH0pIHsKICAgIHJldHVybiBJbmJveExpc3RTdGF0ZSgKICAgICAgdGhyZWFkczogdGhyZWFkcyA/PyB0aGlzLnRocmVhZHMsCiAgICAgIGlzTG9hZGluZ01vcmU6IGlzTG9hZGluZ01vcmUgPz8gdGhpcy5pc0xvYWRpbmdNb3JlLAogICAgICBoYXNNb3JlOiBoYXNNb3JlID8/IHRoaXMuaGFzTW9yZSwKICAgICAgZXJyb3JNZXNzYWdlOiBjbGVhckVycm9yID8gbnVsbCA6IChlcnJvck1lc3NhZ2UgPz8gdGhpcy5lcnJvck1lc3NhZ2UpLAogICAgKTsKICB9Cn0KCi8vLyBOb3RpZmllciBiZWhpbmQgW2luYm94UHJvdmlkZXJdOiBpbmJveCBwYWdpbmF0aW9uLCBwdWxsLXRvLXJlZnJlc2ggYW5kIHRoZQovLy8gcG9zdC1maXJzdC1wYWludCBiYWNrZW5kIHN5bmMuCmZpbmFsIGluYm94UHJvdmlkZXIgPQogICAgQXN5bmNOb3RpZmllclByb3ZpZGVyPEluYm94TGlzdE5vdGlmaWVyLCBJbmJveExpc3RTdGF0ZT4oCiAgSW5ib3hMaXN0Tm90aWZpZXIubmV3LAogIG5hbWU6ICdpbmJveFByb3ZpZGVyJywKKTsKCi8vLyBPd25zIGluYm94IGxpc3Qgc3RhdGUuCi8vLwovLy8gLSBbYnVpbGRdIGZldGNoZXMgcGFnZSAxIGNhY2hlLWZpcnN0IHNvIHRoZSBmaXJzdCBwYWludCBpcyBpbnN0YW50Ci8vLyAgIChvZmZsaW5lOiBjYWNoZWQgaW5ib3ggc3RheXMgcmVhZGFibGUpOyBvbmNlIHRoYXQgc3RhdGUgaXMgc2V0IGl0IGtpY2tzCi8vLyAgIG9mZiBbX3N5bmNBbmRSZWZyZXNoXSBpbiB0aGUgYmFja2dyb3VuZCBzbyB0aGUgYmFja2VuZCBzeW5jIGRvZXMgbm90Ci8vLyAgIGJsb2NrIHRoZSBmaXJzdCBwYWludC4KLy8vIC0gW3JlZnJlc2hdIGZvcmNlcyBhIG5ldHdvcmsgZmV0Y2ggb2YgcGFnZSAxIChwdWxsLXRvLXJlZnJlc2gpLCBrZWVwaW5nCi8vLyAgIHRoZSBleGlzdGluZyBsaXN0IHZpc2libGUuCi8vLyAtIFtsb2FkTW9yZV0gYXBwZW5kcyB0aGUgbmV4dCBwYWdlLCBndWFyZGVkIGFnYWluc3QgY29uY3VycmVudCBjYWxscy4KY2xhc3MgSW5ib3hMaXN0Tm90aWZpZXIgZXh0ZW5kcyBBc3luY05vdGlmaWVyPEluYm94TGlzdFN0YXRlPiB7CiAgLy8vIEhpZ2hlc3QgcGFnZSBudW1iZXIgY3VycmVudGx5IG1lcmdlZCBpbnRvIHN0YXRlIChwcml2YXRlIHBhZ2luYXRpb24KICAvLy8gY3Vyc29yOyByZXNldCB0byAxIHdoZW5ldmVyIHBhZ2UgMSBpcyByZS1mZXRjaGVkKS4KICBpbnQgX2N1cnJlbnRQYWdlID0gMTsKCiAgLy8vIFJlLWVudHJhbmN5IGd1YXJkIGZvciBbbG9hZE1vcmVdIChpbiBhZGRpdGlvbiB0byB0aGUgYGlzTG9hZGluZ01vcmVgCiAgLy8vIHN0YXRlIGZsYWcsIHNvIHR3byBmcmFtZXMgcmFjaW5nIHBhc3QgdGhlIGd1YXJkIHN0aWxsIHNlcmlhbGl6ZSkuCiAgYm9vbCBfbG9hZGluZ01vcmUgPSBmYWxzZTsKCiAgVGhyZWFkTGlzdFJlcG9zaXRvcnkgZ2V0IF9yZXBvc2l0b3J5ID0+CiAgICAgIHJlZi5yZWFkKHRocmVhZExpc3RSZXBvc2l0b3J5UHJvdmlkZXIpOwoKICBNYWlsU3luY1NlcnZpY2UgZ2V0IF9zeW5jU2VydmljZSA9PiByZWYucmVhZChtYWlsU3luY1NlcnZpY2VQcm92aWRlcik7CgogIEBvdmVycmlkZQogIEZ1dHVyZTxJbmJveExpc3RTdGF0ZT4gYnVpbGQoKSBhc3luYyB7CiAgICBfY3VycmVudFBhZ2UgPSAxOwogICAgZmluYWwgcmVzdWx0ID0gYXdhaXQgX3JlcG9zaXRvcnkuZmV0Y2hQYWdlKAogICAgICBwYWdlOiAxLAogICAgICBwYWdlU2l6ZTogX2luYm94UGFnZVNpemUsCiAgICApOwogICAgLy8gRmlyc3QgcGFpbnQgaXMgY2FjaGUtZmlyc3Q7IHRoZSBiYWNrZW5kIHN5bmMgcnVucyBhZnRlcndhcmRzIHNvIHRoZQogICAgLy8gdXNlciBzZWVzIHRoZSBjYWNoZWQgaW5ib3ggaW1tZWRpYXRlbHkgKG9mZmxpbmU6IHN0aWxsIHJlYWRhYmxlKS4KICAgIHVuYXdhaXRlZChfc3luY0FuZFJlZnJlc2goKSk7CiAgICBpZiAocmVzdWx0LnN1Y2Nlc3MgJiYgcmVzdWx0LmRhdGEgIT0gbnVsbCkgewogICAgICByZXR1cm4gSW5ib3hMaXN0U3RhdGUoCiAgICAgICAgdGhyZWFkczogcmVzdWx0LmRhdGEhLnRocmVhZHMsCiAgICAgICAgaGFzTW9yZTogcmVzdWx0LmRhdGEhLmhhc01vcmUsCiAgICAgICk7CiAgICB9CiAgICAvLyBGYWlsdXJlIGhlcmUgbWVhbnMgdGhlIGNhY2hlIHdhcyBjb2xkOiBub3RoaW5nIHRvIHNob3cuCiAgICByZXR1cm4gSW5ib3hMaXN0U3RhdGUoCiAgICAgIGVycm9yTWVzc2FnZTogcmVzdWx0LmVycm9yPy5tZXNzYWdlID8/ICdDb3VsZCBub3QgbG9hZCB0aGUgaW5ib3guJywKICAgICk7CiAgfQoKICAvLy8gUnVucyBXMydzIFtNYWlsU3luY1NlcnZpY2Uuc3luY05vd10sIHRoZW4gcmUtcmVhZHMgcGFnZSAxIGZyb20gdGhlCiAgLy8vIHJlcG9zaXRvcnkgKHdoaWNoIG5vdyBzZXJ2ZXMgdGhlIGZyZXNobHkgc3luY2VkIGNhY2hlKSBhbmQgdXBkYXRlcwogIC8vLyBzdGF0ZS4gU3luYyBlcnJvcnMgYXJlIHN3YWxsb3dlZCDigJQgdGhlIGNhY2hlLWZpcnN0IHN0YXRlIGZyb20gW2J1aWxkXQogIC8vLyBpcyBhbHJlYWR5IG9uIHNjcmVlbjsgW2Vycm9yTWVzc2FnZV0gaXMgc2V0IG9ubHkgd2hlbiBbdGhyZWFkc10gaXMKICAvLy8gZW1wdHkgKG5vdGhpbmcgZWxzZSB0byBzaG93KS4KICBGdXR1cmU8dm9pZD4gX3N5bmNBbmRSZWZyZXNoKCkgYXN5bmMgewogICAgdHJ5IHsKICAgICAgYXdhaXQgX3N5bmNTZXJ2aWNlLnN5bmNOb3coKTsKICAgIH0gb24gT2JqZWN0IHsKICAgICAgLy8gU3luYyBmYWlsZWQgKG9mZmxpbmUsIGJhY2tlbmQgZG93biwgLi4uKTogdGhlIGNhY2hlZCBsaXN0IHN0YXlzLgogICAgICByZXR1cm47CiAgICB9CiAgICAvLyBEb24ndCBjbG9iYmVyIGFuIGluLWZsaWdodCBsb2FkTW9yZSdzIHBhZ2luYXRpb246IHRoZSBzeW5jIGFscmVhZHkKICAgIC8vIGxhbmRlZCBpbiB0aGUgY2FjaGUgKHRoZSBwYWdlIGZldGNoIGJlbG93IHJlYWRzIGZyb20gaXQpLCBhbmQgcmVzZXR0aW5nCiAgICAvLyBgX2N1cnJlbnRQYWdlYCBoZXJlIHdvdWxkIGNvcnJ1cHQgdGhlIGluLWZsaWdodCBwYWdlIGFwcGVuZC4KICAgIGlmIChfbG9hZGluZ01vcmUpIHJldHVybjsKICAgIGZpbmFsIHJlc3VsdCA9IGF3YWl0IF9yZXBvc2l0b3J5LmZldGNoUGFnZSgKICAgICAgcGFnZTogMSwKICAgICAgcGFnZVNpemU6IF9pbmJveFBhZ2VTaXplLAogICAgKTsKICAgIGlmIChyZXN1bHQuc3VjY2VzcyAmJiByZXN1bHQuZGF0YSAhPSBudWxsKSB7CiAgICAgIF9jdXJyZW50UGFnZSA9IDE7CiAgICAgIGZpbmFsIGN1cnJlbnQgPSBzdGF0ZS52YWx1ZU9yTnVsbCA/PyBjb25zdCBJbmJveExpc3RTdGF0ZSgpOwogICAgICBmaW5hbCBmcmVzaCA9IHJlc3VsdC5kYXRhITsKICAgICAgLy8gU2FtZSBkZWZlbnNpdmUtZW1wdHkgZ3VhcmQgYXMgW3JlZnJlc2hdOiBuZXZlciBibGFuayBhIHdhcm0gbGlzdCBvbgogICAgICAvLyB0aGUgQVBJJ3MgZGVmZW5zaXZlIGVtcHR5IHBhZ2UuCiAgICAgIGZpbmFsIGtlZXBTdGFsZSA9IGZyZXNoLnRocmVhZHMuaXNFbXB0eSAmJiBjdXJyZW50LnRocmVhZHMuaXNOb3RFbXB0eTsKICAgICAgc3RhdGUgPSBBc3luY1ZhbHVlLmRhdGEoCiAgICAgICAgY3VycmVudC5jb3B5V2l0aCgKICAgICAgICAgIHRocmVhZHM6IGtlZXBTdGFsZSA/IGN1cnJlbnQudGhyZWFkcyA6IGZyZXNoLnRocmVhZHMsCiAgICAgICAgICBoYXNNb3JlOiBrZWVwU3RhbGUgPyBjdXJyZW50Lmhhc01vcmUgOiBmcmVzaC5oYXNNb3JlLAogICAgICAgICAgY2xlYXJFcnJvcjogdHJ1ZSwKICAgICAgICApLAogICAgICApOwogICAgICByZXR1cm47CiAgICB9CiAgICBmaW5hbCBjdXJyZW50ID0gc3RhdGUudmFsdWVPck51bGw7CiAgICBpZiAoY3VycmVudCA9PSBudWxsIHx8IGN1cnJlbnQudGhyZWFkcy5pc0VtcHR5KSB7CiAgICAgIHN0YXRlID0gQXN5bmNWYWx1ZS5kYXRhKAogICAgICAgIChjdXJyZW50ID8/IGNvbnN0IEluYm94TGlzdFN0YXRlKCkpLmNvcHlXaXRoKAogICAgICAgICAgZXJyb3JNZXNzYWdlOgogICAgICAgICAgICAgIHJlc3VsdC5lcnJvcj8ubWVzc2FnZSA/PyAnQ291bGQgbm90IHN5bmMgdGhlIGluYm94LicsCiAgICAgICAgKSwKICAgICAgKTsKICAgIH0KICB9CgogIC8vLyBQdWxsLXRvLXJlZnJlc2g6IGZvcmNlcyBhIG5ldHdvcmsgZmV0Y2ggb2YgcGFnZSAxLgogIC8vLwogIC8vLyBUaGUgZXhpc3RpbmcgbGlzdCBzdGF5cyB2aXNpYmxlIChubyBsb2FkaW5nIHN0YXRlKSBhbmQgYW55IGVycm9yIGlzCiAgLy8vIGNsZWFyZWQgYmVmb3JlIHRoZSBmZXRjaDsgW2Vycm9yTWVzc2FnZV0gaXMgcmUtc2V0IG9ubHkgd2hlbiB0aGUgcmVmcmVzaAogIC8vLyBmYWlscyBhbmQgdGhlcmUgaXMgbm90aGluZyB0byBzaG93LgogIC8vLwogIC8vLyBOby1vcHMgd2hpbGUgYSBbbG9hZE1vcmVdIHBhZ2UgZmV0Y2ggaXMgaW4gZmxpZ2h0OiByZXNldHRpbmcKICAvLy8gW19jdXJyZW50UGFnZV0gdW5kZXJuZWF0aCBpdCB3b3VsZCBtYWtlIHRoZSBpbi1mbGlnaHQgcGFnZSBhcHBlbmQgdGhlCiAgLy8vIHdyb25nIHBhZ2UgbnVtYmVyIGFmdGVyd2FyZHMgKHBhZ2UgZ2FwICsgZHVwbGljYXRlIHJlLWZldGNoIG9uIHRoZSBuZXh0CiAgLy8vIGxvYWQtbW9yZSkuIFRoZSBzcGlubmVyIGNsZWFycyBhbmQgdGhlIHVzZXIgY2FuIHJldHJ5IHRoZSBwdWxsLgogIEZ1dHVyZTx2b2lkPiByZWZyZXNoKCkgYXN5bmMgewogICAgaWYgKF9sb2FkaW5nTW9yZSkgcmV0dXJuOwogICAgZmluYWwgY3VycmVudCA9IHN0YXRlLnZhbHVlT3JOdWxsID8/IGNvbnN0IEluYm94TGlzdFN0YXRlKCk7CiAgICBzdGF0ZSA9IEFzeW5jVmFsdWUuZGF0YShjdXJyZW50LmNvcHlXaXRoKGNsZWFyRXJyb3I6IHRydWUpKTsKICAgIGZpbmFsIHJlc3VsdCA9IGF3YWl0IF9yZXBvc2l0b3J5LmZldGNoUGFnZSgKICAgICAgcGFnZTogMSwKICAgICAgcGFnZVNpemU6IF9pbmJveFBhZ2VTaXplLAogICAgICBmb3JjZVJlZnJlc2g6IHRydWUsCiAgICApOwogICAgaWYgKHJlc3VsdC5zdWNjZXNzICYmIHJlc3VsdC5kYXRhICE9IG51bGwpIHsKICAgICAgX2N1cnJlbnRQYWdlID0gMTsKICAgICAgZmluYWwgZnJlc2ggPSByZXN1bHQuZGF0YSE7CiAgICAgIC8vIERlZmVuc2l2ZS1lbXB0eSBndWFyZCAocmVwb3NpdG9yeSBjb250cmFjdDogInRoZSBjYWxsZXIgZGVjaWRlcyB3aGF0CiAgICAgIC8vIHRoZSBVSSBzaG93cyIpOiBgVGhyZWFkc0FwaS5saXN0VGhyZWFkc2AgZGVncmFkZXMgdG8gYW4gZW1wdHkgbGlzdAogICAgICAvLyBvbiB1bmtub3duIGBkYXRhYCBzaGFwZXMuIE5ldmVyIGJsYW5rIGEgd2FybSBsaXN0IG9uIHRoYXQg4oCUIGtlZXAgdGhlCiAgICAgIC8vIHN0YWxlIHRocmVhZHM7IHRoZSBuZXh0IHN5bmMvcmVmcmVzaCBjb252ZXJnZXMuCiAgICAgIGZpbmFsIGtlZXBTdGFsZSA9IGZyZXNoLnRocmVhZHMuaXNFbXB0eSAmJiBjdXJyZW50LnRocmVhZHMuaXNOb3RFbXB0eTsKICAgICAgc3RhdGUgPSBBc3luY1ZhbHVlLmRhdGEoCiAgICAgICAgSW5ib3hMaXN0U3RhdGUoCiAgICAgICAgICB0aHJlYWRzOiBrZWVwU3RhbGUgPyBjdXJyZW50LnRocmVhZHMgOiBmcmVzaC50aHJlYWRzLAogICAgICAgICAgaGFzTW9yZToga2VlcFN0YWxlID8gY3VycmVudC5oYXNNb3JlIDogZnJlc2guaGFzTW9yZSwKICAgICAgICApLAogICAgICApOwogICAgICByZXR1cm47CiAgICB9CiAgICBmaW5hbCBsYXRlc3QgPSBzdGF0ZS52YWx1ZU9yTnVsbCA/PyBjb25zdCBJbmJveExpc3RTdGF0ZSgpOwogICAgc3RhdGUgPSBBc3luY1ZhbHVlLmRhdGEoCiAgICAgIGxhdGVzdC5jb3B5V2l0aCgKICAgICAgICBlcnJvck1lc3NhZ2U6IGxhdGVzdC50aHJlYWRzLmlzRW1wdHkKICAgICAgICAgICAgPyAocmVzdWx0LmVycm9yPy5tZXNzYWdlID8/ICdDb3VsZCBub3QgcmVmcmVzaCB0aGUgaW5ib3guJykKICAgICAgICAgICAgOiBudWxsLAogICAgICAgIGNsZWFyRXJyb3I6IGxhdGVzdC50aHJlYWRzLmlzTm90RW1wdHksCiAgICAgICksCiAgICApOwogIH0KCiAgLy8vIEFwcGVuZHMgdGhlIG5leHQgcGFnZS4gTm8tb3BzIHdoaWxlIGEgcGFnZSBmZXRjaCBpcyBpbiBmbGlnaHQgb3Igd2hlbgogIC8vLyB0aGVyZSBhcmUgbm8gbW9yZSBwYWdlcyAoW2hhc01vcmVdIGlzIGZhbHNlKS4KICBGdXR1cmU8dm9pZD4gbG9hZE1vcmUoKSBhc3luYyB7CiAgICBmaW5hbCBjdXJyZW50ID0gc3RhdGUudmFsdWVPck51bGw7CiAgICBpZiAoX2xvYWRpbmdNb3JlIHx8CiAgICAgICAgY3VycmVudCA9PSBudWxsIHx8CiAgICAgICAgY3VycmVudC5pc0xvYWRpbmdNb3JlIHx8CiAgICAgICAgIWN1cnJlbnQuaGFzTW9yZSkgewogICAgICByZXR1cm47CiAgICB9CiAgICBfbG9hZGluZ01vcmUgPSB0cnVlOwogICAgc3RhdGUgPSBBc3luY1ZhbHVlLmRhdGEoY3VycmVudC5jb3B5V2l0aChpc0xvYWRpbmdNb3JlOiB0cnVlKSk7CiAgICB0cnkgewogICAgICBmaW5hbCByZXN1bHQgPSBhd2FpdCBfcmVwb3NpdG9yeS5mZXRjaFBhZ2UoCiAgICAgICAgcGFnZTogX2N1cnJlbnRQYWdlICsgMSwKICAgICAgICBwYWdlU2l6ZTogX2luYm94UGFnZVNpemUsCiAgICAgICk7CiAgICAgIGZpbmFsIGxhdGVzdCA9IHN0YXRlLnZhbHVlT3JOdWxsID8/IGN1cnJlbnQ7CiAgICAgIGlmIChyZXN1bHQuc3VjY2VzcyAmJiByZXN1bHQuZGF0YSAhPSBudWxsKSB7CiAgICAgICAgX2N1cnJlbnRQYWdlICs9IDE7CiAgICAgICAgc3RhdGUgPSBBc3luY1ZhbHVlLmRhdGEoCiAgICAgICAgICBsYXRlc3QuY29weVdpdGgoCiAgICAgICAgICAgIHRocmVhZHM6IFsuLi5sYXRlc3QudGhyZWFkcywgLi4ucmVzdWx0LmRhdGEhLnRocmVhZHNdLAogICAgICAgICAgICBoYXNNb3JlOiByZXN1bHQuZGF0YSEuaGFzTW9yZSwKICAgICAgICAgICAgaXNMb2FkaW5nTW9yZTogZmFsc2UsCiAgICAgICAgICApLAogICAgICAgICk7CiAgICAgIH0gZWxzZSB7CiAgICAgICAgLy8gUGFnaW5hdGlvbiBmYWlsdXJlOiBrZWVwIHRoZSBwYWdlcyBhbHJlYWR5IGxvYWRlZCwganVzdCBkcm9wIHRoZQogICAgICAgIC8vIHNwaW5uZXIuIChUaGUgcmVwb3NpdG9yeSBhbHJlYWR5IHNlcnZlZCBhIHN0YWxlIHBhZ2Ugd2hlbiB3YXJtLCBzbwogICAgICAgIC8vIHRoaXMgcGF0aCBpcyBtYWlubHkgdGhlIGNvbGQtbmV0d29yayBjYXNlIGZvciBwYWdlIE4rMSDigJQgdGhlCiAgICAgICAgLy8gZWFybGllciBwYWdlcyByZW1haW4gdXNhYmxlLikKICAgICAgICBzdGF0ZSA9IEFzeW5jVmFsdWUuZGF0YShsYXRlc3QuY29weVdpdGgoaXNMb2FkaW5nTW9yZTogZmFsc2UpKTsKICAgICAgfQogICAgfSBmaW5hbGx5IHsKICAgICAgX2xvYWRpbmdNb3JlID0gZmFsc2U7CiAgICB9CiAgfQp9Cg==
+// ============================================================================
+// quant_core - inbox providers (M4: W4)
+// ============================================================================
+//
+// Riverpod state management for the inbox list screen (quant_app's
+// `inbox_screen.dart`, built by W2 this shift on the contract below):
+//
+// - [threadListRepositoryProvider] — the cache-through [ThreadListRepository]
+//   over [threadsApiProvider] + W1's [threadListCacheProvider].
+// - [InboxListState] — immutable UI state for the list.
+// - [inboxProvider] — [AsyncNotifierProvider] owning pagination, refresh and
+//   the post-first-paint backend sync (W3's [MailSyncService]).
+//
+// Contract for W2 (inbox_screen.dart):
+//   `ref.watch(inboxProvider)` gives `AsyncValue<InboxListState>`:
+//   - `data.threads` .......... threads to render (never null)
+//   - `data.hasMore` .......... true -> show "load more" affordance
+//   - `data.isLoadingMore` .... true -> next page is fetching
+//   - `data.errorMessage` ..... non-null -> show error (only set when
+//                               `threads` is empty, i.e. nothing to show)
+//   Call `ref.read(inboxProvider.notifier).refresh()` for pull-to-refresh and
+//   `.loadMore()` when the list reaches the end.
+
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'cache/cache_providers.dart';
+import 'mail_providers.dart';
+import 'models/thread.dart';
+import 'sync/sync.dart';
+import 'thread_list_repository.dart';
+
+/// Page size used by the inbox notifier (matches the API's `pageSize` clamp
+/// range 1..100 and the repository default of 50).
+const int _inboxPageSize = 50;
+
+/// Cache-through thread-list repository for the inbox, wired to the W1 cache
+/// via [threadListCacheProvider]. Until the drift implementation lands, the
+/// provider serves network-only (the cache provider returns `null` / an
+/// unbound cache — see `cache/cache.dart`).
+final threadListRepositoryProvider = Provider<ThreadListRepository>(
+  (ref) => ThreadListRepository(
+    ref.watch(threadsApiProvider),
+    ref.watch(threadListCacheProvider),
+  ),
+  name: 'threadListRepositoryProvider',
+);
+
+/// Immutable UI state for the inbox thread list.
+class InboxListState {
+  /// Creates the inbox list state. All fields are final.
+  const InboxListState({
+    this.threads = const [],
+    this.isLoadingMore = false,
+    this.hasMore = false,
+    this.errorMessage,
+  });
+
+  /// Threads currently shown, newest page appended at the end.
+  final List<ThreadSummary> threads;
+
+  /// True while a `loadMore()` page fetch is in flight.
+  final bool isLoadingMore;
+
+  /// True when the backend reported (or we derived) that more pages exist.
+  final bool hasMore;
+
+  /// Non-null only when there is nothing else to show ([threads] is empty)
+  /// and the last fetch failed.
+  final String? errorMessage;
+
+  /// Copies this state with the given fields replaced.
+  InboxListState copyWith({
+    List<ThreadSummary>? threads,
+    bool? isLoadingMore,
+    bool? hasMore,
+    String? errorMessage,
+    bool clearError = false,
+  }) {
+    return InboxListState(
+      threads: threads ?? this.threads,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      hasMore: hasMore ?? this.hasMore,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
+    );
+  }
+}
+
+/// Notifier behind [inboxProvider]: inbox pagination, pull-to-refresh and the
+/// post-first-paint backend sync.
+final inboxProvider =
+    AsyncNotifierProvider<InboxListNotifier, InboxListState>(
+  InboxListNotifier.new,
+  name: 'inboxProvider',
+);
+
+/// Owns inbox list state.
+///
+/// - [build] fetches page 1 cache-first so the first paint is instant
+///   (offline: cached inbox stays readable); once that state is set it kicks
+///   off [_syncAndRefresh] in the background so the backend sync does not
+///   block the first paint.
+/// - [refresh] forces a network fetch of page 1 (pull-to-refresh), keeping
+///   the existing list visible.
+/// - [loadMore] appends the next page, guarded against concurrent calls.
+class InboxListNotifier extends AsyncNotifier<InboxListState> {
+  /// Highest page number currently merged into state (private pagination
+  /// cursor; reset to 1 whenever page 1 is re-fetched).
+  int _currentPage = 1;
+
+  /// Re-entrancy guard for [loadMore] (in addition to the `isLoadingMore`
+  /// state flag, so two frames racing past the guard still serialize).
+  bool _loadingMore = false;
+
+  ThreadListRepository get _repository =>
+      ref.read(threadListRepositoryProvider);
+
+  MailSyncService get _syncService => ref.read(mailSyncServiceProvider);
+
+  @override
+  Future<InboxListState> build() async {
+    _currentPage = 1;
+    final result = await _repository.fetchPage(
+      page: 1,
+      pageSize: _inboxPageSize,
+    );
+    // First paint is cache-first; the backend sync runs afterwards so the
+    // user sees the cached inbox immediately (offline: still readable).
+    unawaited(_syncAndRefresh());
+    if (result.success && result.data != null) {
+      return InboxListState(
+        threads: result.data!.threads,
+        hasMore: result.data!.hasMore,
+      );
+    }
+    // Failure here means the cache was cold: nothing to show.
+    return InboxListState(
+      errorMessage: result.error?.message ?? 'Inbox load nahi ho payi.',
+    );
+  }
+
+  /// Runs W3's [MailSyncService.syncNow], then re-reads page 1 from the
+  /// repository (which now serves the freshly synced cache) and updates
+  /// state. Sync errors are swallowed — the cache-first state from [build]
+  /// is already on screen; [errorMessage] is set only when [threads] is
+  /// empty (nothing else to show).
+  Future<void> _syncAndRefresh() async {
+    try {
+      await _syncService.syncNow();
+    } on Object {
+      // Sync failed (offline, backend down, ...): the cached list stays.
+      return;
+    }
+    // Don't clobber an in-flight loadMore's pagination: the sync already
+    // landed in the cache (the page fetch below reads from it), and resetting
+    // `_currentPage` here would corrupt the in-flight page append.
+    if (_loadingMore) return;
+    final result = await _repository.fetchPage(
+      page: 1,
+      pageSize: _inboxPageSize,
+    );
+    if (result.success && result.data != null) {
+      _currentPage = 1;
+      final current = state.valueOrNull ?? const InboxListState();
+      final fresh = result.data!;
+      // Same defensive-empty guard as [refresh]: never blank a warm list on
+      // the API's defensive empty page.
+      final keepStale = fresh.threads.isEmpty && current.threads.isNotEmpty;
+      state = AsyncValue.data(
+        current.copyWith(
+          threads: keepStale ? current.threads : fresh.threads,
+          hasMore: keepStale ? current.hasMore : fresh.hasMore,
+          clearError: true,
+        ),
+      );
+      return;
+    }
+    final current = state.valueOrNull;
+    if (current == null || current.threads.isEmpty) {
+      state = AsyncValue.data(
+        (current ?? const InboxListState()).copyWith(
+          errorMessage:
+              result.error?.message ?? 'Inbox sync nahi ho paya.',
+        ),
+      );
+    }
+  }
+
+  /// Pull-to-refresh: forces a network fetch of page 1.
+  ///
+  /// The existing list stays visible (no loading state) and any error is
+  /// cleared before the fetch; [errorMessage] is re-set only when the refresh
+  /// fails and there is nothing to show.
+  ///
+  /// No-ops while a [loadMore] page fetch is in flight: resetting
+  /// [_currentPage] underneath it would make the in-flight page append the
+  /// wrong page number afterwards (page gap + duplicate re-fetch on the next
+  /// load-more). The spinner clears and the user can retry the pull.
+  Future<void> refresh() async {
+    if (_loadingMore) return;
+    final current = state.valueOrNull ?? const InboxListState();
+    state = AsyncValue.data(current.copyWith(clearError: true));
+    final result = await _repository.fetchPage(
+      page: 1,
+      pageSize: _inboxPageSize,
+      forceRefresh: true,
+    );
+    if (result.success && result.data != null) {
+      _currentPage = 1;
+      final fresh = result.data!;
+      // Defensive-empty guard (repository contract: "the caller decides what
+      // the UI shows"): `ThreadsApi.listThreads` degrades to an empty list
+      // on unknown `data` shapes. Never blank a warm list on that — keep the
+      // stale threads; the next sync/refresh converges.
+      final keepStale = fresh.threads.isEmpty && current.threads.isNotEmpty;
+      state = AsyncValue.data(
+        InboxListState(
+          threads: keepStale ? current.threads : fresh.threads,
+          hasMore: keepStale ? current.hasMore : fresh.hasMore,
+        ),
+      );
+      return;
+    }
+    final latest = state.valueOrNull ?? const InboxListState();
+    state = AsyncValue.data(
+      latest.copyWith(
+        errorMessage: latest.threads.isEmpty
+            ? (result.error?.message ?? 'Refresh nahi ho paya.')
+            : null,
+        clearError: latest.threads.isNotEmpty,
+      ),
+    );
+  }
+
+  /// Appends the next page. No-ops while a page fetch is in flight or when
+  /// there are no more pages ([hasMore] is false).
+  Future<void> loadMore() async {
+    final current = state.valueOrNull;
+    if (_loadingMore ||
+        current == null ||
+        current.isLoadingMore ||
+        !current.hasMore) {
+      return;
+    }
+    _loadingMore = true;
+    state = AsyncValue.data(current.copyWith(isLoadingMore: true));
+    try {
+      final result = await _repository.fetchPage(
+        page: _currentPage + 1,
+        pageSize: _inboxPageSize,
+      );
+      final latest = state.valueOrNull ?? current;
+      if (result.success && result.data != null) {
+        _currentPage += 1;
+        state = AsyncValue.data(
+          latest.copyWith(
+            threads: [...latest.threads, ...result.data!.threads],
+            hasMore: result.data!.hasMore,
+            isLoadingMore: false,
+          ),
+        );
+      } else {
+        // Pagination failure: keep the pages already loaded, just drop the
+        // spinner. (The repository already served a stale page when warm, so
+        // this path is mainly the cold-network case for page N+1 — the
+        // earlier pages remain usable.)
+        state = AsyncValue.data(latest.copyWith(isLoadingMore: false));
+      }
+    } finally {
+      _loadingMore = false;
+    }
+  }
+}

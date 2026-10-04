@@ -208,7 +208,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('“not-an-email” is not a valid email address'),
+        find.text('“not-an-email” sahi email nahi lag raha'),
         findsOneWidget,
       );
       // No chip was created for the invalid token.
@@ -225,7 +225,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('a@b.com'), findsOneWidget);
-      expect(find.textContaining('is not a valid email address'),
+      expect(find.textContaining('sahi email nahi lag raha'),
           findsNothing);
 
       await tester.tap(_removeChip('a@b.com'));
@@ -264,7 +264,7 @@ void main() {
 
       expect(service.sendCalls, isEmpty);
       expect(
-        find.text('Add at least one recipient before sending.'),
+        find.text('Bhejne se pehle kam se kam ek recipient jodo.'),
         findsOneWidget,
       );
     });
@@ -345,10 +345,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(service.undoSendCalls, <String>['msg-1']);
-      // 'Send cancelled' queues behind 'Message sent' (4s duration);
+      // 'Message unsent' queues behind 'Message sent' (4s duration);
       // advance past it.
       await tester.pump(const Duration(seconds: 5));
-      expect(find.text('Send cancelled'), findsOneWidget);
+      expect(find.text('Message unsent'), findsOneWidget);
     });
 
     testWidgets('confirmed send without messageId: snackbar WITHOUT Undo',

@@ -84,19 +84,40 @@ class AuthRepository {
     this.redirectUri = defaultRedirectUri,
     Duration timeout = const Duration(seconds: 30),
     Dio? loginDio,
-  }) : _loginDio = loginDio ??
-            Dio(
-              BaseOptions(
-                baseUrl: apiBaseUrl.replaceAll(RegExp(r'/+$'), ''),
-                connectTimeout: timeout,
-                receiveTimeout: timeout,
-                sendTimeout: timeout,
-                contentType: Headers.jsonContentType,
-                // Verified (AUTH_CONTRACT.md §1.9): an allowlisted Origin
-                // header is mandatory on /auth/login and /auth/2fa/verify.
-                headers: <String, dynamic>{'Origin': webOrigin},
-              ),
-            );
+  }) : _loginDio = loginDio ?? _buildLoginDio(apiBaseUrl, webOrigin, timeout);
+
+  /// Builds the bare login-transport Dio.
+  ///
+  /// [requireHttpsBaseUrl] runs first (P1, zero-defect security shift
+  /// 2026-10-04): without it, a misconfigured
+  /// `QUANT_API_BASE_URL=http://…` would send the user's plaintext password
+  /// over cleartext HTTP. Throws [ArgumentError] in ALL build modes; `http`
+  /// is accepted only for loopback dev hosts.
+  ///
+  /// `followRedirects: false`: a 307/308 on `/auth/login` must never
+  /// silently replay the password JSON body to another host. The OAuth
+  /// authorize 302 is inspected manually per-request (see
+  /// [upgradeToOAuthTokens]), so nothing depends on following redirects.
+  static Dio _buildLoginDio(
+    String apiBaseUrl,
+    String webOrigin,
+    Duration timeout,
+  ) {
+    requireHttpsBaseUrl(apiBaseUrl);
+    return Dio(
+      BaseOptions(
+        baseUrl: apiBaseUrl.replaceAll(RegExp(r'/+$'), ''),
+        connectTimeout: timeout,
+        receiveTimeout: timeout,
+        sendTimeout: timeout,
+        contentType: Headers.jsonContentType,
+        followRedirects: false,
+        // Verified (AUTH_CONTRACT.md §1.9): an allowlisted Origin
+        // header is mandatory on /auth/login and /auth/2fa/verify.
+        headers: <String, dynamic>{'Origin': webOrigin},
+      ),
+    );
+  }
 
   /// The in-flight PKCE authorization request (non-null while a browser
   /// consent round-trip is outstanding).
@@ -134,7 +155,7 @@ class AuthRepository {
     final body = _jsonBody(response);
     if (body['twoFactorRequired'] == true) {
       throw const AuthException(
-        '2FA verification did not complete the login',
+        'Verification poori nahi ho payi — dobara try karo.',
         code: '2fa_incomplete',
       );
     }
@@ -174,7 +195,7 @@ class AuthRepository {
     final accessToken = await tokenManager.getValidToken();
     if (accessToken == null || accessToken.isEmpty) {
       throw const AuthException(
-        'No access token available — sign in with a password first',
+        'Session expire ho gayi — dobara sign in karo.',
         code: 'no_access_token',
       );
     }
@@ -195,7 +216,7 @@ class AuthRepository {
       final location = response.headers.value('location');
       if (location == null || location.isEmpty) {
         throw const AuthException(
-          'Authorize endpoint redirected without a Location header',
+          'Login redirect me dikkat aayi — dobara try karo.',
           code: 'missing_location',
         );
       }
@@ -204,7 +225,7 @@ class AuthRepository {
         callback = Uri.parse(location);
       } on FormatException {
         throw const AuthException(
-          'Authorize endpoint returned an invalid redirect location',
+          'Login redirect me dikkat aayi — dobara try karo.',
           code: 'invalid_location',
         );
       }
@@ -216,7 +237,7 @@ class AuthRepository {
       throw ConsentRequiredException(request);
     }
     throw AuthException(
-      'Authorization request failed (HTTP $status)',
+      'Login request fail ho gayi — dobara try karo.',
       code: 'authorize_failed',
     );
   }
@@ -231,7 +252,7 @@ class AuthRepository {
     final request = _pendingAuthorizeRequest;
     if (request == null) {
       throw const AuthException(
-        'No pending authorization request — call upgradeToOAuthTokens first',
+        'Login session me dikkat aayi — dobara sign in karo.',
         code: 'no_pending_request',
       );
     }
@@ -255,7 +276,7 @@ class AuthRepository {
     final refreshToken = tokenManager.getRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) {
       throw const AuthException(
-        'No refresh token stored — a fresh login is required',
+        'Session expire ho gayi — dobara sign in karo.',
         code: 'no_refresh_token',
       );
     }
@@ -294,7 +315,7 @@ class AuthRepository {
       // U1: unknown whether a quantmail-flutter client is registered yet —
       // fail loudly instead of sending an empty client_id.
       throw const AuthException(
-        'OAuth client not provisioned',
+        'App ka login setup adhura hai — baad me dobara try karo.',
         code: 'client_not_provisioned',
       );
     }
@@ -332,7 +353,7 @@ class AuthRepository {
       final challenge = body['challenge'];
       if (challenge is! String || challenge.isEmpty) {
         throw const AuthException(
-          'Login requires 2FA but the server issued no challenge',
+          'Verification code nahi mil paya — dobara sign in karo.',
           code: 'missing_challenge',
         );
       }
@@ -437,8 +458,7 @@ class AuthRepository {
     final data = e.response?.data;
     if (status == 403 && data.toString().contains('UNTRUSTED_ORIGIN')) {
       return AuthException(
-        'Untrusted origin: the backend rejected the configured Origin header '
-        '($webOrigin). Allowlist it server-side to use password login.',
+        'Login setup me dikkat hai — dobara try karo.',
         code: 'UNTRUSTED_ORIGIN',
       );
     }
@@ -451,8 +471,7 @@ class AuthRepository {
       return _loginFailure(data);
     }
     return AuthException(
-      'Request failed${status != null ? ' (HTTP $status)' : ''}: '
-      '${e.message ?? e.type.name}',
+      'Request fail ho gayi — internet check karke dobara try karo.',
       code: 'network_error',
     );
   }

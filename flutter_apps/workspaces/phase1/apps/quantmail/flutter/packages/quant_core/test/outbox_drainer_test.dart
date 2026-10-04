@@ -304,5 +304,45 @@ void main() {
       await drainer.drain();
       expect(api.batchCalls, isEmpty);
     });
+
+    test('401 mid-drain aborts the drain, ops stay pending (P2-2)', () async {
+      api.onBatch = (_) => _ScriptedApi.failBatch(401);
+      final op1 = _op('t1:markRead', OutboxAction.markRead, const ['m1']);
+      final op2 = _op('t2:delete', OutboxAction.delete, const ['m2']);
+      await store.enqueue(op1);
+      await store.enqueue(op2);
+
+      await drainer.drain();
+
+      // The first op's 401 aborts the drain: op2 is never dispatched.
+      expect(api.batchCalls, hasLength(1));
+      // Neither op burns to `failed`: both stay pending, attempts untouched
+      // (the failure is the session's, not the ops').
+      final pending = await store.pendingOps();
+      expect(
+        pending.map((o) => o.opId),
+        containsAll([op1.opId, op2.opId]),
+      );
+      expect(pending.every((o) => o.attempts == 0), isTrue);
+      expect(await store.failedOps(), isEmpty);
+    });
+
+    test('401 does not emit failedOps (nothing failed)', () async {
+      api.onBatch = (_) => _ScriptedApi.failBatch(401);
+      await store.enqueue(
+          _op('t1:markRead', OutboxAction.markRead, const ['m1']));
+
+      final emitted = <List<OutboxOp>>[];
+      final sub = drainer.failedOps.listen(emitted.add);
+
+      await drainer.drain();
+      await pumpEventQueue();
+      await sub.cancel();
+
+      // The snapshot still emits (drain pass completed), but carries no
+      // failed ops — the UI retry surface stays quiet on session loss.
+      expect(emitted, isNotEmpty);
+      expect(emitted.last, isEmpty);
+    });
   });
 }
