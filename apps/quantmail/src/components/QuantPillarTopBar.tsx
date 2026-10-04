@@ -748,7 +748,7 @@ export function QuantPillarTopBar({
               onClick={() => handleTileClick(tile)}
               className={`relative flex flex-col items-center justify-center gap-1 py-2 px-1 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                 isActive
-                  ? `rounded-t-[20px] rounded-b-none -mb-0 translate-y-[2px] scale-[1.06] z-10 border border-b-0 ${tile.borderColor} ${tile.glowColor} shadow-lg`
+                  ? `rounded-t-[20px] rounded-b-none -mb-0 -translate-y-[4px] scale-[1.06] z-10 border border-b-0 ${tile.borderColor}`
                   : 'rounded-2xl border border-[#1F2430] opacity-75 hover:opacity-100 hover:scale-[1.02]'
               }`}
               style={{
@@ -762,7 +762,7 @@ export function QuantPillarTopBar({
             >
               <div
                 className={`relative p-1.5 rounded-xl transition-all duration-300 ${
-                  isActive ? 'bg-white/10 scale-110' : 'bg-transparent'
+                  isActive ? 'bg-white/10' : 'bg-transparent'
                 }`}
                 style={{
                   color: isActive ? tile.accentColor : '#94A3B8',
