@@ -80,7 +80,9 @@ const NAMED_ENTITIES: Record<string, string> = {
   lt: '<',
   gt: '>',
   quot: '"',
+  apos: "'",
   '#39': "'",
+  '#x27': "'",
   nbsp: ' ',
   mdash: '—',
   ndash: '–',
@@ -114,7 +116,7 @@ const NAMED_ENTITIES: Record<string, string> = {
  * literal `&amp;lt;` can never double-decode to `<`.
  */
 export function decodeHtmlEntities(text: string): string {
-  return text.replace(/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (m, entity: string) => {
+  return text.replace(/&(#\d+|#[xX][0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (m, entity: string) => {
     if (entity[0] === '#') {
       const code =
         entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
@@ -127,7 +129,12 @@ export function decodeHtmlEntities(text: string): string {
       }
       return m;
     }
-    return NAMED_ENTITIES[entity.toLowerCase()] ?? m;
+    const key = entity.toLowerCase();
+    // hasOwnProperty guard: a plain object lookup for `__proto__` would
+    // return the prototype instead of undefined, leaking it into output.
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, key)
+      ? NAMED_ENTITIES[key]
+      : m;
   });
 }
 
