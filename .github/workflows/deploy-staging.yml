@@ -20,6 +20,7 @@ on:
           - cdc-relay
           - signal-projector
           - quantchat
+          - quantchat-backend
           - quantai
           - admin
           - ws-gateway
@@ -178,6 +179,10 @@ jobs:
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
               deployment=quant-quantchat; container=quant-quantchat
+              needs_cloudflare=false ;;
+            quantchat-backend)
+              repository=quant-quantchat-backend; dockerfile=apps/quantchat/Dockerfile.backend
+              deployment=quant-quantchat; container=quant-quantchat-backend
               needs_cloudflare=false ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
