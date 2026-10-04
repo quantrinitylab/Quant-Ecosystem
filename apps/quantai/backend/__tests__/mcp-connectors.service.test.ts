@@ -48,7 +48,7 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
         'linear',
       ];
 
-      const connectors = service.listConnectors();
+      const connectors = service.listConnectors(testUserId);
       expect(connectors.length).toBe(12);
 
       const loadedIds = connectors.map((c) => c.id);
@@ -58,7 +58,7 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     });
 
     it('each connector has valid metadata, category, and supported tools', () => {
-      const connectors = service.listConnectors();
+      const connectors = service.listConnectors(testUserId);
       const validCategories = new Set([
         'Productivity',
         'Developer Tools',
@@ -82,7 +82,7 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     });
 
     it('QuantMail has 14 tools and SESSION_COOKIE requiredAuth', () => {
-      const mail = service.getConnector('quantmail');
+      const mail = service.getConnector('quantmail', testUserId);
       expect(mail.name).toBe('QuantMail');
       expect(mail.category).toBe('Productivity');
       expect(mail.toolCount).toBe(14);
@@ -91,7 +91,7 @@ describe('McpConnectorsService (Task W39-A07 Core Service)', () => {
     });
 
     it('GitHub has 28 tools and API_KEY requiredAuth', () => {
-      const gh = service.getConnector('github');
+      const gh = service.getConnector('github', testUserId);
       expect(gh.name).toBe('GitHub');
       expect(gh.category).toBe('Developer Tools');
       expect(gh.toolCount).toBe(28);

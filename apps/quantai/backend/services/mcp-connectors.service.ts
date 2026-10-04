@@ -758,8 +758,13 @@ export class McpConnectorsService {
 
   /**
    * Return all catalog connectors enriched with the user's installation state.
+   *
+   * SECURITY (P0): userId is REQUIRED — there is no 'user-default' fallback.
+   * Callers must pass the authenticated user id (fail closed with 401 at the
+   * route layer when identity is missing). A default here would silently
+   * attribute installs to a shared identity = cross-user data leak.
    */
-  listConnectors(userId: string = 'user-default'): McpConnector[] {
+  listConnectors(userId: string): McpConnector[] {
     return Array.from(this.catalog.values()).map((item) => {
       const key = `${userId}:${item.id}`;
       const install = this.installations.get(key);
@@ -790,8 +795,10 @@ export class McpConnectorsService {
 
   /**
    * Return a single connector by ID enriched with installation state.
+   *
+   * SECURITY (P0): userId is REQUIRED — no 'user-default' fallback (see above).
    */
-  getConnector(connectorId: string, userId: string = 'user-default'): McpConnector {
+  getConnector(connectorId: string, userId: string): McpConnector {
     const item = this.catalog.get(connectorId);
     if (!item) {
       throw createAppError(`Connector '${connectorId}' not found`, 404, 'CONNECTOR_NOT_FOUND');
@@ -831,8 +838,10 @@ export class McpConnectorsService {
 
   /**
    * Return all connectors installed for a given user.
+   *
+   * SECURITY (P0): userId is REQUIRED — no 'user-default' fallback (see above).
    */
-  getInstalledConnectors(userId: string = 'user-default'): McpConnector[] {
+  getInstalledConnectors(userId: string): McpConnector[] {
     return this.listConnectors(userId).filter((c) => c.isInstalled);
   }
 
