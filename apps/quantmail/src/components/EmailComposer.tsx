@@ -682,15 +682,106 @@ export function EmailComposer({
     setShowScheduleModal(false);
     setIsDrivePickerOpen(false);
 
+    // On the full `/compose` page the composer navigates away next. The
+    // UndoSendManager behind `queueSend` lives in this page's provider and is
+    // destroyed by that navigation, which used to cancel the pending send
+    // entirely — the button navigated to the inbox silently and the message
+    // was never sent, with no confirmation toast. So on this path the send
+    // runs immediately instead of through the frontend countdown; the
+    // 10-second recall window is still real, held by the backend (`sendEmail`
+    // with `delayMs: 10000`) and the undo toast the page shows. In a
+    // modal/popover the provider survives the send, so `queueSend` keeps its
+    // countdown bar there.
+    const isFullPageCompose =
+      !onClose &&
+      !onDiscard &&
+      typeof window !== 'undefined' &&
+      window.location.pathname.includes('/compose');
+
     if (onClose) {
       onClose();
     } else if (onDiscard) {
       onDiscard();
-    } else if (typeof window !== 'undefined' && window.location.pathname.includes('/compose')) {
+    } else if (isFullPageCompose) {
       try {
         sessionStorage.setItem('quant_undo_draft', JSON.stringify(draftSnapshot));
       } catch {}
+    }
+
+    const sendNow = async () => {
+      // Runs the actual send once the recall window closes (modal path) or
+      // immediately (full-page path), then announces the result.
+      try {
+        setIsSending(true);
+        quantyReact('mail:sending');
+
+        if (onSend) {
+          await onSend({
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
+            subject: draftSnapshot.subject,
+            body: draftSnapshot.bodyText,
+            bodyText: draftSnapshot.bodyText,
+            bodyHtml: draftSnapshot.bodyHtml,
+            attachments: draftSnapshot.attachments,
+            scheduledAt: draftSnapshot.scheduledAt,
+            inReplyTo: draftSnapshot.replyToId,
+          });
+        } else {
+          const composeRes = await apiClient.composeEmail({
+            to: toList,
+            cc: ccList,
+            bcc: bccList,
+            subject: draftSnapshot.subject,
+            bodyText: draftSnapshot.bodyText,
+            bodyHtml: draftSnapshot.bodyHtml,
+            attachments: draftSnapshot.attachments as any,
+            inReplyTo: draftSnapshot.replyToId,
+            scheduledAt: draftSnapshot.scheduledAt,
+            messageKind: 'mail',
+          });
+
+          if (!composeRes.success || !composeRes.data?.id) {
+            throw new Error(composeRes.error?.message || 'Failed to compose email');
+          }
+
+          const sendRes = await apiClient.sendEmail(composeRes.data.id, {
+            sendAt: draftSnapshot.scheduledAt,
+          });
+
+          if (!sendRes.success) {
+            throw new Error(sendRes.error?.message || 'Failed to deliver email');
+          }
+        }
+
+        // The host page (e.g. `/compose`) owns the confirmation toast on its
+        // path — it shows "Message sent" with the 10-second undo action — so
+        // the composer does not stack a second one here. The exception is a
+        // scheduled send, which the page persists without toasting.
+        const pageOwnsToast = Boolean(onSend) && !draftSnapshot.scheduledAt;
+
+        quantyReact(draftSnapshot.scheduledAt ? 'mail:scheduled' : 'mail:sent');
+        if (!pageOwnsToast) {
+          showToast({
+            text: draftSnapshot.scheduledAt ? 'Email scheduled' : 'Message sent',
+            type: 'success',
+          });
+        }
+      } catch (err: any) {
+        quantyReact('mail:sendFailed');
+        showToast({ text: err.message || 'Failed to send message', type: 'error' });
+      } finally {
+        setIsSending(false);
+      }
+    };
+
+    if (isFullPageCompose) {
+      // Send first, navigate after: the "Message sent" confirmation toast is
+      // on screen before the route changes.
+      await sendNow();
       router.push('/');
+      return;
     }
 
     // 3. Call queueSend with a 10-second recall window
@@ -731,64 +822,7 @@ export function EmailComposer({
           router.push('/compose');
         }
       },
-      onSendNow: async () => {
-        // If countdown completes without undo: call apiClient.sendEmail(...) and show sent toast!
-        try {
-          setIsSending(true);
-          quantyReact('mail:sending');
-
-          if (onSend) {
-            await onSend({
-              to: toList,
-              cc: ccList,
-              bcc: bccList,
-              subject: draftSnapshot.subject,
-              body: draftSnapshot.bodyText,
-              bodyText: draftSnapshot.bodyText,
-              bodyHtml: draftSnapshot.bodyHtml,
-              attachments: draftSnapshot.attachments,
-              scheduledAt: draftSnapshot.scheduledAt,
-              inReplyTo: draftSnapshot.replyToId,
-            });
-          } else {
-            const composeRes = await apiClient.composeEmail({
-              to: toList,
-              cc: ccList,
-              bcc: bccList,
-              subject: draftSnapshot.subject,
-              bodyText: draftSnapshot.bodyText,
-              bodyHtml: draftSnapshot.bodyHtml,
-              attachments: draftSnapshot.attachments as any,
-              inReplyTo: draftSnapshot.replyToId,
-              scheduledAt: draftSnapshot.scheduledAt,
-              messageKind: 'mail',
-            });
-
-            if (!composeRes.success || !composeRes.data?.id) {
-              throw new Error(composeRes.error?.message || 'Failed to compose email');
-            }
-
-            const sendRes = await apiClient.sendEmail(composeRes.data.id, {
-              sendAt: draftSnapshot.scheduledAt,
-            });
-
-            if (!sendRes.success) {
-              throw new Error(sendRes.error?.message || 'Failed to deliver email');
-            }
-          }
-
-          quantyReact(draftSnapshot.scheduledAt ? 'mail:scheduled' : 'mail:sent');
-          showToast({
-            text: draftSnapshot.scheduledAt ? 'Email scheduled' : 'Email sent',
-            type: 'success',
-          });
-        } catch (err: any) {
-          quantyReact('mail:sendFailed');
-          showToast({ text: err.message || 'Failed to send message', type: 'error' });
-        } finally {
-          setIsSending(false);
-        }
-      },
+      onSendNow: sendNow,
     });
   };
 

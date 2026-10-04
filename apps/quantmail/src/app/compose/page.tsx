@@ -174,8 +174,8 @@ export default function ComposePage() {
       invalidateMailLists(queryClient);
 
       showToast({
-        text: 'Message queued to send',
-        type: 'info',
+        text: 'Message sent',
+        type: 'success',
         duration: 10000,
         countdown: 10,
         undoAction: async () => {

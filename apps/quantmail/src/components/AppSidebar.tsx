@@ -178,9 +178,11 @@ function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: str
 }
 
 /*
-  Eight mail folders, flat, in the order the keyboard registry already declares
+  Five mail folders, flat, in the order the keyboard registry already declares
   them (`g i`, `g s`, `g d`, `g *`, `g b`, `g e`, `g t`, `g !` —
-  KeyboardProvider.tsx:138-209).
+  KeyboardProvider.tsx:138-209). Spam is a `lens` entry rather than a route:
+  the drawer links straight to `/?lens=spam`, the inbox page's spam view over
+  the real `useInbox({ folderType: 'SPAM' })` query.
 
   Five of these routes were fully built and completely unreachable by pointer.
   `/sent` (a 271-line delivery-trail page with per-row send status and Resend),
@@ -213,6 +215,13 @@ const NAV_GROUPS: Array<{
     label: string;
     icon: IconName;
     path: string;
+    /**
+     * Lens items live on `/` with `?lens=` set: the Spam folder is the inbox
+     * page's spam lens, backed by the real `useInbox({ folderType: 'SPAM' })`
+     * query — the same query the old lens pill used. It is a drawer entry,
+     * not a route, so it never touches the `/spam` redirect shim.
+     */
+    lens?: string;
     shortcut?: string;
     desktopOnly?: boolean;
   }>;
@@ -223,6 +232,7 @@ const NAV_GROUPS: Array<{
       { id: 'inbox', label: 'Mail', icon: 'inbox', path: '/' },
       { id: 'sent', label: 'Sent', icon: 'sent', path: '/sent' },
       { id: 'drafts', label: 'Drafts', icon: 'drafts', path: '/drafts' },
+      { id: 'spam', label: 'Spam', icon: 'spam', path: '/?lens=spam', lens: 'spam' },
       { id: 'trash', label: 'Trash', icon: 'trash', path: '/trash' },
     ],
   },
@@ -260,11 +270,15 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
   const pathname = usePathname() ?? '/';
   const searchParams = useSearchParams();
   const currentLens = searchParams.get('lens');
-  const isActive = (path: string) => {
-    if (path === '/') {
+  type NavItem = (typeof NAV_GROUPS)[number]['items'][number];
+  const isActive = (item: NavItem) => {
+    if (item.lens) {
+      return pathname === '/' && currentLens === item.lens;
+    }
+    if (item.path === '/') {
       return pathname === '/' && !currentLens;
     }
-    return pathname.startsWith(path);
+    return pathname.startsWith(item.path);
   };
   const { data: inboxEmails } = useInbox();
   const { data: draftEmails } = useInbox({ folderType: 'DRAFTS' });
@@ -327,7 +341,7 @@ export function AppSidebar({ extra }: AppSidebarProps = {}) {
             <h2 id={`nav-${group.label.toLowerCase()}`}>{group.label}</h2>
             <ul role="list">
               {group.items.map((item) => {
-                const active = isActive(item.path);
+                const active = isActive(item);
                 return (
                   <li key={item.id} className={item.desktopOnly ? 'hidden md:block' : ''}>
                     <button
