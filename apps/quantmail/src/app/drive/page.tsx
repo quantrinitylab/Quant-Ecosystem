@@ -979,6 +979,10 @@ function DrivePageContent() {
                 {filter.label}
               </button>
             ))}
+            {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
+                so without this a mid-list pill ("Folders") renders cut off at
+                the row's edge on narrow screens. */}
+            <div aria-hidden="true" className="shrink-0 w-1" />
           </div>
 
           {/* Right cluster */}

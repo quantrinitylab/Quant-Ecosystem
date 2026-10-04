@@ -185,9 +185,30 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('order-1 md:order-2');
       // AI capsule row: order-2 on mobile, order-1 on desktop.
       expect(html).toContain('order-2 md:order-1');
-      // Search bar and lens strip keep their slots after both.
+      // Search bar keeps its slot after both.
       expect(html).toContain('order-3');
-      expect(html).toContain('order-4');
+      // The lens strip is hidden on mail (the inbox owns its lens row) —
+      // it only renders where the page has no filter row of its own.
+      expect(html).not.toContain('order-4');
+      expect(html).not.toContain('aria-label="Sub-category lenses"');
+    });
+
+    it('hides the duplicate lens strip where the page owns its filter row', () => {
+      for (const pillar of ['mail', 'calendar', 'drive', 'contacts'] as const) {
+        const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride={pillar} />);
+        expect(html).not.toContain('aria-label="Sub-category lenses"');
+      }
+      // QuantGit has no page-level filter row, so it keeps the strip.
+      const gitHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
+      expect(gitHtml).toContain('aria-label="Sub-category lenses"');
+      expect(gitHtml).toContain('order-4');
+    });
+
+    it('shows the lens strip when hideLensStrip is explicitly false', () => {
+      const html = renderToStaticMarkup(
+        <QuantPillarTopBar activePillarOverride="mail" hideLensStrip={false} />,
+      );
+      expect(html).toContain('aria-label="Sub-category lenses"');
     });
 
     it('marks the active tile with aria-selected and the arch glow bar', () => {

@@ -136,6 +136,10 @@ export function DriveContextTabsHeader({
           </button>
         );
       })}
+      {/* Trailing spacer: padding-right collapses inside overflow-x-auto, so
+          without this the last tab ("Cleaner") renders flush-cut at the edge
+          on narrow screens — the "St..." clipping from the mobile QA shots. */}
+      <div aria-hidden="true" className="shrink-0 w-4" />
     </div>
   );
 }

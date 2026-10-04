@@ -415,6 +415,14 @@ export interface QuantPillarTopBarProps {
   onSearchSubmit?: (val: string) => void;
   onSearchClear?: () => void;
   searchPlaceholder?: string;
+  /**
+   * Hide the horizontal sub-category lens strip. Defaults to true for pillars
+   * whose pages render their own richer filter rows (mail's inbox lenses,
+   * calendar/drive/contacts chips) — the strip duplicated those rows with
+   * different counts (e.g. Mail showed "All (11)" up top and "All (5)" below).
+   * QuantGit has no page-level filter row, so it keeps the strip.
+   */
+  hideLensStrip?: boolean;
   activePillarOverride?: PillarId;
   activePillar?: PillarId;
   onPillarSelect?: (pillar: PillarId) => void;
@@ -556,6 +564,7 @@ export function QuantPillarTopBar({
   onVoiceSearch,
   unreadCounts,
   lensCounts,
+  hideLensStrip,
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -584,6 +593,20 @@ export function QuantPillarTopBar({
 
   const activeTile = PILLAR_TILES.find((t) => t.id === currentPillar) || PILLAR_TILES[0];
   const activeLenses = PILLAR_LENSES[currentPillar] || [];
+
+  /*
+   * The lens strip duplicates page-level filter rows on four of the five
+   * pillars (mail's inbox lenses, calendar/drive/contacts chips) — same
+   * labels, different counts. It stays visible only where the page has no
+   * filter row of its own (QuantGit) or where the caller explicitly opts in.
+   */
+  const PILLARS_WITH_NATIVE_FILTERS: ReadonlySet<PillarId> = new Set([
+    'mail',
+    'calendar',
+    'drive',
+    'contacts',
+  ]);
+  const showLensStrip = !(hideLensStrip ?? PILLARS_WITH_NATIVE_FILTERS.has(currentPillar));
 
   // Active lens detection: controlled props take precedence
   const effectiveLensOverride = activeLensOverride ?? activeLens;
@@ -949,7 +972,9 @@ export function QuantPillarTopBar({
         </button>
       </div>
 
-      {/* 4. Horizontal Sub-Category Lenses Strip */}
+      {/* 4. Horizontal Sub-Category Lenses Strip — hidden where the page owns
+          its filter row (see showLensStrip above). */}
+      {showLensStrip && (
       <div
         className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 w-full max-w-5xl mx-auto order-4"
         role="tablist"
@@ -1012,7 +1037,11 @@ export function QuantPillarTopBar({
             </button>
           );
         })}
+        {/* Trailing spacer: padding-right collapses inside overflow containers,
+            so without this the last lens would sit flush-cut at the edge. */}
+        <div aria-hidden="true" className="shrink-0 w-1" />
       </div>
+      )}
     </header>
   );
 }

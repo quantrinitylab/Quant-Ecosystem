@@ -2577,6 +2577,9 @@ export default function InboxPage() {
                     </button>
                   );
                 })}
+                {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
+                    so the last lens chip would otherwise sit flush-cut at the edge. */}
+                <div aria-hidden="true" className="shrink-0 w-1" />
               </div>
             </div>
             <div className="relative shrink-0" ref={filterMenuRef}>
