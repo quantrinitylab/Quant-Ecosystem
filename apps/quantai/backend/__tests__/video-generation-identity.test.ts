@@ -21,22 +21,27 @@ vi.mock('@quant/server-core', () => ({
   },
 }));
 
-const createVideoGenerationJob = vi.fn(
-  (userId: string, _opts: Record<string, unknown>) => ({ id: 'job-1', userId, status: 'queued' }),
-);
-const processVideoJob = vi.fn(async (id: string) => ({ id, status: 'done' }));
-const getVideoJobStatus = vi.fn((_id: string) => null);
-const interpolatePromptFrames = vi.fn(
-  (a: string, b: string, n: number) => Array.from({ length: n }, (_, i) => `${a}->${b}#${i}`),
-);
-const validateCameraMotion = vi.fn((_m: string) => true);
+const mocks = vi.hoisted(() => ({
+  createVideoGenerationJob: vi.fn((userId: string, _opts: Record<string, unknown>) => ({
+    id: 'job-1',
+    userId,
+    status: 'queued',
+  })),
+  processVideoJob: vi.fn(async (id: string) => ({ id, status: 'done' })),
+  getVideoJobStatus: vi.fn((_id: string) => null),
+  interpolatePromptFrames: vi.fn((a: string, b: string, n: number) =>
+    Array.from({ length: n }, (_, i) => `${a}->${b}#${i}`),
+  ),
+  validateCameraMotion: vi.fn((_m: string) => true),
+}));
+const { createVideoGenerationJob, processVideoJob, getVideoJobStatus } = mocks;
 
 vi.mock('../services/ai-video-generation.service', () => ({
-  createVideoGenerationJob,
-  processVideoJob,
-  getVideoJobStatus,
-  interpolatePromptFrames,
-  validateCameraMotion,
+  createVideoGenerationJob: mocks.createVideoGenerationJob,
+  processVideoJob: mocks.processVideoJob,
+  getVideoJobStatus: mocks.getVideoJobStatus,
+  interpolatePromptFrames: mocks.interpolatePromptFrames,
+  validateCameraMotion: mocks.validateCameraMotion,
   VALID_CAMERA_MOTIONS: ['static'],
   VALID_ASPECT_RATIOS: ['16:9'],
   CAMERA_MOTION_VECTORS: {},
