@@ -382,6 +382,12 @@ describe('Vizion AI v2.6.0 AI Video Generator & Camera Motion Control Engine', (
 
     beforeEach(async () => {
       fastifyApp = Fastify();
+      // Test-only auth hook: video-generation routes (P0 fail-closed) require
+      // a verified identity at (request as any).user.id. Mirror production's
+      // auth middleware with a fixed test identity.
+      fastifyApp.addHook('onRequest', async (req, _reply) => {
+        (req as any).user = { id: 'test-user' };
+      });
       await fastifyApp.register(videoGenerationRoutes, { prefix: '/api/ai' });
       await fastifyApp.ready();
     });

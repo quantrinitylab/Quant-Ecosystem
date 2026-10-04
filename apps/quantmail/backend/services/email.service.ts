@@ -463,18 +463,7 @@ export class EmailService {
       }
     }
 
-    /*
-     * The EmailDeliveryStatus enum members, as declared in
-     * packages/database/prisma/schema.prisma
-     * (draft | queued | sent | deferred | bounced | delivered). Kept as a local
-     * literal union — rather than importing the Prisma enum type — so tsc
-     * rejects any assignment outside the enum even when the generated client
-     * is not on the type path. 'failed' used to be assigned below: it is not
-     * an enum member, so Prisma threw on the final update and the draft was
-     * never flipped into a Sent message (empty /sent + empty inbox in QA).
-     */
-    type SendDeliveryStatus = 'draft' | 'queued' | 'sent' | 'deferred' | 'bounced' | 'delivered';
-    let deliveryStatus: SendDeliveryStatus = 'delivered';
+    let deliveryStatus = 'delivered';
     let deliveryError: string | undefined;
 
     if (external.length > 0 || (options?.delayMs && options.delayMs > 0)) {
@@ -538,11 +527,9 @@ export class EmailService {
            * 'deferred', not 'failed': 'failed' is not a member of the
            * EmailDeliveryStatus enum (draft | queued | sent | deferred |
            * bounced | delivered), so Prisma rejects the final update below and
-           * the draft is never flipped into a Sent message — the /sent list
-           * (isSent) and the inbox (isDraft = false) both come back empty while
-           * search (which has no draft filter) still finds the row. 'deferred'
-           * is the design's transient-failure state and keeps the undo window
-           * open for a manual retry.
+           * the draft is never flipped into a Sent message. 'deferred' is the
+           * design's transient-failure state and keeps the undo window open
+           * for a manual retry. (Matches main's fix from Muse's QA round.)
            */
           deliveryStatus = 'deferred';
           // eslint-disable-next-line no-console
@@ -552,8 +539,7 @@ export class EmailService {
         }
       } else if (!enqueued) {
         // Same enum contract as above: a failed transport must not take the
-        // Sent flip down with it. 'deferred' records "not yet delivered" and
-        // lets the persisted update below run.
+        // Sent flip down with it. 'deferred' records "not yet delivered".
         deliveryStatus = 'deferred';
         deliveryError =
           deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';

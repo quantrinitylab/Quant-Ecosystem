@@ -39,6 +39,11 @@ import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '@quant/server-core';
 import { buildApp } from '../app';
 
+// The /emails/changes route (fail-closed by design) requires SYNC_CURSOR_SECRET
+// at registration. Provide a deterministic test secret so the real buildApp()
+// boots in this suite.
+process.env.SYNC_CURSOR_SECRET ??= 'test-secret-32-bytes-long-for-tests!';
+
 // Test AppConfig matching the quantai seam harness (silent logger, test JWT
 // secret/issuer/audience), with quantmail's backend PORT. Passed explicitly to
 // `buildApp()` so the boot is deterministic and does not depend on process env.
