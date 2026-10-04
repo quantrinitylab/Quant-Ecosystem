@@ -48,6 +48,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/silent_refresh.dart';
+import '../mail/sync/sync.dart';
 import '../providers/core_providers.dart';
 
 /// Minimal debugPrint-based logger used before any logging backend exists.
@@ -104,6 +105,14 @@ class AppBootstrap {
     // Bind the silent-refresh lifecycle. This is a `Provider<void>` kept for
     // its side effect — previously dead wiring, nobody read it.
     container.read(silentRefreshProvider);
+
+    // M6: connectivity watcher — offline→online transitions par outbox drain +
+    // delta-sync. Guarded: connectivity listener cold start ko kabhi break nahi karega.
+    try {
+      container.read(connectivityWatcherProvider);
+    } on Object catch (error, stackTrace) {
+      AppLogger.error('connectivity watcher failed to start', error, stackTrace);
+    }
 
     AppLogger.info(
       'bootstrap warmUp complete in ${stopwatch.elapsedMilliseconds}ms',

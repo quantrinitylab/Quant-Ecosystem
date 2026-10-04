@@ -18,6 +18,7 @@ import '../cache/thread_cache.dart';
 import '../mail_providers.dart';
 import '../models/email.dart';
 import '../models/thread.dart';
+import '../outbox/outbox_providers.dart';
 import '../threads_api.dart';
 
 /// Outcome of one [MailSyncService.syncNow] run.
@@ -88,11 +89,44 @@ class MailSyncService {
   /// Page size used for the full-resync seed fetch (spec clamp 1..100).
   static const int _fullResyncPageSize = 100;
 
+  /// In-flight [syncNow] future, or `null` when idle.
+  ///
+  /// P2-1 (zero-defect): the reconnect watcher debounces at 500ms, but
+  /// each debounced fire still ran a FULL `syncNow()` (up to 20 pages x
+  /// 100 items) `unawaited` — tunnel/elevator flapping amplified into
+  /// server + local-DB storms. Concurrent `syncNow()` calls now share the
+  /// one in-flight run: read and written with no `await` in between, so
+  /// the check-and-set is atomic on Dart's single-threaded event loop
+  /// (same pattern as [OutboxDrainer.drain]). Sequential calls still run
+  /// fully — the guard clears when the run completes.
+  Future<SyncResult>? _syncInflight;
+
   /// Runs one delta-sync pass.
   ///
   /// [pageLimit] is clamped by [EmailChangesApi.fetchChanges] to the staged
   /// contract's 1..500 range.
-  Future<SyncResult> syncNow({int pageLimit = 100}) async {
+  ///
+  /// Concurrent calls collapse into the single in-flight run and share its
+  /// future (RefreshMutex-style dedupe, not serialization). Callers with a
+  /// different [pageLimit] still share the first call's run — sync is a
+  /// catch-up pass, not a paged query, so coalescing is correct.
+  Future<SyncResult> syncNow({int pageLimit = 100}) {
+    final current = _syncInflight;
+    if (current != null) return current;
+    final future = _syncNowInner(pageLimit: pageLimit);
+    _syncInflight = future;
+    // The derived future must never surface an unhandled async error:
+    // swallow its outcome, then clear the guard. (Waiters on the shared
+    // future still observe the real outcome — value or error — exactly as
+    // a direct call would.)
+    future.then<void>((_) {}, onError: (_) {}).whenComplete(() {
+      if (identical(_syncInflight, future)) _syncInflight = null;
+    });
+    return future;
+  }
+
+  /// The actual sync implementation; see [syncNow] (single-flight wrapper).
+  Future<SyncResult> _syncNowInner({required int pageLimit}) async {
     final cache = _ref.read(threadListCacheProvider);
     final changesApi = _ref.read(emailChangesApiProvider);
 
@@ -143,13 +177,13 @@ class MailSyncService {
 
       for (final change in data.changes) {
         if (change.deleted) {
-          // TODO(UNVERIFIED): tombstone shape — `{deleted: true, id}` with NO
-          // message payload. `id` here is the *email* id from the changes
-          // feed, but the thread cache is keyed by thread id; the W1
-          // implementation must resolve email-id -> thread-id (or fall back
-          // to the email id, matching the lazy-thread deep-link rule in
-          // ThreadsApi.resolveThread) — re-verify at merge time.
-          await cache.deleteThread(change.id);
+          // Tombstone: prefer the change's `threadId` (parsed from the staged
+          // contract's `threadId` field) so deletes hit real (non-lazy)
+          // threads; fall back to the email id for lazy threads where both
+          // are the same.
+          // TODO(UNVERIFIED): re-verify `threadId` presence against the
+          // merged backend (`GET /emails/changes` P0-1).
+          await cache.deleteThread(change.threadId ?? change.id);
           appliedDeletes++;
         } else {
           final email = change.email;
@@ -175,6 +209,29 @@ class MailSyncService {
       nextSince: nextSince,
     );
   }
+
+  /// Explicitly drains the persistent outbox ([OutboxDrainer.drain]).
+  ///
+  /// Safe to call any time — a no-op when nothing is pending, and
+  /// concurrent calls collapse into one in-flight drain.
+  ///
+  /// Auto-trigger on reconnect is RESOLVED (M6, W1): `connectivityWatcherProvider`
+  /// (`sync_providers.dart`) starts from [AppBootstrap.warmUp] and fires
+  /// `syncNow()` → `drainOutbox()` on debounced offline→online transitions,
+  /// guarded by [isSessionAuthenticatedProvider] (a signed-out drain would
+  /// burn pending ops to `failed` via the 401→permanent `_classify` rule).
+  /// // TODO(UNVERIFIED): (a) no auto-trigger INSIDE [syncNow] — deliberate
+  /// design decision, kept: the seam is awkward (firing the drain inside
+  /// syncNow constructs the real outboxDrainerProvider (disk database) in
+  /// unit tests, and drift's LazyDatabase reports the binding-less open
+  /// failure to the test zone at container teardown — outside anything the
+  /// drainer can catch, verified by experiment). The drain stays an
+  /// explicit call site (reconnect wiring, mutation paths, this method).
+  /// (b) The outbox↔delta-sync conflict policy (what happens when a remote
+  /// change arrives for an item with a pending local op) is still unverified
+  /// against the live backend — re-verify in Phase 2 once the P0-1 merge
+  /// lands.
+  Future<void> drainOutbox() => _ref.read(outboxDrainerProvider).drain();
 
   /// Full-resync fallback after an invalid/expired cursor.
   ///

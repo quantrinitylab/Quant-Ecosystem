@@ -8,6 +8,8 @@
 // - refresh() re-fetches page 1 from the network;
 // - loadMore() appends the next page and stops calling the network once
 //   hasMore is false.
+// - refresh() and a racing loadMore() no-op while a page fetch is in flight
+//   (zero-defect: re-entrancy regression — no page gap, no duplicates).
 //
 // Provider overrides: [threadListRepositoryProvider] gets the REAL
 // repository over a scripted transport + in-memory [ThreadListCache] fake;
@@ -170,6 +172,10 @@ class _FakeThreadListCache implements ThreadListCache {
   }
 
   @override
+  Future<ThreadSummary?> readThread(String threadId) async =>
+      _threads[threadId];
+
+  @override
   Future<void> deleteThread(String threadId) async {
     _threads.remove(threadId);
     for (final key in _pages.keys.toList()) {
@@ -231,6 +237,24 @@ void _serveThreads(
         {'success': true, 'data': threads},
         200,
       );
+}
+
+/// Waits until the recording adapter observes a matching request.
+///
+/// Dio's interceptor chain crosses several async hops, so a request fired
+/// by the code under test is not visible in [adapter.requests] synchronously.
+/// Polls briefly; fails the test instead of hanging forever.
+Future<void> _waitForRequest(
+  _RecordingAdapter adapter,
+  bool Function(_RecordedRequest) matches,
+) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (DateTime.now().isBefore(deadline)) {
+    if (adapter.requests.any(matches)) return;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  fail('timed out waiting for the expected request '
+      '(observed: ${adapter.requests.map((r) => '${r.path}?${r.queryParams}').toList()})');
 }
 
 void main() {
@@ -328,6 +352,66 @@ void main() {
       expect(adapter.requests.length, requestCount,
           reason: 'no more pages: loadMore() is a no-op');
       expect(container.read(inboxProvider).value!.threads, hasLength(70));
+    });
+
+    test('refresh() and a second loadMore() no-op while a page fetch is in '
+        'flight (no page gap, no duplicates)', () async {
+      final adapter = _RecordingAdapter();
+      final page1 = _threadJsons(50, 'p1-');
+      final page2 = _threadJsons(20, 'p2-');
+      adapter.responder = (req) async {
+        if (req.queryParams['page'] == '2') {
+          // Slow network: the page-2 fetch stays in flight for 300 ms.
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          return _json({'success': true, 'data': page2}, 200);
+        }
+        return _json({'success': true, 'data': page1}, 200);
+      };
+      final container = _makeContainer(adapter);
+      container.listen(inboxProvider, (_, __) {});
+
+      final initial = await container.read(inboxProvider.future);
+      expect(initial.threads, hasLength(50));
+      expect(initial.hasMore, isTrue);
+      expect(adapter.requests.length, 1,
+          reason: 'build fetched page 1 once');
+
+      final notifier = container.read(inboxProvider.notifier);
+      // Start the page-2 fetch and wait until it is genuinely in flight
+      // (the request has left the transport; the 300 ms responder delay
+      // keeps the response pending).
+      final inFlight = notifier.loadMore();
+      await _waitForRequest(
+        adapter,
+        (r) => r.path == '/threads' && r.queryParams['page'] == '2',
+      );
+      // While page 2 is in flight, pull-to-refresh and a racing loadMore()
+      // must no-op: resetting the page cursor underneath the in-flight
+      // fetch would append the wrong page afterwards (gap + duplicates).
+      await notifier.refresh();
+      await notifier.loadMore();
+
+      final midFlight = container.read(inboxProvider).value!;
+      expect(midFlight.threads, hasLength(50),
+          reason: 'refresh() no-ops mid-flight: the warm list is untouched');
+      expect(
+        adapter.requests
+            .where((r) => r.queryParams['page'] == '2')
+            .length,
+        1,
+        reason: 'exactly one page-2 request despite the racing loadMore()',
+      );
+      expect(adapter.requests.length, 1 + 1,
+          reason: 'refresh() issued no network request mid-flight');
+
+      await inFlight;
+      final done = container.read(inboxProvider).value!;
+      expect(done.threads, hasLength(70),
+          reason: 'page 2 appended exactly once after the slow fetch');
+      expect(done.threads.map((t) => t.id).toSet(), hasLength(70),
+          reason: 'no duplicate threads from the race');
+      expect(done.threads.last.id, 'p2-19');
+      expect(done.isLoadingMore, isFalse);
     });
   });
 }

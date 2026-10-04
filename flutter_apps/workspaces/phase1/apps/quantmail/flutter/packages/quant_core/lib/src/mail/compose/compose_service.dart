@@ -48,12 +48,27 @@ class ComposeService {
   /// Validates and queues a send; returns the enqueued op id.
   ///
   /// Throws [ArgumentError] synchronously when the request has no valid
-  /// recipient. Empty subject is allowed. Fire-and-forget drain follows the
-  /// write-ahead enqueue (see [ThreadMutationService] for the pattern).
+  /// recipient, or when any non-empty recipient address is malformed
+  /// (see [EmailAddress.isWellFormed]). Format gating used to live only in
+  /// the compose UI's chips field — any non-UI path (reply prefill, future
+  /// APIs, tests) could enqueue garbage that died as a server 400 on
+  /// failedOps with no client-side explanation. Empty subject is allowed.
+  /// Fire-and-forget drain follows the write-ahead enqueue (see
+  /// [ThreadMutationService] for the pattern).
   Future<String> send(ComposeRequest request) async {
     if (request.validRecipients.isEmpty) {
       throw ArgumentError(
         'ComposeService.send: at least one valid recipient is required',
+      );
+    }
+    final malformed = request.validRecipients
+        .where((a) => !a.isWellFormed)
+        .map((a) => a.email)
+        .toList(growable: false);
+    if (malformed.isNotEmpty) {
+      throw ArgumentError(
+        'ComposeService.send: malformed recipient address(es): '
+        '${malformed.join(', ')}',
       );
     }
     final op = OutboxOp(

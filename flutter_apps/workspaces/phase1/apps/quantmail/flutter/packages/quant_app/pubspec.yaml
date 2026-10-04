@@ -28,6 +28,7 @@ dependencies:
   # @quant/brand Material 3 theme. Lives outside this workspace (read-only).
   quant_foundation:
     path: ../../../../../../phase0/foundation
+  flutter_quill: ^11.6.0
 
 dev_dependencies:
   flutter_test:

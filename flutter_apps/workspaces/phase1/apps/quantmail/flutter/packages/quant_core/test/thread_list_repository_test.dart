@@ -160,6 +160,10 @@ class _FakeThreadListCache implements ThreadListCache {
   }
 
   @override
+  Future<ThreadSummary?> readThread(String threadId) async =>
+      _threads[threadId];
+
+  @override
   Future<void> deleteThread(String threadId) async {
     _threads.remove(threadId);
     for (final key in _pages.keys.toList()) {

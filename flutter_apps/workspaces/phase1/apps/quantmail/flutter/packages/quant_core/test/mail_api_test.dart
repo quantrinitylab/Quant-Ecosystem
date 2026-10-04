@@ -172,7 +172,8 @@ Map<String, dynamic> _emailJson({
     };
 
 /// In-memory implementation of the `MailCache` seam from
-/// `mail_providers.dart` (read/write page, read/write email, clear).
+/// `mail_providers.dart` (read/write page, read/write email,
+/// by-thread read, clear).
 class _FakeMailCache implements MailCache {
   final Map<String, PaginatedEmails> _pages = <String, PaginatedEmails>{};
   final Map<String, Email> _emails = <String, Email>{};
@@ -205,6 +206,21 @@ class _FakeMailCache implements MailCache {
 
   @override
   Future<void> writeEmail(Email email) async => _emails[email.id] = email;
+
+  @override
+  Future<List<Email>> readEmailsForThread(String threadId) async {
+    final matches =
+        _emails.values.where((e) => e.threadId == threadId).toList();
+    matches.sort((a, b) {
+      final ad = a.date;
+      final bd = b.date;
+      if (ad == null && bd == null) return 0;
+      if (ad == null) return 1;
+      if (bd == null) return -1;
+      return ad.compareTo(bd);
+    });
+    return matches;
+  }
 
   @override
   Future<void> clear() async {

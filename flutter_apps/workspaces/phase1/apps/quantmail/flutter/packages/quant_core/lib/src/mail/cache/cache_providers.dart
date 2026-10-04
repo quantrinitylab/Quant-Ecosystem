@@ -17,8 +17,13 @@ import 'thread_cache.dart';
 
 /// The shared drift database, opened once for the app's lifetime.
 ///
-/// Production path opens `<app-documents>/quantmail.db` lazily (the file
-/// is only touched on first query). Closed on dispose.
+/// [MailDatabase.disk] routes through the `database_connection` seam
+/// (conditional import): native sqlite at `<app-documents>/quantmail.db`
+/// on IO platforms (lazy — the file is only touched on first query), and
+/// a documented limitation on web (see `database_connection_web.dart`:
+/// the wasm asset pipeline is not wired yet, so first use on web throws
+/// a loud [UnsupportedError] rather than fake-persisting).
+/// Closed on dispose.
 final driftDatabaseProvider = Provider<MailDatabase>(
   (ref) {
     final db = MailDatabase.disk();
