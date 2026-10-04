@@ -138,6 +138,14 @@ export interface AIInferenceRequest {
   app: QuantApp;
   feature: string;
   metadata?: Record<string, unknown>;
+  /** Tools the model may call (function calling). When provided, the model
+   * can return tool calls instead of (or in addition to) text. */
+  tools?: import('./core/tool-calling').ToolDefinition[];
+  /** Tool choice strategy: 'auto' (default), 'none', 'required', or force a specific tool */
+  toolChoice?: import('./core/tool-calling').ToolChoice;
+  /** Maximum sequential tool-calling rounds (default 5). Each round executes
+   * returned tool calls and feeds results back to the model. */
+  maxToolRounds?: number;
 }
 
 /** Conversation message for context */
@@ -152,11 +160,13 @@ export interface AIInferenceResponse {
   id: string;
   content: string;
   model: string;
-  finishReason: 'stop' | 'length' | 'content_filter' | 'error';
+  finishReason: 'stop' | 'length' | 'content_filter' | 'error' | 'tool_calls';
   usage: TokenUsage;
   latencyMs: number;
   cached: boolean;
   metadata?: Record<string, unknown>;
+  /** Tool calls requested by the model (when tools were provided) */
+  toolCalls?: import('./core/tool-calling').ToolCall[];
 }
 
 /** Token usage tracking */
@@ -173,6 +183,8 @@ export interface StreamChunk {
   content: string;
   done: boolean;
   finishReason?: string;
+  /** Tool calls streamed from the model (may arrive incrementally) */
+  toolCalls?: import('./core/tool-calling').ToolCall[];
 }
 
 /** Content moderation result */
