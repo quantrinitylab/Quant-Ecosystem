@@ -52,6 +52,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         title: const Text('QuantAds'),
         actions: <Widget>[
           IconButton(
+            // VQA-P2-06: M3 IconButton defaults to 40x40 — keep the touch
+            // target at least 48x48dp (AppBar toolbar height 56 fits it).
+            style: IconButton.styleFrom(
+              minimumSize: const Size(48, 48),
+            ),
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout_outlined),
             onPressed: _signOut,
@@ -144,6 +149,8 @@ class _DashboardTab extends StatelessWidget {
                   ),
                 ),
                 TextButton(
+                  // VQA-P2-06: keep the touch target at least 48x48dp.
+                  style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
                   onPressed: onSeeAll,
                   child: const Text('See all'),
                 ),
@@ -254,7 +261,11 @@ class _ProfileTab extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        // VQA-P2-06: keep the touch target at least 48x48dp.
         OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(48, 48),
+          ),
           onPressed: onSignOut,
           icon: const Icon(Icons.logout_outlined),
           label: const Text('Sign out'),

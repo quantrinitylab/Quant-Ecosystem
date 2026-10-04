@@ -97,9 +97,14 @@ class ConversationsScreen extends ConsumerWidget {
         context.push('/chat/${session.id}');
       }
     } catch (e) {
+      // Raw exception kabhi UI me nahi — log me bhejo, user ko friendly copy.
+      debugPrint('QuantAI new chat failed: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Nayi conversation nahi ban payi: $e')),
+          const SnackBar(
+            content:
+                Text('Nayi conversation nahi ban payi. Dobara try karo.'),
+          ),
         );
       }
     }

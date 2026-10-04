@@ -371,6 +371,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
           const SizedBox(height: 8),
           TextButton(
+            // VQA-P2-06: keep the touch target at least 48x48dp.
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
             onPressed: _verifyingTotp
                 ? null
                 : () => setState(() => _showTotpView = false),
@@ -539,7 +541,14 @@ class _ProviderErrorView extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          OutlinedButton(onPressed: onRetry, child: const Text('Retry')),
+          // VQA-P2-06: keep the touch target at least 48x48dp.
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(48, 48),
+            ),
+            onPressed: onRetry,
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
