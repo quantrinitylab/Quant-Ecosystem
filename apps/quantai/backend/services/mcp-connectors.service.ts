@@ -759,7 +759,9 @@ export class McpConnectorsService {
   /**
    * Return all catalog connectors enriched with the user's installation state.
    */
-  listConnectors(userId: string = 'user-default'): McpConnector[] {
+  listConnectors(userId: string): McpConnector[] {
+    // P0 fix: userId is required — no default identity. Callers must pass a
+    // verified authenticated user id; the route layer now fails closed (401).
     return Array.from(this.catalog.values()).map((item) => {
       const key = `${userId}:${item.id}`;
       const install = this.installations.get(key);
@@ -791,7 +793,8 @@ export class McpConnectorsService {
   /**
    * Return a single connector by ID enriched with installation state.
    */
-  getConnector(connectorId: string, userId: string = 'user-default'): McpConnector {
+  getConnector(connectorId: string, userId: string): McpConnector {
+    // P0 fix: userId is required — no default identity (see above).
     const item = this.catalog.get(connectorId);
     if (!item) {
       throw createAppError(`Connector '${connectorId}' not found`, 404, 'CONNECTOR_NOT_FOUND');
