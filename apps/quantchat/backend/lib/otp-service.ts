@@ -407,3 +407,93 @@ export class AwsSnsSmsSender implements SmsSender {
     }
   }
 }
+
+/**
+ * MSG91 SMS sender implementing {@link SmsSender}.
+ *
+ * Uses MSG91 Flow API (https://api.msg91.com/api/v5/flow/) to send OTP SMS.
+ * Requires MSG91_AUTH_KEY env var. Falls back to LoggingSmsSender when not configured.
+ */
+export class Msg91SmsSender implements SmsSender {
+  private readonly fallback: LoggingSmsSender;
+
+  constructor(
+    fallbackLogger?: (msg: string) => void,
+    private readonly fetchFn: typeof fetch = fetch,
+  ) {
+    this.fallback = new LoggingSmsSender(fallbackLogger);
+  }
+
+  get isConfigured(): boolean {
+    const key = process.env.MSG91_AUTH_KEY;
+    return !!key && key.trim().length > 0;
+  }
+
+  async send(
+    phoneNumber: string,
+    message: string,
+  ): Promise<{ success: boolean; error?: string; isFallback?: boolean }> {
+    const authKey = process.env.MSG91_AUTH_KEY?.trim();
+    if (!authKey) {
+      return this.fallback.send(phoneNumber, message);
+    }
+
+    try {
+      // MSG91 Flow API — send SMS via flow
+      // Format: 91XXXXXXXXXX (remove + and spaces)
+      const mobile = phoneNumber.replace(/[^0-9]/g, '');
+      const flowId = process.env.MSG91_FLOW_ID?.trim();
+
+      let url: string;
+      let body: unknown;
+
+      if (flowId) {
+        // Flow API with template
+        url = 'https://api.msg91.com/api/v5/flow/';
+        body = {
+          flow_id: flowId,
+          sender: process.env.MSG91_SENDER_ID?.trim() || 'QUANTM',
+          mobiles: mobile,
+          // Extract OTP from message for template variable
+          OTP: message.replace(/\D/g, '').slice(0, 8) || message,
+        };
+      } else {
+        // Direct SMS API (fallback — requires DLT template for India)
+        url = `https://api.msg91.com/api/v5/sms`;
+        body = {
+          sender: process.env.MSG91_SENDER_ID?.trim() || 'QUANTM',
+          route: '4',
+          country: '91',
+          sms: [{ message, to: [mobile] }],
+        };
+      }
+
+      const response = await this.fetchFn(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          authkey: authKey,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        return {
+          success: false,
+          error: `MSG91_API_ERROR: ${response.status} ${text.slice(0, 200)}`,
+        };
+      }
+
+      const data = (await response.json().catch(() => ({}))) as { type?: string; message?: string };
+      if (data.type === 'error') {
+        return { success: false, error: `MSG91_API_ERROR: ${data.message || 'unknown'}` };
+      }
+
+      return { success: true };
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : String(err);
+      return { success: false, error };
+    }
+  }
+}
