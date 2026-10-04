@@ -72,6 +72,66 @@ export function plainTextToHtml(text: string): string {
 }
 
 /**
+ * Common named HTML entities beyond the core six. Single-pass decoding (below)
+ * makes `&amp;` ordering irrelevant — `&amp;lt;` correctly yields `&lt;`.
+ */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  '#39': "'",
+  nbsp: ' ',
+  mdash: '—',
+  ndash: '–',
+  hellip: '…',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  ldquo: '"',
+  rdquo: '"',
+  lsquo: '\'',
+  rsquo: '\'',
+  laquo: '«',
+  raquo: '»',
+  deg: '°',
+  plusmn: '±',
+  times: '×',
+  divide: '÷',
+  euro: '€',
+  pound: '£',
+  yen: '¥',
+  cent: '¢',
+  sect: '§',
+  para: '¶',
+  middot: '·',
+  bull: '•',
+};
+
+/**
+ * Decode HTML entities in one pass: named (`&mdash;`), decimal (`&#8212;`)
+ * and hex (`&#x2014;`). Unknown entities are left as-is. Single-pass, so a
+ * literal `&amp;lt;` can never double-decode to `<`.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(/&(#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, (m, entity: string) => {
+    if (entity[0] === '#') {
+      const code =
+        entity[1].toLowerCase() === 'x' ? parseInt(entity.slice(2), 16) : parseInt(entity.slice(1), 10);
+      if (!Number.isNaN(code) && code > 0 && code < 0x110000) {
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return m;
+        }
+      }
+      return m;
+    }
+    return NAMED_ENTITIES[entity.toLowerCase()] ?? m;
+  });
+}
+
+/**
  * Flatten signature HTML into the plain-text half of the message.
  *
  * Deliberately regex-based rather than DOM-based: this runs inside `buildFinalMessage`,
@@ -81,17 +141,13 @@ export function plainTextToHtml(text: string): string {
  * own saved signature, and the HTML that reaches a reader is sanitized there.
  */
 export function htmlToPlainText(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6]|blockquote)>/gi, '\n')
-    .replace(/<hr\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/gi, '&') // last, mirroring escapeHtml's first
+  return decodeHtmlEntities(
+    html
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|div|tr|li|h[1-6]|blockquote)>/gi, '\n')
+      .replace(/<hr\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ''),
+  )
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

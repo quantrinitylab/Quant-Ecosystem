@@ -75,6 +75,17 @@ describe('htmlToPlainText', () => {
   it('does not leave the runs of blank lines that stacked tags produce', () => {
     expect(htmlToPlainText('<div>a</div><br /><br /><br /><div>b</div>')).toBe('a\n\nb');
   });
+
+  it('decodes named, decimal and hex entities beyond the core six', () => {
+    expect(htmlToPlainText('<p>a &mdash; b</p>')).toBe('a — b');
+    expect(htmlToPlainText('<p>&ldquo;hi&rdquo; &hellip;</p>')).toBe('"hi" …');
+    expect(htmlToPlainText('<p>&#8212; &#x2014;</p>')).toBe('— —');
+    expect(htmlToPlainText('<p>&copy; 2026</p>')).toBe('© 2026');
+  });
+
+  it('leaves unknown entities untouched', () => {
+    expect(htmlToPlainText('<p>&notarealentity;</p>')).toBe('&notarealentity;');
+  });
 });
 
 describe('composeMessageBodies', () => {
