@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { formatBytes } from '../../../lib/format-bytes';
+import { useStorageQuota } from '../../../hooks/useStorageQuota';
 import {
   FolderIcon,
   HardDriveIcon,
@@ -57,10 +58,12 @@ export function DriveFilesSubView({
 }: DriveFilesSubViewProps) {
   const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'doc' | 'code' | 'zip'>('all');
 
-  // Hardcoded or dynamically computed quota metrics: 14.2 GB / 100 GB
-  const quotaUsedBytes = 14.2 * 1024 * 1024 * 1024;
-  const quotaTotalBytes = 100 * 1024 * 1024 * 1024;
-  const quotaPercent = ((quotaUsedBytes / quotaTotalBytes) * 100).toFixed(1);
+  // Real quota from `GET /api/drive/quota` via the shared hook — the same
+  // source the sidebar chip reads, so the two can never show conflicting
+  // numbers again. This used to hardcode 14.2 GB / 100 GB, a fabricated pair
+  // that disagreed with every other surface. While the quota is unknown the
+  // meter says "Calculating…" rather than inventing a number.
+  const { quota, known: quotaKnown, usedPct } = useStorageQuota();
 
   // Type categorization calculations
   const typeStats = useMemo(() => {
@@ -166,7 +169,7 @@ export function DriveFilesSubView({
       aria-labelledby="drive-tab-files"
       className="space-y-6"
     >
-      {/* 1. Storage Quota Meter (14.2 GB / 100 GB) */}
+      {/* 1. Storage Quota Meter — real numbers from GET /api/drive/quota */}
       <div className="rounded-2xl border border-[#232938] bg-[#12151E] p-4 sm:p-5 shadow-[0_4px_24px_rgba(0,0,0,0.35)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
@@ -187,24 +190,40 @@ export function DriveFilesSubView({
           </div>
           <div className="text-right sm:text-right">
             <div className="text-sm font-extrabold text-[#F8FAFC] tracking-tight">
-              14.2 GB <span className="text-[#64748B] font-normal">/ 100 GB</span>
+              {quotaKnown && quota ? (
+                <>
+                  {formatBytes(quota.used)}{' '}
+                  <span className="text-[#64748B] font-normal">/ {formatBytes(quota.total)}</span>
+                </>
+              ) : (
+                'Calculating…'
+              )}
             </div>
-            <p className="text-[11px] text-[#38BDF8] font-medium">{quotaPercent}% used · 85.8 GB available</p>
+            <p className="text-[11px] text-[#38BDF8] font-medium">
+              {quotaKnown && quota
+                ? `${usedPct}% used · ${formatBytes(quota.total - quota.used)} available`
+                : 'Reading storage usage…'}
+            </p>
           </div>
         </div>
 
         {/* Progress Bar */}
         <div
           role="progressbar"
-          aria-valuenow={14.2}
+          aria-valuenow={quotaKnown ? usedPct : undefined}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label="Storage quota usage"
+          aria-valuetext={
+            quotaKnown && quota
+              ? `${formatBytes(quota.used)} of ${formatBytes(quota.total)} used`
+              : 'Calculating'
+          }
           className="w-full h-2 rounded-full bg-[#1E293B] overflow-hidden"
         >
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#38BDF8] to-[#0284C7] shadow-[0_0_12px_rgba(56,189,248,0.5)] transition-all duration-500"
-            style={{ width: `${quotaPercent}%` }}
+            style={{ width: `${usedPct}%` }}
           />
         </div>
       </div>

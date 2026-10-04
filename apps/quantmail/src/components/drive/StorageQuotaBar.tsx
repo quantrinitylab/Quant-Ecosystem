@@ -15,6 +15,14 @@ export interface StorageQuotaState {
   quota: StorageQuotaData;
   isLoading: boolean;
   error: string | null;
+  /**
+   * Whether a real quota has been established — from `initialQuota` or a
+   * successful `loadQuota()`. Until then the bar renders "Calculating…":
+   * the 0 B / 15 GB placeholder default must never be presented as a reading,
+   * because it is not one (it is what the old header chip showed, and it
+   * disagreed with every other surface).
+   */
+  loaded: boolean;
 }
 
 export interface StorageQuotaManagerOptions {
@@ -61,6 +69,9 @@ export class StorageQuotaManager {
       },
       isLoading: false,
       error: null,
+      // An explicitly supplied quota is real data; otherwise nothing is known
+      // until the first successful loadQuota().
+      loaded: Boolean(options?.initialQuota),
     };
 
     if (options?.autoLoad) {
@@ -179,6 +190,7 @@ export class StorageQuotaManager {
 
       this.state.quota = updatedQuota;
       this.state.error = null;
+      this.state.loaded = true;
       return updatedQuota;
     } catch (err: any) {
       this.state.error = err?.message || 'Error loading storage quota';
@@ -206,7 +218,8 @@ export interface StorageQuotaBarProps {
  * Renders the real storage usage meter (used of limit), warning threshold
  * states (<80% normal, 80-90% warning, >90% critical), and an Upgrade Storage
  * trigger. The quota endpoint reports only used/limit, so no per-category
- * breakdown is shown.
+ * breakdown is shown. Until the first successful load the meter reads
+ * "Calculating…" — the 0 B / 15 GB placeholder is never shown as a reading.
  */
 export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
   initialQuota,
@@ -231,7 +244,7 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
     };
   }, [manager]);
 
-  const { quota, isLoading, error } = state;
+  const { quota, isLoading, error, loaded } = state;
   const warningStatus = manager.getWarningStatus();
   const percentUsedRounded = Math.min(100, Math.max(0, Math.round(quota.percentUsed)));
 
@@ -316,11 +329,14 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
         </button>
       </div>
 
-      {/* Main Text Indicator */}
+      {/* Main Text Indicator — never the 0 B / 15 GB placeholder as a reading */}
       <div className="flex items-baseline justify-between mb-2">
         <span data-testid="quota-text-indicator" className="text-sm font-medium text-slate-100">
-          {formatBytes(quota.usedBytes)} of {formatBytes(quota.limitBytes)} ({percentUsedRounded}%)
-          used
+          {loaded
+            ? `${formatBytes(quota.usedBytes)} of ${formatBytes(quota.limitBytes)} (${percentUsedRounded}%) used`
+            : error
+              ? 'Storage unavailable'
+              : 'Calculating storage…'}
         </span>
 
         {/* Status Badge */}
@@ -336,8 +352,13 @@ export const StorageQuotaBar: React.FC<StorageQuotaBarProps> = ({
       <div
         data-testid="storage-usage-bar"
         className="w-full h-3 rounded-full bg-[#282C35] overflow-hidden flex"
+        role="progressbar"
+        aria-label="Storage quota usage"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={loaded ? percentUsedRounded : undefined}
       >
-        {quota.percentUsed > 0 && (
+        {loaded && quota.percentUsed > 0 && (
           <div
             data-testid="storage-usage-fill"
             style={{ width: `${Math.min(100, quota.percentUsed)}%` }}
