@@ -2090,7 +2090,7 @@ function QuantGitContent() {
               { id: 'agents', label: 'Copilot Fleet', badge: 'Cloud OS' },
               { id: 'mcp', label: 'MCP Registry', badge: '288+' },
               { id: 'actions', label: 'Actions', badge: actions.length },
-              { id: 'notifications', label: 'Notifications', badge: 3 },
+              { id: 'notifications', label: 'Notifications', badge: null },
               { id: 'discussions', label: 'Discussions', badge: discussions.length },
               { id: 'projects', label: 'Projects', badge: projects.length },
               { id: 'security', label: 'Security', badge: securityAlerts.length },

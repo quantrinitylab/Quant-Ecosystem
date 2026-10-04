@@ -102,6 +102,8 @@ type InboxLens =
   | 'all'
   | 'primary'
   | 'unread'
+  | 'important'
+  | 'teams'
   | 'updates'
   | 'social'
   | 'promotions'
@@ -1005,37 +1007,43 @@ export default function InboxPage() {
   const searchParams = useSearchParams();
   const { openPalette } = useKeyboardSurfaces();
   const lensParam = searchParams?.get('lens');
-  const isValidLens = (p: string | null): p is InboxLens => {
-    return (
-      p === 'all' ||
-      p === 'primary' ||
-      p === 'unread' ||
-      p === 'updates' ||
-      p === 'social' ||
-      p === 'promotions' ||
-      p === 'forums' ||
-      p === 'contacts' ||
-      p === 'groups' ||
-      p === 'snoozed' ||
-      p === 'spam'
-    );
+  /**
+   * Normalises a `lens` query param into the lens it selects. The top strip
+   * (QuantPillarTopBar) spells two of its lenses differently from the inbox's
+   * own vocabulary — `promos` for `promotions` — and adds `important` and
+   * `teams`, which the inbox now understands. Anything unrecognised selects
+   * `all` rather than stranding the list on a lens that filters nothing.
+   */
+  const normalizeLensParam = (p: string | null): InboxLens => {
+    switch (p) {
+      case 'primary':
+      case 'unread':
+      case 'important':
+      case 'teams':
+      case 'updates':
+      case 'social':
+      case 'promotions':
+      case 'promos':
+      case 'forums':
+      case 'contacts':
+      case 'groups':
+      case 'snoozed':
+      case 'spam':
+        return p === 'promos' ? 'promotions' : p;
+      default:
+        return 'all';
+    }
   };
-
   const [activeLens, setActiveLens] = useState<InboxLens>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('lens');
-      if (isValidLens(p) && p !== 'all') return p;
+      return normalizeLensParam(p);
     }
     return 'all';
   });
 
   useEffect(() => {
-    const p = searchParams?.get('lens');
-    if (isValidLens(p) && p !== 'all') {
-      setActiveLens(p);
-    } else {
-      setActiveLens('all');
-    }
+    setActiveLens(normalizeLensParam(searchParams?.get('lens')));
     setShowArchivedView(false);
   }, [searchParams]);
 
@@ -1379,6 +1387,21 @@ export default function InboxPage() {
     return toCount + ccCount > 1 || (msg as any).isGroup === true;
   }, []);
 
+  /**
+   * The `Important` lens: high-priority or starred mail. Mirrors the shell's
+   * `isImportantEmail` on raw rows, lifted to the thread level via the latest
+   * message plus the thread's own flags.
+   */
+  const isImportantThread = useCallback((t: ConversationThread) => {
+    const latest = t.latestEmail;
+    return (
+      t.isStarred ||
+      latest?.isStarred === true ||
+      latest?.priority === 'high' ||
+      t.priority === 'high'
+    );
+  }, []);
+
   const findGroupThread = useCallback(
     (group: ContactGroup): ConversationThread | null => {
       const expectedAddresses = new Set(
@@ -1462,13 +1485,15 @@ export default function InboxPage() {
       if (lens === 'promotions') return t.category === 'promotions';
       if (lens === 'forums') return t.category === 'forums';
       if (lens === 'unread') return !t.isRead;
+      if (lens === 'important') return isImportantThread(t);
+      if (lens === 'teams') return isGroupThread(t);
       if (lens === 'contacts') return isContactThread(t);
       if (lens === 'groups') return isGroupThread(t);
       if (lens === 'snoozed') return true;
       if (lens === 'spam') return true;
       return true;
     },
-    [isContactThread, isGroupThread],
+    [isContactThread, isGroupThread, isImportantThread],
   );
 
   const matchesFilter = useCallback(
@@ -1659,6 +1684,8 @@ export default function InboxPage() {
     let forumsTotal = 0;
     let groupsUnread = 0;
     let groupsTotal = 0;
+    let importantUnread = 0;
+    let importantTotal = 0;
     let contactsUnread: number | null = isDirectoryPending ? null : 0;
     let contactsTotal: number | null = isDirectoryPending ? null : 0;
 
@@ -1670,6 +1697,7 @@ export default function InboxPage() {
       else if (t.category === 'promotions') promotionsTotal += 1;
       else if (t.category === 'forums') forumsTotal += 1;
       if (isGroupThread(t)) groupsTotal += 1;
+      if (isImportantThread(t)) importantTotal += 1;
       if (contactsTotal !== null && isContactThread(t)) contactsTotal += 1;
 
       if (!t.isRead) {
@@ -1680,6 +1708,7 @@ export default function InboxPage() {
         else if (t.category === 'promotions') promotionsUnread += 1;
         else if (t.category === 'forums') forumsUnread += 1;
         if (isGroupThread(t)) groupsUnread += 1;
+        if (isImportantThread(t)) importantUnread += 1;
         if (contactsUnread !== null && isContactThread(t)) contactsUnread += 1;
       }
     }
@@ -1695,6 +1724,8 @@ export default function InboxPage() {
       all: allUnread,
       primary: primaryUnread,
       unread: allUnread,
+      important: importantUnread,
+      teams: groupsUnread,
       updates: updatesUnread,
       social: socialUnread,
       promotions: promotionsUnread,
@@ -1707,6 +1738,8 @@ export default function InboxPage() {
         all: allUnread,
         primary: primaryUnread,
         unread: allUnread,
+        important: importantUnread,
+        teams: groupsUnread,
         updates: updatesUnread,
         social: socialUnread,
         promotions: promotionsUnread,
@@ -1720,6 +1753,8 @@ export default function InboxPage() {
         all: allTotal,
         primary: primaryTotal,
         unread: allUnread,
+        important: importantTotal,
+        teams: groupsTotal,
         updates: updatesTotal,
         social: socialTotal,
         promotions: promotionsTotal,
@@ -1741,6 +1776,7 @@ export default function InboxPage() {
     activeFilters,
     narrowThreads,
     isGroupThread,
+    isImportantThread,
     isContactThread,
     isDirectoryPending,
   ]);
@@ -1812,7 +1848,11 @@ export default function InboxPage() {
                     ? `${turnPart} with your contacts`
                     : activeLens === 'groups'
                       ? `group ${turnPart}`
-                      : turnPart;
+                      : activeLens === 'important'
+                        ? `important ${turnPart}`
+                        : activeLens === 'teams'
+                          ? `team ${turnPart}`
+                          : turnPart;
     return activeFilters.size > 0 ? `filtered ${lensPart}` : lensPart;
   }, [activeLens, activeTurn, activeFilters]);
 

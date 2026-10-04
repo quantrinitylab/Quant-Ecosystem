@@ -12,6 +12,18 @@ import {
   type DriveItem,
 } from '../app/drive/components';
 
+// The quota meter reads the real GET /api/drive/quota through this hook; the
+// suite pins it to a known value instead of letting the meter fetch.
+vi.mock('../hooks/useStorageQuota', () => ({
+  useStorageQuota: () => ({
+    quota: { used: 14.2 * 1024 ** 3, total: 100 * 1024 ** 3 },
+    known: true,
+    usedPct: 14,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   const sampleFiles: DriveItem[] = [
     {
@@ -154,16 +166,18 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   // 2. DriveFilesSubView Tests
   // ==========================================================================
   describe('2. DriveFilesSubView Component', () => {
-    it('renders storage quota meter: 14.2 GB / 100 GB and Enterprise Cloud badge', () => {
+    it('renders storage quota meter from the real quota hook (not a hardcoded pair)', () => {
       const html = renderToStaticMarkup(
         <DriveFilesSubView files={sampleFiles} folders={sampleFolders} />,
       );
 
       expect(html).toContain('Storage Quota Meter');
+      // Mocked hook value: 14.2 GB used of 100 GB total.
       expect(html).toContain('14.2 GB');
       expect(html).toContain('/ 100 GB');
       expect(html).toContain('Enterprise Sovereign Cloud');
       expect(html).toContain('role="progressbar"');
+      expect(html).not.toContain('Calculating');
     });
 
     it('renders all 4 color-coded type cards (PDF Red, DOC Blue, CODE Green, ZIP Gold)', () => {

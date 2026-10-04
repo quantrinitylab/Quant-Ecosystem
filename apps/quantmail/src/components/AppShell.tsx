@@ -15,6 +15,7 @@ import { BrandWordmark, appDisplayName } from './BrandWordmark';
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
 import { useInbox } from '../hooks/useInbox';
+import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
@@ -132,6 +133,73 @@ export function AppShell({
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
   const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+
+  /**
+   * Real per-lens counts for the mail pillar's lens strip, measured on the
+   * inbox rows actually loaded — never hardcoded. Definitions mirror the
+   * inbox page's `matchesLens` so the badge on a lens always describes the
+   * list that lens will open: `important` is high-priority or starred,
+   * `teams` is a multi-recipient/group conversation, `promos` is the
+   * promotions category.
+   *
+   * Each value prefers the unread count and falls back to the total, the same
+   * precedence the inbox's own chips use; a lens with nothing in it maps to
+   * `undefined` and renders no badge at all.
+   */
+  const mailLensCounts = useMemo(() => {
+    const isImportantEmail = (e: Email) => e.priority === 'high' || e.isStarred;
+    const isTeamEmail = (e: Email) => {
+      if (e.category === 'forums') return true;
+      const toCount = Array.isArray(e.to) ? e.to.length : 0;
+      const ccCount = Array.isArray(e.cc) ? e.cc.length : 0;
+      return toCount + ccCount > 1;
+    };
+
+    let allUnread = 0;
+    let allTotal = 0;
+    let importantUnread = 0;
+    let importantTotal = 0;
+    let teamsUnread = 0;
+    let teamsTotal = 0;
+    let updatesUnread = 0;
+    let updatesTotal = 0;
+    let promosUnread = 0;
+    let promosTotal = 0;
+    let spamUnread = 0;
+    let spamTotal = 0;
+
+    for (const e of inboxEmails ?? []) {
+      allTotal += 1;
+      const important = isImportantEmail(e);
+      const team = isTeamEmail(e);
+      if (important) importantTotal += 1;
+      if (team) teamsTotal += 1;
+      if (e.category === 'updates') updatesTotal += 1;
+      if (e.category === 'promotions') promosTotal += 1;
+      if (e.isSpam) spamTotal += 1;
+
+      if (!e.isRead) {
+        allUnread += 1;
+        if (important) importantUnread += 1;
+        if (team) teamsUnread += 1;
+        if (e.category === 'updates') updatesUnread += 1;
+        if (e.category === 'promotions') promosUnread += 1;
+        if (e.isSpam) spamUnread += 1;
+      }
+    }
+
+    const pick = (unread: number, total: number): number | undefined =>
+      unread > 0 ? unread : total > 0 ? total : undefined;
+
+    return {
+      all: pick(allUnread, allTotal),
+      important: pick(importantUnread, importantTotal),
+      teams: pick(teamsUnread, teamsTotal),
+      updates: pick(updatesUnread, updatesTotal),
+      promos: pick(promosUnread, promosTotal),
+      spam: pick(spamUnread, spamTotal),
+    };
+  }, [inboxEmails]);
 
   /**
    * Quanty, on every shell route rather than the two that hand-rolled it.
@@ -860,6 +928,7 @@ export function AppShell({
                 searchPlaceholder={searchPlaceholder}
                 onQuantyClick={openQuanty}
                 unreadCounts={{ mail: unreadCount }}
+                lensCounts={{ mail: mailLensCounts }}
               />
             ) : null}
 

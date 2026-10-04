@@ -140,6 +140,38 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('14');
       expect(html).toContain('3');
     });
+
+    it('never ships hardcoded numeric lens badges in the pillar config', () => {
+      // Regression guard for the phantom-counts bug: the config may carry
+      // static string labels (e.g. 'E2EE') but no fabricated numbers.
+      for (const [pillar, lenses] of Object.entries(PILLAR_LENSES)) {
+        for (const lens of lenses) {
+          expect(
+            typeof lens.badge !== 'number',
+            `${pillar}/${lens.id} must not hardcode a numeric badge`,
+          ).toBe(true);
+        }
+      }
+    });
+
+    it('renders lens badges from live lensCounts and omits them when absent', () => {
+      const withCounts = renderToStaticMarkup(
+        <QuantPillarTopBar
+          activePillarOverride="mail"
+          lensCounts={{ mail: { all: 47, important: 19 } }}
+        />,
+      );
+      expect(withCounts).toContain('>47<');
+      expect(withCounts).toContain('>19<');
+
+      const withoutCounts = renderToStaticMarkup(
+        <QuantPillarTopBar activePillarOverride="mail" />,
+      );
+      // Labels still render; no numeric badge may appear anywhere in the strip.
+      expect(withoutCounts).toContain('Important');
+      expect(withoutCounts).toContain('Teams');
+      expect(withoutCounts).not.toMatch(/<span[^>]*font-mono[^>]*>\d+<\/span>/);
+    });
   });
 
   // ==========================================================================

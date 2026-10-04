@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { showToast } from './InboxToast';
 import { IconChevronDown, IconDownload, IconPaperclip, MimeTypeIcon } from './icons';
 import { repairMojibake, useSafeEmailHtml } from '../lib/safe-html';
+import { looksLikeMarkdown, useSafeMarkdownHtml } from '../lib/markdown';
 import type { Email, EmailAttachment } from '../types';
 
 export interface EmailLetterCardProps {
@@ -43,6 +44,16 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
   const mainText = mainLines.join('\n').trim();
   const quotedText = quotedLines.join('\n').trim();
 
+  // Plain-text bodies are increasingly Markdown (`**bold**`, lists, headings).
+  // When the text carries Markdown signals it is rendered as sanitized rich
+  // HTML; plain prose keeps the exact pre-wrap path it always had. The HTML
+  // branch above (`bodyHtml`) is untouched — this only affects text bodies.
+  const mainMarkdownHtml = useSafeMarkdownHtml(mainText, !safeHtml && looksLikeMarkdown(mainText));
+  const quotedMarkdownHtml = useSafeMarkdownHtml(
+    quotedText,
+    !safeHtml && looksLikeMarkdown(quotedText),
+  );
+
   const attachments: EmailAttachment[] = email.attachments || [];
 
   return (
@@ -53,6 +64,11 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
           <div
             className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
             dangerouslySetInnerHTML={{ __html: safeHtml }}
+          />
+        ) : mainMarkdownHtml ? (
+          <div
+            className="email-html-content prose prose-invert max-w-none break-words font-sans font-normal leading-7 text-[#F5F5F5]"
+            dangerouslySetInnerHTML={{ __html: mainMarkdownHtml }}
           />
         ) : (
           <div className="space-y-3 whitespace-pre-wrap font-sans font-normal leading-7 text-[#F5F5F5]">
@@ -82,9 +98,16 @@ export function EmailLetterCard({ email, className = '' }: EmailLetterCardProps)
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mt-2 pl-3 border-l-2 border-[#3A404D] text-xs text-[#A1A4AC] whitespace-pre-wrap font-sans"
+                  className="mt-2 pl-3 border-l-2 border-[#3A404D] text-xs text-[#A1A4AC] font-sans"
                 >
-                  {quotedText}
+                  {quotedMarkdownHtml ? (
+                    <div
+                      className="prose prose-invert max-w-none break-words text-xs text-[#A1A4AC]"
+                      dangerouslySetInnerHTML={{ __html: quotedMarkdownHtml }}
+                    />
+                  ) : (
+                    <div className="whitespace-pre-wrap">{quotedText}</div>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

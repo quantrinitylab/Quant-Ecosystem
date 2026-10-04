@@ -185,7 +185,11 @@ describe('POST /ai/chat — the reasoning directive', () => {
     expect(messages[1]!).toMatchObject({ role: 'system' });
     expect(messages[1]!.content).toContain('three sentences');
     expect(messages[2]!.content).toContain('Route: /inbox');
-    expect(messages[3]!).toMatchObject({ role: 'user' });
+    // Mailbox grounding (bug 4) rides as its own system message after the
+    // screen context and ahead of the conversation turns.
+    expect(messages[3]!).toMatchObject({ role: 'system' });
+    expect(messages[3]!.content).toContain('Mailbox data unavailable');
+    expect(messages[4]!).toMatchObject({ role: 'user' });
   });
 
   it('sends a different directive for a different tier', async () => {
@@ -981,5 +985,138 @@ describe('POST /ai/chat — autonomous tool calling', () => {
       result: { id: 'repo-1' },
     });
     expect(prismaMock.repository.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('POST /ai/chat — mailbox grounding (bug 4)', () => {
+  // Bug 4 (2026-10-04): "Summarize my inbox" claimed "5 unread emails and 17
+  // total messages" for a mailbox with 1 conversation and 0 unread. The route
+  // used to send the model NO mailbox data, so the numbers were hallucinated.
+  // These tests pin the opposite: real counts from the store reach the model,
+  // with a strict use-only-what-is-provided rule — and when the store cannot
+  // be read, the model is told to admit it rather than invent numbers.
+
+  /** The system message the route hands the provider as the grounding block. */
+  function groundingMessage(): string {
+    const messages = providerMessages();
+    const block = messages.find(
+      (m) => m.role === 'system' && /MAILBOX SNAPSHOT|Mailbox data unavailable/.test(m.content),
+    );
+    expect(block).toBeDefined();
+    return block!.content;
+  }
+
+  function mailboxPrismaMock() {
+    return {
+      email: {
+        count: vi.fn(async ({ where }: any) => (where?.isRead === false ? 0 : 1)),
+        findMany: vi.fn(async () => [
+          {
+            fromName: 'Aarav Mehta',
+            fromAddress: 'aarav@example.com',
+            subject: 'Q3 planning notes',
+            isRead: true,
+            receivedAt: new Date('2026-10-03T09:00:00Z'),
+          },
+        ]),
+      },
+    };
+  }
+
+  it('injects the real counts and recent messages as a system message', async () => {
+    const app = await buildApp('user-1', { prisma: mailboxPrismaMock() });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Summarize my inbox' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const grounding = groundingMessage();
+    // The real store says 1 total, 0 unread — those exact numbers must reach
+    // the model, not the "5 unread / 17 total" it used to invent.
+    expect(grounding).toContain('1 total message(s), 0 unread');
+    expect(grounding).toContain('Aarav Mehta <aarav@example.com>');
+    expect(grounding).toContain('Q3 planning notes');
+    expect(grounding).not.toContain('17');
+  });
+
+  it('queries the same inbox rows the list endpoint reads, scoped to the caller', async () => {
+    const prismaMock = mailboxPrismaMock();
+    const app = await buildApp('user-1', { prisma: prismaMock });
+    await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: ONE_TURN },
+    });
+
+    // Every count and the listing must be tenant-scoped to the chat user and
+    // exclude deleted/draft/spam/trash — the "my inbox" contract.
+    for (const call of prismaMock.email.count.mock.calls) {
+      expect(call[0].where).toMatchObject({
+        userId: 'user-1',
+        deletedAt: null,
+        isDraft: false,
+        isSpam: false,
+        isTrash: false,
+      });
+    }
+    expect(prismaMock.email.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: expect.any(Number) }),
+    );
+  });
+
+  it('instructs the model to use only the snapshot and never invent numbers', async () => {
+    const app = await buildApp('user-1', { prisma: mailboxPrismaMock() });
+    await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'How many unread emails do I have?' }] },
+    });
+
+    const grounding = groundingMessage();
+    expect(grounding).toContain('quote its numbers exactly');
+    expect(grounding).toContain('Never invent counts');
+  });
+
+  it('admits the mailbox is unavailable when there is no message store', async () => {
+    // The default harness decorates no prisma: the route must still answer,
+    // with the honest state rather than a fabricated one.
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Summarize my inbox' }] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const grounding = groundingMessage();
+    expect(grounding).toContain('could not load their mailbox data');
+    expect(grounding).toContain('NEVER invent counts');
+  });
+
+  it('admits the mailbox is unavailable when the store read fails', async () => {
+    const failingPrisma = {
+      email: {
+        count: vi.fn(async () => {
+          throw new Error('connection lost');
+        }),
+        findMany: vi.fn(async () => {
+          throw new Error('connection lost');
+        }),
+      },
+    };
+    const app = await buildApp('user-1', { prisma: failingPrisma });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/ai/chat',
+      payload: { messages: [{ role: 'user', content: 'Summarize my inbox' }] },
+    });
+
+    // A DB failure must not fail the chat turn and must not reach the model
+    // as invented data — the honest block goes instead.
+    expect(res.statusCode).toBe(200);
+    const grounding = groundingMessage();
+    expect(grounding).toContain('Mailbox data unavailable');
   });
 });
