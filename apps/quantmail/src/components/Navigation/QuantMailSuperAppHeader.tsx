@@ -1,4 +1,10 @@
-'use client';
+successfully downloaded text file (SHA: 796b8886352601f4ab39c256e7e56d1ccf4b090c)",
+        "type": "text"
+      },
+      {
+        "resource": {
+          "mimeType": "text/plain; charset=utf-8",
+          "text": "'use client';
 
 // ============================================================================
 // QuantMail — Amazon/Flipkart-Class Super-App Command Header
@@ -595,6 +601,9 @@ export function QuantMailSuperAppHeader({
 
   const storagePercentage = Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100));
 
+  // Swiggy-style animated pillar tabs: active pillar object drives the theme tint
+  const activePillarObj = SUPER_APP_PILLARS.find((p) => p.id === currentPillar) || SUPER_APP_PILLARS[0];
+
   return (
     <header
       className={`w-full bg-[#090A0E] text-[#F1F5F9] border-b border-[#1E222A] select-none font-sans ${className}`}
@@ -832,69 +841,99 @@ export function QuantMailSuperAppHeader({
       {/* ================================================================== */}
       {/* TIER 2: 5-Pillar Horizontal Mini-App Rail (Flipkart category strip)*/}
       {/* ================================================================== */}
-      <div className="w-full bg-[#0D0F16] border-t border-[#1E222A]/80">
+      <div
+        className="w-full border-t border-[#1E222A]/80 transition-all duration-500 ease-out"
+        style={{
+          background: `linear-gradient(180deg, ${activePillarObj.accentColor}1F 0%, #0D0F16 75%)`,
+        }}
+      >
         <div className="max-w-[1720px] mx-auto px-2 sm:px-4">
           <nav
             role="tablist"
             aria-label="Productivity Pillars"
-            className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1"
+            className="flex items-end gap-0 overflow-x-auto no-scrollbar pt-2.5"
           >
-            {SUPER_APP_PILLARS.map((pillar) => {
+            {SUPER_APP_PILLARS.map((pillar, pillarIndex) => {
               const isActive = currentPillar === pillar.id;
               const IconComponent = pillar.icon;
 
               return (
-                <button
+                <div
                   key={pillar.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
-                  onClick={() => handlePillarClick(pillar)}
-                  className={`group relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium transition-all shrink-0 focus:outline-none ${
-                    isActive
-                      ? 'bg-[#161B26] text-white shadow-sm font-semibold'
-                      : 'text-[#94A3B8] hover:text-white hover:bg-[#12151E]'
-                  }`}
+                  className="shrink-0 transition-all duration-300 ease-out"
+                  style={{
+                    marginLeft: pillarIndex === 0 ? 0 : '-10px',
+                    zIndex: isActive ? 10 : 5 - pillarIndex,
+                    filter: isActive
+                      ? `drop-shadow(0 -3px 14px ${pillar.glowColor})`
+                      : 'none',
+                  }}
                 >
-                  {/* Pillar SVG Icon */}
-                  <div
-                    className={`transition-transform duration-150 group-hover:scale-110 ${
-                      isActive ? 'text-white' : 'text-[#64748B] group-hover:text-slate-300'
-                    }`}
-                    style={isActive ? { color: pillar.accentColor } : undefined}
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-label={`${pillar.label} Pillar${pillar.badge ? ` (${pillar.badge})` : ''}`}
+                    onClick={() => handlePillarClick(pillar)}
+                    className="group relative flex items-center gap-2 pl-6 pr-7 py-2.5 text-xs font-medium transition-all duration-300 ease-out focus:outline-none"
+                    style={{
+                      clipPath: 'polygon(16px 0, 100% 0, calc(100% - 16px) 100%, 0 100%)',
+                      backgroundColor: isActive ? `${pillar.accentColor}33` : 'transparent',
+                      transform: isActive ? 'translateY(-5px)' : 'translateY(0)',
+                      borderBottom: isActive
+                        ? `3px solid ${pillar.accentColor}`
+                        : '3px solid transparent',
+                      color: isActive ? '#FFFFFF' : '#94A3B8',
+                      fontWeight: isActive ? 700 : 500,
+                    }}
                   >
-                    <IconComponent className="size-4" active={isActive} />
-                  </div>
-
-                  {/* Pillar Label */}
-                  <span className="tracking-tight">{pillar.label}</span>
-
-                  {/* Live Badge */}
-                  {pillar.badge !== undefined && (
-                    <span
-                      className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        isActive
-                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
-                          : 'bg-[#1E222A] text-[#94A3B8] group-hover:text-slate-200'
-                      }`}
-                    >
-                      {pillar.badge}
-                    </span>
-                  )}
-
-                  {/* Active Underline Indicator Bar */}
-                  {isActive && (
-                    <span
-                      className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full"
+                    {/* Pillar SVG Icon */}
+                    <div
+                      className="transition-transform duration-300 ease-out group-hover:scale-110"
                       style={{
-                        backgroundColor: pillar.accentColor,
-                        boxShadow: `0 0 8px ${pillar.glowColor}`,
+                        color: isActive ? pillar.accentColor : '#64748B',
+                        transform: isActive ? 'scale(1.15)' : 'scale(1)',
                       }}
-                      aria-hidden="true"
-                    />
-                  )}
-                </button>
+                    >
+                      <IconComponent className="size-4" active={isActive} />
+                    </div>
+
+                    {/* Pillar Label */}
+                    <span className="tracking-tight whitespace-nowrap">{pillar.label}</span>
+
+                    {/* Live Badge */}
+                    {pillar.badge !== undefined && (
+                      <span
+                        className="ml-1 px-1.5 rounded-full text-[10px] font-bold transition-all duration-300"
+                        style={
+                          isActive
+                            ? {
+                                backgroundColor: `${pillar.accentColor}2E`,
+                                color: pillar.accentColor,
+                                border: `1px solid ${pillar.accentColor}66`,
+                              }
+                            : {
+                                backgroundColor: '#1E222A',
+                                color: '#94A3B8',
+                              }
+                        }
+                      >
+                        {pillar.badge}
+                      </span>
+                    )}
+
+                    {/* Swiggy-style active glow edge */}
+                    {isActive && (
+                      <span
+                        className="absolute inset-x-4 top-0 h-px"
+                        style={{
+                          background: `linear-gradient(90deg, transparent, ${pillar.accentColor}, transparent)`,
+                        }}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                </div>
               );
             })}
           </nav>
