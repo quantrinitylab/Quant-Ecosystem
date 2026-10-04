@@ -63,7 +63,7 @@ export default async function imageInpaintingRoutes(fastify: FastifyInstance) {
     } = parseResult.data;
 
     // P0 fix: fail closed — only verified auth middleware identity is accepted.
-    // Never trust client-supplied `x-user-id`, never fall back to a default identity.
+    // Never trust client-supplied identity headers, never fall back to a default identity.
     const authUserId =
       (request as unknown as { auth?: { userId?: string } }).auth?.userId ??
       (request as unknown as { user?: { id?: string } }).user?.id;

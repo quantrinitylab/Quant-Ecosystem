@@ -44,7 +44,7 @@ export default async function mcpConnectorsRoutes(fastify: FastifyInstance) {
     if (auth?.userId) {
       return auth.userId;
     }
-    // P0 fix: never trust the client-supplied `x-user-id` header for identity,
+    // P0 fix: never trust the client-supplied identity headers for identity,
     // and never fall back to a default identity. Only verified auth middleware
     // may establish identity; otherwise fail closed.
     throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
