@@ -19,6 +19,7 @@ import 'package:quant_core/quant_core.dart';
 
 import 'helpers/fake_auth_session.dart';
 import 'helpers/fake_inbox.dart';
+import 'helpers/fake_thread.dart';
 
 typedef _RouterBundle = ({
   ProviderContainer container,
@@ -29,11 +30,12 @@ typedef _RouterBundle = ({
 /// Builds the real router against a container whose auth provider is the
 /// given fake session state.
 ///
-/// The inbox provider is overridden with an empty deterministic state: the
-/// real [InboxListNotifier] would hit the network on first paint, which
-/// router tests must never depend on. The empty state renders the M4
-/// "You're all caught up" copy, which also proves the inbox screen itself
-/// painted (not just the route).
+/// The inbox and thread-detail providers are overridden with deterministic
+/// fakes: the real notifiers would hit the network on first paint, which
+/// router tests must never depend on. The inbox fake renders the M4
+/// "Sab padh liya! 🎉" copy and the thread fake renders its subject in
+/// the app bar, which also proves the screens themselves painted (not just
+/// the routes).
 _RouterBundle _buildTestRouter(AuthSessionState initial) {
   final FakeAuthSessionNotifier auth = FakeAuthSessionNotifier(initial);
   final ProviderContainer container = ProviderContainer(
@@ -41,6 +43,9 @@ _RouterBundle _buildTestRouter(AuthSessionState initial) {
       authSessionProvider.overrideWith(() => auth),
       inboxProvider.overrideWith(
         () => FakeInboxNotifier.data(const InboxListState()),
+      ),
+      threadDetailProvider.overrideWith(
+        () => FakeThreadNotifier.data(fakeThreadDetail()),
       ),
     ],
   );
@@ -127,7 +132,7 @@ void main() {
       // Navigation intent: the real M4 inbox screen painted (empty state),
       // not the login page.
       expect(find.widgetWithText(AppBar, 'Inbox'), findsOneWidget);
-      expect(find.text("You're all caught up"), findsOneWidget);
+      expect(find.text("Sab padh liya! 🎉"), findsOneWidget);
     });
 
     testWidgets('opens a thread route with its id for an authenticated user',
@@ -142,7 +147,12 @@ void main() {
       await _settleNavigation(tester);
 
       expect(_currentLocation(router), '/thread/abc123');
-      expect(find.text('threadId: abc123'), findsOneWidget);
+      // The real M5 thread screen painted (subject in the app bar), not
+      // just the route — the M1 placeholder copy is gone.
+      expect(
+        find.widgetWithText(AppBar, 'Quarterly planning'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('bounces a signed-out user from a thread route to /login',
@@ -191,7 +201,7 @@ void main() {
       // No redirect: in-flight states stay parked where they are.
       expect(_currentLocation(router), '/inbox');
       expect(find.widgetWithText(AppBar, 'Inbox'), findsOneWidget);
-      expect(find.text("You're all caught up"), findsOneWidget);
+      expect(find.text("Sab padh liya! 🎉"), findsOneWidget);
     });
 
     testWidgets('holds the consent screen on the login route',
@@ -243,6 +253,55 @@ void main() {
         '/oauth/callback?code=auth-code-1&state=state-1',
       );
       expect(container.read(pendingOAuthRedirectProvider), isNull);
+      expect(_currentLocation(router), '/login');
+    });
+
+    testWidgets(
+        'routes the real device deep link (quantmail://oauth/callback) '
+        'through the gate (U3 root cause, 2026-10-04)', (WidgetTester tester) async {
+      // The OS delivers `quantmail://oauth/callback?...`, which parses to
+      // host=`oauth`, path=`/callback` — go_router matches on path only,
+      // so the `/callback` route (not `/oauth/callback`) serves it.
+      final _RouterBundle(:container, :router, :auth) =
+          _buildTestRouter(const AuthInitial());
+      addTearDown(container.dispose);
+      addTearDown(router.dispose);
+      await _pumpRouter(tester, router, container);
+
+      router.go('quantmail://oauth/callback?code=auth-code-1&state=state-1');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      // The FULL deep-link URI (with the quantmail scheme) is stashed and
+      // handed to the auth notifier — the C-P2-2 scheme check passes on
+      // the configured scheme.
+      expect(
+        auth.completedOAuthUri?.toString(),
+        'quantmail://oauth/callback?code=auth-code-1&state=state-1',
+      );
+      expect(container.read(pendingOAuthRedirectProvider), isNull);
+      expect(_currentLocation(router), '/login');
+    });
+
+    testWidgets('rejects a foreign-scheme callback URI (C-P2-2)',
+        (WidgetTester tester) async {
+      final _RouterBundle(:container, :router, :auth) =
+          _buildTestRouter(const AuthInitial());
+      addTearDown(container.dispose);
+      addTearDown(router.dispose);
+      await _pumpRouter(tester, router, container);
+
+      router.go('evilscheme://oauth/callback?code=x&state=y');
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      // Nothing stashed, nothing handed to the auth notifier; the user
+      // lands on /login instead of being stranded on the gate.
+      expect(container.read(pendingOAuthRedirectProvider), isNull);
+      expect(auth.completedOAuthUri, isNull);
       expect(_currentLocation(router), '/login');
     });
 

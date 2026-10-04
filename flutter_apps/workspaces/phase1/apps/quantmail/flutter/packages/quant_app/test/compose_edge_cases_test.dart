@@ -8,7 +8,7 @@
 // - reply prefill untouched: tapping Send WITHOUT touching the To field
 //   still sends to the prefilled recipients — guards the chips field's
 //   post-frame onChanged sync (a regression here would show the banner
-//   "Add at least one recipient" despite a visible recipient).
+//   "Bhejne se pehle kam se kam ek recipient jodo" despite a visible recipient).
 //
 // All doubles are in-file fakes; nothing touches the network.
 // ============================================================================
@@ -162,7 +162,7 @@ void main() {
       // … and we tap Send WITHOUT touching the To field first.
       await _tapSend(tester);
 
-      // … so the send must carry it (no "Add at least one recipient" banner).
+      // … so the send must carry it (no "Bhejne se pehle kam se kam ek recipient jodo" banner).
       expect(service.sendCalls, hasLength(1),
           reason: 'prefilled recipients must reach the request even when '
               'the chips field was never edited');
@@ -173,7 +173,7 @@ void main() {
       );
       expect(request.threadId, 't-1');
       expect(request.inReplyTo, 'm-9');
-      expect(find.text('Add at least one recipient before sending.'),
+      expect(find.text('Bhejne se pehle kam se kam ek recipient jodo.'),
           findsNothing);
       expect(find.byType(InboxScreen), findsOneWidget);
     });

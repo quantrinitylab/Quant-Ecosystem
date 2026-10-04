@@ -36,6 +36,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quant_app/src/widgets/failed_ops_banner.dart';
+import 'package:quant_app/src/widgets/sender_avatar.dart';
 import 'package:quant_app/src/widgets/send_undo_host.dart';
 import 'package:quant_core/quant_core.dart';
 
@@ -158,11 +159,11 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
   String _confirmationFor(String action) {
     switch (action) {
       case 'archive':
-        return 'Archived';
+        return 'Thread archived';
       case 'markUnread':
-        return 'Marked unread';
+        return 'Marked as unread';
       case 'delete':
-        return 'Deleted';
+        return 'Thread deleted';
       default:
         return 'Done';
     }
@@ -178,10 +179,17 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
         ),
         actions: <Widget>[
           TextButton(
+            // VQA-P2-06: touch target >= 48dp (program standard).
+            style: TextButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete'),
           ),
@@ -408,12 +416,16 @@ class _MessageCard extends StatelessWidget {
           children: <Widget>[
             Row(
               children: <Widget>[
-                CircleAvatar(
-                  radius: 20,
-                  child: Text(
-                    sender.isEmpty ? '?' : sender.characters.first,
-                    semanticsLabel: 'Avatar for $sender',
-                  ),
+                // VQA-P2-21: per-sender hue variation, same palette as the
+                // inbox (SenderAvatar = one palette authority).
+                SenderAvatar(
+                  seed: sender,
+                  initial: sender.isEmpty ? '?' : sender.characters.first,
+                  semanticsLabel: 'Avatar for $sender',
+                  // Thread cards keep the default body text inside the
+                  // avatar (inbox uses titleMedium) — pass null to preserve
+                  // the existing card rendering.
+                  textStyle: const TextStyle(),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -421,7 +433,7 @@ class _MessageCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       Text(
-                        sender.isEmpty ? '(unknown sender)' : sender,
+                        sender.isEmpty ? '(Unknown sender)' : sender,
                         style: textTheme.titleSmall?.copyWith(
                           fontWeight:
                               unread ? FontWeight.bold : FontWeight.normal,
@@ -578,11 +590,11 @@ class _EmptyView extends StatelessWidget {
               Icons.mail_outline,
               size: 48,
               color: scheme.onSurfaceVariant,
-              semanticLabel: 'Khali thread',
+              semanticLabel: 'Koi message nahi',
             ),
             const SizedBox(height: 16),
             Text(
-              'Khali thread',
+              'Koi message nahi',
               style: textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),

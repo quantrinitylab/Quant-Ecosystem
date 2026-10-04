@@ -39,10 +39,10 @@ class AuthEmailField extends StatelessWidget {
   static String? validate(String? value) {
     final String email = (value ?? '').trim();
     if (email.isEmpty) {
-      return 'Email address is required';
+      return 'Email dalna zaroori hai';
     }
     if (!email.contains('@')) {
-      return 'Enter a valid email address';
+      return 'Sahi email likho';
     }
     return null;
   }
@@ -97,7 +97,7 @@ class AuthPasswordField extends StatefulWidget {
   /// Validates a password value: non-empty.
   static String? validate(String? value) {
     if ((value ?? '').isEmpty) {
-      return 'Password is required';
+      return 'Password dalna zaroori hai';
     }
     return null;
   }
@@ -178,10 +178,10 @@ class AuthTotpField extends StatelessWidget {
   static String? validate(String? value) {
     final String code = (value ?? '').trim();
     if (code.isEmpty) {
-      return 'Enter the 6-digit code';
+      return '6-digit code dalo';
     }
     if (code.length != 6 || int.tryParse(code) == null) {
-      return 'Code must be 6 digits';
+      return 'Code 6 digit ka hona chahiye';
     }
     return null;
   }

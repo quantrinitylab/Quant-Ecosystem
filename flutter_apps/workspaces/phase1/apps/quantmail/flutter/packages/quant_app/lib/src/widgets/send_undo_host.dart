@@ -31,18 +31,28 @@ class SendUndoHost extends ConsumerStatefulWidget {
 }
 
 class _SendUndoHostState extends ConsumerState<SendUndoHost> {
-  /// Idempotency keys already surfaced — the provider is append-only, so
-  /// anything not in here is new since the last notification.
-  final Set<String> _shownKeys = <String>{};
+  /// Idempotency keys already surfaced, with the time they were shown.
+  ///
+  /// The provider is append-only, so anything not in here is new since the
+  /// last notification. Entries are pruned on every notification to the
+  /// provider's own [sentMessageRetention] window — without pruning this
+  /// map would grow one entry per send for the app's whole lifetime
+  /// (zero-defect-qa P2, 2026-10-03).
+  final Map<String, DateTime> _shownKeys = <String, DateTime>{};
 
   @override
   Widget build(BuildContext context) {
     ref.listen<List<SentMessageInfo>>(
       sentMessagesProvider,
       (List<SentMessageInfo>? previous, List<SentMessageInfo> next) {
+        final DateTime now = DateTime.now();
+        _shownKeys.removeWhere(
+          (_, shownAt) => now.difference(shownAt) >= sentMessageRetention,
+        );
         for (final SentMessageInfo info in next) {
-          // Set.add returns false for duplicates: exactly-once surfacing.
-          if (_shownKeys.add(info.idempotencyKey)) {
+          // containsKey check: exactly-once surfacing per idempotency key.
+          if (!_shownKeys.containsKey(info.idempotencyKey)) {
+            _shownKeys[info.idempotencyKey] = now;
             _showSent(info);
           }
         }
@@ -67,21 +77,30 @@ class _SendUndoHostState extends ConsumerState<SendUndoHost> {
   }
 
   /// Queues the undo-send through the modifier queue. On success the user
-  /// gets "Send cancelled"; failures ride the drainer's `failedOps`
-  /// stream into the existing [FailedOpsBannerHost] — nothing extra here.
+  /// gets "Message unsent".
+  ///
+  /// Enqueue failures are LOCAL (e.g. the outbox store itself threw) — the
+  /// op never exists, so nothing ever reaches the drainer's `failedOps`
+  /// stream. The old comment claiming otherwise was wrong
+  /// (zero-defect-qa P2, 2026-10-03): the user gets an explicit error
+  /// snackbar instead of silence. Dispatch-time failures (server 400/500)
+  /// still ride `failedOps` into [FailedOpsBannerHost].
   Future<void> _undo(String messageId) async {
     HapticFeedback.lightImpact();
     try {
       await ref.read(composeServiceProvider).undoSend(messageId);
     } catch (_) {
-      // An enqueue failure still lands in the drainer's failedOps; the
-      // banner owns the retry/discard UX. Never leave the user hanging
-      // silently — the banner speaks.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not queue undo — try again'),
+        ),
+      );
       return;
     }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Send cancelled')),
+      const SnackBar(content: Text('Message unsent')),
     );
   }
 }
