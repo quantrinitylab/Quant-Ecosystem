@@ -197,20 +197,19 @@ export default async function emailsChangesRoutes(fastify: FastifyInstance) {
     // Delta ordered deterministically by (updatedAt, id). No folder/label/trash
     // filtering: sync must report every change for the user. Soft-deleted rows
     // are included as tombstones (see entry mapping below).
-    const rows = (await prisma.email.findMany({
+    //
+    // NOTE: no cast on the findMany result. An earlier revision cast to
+    // Array<{...; [key: string]: unknown}> which TS2352 rejects as unsound
+    // (Email has no string index signature). The Prisma Email type already
+    // carries every field consumed below (id, threadId, updatedAt, deletedAt).
+    const rows = await prisma.email.findMany({
       where: {
         userId,
         OR: [{ updatedAt: { gt: sinceT } }, { updatedAt: sinceT, id: { gt: sinceId } }],
       },
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       take: limit + 1,
-    })) as Array<{
-      id: string;
-      threadId: string | null;
-      updatedAt: Date | string;
-      deletedAt: Date | null;
-      [key: string]: unknown;
-    }>;
+    });
 
     const hasMore = rows.length > limit;
     const page = rows.slice(0, limit);

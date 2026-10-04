@@ -66,7 +66,10 @@ describe('GET /emails/changes', () => {
       if (id) (request as any).auth = { userId: id };
     });
     findManyMock = vi.fn();
-    app.decorate('prisma', { email: { findMany: findManyMock } });
+    // Partial prisma double: only the email delegate is stubbed. Cast follows
+    // the repo convention (admin.routes.test.ts) — `as unknown as never`
+    // satisfies Fastify's typed decorate() without claiming a full client.
+    app.decorate('prisma', { email: { findMany: findManyMock } } as unknown as never);
     await app.register(emailsChangesRoutes, { prefix: '/emails' });
     await app.ready();
   });
@@ -270,7 +273,7 @@ describe('cursor HMAC signing', () => {
   it('plugin registration throws fail-closed when SYNC_CURSOR_SECRET is missing', async () => {
     delete process.env.SYNC_CURSOR_SECRET;
     const app2 = Fastify({ logger: false });
-    app2.decorate('prisma', { email: { findMany: vi.fn() } });
+    app2.decorate('prisma', { email: { findMany: vi.fn() } } as unknown as never);
     await expect(app2.register(emailsChangesRoutes, { prefix: '/emails' })).rejects.toThrow(
       /SYNC_CURSOR_SECRET is not set/
     );
@@ -280,7 +283,7 @@ describe('cursor HMAC signing', () => {
   it('plugin registration throws fail-closed when SYNC_CURSOR_SECRET is weak', async () => {
     process.env.SYNC_CURSOR_SECRET = 'too-short';
     const app2 = Fastify({ logger: false });
-    app2.decorate('prisma', { email: { findMany: vi.fn() } });
+    app2.decorate('prisma', { email: { findMany: vi.fn() } } as unknown as never);
     await expect(app2.register(emailsChangesRoutes, { prefix: '/emails' })).rejects.toThrow(
       /at least 32 bytes/
     );
