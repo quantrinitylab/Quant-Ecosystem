@@ -32,7 +32,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       sidebar={
         <Sidebar
           items={sidebarItems}
-          header={<span className="text-lg font-bold text-blue-400">QuantSync</span>}
+          header={<span className="text-lg font-bold text-blue-400">QuantWave</span>}
         />
       }
     >
@@ -40,3 +40,4 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </AppShell>
   );
 }
+

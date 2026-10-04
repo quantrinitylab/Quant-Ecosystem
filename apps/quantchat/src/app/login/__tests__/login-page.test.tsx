@@ -27,7 +27,7 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('Sign in to QuantChat');
   });
 
-  it('renders country code options (+91, +1, etc.), quick test chip, and phone input', () => {
+  it('renders country code options (+91, +1, etc.) and phone input (no dev shortcuts)', () => {
     const html = renderToString(<Page />);
 
     // Country code selector & options
@@ -47,9 +47,9 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('+33');
     expect(html).toContain('🇫🇷');
 
-    // Quick Test demo chip
-    expect(html).toContain('data-testid="quick-test-chip"');
-    expect(html).toContain('⚡ Quick Test: +91 9876543210');
+    // Dev-only Quick Test chip must NOT ship to production
+    expect(html).not.toContain('data-testid="quick-test-chip"');
+    expect(html).not.toContain('Quick Test: +91 9876543210');
 
     // Phone input
     expect(html).toContain('id="phone"');
@@ -57,8 +57,9 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('data-testid="phone-input"');
     expect(html).toContain('Send Verification Code →');
 
-    // QuantMail SSO option
-    expect(html).toContain('QuantMail SSO');
+    // Continue with Quant Account option (ecosystem-consistent wording)
+    expect(html).toContain('Continue with Quant Account');
+    expect(html).not.toContain('QuantMail SSO');
     expect(html).toContain('data-testid="tab-quant-sso"');
     expect(html).toContain('data-testid="phone-view-sso-btn"');
   });
@@ -98,13 +99,13 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('654321');
   });
 
-  it('renders QuantMail SSO tab and credentials view', () => {
+  it('renders Continue with Quant Account tab and credentials view', () => {
     const html = renderToString(<LoginPage initialAuthMode="password" />);
 
     expect(html).toContain('id="identifier"');
     expect(html).toContain('id="password"');
     expect(html).toContain('data-testid="quantmail-sso-btn"');
-    expect(html).toContain('Continue with QuantMail SSO');
+    expect(html).toContain('Continue with Quant Account');
   });
 
   it('verifies COUNTRIES list integrity with all 7 supported international locales', () => {

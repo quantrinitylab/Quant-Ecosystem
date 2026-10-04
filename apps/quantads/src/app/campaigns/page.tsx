@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { Card, Button, Badge, Avatar, LoadingState, ErrorState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../../services/api-client';
+import { SignInRequired } from '../../components/SignInRequired';
+import { isUnauthorizedError } from '../../lib/auth-errors';
 import type { Campaign } from '../../types';
 
 const staggerContainer = {
@@ -175,12 +177,15 @@ export default function CampaignsPage() {
 
       {isLoading && <LoadingState text="Loading campaigns..." />}
 
-      {isError && (
-        <ErrorState
-          message={error instanceof Error ? error.message : 'Failed to load campaigns'}
-          onRetry={() => refetch()}
-        />
-      )}
+      {isError &&
+        (isUnauthorizedError(error) ? (
+          <SignInRequired />
+        ) : (
+          <ErrorState
+            message={error instanceof Error ? error.message : 'Failed to load campaigns'}
+            onRetry={() => refetch()}
+          />
+        ))}
 
       {!isLoading && !isError && campaigns && campaigns.length === 0 && (
         <div className="text-center py-12">

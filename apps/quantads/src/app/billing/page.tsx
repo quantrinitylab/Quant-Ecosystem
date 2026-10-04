@@ -14,6 +14,8 @@ import {
 } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../../services/api-client';
+import { SignInRequired } from '../../components/SignInRequired';
+import { isUnauthorizedError } from '../../lib/auth-errors';
 import type { Invoice, PaymentMethod } from '../../types';
 
 const staggerItem = {
@@ -126,12 +128,17 @@ export default function BillingPage() {
 
         {isLoading && <LoadingState text="Loading billing information..." />}
 
-        {invoicesError && (
-          <ErrorState
-            message={invoicesErr instanceof Error ? invoicesErr.message : 'Failed to load billing'}
-            onRetry={() => refetchInvoices()}
-          />
-        )}
+        {invoicesError &&
+          (isUnauthorizedError(invoicesErr) ? (
+            <SignInRequired />
+          ) : (
+            <ErrorState
+              message={
+                invoicesErr instanceof Error ? invoicesErr.message : 'Failed to load billing'
+              }
+              onRetry={() => refetchInvoices()}
+            />
+          ))}
 
         {!isLoading && !invoicesError && !methodsError && (
           <>

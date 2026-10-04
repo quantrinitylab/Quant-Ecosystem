@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { useAuth } from '../../providers/auth-provider';
 import { ingestSSOToken } from '../../services/auth-session';
+import { useBrandName } from '../../components/BrandProvider';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -20,6 +21,7 @@ function safeReturnPath(value: string | null): string | null {
 }
 
 function LoginForm() {
+  const brandName = useBrandName();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login, isLoading } = useAuth();
@@ -122,7 +124,7 @@ function LoginForm() {
             Q
           </div>
           <h1 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--quant-foreground)]">
-            Sign in to QuantAI
+            Sign in to {brandName}
           </h1>
           <p className="mt-2 text-sm text-[var(--quant-muted-foreground)]">
             Use your QuantID — one account for the whole ecosystem.
@@ -134,8 +136,8 @@ function LoginForm() {
             role="status"
             className="mb-5 rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-4 py-3 text-sm text-[var(--quant-foreground)]"
           >
-            This account uses two-factor authentication. Finish signing in on QuantMail, then reopen
-            QuantAI — your session carries over.
+            This account uses two-factor authentication. Finish signing in on QuantMail, then reopen{' '}
+            {brandName} — your session carries over.
           </div>
         ) : null}
 

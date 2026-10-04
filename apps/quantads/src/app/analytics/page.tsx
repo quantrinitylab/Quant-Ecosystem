@@ -6,6 +6,8 @@ import { motion } from 'framer-motion';
 import { Card, ErrorState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../../services/api-client';
+import { SignInRequired } from '../../components/SignInRequired';
+import { isUnauthorizedError } from '../../lib/auth-errors';
 
 type DateRange = '7d' | '14d' | '30d' | '90d';
 
@@ -115,12 +117,15 @@ export default function AnalyticsPage() {
 
       {isLoading && <LoadingSkeleton />}
 
-      {isError && (
-        <ErrorState
-          message={error instanceof Error ? error.message : 'Failed to load analytics'}
-          onRetry={() => refetch()}
-        />
-      )}
+      {isError &&
+        (isUnauthorizedError(error) ? (
+          <SignInRequired />
+        ) : (
+          <ErrorState
+            message={error instanceof Error ? error.message : 'Failed to load analytics'}
+            onRetry={() => refetch()}
+          />
+        ))}
 
       {!isLoading && !isError && (
         <>

@@ -3,18 +3,19 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import { ErrorState } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
+import { useBrandName } from '../components/BrandProvider';
 import { useAIChat } from '../hooks/useAIChat';
 import { useModelSelector } from '../hooks/useModelSelector';
 import { useUsageStats } from '../hooks/useUsageStats';
 import { useConversationSearch } from '../hooks/useConversationSearch';
 import { ModelSelector } from '../components/ModelSelector';
 import { VoiceToggle } from '../components/VoiceToggle';
-import { VoiceModeModal } from '../components/voice';
 import { ExportMenu } from '../components/ExportMenu';
 import { AgenticMessage } from '../components/AgenticMessage';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
@@ -30,13 +31,27 @@ import {
   type AuthUser,
 } from '../lib/auth';
 import { OnboardingHero } from '../components/OnboardingHero';
-import { AgentCodeTerminal } from '../components/AgentCodeTerminal';
-import { CanvasArtifactsPanel } from '../components/CanvasArtifactsPanel';
-import { WorkCanvasPanel, type WorkCanvasDocument } from '../components/WorkCanvasPanel';
+import type { WorkCanvasDocument } from '../components/WorkCanvasPanel';
 import type { CanvasArtifact } from '../types/agent-mode';
+// P1-3 (slow first paint): interaction-only heavy panels are code-split out of
+// the initial page bundle and load on demand. None of them render on first
+// paint (agent terminal: agent-mode only; canvas: closed by default; voice
+// modal: returns null until opened), so ssr:false is safe here.
+const AgentCodeTerminal = dynamic(
+  () => import('../components/AgentCodeTerminal').then((m) => m.AgentCodeTerminal),
+  { ssr: false },
+);
+const WorkCanvasPanel = dynamic(
+  () => import('../components/WorkCanvasPanel').then((m) => m.WorkCanvasPanel),
+  { ssr: false },
+);
+const VoiceModeModal = dynamic(() => import('../components/voice').then((m) => m.VoiceModeModal), {
+  ssr: false,
+});
 import { HeroPromptBento } from '../components/chat/HeroPromptBento';
 
 export default function AIPage() {
+  const brandName = useBrandName();
   const { models, currentModel, switchModel } = useModelSelector();
   const {
     messages,
@@ -327,7 +342,7 @@ export default function AIPage() {
   if (isLoading && !forceShowUI) {
     return (
       <AppShell
-        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />}
+        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
         <div className="flex flex-col h-full">
           <div className="p-4 border-b border-[var(--quant-border)]">
@@ -344,7 +359,7 @@ export default function AIPage() {
   if (error && !ignoreError) {
     return (
       <AppShell
-        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">QuantAI</h2>} />}
+        sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
         <div className="flex flex-col items-center justify-center h-full space-y-4">
           <ErrorState message={error} onRetry={() => window.location.reload()} />
@@ -367,7 +382,7 @@ export default function AIPage() {
           items={sidebarItems}
           header={
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold">QuantAI</h2>
+              <h2 className="text-lg font-semibold">{brandName}</h2>
               <div className="relative">
                 <svg
                   className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-secondary)]"
@@ -442,7 +457,7 @@ export default function AIPage() {
           {/* Header */}
           <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/60 backdrop-blur-sm">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-lg font-semibold text-[var(--foreground)]">QuantAI</h1>
+              <h1 className="text-lg font-semibold text-[var(--foreground)]">{brandName}</h1>
 
               {/* Mode Switcher: 💬 Chat Mode vs ⚡ Agent / Code Mode */}
               <div className="flex items-center gap-1 bg-[var(--quant-surface-hover)] p-1 rounded-xl border border-[var(--quant-border)]">

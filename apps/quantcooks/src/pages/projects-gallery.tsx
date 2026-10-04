@@ -8,6 +8,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { PageTransition } from '../components/PageTransition';
+import { SignInRequired } from '../components/SignInRequired';
+import { isUnauthorizedError } from '../lib/auth-errors';
 import { useProjects } from '../hooks/useProjects';
 
 interface Project {
@@ -84,7 +86,12 @@ const ProjectsGalleryPage: React.FC = () => {
   }, []);
 
   if (isLoading) return <LoadingState variant="skeleton" text="Loading projects..." />;
-  if (error) return <ErrorState message={error.message} onRetry={() => void refetch()} />;
+  if (error) {
+    // Never show the raw backend 401 ("Missing or invalid authorization header"):
+    // an unauthenticated visitor gets the friendly sign-in state instead.
+    if (isUnauthorizedError(error)) return <SignInRequired />;
+    return <ErrorState message={error.message} onRetry={() => void refetch()} />;
+  }
 
   return (
     <PageTransition>

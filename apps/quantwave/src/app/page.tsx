@@ -232,7 +232,7 @@ export default function FeedPage() {
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Current session drives the verified-space compose gate (everyone can VIEW
-  // every space; only verified accounts can POST/REPLY in QuantSync Verified).
+  // every space; only verified accounts can POST/REPLY in QuantWave Verified).
   const { data: session } = useQuery({
     queryKey: ['session'],
     queryFn: async () => {
@@ -340,7 +340,7 @@ export default function FeedPage() {
               &#x2713;
             </span>
             <span>
-              QuantSync Verified — everyone can read here, but only verified accounts can post or
+              QuantWave Verified — everyone can read here, but only verified accounts can post or
               reply.
             </span>
           </div>
@@ -448,3 +448,4 @@ export default function FeedPage() {
     </PageTransition>
   );
 }
+

@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { Card, Button, ErrorState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../services/api-client';
+import { SignInRequired } from '../components/SignInRequired';
+import { isUnauthorizedError } from '../lib/auth-errors';
 import type { Campaign } from '../types';
 
 const staggerContainer = {
@@ -114,12 +116,15 @@ export default function DashboardPage() {
 
       {isLoading && <LoadingSkeleton />}
 
-      {isError && (
-        <ErrorState
-          message={error instanceof Error ? error.message : 'Failed to load dashboard'}
-          onRetry={() => refetch()}
-        />
-      )}
+      {isError &&
+        (isUnauthorizedError(error) ? (
+          <SignInRequired />
+        ) : (
+          <ErrorState
+            message={error instanceof Error ? error.message : 'Failed to load dashboard'}
+            onRetry={() => refetch()}
+          />
+        ))}
 
       {!isLoading && !isError && (
         <>

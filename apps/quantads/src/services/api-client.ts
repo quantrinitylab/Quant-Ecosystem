@@ -22,9 +22,29 @@ class QuantAdsAPI {
     this.accessToken = token;
   }
 
+  /**
+   * Resolve the bearer token for a request. The shared `useAuth` hook persists
+   * the verified session token in localStorage under `quant_access_token`, so
+   * the client mirrors it here — previously nothing ever called `setToken()`,
+   * which meant EVERY request went out without an Authorization header and the
+   * dashboard spun on skeletons before surfacing a raw 401 to the user.
+   */
+  private resolveToken(): string | null {
+    if (this.accessToken) return this.accessToken;
+    try {
+      if (typeof window !== 'undefined') {
+        return window.localStorage.getItem('quant_access_token');
+      }
+    } catch {
+      // Sandboxed iframe / SSR — no storage available.
+    }
+    return null;
+  }
+
   private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+    const token = this.resolveToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const response = await fetch(`${API_BASE}${path}`, {
       method,
       headers,

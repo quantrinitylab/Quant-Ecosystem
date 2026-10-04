@@ -20,9 +20,41 @@ import type {
 
 const API_BASE = '/api';
 
+// ============================================================================
+// Auth dead-end guard.
+// The backend answers HTTP 401 when the session is missing or expired. Its raw
+// message ("Missing or invalid authorization header", ...) must never reach the
+// screen: on 401 we drop the token, notify the auth layer (which bounces the
+// visitor to /login via AuthGuard), and throw a typed error. All other backend
+// failure messages are replaced with curated, user-safe text — the
+// machine-readable `code` is preserved for debugging.
+// ============================================================================
+
+/** Thrown when the backend rejects the session (HTTP 401). Never carries backend text. */
+export class AuthRequiredError extends Error {
+  constructor() {
+    super('Please sign in to continue.');
+    this.name = 'AuthRequiredError';
+  }
+}
+
+type UnauthorizedListener = () => void;
+
+/** Curated, user-safe replacement for raw backend error text. */
+function friendlyErrorMessage(status: number): string {
+  if (status === 400 || status === 422) return 'Please check your input and try again.';
+  if (status === 403) return 'You do not have permission to do that.';
+  if (status === 404) return 'We could not find what you were looking for.';
+  if (status === 409) return 'That conflicts with existing data. Please try again.';
+  if (status === 429) return 'Too many requests. Please wait a moment and try again.';
+  if (status >= 500) return 'Something went wrong on our end. Please try again.';
+  return 'Something went wrong. Please try again.';
+}
+
 class QuantSyncAPI {
   private accessToken: string | null = null;
   private anonymousMode: boolean = false;
+  private unauthorizedListeners = new Set<UnauthorizedListener>();
 
   setToken(token: string): void {
     this.accessToken = token;
@@ -32,6 +64,28 @@ class QuantSyncAPI {
   }
   setAnonymousMode(enabled: boolean): void {
     this.anonymousMode = enabled;
+  }
+
+  /**
+   * Registers a listener fired when the backend answers 401 (the session is
+   * dead). Returns an unsubscribe function.
+   */
+  onUnauthorized(listener: UnauthorizedListener): () => void {
+    this.unauthorizedListeners.add(listener);
+    return () => {
+      this.unauthorizedListeners.delete(listener);
+    };
+  }
+
+  private handleUnauthorized(): void {
+    this.accessToken = null;
+    for (const listener of this.unauthorizedListeners) {
+      try {
+        listener();
+      } catch {
+        // A listener must never break the API client.
+      }
+    }
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
@@ -45,7 +99,37 @@ class QuantSyncAPI {
       body: body ? JSON.stringify(body) : undefined,
     });
 
-    return response.json() as Promise<ApiResponse<T>>;
+    // Session is missing/expired: never surface the backend's raw 401 text.
+    // Drop the token, tell the auth layer (AuthGuard redirects to /login),
+    // and throw a typed error the UI can recognise.
+    if (response.status === 401) {
+      this.handleUnauthorized();
+      throw new AuthRequiredError();
+    }
+
+    const json = (await response.json().catch(() => null)) as ApiResponse<T> | null;
+    if (!json || typeof json !== 'object') {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_RESPONSE',
+          message: 'Something went wrong. Please try again.',
+          statusCode: 502,
+        },
+      };
+    }
+
+    // Never leak raw backend text to the UI: keep the machine-readable code
+    // for debugging, but replace the human message with curated text.
+    if (!json.success && json.error) {
+      const statusCode = json.error.statusCode || response.status;
+      json.error = {
+        code: json.error.code,
+        message: friendlyErrorMessage(statusCode),
+        statusCode,
+      };
+    }
+    return json;
   }
 
   // --- Auth ---
@@ -265,3 +349,4 @@ class QuantSyncAPI {
 
 export const quantSyncAPI = new QuantSyncAPI();
 export default QuantSyncAPI;
+

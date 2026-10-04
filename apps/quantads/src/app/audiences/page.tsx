@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { Card, Button, Badge, LoadingState, ErrorState } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import { quantAdsAPI } from '../../services/api-client';
+import { SignInRequired } from '../../components/SignInRequired';
+import { isUnauthorizedError } from '../../lib/auth-errors';
 import type { CustomAudience } from '../../types';
 
 const staggerContainer = {
@@ -96,12 +98,15 @@ export default function AudiencesPage() {
 
       {isLoading && <LoadingState text="Loading audiences..." />}
 
-      {isError && (
-        <ErrorState
-          message={error instanceof Error ? error.message : 'Failed to load audiences'}
-          onRetry={() => refetch()}
-        />
-      )}
+      {isError &&
+        (isUnauthorizedError(error) ? (
+          <SignInRequired />
+        ) : (
+          <ErrorState
+            message={error instanceof Error ? error.message : 'Failed to load audiences'}
+            onRetry={() => refetch()}
+          />
+        ))}
 
       {!isLoading && !isError && audiences && audiences.length === 0 && (
         <div className="text-center py-12">

@@ -33,6 +33,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   // link to /login.
   if (isLoading) return <AuthPending state="verifying" loginPath="/login" />;
   if (!isAuthenticated)
-    return <AuthPending state="redirecting" loginPath="/login" appName="QuantSync" />;
+    return <AuthPending state="redirecting" loginPath="/login" appName="QuantWave" />;
   return <>{children}</>;
 }
+

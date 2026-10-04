@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import { quantSyncAPI } from '../services/api-client';
 
 export type LoginOutcome =
   | { status: 'signed-in' }
@@ -28,6 +29,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearAccessToken();
     setIsAuthenticated(false);
   }, []);
+
+  // A 401 from any API call means the session is dead (expired/revoked token).
+  // Drop local auth state so AuthGuard bounces the visitor to /login instead
+  // of stranding them on a raw backend error screen.
+  useEffect(() => {
+    return quantSyncAPI.onUnauthorized(() => {
+      clearSession();
+    });
+  }, [clearSession]);
 
   // Restore a session on load from the HttpOnly refresh cookie. Fail closed and
   // never hang: a 5s cap means a wedged identity service drops us to logged-out,
@@ -120,3 +130,4 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+

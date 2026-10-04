@@ -187,6 +187,17 @@ export function SsoChooserContent({
         const res = await fetch('/api/oauth/userinfo', {
           headers: { Authorization: `Bearer ${token}` },
         });
+        if (res.status === 401 || res.status === 403) {
+          setAuthorizing(false);
+          setError('Session expired. Please sign in again.');
+          return;
+        }
+        if (!res.ok) {
+          // userinfo endpoint unavailable (e.g. old backend without /oauth/*)
+          // — don't trap the user on a dead screen; hand off the valid session.
+          handoffSession(token);
+          return;
+        }
         const profile = await res.json();
         if (profile.success && profile.data?.phoneVerified) {
           handoffSession(token);
@@ -372,7 +383,7 @@ export function SsoChooserContent({
         )}
 
         {/* STATE 1: Google-Class Account Chooser */}
-        {!authorizing && showChooser && (
+        {!authorizing && showChooser && stage !== 'phone-kyc' && (
           <div className="w-full space-y-3">
             <div className="divide-y divide-white/[0.06] border border-white/[0.08] rounded-xl overflow-hidden bg-white/[0.02]">
               {allAccounts.map((acc) => {
@@ -550,7 +561,7 @@ export function SsoChooserContent({
         )}
 
         {/* STATE 3: Phone KYC */}
-        {!authorizing && !showChooser && stage === 'phone-kyc' && (
+        {!authorizing && stage === 'phone-kyc' && (
           <div className="w-full">
             <div className="text-center mb-6">
               <h2 className="text-lg font-semibold text-white flex items-center justify-center gap-2">

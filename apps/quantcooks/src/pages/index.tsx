@@ -10,6 +10,8 @@ import { spring } from '@quant/brand';
 import { useProjects } from '../hooks/useProjects';
 import { useTemplates } from '../hooks/useTemplates';
 import { PageTransition } from '../components/PageTransition';
+import { SignInRequired } from '../components/SignInRequired';
+import { isUnauthorizedError } from '../lib/auth-errors';
 import { containerVariants, cardVariants } from '../lib/motion-variants';
 
 interface Project {
@@ -314,6 +316,9 @@ const ProjectGallery: React.FC = () => {
   }
 
   if (projectsError) {
+    // Never show the raw backend 401 ("Missing or invalid authorization header"):
+    // an unauthenticated visitor gets the friendly sign-in state instead.
+    if (isUnauthorizedError(projectsError)) return <SignInRequired />;
     return <ErrorState message={projectsError.message} onRetry={() => void refetchProjects()} />;
   }
 
