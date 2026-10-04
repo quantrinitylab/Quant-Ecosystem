@@ -20,6 +20,9 @@ export interface PillarTile {
   borderColor: string;
   glowColor: string;
   searchPlaceholder: string;
+  /** Swiggy-style per-pillar app theme: background tint shown when this pillar is active */
+  themeBg: string;
+  themeGlow: string;
   icon: (props: { className?: string; active?: boolean }) => React.ReactNode;
 }
 
@@ -246,6 +249,8 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#FF8C42]/50',
     glowColor: 'shadow-[0_0_12px_rgba(255,140,66,0.18)]',
     searchPlaceholder: 'Search emails, senders, keywords… <5ms',
+    themeBg: 'linear-gradient(180deg, rgba(255,140,66,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(255,140,66,0.15)',
     icon: MailMarkIcon,
   },
   {
@@ -256,6 +261,8 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#F59E0B]/50',
     glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
     searchPlaceholder: 'Search events, meetings, attendees… <5ms',
+    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(245,158,11,0.15)',
     icon: CalendarMarkIcon,
   },
   {
@@ -266,6 +273,8 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#38BDF8]/50',
     glowColor: 'shadow-[0_0_12px_rgba(56,189,248,0.18)]',
     searchPlaceholder: 'Search files, documents, FastCDC tags… <5ms',
+    themeBg: 'linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(56,189,248,0.15)',
     icon: DriveMarkIcon,
   },
   {
@@ -276,6 +285,8 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#10B981]/50',
     glowColor: 'shadow-[0_0_12px_rgba(16,185,129,0.18)]',
     searchPlaceholder: 'Search VIPs, contacts, companies… <5ms',
+    themeBg: 'linear-gradient(180deg, rgba(16,185,129,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(16,185,129,0.15)',
     icon: ContactsMarkIcon,
   },
   {
@@ -286,6 +297,8 @@ export const PILLAR_TILES: PillarTile[] = [
     borderColor: 'border-[#A78BFA]/50',
     glowColor: 'shadow-[0_0_12px_rgba(167,139,250,0.18)]',
     searchPlaceholder: 'Search repositories, pull requests, commits… <5ms',
+    themeBg: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(167,139,250,0.15)',
     icon: QuantGitMarkIcon,
   },
 ];
@@ -668,6 +681,11 @@ export function QuantPillarTopBar({
     <header
       className={`sticky top-0 z-30 w-full flex flex-col gap-2.5 px-3 pt-2.5 pb-2 bg-[#090A0E]/95 backdrop-blur-md border-b border-[#232938] select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
+      style={{
+        background: `${activeTile.themeBg}, rgba(9,10,14,0.95)`,
+        transition: 'background 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
+        borderBottomColor: `${activeTile.accentColor}30`,
+      }}
     >
       {/* 1. Top Row: Dynamic Island Quant AI Live Capsule */}
       <div className="flex items-center justify-between gap-2">
@@ -709,9 +727,9 @@ export function QuantPillarTopBar({
         </div>
       </div>
 
-      {/* 2. Middle Row: Amazon & Flipkart Super-App 5 Squircle Mode Switcher Tiles */}
+      {/* 2. Middle Row: Swiggy-style Animated 5-Pillar Arch Switcher */}
       <div
-        className="grid grid-cols-5 gap-1.5 sm:gap-2 w-full max-w-5xl mx-auto"
+        className="grid grid-cols-5 gap-1 sm:gap-1.5 w-full max-w-5xl mx-auto items-end"
         role="tablist"
         aria-label="Application Suites"
       >
@@ -728,18 +746,29 @@ export function QuantPillarTopBar({
               aria-selected={isActive}
               aria-label={tile.label}
               onClick={() => handleTileClick(tile)}
-              className={`relative flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-2xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+              className={`relative flex flex-col items-center justify-center gap-1 py-2 px-1 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                 isActive
-                  ? `bg-[#16181D] ${tile.borderColor} ${tile.glowColor} border shadow-md scale-[1.02]`
-                  : 'bg-[#0E1015] border border-[#1F2430] hover:bg-[#141720] hover:border-[#2C3345] opacity-85 hover:opacity-100'
+                  ? `rounded-t-[20px] rounded-b-none -mb-0 translate-y-[2px] scale-[1.06] z-10 border border-b-0 ${tile.borderColor} ${tile.glowColor} shadow-lg`
+                  : 'rounded-2xl border border-[#1F2430] opacity-75 hover:opacity-100 hover:scale-[1.02]'
               }`}
+              style={{
+                background: isActive
+                  ? `linear-gradient(180deg, ${tile.accentColor}22 0%, #16181D 60%)`
+                  : '#0E1015',
+                transition: 'all 0.35s cubic-bezier(0.34, 1.3, 0.64, 1)',
+                boxShadow: isActive ? `0 -6px 20px ${tile.themeGlow}, 0 4px 12px rgba(0,0,0,0.3)` : undefined,
+              }}
               aria-current={isActive ? 'page' : undefined}
             >
               <div
-                className={`relative p-1.5 rounded-xl transition-colors ${
-                  isActive ? 'bg-white/10' : 'bg-transparent'
+                className={`relative p-1.5 rounded-xl transition-all duration-300 ${
+                  isActive ? 'bg-white/10 scale-110' : 'bg-transparent'
                 }`}
-                style={{ color: isActive ? tile.accentColor : '#94A3B8' }}
+                style={{
+                  color: isActive ? tile.accentColor : '#94A3B8',
+                  transform: isActive ? 'scale(1.15)' : undefined,
+                  transition: 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                }}
               >
                 <IconComp className="size-4" active={isActive} />
 
@@ -757,20 +786,21 @@ export function QuantPillarTopBar({
               </div>
 
               <span
-                className={`text-[11px] tracking-tight truncate leading-none ${
+                className={`text-[11px] tracking-tight truncate leading-none transition-all duration-300 ${
                   isActive ? 'font-bold text-white' : 'font-medium text-[#94A3B8]'
                 }`}
               >
                 {tile.label}
               </span>
 
-              {/* Active Sub-bar Indicator */}
+              {/* Active Arch Glow Bar */}
               {isActive && (
                 <span
-                  className="absolute bottom-1 w-6 sm:w-8 h-0.5 rounded-full"
+                  className="absolute -bottom-0 w-10 h-1 rounded-full"
                   style={{
                     backgroundColor: tile.accentColor,
-                    boxShadow: `0 0 6px ${tile.accentColor}`,
+                    boxShadow: `0 0 10px ${tile.accentColor}`,
+                    animation: 'pillarArchPulse 2s ease-in-out infinite',
                   }}
                 />
               )}
@@ -778,6 +808,13 @@ export function QuantPillarTopBar({
           );
         })}
       </div>
+
+      <style>{`
+        @keyframes pillarArchPulse {
+          0%, 100% { opacity: 1; transform: scaleX(1); }
+          50% { opacity: 0.7; transform: scaleX(0.85); }
+        }
+      `}</style>
 
       {/* 3. Sticky Voice Search Bar */}
       <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto">
