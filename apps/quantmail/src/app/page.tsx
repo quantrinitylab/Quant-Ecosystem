@@ -12,14 +12,13 @@ import {
   nextRovingIndex,
   useFocusTrap,
   useReducedMotion,
-  useSwipeActions,
 } from '@quant/shared-ui';
 import { AppShell } from '../components/AppShell';
 import { useInbox } from '../hooks/useInbox';
 import { useSearchEmails } from '../hooks/useSearchEmails';
 import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
-import { EmailSnooze, snoozeUntilNextMorning } from '../components/EmailSnooze';
+import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
@@ -37,6 +36,8 @@ import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadDot } from '../components/UnreadDot';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { useTouchSwipe } from '../components/SwipeableEmailRow';
 import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
 import { useKeyboardSurfaces } from '../components/KeyboardProvider';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -214,27 +215,28 @@ function SpamBanner({
  * The first attempt used framer's `drag="x"`, which claims the pointer on the
  * first horizontal pixel: a thumb travelling up the list at any angle off
  * vertical slid a row, and a slightly generous flick archived a message the
- * reader only meant to scroll past. `useSwipeActions` claims nothing until the
- * finger has travelled 14px horizontally *and* 1.6x more horizontally than
- * vertically; the moment vertical intent wins the touch is latched out and
- * cannot be reclaimed however the finger curves afterwards; and there is no
- * velocity path at all, so committing means crossing 35% of the row's own width,
- * floored at 88px, which no flick can reach.
+ * reader only meant to scroll past. `useTouchSwipe` (see
+ * `../components/SwipeableEmailRow`, core in `../lib/touch-swipe-machine`)
+ * claims nothing until the finger has travelled 10px horizontally *and* 1.2x
+ * more horizontally than vertically; the moment vertical intent wins the touch
+ * is latched out and cannot be reclaimed however the finger curves afterwards;
+ * and there is no velocity path at all, so committing means crossing a fixed
+ * ~80px, which no flick can reach.
  *
- * Second, the two ends were not peers: archive was destructive and pin was a
- * decoration, so one motion made the expensive action exactly as easy as the
- * cheap one. Both ends now file the conversation somewhere real and both come
- * back from the toast's Undo — left archives, right snoozes until tomorrow
- * morning. Pin stays a button, which is where a decoration belongs.
+ * Second, the two ends are named and unequal on purpose: right files the
+ * conversation away (Archive, green pane) and left throws it out (Delete, red
+ * pane) — the Gmail arrangement, so the muscle memory transfers. Both go
+ * through the optimistic mutations and both come back from the toast's Undo,
+ * which is what makes the destructive end defensible at a flick's distance.
  *
  * Third, the affordance was invisible. The revealed pane names the action from
  * the first few pixels, only reaches full strength past the commit line, and the
  * phone ticks exactly as that line is crossed — so a first half-drag teaches the
  * gesture and then lets go of it with nothing having happened.
  *
- * The buttons stay. Archive at 44px on a phone, Pin at 44px, `HoverActions` for
- * pointers: everything the swipe reaches is reachable without it, which is what
- * makes it an accelerator rather than the only door.
+ * The buttons stay. The row menu, `HoverActions` for pointers: everything the
+ * swipe reaches is reachable without it, which is what makes it an accelerator
+ * rather than the only door.
  */
 type EmailRowProps = {
   thread: ConversationThread;
@@ -356,18 +358,18 @@ function EmailRow({
   }, [savedGroups, thread.messages, thread.subject]);
 
   /*
-   * Left files the conversation away, right puts it down until tomorrow morning.
-   * `snoozeUntilNextMorning` is the same function the snooze menu's `Tomorrow`
-   * calls, so a gesture and a menu item that use one word can never mean two
-   * different times.
+   * Right files the conversation away (Archive), left throws it out (Delete) —
+   * the Gmail arrangement, so the muscle memory transfers. Both fire the row's
+   * existing optimistic callbacks in the same frame as the visual commit, and
+   * both come back from the toast's Undo.
    *
    * Off while the row is selected or its snooze menu is open: a selected row
    * belongs to the selection header's batch actions, and a row sliding out from
    * under an anchored menu would leave the menu pointing at nothing.
    */
-  const swipe = useSwipeActions({
-    left: { label: 'Archive', onCommit: onArchive },
-    right: { label: 'Snooze', onCommit: () => onSnooze(email.id, snoozeUntilNextMorning()) },
+  const swipe = useTouchSwipe({
+    onArchive,
+    onDelete,
     disabled: isChecked || showSnoozeMenu,
     reducedMotion,
   });
@@ -387,18 +389,52 @@ function EmailRow({
       {swipe.direction && (
         <div
           aria-hidden="true"
-          className={`mail-row-swipe-pane ${swipe.armed ? 'is-armed' : ''} ${
-            swipe.direction === 'left' ? 'is-trailing' : 'is-leading'
+          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-delete'} ${
+            swipe.armed ? 'is-armed' : ''
           }`}
         >
           <span className="mail-row-swipe-label" style={{ opacity: 0.45 + swipe.progress * 0.55 }}>
-            <MailIcon name={swipe.direction === 'left' ? 'archive' : 'clock'} className="size-4" />
-            {swipe.direction === 'left' ? 'Archive' : 'Snooze'}
+            {swipe.direction === 'archive' ? (
+              <>
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="2" y="3" width="20" height="5" rx="1" />
+                  <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+                  <path d="M10 12h4" />
+                </svg>
+                Archive
+              </>
+            ) : (
+              <>
+                <svg
+                  className="size-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                </svg>
+                Delete
+              </>
+            )}
           </span>
         </div>
       )}
       <article
-        ref={swipe.ref}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={(event) => {
@@ -426,7 +462,7 @@ function EmailRow({
         // an inline `transition`, so it cannot clobber the row's own background
         // and border transitions. It is absent exactly while a finger is down,
         // which is what keeps travel 1:1 under the thumb.
-        className={`mail-row touch-pan-y ${swipe.direction || reducedMotion ? '' : 'is-swipe-settling'} ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
+        className={`mail-row touch-pan-y ${swipe.phase === 'tracking' && !reducedMotion ? '' : 'is-swipe-settling'} ${thread.isRead ? '' : 'is-unread'} ${isActive ? 'is-active' : ''} ${isFocused ? 'is-focused' : ''}`}
         style={
           swipe.offset === 0 ? undefined : { transform: `translate3d(${swipe.offset}px, 0, 0)` }
         }
@@ -1125,7 +1161,9 @@ export default function InboxPage() {
     ref: listRef,
     elementRef: listElementRef,
   } = useScrollElement<HTMLDivElement>();
-  const { data: allEmails, isLoading, error, refetch } = useInbox({ folderType: 'INBOX' });
+  const { data: allEmails, isLoading, error, refetch } = useInbox({
+    folderType: 'INBOX',
+  });
   const { data: archivedEmails } = useInbox({ folderType: 'ARCHIVE' });
   const { data: spamEmails, refetch: refetchSpam } = useInbox({ folderType: 'SPAM' });
   const { data: snoozedEmails, refetch: refetchSnoozed } = useInbox({ folderType: 'SNOOZED' });
@@ -1971,91 +2009,27 @@ export default function InboxPage() {
     // virtualizer commit would fight the user's own scrolling.
   }, [activeLens, activeTurn, activeFilters, showArchivedView, debouncedQuery]);
 
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullDistance, setPullDistance] = useState(0);
-  const touchStartX = useRef(0);
-  const touchStartY = useRef(0);
-  const isPulling = useRef(false);
-  const isHorizontalSwipe = useRef(false);
+  /**
+   * Pull-to-refresh, touch-only: arms only when the list is scrolled to the
+   * very top, fires the real inbox refetch on release. `refetch` is the
+   * react-query one, so `isLoading` stays false while cached rows are on
+   * screen — the rows stay mounted under the spinner (no skeleton wall) and
+   * the content morphs in place when the new data lands. The spinner holds
+   * until the fetch settles. See `../hooks/usePullToRefresh` and
+   * `../lib/pull-to-refresh-machine` for the gesture core and its tests.
+   */
+  const { listProps: ptrListProps, pullDistance, isRefreshing, triggerRefresh } = usePullToRefresh({
+    onRefresh: async () => {
+      await refetch();
+      showToast({ text: 'Inbox up to date', type: 'info' });
+    },
+  });
 
   useEffect(() => {
-    const handleGlobalRefresh = async () => {
-      setIsRefreshing(true);
-      setPullDistance(40);
-      try {
-        await refetch();
-        showToast({ text: 'Inbox up to date', type: 'info' });
-      } finally {
-        setTimeout(() => {
-          setIsRefreshing(false);
-          setPullDistance(0);
-        }, 450);
-      }
-    };
-
+    const handleGlobalRefresh = () => triggerRefresh();
     window.addEventListener('quant:refresh', handleGlobalRefresh);
     return () => window.removeEventListener('quant:refresh', handleGlobalRefresh);
-  }, [refetch]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const listEl = listElementRef.current;
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    isHorizontalSwipe.current = false;
-
-    if (listEl && listEl.scrollTop <= 5) {
-      isPulling.current = true;
-    } else {
-      isPulling.current = false;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isPulling.current || isRefreshing || isHorizontalSwipe.current) return;
-    const currentX = e.touches[0].clientX;
-    const currentY = e.touches[0].clientY;
-    const diffX = Math.abs(currentX - touchStartX.current);
-    const diffY = currentY - touchStartY.current;
-
-    // If user is swiping horizontally, cancel pull-to-refresh completely
-    if (diffX > 8 && diffX > Math.abs(diffY)) {
-      isHorizontalSwipe.current = true;
-      isPulling.current = false;
-      setPullDistance(0);
-      return;
-    }
-
-    if (diffY > 15 && diffY > diffX * 1.5) {
-      const distance = Math.min(diffY * 0.35, 50);
-      setPullDistance(distance);
-    } else {
-      setPullDistance(0);
-    }
-  };
-
-  const handleTouchEnd = async () => {
-    isHorizontalSwipe.current = false;
-    if (!isPulling.current) {
-      setPullDistance(0);
-      return;
-    }
-    isPulling.current = false;
-    if (pullDistance >= 36 && !isRefreshing) {
-      setIsRefreshing(true);
-      setPullDistance(40);
-      try {
-        await refetch();
-        showToast({ text: 'Inbox up to date', type: 'info' });
-      } finally {
-        setTimeout(() => {
-          setIsRefreshing(false);
-          setPullDistance(0);
-        }, 450);
-      }
-    } else {
-      setPullDistance(0);
-    }
-  };
+  }, [triggerRefresh]);
 
   /**
    * Title and one-line summary for the hero, describing the list actually below
@@ -2824,7 +2798,7 @@ export default function InboxPage() {
                 <span>
                   {isRefreshing
                     ? 'Refreshing inbox…'
-                    : pullDistance >= 36
+                    : pullDistance >= 56
                       ? 'Release to refresh'
                       : 'Pull down to refresh'}
                 </span>
@@ -2854,9 +2828,10 @@ export default function InboxPage() {
             aria-labelledby={lensTabId(activeLens)}
             tabIndex={0}
             aria-busy={isLoading || isSearching}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onTouchStart={ptrListProps.onTouchStart}
+            onTouchMove={ptrListProps.onTouchMove}
+            onTouchEnd={ptrListProps.onTouchEnd}
+            onTouchCancel={ptrListProps.onTouchCancel}
           >
             {/*
               Where the cursor is, for a reader. Mounted unconditionally, and inside

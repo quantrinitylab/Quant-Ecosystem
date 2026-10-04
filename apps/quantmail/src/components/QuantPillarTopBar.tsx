@@ -4,11 +4,17 @@
 // QuantMail — Super-App 5-Pillar Top Squircle Switcher (Flipkart & Amazon Paradigm)
 // Molten Amber Mail, Sunset Gold Calendar, Sovereign Cyan Drive,
 // Emerald Matrix Contacts, Obsidian Purple QuantGit.
-// Pure SVG Vector Engine — Strictly ZERO raw Unicode emojis.
+// Pillar tiles mount the REAL approved app marks (canvas-painted, 28px) —
+// strictly ZERO generic glyphs and ZERO raw Unicode emojis.
 // ============================================================================
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { QuantMailLogo } from './QuantMailLogo';
+import { QuantCalendarLogo } from './QuantCalendarLogo';
+import { QuantDriveLogo } from './QuantDriveLogo';
+import { QuantContactsLogo } from './QuantContactsLogo';
+import { QuantGitLogo } from './QuantGitLogo';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -40,7 +46,9 @@ export interface PillarLens {
 }
 
 // ============================================================================
-// Pure SVG Vector Icons — strictly ZERO raw Unicode emojis
+// Legacy generic mark icons — kept exported for backward compatibility only.
+// PILLAR_TILES no longer uses these: the tiles mount the real approved app
+// marks (MailLogoIcon et al. above). Do not wire these back into the dock.
 // ============================================================================
 
 export function MailMarkIcon({ className }: { className?: string; active?: boolean }) {
@@ -237,6 +245,66 @@ export function ChevronRightIcon({ className }: { className?: string }) {
 }
 
 // ============================================================================
+// Real approved app marks for the pillar tiles — NO generic glyphs.
+//
+// QuantMail, QuantCalendar and QuantContacts are the user-approved finals, so
+// they mount here exactly as approved. QuantDrive (v3 lava palette) and
+// QuantGit are NOT final-approved yet: they mount the best-available mark so
+// the dock never falls back to a generic icon, and each carries a
+// TODO(LOGO-PENDING) marker so the pending swap is greppable.
+// The marks are canvas-painted and supersampled from a 100-unit buffer, so
+// they stay crisp at the 28px tile size; each tile button already carries an
+// aria-label, so the marks mount decoratively (QuantMailLogo interactive=false).
+// ============================================================================
+
+function MailLogoIcon() {
+  return <QuantMailLogo size={28} interactive={false} showBadge={false} />;
+}
+
+function CalendarLogoIcon() {
+  return <QuantCalendarLogo size={28} />;
+}
+
+// TODO(LOGO-PENDING): QuantDrive's v3 lava-palette mark is not final-approved
+// yet — this is the best-available QuantDriveLogo. Swap in the approved final
+// the moment design signs it off; never fall back to the generic folder glyph.
+function DriveLogoIcon() {
+  return <QuantDriveLogo size={28} />;
+}
+
+function ContactsLogoIcon() {
+  return <QuantContactsLogo size={28} />;
+}
+
+// TODO(LOGO-PENDING): QuantGit's mark is not final-approved yet — this is the
+// best-available QuantGitLogo. Swap in the approved final when it lands; never
+// fall back to the generic code-brackets glyph.
+function QuantGitLogoIcon() {
+  return <QuantGitLogo size={28} />;
+}
+
+/**
+ * Haptic-feel micro-interaction for pillar taps.
+ *
+ * `navigator.vibrate` only exists on supporting platforms (Android Chrome);
+ * everywhere else — desktop, iOS Safari — the guard makes this a silent no-op
+ * instead of a throw. It must be called synchronously inside the tap's gesture
+ * handler; browsers ignore vibrate() issued outside one.
+ *
+ * Returns whatever the platform reported, or false when haptics are absent.
+ */
+export function triggerHapticTap(pattern: number | number[] = 10): boolean {
+  try {
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      return navigator.vibrate(pattern);
+    }
+  } catch {
+    /* haptics unsupported — silent fallback */
+  }
+  return false;
+}
+
+// ============================================================================
 // 5 Pillar Configurations (Flipkart & Amazon Super-App Paradigm)
 // ============================================================================
 
@@ -251,7 +319,7 @@ export const PILLAR_TILES: PillarTile[] = [
     searchPlaceholder: 'Search emails, senders, keywords… <5ms',
     themeBg: 'linear-gradient(180deg, rgba(255,140,66,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(255,140,66,0.15)',
-    icon: MailMarkIcon,
+    icon: MailLogoIcon,
   },
   {
     id: 'calendar',
@@ -263,7 +331,7 @@ export const PILLAR_TILES: PillarTile[] = [
     searchPlaceholder: 'Search events, meetings, attendees… <5ms',
     themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(245,158,11,0.15)',
-    icon: CalendarMarkIcon,
+    icon: CalendarLogoIcon,
   },
   {
     id: 'drive',
@@ -275,7 +343,7 @@ export const PILLAR_TILES: PillarTile[] = [
     searchPlaceholder: 'Search files, documents, FastCDC tags… <5ms',
     themeBg: 'linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(56,189,248,0.15)',
-    icon: DriveMarkIcon,
+    icon: DriveLogoIcon,
   },
   {
     id: 'contacts',
@@ -287,7 +355,7 @@ export const PILLAR_TILES: PillarTile[] = [
     searchPlaceholder: 'Search VIPs, contacts, companies… <5ms',
     themeBg: 'linear-gradient(180deg, rgba(16,185,129,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(16,185,129,0.15)',
-    icon: ContactsMarkIcon,
+    icon: ContactsLogoIcon,
   },
   {
     id: 'quantgit',
@@ -299,7 +367,7 @@ export const PILLAR_TILES: PillarTile[] = [
     searchPlaceholder: 'Search repositories, pull requests, commits… <5ms',
     themeBg: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
     themeGlow: 'rgba(167,139,250,0.15)',
-    icon: QuantGitMarkIcon,
+    icon: QuantGitLogoIcon,
   },
 ];
 
@@ -381,6 +449,10 @@ export function executePillarTileClick(
 ) {
   options.onPillarSelect?.(tile.id);
   options.onPillarChange?.(tile.id, tile.path);
+
+  // Haptic-feel micro-interaction: 10ms tap pulse on supporting platforms,
+  // silent everywhere else. Called synchronously inside the tap gesture.
+  triggerHapticTap(10);
 
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
@@ -687,8 +759,15 @@ export function QuantPillarTopBar({
         borderBottomColor: `${activeTile.accentColor}30`,
       }}
     >
-      {/* 1. Top Row: Dynamic Island Quant AI Live Capsule */}
-      <div className="flex items-center justify-between gap-2">
+      {/*
+        1. Top Row: Dynamic Island Quant AI Live Capsule.
+
+        On a phone the 5-pillar dock sits above this capsule (order utilities
+        below); on desktop the capsule stays first. DOM order is unchanged —
+        only the visual order moves — so keyboard and screen-reader order are
+        identical on both breakpoints.
+      */}
+      <div className="flex items-center justify-between gap-2 order-2 md:order-1">
         <button
           type="button"
           onClick={handleLiveCapsuleClick}
@@ -727,9 +806,13 @@ export function QuantPillarTopBar({
         </div>
       </div>
 
-      {/* 2. Middle Row: Swiggy-style Animated 5-Pillar Arch Switcher */}
+      {/*
+        2. The 5-pillar dock. First on mobile (order-1), second on desktop
+        (md:order-2) — the phone opens on the switcher, the desktop keeps the
+        capsule-first layout it shipped with.
+      */}
       <div
-        className="grid grid-cols-5 gap-1 sm:gap-1.5 w-full max-w-5xl mx-auto items-end"
+        className="grid grid-cols-5 gap-1 sm:gap-1.5 w-full max-w-5xl mx-auto items-end order-1 md:order-2"
         role="tablist"
         aria-label="Application Suites"
       >
@@ -743,6 +826,7 @@ export function QuantPillarTopBar({
               key={tile.id}
               type="button"
               role="tab"
+              data-testid={`pillar-tile-${tile.id}`}
               aria-selected={isActive}
               aria-label={tile.label}
               onClick={() => handleTileClick(tile)}
@@ -755,22 +839,28 @@ export function QuantPillarTopBar({
                 background: isActive
                   ? `linear-gradient(180deg, ${tile.accentColor}22 0%, #16181D 60%)`
                   : '#0E1015',
-                transition: 'all 0.35s cubic-bezier(0.34, 1.3, 0.64, 1)',
+                // Premium dock feel: transform/opacity on a ~200ms ease-out.
+                // The old 350ms springy curve read as lag on a phone.
+                transition:
+                  'transform 200ms ease-out, opacity 200ms ease-out, background-color 200ms ease-out, border-color 200ms ease-out, box-shadow 200ms ease-out',
                 boxShadow: isActive ? `0 -6px 20px ${tile.themeGlow}, 0 4px 12px rgba(0,0,0,0.3)` : undefined,
               }}
               aria-current={isActive ? 'page' : undefined}
             >
               <div
-                className={`relative p-1.5 rounded-xl transition-all duration-300 ${
+                className={`relative p-1.5 rounded-xl transition-all duration-200 ${
                   isActive ? 'bg-white/10 scale-110' : 'bg-transparent'
                 }`}
                 style={{
-                  color: isActive ? tile.accentColor : '#94A3B8',
+                  // Real marks carry their own brand colour; the accent ring
+                  // and glow around the tile do the active signalling instead
+                  // of tinting the artwork.
                   transform: isActive ? 'scale(1.15)' : undefined,
-                  transition: 'all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                  transition: 'transform 200ms ease-out, background-color 200ms ease-out',
+                  boxShadow: isActive ? `0 0 14px ${tile.themeGlow}` : undefined,
                 }}
               >
-                <IconComp className="size-4" active={isActive} />
+                <IconComp active={isActive} />
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
@@ -817,7 +907,7 @@ export function QuantPillarTopBar({
       `}</style>
 
       {/* 3. Sticky Voice Search Bar */}
-      <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto">
+      <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto order-3">
         <SearchMagnifierIcon className="size-4 text-[#94A3B8] shrink-0" />
         <input
           type="search"
@@ -861,7 +951,7 @@ export function QuantPillarTopBar({
 
       {/* 4. Horizontal Sub-Category Lenses Strip */}
       <div
-        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 w-full max-w-5xl mx-auto"
+        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 w-full max-w-5xl mx-auto order-4"
         role="tablist"
         aria-label="Sub-category lenses"
       >

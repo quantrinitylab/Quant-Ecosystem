@@ -32,6 +32,12 @@ export interface AppShellProps {
   theme?: 'light' | 'dark' | 'neon';
   className?: string;
   animated?: boolean;
+  /**
+   * @deprecated The per-app mobile header was removed: on phones the screen
+   * opens on the 5-pillar dock (switcher → AI capsule → content) and this
+   * prop no longer renders anywhere. Kept in the interface so existing
+   * callers (labels, pipelines) keep typechecking until they drop it.
+   */
   mobileTitle?: ReactNode;
   mobileActions?: ReactNode;
   searchValue?: string;
@@ -75,7 +81,6 @@ export function AppShell({
   theme = 'dark',
   className = '',
   animated = true,
-  mobileTitle,
   mobileActions,
   searchValue,
   onSearchChange,
@@ -635,14 +640,24 @@ export function AppShell({
           <div
             className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
           >
-            {/* Top Header bar with Logo + Search in QuantMail or Custom Header */}
+            {/*
+              The per-app header is desktop-only (`hidden md:flex`).
+
+              On a phone the top of the screen belongs to the 5-pillar dock
+              (`QuantPillarTopBar` below): switcher first, then the Quant AI
+              capsule, then content. The old mobile header — hamburger, per-app
+              wordmark, search toggle, Quanty orb — stacked a redundant brand
+              row above the dock and the AI banner, which is the triple-stack
+              from the mobile QA screenshots. Mobile search still works: the
+              pillar bar owns a search field wired to the same `onSearchChange`,
+              and the `/` shortcut below still opens the collapsible row.
+              `customHeader` keeps replacing this whole element untouched.
+            */}
             {sidebar &&
               (customHeader ? (
                 customHeader
               ) : (
-                <header
-                  className={`flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5 ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'hidden md:flex' : ''}`}
-                >
+                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5">
                   {/* Left: Menu trigger + Brand Logo & Title */}
                   <div className="flex items-center gap-3">
                     <button
@@ -775,58 +790,16 @@ export function AppShell({
                     ) : null}
                   </div>
 
-                  {/* Right: Mobile Title / Actions */}
+                  {/* Right: Search + Quanty + route actions (desktop only — the
+                      whole header is `hidden md:flex`, so the phone never
+                      reaches this block; its search lives in the pillar bar
+                      and Quanty in the AI capsule) */}
                   <div className="flex items-center gap-2">
-                    {mobileTitle && <div className="md:hidden">{mobileTitle}</div>}
                     {/*
-                  The phone's way into search. Before the header, so it reads
-                  left-to-right as the same control the desktop bar is — and
-                  before `mobileActions`, which is where the inbox used to keep
-                  its own copy of this button, so the order on that route is
-                  unchanged now that it no longer has one.
-                */}
-                    {onSearchChange && (
-                      <button
-                        type="button"
-                        className={`md:hidden inline-flex size-11 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                          isMobileSearchOpen
-                            ? 'bg-[#282C35] text-[#FF8C42]'
-                            : 'text-[#A1A4AC] hover:bg-[#282C35] hover:text-white'
-                        }`}
-                        onClick={() => {
-                          // Closing discards the query. A collapsed row that is still
-                          // filtering the list behind it is a filter with no visible
-                          // cause, and the only way back to everything would be to
-                          // reopen the row to clear it.
-                          if (isMobileSearchOpen) onSearchChange('');
-                          setIsMobileSearchOpen((open) => !open);
-                        }}
-                        aria-expanded={isMobileSearchOpen}
-                        aria-controls={mobileSearchId}
-                        aria-label={isMobileSearchOpen ? 'Close search' : 'Search'}
-                      >
-                        <svg
-                          className="size-5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.75"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <circle cx="11" cy="11" r="7" />
-                          <path d="m20 20-4-4" />
-                        </svg>
-                      </button>
-                    )}
-                    {/*
-                  Quanty, between the search toggle and whatever the route adds.
-                  That is where both routes that had one already put it, so the
-                  inbox and the calendar keep the header they were tested with
-                  while twenty-one other surfaces gain the control. It is not
-                  breakpoint-gated: `mobileActions` never was either, and an
-                  assistant that vanishes at 768px is not an assistant.
+                  Quanty, before whatever the route adds. Desktop-only in this
+                  header (the header is `hidden md:flex`); on mobile the AI
+                  capsule in the pillar bar is the way into Quanty instead, so
+                  the assistant never vanishes at any breakpoint.
                 */}
                     {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
                     {mobileActions}
