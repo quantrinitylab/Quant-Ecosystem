@@ -106,15 +106,54 @@ async function readToBuffer(stream: Readable, maxBytes: number): Promise<Buffer>
   return Buffer.concat(chunks);
 }
 
+export const ATTACHMENT_STORAGE_UNAVAILABLE_MESSAGE =
+  'Object storage is not configured \u2014 set S3/R2 env vars';
+
+/**
+ * Mirrors the driveStorageReady() pattern in drive-storage.service.ts: object
+ * storage is optional at startup. With no R2/S3 env present the service still
+ * constructs (so the backend boots), every storage operation fails with a
+ * clear 503, and a warning is logged once at startup.
+ */
+export function attachmentStorageReady(): boolean {
+  return resolveStorageConfigFromEnv() !== null;
+}
+export function attachmentStorageUnavailableReason(): string {
+  return ATTACHMENT_STORAGE_UNAVAILABLE_MESSAGE;
+}
+
 export class AttachmentService {
-  private readonly storage: StorageClient;
+  private readonly storage: StorageClient | null;
   private readonly db: AttachmentPrismaClient;
   private readonly maxBytes: number;
 
   constructor(options: AttachmentServiceOptions = {}) {
-    this.storage = options.storage ?? new StorageClient(resolveStorageConfigFromEnv());
+    if (options.storage) {
+      this.storage = options.storage;
+    } else {
+      const config = resolveStorageConfigFromEnv();
+      if (config) {
+        this.storage = new StorageClient(config);
+      } else {
+        this.storage = null;
+        // Warn, don't crash: attachments are disabled until S3/R2 env is set.
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[quantmail] object storage not configured \u2014 attachments/drive uploads disabled ' +
+            '(set S3/R2 env vars: CLOUDFLARE_R2_ENDPOINT | R2_ENDPOINT | S3_ENDPOINT + keys)',
+        );
+      }
+    }
     this.db = options.db ?? (defaultPrisma as unknown as AttachmentPrismaClient);
     this.maxBytes = options.maxBytes ?? MAX_ATTACHMENT_SIZE;
+  }
+
+  /** Fail-closed storage guard: 503 STORAGE_NOT_CONFIGURED, never a silent no-op. */
+  private requireStorage(): StorageClient {
+    if (!this.storage) {
+      throw createAppError(ATTACHMENT_STORAGE_UNAVAILABLE_MESSAGE, 503, 'STORAGE_NOT_CONFIGURED');
+    }
+    return this.storage;
   }
 
   /** No optional chaining on the delegate: a missing model must fail loudly (W15-3). */
@@ -173,7 +212,7 @@ export class AttachmentService {
     const attachmentId = `att_${crypto.randomUUID()}`;
     const storageKey = buildStorageKey(userId, attachmentId, safeName);
 
-    const signed = await this.storage.getSignedUploadUrl({
+    const signed = await this.requireStorage().getSignedUploadUrl({
       key: storageKey,
       contentType,
       contentLength: size,
@@ -228,14 +267,14 @@ export class AttachmentService {
     }
 
     const row = await this.requireOwnedRow(attachmentId, userId);
-    const storedSize = await this.storage.getObjectSize(row.storageKey);
+    const storedSize = await this.requireStorage().getObjectSize(row.storageKey);
 
     if (storedSize === null) {
       throw createAppError('Attachment upload was never completed', 409, 'UPLOAD_INCOMPLETE');
     }
 
     if (storedSize > this.maxBytes) {
-      await this.storage.delete(row.storageKey);
+      await this.requireStorage().delete(row.storageKey);
       await this.rows().update({
         where: { id: attachmentId },
         data: { status: 'REJECTED', storedSize },
@@ -267,7 +306,7 @@ export class AttachmentService {
   ): Promise<{ url: string; expiresAt: string; size: number }> {
     const row = await this.requireOwnedRow(attachmentId, userId);
     this.assertUploaded(row);
-    const url = await this.storage.getSignedUrl(row.storageKey, ttl);
+    const url = await this.requireStorage().getSignedUrl(row.storageKey, ttl);
     return {
       url,
       expiresAt: new Date(Date.now() + ttl * 1000).toISOString(),
@@ -282,7 +321,7 @@ export class AttachmentService {
   ): Promise<{ metadata: AttachmentMetadata; body: Buffer }> {
     const row = await this.requireOwnedRow(attachmentId, userId);
     this.assertUploaded(row);
-    const object = await this.storage.download(row.storageKey);
+    const object = await this.requireStorage().download(row.storageKey);
     const body = await readToBuffer(object.body, this.maxBytes);
     return { metadata: toMetadata(row), body };
   }
@@ -290,7 +329,7 @@ export class AttachmentService {
   async deleteAttachment(attachmentId: string, userId: string): Promise<{ deleted: boolean }> {
     const row = await this.requireOwnedRow(attachmentId, userId);
     // Delete bytes first: an orphaned row is recoverable, an orphaned object is billable.
-    await this.storage.delete(row.storageKey);
+    await this.requireStorage().delete(row.storageKey);
     await this.rows().delete({ where: { id: attachmentId }, select: { id: true } });
     return { deleted: true };
   }
