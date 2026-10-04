@@ -1,4 +1,10 @@
-// ============================================================================
+successfully downloaded text file (SHA: 58f9e09e7d140f2b8b633b1153523d803002d062)",
+        "type": "text"
+      },
+      {
+        "resource": {
+          "mimeType": "text/plain; charset=utf-8",
+          "text": "// ============================================================================
 // AI Core - Central AI Engine (Real Implementation)
 // ============================================================================
 
@@ -33,7 +39,7 @@ import { CostTracker } from './cost-tracker';
 
 /** Default engine configuration */
 const DEFAULT_CONFIG: AIEngineConfig = {
-  defaultModel: process.env['AI_DEFAULT_MODEL'] ?? 'gpt-4o',
+  defaultModel: process.env['AI_DEFAULT_MODEL'] ?? 'muse-spark-1.3',
   maxConcurrentRequests: 50,
   requestTimeoutMs: 30000,
   retryAttempts: 3,
@@ -74,6 +80,7 @@ export class AIEngine {
   private anthropicProvider: ReturnType<typeof createAnthropic> | null = null;
   private googleProvider: ReturnType<typeof createGoogleGenerativeAI> | null = null;
   private openrouterProvider: ReturnType<typeof createOpenAI> | null = null;
+  private metaProvider: ReturnType<typeof createOpenAI> | null = null;
   private bedrockClient: BedrockRuntimeClient | null = null;
 
   constructor(config: Partial<AIEngineConfig> = {}) {
@@ -110,6 +117,16 @@ export class AIEngine {
       this.cloudflareProvider = createOpenAI({
         apiKey: cloudflareToken,
         baseURL: `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/ai/v1`,
+      });
+    }
+
+    // Meta AI: primary provider for the ecosystem (Muse Spark models,
+    // multimodal, voice, agentic). OpenAI-compatible API.
+    const metaKey = process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY'];
+    if (metaKey) {
+      this.metaProvider = createOpenAI({
+        apiKey: metaKey,
+        baseURL: process.env['META_API_BASE_URL'] ?? 'https://api.meta.ai/v1',
       });
     }
 
@@ -165,6 +182,7 @@ export class AIEngine {
     if (this.anthropicProvider) configured.add('anthropic');
     if (this.googleProvider) configured.add('google');
     if (this.openrouterProvider) configured.add('openrouter');
+    if (this.metaProvider) configured.add('meta');
     if (this.bedrockClient) configured.add('bedrock');
     this.modelRouter.setAvailableProviders(configured);
   }
@@ -212,6 +230,14 @@ export class AIEngine {
         );
       }
       return this.openrouterProvider(model.id);
+    }
+    if (model.provider === 'meta') {
+      if (!this.metaProvider) {
+        throw new Error(
+          'META_API_KEY not configured. Set the environment variable to use Meta AI models.',
+        );
+      }
+      return this.metaProvider(model.id);
     }
     if (model.provider === 'bedrock') {
       // Bedrock does not use the Vercel AI SDK model interface; it is invoked
