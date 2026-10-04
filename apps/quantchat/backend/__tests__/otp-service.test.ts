@@ -360,9 +360,9 @@ describe('Msg91SmsSender', () => {
     expect(result.success).toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
-    const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toContain('api.msg91.com/api/v5/flow/');
-    expect((opts.headers as Record<string, string>)['authkey']).toBe('test-auth-key');
+    const callArgs = mockFetch.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(callArgs[0]).toContain('api.msg91.com/api/v5/flow/');
+    expect(callArgs[1].headers['authkey']).toBe('test-auth-key');
   });
 
   it('handles MSG91 API errors gracefully', async () => {
