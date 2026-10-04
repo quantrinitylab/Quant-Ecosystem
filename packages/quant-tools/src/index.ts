@@ -27,7 +27,7 @@ export { IntentParser } from './planner/intent-parser.js';
 export { MultiStepPlanner } from './planner/multi-step-planner.js';
 
 // Executor
-export { ToolExecutor } from './executor/tool-executor.js';
+export { ToolExecutor, type ToolHandler } from './executor/tool-executor.js';
 export { WorkflowExecutor } from './executor/workflow-executor.js';
 export type { WorkflowEventType, WorkflowEvent, WorkflowListener } from './executor/workflow-executor.js';
 
