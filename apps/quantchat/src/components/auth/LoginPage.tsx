@@ -555,6 +555,15 @@ export default function LoginPage(props: LoginPageProps) {
           </form>
         )}
       </div>
+
+      {/* Legal links — WhatsApp/Telegram standard */}
+      <div className="mt-8 flex items-center justify-center gap-4 text-[11px] text-slate-500">
+        <a href="/terms" className="hover:text-slate-300 transition-colors">Terms</a>
+        <span className="text-slate-700">·</span>
+        <a href="/privacy" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
+        <span className="text-slate-700">·</span>
+        <a href="/support" className="hover:text-slate-300 transition-colors">Support</a>
+      </div>
     </main>
   );
 }
