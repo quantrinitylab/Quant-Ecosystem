@@ -10,10 +10,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:quant_app/src/screens/inbox_screen.dart';
 import 'package:quant_core/quant_core.dart';
 
 import 'helpers/fake_inbox.dart';
+import 'helpers/fake_mutation_service.dart';
 
 Future<void> _pumpInbox(
   WidgetTester tester,
@@ -22,6 +24,11 @@ Future<void> _pumpInbox(
   final ProviderContainer container = ProviderContainer(
     overrides: <Override>[
       inboxProvider.overrideWith(fake),
+      // The failed-ops banner reads the modifier-queue service: a recording
+      // double keeps the real drift/SQLite outbox stack out of widget tests.
+      threadMutationServiceProvider.overrideWithValue(
+        RecordingThreadMutationService(),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -71,7 +78,7 @@ void main() {
         () => FakeInboxNotifier.data(const InboxListState()),
       );
 
-      expect(find.text("You're all caught up"), findsOneWidget);
+      expect(find.text("Sab padh liya! 🎉"), findsOneWidget);
       // No rows, no spinner, no error.
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.text('Something went wrong'), findsNothing);
@@ -90,7 +97,7 @@ void main() {
       expect(find.text('Agenda attached for Thursday'), findsOneWidget);
       expect(find.text('Invoice #1042'), findsOneWidget);
       // Unread thread gets the bold/unread treatment; read thread does not.
-      expect(find.text("You're all caught up"), findsNothing);
+      expect(find.text("Sab padh liya! 🎉"), findsNothing);
     });
 
     testWidgets('shows a spinner while the first page loads',
@@ -98,7 +105,7 @@ void main() {
       await _pumpInbox(tester, FakeInboxNotifier.loading);
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text("You're all caught up"), findsNothing);
+      expect(find.text("Sab padh liya! 🎉"), findsNothing);
     });
 
     testWidgets('shows an error with retry when the fetch fails',
@@ -113,6 +120,55 @@ void main() {
       expect(find.text('Something went wrong'), findsOneWidget);
       expect(find.text('No connection'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'Retry'), findsOneWidget);
+    });
+
+    testWidgets(
+        'tapping a thread PUSHES the thread route (back returns to inbox)',
+        (tester) async {
+      // VQA-P1-02: pushNamed (not goNamed) keeps the inbox on the stack.
+      final ProviderContainer container = ProviderContainer(
+        overrides: <Override>[
+          inboxProvider.overrideWith(
+            () => FakeInboxNotifier.data(
+              const InboxListState(threads: _threads),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final GoRouter router = GoRouter(
+        initialLocation: '/',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (BuildContext context, GoRouterState state) =>
+                const InboxScreen(),
+          ),
+          GoRoute(
+            path: '/thread/:threadId',
+            name: 'thread',
+            builder: (BuildContext context, GoRouterState state) => Text(
+              'thread:${state.pathParameters['threadId']}',
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      await tester.tap(find.text('Quarterly planning').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('thread:t-1'), findsOneWidget);
+      expect(router.canPop(), isTrue,
+          reason: 'push keeps the inbox beneath the thread route');
     });
   });
 }
