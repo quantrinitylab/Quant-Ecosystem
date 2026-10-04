@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OtpService, AwsSnsSmsSender, LoggingSmsSender, type SmsSender } from '../lib/otp-service';
+import { OtpService, AwsSnsSmsSender, Msg91SmsSender, LoggingSmsSender, type SmsSender } from '../lib/otp-service';
 
 function makeSender(): SmsSender & { messages: { phone: string; body: string }[] } {
   const messages: { phone: string; body: string }[] = [];
@@ -315,5 +315,83 @@ describe('AwsSnsSmsSender', () => {
     const result = await sender.send('+14155550123', 'Code 111111');
     expect(result.success).toBe(false);
     expect(result.error).toContain('Connection reset by peer');
+  });
+});
+
+describe('Msg91SmsSender', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    delete process.env['MSG91_AUTH_KEY'];
+    delete process.env['MSG91_FLOW_ID'];
+    delete process.env['MSG91_SENDER_ID'];
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('falls back to logging sender when MSG91_AUTH_KEY is absent', async () => {
+    const loggedMessages: string[] = [];
+    const sender = new Msg91SmsSender((msg) => loggedMessages.push(msg));
+
+    expect(sender.isConfigured).toBe(false);
+    const result = await sender.send('+918603940049', 'Your code is 123456');
+
+    expect(result.success).toBe(true);
+    expect(result.isFallback).toBe(true);
+    expect(loggedMessages[0]).not.toContain('123456');
+    expect(loggedMessages[0]).toContain('[REDACTED]');
+  });
+
+  it('sends via MSG91 Flow API when configured', async () => {
+    process.env.MSG91_AUTH_KEY = 'test-auth-key';
+    process.env.MSG91_FLOW_ID = 'test-flow-id';
+
+    const mockFetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ type: 'success', message: 'sent' }),
+    }));
+
+    const sender = new Msg91SmsSender(undefined, mockFetch as unknown as typeof fetch);
+    expect(sender.isConfigured).toBe(true);
+
+    const result = await sender.send('+918603940049', 'Your OTP is 654321');
+    expect(result.success).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain('api.msg91.com/api/v5/flow/');
+    expect((opts.headers as Record<string, string>)['authkey']).toBe('test-auth-key');
+  });
+
+  it('handles MSG91 API errors gracefully', async () => {
+    process.env.MSG91_AUTH_KEY = 'test-auth-key';
+
+    const mockFetch = vi.fn(async () => ({
+      ok: false,
+      status: 401,
+      text: async () => 'Unauthorized',
+    }));
+
+    const sender = new Msg91SmsSender(undefined, mockFetch as unknown as typeof fetch);
+    const result = await sender.send('+918603940049', 'Your code is 123456');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('MSG91_API_ERROR');
+  });
+
+  it('handles network failures safely', async () => {
+    process.env.MSG91_AUTH_KEY = 'test-auth-key';
+
+    const mockFetch = vi.fn(async () => {
+      throw new Error('Network timeout');
+    });
+
+    const sender = new Msg91SmsSender(undefined, mockFetch as unknown as typeof fetch);
+    const result = await sender.send('+918603940049', 'Your code is 123456');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Network timeout');
   });
 });
