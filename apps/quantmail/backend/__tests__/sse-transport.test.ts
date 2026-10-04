@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createSseStream } from '../sse-transport';
+import { createSseStream } from '../routes/sse-transport';
 
 // ---------------------------------------------------------------------------
 // Fakes (prior shifts ki tarah mock-based)

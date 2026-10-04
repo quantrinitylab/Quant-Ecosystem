@@ -40,7 +40,7 @@ describe('EmailService.setCategory', () => {
         userId: 'user-1',
         deletedAt: null,
       },
-      data: { aiCategory: 'updates' },
+      data: { aiCategory: 'updates', updatedAt: expect.any(Date) },
     });
     expect(result.updated).toBe(2);
     expect(

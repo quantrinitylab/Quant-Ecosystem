@@ -25,7 +25,7 @@ This index makes Git the durable memory for engineering state. It does not repla
 5. [Current State](./CURRENT_STATE.md) owns commit-pinned facts; the [Execution Queue](./EXECUTION_QUEUE.md) alone owns priority and the active milestone.
 6. Active specs describe approved but potentially unimplemented work.
 7. Audits, baselines, scoreboards, and decision logs are dated evidence.
-8. [Agent artifacts](../.agents/README.md) are non-authoritative working material.
+8. Agent artifacts are non-authoritative working material.
 
 When claims conflict, prefer the higher authority and expose the discrepancy in Current State; never silently rewrite history.
 
@@ -43,7 +43,7 @@ For a new session—especially a prompt containing only `continue`—read this i
 | Execution        | Execution Queue              | Exactly one active milestone; ordered, evidence-driven work. |
 | Evidence         | Scoreboards, baselines, logs | Append-only where declared.                                  |
 | Guidance         | Prompts, roadmaps, audits    | Never overrides current code or accepted decisions.          |
-| Working material | `.agents/`                   | Promote verified claims before relying on them.              |
+| Working material | Scratch notes, session logs    | Promote verified claims before relying on them.              |
 
 ## Update protocol
 

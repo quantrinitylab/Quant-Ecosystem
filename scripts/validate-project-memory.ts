@@ -3,16 +3,20 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// NOTE: `.agents/README.md` is intentionally NOT required. The repository owner
+// deleted the entire `.agents/` directory on 2026-10-02 ("Delete .agents
+// directory"); requiring it here would resurrect owner-removed content.
+// NOTE: `.kiro/steering/QUANT_CANONICAL_CONTEXT.md` and
+// `.kiro/steering/PRODUCTION_READINESS_PROMPT.md` are intentionally NOT required.
+// The `.kiro/steering/` docs never existed as tracked files in this repository
+// (only `.kiro/settings/mcp.json` is gitignored), so the historical-prompt check
+// has been removed along with the stale canonical entry.
 export const CANONICAL_FILES = [
   'docs/README.md',
   'docs/CURRENT_STATE.md',
   'docs/EXECUTION_QUEUE.md',
   'docs/adr/README.md',
-  '.agents/README.md',
-  '.kiro/steering/QUANT_CANONICAL_CONTEXT.md',
 ] as const;
-
-const HISTORICAL_PROMPT = '.kiro/steering/PRODUCTION_READINESS_PROMPT.md';
 const REQUIRED_METADATA = [
   'doc_id',
   'doc_type',
@@ -334,58 +338,7 @@ function validateCanonicalFiles(
       'docs/EXECUTION_QUEUE.md must own the active milestone',
     );
   }
-  const steering = documents.get('.kiro/steering/QUANT_CANONICAL_CONTEXT.md');
-  if (steering && steering.metadata['inclusion'] !== 'always') {
-    add(
-      issues,
-      'invalid-steering-inclusion',
-      '.kiro/steering/QUANT_CANONICAL_CONTEXT.md',
-      'inclusion must be always',
-    );
-  }
   return documents;
-}
-
-function validateHistoricalPrompt(root: string, issues: ProjectMemoryIssue[]): void {
-  const absolutePath = path.join(root, HISTORICAL_PROMPT);
-  if (!existsSync(absolutePath)) {
-    add(
-      issues,
-      'missing-historical-prompt',
-      HISTORICAL_PROMPT,
-      'Historical production prompt must remain available',
-    );
-    return;
-  }
-  const parsed = parseFrontMatter(readFileSync(absolutePath, 'utf8'));
-  if (!parsed) {
-    add(
-      issues,
-      'invalid-historical-prompt-front-matter',
-      HISTORICAL_PROMPT,
-      'Prompt requires classification front matter',
-    );
-    return;
-  }
-  if (parsed.metadata['inclusion'] !== 'manual') {
-    add(
-      issues,
-      'historical-prompt-not-manual',
-      HISTORICAL_PROMPT,
-      'Stale production prompt must use inclusion: manual',
-    );
-  }
-  if (
-    parsed.metadata['doc_type'] !== 'historical' ||
-    parsed.metadata['authority'] !== 'non-authoritative'
-  ) {
-    add(
-      issues,
-      'historical-prompt-authority',
-      HISTORICAL_PROMPT,
-      'Prompt must be historical and non-authoritative',
-    );
-  }
 }
 
 function sectionBody(markdown: string, section: string): string | null {
@@ -485,7 +438,6 @@ export function validateProjectMemory(
   };
   const issues: ProjectMemoryIssue[] = [];
   const documents = validateCanonicalFiles(root, issues, resolved);
-  validateHistoricalPrompt(root, issues);
   validateAdrs(root, documents.get('docs/adr/README.md'), issues);
   return issues.sort(
     (left, right) => left.file.localeCompare(right.file) || left.code.localeCompare(right.code),

@@ -1,1 +1,7 @@
-aW1wb3J0IHsgTmV4dFJlcXVlc3QgfSBmcm9tICduZXh0L3NlcnZlcic7CgppbXBvcnQgeyBwcm94eVRvQmFja2VuZCB9IGZyb20gJy4uLy4uL19saWIvcHJveHknOwoKZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIFBPU1QocmVxdWVzdDogTmV4dFJlcXVlc3QpIHsKICByZXR1cm4gcHJveHlUb0JhY2tlbmQocmVxdWVzdCwgJy9vYXV0aC9yZWdpc3RlcicpOwp9Cg==
+import { NextRequest } from 'next/server';
+
+import { proxyToBackend } from '../../_lib/proxy';
+
+export async function POST(request: NextRequest) {
+  return proxyToBackend(request, '/oauth/register');
+}

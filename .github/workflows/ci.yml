@@ -50,7 +50,8 @@ jobs:
       # Generate once before Turbo fans package tasks out in parallel so no task
       # can observe a missing client while database build/typecheck initializes it.
       - name: Generate Prisma client
-        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+        working-directory: packages/database
+        run: pnpm exec prisma generate
 
       - name: Validate WU4 representative traffic manifest
         run: pnpm m11d:wu4 -- --plan
@@ -144,7 +145,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+        working-directory: packages/database
+        run: pnpm exec prisma generate
 
       - name: Apply isolated shadow-report migration
         run: >-
@@ -217,7 +219,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @quant/database exec prisma generate --schema=prisma/schema.prisma
+        working-directory: packages/database
+        run: pnpm exec prisma generate
 
       - name: Full typecheck + lint + test + build
         env:

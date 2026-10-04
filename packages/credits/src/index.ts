@@ -23,6 +23,12 @@ export { ownerOnlyAuthz, createMailDomainOwnershipAuthz, assertOwnership } from 
 export type { OwnershipPrincipal, OwnedResource, OwnershipAuthzPort } from './ownership-authz';
 
 // ----------------------------------------------------------------------------
+// AppError helpers — shared error shape used by gates and plugins
+// ----------------------------------------------------------------------------
+export { isAppError, createAppError } from './errors';
+export type { AppError } from './errors';
+
+// ----------------------------------------------------------------------------
 // PricingEngine — cost driver -> credit cost (tokens -> $ -> credits)
 // ----------------------------------------------------------------------------
 export {
