@@ -196,6 +196,23 @@ class _OAuthCallbackGateState extends ConsumerState<OAuthCallbackGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _handedOff) return;
       _handedOff = true;
+      // C-P2-2 (defense-in-depth, zero-defect): only stash URIs that
+      // arrived on the configured OAuth redirect scheme. In-app
+      // navigations (`router.go('/oauth/callback?...')`, widget tests)
+      // carry an EMPTY scheme and are accepted; any other non-empty
+      // scheme is a foreign deep link the OS should never have routed
+      // here — its `code`/`state` must not reach the auth notifier.
+      // (Mitigations already in place: the OS only routes the claimed
+      // scheme, `completeOAuthCallback` verifies `state` against the
+      // pending authorize request.)
+      final expectedScheme = ref.read(appConfigProvider).oauthRedirectScheme;
+      final actualScheme = widget.uri.scheme;
+      if (actualScheme.isNotEmpty && actualScheme != expectedScheme) {
+        // Send the user to /login; the auth gate bounces authenticated
+        // users on to /timeline from there, so nobody is stranded.
+        GoRouter.of(context).go('/login');
+        return;
+      }
       ref.read(pendingOAuthRedirectProvider.notifier).state = widget.uri;
       // The refreshListenable only fires on auth-session emissions and the
       // pending flag itself is not watched, so trigger re-evaluation here.
