@@ -33,7 +33,16 @@ export default async function orchestrationRoutes(fastify: FastifyInstance) {
 
   function getUserId(request: FastifyRequest): string {
     const req = request as unknown as { auth?: { userId?: string } };
-    return req.auth?.userId ?? (isDemoMode ? 'demo-user' : '');
+    if (req.auth?.userId) {
+      return req.auth.userId;
+    }
+    // P0 fix: fail closed. In demo mode a demo identity is intentional;
+    // otherwise an unauthenticated request must never get an identity
+    // (previously returned '' which could propagate as an anonymous id).
+    if (isDemoMode) {
+      return 'demo-user';
+    }
+    throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
 
   function bearerToken(request: FastifyRequest): string {

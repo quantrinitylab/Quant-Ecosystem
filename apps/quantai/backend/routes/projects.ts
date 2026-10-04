@@ -53,9 +53,8 @@ function getAuthenticatedUserId(request: FastifyRequest): string {
   if (user?.id) {
     return user.id;
   }
-  // SECURITY (P0-9): identity comes ONLY from verified auth (request.auth /
-  // request.user - both set server-side by the auth hook, never by the
-  // client). Never trust the client-supplied identity header.
+  // P0 fix: never trust the client-supplied `x-user-id` header for identity.
+  // Only verified auth middleware may establish identity; otherwise fail closed.
   throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 }
 
