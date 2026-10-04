@@ -1,1 +1,545 @@
-Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBxdWFudF9hcHAgLSBPQXV0aDIrUEtDRSBsb2dpbiBzY3JlZW4gKFBoYXNlIDEsIE0yKQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vCi8vIFJlYWwgbG9naW4tZmxvdyBVSSBkcml2ZW4gYnkgW2F1dGhTZXNzaW9uUHJvdmlkZXJdIGZyb20gcXVhbnRfY29yZSAoVzIncwovLyBhdXRoIGNvbnRyYWN0LCB1c2VkIHZlcmJhdGltKToKLy8KLy8gICBBdXRoSW5pdGlhbCAvIEF1dGhGYWlsdXJlIC0+IGVtYWlsICsgcGFzc3dvcmQgZm9ybSAoKyBlcnJvciBiYW5uZXIpCi8vICAgQXV0aExvYWRpbmcgICAgICAgICAgICAgICAtPiBmb3JtIHdpdGggZGlzYWJsZWQgZmllbGRzLCBzcGlubmVyIG9uIGJ1dHRvbgovLyAgIEF1dGhUd29GYWN0b3JSZXF1aXJlZCAgICAgLT4gNi1kaWdpdCBUT1RQIHNjcmVlbgovLyAgIEF1dGhDb25zZW50UmVxdWlyZWQgICAgICAgLT4gc3lzdGVtLWJyb3dzZXIgY29uc2VudCBoYW5kb2ZmIGNhcmQKLy8gICBBdXRoQXV0aGVudGljYXRlZCAgICAgICAgIC0+IG5vdGhpbmcgKFc2J3Mgcm91dGVyIHJlZGlyZWN0IG93bnMgdGhlIGhvcCkKLy8KLy8gTm8gZmFrZSBhdXRoIGFueXdoZXJlOiB0aGUgYnV0dG9ucyBjYWxsIHRoZSByZWFsIFtBdXRoU2Vzc2lvbk5vdGlmaWVyXQovLyBtZXRob2RzLiBUaGUgdGhlbWUgY29tZXMgZnJvbSB0aGUgYW1iaWVudCBbVGhlbWVdIChRdWFudFRoZW1lIGlzIHdpcmVkIGluCi8vIGBzcmMvYXBwLmRhcnRgKS4KCmltcG9ydCAncGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6Zmx1dHRlcl9yaXZlcnBvZC9mbHV0dGVyX3JpdmVycG9kLmRhcnQnOwppbXBvcnQgJ3BhY2thZ2U6cXVhbnRfY29yZS9xdWFudF9jb3JlLmRhcnQnOwoKaW1wb3J0ICcuLi9hdXRoL2Jyb3dzZXJfbGF1bmNoZXIuZGFydCc7CmltcG9ydCAnLi4vd2lkZ2V0cy9hdXRoX2ZpZWxkcy5kYXJ0JzsKCi8vLyBTaWduLWluIHNjcmVlbjogdGhlIE9BdXRoMitQS0NFIGVudHJ5IHBvaW50IG9mIHRoZSBQaGFzZSAxIHZlcnRpY2FsIHNsaWNlLgovLy8KLy8vIFJlbmRlcnMgcGVyIFtBdXRoU2Vzc2lvblN0YXRlXS4gT24gbmFycm93IHNjcmVlbnMgdGhlIGZvcm0gaXMgZnVsbC13aWR0aDsKLy8vIG9uIHdpZGUgc2NyZWVucyAoPj0gNjQwIGxvZ2ljYWwgcHgpIGl0IHNpdHMgaW4gYSBjZW50ZXJlZCBjYXJkLCBtYXgKLy8vIDQyMCBweCB3aWRlLgpjbGFzcyBMb2dpblNjcmVlbiBleHRlbmRzIENvbnN1bWVyU3RhdGVmdWxXaWRnZXQgewogIC8vLyBDcmVhdGVzIHRoZSBsb2dpbiBzY3JlZW4uCiAgY29uc3QgTG9naW5TY3JlZW4oe3N1cGVyLmtleX0pOwoKICBAb3ZlcnJpZGUKICBDb25zdW1lclN0YXRlPExvZ2luU2NyZWVuPiBjcmVhdGVTdGF0ZSgpID0+IF9Mb2dpblNjcmVlblN0YXRlKCk7Cn0KCmNsYXNzIF9Mb2dpblNjcmVlblN0YXRlIGV4dGVuZHMgQ29uc3VtZXJTdGF0ZTxMb2dpblNjcmVlbj4gewogIGZpbmFsIEdsb2JhbEtleTxGb3JtU3RhdGU+IF9mb3JtS2V5ID0gR2xvYmFsS2V5PEZvcm1TdGF0ZT4oKTsKICBmaW5hbCBHbG9iYWxLZXk8Rm9ybVN0YXRlPiBfdG90cEZvcm1LZXkgPSBHbG9iYWxLZXk8Rm9ybVN0YXRlPigpOwogIGZpbmFsIFRleHRFZGl0aW5nQ29udHJvbGxlciBfZW1haWxDb250cm9sbGVyID0gVGV4dEVkaXRpbmdDb250cm9sbGVyKCk7CiAgZmluYWwgVGV4dEVkaXRpbmdDb250cm9sbGVyIF9wYXNzd29yZENvbnRyb2xsZXIgPSBUZXh0RWRpdGluZ0NvbnRyb2xsZXIoKTsKICBmaW5hbCBUZXh0RWRpdGluZ0NvbnRyb2xsZXIgX3RvdHBDb250cm9sbGVyID0gVGV4dEVkaXRpbmdDb250cm9sbGVyKCk7CgogIC8vLyBMb2NhbCB2aWV3IG92ZXJyaWRlOiB0aGUgQmFjayBidXR0b24gb24gdGhlIFRPVFAgc2NyZWVuIHJldHVybnMgdG8gdGhlCiAgLy8vIHNpZ24taW4gZm9ybSB3aXRob3V0IHRvdWNoaW5nIHRoZSBwcm92aWRlciAodGhlcmUgaXMgbm8gcmVzZXQgbWV0aG9kOwogIC8vLyB0aGUgbmV4dCBsb2dpbiBhdHRlbXB0IG92ZXJ3cml0ZXMgdGhlIHN0YXRlKS4KICBib29sIF9zaG93VG90cFZpZXcgPSB0cnVlOwoKICAvLy8gU3Bpbm5lciBvbiB0aGUgVmVyaWZ5IGJ1dHRvbiB3aGlsZSB0aGUgbm90aWZpZXIgcHJvY2Vzc2VzIHRoZSBUT1RQLgogIGJvb2wgX3ZlcmlmeWluZ1RvdHAgPSBmYWxzZTsKCiAgLy8vIFNwaW5uZXIgb24gdGhlIGNvbnNlbnQgYnV0dG9uIHdoaWxlIHRoZSBPUyBicm93c2VyIG9wZW5zLgogIGJvb2wgX29wZW5pbmdCcm93c2VyID0gZmFsc2U7CgogIEBvdmVycmlkZQogIHZvaWQgZGlzcG9zZSgpIHsKICAgIF9lbWFpbENvbnRyb2xsZXIuZGlzcG9zZSgpOwogICAgX3Bhc3N3b3JkQ29udHJvbGxlci5kaXNwb3NlKCk7CiAgICBfdG90cENvbnRyb2xsZXIuZGlzcG9zZSgpOwogICAgc3VwZXIuZGlzcG9zZSgpOwogIH0KCiAgLy8vIFN1Ym1pdHMgdGhlIGVtYWlsICsgcGFzc3dvcmQgZm9ybSB0byB0aGUgYXV0aCBub3RpZmllci4KICBGdXR1cmU8dm9pZD4gX3N1Ym1pdExvZ2luKCkgYXN5bmMgewogICAgRm9jdXNTY29wZS5vZihjb250ZXh0KS51bmZvY3VzKCk7CiAgICBpZiAoIShfZm9ybUtleS5jdXJyZW50U3RhdGU/LnZhbGlkYXRlKCkgPz8gZmFsc2UpKSB7CiAgICAgIHJldHVybjsKICAgIH0KICAgIGF3YWl0IHJlZi5yZWFkKGF1dGhTZXNzaW9uUHJvdmlkZXIubm90aWZpZXIpLmxvZ2luKAogICAgICAgICAgZW1haWw6IF9lbWFpbENvbnRyb2xsZXIudGV4dC50cmltKCksCiAgICAgICAgICBwYXNzd29yZDogX3Bhc3N3b3JkQ29udHJvbGxlci50ZXh0LAogICAgICAgICk7CiAgfQoKICAvLy8gU3VibWl0cyB0aGUgNi1kaWdpdCBUT1RQIGNvZGUgdG8gdGhlIGF1dGggbm90aWZpZXIuCiAgRnV0dXJlPHZvaWQ+IF9zdWJtaXRUb3RwKCkgYXN5bmMgewogICAgRm9jdXNTY29wZS5vZihjb250ZXh0KS51bmZvY3VzKCk7CiAgICBpZiAoIShfdG90cEZvcm1LZXkuY3VycmVudFN0YXRlPy52YWxpZGF0ZSgpID8/IGZhbHNlKSkgewogICAgICByZXR1cm47CiAgICB9CiAgICBzZXRTdGF0ZSgoKSA9PiBfdmVyaWZ5aW5nVG90cCA9IHRydWUpOwogICAgYXdhaXQgcmVmLnJlYWQoYXV0aFNlc3Npb25Qcm92aWRlci5ub3RpZmllcikuc3VibWl0VG90cCgKICAgICAgICAgIF90b3RwQ29udHJvbGxlci50ZXh0LnRyaW0oKSwKICAgICAgICApOwogIH0KCiAgLy8vIE9wZW5zIHRoZSBPQXV0aDIgY29uc2VudCBVUkwgaW4gdGhlIHN5c3RlbSBicm93c2VyLgogIEZ1dHVyZTx2b2lkPiBfb3BlbkNvbnNlbnRVcmwoVXJpIHVybCkgYXN5bmMgewogICAgc2V0U3RhdGUoKCkgPT4gX29wZW5pbmdCcm93c2VyID0gdHJ1ZSk7CiAgICB0cnkgewogICAgICBmaW5hbCBib29sIG9wZW5lZCA9CiAgICAgICAgICBhd2FpdCByZWYucmVhZChicm93c2VyTGF1bmNoZXJQcm92aWRlcikub3BlbkF1dGhvcml6ZVVybCh1cmwpOwogICAgICBpZiAoIW1vdW50ZWQpIHsKICAgICAgICByZXR1cm47CiAgICAgIH0KICAgICAgaWYgKCFvcGVuZWQpIHsKICAgICAgICBTY2FmZm9sZE1lc3Nlbmdlci5vZihjb250ZXh0KS5zaG93U25hY2tCYXIoCiAgICAgICAgICBjb25zdCBTbmFja0JhcigKICAgICAgICAgICAgY29udGVudDogVGV4dCgnQnJvd3NlciBuYWhpIGtodWwgcGF5YSDigJQgZG9iYXJhIHRyeSBrYXJvLicpLAogICAgICAgICAgKSwKICAgICAgICApOwogICAgICB9CiAgICB9IGZpbmFsbHkgewogICAgICBpZiAobW91bnRlZCkgewogICAgICAgIHNldFN0YXRlKCgpID0+IF9vcGVuaW5nQnJvd3NlciA9IGZhbHNlKTsKICAgICAgfQogICAgfQogIH0KCiAgQG92ZXJyaWRlCiAgV2lkZ2V0IGJ1aWxkKEJ1aWxkQ29udGV4dCBjb250ZXh0KSB7CiAgICByZWYubGlzdGVuPEFzeW5jVmFsdWU8QXV0aFNlc3Npb25TdGF0ZT4+KAogICAgICBhdXRoU2Vzc2lvblByb3ZpZGVyLAogICAgICAoCiAgICAgICAgQXN5bmNWYWx1ZTxBdXRoU2Vzc2lvblN0YXRlPj8gcHJldmlvdXMsCiAgICAgICAgQXN5bmNWYWx1ZTxBdXRoU2Vzc2lvblN0YXRlPiBuZXh0LAogICAgICApIHsKICAgICAgICBmaW5hbCBBdXRoU2Vzc2lvblN0YXRlPyBwcmV2U3RhdGUgPSBwcmV2aW91cz8udmFsdWVPck51bGw7CiAgICAgICAgZmluYWwgQXV0aFNlc3Npb25TdGF0ZT8gbmV4dFN0YXRlID0gbmV4dC52YWx1ZU9yTnVsbDsKICAgICAgICBpZiAobmV4dFN0YXRlIGlzIEF1dGhUd29GYWN0b3JSZXF1aXJlZCAmJgogICAgICAgICAgICBwcmV2U3RhdGUgaXMhIEF1dGhUd29GYWN0b3JSZXF1aXJlZCkgewogICAgICAgICAgLy8gRnJlc2hseSBlbnRlcmVkIDJGQTogc2hvdyB0aGUgVE9UUCBzY3JlZW4sIGNsZWFyIHRoZSBzcGlubmVyLgogICAgICAgICAgc2V0U3RhdGUoKCkgewogICAgICAgICAgICBfc2hvd1RvdHBWaWV3ID0gdHJ1ZTsKICAgICAgICAgICAgX3ZlcmlmeWluZ1RvdHAgPSBmYWxzZTsKICAgICAgICAgIH0pOwogICAgICAgIH0gZWxzZSBpZiAocHJldlN0YXRlIGlzIEF1dGhUd29GYWN0b3JSZXF1aXJlZCAmJgogICAgICAgICAgICBuZXh0U3RhdGUgaXMhIEF1dGhUd29GYWN0b3JSZXF1aXJlZCkgewogICAgICAgICAgLy8gTGVmdCAyRkEgKHZlcmlmaWVkIC8gZmFpbGVkIC8gY29uc2VudCk6IHN0b3AgdGhlIHNwaW5uZXIuCiAgICAgICAgICBzZXRTdGF0ZSgoKSA9PiBfdmVyaWZ5aW5nVG90cCA9IGZhbHNlKTsKICAgICAgICB9CiAgICAgIH0sCiAgICApOwoKICAgIGZpbmFsIEFzeW5jVmFsdWU8QXV0aFNlc3Npb25TdGF0ZT4gc2Vzc2lvbiA9CiAgICAgICAgcmVmLndhdGNoKGF1dGhTZXNzaW9uUHJvdmlkZXIpOwoKICAgIHJldHVybiBTY2FmZm9sZCgKICAgICAgYm9keTogU2FmZUFyZWEoCiAgICAgICAgY2hpbGQ6IENlbnRlcigKICAgICAgICAgIGNoaWxkOiBMYXlvdXRCdWlsZGVyKAogICAgICAgICAgICBidWlsZGVyOiAoQnVpbGRDb250ZXh0IGNvbnRleHQsIEJveENvbnN0cmFpbnRzIGNvbnN0cmFpbnRzKSB7CiAgICAgICAgICAgICAgZmluYWwgYm9vbCB3aWRlID0gY29uc3RyYWludHMubWF4V2lkdGggPj0gNjQwOwogICAgICAgICAgICAgIGZpbmFsIFdpZGdldCBjb250ZW50ID0gQ29uc3RyYWluZWRCb3goCiAgICAgICAgICAgICAgICBjb25zdHJhaW50czogY29uc3QgQm94Q29uc3RyYWludHMobWF4V2lkdGg6IDQyMCksCiAgICAgICAgICAgICAgICBjaGlsZDogU2luZ2xlQ2hpbGRTY3JvbGxWaWV3KAogICAgICAgICAgICAgICAgICBwYWRkaW5nOiBjb25zdCBFZGdlSW5zZXRzLmFsbCgyNCksCiAgICAgICAgICAgICAgICAgIGNoaWxkOiBzZXNzaW9uLndoZW4oCiAgICAgICAgICAgICAgICAgICAgZGF0YTogX2J1aWxkU3RhdGVCb2R5LAogICAgICAgICAgICAgICAgICAgIGxvYWRpbmc6ICgpID0+IGNvbnN0IF9Cb290c3RyYXBwaW5nVmlldygpLAogICAgICAgICAgICAgICAgICAgIGVycm9yOiAoT2JqZWN0IGVycm9yLCBTdGFja1RyYWNlIHN0YWNrVHJhY2UpID0+CiAgICAgICAgICAgICAgICAgICAgICAgIF9Qcm92aWRlckVycm9yVmlldygKICAgICAgICAgICAgICAgICAgICAgIG9uUmV0cnk6ICgpID0+IHJlZi5pbnZhbGlkYXRlKGF1dGhTZXNzaW9uUHJvdmlkZXIpLAogICAgICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICApLAogICAgICAgICAgICAgICk7CiAgICAgICAgICAgICAgaWYgKCF3aWRlKSB7CiAgICAgICAgICAgICAgICByZXR1cm4gY29udGVudDsKICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgcmV0dXJuIENhcmQoCiAgICAgICAgICAgICAgICBtYXJnaW46IGNvbnN0IEVkZ2VJbnNldHMuYWxsKDI0KSwKICAgICAgICAgICAgICAgIGNoaWxkOiBQYWRkaW5nKAogICAgICAgICAgICAgICAgICBwYWRkaW5nOiBjb25zdCBFZGdlSW5zZXRzLnN5bW1ldHJpYyh2ZXJ0aWNhbDogOCksCiAgICAgICAgICAgICAgICAgIGNoaWxkOiBjb250ZW50LAogICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICApOwogICAgICAgICAgICB9LAogICAgICAgICAgKSwKICAgICAgICApLAogICAgICApLAogICAgKTsKICB9CgogIC8vLyBNYXBzIHRoZSBhdXRoIHNlc3Npb24gZGF0YSBzdGF0ZSB0byBpdHMgdmlldy4KICBXaWRnZXQgX2J1aWxkU3RhdGVCb2R5KEF1dGhTZXNzaW9uU3RhdGUgc3RhdGUpIHsKICAgIHJldHVybiBzd2l0Y2ggKHN0YXRlKSB7CiAgICAgIEF1dGhBdXRoZW50aWNhdGVkKCkgPT4KICAgICAgICAvLyBXNidzIHJvdXRlciByZWRpcmVjdCBvd25zIHRoZSBob3AgdG8gL2luYm94OyByZW5kZXIgbm90aGluZy4KICAgICAgICBjb25zdCBTaXplZEJveC5zaHJpbmsoKSwKICAgICAgQXV0aENvbnNlbnRSZXF1aXJlZCgpID0+IF9idWlsZENvbnNlbnRWaWV3KHN0YXRlKSwKICAgICAgQXV0aFR3b0ZhY3RvclJlcXVpcmVkKCkgPT4KICAgICAgICBfc2hvd1RvdHBWaWV3ID8gX2J1aWxkVG90cFZpZXcoKSA6IF9idWlsZFNpZ25JbkZvcm0oKSwKICAgICAgQXV0aEZhaWx1cmUoKSA9PiBfYnVpbGRTaWduSW5Gb3JtKGVycm9yTWVzc2FnZTogc3RhdGUubWVzc2FnZSksCiAgICAgIEF1dGhMb2FkaW5nKCkgPT4gX2J1aWxkU2lnbkluRm9ybShsb2FkaW5nOiB0cnVlKSwKICAgICAgQXV0aEluaXRpYWwoKSA9PiBfYnVpbGRTaWduSW5Gb3JtKCksCiAgICB9OwogIH0KCiAgLy8vIFF1YW50TWFpbCBicmFuZGluZyBoZWFkZXIgc2hhcmVkIGJ5IHRoZSBzaWduLWluIGFuZCBjb25zZW50IHZpZXdzLgogIFdpZGdldCBfYnVpbGRCcmFuZGluZ0hlYWRlcigpIHsKICAgIGZpbmFsIFRoZW1lRGF0YSB0aGVtZSA9IFRoZW1lLm9mKGNvbnRleHQpOwogICAgZmluYWwgQ29sb3JTY2hlbWUgc2NoZW1lID0gdGhlbWUuY29sb3JTY2hlbWU7CiAgICBmaW5hbCBUZXh0VGhlbWUgdGV4dFRoZW1lID0gdGhlbWUudGV4dFRoZW1lOwogICAgcmV0dXJuIENvbHVtbigKICAgICAgbWFpbkF4aXNTaXplOiBNYWluQXhpc1NpemUubWluLAogICAgICBjaGlsZHJlbjogPFdpZGdldD5bCiAgICAgICAgU2VtYW50aWNzKAogICAgICAgICAgbGFiZWw6ICdRdWFudE1haWwgbG9nbycsCiAgICAgICAgICBpbWFnZTogdHJ1ZSwKICAgICAgICAgIGNoaWxkOiBJY29uKAogICAgICAgICAgICBJY29ucy5tYXJrX2VtYWlsX3VucmVhZF9vdXRsaW5lZCwKICAgICAgICAgICAgc2l6ZTogNTYsCiAgICAgICAgICAgIGNvbG9yOiBzY2hlbWUucHJpbWFyeSwKICAgICAgICAgICksCiAgICAgICAgKSwKICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDE2KSwKICAgICAgICBTZW1hbnRpY3MoCiAgICAgICAgICBoZWFkZXI6IHRydWUsCiAgICAgICAgICBjaGlsZDogVGV4dCgnUXVhbnRNYWlsJywgc3R5bGU6IHRleHRUaGVtZS5oZWFkbGluZU1lZGl1bSksCiAgICAgICAgKSwKICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDQpLAogICAgICAgIFRleHQoCiAgICAgICAgICAnU2lnbiBpbiB0byB5b3VyIGFjY291bnQnLAogICAgICAgICAgc3R5bGU6IHRleHRUaGVtZS5ib2R5TWVkaXVtCiAgICAgICAgICAgICAgPy5jb3B5V2l0aChjb2xvcjogc2NoZW1lLm9uU3VyZmFjZVZhcmlhbnQpLAogICAgICAgICksCiAgICAgIF0sCiAgICApOwogIH0KCiAgLy8vIEVtYWlsICsgcGFzc3dvcmQgZm9ybS4gW2Vycm9yTWVzc2FnZV0gcmVuZGVycyBhbiBlcnJvciBiYW5uZXIgKGZyb20KICAvLy8gW0F1dGhGYWlsdXJlXSk7IFtsb2FkaW5nXSBkaXNhYmxlcyB0aGUgZmllbGRzIGFuZCBzcGlucyB0aGUgYnV0dG9uLgogIFdpZGdldCBfYnVpbGRTaWduSW5Gb3JtKHtTdHJpbmc/IGVycm9yTWVzc2FnZSwgYm9vbCBsb2FkaW5nID0gZmFsc2V9KSB7CiAgICBmaW5hbCBUaGVtZURhdGEgdGhlbWUgPSBUaGVtZS5vZihjb250ZXh0KTsKICAgIGZpbmFsIFRleHRUaGVtZSB0ZXh0VGhlbWUgPSB0aGVtZS50ZXh0VGhlbWU7CiAgICByZXR1cm4gQXV0b2ZpbGxHcm91cCgKICAgICAgY2hpbGQ6IEZvcm0oCiAgICAgICAga2V5OiBfZm9ybUtleSwKICAgICAgICBjaGlsZDogQ29sdW1uKAogICAgICAgICAgbWFpbkF4aXNTaXplOiBNYWluQXhpc1NpemUubWluLAogICAgICAgICAgY3Jvc3NBeGlzQWxpZ25tZW50OiBDcm9zc0F4aXNBbGlnbm1lbnQuc3RyZXRjaCwKICAgICAgICAgIGNoaWxkcmVuOiA8V2lkZ2V0PlsKICAgICAgICAgICAgX2J1aWxkQnJhbmRpbmdIZWFkZXIoKSwKICAgICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAzMiksCiAgICAgICAgICAgIGlmIChlcnJvck1lc3NhZ2UgIT0gbnVsbCkgLi4uPFdpZGdldD5bCiAgICAgICAgICAgICAgX0Vycm9yQmFubmVyKG1lc3NhZ2U6IGVycm9yTWVzc2FnZSksCiAgICAgICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAxNiksCiAgICAgICAgICAgIF0sCiAgICAgICAgICAgIEF1dGhFbWFpbEZpZWxkKAogICAgICAgICAgICAgIGNvbnRyb2xsZXI6IF9lbWFpbENvbnRyb2xsZXIsCiAgICAgICAgICAgICAgZW5hYmxlZDogIWxvYWRpbmcsCiAgICAgICAgICAgICAgYXV0b2ZvY3VzOiB0cnVlLAogICAgICAgICAgICAgIG9uRmllbGRTdWJtaXR0ZWQ6IChfKSA9PiBfc3VibWl0TG9naW4oKSwKICAgICAgICAgICAgKSwKICAgICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAxMiksCiAgICAgICAgICAgIEF1dGhQYXNzd29yZEZpZWxkKAogICAgICAgICAgICAgIGNvbnRyb2xsZXI6IF9wYXNzd29yZENvbnRyb2xsZXIsCiAgICAgICAgICAgICAgZW5hYmxlZDogIWxvYWRpbmcsCiAgICAgICAgICAgICAgb25GaWVsZFN1Ym1pdHRlZDogKF8pID0+IF9zdWJtaXRMb2dpbigpLAogICAgICAgICAgICApLAogICAgICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDI0KSwKICAgICAgICAgICAgU2l6ZWRCb3goCiAgICAgICAgICAgICAgaGVpZ2h0OiA0OCwKICAgICAgICAgICAgICBjaGlsZDogRWxldmF0ZWRCdXR0b24oCiAgICAgICAgICAgICAgICBvblByZXNzZWQ6IGxvYWRpbmcgPyBudWxsIDogX3N1Ym1pdExvZ2luLAogICAgICAgICAgICAgICAgY2hpbGQ6IGxvYWRpbmcKICAgICAgICAgICAgICAgICAgICA/IFNpemVkQm94KAogICAgICAgICAgICAgICAgICAgICAgICB3aWR0aDogMjAsCiAgICAgICAgICAgICAgICAgICAgICAgIGhlaWdodDogMjAsCiAgICAgICAgICAgICAgICAgICAgICAgIGNoaWxkOiBDaXJjdWxhclByb2dyZXNzSW5kaWNhdG9yKAogICAgICAgICAgICAgICAgICAgICAgICAgIHN0cm9rZVdpZHRoOiAyLAogICAgICAgICAgICAgICAgICAgICAgICAgIGNvbG9yOiB0aGVtZS5jb2xvclNjaGVtZS5vblByaW1hcnksCiAgICAgICAgICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICAgICAgOiBjb25zdCBUZXh0KCdTaWduIGluJyksCiAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgKSwKICAgICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAxMiksCiAgICAgICAgICAgIFRleHQoCiAgICAgICAgICAgICAgJ1NlY3VyZWQgd2l0aCBPQXV0aDIgKyBQS0NFJywKICAgICAgICAgICAgICBzdHlsZTogdGV4dFRoZW1lLmJvZHlTbWFsbCwKICAgICAgICAgICAgICB0ZXh0QWxpZ246IFRleHRBbGlnbi5jZW50ZXIsCiAgICAgICAgICAgICksCiAgICAgICAgICBdLAogICAgICAgICksCiAgICAgICksCiAgICApOwogIH0KCiAgLy8vIDYtZGlnaXQgVE9UUCB2aWV3IGZvciBbQXV0aFR3b0ZhY3RvclJlcXVpcmVkXS4KICBXaWRnZXQgX2J1aWxkVG90cFZpZXcoKSB7CiAgICBmaW5hbCBUaGVtZURhdGEgdGhlbWUgPSBUaGVtZS5vZihjb250ZXh0KTsKICAgIGZpbmFsIENvbG9yU2NoZW1lIHNjaGVtZSA9IHRoZW1lLmNvbG9yU2NoZW1lOwogICAgZmluYWwgVGV4dFRoZW1lIHRleHRUaGVtZSA9IHRoZW1lLnRleHRUaGVtZTsKICAgIHJldHVybiBGb3JtKAogICAgICBrZXk6IF90b3RwRm9ybUtleSwKICAgICAgY2hpbGQ6IENvbHVtbigKICAgICAgICBtYWluQXhpc1NpemU6IE1haW5BeGlzU2l6ZS5taW4sCiAgICAgICAgY3Jvc3NBeGlzQWxpZ25tZW50OiBDcm9zc0F4aXNBbGlnbm1lbnQuc3RyZXRjaCwKICAgICAgICBjaGlsZHJlbjogPFdpZGdldD5bCiAgICAgICAgICBTZW1hbnRpY3MoCiAgICAgICAgICAgIGhlYWRlcjogdHJ1ZSwKICAgICAgICAgICAgY2hpbGQ6IFRleHQoCiAgICAgICAgICAgICAgJ1R3by1zdGVwIHZlcmlmaWNhdGlvbicsCiAgICAgICAgICAgICAgc3R5bGU6IHRleHRUaGVtZS5oZWFkbGluZVNtYWxsLAogICAgICAgICAgICAgIHRleHRBbGlnbjogVGV4dEFsaWduLmNlbnRlciwKICAgICAgICAgICAgKSwKICAgICAgICAgICksCiAgICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDgpLAogICAgICAgICAgVGV4dCgKICAgICAgICAgICAgJ0VudGVyIHRoZSA2LWRpZ2l0IGNvZGUgZnJvbSB5b3VyIGF1dGhlbnRpY2F0b3IgYXBwLicsCiAgICAgICAgICAgIHN0eWxlOiB0ZXh0VGhlbWUuYm9keU1lZGl1bQogICAgICAgICAgICAgICAgPy5jb3B5V2l0aChjb2xvcjogc2NoZW1lLm9uU3VyZmFjZVZhcmlhbnQpLAogICAgICAgICAgICB0ZXh0QWxpZ246IFRleHRBbGlnbi5jZW50ZXIsCiAgICAgICAgICApLAogICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAyNCksCiAgICAgICAgICBBdXRoVG90cEZpZWxkKAogICAgICAgICAgICBjb250cm9sbGVyOiBfdG90cENvbnRyb2xsZXIsCiAgICAgICAgICAgIGVuYWJsZWQ6ICFfdmVyaWZ5aW5nVG90cCwKICAgICAgICAgICAgYXV0b2ZvY3VzOiB0cnVlLAogICAgICAgICAgICBvbkZpZWxkU3VibWl0dGVkOiAoXykgPT4gX3N1Ym1pdFRvdHAoKSwKICAgICAgICAgICksCiAgICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDI0KSwKICAgICAgICAgIFNpemVkQm94KAogICAgICAgICAgICBoZWlnaHQ6IDQ4LAogICAgICAgICAgICBjaGlsZDogRWxldmF0ZWRCdXR0b24oCiAgICAgICAgICAgICAgb25QcmVzc2VkOiBfdmVyaWZ5aW5nVG90cCA/IG51bGwgOiBfc3VibWl0VG90cCwKICAgICAgICAgICAgICBjaGlsZDogX3ZlcmlmeWluZ1RvdHAKICAgICAgICAgICAgICAgICAgPyBTaXplZEJveCgKICAgICAgICAgICAgICAgICAgICAgIHdpZHRoOiAyMCwKICAgICAgICAgICAgICAgICAgICAgIGhlaWdodDogMjAsCiAgICAgICAgICAgICAgICAgICAgICBjaGlsZDogQ2lyY3VsYXJQcm9ncmVzc0luZGljYXRvcigKICAgICAgICAgICAgICAgICAgICAgICAgc3Ryb2tlV2lkdGg6IDIsCiAgICAgICAgICAgICAgICAgICAgICAgIGNvbG9yOiBzY2hlbWUub25QcmltYXJ5LAogICAgICAgICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICAgIDogY29uc3QgVGV4dCgnVmVyaWZ5JyksCiAgICAgICAgICAgICksCiAgICAgICAgICApLAogICAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiA4KSwKICAgICAgICAgIFRleHRCdXR0b24oCiAgICAgICAgICAgIG9uUHJlc3NlZDogX3ZlcmlmeWluZ1RvdHAKICAgICAgICAgICAgICAgID8gbnVsbAogICAgICAgICAgICAgICAgOiAoKSA9PiBzZXRTdGF0ZSgoKSA9PiBfc2hvd1RvdHBWaWV3ID0gZmFsc2UpLAogICAgICAgICAgICBjaGlsZDogY29uc3QgVGV4dCgnQmFjaycpLAogICAgICAgICAgKSwKICAgICAgICBdLAogICAgICApLAogICAgKTsKICB9CgogIC8vLyBDb25zZW50IGhhbmRvZmYgdmlldyBmb3IgW0F1dGhDb25zZW50UmVxdWlyZWRdOiBleHBsYWlucyB0aGUgb25lLXRpbWUKICAvLy8gYnJvd3NlciBhcHByb3ZhbCBhbmQgb3BlbnMgW0F1dGhDb25zZW50UmVxdWlyZWQuYXV0aG9yaXplVXJsXS4KICBXaWRnZXQgX2J1aWxkQ29uc2VudFZpZXcoQXV0aENvbnNlbnRSZXF1aXJlZCBzdGF0ZSkgewogICAgZmluYWwgVGhlbWVEYXRhIHRoZW1lID0gVGhlbWUub2YoY29udGV4dCk7CiAgICBmaW5hbCBDb2xvclNjaGVtZSBzY2hlbWUgPSB0aGVtZS5jb2xvclNjaGVtZTsKICAgIGZpbmFsIFRleHRUaGVtZSB0ZXh0VGhlbWUgPSB0aGVtZS50ZXh0VGhlbWU7CiAgICByZXR1cm4gQ29sdW1uKAogICAgICBtYWluQXhpc1NpemU6IE1haW5BeGlzU2l6ZS5taW4sCiAgICAgIGNyb3NzQXhpc0FsaWdubWVudDogQ3Jvc3NBeGlzQWxpZ25tZW50LnN0cmV0Y2gsCiAgICAgIGNoaWxkcmVuOiA8V2lkZ2V0PlsKICAgICAgICBfYnVpbGRCcmFuZGluZ0hlYWRlcigpLAogICAgICAgIGNvbnN0IFNpemVkQm94KGhlaWdodDogMjQpLAogICAgICAgIENhcmQoCiAgICAgICAgICBjaGlsZDogUGFkZGluZygKICAgICAgICAgICAgcGFkZGluZzogY29uc3QgRWRnZUluc2V0cy5hbGwoMjApLAogICAgICAgICAgICBjaGlsZDogQ29sdW1uKAogICAgICAgICAgICAgIG1haW5BeGlzU2l6ZTogTWFpbkF4aXNTaXplLm1pbiwKICAgICAgICAgICAgICBjaGlsZHJlbjogPFdpZGdldD5bCiAgICAgICAgICAgICAgICBJY29uKAogICAgICAgICAgICAgICAgICBJY29ucy5vcGVuX2luX2Jyb3dzZXJfb3V0bGluZWQsCiAgICAgICAgICAgICAgICAgIHNpemU6IDQwLAogICAgICAgICAgICAgICAgICBjb2xvcjogc2NoZW1lLnNlY29uZGFyeSwKICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDEyKSwKICAgICAgICAgICAgICAgIFNlbWFudGljcygKICAgICAgICAgICAgICAgICAgaGVhZGVyOiB0cnVlLAogICAgICAgICAgICAgICAgICBjaGlsZDogVGV4dCgKICAgICAgICAgICAgICAgICAgICAnQnJvd3NlciBtZSBwZXJtaXNzaW9uIGRvJywKICAgICAgICAgICAgICAgICAgICBzdHlsZTogdGV4dFRoZW1lLnRpdGxlTWVkaXVtLAogICAgICAgICAgICAgICAgICAgIHRleHRBbGlnbjogVGV4dEFsaWduLmNlbnRlciwKICAgICAgICAgICAgICAgICAgKSwKICAgICAgICAgICAgICAgICksCiAgICAgICAgICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDgpLAogICAgICAgICAgICAgICAgVGV4dCgKICAgICAgICAgICAgICAgICAgJ1BlaGxpIGJhYXIgYnJvd3NlciBtZSBwZXJtaXNzaW9uIGFwcHJvdmUga2FybmkgaG9naS4gJwogICAgICAgICAgICAgICAgICAnQ29udGludWUgZGFiYW5lIHBhciBRdWFudE1haWwga2EgY29uc2VudCBwYWdlIGtodWxlZ2EuJywKICAgICAgICAgICAgICAgICAgc3R5bGU6IHRleHRUaGVtZS5ib2R5TWVkaXVtLAogICAgICAgICAgICAgICAgICB0ZXh0QWxpZ246IFRleHRBbGlnbi5jZW50ZXIsCiAgICAgICAgICAgICAgICApLAogICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICksCiAgICAgICAgICApLAogICAgICAgICksCiAgICAgICAgY29uc3QgU2l6ZWRCb3goaGVpZ2h0OiAyNCksCiAgICAgICAgU2l6ZWRCb3goCiAgICAgICAgICBoZWlnaHQ6IDQ4LAogICAgICAgICAgY2hpbGQ6IEVsZXZhdGVkQnV0dG9uKAogICAgICAgICAgICBvblByZXNzZWQ6IF9vcGVuaW5nQnJvd3NlcgogICAgICAgICAgICAgICAgPyBudWxsCiAgICAgICAgICAgICAgICA6ICgpID0+IF9vcGVuQ29uc2VudFVybChzdGF0ZS5hdXRob3JpemVVcmwpLAogICAgICAgICAgICBjaGlsZDogX29wZW5pbmdCcm93c2VyCiAgICAgICAgICAgICAgICA/IFNpemVkQm94KAogICAgICAgICAgICAgICAgICAgIHdpZHRoOiAyMCwKICAgICAgICAgICAgICAgICAgICBoZWlnaHQ6IDIwLAogICAgICAgICAgICAgICAgICAgIGNoaWxkOiBDaXJjdWxhclByb2dyZXNzSW5kaWNhdG9yKAogICAgICAgICAgICAgICAgICAgICAgc3Ryb2tlV2lkdGg6IDIsCiAgICAgICAgICAgICAgICAgICAgICBjb2xvcjogc2NoZW1lLm9uUHJpbWFyeSwKICAgICAgICAgICAgICAgICAgICApLAogICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICA6IGNvbnN0IFRleHQoJ0NvbnRpbnVlIGluIGJyb3dzZXInKSwKICAgICAgICAgICksCiAgICAgICAgKSwKICAgICAgICBjb25zdCBTaXplZEJveChoZWlnaHQ6IDEyKSwKICAgICAgICBUZXh0KAogICAgICAgICAgJ0FwcHJvdmUga2FybmUga2UgYmFhZCBhcHAgcGFyIHdhcGFzIGFhIGphby4nLAogICAgICAgICAgc3R5bGU6IHRleHRUaGVtZS5ib2R5U21hbGwKICAgICAgICAgICAgICA/LmNvcHlXaXRoKGNvbG9yOiBzY2hlbWUub25TdXJmYWNlVmFyaWFudCksCiAgICAgICAgICB0ZXh0QWxpZ246IFRleHRBbGlnbi5jZW50ZXIsCiAgICAgICAgKSwKICAgICAgXSwKICAgICk7CiAgfQp9CgovLy8gRXJyb3IgYmFubmVyIGZvciBzaWduLWluIGZhaWx1cmVzLCBhbm5vdW5jZWQgdG8gc2NyZWVuIHJlYWRlcnMuCmNsYXNzIF9FcnJvckJhbm5lciBleHRlbmRzIFN0YXRlbGVzc1dpZGdldCB7CiAgY29uc3QgX0Vycm9yQmFubmVyKHtyZXF1aXJlZCB0aGlzLm1lc3NhZ2V9KTsKCiAgZmluYWwgU3RyaW5nIG1lc3NhZ2U7CgogIEBvdmVycmlkZQogIFdpZGdldCBidWlsZChCdWlsZENvbnRleHQgY29udGV4dCkgewogICAgZmluYWwgVGhlbWVEYXRhIHRoZW1lID0gVGhlbWUub2YoY29udGV4dCk7CiAgICBmaW5hbCBDb2xvclNjaGVtZSBzY2hlbWUgPSB0aGVtZS5jb2xvclNjaGVtZTsKICAgIHJldHVybiBTZW1hbnRpY3MoCiAgICAgIGxpdmVSZWdpb246IHRydWUsCiAgICAgIGxhYmVsOiAnU2lnbi1pbiBlcnJvcjogJG1lc3NhZ2UnLAogICAgICBjaGlsZDogQ29udGFpbmVyKAogICAgICAgIHBhZGRpbmc6IGNvbnN0IEVkZ2VJbnNldHMuc3ltbWV0cmljKGhvcml6b250YWw6IDEyLCB2ZXJ0aWNhbDogMTApLAogICAgICAgIGRlY29yYXRpb246IEJveERlY29yYXRpb24oCiAgICAgICAgICBjb2xvcjogc2NoZW1lLmVycm9yQ29udGFpbmVyLAogICAgICAgICAgYm9yZGVyUmFkaXVzOiBCb3JkZXJSYWRpdXMuY2lyY3VsYXIoMTApLAogICAgICAgICAgYm9yZGVyOiBCb3JkZXIuYWxsKGNvbG9yOiBzY2hlbWUuZXJyb3Iud2l0aFZhbHVlcyhhbHBoYTogMC40KSksCiAgICAgICAgKSwKICAgICAgICBjaGlsZDogUm93KAogICAgICAgICAgY2hpbGRyZW46IDxXaWRnZXQ+WwogICAgICAgICAgICBJY29uKEljb25zLmVycm9yX291dGxpbmUsIGNvbG9yOiBzY2hlbWUub25FcnJvckNvbnRhaW5lciwgc2l6ZTogMjApLAogICAgICAgICAgICBjb25zdCBTaXplZEJveCh3aWR0aDogOCksCiAgICAgICAgICAgIEV4cGFuZGVkKAogICAgICAgICAgICAgIGNoaWxkOiBUZXh0KAogICAgICAgICAgICAgICAgbWVzc2FnZSwKICAgICAgICAgICAgICAgIHN0eWxlOiB0aGVtZS50ZXh0VGhlbWUuYm9keVNtYWxsCiAgICAgICAgICAgICAgICAgICAgPy5jb3B5V2l0aChjb2xvcjogc2NoZW1lLm9uRXJyb3JDb250YWluZXIpLAogICAgICAgICAgICAgICksCiAgICAgICAgICAgICksCiAgICAgICAgICBdLAogICAgICAgICksCiAgICAgICksCiAgICApOwogIH0KfQoKLy8vIEJyaWVmIHNwbGFzaCB3aGlsZSB0aGUgYXV0aCBwcm92aWRlciBpcyBzdGlsbCBib290c3RyYXBwaW5nLgpjbGFzcyBfQm9vdHN0cmFwcGluZ1ZpZXcgZXh0ZW5kcyBTdGF0ZWxlc3NXaWRnZXQgewogIGNvbnN0IF9Cb290c3RyYXBwaW5nVmlldygpOwoKICBAb3ZlcnJpZGUKICBXaWRnZXQgYnVpbGQoQnVpbGRDb250ZXh0IGNvbnRleHQpIHsKICAgIC8vIE5vdGU6IGBTZW1hbnRpY3NgIChkZWZhdWx0IGN0b3IpIGlzIG5vdCBjb25zdCBpbiB0aGlzIEZsdXR0ZXIgdmVyc2lvbiwKICAgIC8vIHNvIHRoZSBQYWRkaW5nIHRyZWUgYmVsb3cgY2Fubm90IGJlIGNvbnN0IGVpdGhlci4KICAgIHJldHVybiBQYWRkaW5nKAogICAgICBwYWRkaW5nOiBjb25zdCBFZGdlSW5zZXRzLnN5bW1ldHJpYyh2ZXJ0aWNhbDogNjQpLAogICAgICBjaGlsZDogQ2VudGVyKAogICAgICAgIGNoaWxkOiBTZW1hbnRpY3MoCiAgICAgICAgICBsYWJlbDogJ0xvYWRpbmcgc2lnbi1pbiBzdGF0ZScsCiAgICAgICAgICBjaGlsZDogY29uc3QgQ2lyY3VsYXJQcm9ncmVzc0luZGljYXRvcigpLAogICAgICAgICksCiAgICAgICksCiAgICApOwogIH0KfQoKLy8vIEZhbGxiYWNrIHdoZW4gdGhlIGF1dGggcHJvdmlkZXIgaXRzZWxmIGZhaWxzIChBc3luY0Vycm9yIGJyYW5jaCkuCmNsYXNzIF9Qcm92aWRlckVycm9yVmlldyBleHRlbmRzIFN0YXRlbGVzc1dpZGdldCB7CiAgY29uc3QgX1Byb3ZpZGVyRXJyb3JWaWV3KHtyZXF1aXJlZCB0aGlzLm9uUmV0cnl9KTsKCiAgZmluYWwgVm9pZENhbGxiYWNrIG9uUmV0cnk7CgogIEBvdmVycmlkZQogIFdpZGdldCBidWlsZChCdWlsZENvbnRleHQgY29udGV4dCkgewogICAgZmluYWwgVGhlbWVEYXRhIHRoZW1lID0gVGhlbWUub2YoY29udGV4dCk7CiAgICBmaW5hbCBDb2xvclNjaGVtZSBzY2hlbWUgPSB0aGVtZS5jb2xvclNjaGVtZTsKICAgIGZpbmFsIFRleHRUaGVtZSB0ZXh0VGhlbWUgPSB0aGVtZS50ZXh0VGhlbWU7CiAgICByZXR1cm4gUGFkZGluZygKICAgICAgcGFkZGluZzogY29uc3QgRWRnZUluc2V0cy5zeW1tZXRyaWModmVydGljYWw6IDQ4KSwKICAgICAgY2hpbGQ6IENvbHVtbigKICAgICAgICBtYWluQXhpc1NpemU6IE1haW5BeGlzU2l6ZS5taW4sCiAgICAgICAgY2hpbGRyZW46IDxXaWRnZXQ+WwogICAgICAgICAgSWNvbihJY29ucy5jbG91ZF9vZmZfb3V0bGluZWQsIHNpemU6IDQ4LCBjb2xvcjogc2NoZW1lLmVycm9yKSwKICAgICAgICAgIGNvbnN0IFNpemVkQm94KGhlaWdodDogMTYpLAogICAgICAgICAgVGV4dCgnU29tZXRoaW5nIHdlbnQgd3JvbmcnLCBzdHlsZTogdGV4dFRoZW1lLnRpdGxlTWVkaXVtKSwKICAgICAgICAgIGNvbnN0IFNpemVkQm94KGhlaWdodDogOCksCiAgICAgICAgICBUZXh0KAogICAgICAgICAgICAnVGhlIHNpZ24taW4gc3RhdGUgY291bGQgbm90IGJlIGxvYWRlZC4nLAogICAgICAgICAgICBzdHlsZTogdGV4dFRoZW1lLmJvZHlNZWRpdW0KICAgICAgICAgICAgICAgID8uY29weVdpdGgoY29sb3I6IHNjaGVtZS5vblN1cmZhY2VWYXJpYW50KSwKICAgICAgICAgICAgdGV4dEFsaWduOiBUZXh0QWxpZ24uY2VudGVyLAogICAgICAgICAgKSwKICAgICAgICAgIGNvbnN0IFNpemVkQm94KGhlaWdodDogMjQpLAogICAgICAgICAgT3V0bGluZWRCdXR0b24ob25QcmVzc2VkOiBvblJldHJ5LCBjaGlsZDogY29uc3QgVGV4dCgnUmV0cnknKSksCiAgICAgICAgXSwKICAgICAgKSwKICAgICk7CiAgfQp9Cg==
+// ============================================================================
+// quant_app - OAuth2+PKCE login screen (Phase 1, M2)
+// ============================================================================
+//
+// Real login-flow UI driven by [authSessionProvider] from quant_core (W2's
+// auth contract, used verbatim):
+//
+//   AuthInitial / AuthFailure -> email + password form (+ error banner)
+//   AuthLoading               -> form with disabled fields, spinner on button
+//   AuthTwoFactorRequired     -> 6-digit TOTP screen
+//   AuthConsentRequired       -> system-browser consent handoff card
+//   AuthAuthenticated         -> nothing (W6's router redirect owns the hop)
+//
+// No fake auth anywhere: the buttons call the real [AuthSessionNotifier]
+// methods. The theme comes from the ambient [Theme] (QuantTheme is wired in
+// `src/app.dart`).
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quant_core/quant_core.dart';
+
+import '../auth/browser_launcher.dart';
+import '../widgets/auth_fields.dart';
+
+/// Sign-in screen: the OAuth2+PKCE entry point of the Phase 1 vertical slice.
+///
+/// Renders per [AuthSessionState]. On narrow screens the form is full-width;
+/// on wide screens (>= 640 logical px) it sits in a centered card, max
+/// 420 px wide.
+class LoginScreen extends ConsumerStatefulWidget {
+  /// Creates the login screen.
+  const LoginScreen({super.key});
+
+  @override
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final GlobalKey<FormState> _totpFormKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _totpController = TextEditingController();
+
+  /// Local view override: the Back button on the TOTP screen returns to the
+  /// sign-in form without touching the provider (there is no reset method;
+  /// the next login attempt overwrites the state).
+  bool _showTotpView = true;
+
+  /// Spinner on the Verify button while the notifier processes the TOTP.
+  bool _verifyingTotp = false;
+
+  /// Spinner on the consent button while the OS browser opens.
+  bool _openingBrowser = false;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _totpController.dispose();
+    super.dispose();
+  }
+
+  /// Submits the email + password form to the auth notifier.
+  Future<void> _submitLogin() async {
+    FocusScope.of(context).unfocus();
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    await ref.read(authSessionProvider.notifier).login(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+  }
+
+  /// Submits the 6-digit TOTP code to the auth notifier.
+  Future<void> _submitTotp() async {
+    FocusScope.of(context).unfocus();
+    if (!(_totpFormKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    setState(() => _verifyingTotp = true);
+    await ref.read(authSessionProvider.notifier).submitTotp(
+          _totpController.text.trim(),
+        );
+  }
+
+  /// Opens the OAuth2 consent URL in the system browser.
+  Future<void> _openConsentUrl(Uri url) async {
+    setState(() => _openingBrowser = true);
+    try {
+      final bool opened =
+          await ref.read(browserLauncherProvider).openAuthorizeUrl(url);
+      if (!mounted) {
+        return;
+      }
+      if (!opened) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Browser nahi khul paya — dobara try karo.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingBrowser = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<AsyncValue<AuthSessionState>>(
+      authSessionProvider,
+      (
+        AsyncValue<AuthSessionState>? previous,
+        AsyncValue<AuthSessionState> next,
+      ) {
+        final AuthSessionState? prevState = previous?.valueOrNull;
+        final AuthSessionState? nextState = next.valueOrNull;
+        if (nextState is AuthTwoFactorRequired &&
+            prevState is! AuthTwoFactorRequired) {
+          // Freshly entered 2FA: show the TOTP screen, clear the spinner.
+          setState(() {
+            _showTotpView = true;
+            _verifyingTotp = false;
+          });
+        } else if (prevState is AuthTwoFactorRequired &&
+            nextState is! AuthTwoFactorRequired) {
+          // Left 2FA (verified / failed / consent): stop the spinner.
+          setState(() => _verifyingTotp = false);
+        }
+      },
+    );
+
+    final AsyncValue<AuthSessionState> session =
+        ref.watch(authSessionProvider);
+
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: LayoutBuilder(
+            builder: (BuildContext context, BoxConstraints constraints) {
+              final bool wide = constraints.maxWidth >= 640;
+              final Widget content = ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: session.when(
+                    data: _buildStateBody,
+                    loading: () => const _BootstrappingView(),
+                    error: (Object error, StackTrace stackTrace) =>
+                        _ProviderErrorView(
+                      onRetry: () => ref.invalidate(authSessionProvider),
+                    ),
+                  ),
+                ),
+              );
+              if (!wide) {
+                return content;
+              }
+              return Card(
+                margin: const EdgeInsets.all(24),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: content,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Maps the auth session data state to its view.
+  Widget _buildStateBody(AuthSessionState state) {
+    return switch (state) {
+      AuthAuthenticated() =>
+        // W6's router redirect owns the hop to /inbox; render nothing.
+        const SizedBox.shrink(),
+      AuthConsentRequired() => _buildConsentView(state),
+      AuthTwoFactorRequired() =>
+        _showTotpView ? _buildTotpView() : _buildSignInForm(),
+      AuthFailure() => _buildSignInForm(errorMessage: state.message),
+      AuthLoading() => _buildSignInForm(loading: true),
+      AuthInitial() => _buildSignInForm(),
+    };
+  }
+
+  /// QuantMail branding header shared by the sign-in and consent views.
+  Widget _buildBrandingHeader() {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Semantics(
+          label: 'QuantMail logo',
+          image: true,
+          child: Icon(
+            Icons.mark_email_unread_outlined,
+            size: 56,
+            color: scheme.primary,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Semantics(
+          header: true,
+          child: Text('QuantMail', style: textTheme.headlineMedium),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Sign in to your account',
+          style: textTheme.bodyMedium
+              ?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
+
+  /// Email + password form. [errorMessage] renders an error banner (from
+  /// [AuthFailure]); [loading] disables the fields and spins the button.
+  Widget _buildSignInForm({String? errorMessage, bool loading = false}) {
+    final ThemeData theme = Theme.of(context);
+    final TextTheme textTheme = theme.textTheme;
+    return AutofillGroup(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            _buildBrandingHeader(),
+            const SizedBox(height: 32),
+            if (errorMessage != null) ...<Widget>[
+              _ErrorBanner(message: errorMessage),
+              const SizedBox(height: 16),
+            ],
+            AuthEmailField(
+              controller: _emailController,
+              enabled: !loading,
+              autofocus: true,
+              onFieldSubmitted: (_) => _submitLogin(),
+            ),
+            const SizedBox(height: 12),
+            AuthPasswordField(
+              controller: _passwordController,
+              enabled: !loading,
+              onFieldSubmitted: (_) => _submitLogin(),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: loading ? null : _submitLogin,
+                // VQA-P1-07: loading is not "disabled" — the P2-05
+                // disabled-dim would make the button read as frozen.
+                // Keep the orange CTA while the spinner runs; a light
+                // spinner on orange = unmistakable activity.
+                style: loading
+                    ? ElevatedButton.styleFrom(
+                        disabledBackgroundColor:
+                            theme.colorScheme.primary,
+                      )
+                    : null,
+                child: loading
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      )
+                    : const Text('Sign in'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Secured with your Quant ID',
+              style: textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 6-digit TOTP view for [AuthTwoFactorRequired].
+  Widget _buildTotpView() {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    return Form(
+      key: _totpFormKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Semantics(
+            header: true,
+            child: Text(
+              'Two-step verification',
+              style: textTheme.headlineSmall,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Enter the 6-digit code from your authenticator app.',
+            style: textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          AuthTotpField(
+            controller: _totpController,
+            enabled: !_verifyingTotp,
+            autofocus: true,
+            onFieldSubmitted: (_) => _submitTotp(),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 48,
+            child: ElevatedButton(
+              onPressed: _verifyingTotp ? null : _submitTotp,
+              // VQA-P1-07: loading is not "disabled" — keep the orange
+              // CTA while the spinner runs (see sign-in button).
+              style: _verifyingTotp
+                  ? ElevatedButton.styleFrom(
+                      disabledBackgroundColor: scheme.primary,
+                    )
+                  : null,
+              child: _verifyingTotp
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: scheme.onSurface,
+                      ),
+                    )
+                  : const Text('Verify code'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            // VQA-P2-06: touch target >= 48dp (program standard).
+            style: TextButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
+            onPressed: _verifyingTotp
+                ? null
+                : () => setState(() => _showTotpView = false),
+            child: const Text('Back'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Consent handoff view for [AuthConsentRequired]: explains the one-time
+  /// browser approval and opens [AuthConsentRequired.authorizeUrl].
+  Widget _buildConsentView(AuthConsentRequired state) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        _buildBrandingHeader(),
+        const SizedBox(height: 24),
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(
+                  Icons.open_in_browser_outlined,
+                  size: 40,
+                  // P2-11: single orange accent — the consent icon speaks
+                  // the primary CTA language, not the blue appAccent.
+                  color: scheme.primary,
+                ),
+                const SizedBox(height: 12),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'Browser me permission do',
+                    style: textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pehli baar browser me approve karna hoga. '
+                  'Continue dabao — QuantMail ka approval page khul jayega.',
+                  style: textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _openingBrowser
+                ? null
+                : () => _openConsentUrl(state.authorizeUrl),
+            // VQA-P1-07: loading is not "disabled" — keep the orange
+            // CTA while the spinner runs (see sign-in button).
+            style: _openingBrowser
+                ? ElevatedButton.styleFrom(
+                    disabledBackgroundColor: scheme.primary,
+                  )
+                : null,
+            child: _openingBrowser
+                ? SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: scheme.onSurface,
+                    ),
+                  )
+                : const Text('Continue in browser'),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Approve karne ke baad app par wapas aa jao.',
+          style: textTheme.bodySmall
+              ?.copyWith(color: scheme.onSurfaceVariant),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+/// Error banner for sign-in failures, announced to screen readers.
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    return Semantics(
+      liveRegion: true,
+      label: 'Sign-in error: $message',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: scheme.errorContainer,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: scheme.error.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: <Widget>[
+            Icon(Icons.error_outline, color: scheme.onErrorContainer, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onErrorContainer),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Brief splash while the auth provider is still bootstrapping.
+class _BootstrappingView extends StatelessWidget {
+  const _BootstrappingView();
+
+  @override
+  Widget build(BuildContext context) {
+    // Note: `Semantics` (default ctor) is not const in this Flutter version,
+    // so the Padding tree below cannot be const either.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 64),
+      child: Center(
+        child: Semantics(
+          label: 'Loading sign-in state',
+          child: const CircularProgressIndicator(),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fallback when the auth provider itself fails (AsyncError branch).
+class _ProviderErrorView extends StatelessWidget {
+  const _ProviderErrorView({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(Icons.cloud_off_outlined, size: 48, color: scheme.error),
+          const SizedBox(height: 16),
+          Text('Something went wrong', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Text(
+            'Sign-in shuru nahi ho paya — dobara try karo.',
+            style: textTheme.bodyMedium
+                ?.copyWith(color: scheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            // VQA-P2-06: touch target >= 48dp (program standard).
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
+            onPressed: onRetry,
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+}

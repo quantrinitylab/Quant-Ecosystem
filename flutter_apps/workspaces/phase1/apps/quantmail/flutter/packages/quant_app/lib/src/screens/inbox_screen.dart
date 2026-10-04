@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quant_app/src/widgets/failed_ops_banner.dart';
+import 'package:quant_app/src/widgets/sender_avatar.dart';
 import 'package:quant_app/src/widgets/send_undo_host.dart';
 import 'package:quant_core/quant_core.dart';
 
@@ -57,6 +58,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           child: Divider(height: 1, thickness: 1),
         ),
         actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.search),
+            tooltip: 'Search mail',
+            onPressed: () => context.pushNamed('search'),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh inbox',
@@ -210,7 +216,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               color: scheme.onSurfaceVariant,
             ),
             const SizedBox(height: 16),
-            Text("You're all caught up", style: textTheme.titleMedium),
+            Text('Sab padh liya! 🎉', style: textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
               'Naya mail aate hi yahan dikhega.',
@@ -310,19 +316,12 @@ class _ThreadRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: <Widget>[
-              CircleAvatar(
-                radius: 20,
-                // VQA-P2-02: per-sender hue variation (Gmail/Superhuman
-                // pattern) — hashed from the thread id across a small
-                // brand-token-derived palette instead of one orange wall.
-                backgroundColor:
-                    _avatarBackground(_avatarSeed(), scheme),
-                child: Text(
-                  _avatarInitial(subject),
-                  style: textTheme.titleMedium?.copyWith(
-                    color: _avatarForeground(_avatarSeed(), scheme),
-                  ),
-                ),
+              // VQA-P2-02: per-sender hue variation (Gmail/Superhuman
+              // pattern) — hashed from the thread id across a small
+              // brand-token-derived palette instead of one orange wall.
+              SenderAvatar(
+                seed: _avatarSeed(),
+                initial: _avatarInitial(subject),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -446,46 +445,4 @@ class _ThreadRow extends StatelessWidget {
     }
     return '?';
   }
-}
-
-/// VQA-P2-02: brand-derived avatar palette. The theme primary's hue is
-/// rotated across 6 stops, so per-sender avatars vary (Gmail/Superhuman
-/// scanning aid) while staying on-brand. FNV-1a keeps the seed -> hue
-/// mapping deterministic across runs (golden-safe; `String.hashCode`
-/// is not stable across executions).
-double _avatarHue(String seed, ColorScheme scheme) {
-  final double baseHue = HSLColor.fromColor(scheme.primary).hue;
-  return (baseHue + (_fnv1a32(seed) % 6) * 60.0) % 360.0;
-}
-
-/// Muted container tint for the avatar at the row's seed hue.
-Color _avatarBackground(String seed, ColorScheme scheme) {
-  final bool isDark = scheme.brightness == Brightness.dark;
-  return HSLColor.fromAHSL(
-    1,
-    _avatarHue(seed, scheme),
-    isDark ? 0.45 : 0.55,
-    isDark ? 0.30 : 0.86,
-  ).toColor();
-}
-
-/// Legible initial color on [_avatarBackground] at the same hue.
-Color _avatarForeground(String seed, ColorScheme scheme) {
-  final bool isDark = scheme.brightness == Brightness.dark;
-  return HSLColor.fromAHSL(
-    1,
-    _avatarHue(seed, scheme),
-    isDark ? 0.50 : 0.45,
-    isDark ? 0.90 : 0.25,
-  ).toColor();
-}
-
-/// FNV-1a 32-bit: tiny, dependency-free, deterministic string hash.
-int _fnv1a32(String s) {
-  int hash = 0x811C9DC5;
-  for (int i = 0; i < s.length; i++) {
-    hash ^= s.codeUnitAt(i);
-    hash = (hash * 0x01000193) & 0xFFFFFFFF;
-  }
-  return hash;
 }

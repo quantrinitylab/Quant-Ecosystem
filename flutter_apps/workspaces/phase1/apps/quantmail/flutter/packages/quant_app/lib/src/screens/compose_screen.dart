@@ -111,10 +111,17 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         ),
         actions: <Widget>[
           TextButton(
+            // VQA-P2-06: touch target >= 48dp (program standard).
+            style: TextButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Keep writing'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(64, 48),
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Discard'),
           ),
@@ -137,7 +144,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
     if (valid.isEmpty) {
       setState(() {
         _recipientError =
-            'Add at least one recipient before sending.';
+            'Bhejne se pehle kam se kam ek recipient jodo.';
       });
       HapticFeedback.lightImpact();
       return;
@@ -206,7 +213,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
         actions: <Widget>[
           IconButton(
             icon: const Icon(Icons.send),
-            tooltip: 'Send',
+            tooltip: 'Send message',
             onPressed: sending ? null : () => _send(),
           ),
         ],
@@ -232,11 +239,18 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                   Row(
                     children: <Widget>[
                       TextButton(
+                        // VQA-P2-06: touch target >= 48dp (program standard).
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                        ),
                         onPressed: () =>
                             setState(() => _ccVisible = !_ccVisible),
                         child: Text(_ccVisible ? 'Hide Cc' : 'Cc'),
                       ),
                       TextButton(
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(48, 48),
+                        ),
                         onPressed: () =>
                             setState(() => _bccVisible = !_bccVisible),
                         child: Text(_bccVisible ? 'Hide Bcc' : 'Bcc'),
@@ -268,7 +282,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Subject',
-                      hintText: 'Subject',
+                      hintText: 'Add a subject',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -282,7 +296,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                       textAlignVertical: TextAlignVertical.top,
                       keyboardType: TextInputType.multiline,
                       decoration: InputDecoration(
-                        labelText: 'Body',
+                        labelText: 'Message',
                         hintText: 'Write your message…',
                         hintStyle: TextStyle(
                           color: scheme.onSurfaceVariant,

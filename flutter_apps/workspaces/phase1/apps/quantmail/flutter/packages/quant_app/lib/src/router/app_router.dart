@@ -26,6 +26,7 @@ import 'package:quant_core/quant_core.dart';
 import '../screens/compose_screen.dart';
 import '../screens/inbox_screen.dart';
 import '../screens/login_screen.dart';
+import '../screens/search_screen.dart';
 import '../screens/thread_screen.dart';
 
 /// Root navigator key for the app (dialogs, deep links, shell-free nav).
@@ -88,7 +89,19 @@ GoRouter buildAppRouter(Ref ref) {
 
       final String location = state.matchedLocation;
       final bool isLogin = location == '/login';
-      final bool isOAuthCallback = location == '/oauth/callback';
+      // The OAuth return route is exempt so the deep-link handoff below can
+      // run. TWO paths serve the gate:
+      // - `/oauth/callback` — in-app navigations and widget tests (path-only
+      //   URIs; `state.uri.scheme` is empty there).
+      // - `/callback` — the REAL device deep link. `quantmail://oauth/callback`
+      //   parses to host=`oauth`, path=`/callback` (verified against
+      //   go_router 14.8.1: route matching is path-only), so without this
+      //   route the browser redirect after consent would land on the
+      //   "Page not found" error screen and the M2 SSO flow could never
+      //   complete on device (standing U3 blocker — root cause found
+      //   2026-10-04 while implementing the C-P2-2 scheme check).
+      final bool isOAuthCallback =
+          location == '/oauth/callback' || location == '/callback';
 
       final AsyncValue<AuthSessionState> session =
           ref.read(authSessionProvider);
@@ -164,13 +177,37 @@ GoRouter buildAppRouter(Ref ref) {
           );
         },
       ),
+      // Search: full-text mail search with Gmail-style operators, quick
+      // filter chips and recent searches. The auth gate above already
+      // covers /search (unauthenticated bounces to /login), so no extra
+      // guard here.
+      GoRoute(
+        path: '/search',
+        name: 'search',
+        builder: (BuildContext context, GoRouterState state) =>
+            const SearchScreen(),
+      ),
       // OAuth2 PKCE return leg. The OS hands the deep link here
       // (`quantmail://oauth/callback?code=…&state=…`, or the universal-link
       // equivalent); [OAuthCallbackGate] stashes the full URI for the
       // redirect hook and renders nothing.
+      //
+      // NOTE (2026-10-04): the deep link's URI parses to path `/callback`
+      // (host `oauth`), NOT `/oauth/callback` — go_router matches on
+      // `uri.path` only. The `/callback` route below is what the real
+      // device redirect hits; `/oauth/callback` stays for in-app
+      // navigations and tests.
       GoRoute(
         path: '/oauth/callback',
         name: 'oauthCallback',
+        builder: (BuildContext context, GoRouterState state) =>
+            OAuthCallbackGate(uri: state.uri),
+      ),
+      GoRoute(
+        // Device deep-link landing: `quantmail://oauth/callback?...`
+        // (Android intent-filter: scheme=quantmail, host=oauth).
+        path: '/callback',
+        name: 'oauthDeepLinkCallback',
         builder: (BuildContext context, GoRouterState state) =>
             OAuthCallbackGate(uri: state.uri),
       ),
@@ -229,6 +266,23 @@ class _OAuthCallbackGateState extends ConsumerState<OAuthCallbackGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _handedOff) return;
       _handedOff = true;
+      // C-P2-2 (defense-in-depth, zero-defect): only stash URIs that
+      // arrived on the configured OAuth redirect scheme. In-app
+      // navigations (`router.go('/oauth/callback?...')`, widget tests)
+      // carry an EMPTY scheme and are accepted; any other non-empty
+      // scheme is a foreign deep link the OS should never have routed
+      // here — its `code`/`state` must not reach the auth notifier.
+      // (Mitigations already in place: the OS only routes the claimed
+      // scheme, `completeOAuthCallback` verifies `state` against the
+      // pending authorize request.)
+      final expectedScheme = ref.read(appConfigProvider).oauthRedirectScheme;
+      final actualScheme = widget.uri.scheme;
+      if (actualScheme.isNotEmpty && actualScheme != expectedScheme) {
+        // Send the user to /login; the auth gate bounces authenticated
+        // users on to /inbox from there, so nobody is stranded.
+        GoRouter.of(context).go('/login');
+        return;
+      }
       ref.read(pendingOAuthRedirectProvider.notifier).state = widget.uri;
       // The refreshListenable only fires on auth-session emissions and the
       // pending flag itself is not watched, so trigger re-evaluation here.
