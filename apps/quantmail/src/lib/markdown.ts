@@ -228,3 +228,26 @@ export function useSafeMarkdownHtml(markdown: string | undefined, enabled: boole
     [hasDom, enabled, markdown],
   );
 }
+
+/**
+ * True when the HTML carries no real formatting — only bare structural
+ * wrappers (`p`, `div`, `br`, `hr`). Such HTML is what `plainTextToHtml` (and
+ * `composeMessageBodies`, which appends `<hr />` before a signature) emits
+ * for composer-sent mail, so its text content is eligible for Markdown
+ * rendering. Any other tag — or any attribute on a wrapper, which signals
+ * deliberate formatting — means the sender formatted the mail and the HTML
+ * must win as-is.
+ */
+export function isPlainWrapperHtml(html: string | undefined): boolean {
+  if (!html) return true;
+  const clean = html.replace(/<!--[\s\S]*?-->/g, '');
+  const tagRe = /<\/?([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(clean)) !== null) {
+    const tag = m[1].toLowerCase();
+    const attrs = m[2].trim();
+    if (!['p', 'div', 'br', 'hr'].includes(tag)) return false;
+    if (attrs !== '' && attrs !== '/') return false;
+  }
+  return true;
+}

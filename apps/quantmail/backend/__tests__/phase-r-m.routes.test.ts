@@ -430,7 +430,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(sesCallArg.cc).toEqual(['external-cc@example.com']);
     });
 
-    it('M-F12: send whose enqueue throws with SES unavailable is recorded failed, never queued', async () => {
+    it('M-F12: send whose enqueue throws with SES unavailable is recorded deferred, never queued', async () => {
       vi.mocked(sesSender.isSesConfigured).mockReturnValue(false);
 
       const mockPipeline = {
@@ -452,14 +452,18 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       };
       prisma.email.findUnique.mockResolvedValue(mockEmail);
       prisma.user.findMany.mockResolvedValue([]);
-      prisma.email.update.mockResolvedValue({ id: 'email-err-1', deliveryStatus: 'failed' });
+      // 'deferred', not 'failed': 'failed' is not a member of the Prisma
+      // EmailDeliveryStatus enum (draft | queued | sent | deferred | bounced |
+      // delivered), so persisting it throws and the draft is never flipped to
+      // Sent. 'deferred' is the design's transient-failure state.
+      prisma.email.update.mockResolvedValue({ id: 'email-err-1', deliveryStatus: 'deferred' });
 
       await serviceWithFailingPipeline.send('user-1', 'email-err-1', 'sent-folder-id');
 
       expect(prisma.email.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            deliveryStatus: 'failed',
+            deliveryStatus: 'deferred',
           }),
         }),
       );
