@@ -14,13 +14,21 @@
 // database. The guard's only job is coalescing async callers, which a
 // future chain does exactly.
 //
-// Failure policy (per op, never aborting the drain):
+// Failure policy (per op — EXCEPT on 401, which aborts the whole drain):
 // - success → `dispatched`, then reaped from the table;
 // - retryable (no HTTP response / timeout / 5xx / unknown) → attempts++,
 //   stays `pending` for the next drain;
-// - permanent (4xx) → `failed`, surfaced on [failedOps] for user
-//   retry/discard — the local optimistic flip is NOT auto-rolled back
+// - permanent (4xx other than 401) → `failed`, surfaced on [failedOps] for
+//   user retry/discard — the local optimistic flip is NOT auto-rolled back
 //   (documented policy in [ThreadMutationService]);
+// - session lost (401) → the drain ABORTS at the first 401: the op and
+//   every op after it stay `pending` (attempts untouched), because the
+//   failure is the session's, not the op's (P2-2, zero-defect). Marking
+//   them `failed` would burn user data on a mid-drain sign-out. The ops
+//   retry on the next drain after the user signs back in (reconnect
+//   watcher / next mutation). Note the entry guard in
+//   `../sync/sync_providers.dart` already prevents a drain from STARTING
+//   while signed out — this covers the mid-drain window only;
 // - poison guard: a retryable op past [maxAttempts] escalates to `failed`
 //   instead of spinning forever.
 //
@@ -53,6 +61,12 @@ enum _OpOutcome {
 
   /// Permanent (4xx): move to `failed`.
   permanent,
+
+  /// 401: the session died mid-drain (the refresh already failed, or the
+  /// op dispatched after sign-out). Abort the drain; the op stays
+  /// `pending` — the failure is the session's, never the op's, so it must
+  /// NOT burn to `failed`.
+  sessionLost,
 }
 
 /// A server-confirmed send op, emitted on [OutboxDrainer.sentOps] AFTER
@@ -145,6 +159,7 @@ class OutboxDrainer {
   Future<void> _drainInner() async {
     try {
       final ops = await _store.pendingOps();
+      var sessionLost = false;
       for (final op in ops) {
         final outcome = await _dispatch(op);
         switch (outcome) {
@@ -159,7 +174,14 @@ class OutboxDrainer {
             }
           case _OpOutcome.permanent:
             await _store.markFailed(op.opId, permanent: true);
+          case _OpOutcome.sessionLost:
+            // 401: the session died mid-drain. The op is NOT marked failed
+            // (attempts untouched — it stays `pending`), and the drain
+            // stops here: every later op would 401 too. Ops retry on the
+            // next drain after sign-in.
+            sessionLost = true;
         }
+        if (sessionLost) break;
       }
       if (!_failedController.isClosed) {
         _failedController.add(await _store.failedOps());
@@ -266,10 +288,14 @@ class OutboxDrainer {
   ///
   /// `statusCode == 0` means no HTTP response was received (network /
   /// DNS failure; see [ApiError]), `408` is the client-side timeout —
-  /// both retryable. 5xx retryable. Other 4xx permanent.
+  /// both retryable. 5xx retryable. **401 is special: the session died
+  /// mid-drain** ([_OpOutcome.sessionLost]) — it must be checked BEFORE
+  /// the generic 4xx→permanent rule, or a mid-drain sign-out burns
+  /// in-flight ops to `failed` (P2-2, zero-defect). Other 4xx permanent.
   _OpOutcome _classify(ApiError? error) {
     final status = error?.statusCode ?? 0;
     if (status == 0 || status == 408) return _OpOutcome.retryable;
+    if (status == 401) return _OpOutcome.sessionLost;
     if (status >= 500) return _OpOutcome.retryable;
     if (status >= 400) return _OpOutcome.permanent;
     return _OpOutcome.retryable;
