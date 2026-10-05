@@ -15,6 +15,7 @@ import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
+import { QuantGitUserIdModal } from './QuantGitUserIdModal';
 import { useAuth } from '../providers/auth-provider';
 
 // Safe auth hook that returns null user when outside AuthProvider (tests, SSR edge cases)
@@ -803,6 +804,9 @@ export function QuantPillarTopBar({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   // Search bar shrink state: when scrolled, search compacts and Quant AI appears beside it
   const [searchCompact, setSearchCompact] = useState(false);
+  // QuantGit User ID modal state
+  const [quantGitIdModalOpen, setQuantGitIdModalOpen] = useState(false);
+  const [quantGitUserId, setQuantGitUserId] = useState<string | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const tooltipTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
@@ -1386,6 +1390,43 @@ export function QuantPillarTopBar({
         {toastMsg}
       </div>
     )}
+
+    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active */}
+    {currentPillar === 'quantgit' && (
+      <button
+        type="button"
+        onClick={() => setQuantGitIdModalOpen(true)}
+        className="fixed bottom-20 right-4 z-[90] flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
+          boxShadow: '0 8px 24px rgba(168,85,247,0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+        }}
+        aria-label={quantGitUserId ? `QuantGit ID: @${quantGitUserId} — manage` : 'Create QuantGit User ID'}
+        title={quantGitUserId ? `@${quantGitUserId}` : 'Create your QuantGit User ID'}
+      >
+        <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
+        </svg>
+        {quantGitUserId ? `@${quantGitUserId}` : 'Create User ID'}
+      </button>
+    )}
+
+    {/* QuantGit User ID creation modal */}
+    <QuantGitUserIdModal
+      isOpen={quantGitIdModalOpen}
+      onClose={() => setQuantGitIdModalOpen(false)}
+      currentUserId={quantGitUserId}
+      onCreate={(newId) => {
+        setQuantGitUserId(newId);
+        setToastMsg(`QuantGit ID @${newId} created!`);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToastMsg(null), 3000);
+      }}
+    />
     </>
   );
 }
