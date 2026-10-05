@@ -58,6 +58,12 @@ async function fetchSpotlight(): Promise<SpotlightResponse['data']> {
   const res = await fetch('/api/spotlight', { headers: { ...getAuthHeaders() } });
   if (!res.ok) throw new Error(`Failed to load Spotlight: ${res.statusText}`);
   const json: SpotlightResponse = await res.json();
+  // A non-success or malformed payload must surface the error state (with
+  // Retry) instead of silently resolving to an empty list, which used to
+  // render a completely black, content-less page.
+  if (!json?.success || !json.data || !Array.isArray(json.data.reels)) {
+    throw new Error('Failed to load Spotlight: unexpected response');
+  }
   return json.data;
 }
 
