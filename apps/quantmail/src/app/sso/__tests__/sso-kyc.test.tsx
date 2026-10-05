@@ -21,7 +21,7 @@ vi.mock('../../../components/QuantMailLogo', () => ({
 
 const mockLogin = vi.fn();
 
-describe('SSO Phone KYC Flow', () => {
+describe('SSO Flow (no phone-KYC gate)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
@@ -39,30 +39,26 @@ describe('SSO Phone KYC Flow', () => {
     });
   });
 
-  it('renders phone KYC form if user is not phoneVerified', () => {
-    const html = renderToString(<SsoChooserContent initialStage="phone-kyc" />);
+  it('renders the sign-in form without any phone verification step', () => {
+    const html = renderToString(<SsoChooserContent initialStage="credentials" />);
 
-    expect(html).toContain('Quant Identity KYC');
-    expect(html).toContain('Phone &amp; Email Verification');
-    expect(html).toContain('Google KYC Parity');
-    expect(html).toContain('+91');
-    expect(html).toContain('Send Verification Code');
+    expect(html).toContain('Sign in to Quant Account');
+    expect(html).not.toContain('Quant Identity KYC');
+    expect(html).not.toContain('Phone &amp; Email Verification');
+    expect(html).not.toContain('Google KYC Parity');
   });
 
-  it('renders the demo OTP auto-fill chip and resend buttons when OTP is sent', () => {
-    const demoInfo = { isDemo: true, demoCode: '123456', message: 'Demo mode activated' };
-    const html = renderToString(
-      <SsoChooserContent
-        initialStage="phone-kyc"
-        initialKycOtpSent={true}
-        initialKycDemoInfo={demoInfo}
-      />,
-    );
+  it('does not render phone number input or OTP fields', () => {
+    const html = renderToString(<SsoChooserContent initialStage="credentials" />);
 
-    expect(html).toContain('✨ Auto-Fill Demo OTP: <!-- -->123456');
-    expect(html).toContain('Verify &amp; Complete KYC ✓');
-    expect(html).toContain('📱 Resend SMS');
-    expect(html).toContain('📧 Send via Email');
-    expect(html).toContain('📩 Code sent to mobile and email');
+    expect(html).not.toContain('Mobile Number');
+    expect(html).not.toContain('6-Digit Code');
+    expect(html).not.toContain('Verify &amp; Complete KYC');
+  });
+
+  it('renders two-factor stage when specified', () => {
+    const html = renderToString(<SsoChooserContent initialStage="two-factor" />);
+
+    expect(html).toContain('Two-Factor Authentication Code');
   });
 });
