@@ -20,7 +20,7 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
   },
   { pattern: /^auth\/2fa\/status$/, methods: ['GET'] },
   { pattern: /^auth\/phone$/, methods: ['GET', 'DELETE'] },
-  { pattern: /^auth\/phone\/(?:send-otp|send-email-otp|verify)$/, methods: ['POST'] },
+  { pattern: /^auth\/phone\/(?:send-otp|verify)$/, methods: ['POST'] },
   { pattern: /^email-signatures$/, methods: ['GET', 'POST'] },
   { pattern: /^email-signatures\/default$/, methods: ['GET'] },
   { pattern: /^email-signatures\/[^/]+$/, methods: ['PUT', 'DELETE'] },
