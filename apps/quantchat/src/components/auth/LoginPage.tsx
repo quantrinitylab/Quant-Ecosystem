@@ -179,10 +179,10 @@ export default function LoginPage(props: LoginPageProps) {
         </button>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 mb-6" aria-hidden="true">
-          <div className="flex-1 h-px bg-white/10" />
+        <div className="flex items-center gap-3 mb-6" role="separator" aria-label="or sign in with email and password">
+          <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
           <span className="text-xs text-slate-500">or sign in with email &amp; password</span>
-          <div className="flex-1 h-px bg-white/10" />
+          <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
         </div>
 
         {/* SECONDARY: QuantMail email/username + password */}
