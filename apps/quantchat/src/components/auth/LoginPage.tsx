@@ -23,31 +23,60 @@ export default function LoginPage(props: LoginPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
+  // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge.
+  // The token in the URL is a QuantMail-issued JWT, which is NOT valid for
+  // QuantChat's backend (different secret/issuer/audience). We MUST exchange it
+  // server-side for QuantChat-native tokens first — storing the raw QuantMail
+  // JWT caused /auth/me 401s, fail-closed session clears, and a bounce back to
+  // /login on every SSO attempt.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const bridge = UniversalSSOTokenBridge.getInstance();
-      const consumed = bridge.consumeHandoffTicket();
-      const params = new URLSearchParams(window.location.search);
-      const ticketParam = params.get('__quant_sso_ticket');
-      const tokenParam =
-        params.get('token') || params.get('accessToken') || params.get('access_token');
-      const refreshToken =
-        params.get('refreshToken') || params.get('refresh_token') || tokenParam || '';
-      const rawReturn =
-        consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+    let cancelled = false;
+    (async () => {
+      try {
+        const bridge = UniversalSSOTokenBridge.getInstance();
+        const consumed = bridge.consumeHandoffTicket();
+        const params = new URLSearchParams(window.location.search);
+        const ticketParam = params.get('__quant_sso_ticket');
+        const tokenParam =
+          params.get('token') || params.get('accessToken') || params.get('access_token');
+        const rawReturn =
+          consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
 
-      const resolvedToken =
-        consumed?.session?.token ||
-        consumed?.ticket ||
-        (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
-        tokenParam;
+        const ssoToken =
+          consumed?.session?.token ||
+          consumed?.ticket ||
+          (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
+          tokenParam;
 
-      if (resolvedToken) {
-        persistSession(resolvedToken, refreshToken || resolvedToken);
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
+        if (!ssoToken) return;
+
+        setBusy(true);
+        setError(null);
+        const res = await fetch('/api/auth/sso/exchange', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssoToken }),
+        });
+        const data = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok || !data?.success || !data?.data?.accessToken) {
+          setError('Quant Account sign-in failed. Please try again.');
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+
+        // Overwrite anything the bridge stored with the valid QuantChat tokens.
+        persistSession(data.data.accessToken, data.data.refreshToken || data.data.accessToken);
+        try {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch {
+          /* ignore */
+        }
 
         let targetDestination = '/';
         if (rawReturn) {
@@ -58,10 +87,22 @@ export default function LoginPage(props: LoginPageProps) {
           }
         }
         router.replace(targetDestination);
+      } catch {
+        if (!cancelled) {
+          setError('Quant Account sign-in failed. Please try again.');
+          try {
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } catch {
+            /* ignore */
+          }
+        }
+      } finally {
+        if (!cancelled) setBusy(false);
       }
-    } catch {
-      // Sandboxed environment
-    }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [router]);
 
   // "Continue with Quant Account" always performs a real SSO handshake with
