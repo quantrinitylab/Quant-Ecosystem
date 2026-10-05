@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import Page from '../page';
-import LoginPage, { COUNTRIES } from '../../../components/auth/LoginPage';
+import LoginPage from '../../../components/auth/LoginPage';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/login',
 }));
 
-describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
+describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
   it('renders dark luxury container with emerald/violet ambient glows via Page', () => {
     const html = renderToString(<Page />);
 
@@ -27,99 +27,56 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('Sign in to QuantChat');
   });
 
-  it('renders country code options (+91, +1, etc.) and phone input (no dev shortcuts)', () => {
+  it('promotes Continue with Quant Account as the primary login method', () => {
     const html = renderToString(<Page />);
 
-    // Country code selector & options
-    expect(html).toContain('data-testid="country-code-select"');
-    expect(html).toContain('+91');
-    expect(html).toContain('🇮🇳');
-    expect(html).toContain('+1');
-    expect(html).toContain('🇺🇸');
-    expect(html).toContain('+44');
-    expect(html).toContain('🇬🇧');
-    expect(html).toContain('+971');
-    expect(html).toContain('🇦🇪');
-    expect(html).toContain('+65');
-    expect(html).toContain('🇸🇬');
-    expect(html).toContain('+49');
-    expect(html).toContain('🇩🇪');
-    expect(html).toContain('+33');
-    expect(html).toContain('🇫🇷');
-
-    // Dev-only Quick Test chip must NOT ship to production
-    expect(html).not.toContain('data-testid="quick-test-chip"');
-    expect(html).not.toContain('Quick Test: +91 9876543210');
-
-    // Phone input
-    expect(html).toContain('id="phone"');
-    expect(html).toContain('placeholder="Phone number"');
-    expect(html).toContain('data-testid="phone-input"');
-    expect(html).toContain('Send Verification Code →');
-
-    // Continue with Quant Account option (ecosystem-consistent wording)
+    // Primary SSO hero button
+    expect(html).toContain('data-testid="quant-sso-primary-btn"');
     expect(html).toContain('Continue with Quant Account');
     expect(html).not.toContain('QuantMail SSO');
-    expect(html).toContain('data-testid="tab-quant-sso"');
-    expect(html).toContain('data-testid="phone-view-sso-btn"');
-  });
 
-  it('renders OTP state with 6-digit input boxes (demo banner hidden in non-dev)', () => {
-    const html = renderToString(<LoginPage initialStep="otp" initialPhoneNumber="9876543210" />);
-
-    // Demo banner should NOT appear in test/production (dev-only)
-    expect(html).not.toContain('data-testid="demo-otp-banner"');
-    expect(html).not.toContain('✨ Auto-Fill Demo OTP:');
-
-    // 6-digit input boxes
-    expect(html).toContain('data-testid="otp-boxes-container"');
-    expect(html).toContain('data-testid="otp-box-0"');
-    expect(html).toContain('data-testid="otp-box-1"');
-    expect(html).toContain('data-testid="otp-box-2"');
-    expect(html).toContain('data-testid="otp-box-3"');
-    expect(html).toContain('data-testid="otp-box-4"');
-    expect(html).toContain('data-testid="otp-box-5"');
-
-    // Underlying numeric input and buttons
-    expect(html).toContain('id="otp"');
-    expect(html).toContain('data-testid="otp-input"');
-    expect(html).toContain('Verify &amp; Enter QuantChat');
-    expect(html).toContain('data-testid="change-number-btn"');
-    expect(html).toContain('data-testid="resend-code-btn"');
-  });
-
-  it('hides demo OTP banner in non-development environments', () => {
-    const html = renderToString(
-      <LoginPage initialStep="otp" initialPhoneNumber="9876543210" initialDemoCode="654321" />,
-    );
-
-    // Demo banner is dev-only, should not leak to test/prod
-    expect(html).not.toContain('✨ Auto-Fill Demo OTP:');
-    expect(html).not.toContain('data-testid="demo-otp-banner"');
-  });
-
-  it('renders Continue with Quant Account tab and credentials view', () => {
-    const html = renderToString(<LoginPage initialAuthMode="password" />);
-
+    // Secondary email/password form still available
     expect(html).toContain('id="identifier"');
     expect(html).toContain('id="password"');
-    expect(html).toContain('data-testid="quantmail-sso-btn"');
-    expect(html).toContain('Continue with Quant Account');
+    expect(html).toContain('data-testid="identifier-input"');
+    expect(html).toContain('data-testid="password-input"');
+    expect(html).toContain('data-testid="submit-password-btn"');
+    expect(html).toContain('or sign in with email &amp; password');
   });
 
-  it('verifies COUNTRIES list integrity with all 7 supported international locales', () => {
-    expect(COUNTRIES).toHaveLength(7);
-    const codes = COUNTRIES.map((c) => c.code);
-    expect(codes).toEqual(['+91', '+1', '+44', '+971', '+65', '+49', '+33']);
+  it('has no phone OTP UI anywhere', () => {
+    const html = renderToString(<Page />);
 
-    const india = COUNTRIES.find((c) => c.code === '+91');
-    expect(india?.flag).toBe('🇮🇳');
-    expect(india?.label).toBe('India');
+    // Phone OTP tab, inputs and buttons must be gone
+    expect(html).not.toContain('data-testid="tab-phone-otp"');
+    expect(html).not.toContain('data-testid="tab-quant-sso"');
+    expect(html).not.toContain('data-testid="phone-view-sso-btn"');
+    expect(html).not.toContain('data-testid="country-code-select"');
+    expect(html).not.toContain('data-testid="phone-input"');
+    expect(html).not.toContain('id="phone"');
+    expect(html).not.toContain('Send Verification Code');
+    expect(html).not.toContain('Phone OTP');
 
-    const usa = COUNTRIES.find((c) => c.code === '+1');
-    expect(usa?.flag).toBe('🇺🇸');
+    // OTP verification UI must be gone
+    expect(html).not.toContain('data-testid="otp-boxes-container"');
+    expect(html).not.toContain('data-testid="otp-input"');
+    expect(html).not.toContain('data-testid="verify-otp-btn"');
+    expect(html).not.toContain('data-testid="resend-code-btn"');
+    expect(html).not.toContain('data-testid="change-number-btn"');
+    expect(html).not.toContain('verification code');
 
-    const uae = COUNTRIES.find((c) => c.code === '+971');
-    expect(uae?.flag).toBe('🇦🇪');
+    // No dev shortcuts leak
+    expect(html).not.toContain('data-testid="quick-test-chip"');
+    expect(html).not.toContain('data-testid="demo-otp-banner"');
+    expect(html).not.toContain('Auto-Fill Demo OTP');
+  });
+
+  it('renders the same SSO-primary UI for the bare LoginPage component', () => {
+    const html = renderToString(<LoginPage />);
+
+    expect(html).toContain('data-testid="quant-sso-primary-btn"');
+    expect(html).toContain('Use your QuantMail account to continue.');
+    expect(html).toContain('id="identifier"');
+    expect(html).toContain('id="password"');
   });
 });
