@@ -385,6 +385,10 @@ describe('Vizion AI v2.6.0 AI Video Generator & Camera Motion Control Engine', (
       // Test-only auth hook: video-generation routes (P0 fail-closed) require
       // a verified identity at (request as any).user.id. Mirror production's
       // auth middleware with a fixed test identity.
+      // NOTE: hook params need explicit types here. `fastifyApp` is declared as
+      // ReturnType<typeof Fastify>, and fastify's overloaded factory makes
+      // ReturnType resolve to the last overload, whose addHook overloads give
+      // this async 2-arg lambda no contextual types (TS7006 under noImplicitAny).
       fastifyApp.addHook('onRequest', async (req: FastifyRequest, _reply: FastifyReply) => {
         (req as any).user = { id: 'test-user' };
       });
