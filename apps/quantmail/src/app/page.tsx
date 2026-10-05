@@ -3555,7 +3555,7 @@ export default function InboxPage() {
         </div>
       )}
       {/* Superhuman Shortcut Dock (Floating at bottom center) */}
-      <SuperhumanShortcutDock onCommandPalette={openPalette} onUndo={undoLastArchive} />
+      <SuperhumanShortcutDock onCommandPalette={openPalette} onUndo={undoLastArchive} initialCollapsed />
     </AppShell>
   );
 }

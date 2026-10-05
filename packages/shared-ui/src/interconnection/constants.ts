@@ -163,14 +163,23 @@ export const CORE_QUANT_APPS: Record<CoreQuantAppId, QuantAppDescriptor> = {
  */
 export const SIBLING_SSO_DOMAINS = [
   'https://quantchat.quantrinity.in',
+  'https://quantchat.in',
   'https://quantube.quantrinity.in',
+  'https://quantube.in',
   'https://quantmax.quantrinity.in',
+  'https://quantmax.in',
   'https://quantgram.quantrinity.in',
+  'https://quantgram.in',
   'https://quantai.quantrinity.in',
+  'https://quantai.in',
   'https://quantwave.quantrinity.in',
+  'https://quantwave.in',
   'https://quantcooks.quantrinity.in',
+  'https://quantcooks.in',
   'https://quantads.quantrinity.in',
+  'https://quantads.in',
   'https://quanttrinity.quantrinity.in',
+  'https://quanttrinity.in',
 ] as const;
 
 /**
@@ -178,9 +187,18 @@ export const SIBLING_SSO_DOMAINS = [
  */
 export const SAFE_DOMAIN_PATTERNS: RegExp[] = [
   // Production Quant domains and subdomains
-  /^https:\/\/([a-z0-9-]+\.)?quantmail\.in(:\d+)?(\/.*)?$/i,
-  /^https:\/\/([a-z0-9-]+\.)?quantt?rinity\.in(:\d+)?(\/.*)?$/i,
-  /^https:\/\/([a-z0-9-]+\.)?quant\.network(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantmail\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantt?rinity\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quant\.network(:\d+)?(\/.*)?$/i,
+  // Canonical standalone app domains
+  /^https:\/\/([a-z0-9-]+\.)*quantchat\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantai\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantgram\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantube\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantmax\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantcooks\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantwave\.in(:\d+)?(\/.*)?$/i,
+  /^https:\/\/([a-z0-9-]+\.)*quantads\.in(:\d+)?(\/.*)?$/i,
   // Local development ports (3000 to 3015, Vite 5173/4173, etc.)
   /^http:\/\/localhost(:\d+)?(\/.*)?$/i,
   // 127.0.0.1 equivalents

@@ -1160,7 +1160,7 @@ export function QuantPillarTopBar({
       `}</style>
 
       {/* 3. Sticky Voice Search Bar */}
-      <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto order-3">
+      <div className="md:hidden relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto order-3">
         <SearchMagnifierIcon className="size-4 text-[#94A3B8] shrink-0" />
         <input
           type="search"

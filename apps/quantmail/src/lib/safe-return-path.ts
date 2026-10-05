@@ -17,6 +17,14 @@ const ALLOWED_EXACT_HOSTNAMES = new Set([
   'quantrinity.in',
   'quanttrinity.in',
   'quant.network',
+  'quantchat.in',
+  'quantai.in',
+  'quantgram.in',
+  'quantube.in',
+  'quantmax.in',
+  'quantcooks.in',
+  'quantwave.in',
+  'quantads.in',
   'localhost',
   '127.0.0.1',
 ]);
@@ -28,7 +36,15 @@ function isAllowedEcosystemHost(hostname: string): boolean {
     host.endsWith('.quantrinity.in') ||
     host.endsWith('.quanttrinity.in') ||
     host.endsWith('.quantmail.in') ||
-    host.endsWith('.quant.network')
+    host.endsWith('.quant.network') ||
+    host.endsWith('.quantchat.in') ||
+    host.endsWith('.quantai.in') ||
+    host.endsWith('.quantgram.in') ||
+    host.endsWith('.quantube.in') ||
+    host.endsWith('.quantmax.in') ||
+    host.endsWith('.quantcooks.in') ||
+    host.endsWith('.quantwave.in') ||
+    host.endsWith('.quantads.in')
   ) {
     return true;
   }
