@@ -37,6 +37,8 @@ export function useModels(): UseModelsReturn {
       if (fetched.length > 0) {
         setModels(fetched);
       }
+      // If the API returns an empty list, keep the static fallback —
+      // never leave consumers with an empty models array.
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch models';
       setError(message);
