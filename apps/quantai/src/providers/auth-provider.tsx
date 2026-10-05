@@ -57,8 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (resolvedToken) {
             ingestSSOToken(resolvedToken);
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
+            try {
+              const url = new URL(window.location.href);
+              url.searchParams.delete('__quant_sso_ticket');
+              url.searchParams.delete('token');
+              url.searchParams.delete('accessToken');
+              url.searchParams.delete('access_token');
+              url.searchParams.delete('__quant_return');
+              const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+              window.history.replaceState({}, document.title, cleanUrl);
+            } catch {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
             if (active) {
               setIsAuthenticated(true);
               setIsLoading(false);

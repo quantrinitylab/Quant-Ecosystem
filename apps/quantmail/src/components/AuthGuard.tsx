@@ -11,6 +11,8 @@ const PUBLIC_PATHS = [
   '/register',
   '/forgot-password',
   '/reset-password',
+  '/sso',
+  '/oauth',
   '/quantgit',
   // Per-app public marketing landing (apps/quantmail/src/app/marketing). It is
   // the product's own "marketing" surface from the restructure and must be
@@ -28,13 +30,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const isPublicPath =
     PUBLIC_PATHS.includes(pathname ?? '') ||
+    pathname?.startsWith('/sso') ||
+    pathname?.startsWith('/oauth') ||
     pathname?.startsWith('/quantgit') ||
     isInternalLabPath(pathname ?? '');
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isPublicPath) {
-      const returnTo =
-        pathname && pathname !== '/' ? `?returnTo=${encodeURIComponent(pathname)}` : '';
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const full = pathname ? `${pathname}${search}` : '';
+      const returnTo = full && full !== '/' ? `?returnTo=${encodeURIComponent(full)}` : '';
       router.replace(`/login${returnTo}`);
     }
   }, [isLoading, isAuthenticated, isPublicPath, router, pathname]);

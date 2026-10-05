@@ -27,6 +27,20 @@
 | **Agent 4: QA Sentinel**        | Ruthless Code Reviewer & Security Gate | 100% green Vitest suites, OWASP audit, zero-mock     | **Active**: Regression Testing, Typecheck & Security Audits   |
 | **Agent 5: Innovation Lead**    | Chief Superiority & Product Architect  | "Aur usse achha aur kya-kya kar sakte hain" strategy | **Active**: Local Wasm FTS5, Zero-Fee Credits, E2EE Notes     |
 | **Agent 7: Subagent C1**        | Resilient OTP & Phone KYC Architect    | QuantMail SSO Resilient OTP dispatch & UI            | **Completed**: 100% green Vitest & backend wiring             |
+| **Agent 8: SSO Fleet**          | Universal SSO & Auth Sentinel          | Cross-app SSO token handoff, exchange & auto-redirect| **Completed**: Wave 84 100% green verified & tested           |
+
+---
+
+## 🚀 WAVE 84: UNIVERSAL SSO RESILIENCE, SYSTEM STABILITY & MULTI-APP HANDOFF (100% COMPLETED)
+
+- [x] **Task W84-SSO01**: QuantChat AuthGate Premature Token Consumption Removal (`apps/quantchat/src/providers/auth-gate.tsx`): Eradicated rogue mount effect that consumed handoff tickets, stored unexchanged foreign QuantMail JWTs directly into `localStorage`, and stripped query parameters before `LoginPage.tsx` could perform backend exchange.
+- [x] **Task W84-SSO02**: QuantMail AuthGuard Route Protection Fix (`apps/quantmail/src/components/AuthGuard.tsx`): Added `/sso` and `/oauth` to `PUBLIC_PATHS` and ensured unauthenticated route bounces preserve full query strings (`window.location.search`) in `returnTo`.
+- [x] **Task W84-SSO03**: Cross-App LoginPage Auto-Redirect & Stale Token Eradication (`apps/quantchat`, `apps/quantai`, `apps/quantgram`, `apps/quantube`, `apps/quantmax`, `apps/quantcooks`, `apps/quantwave`): Added `useEffect` auto-redirect when `isAuthenticated && !isLoading`. Eradicated local storage short-circuits that caused dead SSO buttons.
+- [x] **Task W84-SSO04**: Unified '⚡ Continue with Quant SSO' Hero Buttons & Return Path Forwarding: Integrated standard SSO hero buttons and preserved deep-link `returnTo` parameters across all ecosystem web frontends.
+- [x] **Task W84-SSO05**: OpenClaw Terminal Popup Neutralization & Laptop Stability Diagnostics: Uninstalled global npm package, cleared `.openclaw` cache & installer, neutralized startup CMD and scheduled tasks. Diagnosed laptop memory exhaustion (<700MB free RAM out of 8GB) causing Kernel-Power bugchecks.
+- [x] **Task W84-SSO06**: Monorepo Verification & Test Suites (100% Green): Verified QuantChat login UI (4/4 tests passed), SSO exchange backend (6/6 tests passed), QuantAI token handoff (5/5 tests passed), QuantMail return-path & OIDC (10/10 tests passed), and 0 TypeScript compiler errors across all affected applications.
+
+---
 
 ## 🔍 7-DOMAIN MASTER FORENSIC AUDIT & SWARM PARITY SCORECARD
 

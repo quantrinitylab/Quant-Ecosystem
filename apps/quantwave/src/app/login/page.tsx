@@ -6,7 +6,7 @@
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
 // ============================================================================
-import { Suspense, useCallback, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/auth-provider';
 
@@ -20,7 +20,7 @@ function safeReturnPath(value: string | null): string | null {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +31,20 @@ function LoginForm() {
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Auto-redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      router.replace(destination());
+    }
+  }, [isAuthenticated, isLoading, router, destination]);
+
+  const handleQuantSSO = useCallback(() => {
+    const target = destination();
+    const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
+    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
+    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantwave`;
+  }, [destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -147,6 +161,21 @@ function LoginForm() {
             className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition-[opacity,transform] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? 'Signing in…' : 'Sign in'}
+          </button>
+
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="w-full border-t border-[var(--quant-border)]" />
+            <span className="absolute bg-[var(--quant-background)] px-2 text-xs uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+              or
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleQuantSSO}
+            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px"
+          >
+            ⚡ Continue with Quant SSO
           </button>
         </form>
 

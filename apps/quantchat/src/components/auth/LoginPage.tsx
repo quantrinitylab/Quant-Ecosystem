@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UniversalSSOTokenBridge } from '@quant/shared-ui';
+import { UniversalSSOTokenBridge, useAuth } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 
@@ -17,11 +17,19 @@ export interface LoginPageProps {
 export default function LoginPage(props: LoginPageProps) {
   void props;
   const router = useRouter();
+  const { isAuthenticated, isLoading } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+
+  // Auto-redirect if already authenticated or session restored
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      router.replace('/');
+    }
+  }, [isAuthenticated, isLoading, router]);
 
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge.
   // The token in the URL is a QuantMail-issued JWT, which is NOT valid for
@@ -34,18 +42,14 @@ export default function LoginPage(props: LoginPageProps) {
     let cancelled = false;
     (async () => {
       try {
-        const bridge = UniversalSSOTokenBridge.getInstance();
-        const consumed = bridge.consumeHandoffTicket();
         const params = new URLSearchParams(window.location.search);
         const ticketParam = params.get('__quant_sso_ticket');
         const tokenParam =
           params.get('token') || params.get('accessToken') || params.get('access_token');
-        const rawReturn =
-          consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+        const rawReturn = params.get('returnTo') || params.get('__quant_return');
 
+        const bridge = UniversalSSOTokenBridge.getInstance();
         const ssoToken =
-          consumed?.session?.token ||
-          consumed?.ticket ||
           (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
           tokenParam;
 
@@ -63,19 +67,31 @@ export default function LoginPage(props: LoginPageProps) {
         if (!res.ok || !data?.success || !data?.data?.accessToken) {
           setError('Quant Account sign-in failed. Please try again.');
           try {
-            window.history.replaceState({}, document.title, window.location.pathname);
+            const url = new URL(window.location.href);
+            url.searchParams.delete('__quant_sso_ticket');
+            url.searchParams.delete('token');
+            url.searchParams.delete('accessToken');
+            url.searchParams.delete('access_token');
+            window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
           } catch {
-            /* ignore */
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
           return;
         }
 
-        // Overwrite anything the bridge stored with the valid QuantChat tokens.
+        // Store only the valid, backend-exchanged QuantChat tokens.
         persistSession(data.data.accessToken, data.data.refreshToken || data.data.accessToken);
         try {
-          window.history.replaceState({}, document.title, window.location.pathname);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('__quant_sso_ticket');
+          url.searchParams.delete('token');
+          url.searchParams.delete('accessToken');
+          url.searchParams.delete('access_token');
+          url.searchParams.delete('__quant_return');
+          const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+          window.history.replaceState({}, document.title, cleanUrl);
         } catch {
-          /* ignore */
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
 
         let targetDestination = '/';
@@ -112,7 +128,13 @@ export default function LoginPage(props: LoginPageProps) {
   // impossible. QuantMail's chooser shows the signed-in account for 1-click
   // continue, which is the correct fast path.
   const handleQuantSSO = useCallback(() => {
-    const returnTo = encodeURIComponent(window.location.origin + '/login');
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const currentReturn = params?.get('returnTo');
+    const returnParam =
+      currentReturn && currentReturn !== '/login'
+        ? `?returnTo=${encodeURIComponent(currentReturn)}`
+        : '';
+    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
     window.location.href = `${SSO_BASE_URL}/sso?returnTo=${returnTo}&client_id=quantchat`;
   }, []);
 

@@ -24,7 +24,7 @@ function LoginForm() {
   const brandName = useBrandName();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, isAuthenticated } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -35,6 +35,13 @@ function LoginForm() {
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Auto-redirect if already authenticated or session restored via SSO / refresh
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      router.replace(destination());
+    }
+  }, [isAuthenticated, isLoading, router, destination]);
 
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
   useEffect(() => {
@@ -57,8 +64,18 @@ function LoginForm() {
 
       if (resolvedToken) {
         ingestSSOToken(resolvedToken);
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('__quant_sso_ticket');
+          url.searchParams.delete('token');
+          url.searchParams.delete('accessToken');
+          url.searchParams.delete('access_token');
+          url.searchParams.delete('__quant_return');
+          const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+          window.history.replaceState({}, document.title, cleanUrl);
+        } catch {
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
         let targetDestination = destination();
         if (rawReturn) {
@@ -75,23 +92,15 @@ function LoginForm() {
     }
   }, [router, destination]);
 
+  // "Continue with Quant Account" always performs a real SSO handshake with QuantMail.
+  // We deliberately do NOT short-circuit on a locally stored token: reusing a stale/expired
+  // local token makes the button appear dead and prevents account switching.
   const handleQuantSSO = useCallback(() => {
-    try {
-      const stored =
-        localStorage.getItem('quant_access_token') ||
-        localStorage.getItem('quant_auth_token') ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('quant_token') ||
-        localStorage.getItem('quantchat_access_token');
-      if (stored) {
-        ingestSSOToken(stored);
-        router.replace(destination());
-        return;
-      }
-    } catch {}
-    const returnTo = encodeURIComponent(window.location.origin + '/login');
+    const target = destination();
+    const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
+    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
     window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantai`;
-  }, [router, destination]);
+  }, [destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

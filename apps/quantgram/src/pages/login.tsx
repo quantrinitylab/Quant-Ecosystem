@@ -31,6 +31,10 @@ export default function LoginPage() {
   );
 
   useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      void router.replace(destination());
+      return;
+    }
     // Check if we have an active session or a token in URL/Storage
     const ssoResult =
       typeof window !== 'undefined'
@@ -43,10 +47,17 @@ export default function LoginPage() {
       urlParams.get('__quant_sso_ticket') ||
       ssoResult?.ticket;
 
-    if (isAuthenticated || hasToken) {
+    if (hasToken) {
       void router.replace(destination());
     }
-  }, [isAuthenticated, destination, router]);
+  }, [isAuthenticated, isLoading, destination, router]);
+
+  const handleQuantSSO = useCallback(() => {
+    const target = destination();
+    const returnParam = target && target !== '/' ? `?returnTo=${encodeURIComponent(target)}` : '';
+    const returnTo = encodeURIComponent(`${window.location.origin}/login${returnParam}`);
+    window.location.href = `https://quantmail.in/sso?returnTo=${returnTo}&client_id=quantgram`;
+  }, [destination]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -180,6 +191,21 @@ export default function LoginPage() {
             className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition-[opacity,transform] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isLoading ? 'Signing in…' : 'Sign in'}
+          </button>
+
+          <div className="relative my-4 flex items-center justify-center">
+            <div className="w-full border-t border-[var(--quant-border)]" />
+            <span className="absolute bg-[var(--quant-background)] px-2 text-xs uppercase tracking-wider text-[var(--quant-muted-foreground)]">
+              or
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleQuantSSO}
+            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px"
+          >
+            ⚡ Continue with Quant SSO
           </button>
         </form>
 
