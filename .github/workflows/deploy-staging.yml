@@ -349,6 +349,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           MSG91_AUTH_KEY: ${{ secrets.MSG91_AUTH_KEY }}
           MSG91_WIDGET_ID: ${{ secrets.MSG91_WIDGET_ID }}
+          MSG91_TOKEN: ${{ secrets.MSG91_TOKEN }}
         run: |
           set -euo pipefail
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
@@ -418,6 +419,16 @@ jobs:
                 --dry-run=client -o yaml > "$work/widget-patch.yaml"
               kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
                 --type=merge --patch-file "$work/widget-patch.yaml"
+            fi
+            # MSG91_TOKEN for QuantChat OTP widget (recommended by MSG91)
+            if [ -n "${MSG91_TOKEN:-}" ]; then
+              printf '%s' "$MSG91_TOKEN" > "$work/MSG91_TOKEN"
+              kubectl create secret generic quant-staging-secrets \
+                -n "$K8S_NAMESPACE" \
+                --from-file="$work/MSG91_TOKEN" \
+                --dry-run=client -o yaml > "$work/token-patch.yaml"
+              kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
+                --type=merge --patch-file "$work/token-patch.yaml"
             fi
 
             # The non-secret half stays plain env. Removing the old literal in

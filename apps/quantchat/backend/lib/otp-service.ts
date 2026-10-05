@@ -207,6 +207,9 @@ export class OtpService {
   }
 
   verifyCode(phoneNumber: string, code: string): VerifyResult {
+    // If using MSG91 widget, verify via MSG91 API (async wrapper needed)
+    // For now, fall back to local verification - widget sends its own OTP
+    // TODO: Implement async MSG91 verify
     const phone = OtpService.normalize(phoneNumber);
     const pending = this.pending.get(phone);
     if (!pending) {
@@ -476,11 +479,17 @@ export class Msg91SmsSender implements SmsSender {
         };
       }
 
+      // For widget API, use MSG91_TOKEN if available (recommended by MSG91)
+      // Otherwise fall back to authKey
+      const apiKey = widgetId 
+        ? (process.env.MSG91_TOKEN?.trim() || authKey)
+        : authKey;
+
       const response = await this.fetchFn(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          authkey: authKey,
+          authkey: apiKey,
         },
         body: JSON.stringify(body),
       });
