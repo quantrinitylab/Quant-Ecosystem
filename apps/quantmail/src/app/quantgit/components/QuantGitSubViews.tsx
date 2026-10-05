@@ -448,14 +448,21 @@ export interface QuantGitReposSubViewProps {
   repos?: RepositoryItem[];
   onSelectRepo?: (repoName: string) => void;
   onNewRepo?: () => void;
+  searchQuery?: string;
+  onSearchChange?: (val: string) => void;
 }
 
 export function QuantGitReposSubView({
   repos = DEFAULT_SUBVIEW_REPOS,
   onSelectRepo,
   onNewRepo,
+  searchQuery: externalSearchQuery,
+  onSearchChange: externalOnSearchChange,
 }: QuantGitReposSubViewProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [internalSearchQuery, setInternalSearchQuery] = useState('');
+  const searchQuery =
+    externalSearchQuery !== undefined ? externalSearchQuery : internalSearchQuery;
+  const setSearchQuery = externalOnSearchChange || setInternalSearchQuery;
   const [typeFilter, setTypeFilter] = useState<'all' | 'public' | 'private'>('all');
   const [langFilter, setLangFilter] = useState<string>('all');
 
@@ -1359,6 +1366,8 @@ export interface QuantGitSubViewsProps {
   onNewRepo?: () => void;
   onNewIssue?: () => void;
   showToast?: (msg: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (val: string) => void;
 }
 
 export function QuantGitSubViews({
@@ -1371,6 +1380,8 @@ export function QuantGitSubViews({
   onNewRepo,
   onNewIssue,
   showToast,
+  searchQuery,
+  onSearchChange,
 }: QuantGitSubViewsProps) {
   return (
     <div data-testid="quantgit-subviews-container" className="flex-1 w-full min-h-0 flex flex-col">
@@ -1378,6 +1389,8 @@ export function QuantGitSubViews({
         <QuantGitReposSubView
           onSelectRepo={onSelectRepo}
           onNewRepo={onNewRepo}
+          searchQuery={searchQuery}
+          onSearchChange={onSearchChange}
         />
       )}
 

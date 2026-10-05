@@ -35,7 +35,6 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
-import { DriveAISearchBar } from '../../components/drive/DriveAISearchBar';
 
 type DriveItem = {
   id: string;
@@ -1068,21 +1067,9 @@ function DrivePageContent() {
           </div>
         </div>
 
-        {/* Storage Quota & Semantic Search Header Bar */}
-        <div className="border-b border-[var(--quant-border)] bg-[#0C0D11] px-4 py-3 sm:px-8 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-          <div className="w-full lg:max-w-xl">
-            <DriveAISearchBar
-              onSelectFile={(selectedFileId) => {
-                const target = files.find((f) => f.id === selectedFileId);
-                if (target) {
-                  setPreviewItem(target);
-                } else {
-                  downloadFile(selectedFileId, 'file');
-                }
-              }}
-            />
-          </div>
-          <div className="w-full lg:max-w-md shrink-0">
+        {/* Storage Quota Header Bar */}
+        <div className="border-b border-[var(--quant-border)] bg-[#0C0D11] px-4 py-2 sm:px-8 flex items-center justify-end">
+          <div className="w-full sm:max-w-md shrink-0">
             <StorageQuotaBar
               onUpgradeClick={() =>
                 showToast({

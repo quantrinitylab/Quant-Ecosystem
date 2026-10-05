@@ -23,6 +23,8 @@ import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
+import { DesktopPillarRail } from './DesktopPillarRail';
+import { AccountBadge } from './AccountBadge';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -566,6 +568,25 @@ export function AppShell({
         `{children}` as well as for the shell's own.
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
+          {/* Desktop Left Pillar Rail (68px sovereign vertical dock) */}
+          {isMainSuiteRoute && (
+            <DesktopPillarRail
+              currentPillar={
+                currentApp === 'calendar'
+                  ? 'calendar'
+                  : currentApp === 'drive'
+                    ? 'drive'
+                    : currentApp === 'contacts'
+                      ? 'contacts'
+                      : currentApp === 'code'
+                        ? 'quantgit'
+                        : 'mail'
+              }
+              unreadCounts={{ mail: unreadCount }}
+              onQuantyClick={openQuanty}
+            />
+          )}
+
           {sidebar && (
             <>
               {/* Backdrop for overlay drawer */}
@@ -657,21 +678,21 @@ export function AppShell({
               (customHeader ? (
                 customHeader
               ) : (
-                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[var(--border)] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5">
-                  {/* Left: Menu trigger + Brand Logo & Title */}
-                  <div className="flex items-center gap-3">
+                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[#232938] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5">
+                  {/* Left: Active App Name / Section Breadcrumb */}
+                  <div className="flex items-center gap-3 shrink-0">
                     <button
                       ref={menuTriggerRef}
                       type="button"
                       // Hidden once the rail is pinned on a wide screen: the drawer it
                       // opens is `md:hidden` there, so the control had nothing to show.
-                      className={`inline-flex size-11 sm:size-9 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
+                      className={`inline-flex size-8 flex-none items-center justify-center rounded-lg outline-none hover:bg-[#282C35] text-[#A1A4AC] hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${isPinned ? 'md:hidden' : ''}`}
                       aria-label={isSidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
                       aria-expanded={isDrawerPresented}
                       aria-controls={drawerId}
                       onClick={() => setIsSidebarOpen((open) => !open)}
                     >
-                      <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" className="size-4.5" aria-hidden="true">
                         <path
                           d="M4 6h16M4 12h16M4 18h16"
                           fill="none"
@@ -682,65 +703,37 @@ export function AppShell({
                       </svg>
                     </button>
 
-                    {/*
-                  A real `button`, not a clickable `div`. As a div it was
-                  unreachable by keyboard and had no focus ring, and because
-                  `QuantMailLogo` also took `onClick={handleLogoClick}` while
-                  itself dispatching `quant:refresh`, one click on the mail mark
-                  fired the global refresh three times and `refetchInbox()`
-                  twice. The mark is decoration inside the button now, so the
-                  handler runs exactly once — and the wordmark is part of the
-                  same target instead of a dead strip beside it.
-                */}
                     <button
                       type="button"
-                      className="flex min-h-touch items-center gap-3 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      className="flex min-h-touch items-center gap-2.5 select-none group rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                       onClick={handleLogoClick}
                       title={`${appDisplayName(currentApp)} — Click to refresh`}
                       aria-label={`${appDisplayName(currentApp)} — refresh`}
                     >
                       {currentApp === 'calendar' ? (
-                        <QuantCalendarLogo size={36} />
+                        <QuantCalendarLogo size={28} />
                       ) : currentApp === 'drive' ? (
-                        <QuantDriveLogo size={36} />
+                        <QuantDriveLogo size={28} />
                       ) : currentApp === 'contacts' ? (
-                        <QuantContactsLogo size={36} />
+                        <QuantContactsLogo size={28} />
                       ) : currentApp === 'code' ? (
-                        <QuantGitLogo size={36} />
+                        <QuantGitLogo size={28} />
                       ) : (
-                        <QuantMailLogo size={38} unreadCount={unreadCount} interactive={false} />
+                        <QuantMailLogo size={30} unreadCount={unreadCount} interactive={false} />
                       )}
 
-                      <BrandWordmark app={currentApp} size="text-xl" />
+                      <BrandWordmark app={currentApp} size="text-sm" />
                     </button>
                   </div>
 
-                  {/*
-                Center: the live search bar, on a pointer.
-
-                A route that cannot search collapses this to `display: none` — the
-                slot takes no width, so the brand and the actions sit at the
-                header's two edges. What used to fill the `else` was a `div`
-                styled exactly like the field: same surface, same border, same
-                magnifier, the text "Search in QuantGit…". It took no focus and no
-                input. `/codehub`, `/settings` and `/workspaces` all shipped it,
-                so three of QuantMail's surfaces offered a search box that was a
-                picture of one.
-              */}
+                  {/* Center: Global search input (w-full max-w-lg, obsidian slate #111318, hairline border #232938, / shortcut) */}
                   <div
-                    className={`flex-1 max-w-xl mx-4 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
+                    className={`flex-1 max-w-lg mx-3 ${onSearchChange ? 'hidden md:flex' : 'hidden'}`}
                   >
                     {onSearchChange ? (
-                      /*
-                       * The vertical padding is on the input, not on this wrapper. With
-                       * `py-1.5` here the box looked 34px tall but the field that
-                       * actually took the click was the 16px line of text inside it, so
-                       * a click aimed at the top or bottom of the search bar did
-                       * nothing. `min-h` keeps the box the same size it looked before.
-                       */
-                      <div className="w-full flex min-h-[38px] items-center gap-2.5 px-3.5 rounded-xl bg-[#111318]/90 border border-[#282C35] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
+                      <div className="w-full flex h-[34px] items-center gap-2 px-3 rounded-lg bg-[#111318] border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner">
                         <svg
-                          className="size-4 text-[#A1A4AC] shrink-0"
+                          className="size-3.5 text-[#A1A4AC] shrink-0"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -760,48 +753,47 @@ export function AppShell({
                           type="search"
                           value={searchValue ?? ''}
                           onChange={(e) => onSearchChange(e.target.value)}
-                          // The placeholder says what is searchable, which is context,
-                          // not a name — and it is gone the moment anyone types.
                           aria-label="Search"
                           placeholder={
                             searchPlaceholder ||
-                            // Every app name comes from `appDisplayName`, so a rename
-                            // lands here too. The chain this replaced had no `code`
-                            // case, so QuantGit's search bar read "Search in
-                            // QuantMail (sender, subject, keyword)…".
                             (currentApp === 'mail'
                               ? 'Search in QuantMail (sender, subject, keyword)…'
                               : `Search in ${appDisplayName(currentApp)}…`)
                           }
-                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#A1A4AC] focus:outline-none"
+                          className="w-full self-stretch bg-transparent text-[13px] text-white placeholder-[#717888] focus:outline-none"
                         />
                         {searchValue && <SearchClearButton onClear={() => onSearchChange('')} />}
-                        {/*
-                      The pill now describes the field it sits in. `/` was always
-                      bound — to `nav.search`, which navigated to `/search` — so on
-                      this route the hint pointed at a key that left the page. The
-                      shadowing binding above puts the caret here instead; see the
-                      comment on `focusSearch`.
-                    */}
-                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#282C35] text-[10px] font-mono text-[#6B6E76] border border-[#3A404D]/60 shrink-0">
+                        <kbd className="hidden lg:inline px-1.5 py-0.5 rounded bg-[#181B22] text-[10px] font-mono text-[#6B6E76] border border-[#2B303C] shrink-0">
                           /
                         </kbd>
                       </div>
                     ) : null}
                   </div>
 
-                  {/* Right: Search + Quanty + route actions (desktop only — the
-                      whole header is `hidden md:flex`, so the phone never
-                      reaches this block; its search lives in the pillar bar
-                      and Quanty in the AI capsule) */}
-                  <div className="flex items-center gap-2">
-                    {/*
-                  Quanty, before whatever the route adds. Desktop-only in this
-                  header (the header is `hidden md:flex`); on mobile the AI
-                  capsule in the pillar bar is the way into Quanty instead, so
-                  the assistant never vanishes at any breakpoint.
-                */}
+                  {/* Right: Compact Quant AI capsule + Quanty trigger button + Account badge */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Compact Quant AI Live Capsule */}
+                    <button
+                      type="button"
+                      onClick={openQuanty}
+                      className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#111318] border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all text-xs outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                      title="Open Quant AI Assistant"
+                      aria-label="Open Quant AI Assistant"
+                    >
+                      <span className="relative flex size-2 items-center justify-center">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
+                        <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
+                      </span>
+
+                      <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] whitespace-nowrap">
+                        <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong>{' '}
+                        <span className="hidden xl:inline">3 urgent items prioritized · </span>
+                        <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms LIVE</span>
+                      </span>
+                    </button>
+
                     {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
+                    <AccountBadge compact={true} />
                     {mobileActions}
                   </div>
                 </header>
@@ -891,18 +883,20 @@ export function AppShell({
               </div>
             )}
 
-            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar */}
+            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar (mobile only — desktop uses DesktopPillarRail) */}
             {topBar !== undefined ? (
               topBar
             ) : isMainSuiteRoute && !customHeader ? (
-              <QuantPillarTopBar
-                searchValue={searchValue}
-                onSearchChange={onSearchChange}
-                searchPlaceholder={searchPlaceholder}
-                onQuantyClick={openQuanty}
-                unreadCounts={{ mail: unreadCount }}
-                lensCounts={{ mail: mailLensCounts }}
-              />
+              <div className="md:hidden">
+                <QuantPillarTopBar
+                  searchValue={searchValue}
+                  onSearchChange={onSearchChange}
+                  searchPlaceholder={searchPlaceholder}
+                  onQuantyClick={openQuanty}
+                  unreadCounts={{ mail: unreadCount }}
+                  lensCounts={{ mail: mailLensCounts }}
+                />
+              </div>
             ) : null}
 
             {/*
