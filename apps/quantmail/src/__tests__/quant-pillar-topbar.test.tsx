@@ -95,36 +95,37 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
       expect(html).toContain('#FF8C42');
-      expect(html).toContain('border-[#FF8C42]/50');
-      expect(html).toContain('shadow-[0_0_12px_rgba(255,140,66,0.18)]');
+      // New logo-only pill: blurred obsidian container + orange dot indicator
+      expect(html).toContain('rgba(13,13,18,0.85)');
+      expect(html).toContain('#FF6B35');
     });
 
     it('applies Sunset Gold active styling to Calendar tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
 
       expect(html).toContain('#F59E0B');
-      expect(html).toContain('border-[#F59E0B]/50');
+      expect(html).toContain('rgba(13,13,18,0.85)');
     });
 
     it('applies Sovereign Cyan active styling to Drive tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
 
       expect(html).toContain('#38BDF8');
-      expect(html).toContain('border-[#38BDF8]/50');
+      expect(html).toContain('rgba(13,13,18,0.85)');
     });
 
     it('applies Emerald Matrix active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       expect(html).toContain('#10B981');
-      expect(html).toContain('border-[#10B981]/50');
+      expect(html).toContain('rgba(13,13,18,0.85)');
     });
 
     it('applies Obsidian Purple active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
       expect(html).toContain('#A78BFA');
-      expect(html).toContain('border-[#A78BFA]/50');
+      expect(html).toContain('rgba(13,13,18,0.85)');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {

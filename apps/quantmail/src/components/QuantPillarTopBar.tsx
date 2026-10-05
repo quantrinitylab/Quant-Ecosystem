@@ -8,7 +8,7 @@
 // strictly ZERO generic glyphs and ZERO raw Unicode emojis.
 // ============================================================================
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { QuantMailLogo } from './QuantMailLogo';
 import { QuantCalendarLogo } from './QuantCalendarLogo';
@@ -772,9 +772,196 @@ export function QuantPillarTopBar({
     onSearchClear?.();
   };
 
+  // ==========================================================================
+  // Super-App Switcher v2 (2026-10-06 UI/UX overhaul)
+  // Sleek logo-only pill · hide-on-scroll (reappears ONLY at the very top) ·
+  // Instagram-style active retap (scroll-to-top + refresh) · long-press labels
+  // ==========================================================================
+  const dockRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const innerHeaderRef = useRef<HTMLElement>(null);
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState<number | undefined>(undefined);
+  const [dotLeft, setDotLeft] = useState(0);
+  const [spinningPillar, setSpinningPillar] = useState<PillarId | null>(null);
+  const [tooltipPillar, setTooltipPillar] = useState<PillarId | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const tooltipTimer = useRef<number | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const spinTimer = useRef<number | null>(null);
+
+  // Measure the active tab's center for the sliding orange dot indicator.
+  const measureDot = useCallback(() => {
+    const idx = PILLAR_TILES.findIndex((t) => t.id === currentPillar);
+    const tab = tabRefs.current[idx];
+    const dock = dockRef.current;
+    if (tab && dock) {
+      const dockRect = dock.getBoundingClientRect();
+      const tabRect = tab.getBoundingClientRect();
+      if (tabRect.width > 0) {
+        setDotLeft(tabRect.left - dockRect.left + tabRect.width / 2);
+      }
+    }
+  }, [currentPillar]);
+
+  useLayoutEffect(() => {
+    measureDot();
+  }, [measureDot]);
+
+  useEffect(() => {
+    window.addEventListener('resize', measureDot);
+    // Re-measure after layout settles (canvas-painted marks load async).
+    const t = window.setTimeout(measureDot, 300);
+    return () => {
+      window.removeEventListener('resize', measureDot);
+      window.clearTimeout(t);
+    };
+  }, [measureDot]);
+
+  // Keep the collapse wrapper's height synced with the real header height
+  // (the lens strip shows/hides per pillar; breakpoints change layout).
+  useEffect(() => {
+    const el = innerHeaderRef.current;
+    if (!el) return;
+    const sync = () => setHeaderHeight(el.offsetHeight || undefined);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [showLensStrip, currentPillar]);
+
+  // Hide-on-scroll: collapse when scrolling DOWN. Scrolling UP intentionally
+  // does NOT bring it back — the switcher reappears ONLY at the very top
+  // (scrollTop <= 10), so it never eats screen space mid-scroll.
+  // Capture-phase document listener catches nested page scroll containers;
+  // every scroller is tracked independently via WeakMap.
+  useEffect(() => {
+    const positions = new WeakMap<object, number>();
+    const onScroll = (e: Event) => {
+      const target = e.target as EventTarget | null;
+      let key: object | null = null;
+      let scrollTop = 0;
+      if (target === document || target === document.documentElement) {
+        key = document;
+        scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      } else if (target instanceof HTMLElement) {
+        if (target.scrollHeight <= target.clientHeight + 40) return;
+        key = target;
+        scrollTop = target.scrollTop;
+      }
+      if (!key) return;
+      const last = positions.get(key) ?? 0;
+      const delta = scrollTop - last;
+      positions.set(key, scrollTop);
+      if (scrollTop <= 10) {
+        setHeaderHidden(false);
+      } else if (delta > 8 && scrollTop > 120) {
+        setHeaderHidden(true);
+      }
+    };
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+  }, []);
+
+  // New pillar = fresh content at the top → always reveal the switcher.
+  useEffect(() => {
+    setHeaderHidden(false);
+  }, [currentPillar]);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMsg(msg);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToastMsg(null), 1800);
+  }, []);
+
+  // Instagram-style: retapping the ACTIVE pillar scrolls every scroller to
+  // the top, fires the global refresh, spins the logo, and toasts.
+  const handleActivePillarRetap = useCallback(
+    (tile: PillarTile) => {
+      triggerHapticTap(10);
+      setSpinningPillar(tile.id);
+      if (spinTimer.current) window.clearTimeout(spinTimer.current);
+      spinTimer.current = window.setTimeout(() => setSpinningPillar(null), 650);
+
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {
+        /* older webviews — ignore */
+      }
+      // Pages with custom scroll containers listen for this as well.
+      window.dispatchEvent(new CustomEvent('quant:pillar-retap', { detail: { pillar: tile.id } }));
+      // Best-effort: smooth-scroll any vertically-scrolled inner container.
+      try {
+        document.querySelectorAll<HTMLElement>('*').forEach((el) => {
+          if (el.scrollTop > 10 && el.scrollHeight > el.clientHeight + 40) {
+            try {
+              el.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch {
+              el.scrollTop = 0;
+            }
+          }
+        });
+      } catch {
+        /* ignore */
+      }
+
+      window.dispatchEvent(new CustomEvent('quant:refresh'));
+      showToast('Refreshed just now');
+    },
+    [showToast],
+  );
+
+  const startLongPress = useCallback((tile: PillarTile) => {
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = window.setTimeout(() => {
+      setTooltipPillar(tile.id);
+      triggerHapticTap([10, 40, 10]);
+      if (tooltipTimer.current) window.clearTimeout(tooltipTimer.current);
+      tooltipTimer.current = window.setTimeout(() => setTooltipPillar(null), 1300);
+    }, 500);
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  // Cleanup all timers on unmount.
+  useEffect(() => {
+    return () => {
+      [longPressTimer, tooltipTimer, toastTimer, spinTimer].forEach((r) => {
+        if (r.current) window.clearTimeout(r.current);
+      });
+    };
+  }, []);
+
+  const handleTileClickWithRetap = (tile: PillarTile) => {
+    if (tile.id === currentPillar) {
+      handleActivePillarRetap(tile);
+      return;
+    }
+    handleTileClick(tile);
+  };
+
   return (
+    <>
+    <div
+      className="sticky top-0 z-30 w-full"
+      style={{
+        height: headerHidden ? 0 : (headerHeight ?? 'auto'),
+        opacity: headerHidden ? 0 : 1,
+        overflow: 'hidden',
+        transition: headerHidden
+          ? 'height 0.25s ease-in, opacity 0.2s ease-in'
+          : 'height 0.25s ease-out, opacity 0.25s ease-out',
+      }}
+    >
     <header
-      className={`sticky top-0 z-30 w-full flex flex-col gap-2.5 px-3 pt-2.5 pb-2 bg-[#090A0E]/95 backdrop-blur-md border-b border-[#232938] select-none ${className}`}
+      ref={innerHeaderRef}
+      className={`w-full flex flex-col gap-2.5 px-3 pt-2.5 pb-2 bg-[#090A0E]/95 backdrop-blur-md border-b border-[#232938] select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
       style={{
         background: `${activeTile.themeBg}, rgba(9,10,14,0.95)`,
@@ -830,102 +1017,145 @@ export function QuantPillarTopBar({
       </div>
 
       {/*
-        2. The 5-pillar dock. First on mobile (order-1), second on desktop
-        (md:order-2) — the phone opens on the switcher, the desktop keeps the
-        capsule-first layout it shipped with.
+        2. Super-App Switcher — sleek logo-only pill (Swiggy-grade).
+        56px blurred obsidian pill · canvas-painted app marks, NO text labels ·
+        orange dot indicator with spring slide · long-press reveals the name.
+        First on mobile (order-1), second on desktop (md:order-2) — the phone
+        opens on the switcher, the desktop keeps the capsule-first layout.
       */}
-      <div
-        className="grid grid-cols-5 gap-1 sm:gap-1.5 w-full max-w-5xl mx-auto items-end order-1 md:order-2"
-        role="tablist"
-        aria-label="Application Suites"
-      >
-        {PILLAR_TILES.map((tile) => {
-          const isActive = tile.id === currentPillar;
-          const IconComp = tile.icon;
-          const badgeCount = unreadCounts?.[tile.id];
+      <div className="w-full flex justify-center order-1 md:order-2">
+        <div
+          ref={dockRef}
+          role="tablist"
+          aria-label="Application Suites"
+          className="relative flex items-center gap-0.5 px-2"
+          style={{
+            height: 56,
+            background: 'rgba(13,13,18,0.85)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+            borderRadius: 999,
+          }}
+        >
+          {PILLAR_TILES.map((tile, idx) => {
+            const isActive = tile.id === currentPillar;
+            const IconComp = tile.icon;
+            const badgeCount = unreadCounts?.[tile.id];
+            const isSpinning = spinningPillar === tile.id;
 
-          return (
-            <button
-              key={tile.id}
-              type="button"
-              role="tab"
-              data-testid={`pillar-tile-${tile.id}`}
-              aria-selected={isActive}
-              aria-label={tile.label}
-              onClick={() => handleTileClick(tile)}
-              className={`relative flex flex-col items-center justify-center gap-1 py-2 px-1 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                isActive
-                  ? `rounded-t-[20px] rounded-b-none -mb-0 translate-y-[2px] scale-[1.06] z-10 border border-b-0 ${tile.borderColor} ${tile.glowColor} shadow-lg`
-                  : 'rounded-2xl border border-[#1F2430] opacity-75 hover:opacity-100 hover:scale-[1.02]'
-              }`}
-              style={{
-                background: isActive
-                  ? `linear-gradient(180deg, ${tile.accentColor}22 0%, #16181D 60%)`
-                  : '#0E1015',
-                // Premium dock feel: transform/opacity on a ~200ms ease-out.
-                // The old 350ms springy curve read as lag on a phone.
-                transition:
-                  'transform 200ms ease-out, opacity 200ms ease-out, background-color 200ms ease-out, border-color 200ms ease-out, box-shadow 200ms ease-out',
-                boxShadow: isActive ? `0 -6px 20px ${tile.themeGlow}, 0 4px 12px rgba(0,0,0,0.3)` : undefined,
-              }}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              <div
-                className={`relative p-1.5 rounded-xl transition-all duration-200 ${
-                  isActive ? 'bg-white/10 scale-110' : 'bg-transparent'
-                }`}
-                style={{
-                  // Real marks carry their own brand colour; the accent ring
-                  // and glow around the tile do the active signalling instead
-                  // of tinting the artwork.
-                  transform: isActive ? 'scale(1.15)' : undefined,
-                  transition: 'transform 200ms ease-out, background-color 200ms ease-out',
-                  boxShadow: isActive ? `0 0 14px ${tile.themeGlow}` : undefined,
+            return (
+              <button
+                key={tile.id}
+                ref={(el) => {
+                  tabRefs.current[idx] = el;
                 }}
+                type="button"
+                role="tab"
+                data-testid={`pillar-tile-${tile.id}`}
+                aria-selected={isActive}
+                aria-label={tile.label}
+                title={tile.label}
+                onClick={() => handleTileClickWithRetap(tile)}
+                onPointerDown={() => startLongPress(tile)}
+                onPointerUp={cancelLongPress}
+                onPointerLeave={cancelLongPress}
+                onPointerCancel={cancelLongPress}
+                onContextMenu={(e) => e.preventDefault()}
+                className="relative flex flex-col items-center justify-center w-14 h-12 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-[1.2]"
+                style={{
+                  animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
+                }}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <IconComp active={isActive} />
+                <span
+                  className={isSpinning ? 'animate-[quantLogoSpin_0.6s_ease-in-out]' : undefined}
+                  style={{
+                    display: 'block',
+                    filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}66)` : undefined,
+                    transition: 'filter 0.2s ease-out',
+                  }}
+                >
+                  <IconComp active={isActive} />
+                </span>
 
                 {badgeCount !== undefined && badgeCount > 0 && (
                   <span
-                    className="absolute -top-1 -right-1.5 px-1 py-0.2 rounded-full text-[9px] font-bold leading-none shadow"
-                    style={{
-                      backgroundColor: tile.accentColor,
-                      color: '#000000',
-                    }}
+                    className="absolute top-0.5 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full text-[9px] font-bold leading-none text-black shadow"
+                    style={{ backgroundColor: tile.accentColor }}
                   >
                     {badgeCount > 99 ? '99+' : badgeCount}
                   </span>
                 )}
-              </div>
 
-              <span
-                className={`text-[11px] tracking-tight truncate leading-none transition-all duration-300 ${
-                  isActive ? 'font-bold text-white' : 'font-medium text-[#94A3B8]'
-                }`}
-              >
-                {tile.label}
-              </span>
+                {/* Long-press tooltip with the app name */}
+                {tooltipPillar === tile.id && (
+                  <span
+                    role="tooltip"
+                    className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-lg text-[11px] font-medium text-white whitespace-nowrap pointer-events-none animate-[quantTooltipIn_0.2s_ease-out]"
+                    style={{
+                      background: 'rgba(26,29,36,0.95)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    {tile.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
-              {/* Active Arch Glow Bar */}
-              {isActive && (
-                <span
-                  className="absolute -bottom-0 w-10 h-1 rounded-full"
-                  style={{
-                    backgroundColor: tile.accentColor,
-                    boxShadow: `0 0 10px ${tile.accentColor}`,
-                    animation: 'pillarArchPulse 2s ease-in-out infinite',
-                  }}
-                />
-              )}
-            </button>
-          );
-        })}
+          {/* Sliding orange dot indicator — expands from the center, then
+              slides with spring physics (Swiggy-style tab indicator). */}
+          <span
+            aria-hidden="true"
+            className="absolute bottom-[7px] pointer-events-none"
+            style={{
+              left: dotLeft,
+              transform: 'translateX(-50%)',
+              transition: 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          >
+            <span
+              key={currentPillar}
+              className="block rounded-full animate-[quantDotPop_0.3s_ease-out]"
+              style={{
+                width: 6,
+                height: 6,
+                background: '#FF6B35',
+                boxShadow: '0 0 8px #FF6B35',
+              }}
+            />
+          </span>
+        </div>
       </div>
 
       <style>{`
         @keyframes pillarArchPulse {
           0%, 100% { opacity: 1; transform: scaleX(1); }
           50% { opacity: 0.7; transform: scaleX(0.85); }
+        }
+        @keyframes quantDotPop {
+          0% { transform: scale(0.3); opacity: 0.4; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes quantLogoSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes quantTooltipIn {
+          0% { opacity: 0; transform: translateX(-50%) translateY(4px) scale(0.95); }
+          100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+        }
+        @keyframes quantToastIn {
+          0% { opacity: 0; transform: translateX(-50%) translateY(10px); }
+          100% { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes quantStaggerIn {
+          0% { opacity: 0; transform: translateY(10px) scale(0.92); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
 
@@ -1043,6 +1273,26 @@ export function QuantPillarTopBar({
       </div>
       )}
     </header>
+    </div>
+
+    {/* "Refreshed just now" toast — fixed, above the bottom nav */}
+    {toastMsg && (
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-3.5 py-2 rounded-full text-xs font-medium text-white whitespace-nowrap animate-[quantToastIn_0.25s_ease-out]"
+        style={{
+          background: 'rgba(26,29,36,0.95)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}
+      >
+        {toastMsg}
+      </div>
+    )}
+    </>
   );
 }
 

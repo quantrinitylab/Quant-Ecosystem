@@ -5382,3 +5382,74 @@ body {
   border-radius: 0.5rem;
 }
 
+/* ============================================================================
+   Quant Super-App Design Tokens — 2026-10-06 UI/UX overhaul
+   Single source of truth for the Swiggy-grade mobile experience.
+   ============================================================================ */
+:root {
+  /* Foundation */
+  --quant-bg: #0D0D12;                    /* app background: near-black, blue tint */
+  --quant-card: #131318;                  /* raised card surface */
+  --quant-card-border: rgba(255, 255, 255, 0.06);
+  --quant-card-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+
+  /* Brand */
+  --quant-primary: #FF6B35;
+  --quant-primary-end: #FF8C42;
+  --quant-primary-gradient: linear-gradient(135deg, #FF6B35 0%, #FF8C42 100%);
+
+  /* Shape */
+  --quant-radius-card: 16px;
+  --quant-radius-button: 12px;
+  --quant-radius-pill: 999px;
+
+  /* Motion */
+  --quant-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --quant-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --quant-press-scale: 0.97;
+}
+
+/* Raised card — depth via 1px border + soft shadow (never flat) */
+.quant-card {
+  background: var(--quant-card);
+  border: 1px solid var(--quant-card-border);
+  border-radius: var(--quant-radius-card);
+  box-shadow: var(--quant-card-shadow);
+}
+
+/* Press feedback: every tappable surface scales to 0.97 */
+.quant-press {
+  transition: transform 0.25s ease-out;
+  -webkit-tap-highlight-color: transparent;
+}
+.quant-press:active {
+  transform: scale(var(--quant-press-scale));
+}
+
+/* Stagger list entrance — apply with inline animation-delay per index */
+.quant-stagger-item {
+  animation: quantStaggerIn 0.35s var(--quant-ease-out) both;
+}
+@keyframes quantStaggerIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* Skeleton shimmer block (pairs with the existing .shimmer-skeleton) */
+.quant-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #1A1D24;
+  border-radius: 8px;
+}
+.quant-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: quantShimmerSlide 1.4s infinite;
+}
+@keyframes quantShimmerSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
