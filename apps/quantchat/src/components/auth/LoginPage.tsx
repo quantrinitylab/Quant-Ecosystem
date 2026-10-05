@@ -192,7 +192,6 @@ export default function LoginPage(props: LoginPageProps) {
           return;
         } catch (widgetErr) {
           // Fall through to backend API
-          console.warn('MSG91 widget send failed, falling back to backend:', widgetErr);
         }
       }
       
