@@ -29,6 +29,15 @@
 | **Agent 7: Subagent C1**        | Resilient OTP & Phone KYC Architect    | QuantMail SSO Resilient OTP dispatch & UI            | **Completed**: 100% green Vitest & backend wiring             |
 | **Agent 8: SSO Fleet**          | Universal SSO & Auth Sentinel          | Cross-app SSO token handoff, exchange & auto-redirect| **Completed**: Wave 84 100% green verified & tested           |
 
+## 🚀 WAVE 85: MULTI-APP SSO ALLOWLIST EXPANSION & QUANTMAIL UI/UX SOVEREIGN OVERHAUL (100% COMPLETED)
+
+- [x] **Task W85-SSO01**: Safe Return Path Domain Whitelist Expansion (`apps/quantmail/src/lib/safe-return-path.ts`): Added all standalone canonical domains (`quantchat.in`, `quantai.in`, `quantgram.in`, `quantube.in`, `quantmax.in`, `quantcooks.in`, `quantwave.in`, `quantads.in`) and recursive subdomain support (`*.quantrinity.in` and `*.in`), neutralizing open-redirect vulnerabilities while permitting seamless SSO landing.
+- [x] **Task W85-SSO02**: Shared-UI Interconnection Allowlist & Constants (`packages/shared-ui/src/interconnection/constants.ts`): Expanded `SIBLING_SSO_DOMAINS` and `SAFE_DOMAIN_PATTERNS` to authorize both `*.quantrinity.in` and direct `https://<app>.in` endpoints.
+- [x] **Task W85-UI01**: QuantMail Brand Mark Refinement (`apps/quantmail/src/components/QuantMailLogo.tsx`): Eradicated cartoonish mascot face (pupils, blush, wink, blink); engineered precision geometric envelope crease `paintEnvelopeFacet` with amber specular refraction and core reflection.
+- [x] **Task W85-UI02**: Desktop Header Search De-duplication (`apps/quantmail/src/components/QuantPillarTopBar.tsx`): Applied `md:hidden` to the sticky voice search bar, eliminating duplicate search bars on desktop while retaining mobile usability.
+- [x] **Task W85-UI03**: Superhuman Shortcut Dock Non-Colliding Layout (`apps/quantmail/src/app/page.tsx`): Added `initialCollapsed` to `<SuperhumanShortcutDock />` to prevent dock collisions over thread list rows.
+- [x] **Task W85-VERIFY**: End-to-End Test & Typecheck Gate (100% Green): `safe-return-path.test.ts` (11/11 passed), `InterconnectionFabric.test.tsx` (32/32 files, 398 tests passed), `superhuman-dock.test.tsx` (24/24 passed), `mark-lab-dinosaur.test.ts` (2/2 passed), 0 TypeScript compiler errors.
+
 ---
 
 ## 🚀 WAVE 84: UNIVERSAL SSO RESILIENCE, SYSTEM STABILITY & MULTI-APP HANDOFF (100% COMPLETED)
