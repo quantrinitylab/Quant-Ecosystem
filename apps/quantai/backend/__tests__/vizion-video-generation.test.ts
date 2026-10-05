@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import videoGenerationRoutes from '../routes/video-generation';
 import {
   createVideoGenerationJob,
@@ -385,7 +385,7 @@ describe('Vizion AI v2.6.0 AI Video Generator & Camera Motion Control Engine', (
       // Test-only auth hook: video-generation routes (P0 fail-closed) require
       // a verified identity at (request as any).user.id. Mirror production's
       // auth middleware with a fixed test identity.
-      fastifyApp.addHook('onRequest', async (req, _reply) => {
+      fastifyApp.addHook('onRequest', async (req: FastifyRequest, _reply: FastifyReply) => {
         (req as any).user = { id: 'test-user' };
       });
       await fastifyApp.register(videoGenerationRoutes, { prefix: '/api/ai' });
