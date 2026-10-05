@@ -217,17 +217,17 @@ export function CodeBlock({
 
   return (
     <div
-      className={`relative group rounded-lg overflow-hidden border border-[var(--quant-border)] ${className}`}
+      className={`relative group rounded-[20px] overflow-hidden border border-[var(--quant-border)] ${className}`}
     >
       {/* Header bar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-[#1e1e2e] border-b border-[var(--quant-border)]">
-        <span className="text-[10px] font-medium text-[#a6adc8] uppercase tracking-wide">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--quant-code-bg)] border-b border-[var(--quant-border)]">
+        <span className="text-xs font-medium text-[var(--quant-muted-foreground)] uppercase tracking-wide">
           {displayLang}
         </span>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowLineNumbers(!showLineNumbers)}
-            className="text-[10px] text-[#a6adc8] hover:text-white transition-colors px-1.5 py-0.5 rounded"
+            className="text-xs text-[var(--quant-muted-foreground)] hover:text-white transition-colors px-1.5 py-0.5 rounded"
             aria-label="Toggle line numbers"
           >
             #
@@ -235,7 +235,7 @@ export function CodeBlock({
           <div className="relative">
             <button
               onClick={handleCopy}
-              className="min-w-[44px] min-h-[28px] flex items-center justify-center gap-1 text-[10px] text-[#a6adc8] hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-1 text-xs text-[var(--quant-muted-foreground)] hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
               aria-label="Copy code"
             >
               {copied ? (
@@ -270,7 +270,7 @@ export function CodeBlock({
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4 }}
-                  className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 text-[10px] bg-green-600 text-white rounded whitespace-nowrap"
+                  className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 text-xs bg-green-600 text-white rounded whitespace-nowrap"
                 >
                   Copied!
                 </motion.div>
@@ -281,7 +281,7 @@ export function CodeBlock({
       </div>
 
       {/* Code content */}
-      <div className="overflow-x-auto bg-[#1e1e2e]">
+      <div className="overflow-x-auto bg-[var(--quant-code-bg)]">
         <pre className="p-3 text-sm leading-relaxed font-mono" style={{ margin: 0 }}>
           <code>
             {showLineNumbers

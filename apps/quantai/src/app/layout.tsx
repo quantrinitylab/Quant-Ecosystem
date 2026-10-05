@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import './globals.css';
@@ -25,6 +25,15 @@ export async function generateMetadata(): Promise<Metadata> {
     },
   };
 }
+
+// Phase 0: proper mobile viewport — without this, mobile loads at ~980px
+// zoomed-out and safe-area insets don't apply.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#000000',
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const host = (await headers()).get('host');

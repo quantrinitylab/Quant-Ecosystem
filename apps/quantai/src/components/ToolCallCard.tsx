@@ -52,7 +52,7 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', ...spring.snappy }}
-      className={`border border-[var(--quant-border)] rounded-lg shadow-sm overflow-hidden bg-[var(--quant-surface)] ${className}`}
+      className={`border border-[var(--quant-border)] rounded-[20px] shadow-sm overflow-hidden bg-[var(--quant-surface)] ${className}`}
     >
       {/* Header */}
       <button
@@ -67,7 +67,7 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
         </span>
         <StatusBadge status={toolCall.status} />
         {toolCall.duration != null && toolCall.status === 'completed' && (
-          <span className="text-[11px] text-[var(--quant-text-secondary)] whitespace-nowrap">
+          <span className="text-xs text-[var(--quant-text-secondary)] whitespace-nowrap">
             Completed in {formatDuration(toolCall.duration)}
           </span>
         )}
@@ -136,10 +136,10 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
             <div className="p-3 space-y-3">
               {/* Input parameters */}
               <div>
-                <span className="text-[11px] font-medium text-[var(--quant-text-secondary)] uppercase tracking-wide">
+                <span className="text-xs font-medium text-[var(--quant-text-secondary)] uppercase tracking-wide">
                   Input Parameters
                 </span>
-                <pre className="text-xs mt-1.5 p-2.5 rounded-md bg-[#1e1e2e] text-[#cdd6f4] overflow-x-auto font-mono leading-relaxed">
+                <pre className="text-xs mt-1.5 p-2.5 rounded-md bg-[var(--quant-code-bg)] text-[var(--quant-code-fg)] overflow-x-auto font-mono leading-relaxed">
                   {formatJSON(toolCall.arguments)}
                 </pre>
               </div>
@@ -147,10 +147,10 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
               {/* Output result */}
               {toolCall.result !== undefined && (
                 <div>
-                  <span className="text-[11px] font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400 uppercase tracking-wide">
                     Output Result
                   </span>
-                  <pre className="text-xs mt-1.5 p-2.5 rounded-md bg-[#1e1e2e] text-[#a6e3a1] overflow-x-auto font-mono leading-relaxed">
+                  <pre className="text-xs mt-1.5 p-2.5 rounded-md bg-[var(--quant-code-bg)] text-[var(--quant-code-fg)] overflow-x-auto font-mono leading-relaxed">
                     {typeof toolCall.result === 'string'
                       ? toolCall.result
                       : formatJSON(toolCall.result)}
@@ -161,7 +161,7 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
               {/* Error */}
               {toolCall.error && (
                 <div>
-                  <span className="text-[11px] font-medium text-red-500 uppercase tracking-wide">
+                  <span className="text-xs font-medium text-red-500 uppercase tracking-wide">
                     Error
                   </span>
                   <p className="text-xs mt-1.5 p-2.5 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400">
@@ -186,7 +186,7 @@ export function ToolCallCard({ toolCall, onConfirm, onCancel, className = '' }: 
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
-                  <span className="text-[11px] text-[var(--quant-text-secondary)]">
+                  <span className="text-xs text-[var(--quant-text-secondary)]">
                     Execution time: {formatDuration(toolCall.duration)}
                   </span>
                 </div>
@@ -203,7 +203,7 @@ function StatusBadge({ status }: { status: ToolCall['status'] }) {
   const config = {
     pending: {
       label: 'Pending',
-      className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+      className: 'bg-white/5 text-[var(--quant-muted-foreground)]',
       icon: (
         <motion.span
           animate={{ opacity: [1, 0.4, 1] }}
@@ -214,7 +214,7 @@ function StatusBadge({ status }: { status: ToolCall['status'] }) {
     },
     running: {
       label: 'Running',
-      className: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+      className: 'bg-blue-500/10 text-blue-400',
       icon: (
         <motion.svg
           animate={{ rotate: 360 }}
@@ -235,7 +235,7 @@ function StatusBadge({ status }: { status: ToolCall['status'] }) {
     },
     completed: {
       label: 'Done',
-      className: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
+      className: 'bg-emerald-500/10 text-emerald-400',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -244,7 +244,7 @@ function StatusBadge({ status }: { status: ToolCall['status'] }) {
     },
     failed: {
       label: 'Failed',
-      className: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+      className: 'bg-red-500/10 text-red-400',
       icon: (
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
@@ -260,7 +260,7 @@ function StatusBadge({ status }: { status: ToolCall['status'] }) {
 
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${config.className}`}
+      className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${config.className}`}
     >
       {config.icon}
       {config.label}

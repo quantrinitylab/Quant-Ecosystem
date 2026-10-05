@@ -23,7 +23,7 @@ export function AgenticMessage({
   return (
     <motion.div layout className={`space-y-3 ${className}`}>
       {reasoning && (
-        <div className="border border-[var(--quant-border)] rounded-lg overflow-hidden">
+        <div className="border border-[var(--quant-border)] rounded-[20px] overflow-hidden">
           <button
             onClick={() => setShowReasoning(!showReasoning)}
             className="w-full flex items-center gap-2 p-2.5 text-left hover:bg-[var(--quant-surface-hover)] transition-colors"

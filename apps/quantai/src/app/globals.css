@@ -14,11 +14,18 @@
   /* Semantic tokens mapped from brand */
   --quant-primary: var(--brand-primary);
   --quant-secondary: #8b5cf6;
+  /* Phase 0+1: accent token — was referenced but never defined, which left
+     the composer focus ring, streaming cursor, mode pills and search focus
+     ring dead. Muse-grade violet identity. */
+  --quant-accent: #8B5CF6;
+  --quant-accent-soft: rgba(139, 92, 246, 0.14);
+  --quant-accent-border: rgba(139, 92, 246, 0.4);
   --quant-background: #ffffff;
   --quant-foreground: #0f172a;
   --quant-muted: #f1f5f9;
   --quant-muted-foreground: #64748b;
   --quant-border: #e2e8f0;
+  --quant-border-strong: #cbd5e1;
   --quant-ring: var(--brand-primary);
   --quant-radius: 0.5rem;
   --quant-card: #ffffff;
@@ -29,6 +36,18 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #22c55e;
   --quant-warning: #f59e0b;
+  /* Phase 0+1: surface/text aliases — components reference --quant-surface*
+     but only --surface* existed, so many surfaces rendered transparent. */
+  --quant-surface: var(--surface);
+  --quant-surface-elevated: var(--surface-elevated);
+  --quant-surface-hover: var(--surface-hover);
+  --quant-surface-subtle: #f8fafc;
+  --quant-text: var(--foreground);
+  --quant-text-secondary: var(--foreground-secondary);
+  /* Phase 1: code surfaces (replaces hardcoded Catppuccin hex) */
+  --quant-code-bg: #f1f5f9;
+  --quant-code-fg: #334155;
+  --quant-code-border: #e2e8f0;
 
   /* Surface tokens */
   --surface: #ffffff;
@@ -50,6 +69,7 @@
   --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
   --quant-border: #1e293b;
+  --quant-border-strong: #334155;
   --quant-card: #1a1a24;
   --quant-card-foreground: #f8fafc;
   --quant-popover: #1a1a24;
@@ -59,6 +79,11 @@
   --quant-destructive-foreground: #ffffff;
   --quant-success: #16a34a;
   --quant-warning: #d97706;
+  /* Phase 0+1: dark aliases mirror :root so --quant-surface* resolves */
+  --quant-surface-subtle: #0d0d10;
+  --quant-code-bg: #16161d;
+  --quant-code-fg: #c9d1e0;
+  --quant-code-border: #26263a;
 
   /* Surface tokens - dark */
   --surface: #0F0F14;
@@ -153,9 +178,9 @@ html {
 .quant-field:focus,
 .quant-field:focus-visible {
   outline: none;
-  border-color: var(--quant-accent-border, rgba(255, 173, 92, 0.4));
+  border-color: var(--quant-accent-border, rgba(139, 92, 246, 0.4));
   background: var(--quant-surface-elevated, #17171d);
-  box-shadow: 0 0 0 3px var(--quant-accent-soft, rgba(255, 153, 51, 0.14));
+  box-shadow: 0 0 0 3px var(--quant-accent-soft, rgba(139, 92, 246, 0.14));
 }
 .quant-field-error { border-color: var(--quant-destructive, #f87171); }
 .quant-field-error:focus { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.16); }
@@ -174,11 +199,11 @@ html {
 
 .quant-btn { border: 1px solid transparent; }
 .quant-btn-primary {
-  background: var(--brand-primary, #ff9933);
-  color: #14100b;
+  background: var(--brand-primary, #4F46E5);
+  color: #ffffff;
   font-weight: 640;
 }
-.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover, #ffad5c); }
+.quant-btn-primary:hover:not(:disabled) { background: var(--brand-primary-hover, #4338CA); }
 .quant-btn-secondary {
   background: var(--quant-surface-elevated, #17171d);
   border-color: var(--quant-border, rgba(255, 255, 255, 0.12));
@@ -193,3 +218,61 @@ html {
   background: var(--quant-surface-hover, #1d1c23);
   color: var(--quant-foreground, #f5f3f7);
 }
+
+/* ==========================================================================
+   ChatStream — streamed markdown typography (Phase 0 fix).
+   These classes were rendered with zero CSS, so streamed assistant output
+   had no visual hierarchy (Tailwind preflight collapses h1-h6 to body size).
+   ========================================================================== */
+.chat-stream {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--quant-foreground);
+  overflow-wrap: break-word;
+}
+.stream-content > * + * { margin-top: 0.75rem; }
+.chat-stream .stream-heading { font-weight: 700; line-height: 1.3; margin: 1rem 0 0.5rem; }
+.chat-stream h1.stream-heading { font-size: 1.5rem; }
+.chat-stream h2.stream-heading { font-size: 1.25rem; }
+.chat-stream h3.stream-heading { font-size: 1.125rem; }
+.chat-stream h4.stream-heading,
+.chat-stream h5.stream-heading,
+.chat-stream h6.stream-heading { font-size: 1rem; }
+.chat-stream .list-item { display: flex; gap: 0.625rem; align-items: baseline; }
+.chat-stream .list-bullet { color: var(--quant-accent); font-weight: 700; flex-shrink: 0; }
+.chat-stream .list-text { flex: 1; min-width: 0; }
+.chat-stream .code-block {
+  border: 1px solid var(--quant-code-border);
+  border-radius: 12px;
+  background: var(--quant-code-bg);
+  overflow: hidden;
+  margin: 0.75rem 0;
+}
+.chat-stream .code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--quant-code-border);
+  font-size: 0.75rem;
+  color: var(--quant-muted-foreground);
+}
+.chat-stream .code-lang { font-family: ui-monospace, monospace; text-transform: lowercase; }
+.chat-stream .btn-copy-code {
+  min-height: 44px;
+  padding: 0 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 8px;
+  color: var(--quant-muted-foreground);
+  transition: color 150ms ease, background-color 150ms ease;
+}
+.chat-stream .btn-copy-code:hover { color: var(--quant-foreground); background: var(--quant-surface-hover); }
+.chat-stream .code-content {
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--quant-code-fg);
+}
+.chat-stream .code-content code { background: transparent; padding: 0; }

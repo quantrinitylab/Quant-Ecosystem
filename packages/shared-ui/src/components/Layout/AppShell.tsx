@@ -38,7 +38,9 @@ export const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const themeStyles: Record<string, string> = {
     light: 'bg-white text-gray-900',
-    dark: 'bg-gray-900 text-gray-100',
+    // Token-driven so each app's own --quant-* theme tokens apply
+    // (quantai, quantmail, …). Falls back to neutral dark if tokens missing.
+    dark: 'bg-[var(--quant-background,#0F0F14)] text-[var(--quant-foreground,#f8fafc)]',
     neon: 'bg-gray-950 text-green-400',
   };
 
