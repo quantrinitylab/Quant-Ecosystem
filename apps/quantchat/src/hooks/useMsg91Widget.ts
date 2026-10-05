@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 // MSG91 Widget configuration
+// Note: tokenAuth is designed by MSG91 to be used client-side
 const WIDGET_ID = '366a656641323138343334330';
-// Note: tokenAuth should be the widget token, loaded from env
 const TOKEN_AUTH = process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN || '';
 
 declare global {

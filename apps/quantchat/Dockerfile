@@ -9,6 +9,8 @@ RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --ch
 
 FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=2048"
+ARG NEXT_PUBLIC_MSG91_WIDGET_TOKEN
+ENV NEXT_PUBLIC_MSG91_WIDGET_TOKEN=$NEXT_PUBLIC_MSG91_WIDGET_TOKEN
 RUN npx prisma@6.19.3 generate --schema=packages/database/prisma/schema.prisma
 RUN pnpm turbo build --filter=@quant/quantchat --concurrency=1
 
