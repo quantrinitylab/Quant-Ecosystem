@@ -103,8 +103,15 @@ export function useMsg91Widget() {
       const identifier = phoneNumber.replace(/\D/g, '');
       window.sendOtp(
         identifier,
-        () => resolve(),
-        (error: unknown) => reject(new Error(typeof error === 'string' ? error : 'Failed to send OTP'))
+        (data: unknown) => resolve(),
+        (error: unknown) => {
+          // Capture the real MSG91 error
+          const msg = typeof error === 'string' ? error : 
+                     (error as any)?.message || 
+                     (error as any)?.description ||
+                     JSON.stringify(error);
+          reject(new Error(`MSG91: ${msg}`));
+        }
       );
     });
   }, []);
