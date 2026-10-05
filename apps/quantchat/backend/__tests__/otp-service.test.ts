@@ -12,10 +12,10 @@ function makeSender(): SmsSender & { messages: { phone: string; body: string }[]
   };
 }
 
-/** Extract the 6-digit code the service "sent" (dev sender captures the body). */
+/** Extract the 4-digit code the service "sent" (dev sender captures the body). */
 function codeFrom(sender: { messages: { body: string }[] }): string {
   const last = sender.messages.at(-1)!.body;
-  return /(\d{6})/.exec(last)![1];
+  return /(\d{4})/.exec(last)![1];
 }
 
 describe('OtpService', () => {
