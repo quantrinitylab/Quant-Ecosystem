@@ -64,21 +64,21 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('data-testid="phone-view-sso-btn"');
   });
 
-  it('renders OTP state with 6-digit input boxes (demo banner hidden in non-dev)', () => {
+  it('renders OTP state with 4-digit input boxes (demo banner hidden in non-dev)', () => {
     const html = renderToString(<LoginPage initialStep="otp" initialPhoneNumber="9876543210" />);
 
     // Demo banner should NOT appear in test/production (dev-only)
     expect(html).not.toContain('data-testid="demo-otp-banner"');
     expect(html).not.toContain('✨ Auto-Fill Demo OTP:');
 
-    // 6-digit input boxes
+    // 4-digit input boxes
     expect(html).toContain('data-testid="otp-boxes-container"');
     expect(html).toContain('data-testid="otp-box-0"');
     expect(html).toContain('data-testid="otp-box-1"');
     expect(html).toContain('data-testid="otp-box-2"');
     expect(html).toContain('data-testid="otp-box-3"');
-    expect(html).toContain('data-testid="otp-box-4"');
-    expect(html).toContain('data-testid="otp-box-5"');
+    expect(html).not.toContain('data-testid="otp-box-4"');
+    expect(html).not.toContain('data-testid="otp-box-5"');
 
     // Underlying numeric input and buttons
     expect(html).toContain('id="otp"');
