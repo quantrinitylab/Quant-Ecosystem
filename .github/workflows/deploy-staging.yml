@@ -312,12 +312,7 @@ jobs:
             echo 'Immutable SHA image already exists; reusing it.'
             echo 'reused=true' >> "$GITHUB_OUTPUT"
           else
-            # Pass MSG91 widget token as build arg for quantchat frontend
-            BUILD_ARGS=""
-            if [ "$TARGET" = "quantchat" ] && [ -n "${MSG91_TOKEN:-}" ]; then
-              BUILD_ARGS="--build-arg NEXT_PUBLIC_MSG91_WIDGET_TOKEN=$MSG91_TOKEN"
-            fi
-            docker build --pull -f "$DOCKERFILE" -t "$image" $BUILD_ARGS .
+            docker build --pull -f "$DOCKERFILE" -t "$image" --build-arg NEXT_PUBLIC_MSG91_WIDGET_TOKEN="${MSG91_TOKEN:-}" .
             docker push "$image"
             echo 'reused=false' >> "$GITHUB_OUTPUT"
           fi
