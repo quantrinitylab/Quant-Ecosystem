@@ -28,7 +28,6 @@ interface StoredAccount {
   id: string;
   email: string;
   displayName: string;
-  phoneVerified?: boolean;
 }
 
 const STORAGE_ACCOUNTS_KEY = 'quant_known_accounts';
@@ -74,12 +73,8 @@ function resolveClientApp(
 
 export function SsoChooserContent({
   initialStage = 'credentials',
-  initialKycOtpSent = false,
-  initialKycDemoInfo = null,
 }: {
-  initialStage?: 'credentials' | 'two-factor' | 'phone-kyc';
-  initialKycOtpSent?: boolean;
-  initialKycDemoInfo?: { isDemo: boolean; demoCode?: string; message: string } | null;
+  initialStage?: 'credentials' | 'two-factor';
 } = {}) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -99,20 +94,9 @@ export function SsoChooserContent({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [stage, setStage] = useState<'credentials' | 'two-factor' | 'phone-kyc'>(initialStage);
+  const [stage, setStage] = useState<'credentials' | 'two-factor'>(initialStage);
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  // Phone KYC State
-  const [kycPhone, setKycPhone] = useState('');
-  const [kycCountry, setKycCountry] = useState('+91');
-  const [kycOtpSent, setKycOtpSent] = useState(initialKycOtpSent);
-  const [kycOtpDemoInfo, setKycOtpDemoInfo] = useState<{
-    isDemo: boolean;
-    demoCode?: string;
-    message: string;
-  } | null>(initialKycDemoInfo);
-  const [kycCode, setKycCode] = useState('');
 
   // Execute seamless token handoff to returnTo destination
   const handoffSession = useCallback(
@@ -159,7 +143,6 @@ export function SsoChooserContent({
           id: user.id || currentEmail,
           email: user.email,
           displayName: user.displayName || user.username || user.email.split('@')[0],
-          phoneVerified: user.phoneVerified,
         };
         if (existingIdx >= 0) {
           list[existingIdx] = current;
@@ -174,41 +157,11 @@ export function SsoChooserContent({
     }
   }, [user]);
 
-  // Helper to check KYC before handoff
+  // Proceed straight to handoff — no phone-KYC gate.
+  // SSO works with just email/password login.
   const proceedWithSession = useCallback(
-    async (token: string | null) => {
-      setAuthorizing(true);
-      if (!token) {
-        setError('No active session token available. Please sign in again.');
-        setAuthorizing(false);
-        return;
-      }
-      try {
-        const res = await fetch('/api/oauth/userinfo', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.status === 401 || res.status === 403) {
-          setAuthorizing(false);
-          setError('Session expired. Please sign in again.');
-          return;
-        }
-        if (!res.ok) {
-          // userinfo endpoint unavailable (e.g. old backend without /oauth/*)
-          // — don't trap the user on a dead screen; hand off the valid session.
-          handoffSession(token);
-          return;
-        }
-        const profile = await res.json();
-        if (profile.success && profile.data?.phoneVerified) {
-          handoffSession(token);
-        } else {
-          setAuthorizing(false);
-          setStage('phone-kyc');
-        }
-      } catch {
-        setAuthorizing(false);
-        handoffSession(token); // Fallback
-      }
+    (token: string | null) => {
+      handoffSession(token);
     },
     [handoffSession],
   );
@@ -264,61 +217,6 @@ export function SsoChooserContent({
     }
   };
 
-  const handleSendKycOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      const token = browserAuthSession.getAccessToken();
-      const res = await fetch('/api/auth/phone/send-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ phoneNumber: `${kycCountry}${kycPhone}` }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || data.message || 'Failed to send OTP');
-      setKycOtpSent(true);
-      setKycOtpDemoInfo({
-        isDemo: data.data?.isDemo,
-        demoCode: data.data?.demoCode,
-        message: data.data?.message || 'Verification code sent',
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not send SMS');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleVerifyKycOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      const token = browserAuthSession.getAccessToken();
-      const res = await fetch('/api/auth/phone/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ code: kycCode }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || data.message || 'Invalid OTP');
-
-      // Success! Hand off session
-      handoffSession(token);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid code');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const allAccounts = useMemo(() => {
     const map = new Map<string, StoredAccount>();
     if (user) {
@@ -326,7 +224,6 @@ export function SsoChooserContent({
         id: user.id || user.email,
         email: user.email,
         displayName: user.displayName || user.username || user.email.split('@')[0],
-        phoneVerified: user.phoneVerified,
       });
     }
     for (const a of knownAccounts) {
@@ -357,20 +254,18 @@ export function SsoChooserContent({
         </div>
 
         {/* Title & Subtitle */}
-        {stage !== 'phone-kyc' && (
-          <div className="text-center mb-6">
-            <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
-              {showChooser ? 'Choose an account' : 'Sign in to Quant Account'}
-            </h1>
-            <p className="mt-1.5 text-sm text-zinc-400">
-              to continue to{' '}
-              <span className="font-medium text-white inline-flex items-center gap-1">
-                <span>{clientApp.icon}</span>
-                <span>{clientApp.name}</span>
-              </span>
-            </p>
-          </div>
-        )}
+        <div className="text-center mb-6">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">
+            {showChooser ? 'Choose an account' : 'Sign in to Quant Account'}
+          </h1>
+          <p className="mt-1.5 text-sm text-zinc-400">
+            to continue to{' '}
+            <span className="font-medium text-white inline-flex items-center gap-1">
+              <span>{clientApp.icon}</span>
+              <span>{clientApp.name}</span>
+            </span>
+          </p>
+        </div>
 
         {/* Authorizing Spinner Overlay */}
         {authorizing && (
@@ -383,7 +278,7 @@ export function SsoChooserContent({
         )}
 
         {/* STATE 1: Google-Class Account Chooser */}
-        {!authorizing && showChooser && stage !== 'phone-kyc' && (
+        {!authorizing && showChooser && (
           <div className="w-full space-y-3">
             <div className="divide-y divide-white/[0.06] border border-white/[0.08] rounded-xl overflow-hidden bg-white/[0.02]">
               {allAccounts.map((acc) => {
@@ -416,15 +311,6 @@ export function SsoChooserContent({
                         {acc.displayName || acc.email.split('@')[0]}
                       </div>
                       <div className="text-xs text-zinc-400 truncate">{acc.email}</div>
-                      {acc.phoneVerified !== undefined && (
-                        <div
-                          className={`text-[10px] mt-0.5 ${acc.phoneVerified ? 'text-green-400' : 'text-yellow-400'}`}
-                        >
-                          {acc.phoneVerified
-                            ? 'Phone Verified ✓'
-                            : 'Phone Verification Required ⚠️'}
-                        </div>
-                      )}
                     </div>
 
                     {/* Status Badge */}
@@ -559,160 +445,6 @@ export function SsoChooserContent({
             </form>
           </div>
         )}
-
-        {/* STATE 3: Phone KYC */}
-        {!authorizing && stage === 'phone-kyc' && (
-          <div className="w-full">
-            <div className="text-center mb-6">
-              <h2 className="text-lg font-semibold text-white flex items-center justify-center gap-2">
-                🛡️ Quant Identity KYC • Phone & Email Verification
-              </h2>
-              <span className="inline-block mt-2 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] uppercase font-bold tracking-wider">
-                Google KYC Parity
-              </span>
-              <p className="mt-3 text-sm text-zinc-400">
-                To protect your sovereign account and access {clientApp.name}, please verify with a
-                one-time code sent to your mobile and email.
-              </p>
-              {user?.email && (
-                <p className="mt-2 text-xs text-zinc-500">
-                  📧 Verification code will also be sent to your registered QuantMail address:{' '}
-                  {user.email}
-                </p>
-              )}
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                {error}
-              </div>
-            )}
-
-            {!kycOtpSent ? (
-              <form onSubmit={handleSendKycOtp} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                    Mobile Number
-                  </label>
-                  <div className="flex gap-2">
-                    <select
-                      value={kycCountry}
-                      onChange={(e) => setKycCountry(e.target.value)}
-                      className="w-[100px] px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white outline-none appearance-none"
-                    >
-                      <option value="+91">🇮🇳 +91</option>
-                      <option value="+1">🇺🇸 +1</option>
-                      <option value="+44">🇬🇧 +44</option>
-                      <option value="+971">🇦🇪 +971</option>
-                      <option value="+65">🇸🇬 +65</option>
-                      <option value="+49">🇩🇪 +49</option>
-                      <option value="+33">🇫🇷 +33</option>
-                    </select>
-                    <input
-                      type="tel"
-                      value={kycPhone}
-                      onChange={(e) => setKycPhone(e.target.value.replace(/\D/g, ''))}
-                      placeholder="9876543210"
-                      required
-                      className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-sm text-white placeholder:text-zinc-600 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={submitting || !kycPhone}
-                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50"
-                >
-                  {submitting ? 'Sending...' : 'Send Verification Code'}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyKycOtp} className="space-y-4">
-                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400 text-center">
-                  📩 Code sent to mobile and email {user?.email}. Check your email or use the demo
-                  code below if SMS is delayed.
-                </div>
-
-                <div className="flex justify-center gap-2 mb-2">
-                  <button
-                    type="button"
-                    onClick={handleSendKycOtp}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors"
-                  >
-                    📱 Resend SMS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const token = browserAuthSession.getAccessToken();
-                        await fetch('/api/auth/phone/send-email-otp', {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${token}`,
-                          },
-                          body: JSON.stringify({ phoneNumber: `${kycCountry}${kycPhone}` }),
-                        });
-                      } catch (e) {
-                        // Ignore
-                      }
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-zinc-300 hover:text-white hover:bg-white/[0.08] transition-colors"
-                  >
-                    📧 Send via Email
-                  </button>
-                </div>
-
-                {kycOtpDemoInfo?.isDemo && kycOtpDemoInfo.demoCode && (
-                  <div className="flex justify-center mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setKycCode(kycOtpDemoInfo.demoCode!)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-xs font-medium text-yellow-400 hover:bg-yellow-500/20 transition-colors"
-                    >
-                      ✨ Auto-Fill Demo OTP: {kycOtpDemoInfo.demoCode}
-                    </button>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                    6-Digit Code
-                  </label>
-                  <input
-                    type="text"
-                    value={kycCode}
-                    onChange={(e) => setKycCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    autoFocus
-                    required
-                    maxLength={6}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] focus:border-[#FF8C42] focus:ring-1 focus:ring-[#FF8C42] text-center tracking-[0.5em] text-lg text-white placeholder:text-zinc-600 outline-none transition-all"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={submitting || kycCode.length < 4}
-                  className="w-full mt-2 py-3 px-4 rounded-xl bg-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-[0_4px_16px_-4px_rgba(255,140,66,0.5)] disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {submitting ? 'Verifying...' : 'Verify & Complete KYC ✓'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setKycOtpSent(false);
-                    setKycCode('');
-                    setError(null);
-                  }}
-                  className="w-full text-center text-xs text-zinc-400 hover:text-zinc-200 mt-2 py-1 transition-colors"
-                >
-                  Use a different number
-                </button>
-              </form>
-            )}
-          </div>
-        )}
-
         {/* Ecosystem Privacy & Terms Notice */}
         <div className="mt-8 pt-6 border-t border-white/[0.06] text-center w-full">
           <p className="text-[11px] leading-relaxed text-zinc-500">

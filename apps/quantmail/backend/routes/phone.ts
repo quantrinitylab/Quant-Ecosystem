@@ -6,6 +6,12 @@
 //   POST /auth/phone/verify          -> { code } marks the number verified
 //   DELETE /auth/phone               -> unlink the number
 //
+// Transfer-on-verify: if the number is already verified on another account,
+// entering the correct OTP transfers it to the verifying account (the verifier
+// proved possession of the number). There is no PHONE_TAKEN dead-end.
+// The demo code only works when the backend is actually in demo mode
+// (SMS unavailable); it is the pending code's hash, never a bypass.
+//
 // OTPs are never stored in plaintext: only a SHA-256 hash is kept, with a
 // 5-minute expiry, max 5 attempts, and a 60-second resend cooldown.
 // ============================================================================
@@ -64,14 +70,6 @@ function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma: unknown }).prisma;
 }
 
-function maskEmail(email: string | null | undefined): string | null {
-  if (!email) return null;
-  const [local, domain] = email.split('@');
-  if (!local || !domain) return email;
-  const visible = local.length > 2 ? `${local[0]}•••${local[local.length - 1]}` : `${local[0]}•••`;
-  return `${visible}@${domain}`;
-}
-
 function maskNumber(value: string | null): string | null {
   if (!value) return null;
   return value.length > 4
@@ -111,11 +109,6 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
     const prisma = getPrisma(fastify);
     const { phoneNumber } = parsed.data;
 
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, displayName: true, username: true },
-    });
-
     prune();
     const existing = pending.get(userId);
     if (existing && Date.now() - existing.sentAt < RESEND_COOLDOWN_MS) {
@@ -127,13 +120,10 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
       );
     }
 
-    const takenBy = await prisma.user.findFirst({
-      where: { phoneNumber, phoneVerified: true, NOT: { id: userId } },
-      select: { id: true },
-    });
-    if (takenBy) {
-      throw createAppError('This number is already linked to another account', 409, 'PHONE_TAKEN');
-    }
+    // NOTE: no PHONE_TAKEN check here. If the number is verified on another
+    // account, successful verification below transfers it to this account
+    // (the verifier proved possession of the number). This keeps users from
+    // getting permanently locked out of phone verification.
 
     let isDemo = true;
     let code = '123456';
@@ -165,68 +155,12 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
       data: {
         sent: true,
         sentToPhone: maskNumber(phoneNumber),
-        sentToEmail: maskEmail(user?.email),
         isDemo,
         demoCode: isDemo ? '123456' : undefined,
         expiresInSeconds: OTP_TTL_MS / 1000,
         message: isDemo
-          ? `Verification code sent to ${maskEmail(user?.email) || 'email'} and ${maskNumber(phoneNumber)} (demo fallback 123456 available)`
-          : `Verification code sent to ${maskNumber(phoneNumber)} and ${maskEmail(user?.email) || 'email'}`,
-      },
-    });
-  });
-
-  fastify.post('/auth/phone/send-email-otp', async (request, reply) => {
-    const parsed = sendSchema.safeParse(request.body);
-    if (!parsed.success) throw parsed.error;
-    const userId = requireUserId(request);
-    const prisma = getPrisma(fastify);
-    const { phoneNumber } = parsed.data;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, displayName: true, username: true },
-    });
-
-    prune();
-    const existing = pending.get(userId);
-    if (existing && Date.now() - existing.sentAt < RESEND_COOLDOWN_MS) {
-      const waitSeconds = Math.ceil((RESEND_COOLDOWN_MS - (Date.now() - existing.sentAt)) / 1000);
-      throw createAppError(
-        `Please wait ${waitSeconds}s before requesting another code`,
-        429,
-        'OTP_COOLDOWN',
-      );
-    }
-
-    const takenBy = await prisma.user.findFirst({
-      where: { phoneNumber, phoneVerified: true, NOT: { id: userId } },
-      select: { id: true },
-    });
-    if (takenBy) {
-      throw createAppError('This number is already linked to another account', 409, 'PHONE_TAKEN');
-    }
-
-    const code = '123456';
-    const isDemo = true;
-
-    pending.set(userId, {
-      phoneNumber,
-      codeHash: hashCode(code),
-      expiresAt: Date.now() + OTP_TTL_MS,
-      sentAt: Date.now(),
-      attempts: 0,
-    });
-
-    return reply.send({
-      success: true,
-      data: {
-        sent: true,
-        sentToEmail: true,
-        isDemo,
-        demoCode: isDemo ? '123456' : undefined,
-        expiresInSeconds: OTP_TTL_MS / 1000,
-        message: `Verification code sent to ${maskEmail(user?.email) || 'email'}`,
+          ? `SMS service unavailable — use demo code 123456 to verify ${maskNumber(phoneNumber)}`
+          : `Verification code sent to ${maskNumber(phoneNumber)}`,
       },
     });
   });
@@ -251,16 +185,27 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
       throw createAppError('Too many wrong attempts. Request a new code.', 429, 'OTP_ATTEMPTS');
     }
 
-    if (hashCode(parsed.data.code) !== outstanding.codeHash && parsed.data.code !== '123456') {
+    if (hashCode(parsed.data.code) !== outstanding.codeHash) {
       outstanding.attempts += 1;
       throw createAppError('That code is not correct', 400, 'OTP_INVALID');
     }
 
     pending.delete(userId);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { phoneNumber: outstanding.phoneNumber, phoneVerified: true },
-    });
+    // Transfer-on-verify: the caller proved possession of the number by
+    // entering the correct code, so unlink it from any other account and
+    // link it here. This resolves the old PHONE_TAKEN dead-end permanently.
+    // (updateMany first: phoneNumber is @unique, so the other row must be
+    // cleared in the same transaction.)
+    await prisma.$transaction([
+      prisma.user.updateMany({
+        where: { phoneNumber: outstanding.phoneNumber, NOT: { id: userId } },
+        data: { phoneNumber: null, phoneVerified: false },
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { phoneNumber: outstanding.phoneNumber, phoneVerified: true },
+      }),
+    ]);
 
     return reply.send({
       success: true,
