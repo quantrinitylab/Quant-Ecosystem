@@ -403,7 +403,10 @@ describe('QuantAI Advanced Voice Mode Parity Suite (Task W39-A03)', () => {
       );
 
       expect(html).toContain('Real-time Low Latency');
-      expect(html).toContain('Simulate Voice Turn');
+      // The fake "Simulate Voice Turn" demo button was intentionally removed;
+      // the real mic capture button is present instead.
+      expect(html).toContain('data-testid="mute-toggle-button"');
+      expect(html).toContain('Start voice capture');
     });
 
     it('renders interrupt button when assistant is actively speaking', () => {

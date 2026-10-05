@@ -1,10 +1,4 @@
-successfully downloaded text file (SHA: d17020426953fe49245d9d594e5ee399a25088cf)",
-        "type": "text"
-      },
-      {
-        "resource": {
-          "mimeType": "text/plain; charset=utf-8",
-          "text": "import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { voiceInterface } from '@quant/agentic';
 import {
   listAvailableVoices,

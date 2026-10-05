@@ -1,10 +1,4 @@
-successfully downloaded text file (SHA: 70f5cde02133a183b04e80129a86f76d18589c7d)",
-        "type": "text"
-      },
-      {
-        "resource": {
-          "mimeType": "text/plain; charset=utf-8",
-          "text": "'use client';
+'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
