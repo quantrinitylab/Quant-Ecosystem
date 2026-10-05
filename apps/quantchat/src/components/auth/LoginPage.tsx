@@ -179,36 +179,27 @@ export default function LoginPage(props: LoginPageProps) {
     setBusy(true);
     try {
       // Use MSG91 widget for real SMS (client-side)
-      // Falls back to backend API if widget not ready
+      // Show error if widget not ready (no silent fallback)
       const fullPhone = `${countryCode.replace('+', '')}${phoneNumber.replace(/\D/g, '')}`;
       
-      if (msg91.isReady) {
-        try {
-          await msg91.sendOtp(fullPhone);
-          setStep('otp');
-          setCountdown(30);
-          setDemoCodeReceived(null);
-          setInfo('Verification code sent via SMS');
-          return;
-        } catch (widgetErr) {
-          // Fall through to backend API
-        }
+      if (!msg91.isReady) {
+        setError(msg91.error || 'SMS service not ready. Please refresh and try again.');
+        setBusy(false);
+        return;
       }
       
-      // Fallback: backend API
-      const res = await apiClient.requestOTP({ phoneNumber, countryCode });
-      if (!res.success) {
-        setError(res.error?.message ?? 'Could not send a verification code');
+      try {
+        await msg91.sendOtp(fullPhone);
+      } catch (widgetErr) {
+        setError(widgetErr instanceof Error ? widgetErr.message : 'Failed to send SMS');
+        setBusy(false);
         return;
       }
       setStep('otp');
-      setCountdown(30); // reset countdown
-      const demoCode = (res.data as { demoCode?: string })?.demoCode;
-      if (demoCode) {
-        setDemoCodeReceived(demoCode);
-      } else {
-        setDemoCodeReceived('123456');
-      }
+      setCountdown(30);
+      setDemoCodeReceived(null);
+      setInfo('Verification code sent via SMS');
+      return;
     } catch {
       setError('Network error. Please try again.');
     } finally {
