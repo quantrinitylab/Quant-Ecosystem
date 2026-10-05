@@ -218,7 +218,7 @@ export default function LoginPage(props: LoginPageProps) {
 
   const verifyCode = useCallback(async () => {
     setError(null);
-    if (!/^\d{4}$/.test(otp)) {
+    if (!/^\d{4,8}$/.test(otp)) {
       setError('Enter the numeric code you received');
       return;
     }
@@ -529,12 +529,12 @@ export default function LoginPage(props: LoginPageProps) {
 
             <div className="space-y-3">
               <label htmlFor="otp" className="block text-xs font-medium text-slate-400 text-center">
-                Enter 4-digit verification code
+                Enter 6-digit verification code
               </label>
 
-              {/* 4-box input pin code view */}
+              {/* 6-box input pin code view */}
               <div className="flex justify-between gap-2" data-testid="otp-boxes-container">
-                {Array.from({ length: 4 }).map((_, i) => (
+                {Array.from({ length: 6 }).map((_, i) => (
                   <div
                     key={i}
                     data-testid={`otp-box-${i}`}
@@ -555,8 +555,8 @@ export default function LoginPage(props: LoginPageProps) {
                 id="otp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="0000"
-                maxLength={4}
+                placeholder="000000"
+                maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 className="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-center text-xl font-mono tracking-[0.5em] text-white focus:outline-none focus:border-emerald-500/50 focus:bg-white/[0.05] transition-all"

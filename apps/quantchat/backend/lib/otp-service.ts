@@ -46,7 +46,7 @@ export interface OtpServiceConfig {
 export const DEFAULT_ALLOWED_COUNTRIES = ['+91', '+1', '+44', '+971', '+65', '+61', '+49', '+33'];
 
 export const DEFAULT_OTP_CONFIG: OtpServiceConfig = {
-  codeLength: 4,
+  codeLength: 6,
   codeTtlMs: 5 * 60 * 1000,
   cooldownMs: 60 * 1000,
   maxSendsPerHour: 5,
