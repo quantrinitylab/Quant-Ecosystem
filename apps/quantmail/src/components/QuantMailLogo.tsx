@@ -67,9 +67,14 @@ interface QuantMailLogoProps {
  * - `paintGlossSweep` clipped to the glyph, and an edge that catches white along the
  *   top-left pair of sides and falls to a warm seam along the bottom-right pair.
  *
- * The faceted envelope chevron replaces earlier playful experiments: an architectural
- * crease line connects the apexes to the center with subtle amber refraction and an
- * amber core reflection, maintaining luxury enterprise fidelity across all sizes.
+ * The eyes are rebuilt rather than restored. The original drew three separate cases —
+ * open pupils, a blink as two straight lines, a wink as a stroked arc — so the mark
+ * *popped* between shapes. One squashing ellipse covers open and shut, which is what a
+ * round eye actually does, and the blink is derived from `time` instead of from a
+ * `setTimeout` chain, so it costs no timers and desynchronises for free across the
+ * eight places this mounts (`useLiveMark` seeds its clock per instance). The pupils
+ * still track the pointer, still widen past five unread, still wink on click, and the
+ * blush is a gradient now rather than two hard 2.6-unit discs.
  *
  * Unread is light rather than a number: a hot halo behind the shoulders and a bloom in
  * the notch, so the letter reads as lit from within at 20px where a numeral cannot
@@ -108,140 +113,116 @@ function markMPath(ctx: CanvasRenderingContext2D): void {
   ctx.closePath();
 }
 
+/** Eye centreline and half-spacing — the original's `my + 8` and 9.5. */
+const EYE_CY = 60;
+const EYE_DX = 9.5;
+
 /**
- * Architectural luxury geometric envelope crease / faceted chevron.
+ * The blink, from `time` alone.
  *
- * Precision-engineered geometric crease line connecting the glyph apexes to the center
- * with subtle amber refraction (`rgba(255, 140, 66, 0.4)` to specular white) and an amber
- * core reflection in the letter's heart.
+ * The mark this restores ran a `setTimeout` chain — 3000 ms to the first blink, 150 ms
+ * shut, then `3500 + random * 2000` to the next — which meant a timer per mounted mark
+ * and a `Math.random()` that re-rolled on every remount. `useLiveMark` already seeds
+ * its clock with `Math.random() * 100` per instance, so a function of `time` is
+ * desynchronised across all eight call sites for nothing, and the hash keeps the rhythm
+ * irregular the way the original's jitter did. Openness follows `d^2`, so the lid
+ * accelerates shut and eases open rather than snapping between two states.
+ *
+ * The hash constant differs from `Quanty`'s deliberately: the two mascots share a page
+ * in the shell header, and two characters blinking in lockstep is the tell that both
+ * are widgets.
  */
-function paintEnvelopeFacet(
+const BLINK_PERIOD = 4.6;
+function blinkOpenness(time: number): number {
+  const n = Math.floor(time / BLINK_PERIOD);
+  const jitter = Math.abs(Math.sin(n * 78.233) * 43758.5453) % 1;
+  const at = (0.3 + jitter * 0.58) * BLINK_PERIOD;
+  const d = (time - n * BLINK_PERIOD - at) / 0.17;
+  return Math.abs(d) >= 1 ? 1 : d * d;
+}
+
+/**
+ * One pupil: a dark ellipse that squashes about its own centre as the lid falls, plus a
+ * white catchlight above and left of centre.
+ *
+ * The original drew a filled `arc` for open and two straight `lineTo`s for shut, which
+ * are different shapes — so the eye jumped rather than closed. An ellipse at `r` by
+ * `r * open` is a disc at rest and a line at 0.06, and every frame between is a real
+ * lid. The fill is warm-dark rather than `#060709`: a black hole in white paper lying
+ * on ember is the one thing on this plate nothing would light, and the same reasoning
+ * that made the side wall warm applies to a recess in the surface.
+ *
+ * The catchlight is gated on openness because a specular dot inside a slit is not a
+ * highlight, it is a stray pixel.
+ *
+ * It sits above and *left* of centre, which is two corrections to the mark this restores.
+ * The original put it at `(+1.1, -1.1)` — upper right — while every other light in this
+ * file comes from the upper left: `paintEmberPlate`'s radial is centred at `(cx-8, cy-10)`,
+ * the body ramp runs from the M's top-left corner, and this function's own iris focus is
+ * at `(-0.3r, -0.34r)`. A specular on the opposite side from the light is the tell that
+ * a highlight was placed by eye rather than derived.
+ *
+ * The second correction is that it must clear the pupil's own centreline. Measured at the
+ * 36px sidebar mount, the old `(-0.3r, r*0.34)` dot straddled y and the device raster read
+ * the pupil as 24, 49, **91**, 57 — a bright pixel in the middle of a four-pixel eye, so
+ * the pupil rendered hollow. At `-0.46r` with radius `0.28r` the blob spans `-0.74r` to
+ * `-0.18r`: entirely in the upper half, with 0.18r of margin for the downsample kernel.
+ */
+function paintPupil(
   ctx: CanvasRenderingContext2D,
-  tiltX: number,
-  tiltY: number,
-  hover: number,
+  x: number,
+  y: number,
+  r: number,
+  open: number,
 ): void {
-  const leftApexX = M.x + 9;
-  const leftApexY = M.y + 1;
-  const rightApexX = M.x + M.w - 9;
-  const rightApexY = M.y + 1;
-  const notchX = M_MID_X;
-  const notchY = M_NOTCH_Y;
-
-  // Center nexus of the envelope fold, slightly responsive to parallax tilt
-  const nexusX = M_MID_X + tiltX * 0.8;
-  const nexusY = M.y + 27 + tiltY * 0.6;
-
-  // 1. Amber core reflection at the central nexus
-  const coreReflect = ctx.createRadialGradient(
-    nexusX,
-    nexusY,
-    0.5,
-    nexusX,
-    nexusY,
-    14 + hover * 3,
-  );
-  coreReflect.addColorStop(0, 'rgba(255, 180, 110, 0.45)');
-  coreReflect.addColorStop(0.35, 'rgba(255, 140, 66, 0.22)');
-  coreReflect.addColorStop(0.7, 'rgba(255, 140, 66, 0.08)');
-  coreReflect.addColorStop(1, 'rgba(255, 140, 66, 0)');
-  ctx.fillStyle = coreReflect;
+  const ry = Math.max(r * 0.055, r * open);
   ctx.beginPath();
-  ctx.arc(nexusX, nexusY, 15 + hover * 3, 0, Math.PI * 2);
+  ctx.ellipse(x, y, r, ry, 0, 0, Math.PI * 2);
+  const iris = ctx.createRadialGradient(x - r * 0.3, y - r * 0.34, r * 0.1, x, y, r * 1.15);
+  iris.addColorStop(0, '#3A281E');
+  iris.addColorStop(0.55, '#170F0A');
+  iris.addColorStop(1, '#080605');
+  ctx.fillStyle = iris;
   ctx.fill();
 
-  // 2. Subtle faceted chevron planes (delicate light refraction across facets)
-  ctx.save();
+  if (open > 0.42) {
+    const cr = r * 0.28;
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.3, y - r * 0.46, cr, cr * open, 0, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.86 * open})`;
+    ctx.fill();
+  }
+}
 
-  // Left facet: left apex -> nexus -> notch
+/**
+ * The wink's left eye: an upward arc, `^`.
+ *
+ * Stroked rather than filled, and it keeps the original's exact sweep — `1.15pi` to
+ * `1.85pi` around a centre 1.5 units low — because that asymmetric window is what makes
+ * it read as one eye scrunched shut rather than as an eyebrow.
+ */
+function paintWinkArc(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   ctx.beginPath();
-  ctx.moveTo(leftApexX, leftApexY);
-  ctx.lineTo(nexusX, nexusY);
-  ctx.lineTo(notchX, notchY);
-  ctx.closePath();
-  const leftFacetGrad = ctx.createLinearGradient(leftApexX, leftApexY, nexusX, nexusY);
-  leftFacetGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
-  leftFacetGrad.addColorStop(0.5, 'rgba(255, 200, 160, 0.06)');
-  leftFacetGrad.addColorStop(1, 'rgba(255, 140, 66, 0.14)');
-  ctx.fillStyle = leftFacetGrad;
-  ctx.fill();
-
-  // Right facet: right apex -> notch -> nexus
-  ctx.beginPath();
-  ctx.moveTo(rightApexX, rightApexY);
-  ctx.lineTo(notchX, notchY);
-  ctx.lineTo(nexusX, nexusY);
-  ctx.closePath();
-  const rightFacetGrad = ctx.createLinearGradient(rightApexX, rightApexY, nexusX, nexusY);
-  rightFacetGrad.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
-  rightFacetGrad.addColorStop(0.5, 'rgba(255, 160, 90, 0.08)');
-  rightFacetGrad.addColorStop(1, 'rgba(255, 140, 66, 0.18)');
-  ctx.fillStyle = rightFacetGrad;
-  ctx.fill();
-
-  // Lower diagonal creases from bottom feet up to the nexus
-  const leftFootX = M.x + 6;
-  const rightFootX = M.x + M.w - 6;
-  const footY = M.y + M.h - 4;
-
-  ctx.beginPath();
-  ctx.moveTo(leftFootX, footY);
-  ctx.lineTo(nexusX, nexusY);
-  ctx.lineTo(rightFootX, footY);
-  const lowerCrease = ctx.createLinearGradient(nexusX, nexusY, nexusX, footY);
-  lowerCrease.addColorStop(0, 'rgba(255, 140, 66, 0.28)');
-  lowerCrease.addColorStop(0.6, 'rgba(255, 180, 120, 0.12)');
-  lowerCrease.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.strokeStyle = lowerCrease;
-  ctx.lineWidth = 0.9;
-  ctx.stroke();
-
-  // 3. Precision-engineered geometric crease line connecting apexes to center
-  // Left apex to nexus
-  ctx.beginPath();
-  ctx.moveTo(leftApexX, leftApexY);
-  ctx.lineTo(nexusX, nexusY);
-  const leftCrease = ctx.createLinearGradient(leftApexX, leftApexY, nexusX, nexusY);
-  leftCrease.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
-  leftCrease.addColorStop(0.45, 'rgba(255, 200, 150, 0.6)');
-  leftCrease.addColorStop(1, 'rgba(255, 140, 66, 0.4)');
-  ctx.strokeStyle = leftCrease;
-  ctx.lineWidth = 1.15;
+  ctx.arc(x, y + 1.5, r * 1.26, Math.PI * 1.15, Math.PI * 1.85, false);
+  ctx.lineWidth = 2.8;
   ctx.lineCap = 'round';
+  ctx.strokeStyle = '#170F0A';
   ctx.stroke();
+}
 
-  // Right apex to nexus
-  ctx.beginPath();
-  ctx.moveTo(rightApexX, rightApexY);
-  ctx.lineTo(nexusX, nexusY);
-  const rightCrease = ctx.createLinearGradient(rightApexX, rightApexY, nexusX, nexusY);
-  rightCrease.addColorStop(0, 'rgba(255, 255, 255, 0.65)');
-  rightCrease.addColorStop(0.45, 'rgba(255, 190, 130, 0.5)');
-  rightCrease.addColorStop(1, 'rgba(255, 140, 66, 0.4)');
-  ctx.strokeStyle = rightCrease;
-  ctx.lineWidth = 1.15;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-
-  // Vertical spine: notch down to nexus
-  ctx.beginPath();
-  ctx.moveTo(notchX, notchY);
-  ctx.lineTo(nexusX, nexusY);
-  const notchCrease = ctx.createLinearGradient(notchX, notchY, nexusX, nexusY);
-  notchCrease.addColorStop(0, 'rgba(255, 140, 66, 0.4)');
-  notchCrease.addColorStop(0.5, 'rgba(255, 210, 160, 0.6)');
-  notchCrease.addColorStop(1, 'rgba(255, 255, 255, 0.85)');
-  ctx.strokeStyle = notchCrease;
-  ctx.lineWidth = 1.0;
-  ctx.stroke();
-
-  // Specular nexus pinpoint highlight
-  ctx.beginPath();
-  ctx.arc(nexusX, nexusY, 1.2, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-  ctx.fill();
-
-  ctx.restore();
+/**
+ * Blush, as a gradient. The original filled two 2.6-radius discs at `rgba(255,140,66,
+ * 0.35)`, which at 20px is 1.5 device pixels of flat orange — a dot on a cheek, not
+ * warmth in it. A radial with no hard edge is the same colour doing the job it was
+ * chosen for, and ember is already the plate's own light.
+ */
+function paintBlush(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const g = ctx.createRadialGradient(x, y, 0.4, x, y, 6.2);
+  g.addColorStop(0, 'rgba(255, 140, 66, 0.42)');
+  g.addColorStop(0.6, 'rgba(255, 140, 66, 0.16)');
+  g.addColorStop(1, 'rgba(255, 140, 66, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(x - 7, y - 7, 14, 14);
 }
 
 export function QuantMailLogo({
@@ -258,12 +239,13 @@ export function QuantMailLogo({
   const [isSpinning, setIsSpinning] = useState(false);
 
   /*
-   * unreadRef is read by the painter and never by React, so it is a ref.
+   * Both of these are read by the painter and never by React, so they are refs.
    * `useLiveMark` reassigns `paintRef.current = paint` on every render, which is what
    * makes a `[]`-dep painter safe to read live values out of — the closure is replaced
    * before the next frame, so there is no stale-capture window.
    */
   const unreadRef = useRef(unreadCount);
+  const winkRef = useRef(false);
 
   useEffect(() => {
     unreadRef.current = unreadCount;
@@ -272,6 +254,7 @@ export function QuantMailLogo({
   const paint = useCallback(
     ({ ctx, cx, cy, time, tiltX, tiltY, hover, press, reduced }: MarkFrame) => {
       const unread = unreadRef.current;
+      const wink = winkRef.current;
       const pulse = reduced ? 1 : 0.88 + Math.sin(time * 1.6) * 0.12;
 
       ctx.save();
@@ -360,8 +343,26 @@ export function QuantMailLogo({
       const sweep = reduced ? 0.34 : (time * 0.07 + hover * 0.5) % 1;
       paintGlossSweep(ctx, M.x, M.y, M.w, M.h, sweep, 0.1 + hover * 0.12);
 
-      /* Architectural luxury geometric envelope crease / faceted chevron */
-      paintEnvelopeFacet(ctx, tiltX, tiltY, hover);
+      /*
+       * The face. Blush first so the pupils sit on top of it, and the whole thing is
+       * inside the glyph clip, so nothing can spill onto the plate the way a stray
+       * gradient rect would.
+       */
+      paintBlush(ctx, M_MID_X - EYE_DX - 7.5, EYE_CY + 5.5);
+      paintBlush(ctx, M_MID_X + EYE_DX + 7.5, EYE_CY + 5.5);
+
+      const r = unread > 5 ? 4.2 : 3.5;
+      const ex = M_MID_X + tiltX * 2.2;
+      const ey = EYE_CY + tiltY * 1.6;
+      const open = Math.max(0.06, (reduced ? 1 : blinkOpenness(time)) * (1 - press * 0.45));
+
+      if (wink) {
+        paintWinkArc(ctx, M_MID_X - EYE_DX, EYE_CY, r);
+        paintPupil(ctx, ex + EYE_DX, ey, r, 1);
+      } else {
+        paintPupil(ctx, ex - EYE_DX, ey, r, open);
+        paintPupil(ctx, ex + EYE_DX, ey, r, open);
+      }
 
       ctx.restore();
 
@@ -402,9 +403,17 @@ export function QuantMailLogo({
 
   const handleClick = useCallback(() => {
     setIsSpinning(true);
+    /*
+     * The wink lives in a ref rather than in state because the painter reads it every
+     * frame and React has no business re-rendering for it. `repaint()` at both edges is
+     * what makes it visible under `prefers-reduced-motion`, where the loop is stopped
+     * and exactly one frame is ever drawn.
+     */
+    winkRef.current = true;
     repaint();
     setTimeout(() => {
       setIsSpinning(false);
+      winkRef.current = false;
       repaint();
     }, 650);
 

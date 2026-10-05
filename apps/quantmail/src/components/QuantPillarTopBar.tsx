@@ -15,6 +15,18 @@ import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
+import { QuantGitUserIdModal } from './QuantGitUserIdModal';
+import { useAuth } from '../providers/auth-provider';
+
+// Safe auth hook that returns null user when outside AuthProvider (tests, SSR edge cases)
+// This keeps the component resilient — the profile avatar just shows a fallback initial.
+function useOptionalAuth() {
+  try {
+    return useAuth();
+  } catch {
+    return { user: null } as { user: null };
+  }
+}
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -313,60 +325,60 @@ export const PILLAR_TILES: PillarTile[] = [
     id: 'mail',
     label: 'Mail',
     path: '/',
-    accentColor: '#FF8C42',
-    borderColor: 'border-[#FF8C42]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(255,140,66,0.18)]',
+    accentColor: '#FF6B35',
+    borderColor: 'border-[#FF6B35]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(255,107,53,0.18)]',
     searchPlaceholder: 'Search emails, senders, keywords… <5ms',
-    themeBg: 'linear-gradient(180deg, rgba(255,140,66,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(255,140,66,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(255,107,53,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(255,107,53,0.15)',
     icon: MailLogoIcon,
   },
   {
     id: 'calendar',
     label: 'Calendar',
     path: '/calendar',
-    accentColor: '#F59E0B',
-    borderColor: 'border-[#F59E0B]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(245,158,11,0.18)]',
+    accentColor: '#4285F4',
+    borderColor: 'border-[#4285F4]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(66,133,244,0.18)]',
     searchPlaceholder: 'Search events, meetings, attendees… <5ms',
-    themeBg: 'linear-gradient(180deg, rgba(245,158,11,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(245,158,11,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(66,133,244,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(66,133,244,0.15)',
     icon: CalendarLogoIcon,
   },
   {
     id: 'drive',
     label: 'Drive',
     path: '/drive',
-    accentColor: '#38BDF8',
-    borderColor: 'border-[#38BDF8]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(56,189,248,0.18)]',
+    accentColor: '#34A853',
+    borderColor: 'border-[#34A853]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(52,168,83,0.18)]',
     searchPlaceholder: 'Search files, documents, FastCDC tags… <5ms',
-    themeBg: 'linear-gradient(180deg, rgba(56,189,248,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(56,189,248,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(52,168,83,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(52,168,83,0.15)',
     icon: DriveLogoIcon,
   },
   {
     id: 'contacts',
     label: 'Contacts',
     path: '/contacts',
-    accentColor: '#10B981',
-    borderColor: 'border-[#10B981]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(16,185,129,0.18)]',
+    accentColor: '#8AB4F8',
+    borderColor: 'border-[#8AB4F8]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(138,180,248,0.18)]',
     searchPlaceholder: 'Search VIPs, contacts, companies… <5ms',
-    themeBg: 'linear-gradient(180deg, rgba(16,185,129,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(16,185,129,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(138,180,248,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(138,180,248,0.15)',
     icon: ContactsLogoIcon,
   },
   {
     id: 'quantgit',
     label: 'QuantGit',
     path: '/quantgit',
-    accentColor: '#A78BFA',
-    borderColor: 'border-[#A78BFA]/50',
-    glowColor: 'shadow-[0_0_12px_rgba(167,139,250,0.18)]',
+    accentColor: '#A855F7',
+    borderColor: 'border-[#A855F7]/50',
+    glowColor: 'shadow-[0_0_12px_rgba(168,85,247,0.18)]',
     searchPlaceholder: 'Search repositories, pull requests, commits… <5ms',
-    themeBg: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, transparent 40%)',
-    themeGlow: 'rgba(167,139,250,0.15)',
+    themeBg: 'linear-gradient(180deg, rgba(168,85,247,0.08) 0%, transparent 40%)',
+    themeGlow: 'rgba(168,85,247,0.15)',
     icon: QuantGitLogoIcon,
   },
 ];
@@ -568,6 +580,7 @@ export function QuantPillarTopBar({
 }: QuantPillarTopBarProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
+  const { user } = useOptionalAuth();
 
   // Internal search state when not controlled
   const effectiveQuery = searchValue ?? searchQuery ?? '';
@@ -782,17 +795,26 @@ export function QuantPillarTopBar({
   const innerHeaderRef = useRef<HTMLElement>(null);
   const [headerHidden, setHeaderHidden] = useState(false);
   const [headerHeight, setHeaderHeight] = useState<number | undefined>(undefined);
-  const [dotLeft, setDotLeft] = useState(0);
+  // Sliding LINE indicator (Swiggy-style): wraps the active tab, animates
+  // from center-expand then slides with spring physics. Replaces the old dot.
+  const [lineLeft, setLineLeft] = useState(0);
+  const [lineWidth, setLineWidth] = useState(0);
   const [spinningPillar, setSpinningPillar] = useState<PillarId | null>(null);
   const [tooltipPillar, setTooltipPillar] = useState<PillarId | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  // Search bar shrink state: when scrolled, search compacts and Quant AI appears beside it
+  const [searchCompact, setSearchCompact] = useState(false);
+  // QuantGit User ID modal state
+  const [quantGitIdModalOpen, setQuantGitIdModalOpen] = useState(false);
+  const [quantGitUserId, setQuantGitUserId] = useState<string | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const tooltipTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const spinTimer = useRef<number | null>(null);
 
-  // Measure the active tab's center for the sliding orange dot indicator.
-  const measureDot = useCallback(() => {
+  // Measure the active tab's bounds for the sliding LINE indicator.
+  // The line wraps the active tab (Swiggy-style), expanding from center.
+  const measureLine = useCallback(() => {
     const idx = PILLAR_TILES.findIndex((t) => t.id === currentPillar);
     const tab = tabRefs.current[idx];
     const dock = dockRef.current;
@@ -800,24 +822,25 @@ export function QuantPillarTopBar({
       const dockRect = dock.getBoundingClientRect();
       const tabRect = tab.getBoundingClientRect();
       if (tabRect.width > 0) {
-        setDotLeft(tabRect.left - dockRect.left + tabRect.width / 2);
+        setLineLeft(tabRect.left - dockRect.left);
+        setLineWidth(tabRect.width);
       }
     }
   }, [currentPillar]);
 
   useLayoutEffect(() => {
-    measureDot();
-  }, [measureDot]);
+    measureLine();
+  }, [measureLine]);
 
   useEffect(() => {
-    window.addEventListener('resize', measureDot);
+    window.addEventListener('resize', measureLine);
     // Re-measure after layout settles (canvas-painted marks load async).
-    const t = window.setTimeout(measureDot, 300);
+    const t = window.setTimeout(measureLine, 300);
     return () => {
-      window.removeEventListener('resize', measureDot);
+      window.removeEventListener('resize', measureLine);
       window.clearTimeout(t);
     };
-  }, [measureDot]);
+  }, [measureLine]);
 
   // Keep the collapse wrapper's height synced with the real header height
   // (the lens strip shows/hides per pillar; breakpoints change layout).
@@ -832,8 +855,9 @@ export function QuantPillarTopBar({
   }, [showLensStrip, currentPillar]);
 
   // Hide-on-scroll: collapse when scrolling DOWN. Scrolling UP intentionally
-  // does NOT bring it back — the switcher reappears ONLY at the very top
-  // (scrollTop <= 10), so it never eats screen space mid-scroll.
+  // does NOT bring it back — the switcher reappears ONLY at the absolute top
+  // (scrollY === 0), so it never eats screen space mid-scroll.
+  // The SEARCH BAR is separate and NEVER hides — it stays pinned at top.
   // Capture-phase document listener catches nested page scroll containers;
   // every scroller is tracked independently via WeakMap.
   useEffect(() => {
@@ -854,10 +878,21 @@ export function QuantPillarTopBar({
       const last = positions.get(key) ?? 0;
       const delta = scrollTop - last;
       positions.set(key, scrollTop);
-      if (scrollTop <= 10) {
+      // CRITICAL: only reappear at the ABSOLUTE top (scrollY === 0).
+      // Not "about to reach" — fully at top. User was explicit.
+      // AND: the scroller that fired must be at 0 while the DOCUMENT itself
+      // is also at 0. Otherwise a nested container hitting 0 mid-page would
+      // wrongly reveal the switcher while the page is still scrolled.
+      const docTop = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollTop === 0 && docTop === 0) {
         setHeaderHidden(false);
+        setSearchCompact(false);
       } else if (delta > 8 && scrollTop > 120) {
         setHeaderHidden(true);
+        setSearchCompact(true);
+      } else if (scrollTop > 0 && scrollTop <= 120) {
+        // Small scroll: keep switcher visible but compact the search
+        setSearchCompact(true);
       }
     };
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
@@ -946,8 +981,17 @@ export function QuantPillarTopBar({
     handleTileClick(tile);
   };
 
+  // User profile avatar: initial from email/username, gradient background
+  const userInitial = (user?.displayName?.[0] || user?.username?.[0] || user?.email?.[0] || 'U').toUpperCase();
+  const userName = user?.displayName || user?.username || user?.email?.split('@')[0] || 'User';
+
   return (
     <>
+    {/*
+      STRUCTURE (v3 deep redesign):
+      - Switcher pill: hides on scroll down, reappears ONLY at scrollY === 0
+      - Search bar: SEPARATE sticky element, NEVER hides, compacts on scroll
+    */}
     <div
       className="sticky top-0 z-30 w-full"
       style={{
@@ -961,84 +1005,42 @@ export function QuantPillarTopBar({
     >
     <header
       ref={innerHeaderRef}
-      className={`w-full flex flex-col gap-2.5 px-3 pt-2.5 pb-2 bg-[#090A0E]/95 backdrop-blur-md border-b border-[#232938] select-none ${className}`}
+      className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
       style={{
-        background: `${activeTile.themeBg}, rgba(9,10,14,0.95)`,
+        // PROFESSIONAL: subtle, minimal — no flashy gradients.
+        // Clean enterprise feel like Gmail/Outlook, not a game.
+        background: 'rgba(13,13,18,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
         transition: 'background 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
-        borderBottomColor: `${activeTile.accentColor}30`,
       }}
     >
       {/*
-        1. Top Row: Dynamic Island Quant AI Live Capsule.
-
-        On a phone the 5-pillar dock sits above this capsule (order utilities
-        below); on desktop the capsule stays first. DOM order is unchanged —
-        only the visual order moves — so keyboard and screen-reader order are
-        identical on both breakpoints.
+        Super-App Switcher — sleek logo pill, Swiggy-grade.
+        - Logos LEFT-aligned, user profile avatar on the RIGHT
+        - Sliding LINE indicator wraps active tab (NO dot!)
+        - 56px, subtle professional styling
       */}
-      <div className="flex items-center justify-between gap-2 order-2 md:order-1">
-        <button
-          type="button"
-          onClick={handleLiveCapsuleClick}
-          className="group flex items-center gap-2 px-3 py-1 rounded-full bg-[#111318]/90 border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all duration-200 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-          title="Open Quant AI Assistant"
-          aria-label="Open Quant AI Assistant"
-        >
-          {/* Molten Pulsing Orb Dot */}
-          <span className="relative flex size-2 items-center justify-center">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
-            <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
-          </span>
-
-          <SparklesIcon className="size-3.5 text-[#FF8C42] group-hover:scale-110 transition-transform" />
-
-          <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] group-hover:text-white truncate">
-            {aiLiveText ? (
-              <span>{aiLiveText}</span>
-            ) : (
-              <>
-                <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong> 3 urgent items prioritized
-                <span className="text-[#64748B] mx-1">·</span>
-                <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms E2EE</span>
-              </>
-            )}
-          </span>
-
-          <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />
-        </button>
-
-        {/* Ambient Sub-5ms System Speed Live Indicator */}
-        <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#12151E] border border-[#232938] text-[10px] font-mono text-emerald-400">
-          <LightningSpeedIcon className="size-2.5 text-emerald-400" />
-          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span>&lt;5ms LIVE</span>
-        </div>
-      </div>
-
-      {/*
-        2. Super-App Switcher — sleek logo-only pill (Swiggy-grade).
-        56px blurred obsidian pill · canvas-painted app marks, NO text labels ·
-        orange dot indicator with spring slide · long-press reveals the name.
-        First on mobile (order-1), second on desktop (md:order-2) — the phone
-        opens on the switcher, the desktop keeps the capsule-first layout.
-      */}
-      <div className="w-full flex justify-center order-1 md:order-2">
+      <div className="w-full flex justify-center">
         <div
           ref={dockRef}
           role="tablist"
           aria-label="Application Suites"
-          className="relative flex items-center gap-0.5 px-2"
+          className="relative flex items-center w-full max-w-5xl px-2"
           style={{
             height: 56,
-            background: 'rgba(13,13,18,0.85)',
+            background: 'rgba(19,20,26,0.9)',
             backdropFilter: 'blur(20px)',
             WebkitBackdropFilter: 'blur(20px)',
             border: '1px solid rgba(255,255,255,0.06)',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-            borderRadius: 999,
+            boxShadow: '0 2px 12px rgba(0,0,0,0.35)',
+            borderRadius: 16,
           }}
         >
+          {/* Logos: LEFT-aligned group */}
+          <div className="flex items-center gap-0.5 flex-1">
           {PILLAR_TILES.map((tile, idx) => {
             const isActive = tile.id === currentPillar;
             const IconComp = tile.icon;
@@ -1063,7 +1065,7 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className="relative flex flex-col items-center justify-center w-14 h-12 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 active:scale-[1.2]"
+                className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out',
@@ -1074,8 +1076,10 @@ export function QuantPillarTopBar({
                   className={isSpinning ? 'animate-[quantLogoSpin_0.6s_ease-in-out]' : undefined}
                   style={{
                     display: 'block',
+                    // Per-app theme glow (NOT all orange!) — each logo glows its own color
                     filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}66)` : undefined,
                     transition: 'transform 200ms ease-out, filter 0.2s ease-out',
+                    opacity: isActive ? 1 : 0.75,
                   }}
                 >
                   <IconComp active={isActive} />
@@ -1107,26 +1111,48 @@ export function QuantPillarTopBar({
               </button>
             );
           })}
+          </div>
 
-          {/* Sliding orange dot indicator — expands from the center, then
-              slides with spring physics (Swiggy-style tab indicator). */}
+          {/* User profile avatar: RIGHT side of the pill (NOT Quant AI!) */}
+          <button
+            type="button"
+            onClick={() => {
+              triggerHapticTap(10);
+              router.push('/settings');
+            }}
+            className="relative flex items-center justify-center w-10 h-10 rounded-full shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] transition-transform duration-150 hover:scale-105 active:scale-95 ml-1"
+            aria-label={`${userName} — open settings`}
+            title={userName}
+            style={{
+              background: 'linear-gradient(135deg, #FF6B35 0%, #A78BFA 100%)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+            }}
+          >
+            <span className="text-sm font-bold text-white">{userInitial}</span>
+          </button>
+
+          {/*
+            Sliding LINE indicator — Swiggy-style.
+            A rounded line that WRAPS the active tab, animating with spring
+            physics: expands from center, then slides. NO dot!
+          */}
           <span
             aria-hidden="true"
-            className="absolute bottom-[7px] pointer-events-none"
+            className="absolute bottom-[6px] pointer-events-none"
             style={{
-              left: dotLeft,
-              transform: 'translateX(-50%)',
-              transition: 'left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              left: lineLeft,
+              width: lineWidth,
+              transition: 'left 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
           >
             <span
               key={currentPillar}
-              className="block rounded-full animate-[quantDotPop_0.3s_ease-out]"
+              className="block mx-auto rounded-full animate-[quantLineExpand_0.35s_cubic-bezier(0.34,1.56,0.64,1)]"
               style={{
-                width: 6,
-                height: 6,
-                background: '#FF6B35',
-                boxShadow: '0 0 8px #FF6B35',
+                width: '60%',
+                height: 3,
+                background: `linear-gradient(90deg, ${activeTile.accentColor}, ${activeTile.accentColor}CC)`,
+                boxShadow: `0 0 8px ${activeTile.accentColor}66`,
               }}
             />
           </span>
@@ -1134,13 +1160,10 @@ export function QuantPillarTopBar({
       </div>
 
       <style>{`
-        @keyframes pillarArchPulse {
-          0%, 100% { opacity: 1; transform: scaleX(1); }
-          50% { opacity: 0.7; transform: scaleX(0.85); }
-        }
-        @keyframes quantDotPop {
-          0% { transform: scale(0.3); opacity: 0.4; }
-          100% { transform: scale(1); opacity: 1; }
+        @keyframes quantLineExpand {
+          0% { transform: scaleX(0.2); opacity: 0.3; }
+          60% { transform: scaleX(1.15); opacity: 1; }
+          100% { transform: scaleX(1); opacity: 1; }
         }
         @keyframes quantLogoSpin {
           0% { transform: rotate(0deg); }
@@ -1159,64 +1182,146 @@ export function QuantPillarTopBar({
           100% { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
+    </header>
+    </div>
 
-      {/* 3. Sticky Voice Search Bar */}
-      <div className="md:hidden relative flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#111318]/90 border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner w-full max-w-5xl mx-auto order-3">
-        <SearchMagnifierIcon className="size-4 text-[#94A3B8] shrink-0" />
-        <input
-          type="search"
-          value={internalSearch}
-          onChange={handleSearchInputChange}
-          onKeyDown={handleSearchKeyDown}
-          placeholder={searchPlaceholder || activeTile.searchPlaceholder}
-          aria-label={searchPlaceholder || activeTile.searchPlaceholder}
-          className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none"
-        />
+    {/*
+      SEARCH BAR — SEPARATE sticky element, NEVER hides on scroll.
+      Compacts (48px → 40px) when scrolled; Quant AI icon appears beside it.
+    */}
+    <div
+      className="sticky top-0 z-20 w-full px-3"
+      style={{
+        paddingTop: 8,
+        paddingBottom: 8,
+        background: 'rgba(13,13,18,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        transition: 'padding 0.25s ease-out',
+      }}
+    >
+      <div className="flex items-center gap-2 w-full max-w-5xl mx-auto">
+        <div
+          className="relative flex items-center gap-2 px-3 rounded-xl bg-[#16181F] border border-[#232938] focus-within:border-[#FF8C42]/60 focus-within:ring-1 focus-within:ring-[#FF8C42]/30 transition-all shadow-inner flex-1"
+          style={{
+            height: searchCompact ? 40 : 48,
+            transition: 'height 0.25s ease-out',
+          }}
+        >
+          <SearchMagnifierIcon className="size-4 text-[#94A3B8] shrink-0" />
+          <input
+            type="search"
+            value={internalSearch}
+            onChange={handleSearchInputChange}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={searchPlaceholder || activeTile.searchPlaceholder}
+            aria-label={searchPlaceholder || activeTile.searchPlaceholder}
+            className="w-full bg-transparent text-xs text-white placeholder-[#64748B] focus:outline-none"
+          />
 
-        {/* Clear Search Button */}
-        {internalSearch.length > 0 && (
+          {internalSearch.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClearClick}
+              className="p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <ClearSearchIcon className="size-3.5" />
+            </button>
+          )}
+
           <button
             type="button"
-            onClick={handleClearClick}
-            className="p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
-            title="Clear search"
-            aria-label="Clear search"
+            onClick={handleMicClick}
+            className={`p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+              isListening
+                ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1F2430]'
+            }`}
+            title={isListening ? 'Stop Listening' : 'Voice Search'}
+            aria-label={isListening ? 'Stop Listening' : 'Voice Search'}
+            aria-pressed={isListening}
           >
-            <ClearSearchIcon className="size-3.5" />
+            <MicrophoneIcon className="size-4" />
           </button>
-        )}
+        </div>
 
-        {/* Dedicated Voice Mic Button */}
+        {/* Quant AI quick-access: appears when search compacts on scroll */}
         <button
           type="button"
-          onClick={handleMicClick}
-          className={`p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
-            isListening
-              ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
-              : 'text-[#94A3B8] hover:text-white hover:bg-[#1F2430]'
-          }`}
-          title={isListening ? 'Stop Listening' : 'Voice Search'}
-          aria-label={isListening ? 'Stop Listening' : 'Voice Search'}
-          aria-pressed={isListening}
+          onClick={handleLiveCapsuleClick}
+          className="flex items-center justify-center rounded-xl shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] transition-all duration-200 hover:scale-105 active:scale-95"
+          style={{
+            width: searchCompact ? 40 : 0,
+            height: searchCompact ? 40 : 0,
+            opacity: searchCompact ? 1 : 0,
+            overflow: 'hidden',
+            background: 'linear-gradient(135deg, rgba(255,107,53,0.15), rgba(167,139,250,0.15))',
+            border: '1px solid rgba(255,140,66,0.3)',
+            transition: 'width 0.25s ease-out, height 0.25s ease-out, opacity 0.2s ease-out',
+          }}
+          title="Open Quant AI Assistant"
+          aria-label="Open Quant AI Assistant"
         >
-          <MicrophoneIcon className="size-4" />
+          <SparklesIcon className="size-4 text-[#FF8C42]" />
         </button>
       </div>
+    </div>
 
-      {/* 4. Horizontal Sub-Category Lenses Strip — hidden where the page owns
-          its filter row (see showLensStrip above). */}
-      {showLensStrip && (
+    {/* Quant AI live capsule — below search, collapsible */}
+    {!headerHidden && (
+    <div className="w-full px-3 pt-1">
+      <div className="flex items-center justify-between gap-2 w-full max-w-5xl mx-auto">
+        <button
+          type="button"
+          onClick={handleLiveCapsuleClick}
+          className="group flex items-center gap-2 px-3 py-1 rounded-full bg-[#111318]/90 border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all duration-200 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          title="Open Quant AI Assistant"
+          aria-label="Open Quant AI Assistant"
+        >
+          <span className="relative flex size-2 items-center justify-center">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
+          </span>
+
+          <SparklesIcon className="size-3.5 text-[#FF8C42] group-hover:scale-110 transition-transform" />
+
+          <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] group-hover:text-white truncate">
+            {aiLiveText ? (
+              <span>{aiLiveText}</span>
+            ) : (
+              <>
+                <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong> 3 urgent items prioritized
+                <span className="text-[#64748B] mx-1">·</span>
+                <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms E2EE</span>
+              </>
+            )}
+          </span>
+
+          <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#12151E] border border-[#232938] text-[10px] font-mono text-emerald-400">
+          <LightningSpeedIcon className="size-2.5 text-emerald-400" />
+          <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span>&lt;5ms LIVE</span>
+        </div>
+      </div>
+    </div>
+    )}
+
+    {/* Lens strip — below search */}
+    {showLensStrip && (
+      <div className="w-full px-3 pt-2">
       <div
-        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 w-full max-w-5xl mx-auto order-4"
+        className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1 w-full max-w-5xl mx-auto"
         role="tablist"
         aria-label="Sub-category lenses"
       >
         {activeLenses.map((lens) => {
           const isSelected = selectedLens === lens.id;
-          // Badge resolution: a live count from the caller's real data wins;
-          // a static string label (e.g. 'E2EE') is decorative, never a count.
-          // Anything else — including a fabricated number in config — shows
-          // nothing. Absence of data is rendered as absence, not as zero.
           const liveCount = lensCounts?.[currentPillar]?.[lens.id];
           const lensBadge: number | string | undefined =
             typeof liveCount === 'number' && Number.isFinite(liveCount) && liveCount > 0
@@ -1268,13 +1373,10 @@ export function QuantPillarTopBar({
             </button>
           );
         })}
-        {/* Trailing spacer: padding-right collapses inside overflow containers,
-            so without this the last lens would sit flush-cut at the edge. */}
         <div aria-hidden="true" className="shrink-0 w-1" />
       </div>
-      )}
-    </header>
-    </div>
+      </div>
+    )}
 
     {/* "Refreshed just now" toast — fixed, above the bottom nav */}
     {toastMsg && (
@@ -1293,6 +1395,43 @@ export function QuantPillarTopBar({
         {toastMsg}
       </div>
     )}
+
+    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active */}
+    {currentPillar === 'quantgit' && (
+      <button
+        type="button"
+        onClick={() => setQuantGitIdModalOpen(true)}
+        className="fixed bottom-20 right-4 z-[90] flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
+        style={{
+          background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
+          boxShadow: '0 8px 24px rgba(168,85,247,0.4)',
+          border: '1px solid rgba(255,255,255,0.15)',
+        }}
+        aria-label={quantGitUserId ? `QuantGit ID: @${quantGitUserId} — manage` : 'Create QuantGit User ID'}
+        title={quantGitUserId ? `@${quantGitUserId}` : 'Create your QuantGit User ID'}
+      >
+        <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <line x1="19" y1="8" x2="19" y2="14" />
+          <line x1="22" y1="11" x2="16" y2="11" />
+        </svg>
+        {quantGitUserId ? `@${quantGitUserId}` : 'Create User ID'}
+      </button>
+    )}
+
+    {/* QuantGit User ID creation modal */}
+    <QuantGitUserIdModal
+      isOpen={quantGitIdModalOpen}
+      onClose={() => setQuantGitIdModalOpen(false)}
+      currentUserId={quantGitUserId}
+      onCreate={(newId) => {
+        setQuantGitUserId(newId);
+        setToastMsg(`QuantGit ID @${newId} created!`);
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToastMsg(null), 3000);
+      }}
+    />
     </>
   );
 }

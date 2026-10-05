@@ -91,41 +91,53 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       ]);
     });
 
-    it('applies Molten Amber active styling to Mail tile when active', () => {
+    it('applies Gmail-style Orange/Red active styling to Mail tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      expect(html).toContain('#FF8C42');
-      // New logo-only pill: blurred obsidian container + orange dot indicator
-      expect(html).toContain('rgba(13,13,18,0.85)');
-      expect(html).toContain('#FF6B35');
+      // Professional subtle background #0D0D12 with blur
+      expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only markers: these strings render ONLY when Mail is active —
+      // the Swiggy-style sliding line gradient and the active logo glow.
+      // (Bare '#FF8C42' / '#FF6B35' are global: AI capsule, search ring and the
+      // profile avatar all carry them, so they prove nothing per-pillar.)
+      expect(html).toContain('linear-gradient(90deg, #FF6B35, #FF6B35CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
     });
 
-    it('applies Sunset Gold active styling to Calendar tile when active', () => {
+    it('applies professional Blue active styling to Calendar tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
 
-      expect(html).toContain('#F59E0B');
-      expect(html).toContain('rgba(13,13,18,0.85)');
+      expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Calendar's blue.
+      expect(html).toContain('linear-gradient(90deg, #4285F4, #4285F4CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
     });
 
-    it('applies Sovereign Cyan active styling to Drive tile when active', () => {
+    it('applies Google Drive-style colors to Drive tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
 
-      expect(html).toContain('#38BDF8');
-      expect(html).toContain('rgba(13,13,18,0.85)');
+      expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Drive's green.
+      expect(html).toContain('linear-gradient(90deg, #34A853, #34A853CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
     });
 
-    it('applies Emerald Matrix active styling to Contacts tile when active', () => {
+    it('applies Grey/Blue active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
-      expect(html).toContain('#10B981');
-      expect(html).toContain('rgba(13,13,18,0.85)');
+      expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Contacts' grey-blue.
+      expect(html).toContain('linear-gradient(90deg, #8AB4F8, #8AB4F8CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #8AB4F866)');
     });
 
-    it('applies Obsidian Purple active styling to QuantGit tile when active', () => {
+    it('applies distinct Purple active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
-      expect(html).toContain('#A78BFA');
-      expect(html).toContain('rgba(13,13,18,0.85)');
+      expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in QuantGit's purple.
+      expect(html).toContain('linear-gradient(90deg, #A855F7, #A855F7CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #A855F766)');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {
@@ -329,7 +341,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('renders search input with 12dp rounded corners and contextual placeholder for Mail', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      expect(html).toContain('rounded-xl bg-[#111318]/90 border border-[#232938]');
+      expect(html).toContain('rounded-xl bg-[#16181F] border border-[#232938]');
       expect(html).toContain('placeholder="Search emails, senders, keywords… &lt;5ms"');
     });
 

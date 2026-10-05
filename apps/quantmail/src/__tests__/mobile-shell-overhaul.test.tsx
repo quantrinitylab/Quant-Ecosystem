@@ -163,14 +163,18 @@ describe('Mobile Shell Overhaul — Worker A', () => {
         expect(html).toContain(`data-testid="pillar-tile-${id}"`);
       }
 
-      // Real marks: the four named canvas marks carry role="img" labels…
-      expect(html).toContain('aria-label="QuantCalendar"');
+      // Real marks: the three remaining canvas marks carry role="img" labels…
       expect(html).toContain('aria-label="QuantDrive"');
       expect(html).toContain('aria-label="QuantContacts"');
       expect(html).toContain('aria-label="QuantGit"');
-      // …and all five tiles paint a canvas mark (mail's decorative mark too).
+      // …Calendar now paints the Apple-style SVG mark instead of canvas. Its
+      // accessible name carries the current localized date for screen readers…
+      expect(html).toContain('aria-label="QuantCalendar —');
+      expect(html).toContain('qcal-bg');
+      // …and the four canvas-painted tiles keep their canvas marks (mail's
+      // decorative mark too).
       const canvasCount = (html.match(/<canvas/g) || []).length;
-      expect(canvasCount).toBeGreaterThanOrEqual(5);
+      expect(canvasCount).toBeGreaterThanOrEqual(4);
 
       // The old generic mail glyph is gone from the tiles.
       expect(html).not.toContain('m22 7-8.97 5.7');
@@ -179,18 +183,19 @@ describe('Mobile Shell Overhaul — Worker A', () => {
     it('orders the dock above the AI capsule on mobile, capsule first on desktop', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      // Tiles row: order-1 on mobile, order-2 on desktop.
+      // New DOM order (redesign): dock tablist → search bar → AI capsule.
+      // The dock still sits above the AI capsule.
       expect(html).toContain('role="tablist"');
-      expect(html).toMatch(/aria-label="Application Suites"[^>]*|order-1 md:order-2/);
-      expect(html).toContain('order-1 md:order-2');
-      // AI capsule row: order-2 on mobile, order-1 on desktop.
-      expect(html).toContain('order-2 md:order-1');
-      // Search bar keeps its slot after both.
-      expect(html).toContain('order-3');
-      // The lens strip is hidden on mail (the inbox owns its lens row) —
-      // it only renders where the page has no filter row of its own.
-      expect(html).not.toContain('order-4');
-      expect(html).not.toContain('aria-label="Sub-category lenses"');
+      expect(html).toContain('aria-label="Application Suites"');
+      const dockIdx = html.indexOf('aria-label="Application Suites"');
+      const capsuleIdx = html.indexOf('Quant AI:');
+      expect(dockIdx).toBeGreaterThanOrEqual(0);
+      expect(capsuleIdx).toBeGreaterThanOrEqual(0);
+      expect(dockIdx).toBeLessThan(capsuleIdx);
+      // Search bar keeps its slot between dock and capsule.
+      const searchIdx = html.indexOf('aria-label="Voice Search"');
+      expect(searchIdx).toBeGreaterThan(dockIdx);
+      expect(searchIdx).toBeLessThan(capsuleIdx);
     });
 
     it('hides the duplicate lens strip where the page owns its filter row', () => {
@@ -201,7 +206,6 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       // QuantGit has no page-level filter row, so it keeps the strip.
       const gitHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
       expect(gitHtml).toContain('aria-label="Sub-category lenses"');
-      expect(gitHtml).toContain('order-4');
     });
 
     it('shows the lens strip when hideLensStrip is explicitly false', () => {
@@ -211,14 +215,18 @@ describe('Mobile Shell Overhaul — Worker A', () => {
       expect(html).toContain('aria-label="Sub-category lenses"');
     });
 
-    it('marks the active tile with aria-selected and the arch glow bar', () => {
+    it('marks the active tile with aria-selected and the sliding line indicator', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
       expect(html).toContain('data-testid="pillar-tile-contacts"');
       // Active tile announces itself…
       expect(html).toContain('aria-selected="true"');
-      // …and carries the 200ms premium transition (not the old 350ms).
-      expect(html).toContain('transform 200ms ease-out');
+      // …and carries the Swiggy-style sliding line in the pillar's own color
+      // (Contacts blue) — the old arch glow bar is gone.
+      expect(html).toContain('linear-gradient(90deg, #8AB4F8, #8AB4F8CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #8AB4F866)');
+      // …and the active tile keeps the snappy premium transition (not the old 350ms).
+      expect(html).toContain('transition-transform duration-150 ease-out');
       expect(html).not.toContain('0.35s cubic-bezier(0.34, 1.3, 0.64, 1)');
     });
 
