@@ -166,9 +166,21 @@ export function SsoChooserContent({
     [handoffSession],
   );
 
-  // 1-Click Select current active account
-  const handleSelectActiveAccount = useCallback(() => {
-    const token = browserAuthSession.getAccessToken();
+  // 1-Click Select current active account.
+  // The access token lives in JS memory only; on a fresh navigation to /sso it
+  // is populated by the auth-provider's refresh-cookie restore, which may still
+  // be in flight when the user clicks. Retry once via refresh() instead of
+  // failing with "No active session token available".
+  const handleSelectActiveAccount = useCallback(async () => {
+    let token = browserAuthSession.getAccessToken();
+    if (!token) {
+      try {
+        const refreshed = await browserAuthSession.refresh();
+        if (refreshed.success) token = browserAuthSession.getAccessToken();
+      } catch {
+        /* fall through to proceedWithSession's error path */
+      }
+    }
     proceedWithSession(token);
   }, [proceedWithSession]);
 

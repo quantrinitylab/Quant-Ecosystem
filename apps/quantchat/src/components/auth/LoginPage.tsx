@@ -64,23 +64,16 @@ export default function LoginPage(props: LoginPageProps) {
     }
   }, [router]);
 
+  // "Continue with Quant Account" always performs a real SSO handshake with
+  // QuantMail. We deliberately do NOT short-circuit on a locally stored token:
+  // reusing a stale/expired local token made the button appear dead (it just
+  // navigated to '/' with the old session) and made account switching
+  // impossible. QuantMail's chooser shows the signed-in account for 1-click
+  // continue, which is the correct fast path.
   const handleQuantSSO = useCallback(() => {
-    try {
-      const stored =
-        localStorage.getItem('quant_access_token') ||
-        localStorage.getItem('quant_auth_token') ||
-        localStorage.getItem('token') ||
-        localStorage.getItem('quant_token') ||
-        localStorage.getItem('quantchat_access_token');
-      if (stored) {
-        persistSession(stored, stored);
-        router.replace('/');
-        return;
-      }
-    } catch {}
     const returnTo = encodeURIComponent(window.location.origin + '/login');
     window.location.href = `${SSO_BASE_URL}/sso?returnTo=${returnTo}&client_id=quantchat`;
-  }, [router]);
+  }, []);
 
   const handlePasswordLogin = useCallback(
     async (e: React.FormEvent) => {
