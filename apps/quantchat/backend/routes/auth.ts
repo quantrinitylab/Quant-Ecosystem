@@ -221,6 +221,57 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }
     const { phoneNumber, otp } = parsed.data;
 
+    // MSG91 widget verification: otp format is "msg91:<jwt-access-token>"
+    // Verify the JWT with MSG91's verifyAccessToken API
+    if (otp.startsWith('msg91:')) {
+      const accessToken = otp.slice('msg91:'.length);
+      const authKey = process.env.MSG91_AUTH_KEY?.trim();
+      if (!authKey) {
+        return reply.status(500).send({
+          success: false,
+          error: { code: 'OTP_CONFIG', message: 'OTP not configured', statusCode: 500 },
+        });
+      }
+      try {
+        const verifyRes = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ authkey: authKey, 'access-token': accessToken }),
+        });
+        const verifyData = (await verifyRes.json().catch(() => ({}))) as {
+          type?: string;
+          data?: { mobile?: string; verified?: boolean };
+        };
+        if (verifyData.type !== 'success' || !verifyData.data?.verified) {
+          return reply.status(401).send({
+            success: false,
+            error: { code: 'OTP_INVALID', message: 'OTP verification failed', statusCode: 401 },
+          });
+        }
+        // Verified! Use the mobile from MSG91 response
+        const verifiedMobile = verifyData.data.mobile || phoneNumber;
+        const normalized = verifiedMobile.replace(/[\s\-()]/g, '');
+        const { user, isNewUser } = await upsertPhoneUser(prisma, normalized);
+        const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+        return reply.send({
+          success: true,
+          data: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            expiresIn: tokens.expiresIn,
+            tokenType: tokens.tokenType,
+            isNewUser,
+            user: { id: user.id, username: user.username, phoneNumber: user.phoneNumber },
+          },
+        });
+      } catch (err) {
+        return reply.status(500).send({
+          success: false,
+          error: { code: 'OTP_VERIFY_ERROR', message: 'Verification failed', statusCode: 500 },
+        });
+      }
+    }
+
     const verdict = otpService.verifyCode(phoneNumber, otp);
     if (!verdict.ok) {
       return reply.status(401).send({

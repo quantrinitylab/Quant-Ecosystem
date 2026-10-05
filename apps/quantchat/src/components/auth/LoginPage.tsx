@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
+import { useMsg91Widget } from '../../hooks/useMsg91Widget';
 
 export type AuthMode = 'password' | 'phone';
 export type Step = 'phone' | 'otp';
@@ -56,6 +57,9 @@ export default function LoginPage(props: LoginPageProps) {
 
   const [countdown, setCountdown] = useState(30);
   const [demoCodeReceived, setDemoCodeReceived] = useState<string | null>(initialDemoCode);
+
+  // MSG91 OTP Widget for real SMS delivery (client-side)
+  const msg91 = useMsg91Widget();
 
   // Timer for resend
   useEffect(() => {
@@ -174,6 +178,25 @@ export default function LoginPage(props: LoginPageProps) {
     }
     setBusy(true);
     try {
+      // Use MSG91 widget for real SMS (client-side)
+      // Falls back to backend API if widget not ready
+      const fullPhone = `${countryCode.replace('+', '')}${phoneNumber.replace(/\D/g, '')}`;
+      
+      if (msg91.isReady) {
+        try {
+          await msg91.sendOtp(fullPhone);
+          setStep('otp');
+          setCountdown(30);
+          setDemoCodeReceived(null);
+          setInfo('Verification code sent via SMS');
+          return;
+        } catch (widgetErr) {
+          // Fall through to backend API
+          console.warn('MSG91 widget send failed, falling back to backend:', widgetErr);
+        }
+      }
+      
+      // Fallback: backend API
       const res = await apiClient.requestOTP({ phoneNumber, countryCode });
       if (!res.success) {
         setError(res.error?.message ?? 'Could not send a verification code');
@@ -192,7 +215,7 @@ export default function LoginPage(props: LoginPageProps) {
     } finally {
       setBusy(false);
     }
-  }, [countryCode, phoneNumber]);
+  }, [countryCode, phoneNumber, msg91]);
 
   const verifyCode = useCallback(async () => {
     setError(null);
@@ -203,6 +226,30 @@ export default function LoginPage(props: LoginPageProps) {
     setBusy(true);
     try {
       const full = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+      
+      // Try MSG91 widget verification first (if widget was used to send)
+      if (msg91.isReady) {
+        try {
+          const accessToken = await msg91.verifyOtp(otp);
+          // Send JWT to backend for verification and session creation
+          const res = await apiClient.verifyOTP({ 
+            phoneNumber: full, 
+            otp: `msg91:${accessToken}`, 
+            deviceId: '' 
+          });
+          if (res.success && res.data) {
+            persistSession(res.data.accessToken, res.data.refreshToken);
+            router.replace('/');
+            return;
+          }
+          // If backend rejects, fall through to normal flow
+        } catch (widgetErr) {
+          setError(widgetErr instanceof Error ? widgetErr.message : 'Invalid or expired code');
+          return;
+        }
+      }
+      
+      // Fallback: backend OTP verification
       const res = await apiClient.verifyOTP({ phoneNumber: full, otp, deviceId: '' });
       if (!res.success || !res.data) {
         setError(res.error?.message ?? 'Invalid or expired code');
@@ -215,7 +262,7 @@ export default function LoginPage(props: LoginPageProps) {
     } finally {
       setBusy(false);
     }
-  }, [countryCode, phoneNumber, otp, router]);
+  }, [countryCode, phoneNumber, otp, router, msg91]);
 
   const activeCountry = COUNTRIES.find((c) => c.code === countryCode);
 
