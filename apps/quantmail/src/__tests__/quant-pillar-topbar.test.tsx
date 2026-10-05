@@ -155,9 +155,12 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     });
 
     it('renders lens badges from live lensCounts and omits them when absent', () => {
+      // The lens strip is hidden by default for pillars with native page-level
+      // filters (mail/calendar/drive/contacts) — opt in explicitly to test it.
       const withCounts = renderToStaticMarkup(
         <QuantPillarTopBar
           activePillarOverride="mail"
+          hideLensStrip={false}
           lensCounts={{ mail: { all: 47, important: 19 } }}
         />,
       );
@@ -165,12 +168,25 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(withCounts).toContain('>19<');
 
       const withoutCounts = renderToStaticMarkup(
-        <QuantPillarTopBar activePillarOverride="mail" />,
+        <QuantPillarTopBar activePillarOverride="mail" hideLensStrip={false} />,
       );
       // Labels still render; no numeric badge may appear anywhere in the strip.
       expect(withoutCounts).toContain('Important');
       expect(withoutCounts).toContain('Teams');
       expect(withoutCounts).not.toMatch(/<span[^>]*font-mono[^>]*>\d+<\/span>/);
+    });
+
+    it('hides the lens strip by default for pillars with native page-level filters', () => {
+      // Regression guard for the duplicate-strip removal: mail/calendar/drive/
+      // contacts pages render their own richer filter rows, so the topbar strip
+      // stays hidden unless hideLensStrip={false}. QuantGit has no page-level
+      // filter row, so it keeps the strip.
+      for (const pillar of ['mail', 'calendar', 'drive', 'contacts'] as const) {
+        const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride={pillar} />);
+        expect(html).not.toContain('Sub-category lenses');
+      }
+      const gitHtml = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
+      expect(gitHtml).toContain('Sub-category lenses');
     });
   });
 
@@ -386,7 +402,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
   // ==========================================================================
   describe('Horizontal Sub-Category Lenses Strip', () => {
     it('renders Mail sub-category lenses: All 12, Important 3, Teams 5, Updates, Promos, Spam', () => {
-      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" hideLensStrip={false} />);
 
       expect(html).toContain('All');
       expect(html).toContain('12');
@@ -400,7 +416,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     });
 
     it('renders Calendar sub-category lenses: Today, Upcoming, Meetings, Reminders', () => {
-      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" hideLensStrip={false} />);
 
       expect(html).toContain('Today');
       expect(html).toContain('Upcoming');
@@ -409,7 +425,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     });
 
     it('renders Drive sub-category lenses: All Files, Docs, Media, Vault E2EE, FastCDC Clean', () => {
-      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" hideLensStrip={false} />);
 
       expect(html).toContain('All Files');
       expect(html).toContain('Docs');
@@ -420,7 +436,7 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     });
 
     it('renders Contacts sub-category lenses: All 8, VIPs 4, Teams, AI Dedup', () => {
-      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" hideLensStrip={false} />);
 
       expect(html).toContain('All');
       expect(html).toContain('8');
