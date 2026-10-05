@@ -41,6 +41,10 @@ const verifySchema = z.object({
   deviceId: z.string().max(128).optional(),
 });
 
+const ssoExchangeSchema = z.object({
+  ssoToken: z.string().min(10).max(8192),
+});
+
 /** Marker for an unusable password (phone-OTP users never log in by password). */
 const UNUSABLE_PASSWORD = '!phone-otp-no-password';
 
@@ -180,6 +184,113 @@ export default async function authRoutes(fastify: FastifyInstance) {
     });
   });
 
+  // POST /auth/sso/exchange — Exchange a QuantMail SSO token for QuantChat-native tokens.
+  //
+  // WHY THIS EXISTS: QuantMail's SSO handoff redirects back with a QuantMail-issued
+  // JWT (?token=...). That JWT is signed with QuantMail's secret and carries
+  // issuer/audience `quantmail`/`quant-ecosystem`, which QuantChat's auth hook
+  // (secret + issuer/audience `quantchat`) rejects with 401. Storing the raw
+  // QuantMail JWT meant `useAuth` → `/auth/me` got 401 → fail-closed cleared the
+  // session → the user bounced back to /login forever.
+  //
+  // This PUBLIC endpoint verifies the SSO token back-channel against QuantMail's
+  // `/oauth/userinfo`, upserts the user by verified email, and returns
+  // QuantChat-native tokens minted by `sessionTokens`.
+  fastify.post('/sso/exchange', async (request, reply) => {
+    const parsed = ssoExchangeSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'ssoToken is required',
+          statusCode: 400,
+        },
+      });
+    }
+    const { ssoToken } = parsed.data;
+
+    // 1. Verify the SSO token back-channel against QuantMail (server-side; the
+    //    token is never trusted on its claims alone).
+    const quantmailBase = (
+      process.env['QUANTMAIL_BACKEND_URL'] || 'https://quantmail.in'
+    ).replace(/\/$/, '');
+    let identity: { email: string; username?: string; displayName?: string };
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const res = await fetch(`${quantmailBase}/oauth/userinfo`, {
+          headers: { Authorization: `Bearer ${ssoToken}` },
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_SSO_TOKEN',
+              message: 'SSO token not accepted by QuantMail',
+              statusCode: 401,
+            },
+          });
+        }
+        const body = (await res.json().catch(() => null)) as {
+          data?: { id?: unknown; email?: unknown; username?: unknown; displayName?: unknown };
+        } | null;
+        const data = body?.data;
+        if (!data || typeof data.email !== 'string' || !data.email.includes('@')) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_SSO_TOKEN',
+              message: 'SSO identity incomplete',
+              statusCode: 401,
+            },
+          });
+        }
+        identity = {
+          email: data.email.toLowerCase(),
+          username: typeof data.username === 'string' ? data.username : undefined,
+          displayName: typeof data.displayName === 'string' ? data.displayName : undefined,
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch {
+      return reply.status(502).send({
+        success: false,
+        error: {
+          code: 'SSO_VERIFY_UNAVAILABLE',
+          message: 'Could not verify SSO token with QuantMail',
+          statusCode: 502,
+        },
+      });
+    }
+
+    // 2. Upsert the QuantChat user by verified email.
+    const { user, isNewUser } = await upsertSsoUser(prisma, identity);
+
+    // 3. Issue QuantChat-native tokens (accepted by every protected route).
+    const tokens = await sessionTokens.issue({ userId: user.id, username: user.username });
+    return reply.send({
+      success: true,
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresIn: tokens.expiresIn,
+        tokenType: tokens.tokenType,
+        isNewUser,
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          displayName: user.displayName,
+          role: String(user.role).toLowerCase(),
+        },
+      },
+    });
+  });
+
   // POST /auth/otp/request
   fastify.post('/otp/request', async (request, reply) => {
     const parsed = requestSchema.safeParse(request.body);
@@ -296,6 +407,68 @@ export default async function authRoutes(fastify: FastifyInstance) {
       },
     });
   });
+}
+
+/**
+ * Find-or-create a user by QuantMail-verified SSO identity. New users get an
+ * unusable password (they authenticate via QuantMail SSO, never password) and a
+ * unique username derived from their QuantMail handle.
+ */
+async function upsertSsoUser(
+  prisma: PrismaClient,
+  identity: { email: string; username?: string; displayName?: string },
+): Promise<{
+  user: { id: string; email: string; username: string; displayName: string; role: unknown };
+  isNewUser: boolean;
+}> {
+  const email = identity.email.toLowerCase();
+  const existing = await prisma.user.findFirst({
+    where: { email, deletedAt: null },
+    select: { id: true, email: true, username: true, displayName: true, role: true },
+  });
+  if (existing) {
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        lastLoginAt: new Date(),
+        loginCount: { increment: 1 },
+        emailVerified: true,
+        isVerified: true,
+      },
+    });
+    return { user: existing, isNewUser: false };
+  }
+
+  const base = (identity.username || email.split('@')[0] || 'quant_user')
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '_')
+    .slice(0, 24) || 'quant_user';
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const suffix = attempt === 0 ? '' : `_${randomUUID().replace(/-/g, '').slice(0, 6)}`;
+    const username = `${base}${suffix}`.slice(0, 30);
+    try {
+      const created = await prisma.user.create({
+        data: {
+          email,
+          username,
+          displayName: identity.displayName || identity.username || email.split('@')[0] || 'Quant User',
+          passwordHash: UNUSABLE_PASSWORD,
+          emailVerified: true,
+          isVerified: true,
+          status: 'ACTIVE',
+          lastLoginAt: new Date(),
+          loginCount: 1,
+        },
+        select: { id: true, email: true, username: true, displayName: true, role: true },
+      });
+      return { user: created, isNewUser: true };
+    } catch (err) {
+      if (isUniqueConstraintError(err) && attempt < 4) continue;
+      throw err;
+    }
+  }
+  throw new Error('Failed to allocate a unique username for SSO user');
 }
 
 /**

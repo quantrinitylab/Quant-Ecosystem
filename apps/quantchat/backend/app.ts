@@ -81,6 +81,7 @@ export function getConfig(): AppConfig {
       '/auth/login',
       '/auth/otp/request',
       '/auth/otp/verify',
+      '/auth/sso/exchange',
       '/meetings/webhooks/livekit',
       '/voice-bot/alert',
     ],
