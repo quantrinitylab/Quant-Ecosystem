@@ -220,10 +220,31 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const res = await fetch(`${quantmailBase}/api/oauth/userinfo`, {
-          headers: { Authorization: `Bearer ${ssoToken}` },
-          signal: controller.signal,
-        });
+        // QUANTMAIL_BACKEND_URL differs by environment: production points at
+        // the internal k8s service (no /api prefix — that only exists on the
+        // public Next.js proxy), while local/dev may point at the public
+        // frontend (which proxies /api/*). Try the direct backend path first,
+        // fall back to the proxied path on 404.
+        let res: Response | null = null;
+        for (const userinfoPath of ['/oauth/userinfo', '/api/oauth/userinfo']) {
+          const attempt = await fetch(`${quantmailBase}${userinfoPath}`, {
+            headers: { Authorization: `Bearer ${ssoToken}` },
+            signal: controller.signal,
+          });
+          if (attempt.status === 404) continue; // path not served here — try next
+          res = attempt;
+          break;
+        }
+        if (!res) {
+          return reply.status(401).send({
+            success: false,
+            error: {
+              code: 'INVALID_SSO_TOKEN',
+              message: 'SSO token not accepted by QuantMail',
+              statusCode: 401,
+            },
+          });
+        }
         if (!res.ok) {
           return reply.status(401).send({
             success: false,

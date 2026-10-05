@@ -49,6 +49,25 @@ function gradientFor(seed: string): string {
   return `linear-gradient(135deg, hsl(${a} 70% 55%), hsl(${b} 72% 48%))`;
 }
 
+// Returns true when a JWT access token is expired or expires within
+// `marginSecs`. Access TTL is only 900s, so a token that was valid when the
+// chooser rendered can be stale by click time. Undecodable/non-JWT values
+// conservatively return true so we attempt a refresh rather than handing off
+// a dead token.
+function isTokenExpiringSoon(token: string, marginSecs = 60): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(
+      atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')),
+    ) as { exp?: unknown };
+    if (typeof payload.exp !== 'number') return true;
+    return payload.exp * 1000 <= Date.now() + marginSecs * 1000;
+  } catch {
+    return true;
+  }
+}
+
 function resolveClientApp(
   clientId: string | null,
   returnTo: string | null,
@@ -171,9 +190,12 @@ export function SsoChooserContent({
   // is populated by the auth-provider's refresh-cookie restore, which may still
   // be in flight when the user clicks. Retry once via refresh() instead of
   // failing with "No active session token available".
+  // Also refresh when the token is present but expired/expiring within 60s —
+  // the access TTL is only 900s, so a token that was valid at render time can
+  // be stale by click time, and handing off a dead token fails downstream.
   const handleSelectActiveAccount = useCallback(async () => {
     let token = browserAuthSession.getAccessToken();
-    if (!token) {
+    if (!token || isTokenExpiringSoon(token)) {
       try {
         const refreshed = await browserAuthSession.refresh();
         if (refreshed.success) token = browserAuthSession.getAccessToken();
