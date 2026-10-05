@@ -25,7 +25,7 @@ COPY patches/ ./patches/
 COPY packages/ ./packages/
 COPY apps/quantchat/ ./apps/quantchat/
 COPY infra/scripts/ ./infra/scripts/
-RUN pnpm install --frozen-lockfile --network-concurrency 1 --child-concurrency 1
+RUN pnpm install --frozen-lockfile --ignore-scripts --network-concurrency 1 --child-concurrency 1
 
 FROM deps AS builder
 ENV NODE_OPTIONS="--max-old-space-size=2048"
