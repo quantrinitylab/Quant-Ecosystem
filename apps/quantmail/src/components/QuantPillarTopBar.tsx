@@ -880,7 +880,11 @@ export function QuantPillarTopBar({
       positions.set(key, scrollTop);
       // CRITICAL: only reappear at the ABSOLUTE top (scrollY === 0).
       // Not "about to reach" — fully at top. User was explicit.
-      if (scrollTop === 0) {
+      // AND: the scroller that fired must be at 0 while the DOCUMENT itself
+      // is also at 0. Otherwise a nested container hitting 0 mid-page would
+      // wrongly reveal the switcher while the page is still scrolled.
+      const docTop = window.scrollY || document.documentElement.scrollTop || 0;
+      if (scrollTop === 0 && docTop === 0) {
         setHeaderHidden(false);
         setSearchCompact(false);
       } else if (delta > 8 && scrollTop > 120) {

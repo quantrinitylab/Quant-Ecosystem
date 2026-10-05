@@ -94,38 +94,50 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
     it('applies Gmail-style Orange/Red active styling to Mail tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      expect(html).toContain('#FF8C42');
       // Professional subtle background #0D0D12 with blur
       expect(html).toContain('rgba(13,13,18,0.96)');
-      expect(html).toContain('#FF6B35');
+      // Active-only markers: these strings render ONLY when Mail is active —
+      // the Swiggy-style sliding line gradient and the active logo glow.
+      // (Bare '#FF8C42' / '#FF6B35' are global: AI capsule, search ring and the
+      // profile avatar all carry them, so they prove nothing per-pillar.)
+      expect(html).toContain('linear-gradient(90deg, #FF6B35, #FF6B35CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #FF6B3566)');
     });
 
     it('applies professional Blue active styling to Calendar tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="calendar" />);
 
-      expect(html).toContain('#4285F4');
       expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Calendar's blue.
+      expect(html).toContain('linear-gradient(90deg, #4285F4, #4285F4CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #4285F466)');
     });
 
     it('applies Google Drive-style colors to Drive tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="drive" />);
 
-      expect(html).toContain('#34A853');
       expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Drive's green.
+      expect(html).toContain('linear-gradient(90deg, #34A853, #34A853CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #34A85366)');
     });
 
     it('applies Grey/Blue active styling to Contacts tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="contacts" />);
 
-      expect(html).toContain('#8AB4F8');
       expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in Contacts' grey-blue.
+      expect(html).toContain('linear-gradient(90deg, #8AB4F8, #8AB4F8CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #8AB4F866)');
     });
 
     it('applies distinct Purple active styling to QuantGit tile when active', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="quantgit" />);
 
-      expect(html).toContain('#A855F7');
       expect(html).toContain('rgba(13,13,18,0.96)');
+      // Active-only: sliding line + glow in QuantGit's purple.
+      expect(html).toContain('linear-gradient(90deg, #A855F7, #A855F7CC)');
+      expect(html).toContain('drop-shadow(0 0 6px #A855F766)');
     });
 
     it('renders unread/count badges when provided in unreadCounts prop', () => {

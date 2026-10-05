@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { QuantLogoProps } from './AppMark';
 
 /**
@@ -17,16 +18,33 @@ import type { QuantLogoProps } from './AppMark';
  * Gmail, Outlook, and Apple Calendar.
  */
 export function QuantCalendarLogo({ size = 28, className = '' }: QuantLogoProps) {
-  const now = new Date();
+  // Track "now" in state so the icon's date — and its accessible name — stay
+  // fresh if the app is left open across midnight. The same timer keeps the
+  // aria-label in sync with the painted date.
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const dayNumber = now.getDate();
   const monthAbbr = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
   const weekdayAbbr = now.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  // Screen-reader users learn the actual date shown, not just "QuantCalendar".
+  // Localized with the user's locale (e.g. "QuantCalendar — Tuesday, October 6, 2026").
+  const accessibleName = `QuantCalendar — ${now.toLocaleDateString(undefined, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })}`;
 
   return (
     <span
       role="img"
-      aria-label="QuantCalendar"
-      title="QuantCalendar"
+      aria-label={accessibleName}
+      title={accessibleName}
       className={`inline-flex shrink-0 select-none items-center justify-center ${className}`}
       style={{ width: size, height: size }}
     >

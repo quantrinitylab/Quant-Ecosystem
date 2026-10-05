@@ -21,9 +21,13 @@ interface QuantGitUserIdModalProps {
 
 export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }: QuantGitUserIdModalProps) {
   const [userId, setUserId] = useState('');
-  const [isChecking, setIsChecking] = useState(false);
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // NOTE: availability checking + claiming are DISABLED until the backend
+  // endpoint (POST /api/quantgit/user-id) exists. We intentionally do NOT
+  // simulate availability — a fake "available" badge would lie to users and
+  // the claimed ID would be lost on reload (local-state only). The input keeps
+  // client-side format validation so users can pre-pick a valid ID; the Claim
+  // action stays disabled with a "Coming Soon" affordance.
 
   if (!isOpen) return null;
 
@@ -35,32 +39,21 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
     return null;
   };
 
-  const checkAvailability = async (id: string) => {
-    const validationError = validateUserId(id);
-    if (validationError) {
-      setError(validationError);
-      setIsAvailable(null);
-      return;
-    }
-    
-    setError(null);
-    setIsChecking(true);
-    // TODO: Replace with real API call to /api/quantgit/user-id/check
-    await new Promise(resolve => setTimeout(resolve, 500));
-    // Simulated: IDs containing 'taken' are unavailable
-    const available = !id.toLowerCase().includes('taken');
-    setIsAvailable(available);
-    setIsChecking(false);
-    if (!available) {
-      setError('This User ID is already taken. Try another.');
-    }
+  const handleInputChange = (raw: string) => {
+    const val = raw.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    setUserId(val);
+    // Validate eagerly so the user gets format feedback while typing.
+    setError(val.length > 0 ? validateUserId(val) : null);
   };
 
+  const isValid = userId.length >= 3 && validateUserId(userId) === null;
+
   const handleSubmit = () => {
-    if (isAvailable && !validateUserId(userId)) {
-      onCreate(userId);
-      onClose();
-    }
+    // Guard: the action is disabled in the UI, but never trust the UI alone.
+    // Until the backend exists there is nothing truthful to submit.
+    if (!isValid) return;
+    onCreate(userId);
+    onClose();
   };
 
   return (
@@ -119,43 +112,30 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
               id="quantgit-userid"
               type="text"
               value={userId}
-              onChange={(e) => {
-                const val = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-                setUserId(val);
-                setIsAvailable(null);
-                setError(null);
-                if (val.length >= 3) {
-                  checkAvailability(val);
-                }
-              }}
+              onChange={(e) => handleInputChange(e.target.value)}
               placeholder="your-username"
-              className="w-full pl-8 pr-10 py-2.5 rounded-xl bg-[#0D0D12] border border-[#232938] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#A855F7]/60 focus:ring-1 focus:ring-[#A855F7]/30 transition-all"
+              className="w-full pl-8 pr-4 py-2.5 rounded-xl bg-[#0D0D12] border border-[#232938] text-white placeholder-[#475569] font-mono text-sm focus:outline-none focus:border-[#A855F7]/60 focus:ring-1 focus:ring-[#A855F7]/30 transition-all"
               autoFocus
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {isChecking ? (
-                <div className="size-4 rounded-full border-2 border-[#A855F7]/30 border-t-[#A855F7] animate-spin" />
-              ) : isAvailable === true ? (
-                <svg className="size-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-              ) : isAvailable === false ? (
-                <svg className="size-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              ) : null}
-            </div>
           </div>
           {error ? (
             <p className="text-xs text-red-400 mt-2">{error}</p>
-          ) : isAvailable ? (
-            <p className="text-xs text-emerald-400 mt-2">✓ @{userId} is available</p>
+          ) : isValid ? (
+            <p className="text-xs text-emerald-400 mt-2">✓ @{userId} looks valid — claimable once the service is live</p>
           ) : (
             <p className="text-xs text-[#64748B] mt-2">
               3-30 characters. Letters, numbers, hyphens and underscores only.
             </p>
           )}
+        </div>
+
+        {/* Coming-soon notice: honest about the missing backend */}
+        <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.25)' }}>
+          <p className="text-xs font-semibold text-[#A855F7] mb-1">Coming soon</p>
+          <p className="text-xs text-[#94A3B8] leading-relaxed">
+            User ID claiming opens once the QuantGit identity service is live.
+            Availability can't be checked yet — nothing here is reserved or stored.
+          </p>
         </div>
 
         {/* Benefits */}
@@ -187,14 +167,16 @@ export function QuantGitUserIdModal({ isOpen, onClose, onCreate, currentUserId }
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!isAvailable || isChecking}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ 
+            disabled
+            aria-disabled="true"
+            title="User ID claiming is coming soon — backend integration pending"
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all opacity-40 cursor-not-allowed"
+            style={{
               background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
-              boxShadow: isAvailable ? '0 4px 16px rgba(168,85,247,0.4)' : 'none'
+              boxShadow: 'none'
             }}
           >
-            {isChecking ? 'Checking…' : 'Claim User ID'}
+            Coming Soon
           </button>
         </div>
       </div>
