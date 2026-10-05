@@ -54,7 +54,7 @@ export function ModelSelector({
         onClick={() => setIsOpen(!isOpen)}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--quant-border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] transition-colors text-sm min-h-[44px]"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-[20px] border border-[var(--quant-border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-hover)] transition-colors text-sm min-h-[44px]"
         aria-label="Select AI model"
         aria-expanded={isOpen}
       >
@@ -91,7 +91,7 @@ export function ModelSelector({
                   }}
                   whileHover={{ scale: 1.02 }}
                   transition={{ type: 'spring', ...spring.snappy }}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${
+                  className={`w-full text-left p-3 rounded-[20px] transition-colors ${
                     model.id === currentModel.id
                       ? 'bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/30'
                       : 'hover:bg-[var(--surface-hover)]'
@@ -106,7 +106,7 @@ export function ModelSelector({
                             {model.name}
                           </span>
                           <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-full font-medium text-white"
+                            className="text-xs px-1.5 py-0.5 rounded-full font-medium text-white"
                             style={{ backgroundColor: PROVIDER_COLORS[model.provider] }}
                           >
                             {model.provider}
@@ -140,7 +140,7 @@ export function ModelSelector({
                     {model.capabilities.slice(0, 4).map((cap) => (
                       <span
                         key={cap}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--foreground-secondary)]"
+                        className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--foreground-secondary)]"
                       >
                         {cap}
                       </span>

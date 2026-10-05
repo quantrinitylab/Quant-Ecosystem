@@ -10,6 +10,7 @@ import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import { ErrorState } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useBrandName } from '../components/BrandProvider';
+import { useTheme } from '../providers/theme-provider';
 import { useAIChat } from '../hooks/useAIChat';
 import { useModelSelector } from '../hooks/useModelSelector';
 import { useUsageStats } from '../hooks/useUsageStats';
@@ -51,6 +52,7 @@ import { HeroPromptBento } from '../components/chat/HeroPromptBento';
 
 export default function AIPage() {
   const brandName = useBrandName();
+  const { resolvedTheme } = useTheme();
   const { models, currentModel, switchModel } = useModelSelector();
   const {
     messages,
@@ -341,6 +343,7 @@ export default function AIPage() {
   if (isLoading && !forceShowUI) {
     return (
       <AppShell
+        theme={resolvedTheme}
         sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
         <div className="flex flex-col h-full">
@@ -358,6 +361,7 @@ export default function AIPage() {
   if (error && !ignoreError) {
     return (
       <AppShell
+        theme={resolvedTheme}
         sidebar={<Sidebar items={[]} header={<h2 className="text-lg font-semibold">{brandName}</h2>} />}
       >
         <div className="flex flex-col items-center justify-center h-full space-y-4">
@@ -376,6 +380,7 @@ export default function AIPage() {
 
   return (
     <AppShell
+        theme={resolvedTheme}
       sidebar={
         <Sidebar
           items={sidebarItems}
@@ -1281,7 +1286,7 @@ function ChatInput({
               disabled={isStreaming}
               rows={1}
               className="w-full bg-transparent resize-none outline-none px-5 pt-3.5 pb-1
-                text-[15px] text-[var(--foreground)] placeholder-[var(--foreground-secondary)]
+                text-base text-[var(--foreground)] placeholder-[var(--foreground-secondary)]
                 disabled:opacity-50 max-h-48"
             />
             {/* Action row */}
@@ -1311,7 +1316,7 @@ function ChatInput({
                 aria-label={trailingState === 'stop' ? 'Stop generating' : trailingState === 'send' ? 'Send message' : 'Voice input'}
                 className={`size-9 rounded-full grid place-items-center shrink-0 transition-all active:scale-95 ${
                   trailingState === 'send'
-                    ? 'bg-[var(--foreground)] text-[var(--quant-base)]'
+                    ? 'bg-[var(--foreground)] text-[var(--quant-background)]'
                     : trailingState === 'stop'
                       ? 'bg-red-500 text-white'
                       : 'bg-[var(--quant-surface-hover)] text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
