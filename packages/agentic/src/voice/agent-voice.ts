@@ -106,6 +106,62 @@ export class OpenAIVoiceBackend implements VoiceBackend {
   }
 }
 
+/**
+ * Meta Muse Voice backend (STT via muse-voice-transcribe-1.0).
+ *
+ * Contract (validated live against https://api.meta.ai/v1/asr/transcribe):
+ * - multipart form with JSON `request` part { model, audioEncoding: 'WAV' }
+ *   plus binary `audio` part (mono 16-bit PCM WAV @ 16/24 kHz)
+ * - response: { transcript, audioDurationMs, turns[], sessionId }
+ * Enabled by META_API_KEY (same key as chat).
+ */
+export class MetaVoiceBackend implements VoiceBackend {
+  private readonly apiKey: string;
+  private readonly sttUrl: string;
+  private readonly sttModel: string;
+
+  constructor(
+    apiKey: string,
+    options?: { sttUrl?: string; sttModel?: string },
+  ) {
+    this.apiKey = apiKey;
+    this.sttUrl = options?.sttUrl ?? 'https://api.meta.ai/v1/asr/transcribe';
+    this.sttModel = options?.sttModel ?? 'muse-voice-transcribe-1.0';
+  }
+
+  async synthesize(_text: string, _config: VoiceConfig): Promise<Buffer> {
+    // Meta TTS has no public endpoint yet — fall through to the chain.
+    throw new Error('Meta TTS not available; use OpenAI/ElevenLabs/browser TTS');
+  }
+
+  async transcribe(audio: Buffer): Promise<string> {
+    const form = new FormData();
+    form.append(
+      'request',
+      new Blob([JSON.stringify({ model: this.sttModel, audioEncoding: 'WAV' })], {
+        type: 'application/json',
+      }),
+    );
+    form.append('audio', new Blob([new Uint8Array(audio)], { type: 'audio/wav' }), 'audio.wav');
+
+    const res = await fetch(this.sttUrl, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${this.apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => res.statusText);
+      throw new Error(`Meta STT error ${res.status}: ${detail.slice(0, 200)}`);
+    }
+    const data = (await res.json()) as { transcript?: unknown; text?: unknown };
+    const text =
+      (typeof data.transcript === 'string' && data.transcript) ||
+      (typeof data.text === 'string' && data.text) ||
+      '';
+    return text.trim();
+  }
+}
+
 export class AgentVoiceInterface {
   private readonly config: VoiceConfig;
   private readonly backend: VoiceBackend | null;
@@ -121,6 +177,11 @@ export class AgentVoiceInterface {
   }
 
   private static createBackendFromEnv(): VoiceBackend | null {
+    // Meta first (same key as chat) — real STT, no placeholder.
+    const metaKey = process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY'];
+    if (metaKey) {
+      return new MetaVoiceBackend(metaKey);
+    }
     const apiKey = process.env['OPENAI_API_KEY'];
     if (!apiKey) {
       return null;
@@ -167,9 +228,11 @@ export class AgentVoiceInterface {
       }
     }
 
-    // Fallback: placeholder transcription.
-    logger.log(`[Voice] Converting speech to text...`);
-    return 'This is a placeholder transcription';
+    // Honest failure: no fake transcription. Callers (e.g. /voice/stt route)
+    // surface this as a 503 with a clear message instead of inventing words.
+    throw new Error(
+      'STT_NOT_CONFIGURED: set META_API_KEY (Meta voice) or OPENAI_API_KEY (Whisper) to enable speech-to-text',
+    );
   }
 
   async processVoiceCommand(audioBuffer: Buffer, agentId: string): Promise<any> {

@@ -49,18 +49,18 @@ describe('AgentVoiceInterface - dual mode', () => {
   });
 
   describe('fallback path', () => {
-    it('falls back to empty buffer / placeholder when no backend is configured', async () => {
+    it('falls back to empty buffer for TTS, throws honest STT_NOT_CONFIGURED for STT when no backend', async () => {
       const voice = new AgentVoiceInterface({}); // no backend, no env
 
       expect(voice.isBackendConfigured()).toBe(false);
       const audio = await voice.textToSpeech('hello');
       expect(audio.length).toBe(0);
 
-      const text = await voice.speechToText(Buffer.from([1]));
-      expect(text).toBe('This is a placeholder transcription');
+      // Honest failure instead of a fake placeholder transcription.
+      await expect(voice.speechToText(Buffer.from([1]))).rejects.toThrow('STT_NOT_CONFIGURED');
     });
 
-    it('falls back (and warns) when the backend throws', async () => {
+    it('falls back (and warns) for TTS, throws honest STT_NOT_CONFIGURED for STT when the backend throws', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const backend: VoiceBackend = {
         synthesize: vi.fn().mockRejectedValue(new Error('tts down')),
@@ -71,8 +71,8 @@ describe('AgentVoiceInterface - dual mode', () => {
       const audio = await voice.textToSpeech('hello');
       expect(audio.length).toBe(0);
 
-      const text = await voice.speechToText(Buffer.from([1]));
-      expect(text).toBe('This is a placeholder transcription');
+      // STT warns then throws the honest STT_NOT_CONFIGURED error.
+      await expect(voice.speechToText(Buffer.from([1]))).rejects.toThrow('STT_NOT_CONFIGURED');
 
       expect(warn).toHaveBeenCalledTimes(2);
       warn.mockRestore();
