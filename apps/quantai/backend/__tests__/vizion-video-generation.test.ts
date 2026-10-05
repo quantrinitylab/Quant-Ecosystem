@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import Fastify, { type FastifyRequest } from 'fastify';
+import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify';
 import videoGenerationRoutes from '../routes/video-generation';
 import {
   createVideoGenerationJob,
@@ -382,10 +382,15 @@ describe('Vizion AI v2.6.0 AI Video Generator & Camera Motion Control Engine', (
 
     beforeEach(async () => {
       fastifyApp = Fastify();
-      // Simulate the production verified-auth layer: identity is set
-      // server-side on request.user (never from client headers — P0).
-      fastifyApp.addHook('onRequest', async (request: FastifyRequest) => {
-        (request as any).user = { id: 'usr-video-test-01' };
+      // Test-only auth hook: video-generation routes (P0 fail-closed) require
+      // a verified identity at (request as any).user.id. Mirror production's
+      // auth middleware with a fixed test identity.
+      // NOTE: hook params need explicit types here. `fastifyApp` is declared as
+      // ReturnType<typeof Fastify>, and fastify's overloaded factory makes
+      // ReturnType resolve to the last overload, whose addHook overloads give
+      // this async 2-arg lambda no contextual types (TS7006 under noImplicitAny).
+      fastifyApp.addHook('onRequest', async (req: FastifyRequest, _reply: FastifyReply) => {
+        (req as any).user = { id: 'test-user' };
       });
       await fastifyApp.register(videoGenerationRoutes, { prefix: '/api/ai' });
       await fastifyApp.ready();

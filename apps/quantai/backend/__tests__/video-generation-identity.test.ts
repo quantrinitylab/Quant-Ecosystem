@@ -21,27 +21,37 @@ vi.mock('@quant/server-core', () => ({
   },
 }));
 
-const mocks = vi.hoisted(() => ({
-  createVideoGenerationJob: vi.fn((userId: string, _opts: Record<string, unknown>) => ({
-    id: 'job-1',
-    userId,
-    status: 'queued',
-  })),
-  processVideoJob: vi.fn(async (id: string) => ({ id, status: 'done' })),
-  getVideoJobStatus: vi.fn((_id: string) => null),
-  interpolatePromptFrames: vi.fn((a: string, b: string, n: number) =>
-    Array.from({ length: n }, (_, i) => `${a}->${b}#${i}`),
-  ),
-  validateCameraMotion: vi.fn((_m: string) => true),
-}));
-const { createVideoGenerationJob } = mocks;
+const {
+  createVideoGenerationJob,
+  processVideoJob,
+  getVideoJobStatus,
+  interpolatePromptFrames,
+  validateCameraMotion,
+} = vi.hoisted(() => {
+  // vi.hoisted runs before vitest hoists the vi.mock factories below, so the
+  // factory can safely close over these mocks (otherwise: "Cannot access
+  // before initialization").
+  return {
+    createVideoGenerationJob: vi.fn((userId: string, _opts: Record<string, unknown>) => ({
+      id: 'job-1',
+      userId,
+      status: 'queued',
+    })),
+    processVideoJob: vi.fn(async (id: string) => ({ id, status: 'done' })),
+    getVideoJobStatus: vi.fn((_id: string) => null),
+    interpolatePromptFrames: vi.fn((a: string, b: string, n: number) =>
+      Array.from({ length: n }, (_, i) => `${a}->${b}#${i}`),
+    ),
+    validateCameraMotion: vi.fn((_m: string) => true),
+  };
+});
 
 vi.mock('../services/ai-video-generation.service', () => ({
-  createVideoGenerationJob: mocks.createVideoGenerationJob,
-  processVideoJob: mocks.processVideoJob,
-  getVideoJobStatus: mocks.getVideoJobStatus,
-  interpolatePromptFrames: mocks.interpolatePromptFrames,
-  validateCameraMotion: mocks.validateCameraMotion,
+  createVideoGenerationJob,
+  processVideoJob,
+  getVideoJobStatus,
+  interpolatePromptFrames,
+  validateCameraMotion,
   VALID_CAMERA_MOTIONS: ['static'],
   VALID_ASPECT_RATIOS: ['16:9'],
   CAMERA_MOTION_VECTORS: {},

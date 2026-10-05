@@ -114,6 +114,10 @@ export default async function videoGenerationRoutes(fastify: FastifyInstance) {
       throw createAppError('Job ID is required', 400, 'MISSING_JOB_ID');
     }
 
+    // TODO(UNVERIFIED): job process is not user-scoped — the service API
+    // visible in this file takes only an id (processVideoJob(id)). Verify
+    // the service rejects jobs owned by other users, or add per-user
+    // scoping here before exposing to clients.
     try {
       const job = await processVideoJob(id);
       return reply.send({
@@ -132,6 +136,9 @@ export default async function videoGenerationRoutes(fastify: FastifyInstance) {
   // GET /video/jobs/:id or /api/ai/video/jobs/:id
   const handleGetJob = async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
+    // TODO(UNVERIFIED): job read is not user-scoped — the service API
+    // visible in this file takes only an id (getVideoJobStatus(id)). Verify
+    // the service enforces job ownership, or add per-user scoping here.
     const job = getVideoJobStatus(id);
     if (!job) {
       throw createAppError(`Video job not found: ${id}`, 404, 'JOB_NOT_FOUND');

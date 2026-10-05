@@ -1,15 +1,24 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import emailsChangesRoutes, { encodeCursor, decodeCursor } from '../routes/emails-changes';
+import emailsChangesRoutes, {
+  encodeCursor,
+  decodeCursor,
+  resolveCursorSecret,
+  CursorError,
+} from '../routes/emails-changes';
 
 // Contract under test (from the P0-1 shift brief):
 // - default export: async function emailsChangesRoutes(fastify: FastifyInstance)
 //   registering GET /changes (mounted here under /emails)
-// - named exports: encodeCursor(t: Date, id: string), decodeCursor(cursor: string)
+// - named exports: encodeCursor(t: Date, id: string, secret: string),
+//   decodeCursor(cursor: string, secret: string), resolveCursorSecret(),
+//   CursorError — cursor is HMAC-SHA256 signed; wire format
+//   `<base64url-payload>.<base64url-sig>`, still one opaque string.
+// - the plugin resolves SYNC_CURSOR_SECRET once at registration (fail-closed)
 // - auth via (request as any).auth?.userId; tests inject it through an onRequest hook
 // - prisma mocked: app.decorate('prisma', { email: { findMany: vi.fn() } })
 // Verified against the sibling impl at write time (same directory):
-// default export emailsChangesRoutes, named exports encodeCursor/decodeCursor,
+// default export emailsChangesRoutes, named exports as above,
 // createAppError(status, code) errors, take = limit + 1, tombstone mapping.
 // TODO(UNVERIFIED): exact error-body envelope (code field) depends on the repo's
 // errorHandlerPlugin rendering createAppError errors — confirmed at merge time
@@ -18,6 +27,10 @@ import emailsChangesRoutes, { encodeCursor, decodeCursor } from '../routes/email
 const d1 = new Date('2026-09-20T10:00:00.000Z');
 const d2 = new Date('2026-09-21T10:00:00.000Z');
 const d3 = new Date('2026-09-22T10:00:00.000Z');
+
+// Deterministic test secret (≥32 bytes, as enforced by resolveCursorSecret).
+const TEST_SECRET = 'test-secret-0123456789-abcdefghij!!';
+const WRONG_SECRET = 'wrong-secret-0123456789-abcdefghij!!';
 
 function row(id: string, threadId: string, updatedAt: Date, extra: Record<string, unknown> = {}) {
   return { id, threadId, userId: 'u1', updatedAt, deletedAt: null, subject: `Subject ${id}`, ...extra };
@@ -40,19 +53,31 @@ function expectAppError(res: { statusCode: number; body: string }, code: string)
 
 describe('GET /emails/changes', () => {
   let app: FastifyInstance;
-  let findManyMock: ReturnType<typeof vi.fn<(...args: any[]) => Promise<any>>>;
+  let findManyMock: ReturnType<typeof vi.fn>;
+  let savedSecret: string | undefined;
 
   beforeEach(async () => {
+    savedSecret = process.env.SYNC_CURSOR_SECRET;
+    process.env.SYNC_CURSOR_SECRET = TEST_SECRET;
     app = Fastify({ logger: false });
     // onRequest must be registered BEFORE the plugin so it applies to its routes
     app.addHook('onRequest', async (request) => {
       const id = (request.headers['x-test-user'] as string) || '';
       if (id) (request as any).auth = { userId: id };
     });
-    findManyMock = vi.fn<(...args: any[]) => Promise<any>>();
-    app.decorate('prisma', { email: { findMany: findManyMock } } as any);
+    findManyMock = vi.fn();
+    // Partial prisma double: only the email delegate is stubbed. Cast follows
+    // the repo convention (admin.routes.test.ts) — `as unknown as never`
+    // satisfies Fastify's typed decorate() without claiming a full client.
+    app.decorate('prisma', { email: { findMany: findManyMock } } as unknown as never);
     await app.register(emailsChangesRoutes, { prefix: '/emails' });
     await app.ready();
+  });
+
+  afterEach(async () => {
+    if (savedSecret === undefined) delete process.env.SYNC_CURSOR_SECRET;
+    else process.env.SYNC_CURSOR_SECRET = savedSecret;
+    await app.close();
   });
 
   function get(path: string, headers: Record<string, string> = { 'x-test-user': 'u1' }) {
@@ -68,7 +93,7 @@ describe('GET /emails/changes', () => {
   });
 
   it('returns empty changes and echoes the incoming cursor when there are no rows', async () => {
-    const cursor = encodeCursor(d2, 'e2');
+    const cursor = encodeCursor(d2, 'e2', TEST_SECRET);
     findManyMock.mockResolvedValue([]);
     const res = await get(`/emails/changes?since=${encodeURIComponent(cursor)}`);
     expect(res.statusCode).toBe(200);
@@ -95,7 +120,7 @@ describe('GET /emails/changes', () => {
     expect((changes[0].message as any).id).toBe('e1');
     // nextCursor must decode to the last *included* row (e2), not the lookahead row (e3)
     // decodeCursor returns { t: Date, id } (verified against sibling impl)
-    const decoded = decodeCursor(nextCursor);
+    const decoded = decodeCursor(nextCursor, TEST_SECRET);
     expect(decoded.id).toBe('e2');
     expect(new Date(decoded.t).getTime()).toBe(d2.getTime());
     // ordering contract: keyset pagination by (updatedAt, id)
@@ -139,6 +164,35 @@ describe('GET /emails/changes', () => {
     expect(findManyMock).not.toHaveBeenCalled();
   });
 
+  it('rejects an unsigned legacy cursor (plain base64url, no signature) with 400 INVALID_CURSOR', async () => {
+    // The pre-HMAC wire format: plain base64url JSON, no `.` separator.
+    const legacy = Buffer.from(JSON.stringify({ t: d1.toISOString(), id: 'e1' }), 'utf8').toString('base64url');
+    expect(() => decodeCursor(legacy, TEST_SECRET)).toThrow(CursorError);
+    const res = await get(`/emails/changes?since=${encodeURIComponent(legacy)}`);
+    expectAppError(res, 'INVALID_CURSOR');
+    expect(findManyMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a tampered cursor payload with 400 INVALID_CURSOR', async () => {
+    const cursor = encodeCursor(d1, 'e1', TEST_SECRET);
+    const [payload, sig] = cursor.split('.');
+    // Flip one payload character; the signature no longer matches.
+    const tamperedPayload = (payload[0] === 'A' ? 'B' : 'A') + payload.slice(1);
+    const tampered = `${tamperedPayload}.${sig}`;
+    expect(() => decodeCursor(tampered, TEST_SECRET)).toThrow(/bad cursor signature/);
+    const res = await get(`/emails/changes?since=${encodeURIComponent(tampered)}`);
+    expectAppError(res, 'INVALID_CURSOR');
+    expect(findManyMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a cursor signed with a different secret with 400 INVALID_CURSOR', async () => {
+    const foreign = encodeCursor(d1, 'e1', WRONG_SECRET);
+    expect(() => decodeCursor(foreign, TEST_SECRET)).toThrow(/bad cursor signature/);
+    const res = await get(`/emails/changes?since=${encodeURIComponent(foreign)}`);
+    expectAppError(res, 'INVALID_CURSOR');
+    expect(findManyMock).not.toHaveBeenCalled();
+  });
+
   it('rejects limit values outside 1..500 with 400 VALIDATION_ERROR', async () => {
     for (const limit of [0, 501]) {
       const res = await get(`/emails/changes?limit=${limit}`);
@@ -176,5 +230,63 @@ describe('GET /emails/changes', () => {
     const { data } = JSON.parse(res.body);
     expect(data.changes.map((c: any) => c.id)).toContain('e7');
     expect(data.changes[0].deleted).toBe(false);
+  });
+});
+
+describe('cursor HMAC signing', () => {
+  it('round-trips sign → verify and keeps the opaque single-string wire format', () => {
+    const cursor = encodeCursor(d1, 'e1', TEST_SECRET);
+    expect(typeof cursor).toBe('string');
+    // one `.` separator only — base64url never contains `.`, so split is safe
+    expect(cursor.split('.')).toHaveLength(2);
+    const { t, id } = decodeCursor(cursor, TEST_SECRET);
+    expect(id).toBe('e1');
+    expect(t.getTime()).toBe(d1.getTime());
+  });
+
+  it('rejects a forged payload under the same wire shape', () => {
+    const evilPayload = Buffer.from(
+      JSON.stringify({ t: '1970-01-01T00:00:00.000Z', id: '' }),
+      'utf8'
+    ).toString('base64url');
+    // Attacker guesses a 43-char base64url signature without the secret.
+    const forged = `${evilPayload}.${'A'.repeat(43)}`;
+    expect(() => decodeCursor(forged, TEST_SECRET)).toThrow(CursorError);
+  });
+
+  it('rejects cursors with extra dot segments', () => {
+    const cursor = encodeCursor(d1, 'e1', TEST_SECRET);
+    expect(() => decodeCursor(`${cursor}.extra`, TEST_SECRET)).toThrow(CursorError);
+    expect(() => decodeCursor(`.${cursor}`, TEST_SECRET)).toThrow(CursorError);
+  });
+
+  it('resolveCursorSecret fails closed: missing, empty, and weak secrets throw', () => {
+    expect(() => resolveCursorSecret({})).toThrow(/SYNC_CURSOR_SECRET is not set/);
+    expect(() => resolveCursorSecret({ SYNC_CURSOR_SECRET: '' })).toThrow(/SYNC_CURSOR_SECRET is not set/);
+    expect(() => resolveCursorSecret({ SYNC_CURSOR_SECRET: 'short' })).toThrow(/at least 32 bytes/);
+    // exactly 32 bytes is accepted
+    expect(resolveCursorSecret({ SYNC_CURSOR_SECRET: 'x'.repeat(32) })).toBe('x'.repeat(32));
+    // longer is accepted
+    expect(resolveCursorSecret({ SYNC_CURSOR_SECRET: TEST_SECRET })).toBe(TEST_SECRET);
+  });
+
+  it('plugin registration throws fail-closed when SYNC_CURSOR_SECRET is missing', async () => {
+    delete process.env.SYNC_CURSOR_SECRET;
+    const app2 = Fastify({ logger: false });
+    app2.decorate('prisma', { email: { findMany: vi.fn() } } as unknown as never);
+    await expect(app2.register(emailsChangesRoutes, { prefix: '/emails' })).rejects.toThrow(
+      /SYNC_CURSOR_SECRET is not set/
+    );
+    await app2.close();
+  });
+
+  it('plugin registration throws fail-closed when SYNC_CURSOR_SECRET is weak', async () => {
+    process.env.SYNC_CURSOR_SECRET = 'too-short';
+    const app2 = Fastify({ logger: false });
+    app2.decorate('prisma', { email: { findMany: vi.fn() } } as unknown as never);
+    await expect(app2.register(emailsChangesRoutes, { prefix: '/emails' })).rejects.toThrow(
+      /at least 32 bytes/
+    );
+    await app2.close();
   });
 });

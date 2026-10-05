@@ -23,6 +23,11 @@ vi.mock('ioredis', () => {
 
 import { buildApp } from '../app';
 
+// The /emails/changes route (fail-closed by design) requires SYNC_CURSOR_SECRET
+// at registration. Provide a deterministic test secret so the real buildApp()
+// boots in this suite.
+process.env.SYNC_CURSOR_SECRET ??= 'test-secret-32-bytes-long-for-tests!';
+
 describe('Phase Q: Route Reachability & Proxy Invariant Suite (Task Q07)', () => {
   let app: FastifyInstance;
 
