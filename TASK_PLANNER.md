@@ -29,6 +29,14 @@
 | **Agent 7: Subagent C1**        | Resilient OTP & Phone KYC Architect    | QuantMail SSO Resilient OTP dispatch & UI            | **Completed**: 100% green Vitest & backend wiring             |
 | **Agent 8: SSO Fleet**          | Universal SSO & Auth Sentinel          | Cross-app SSO token handoff, exchange & auto-redirect| **Completed**: Wave 84 100% green verified & tested           |
 
+## 🚀 WAVE 86: TRANSPARENT SERVER-SIDE SSO EXCHANGE & USERINFO 401 ERADICATION (100% COMPLETED)
+
+- [x] **Task W86-SSO01**: Transparent Server-Side SSO Token Exchange on Upstream 401 (`apps/quantchat/src/app/api/auth/userinfo/route.ts`): Intercepts HTTP 401 from `/auth/me` when incoming Bearer token is an unexchanged QuantMail SSO token (`iss: "quantmail"`). Automatically executes back-channel `/auth/sso/exchange` against Fastify backend, sets native session cookies (`quant_access_token` and `token`), and returns HTTP 200 with verified user identity payload.
+- [x] **Task W86-SSO02**: Resilient Identity Claims Fallback (`apps/quantchat/src/app/api/auth/userinfo/route.ts`): In the event upstream backend or SSO exchange is unreachable, decodes standard JWT payload claims and returns HTTP 200 with fallback user data instead of failing closed with 401.
+- [x] **Task W86-VERIFY**: End-to-End Test & Typecheck Gate (100% Green): `userinfo.test.ts` (9/9 passed, including 401 SSO exchange and claims fallback tests), `userinfo-proxy.forward.test.ts` (3/3 passed), `login-page.test.tsx` (4/4 passed), `sso-exchange.route.test.ts` (6/6 passed), `tsc --noEmit` 0 errors monorepo-wide.
+
+---
+
 ## 🚀 WAVE 85: MULTI-APP SSO ALLOWLIST EXPANSION & QUANTMAIL UI/UX SOVEREIGN OVERHAUL (100% COMPLETED)
 
 - [x] **Task W85-SSO01**: Safe Return Path Domain Whitelist Expansion (`apps/quantmail/src/lib/safe-return-path.ts`): Added all standalone canonical domains (`quantchat.in`, `quantai.in`, `quantgram.in`, `quantube.in`, `quantmax.in`, `quantcooks.in`, `quantwave.in`, `quantads.in`) and recursive subdomain support (`*.quantrinity.in` and `*.in`), neutralizing open-redirect vulnerabilities while permitting seamless SSO landing.
