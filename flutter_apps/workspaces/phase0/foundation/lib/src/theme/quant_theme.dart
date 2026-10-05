@@ -82,44 +82,63 @@ abstract final class QuantTheme {
   /// QuantMail app theme (dark): brand dark surfaces with the QuantMail app
   /// accent blue `#3B82F6` (from `packages/brand/src/apps.ts`) as the
   /// secondary color and focus ring.
-  static ThemeData get quantMailDark => _buildTheme(
+  ///
+  /// P2-11 decision 2026-10-03: single orange accent — TextButton foreground,
+  /// consent icon and secondary actions speak the orange primary CTA
+  /// language, not the blue appAccent. Reversible from one place:
+  /// [_quantMailPolish] — design-atelier reverse kar sakta hai.
+  static ThemeData get quantMailDark => _quantMailPolish(
+        _buildTheme(
+          brightness: Brightness.dark,
+          background: QuantColors.surfaceDark,
+          foreground: const Color(0xFFF5F5F5),
+          surface: QuantColors.surfaceDarkElevated,
+          surfaceElevated: QuantColors.surfaceDarkOverlay,
+          primary: QuantColors.primary500,
+          onPrimary: const Color(0xFF111111),
+          secondary: QuantAppColors.quantmail,
+          onSecondary: const Color(0xFFFFFFFF),
+          border: QuantColors.neutral700,
+          muted: QuantColors.surfaceDarkOverlay,
+          mutedForeground: QuantColors.neutral300,
+          error: QuantColors.error600,
+          onError: const Color(0xFFFFFFFF),
+          focusRing: QuantAppColors.quantmail,
+          appAccent: QuantAppColors.quantmail,
+        ),
         brightness: Brightness.dark,
-        background: QuantColors.surfaceDark,
-        foreground: const Color(0xFFF5F5F5),
-        surface: QuantColors.surfaceDarkElevated,
-        surfaceElevated: QuantColors.surfaceDarkOverlay,
-        primary: QuantColors.primary500,
-        onPrimary: const Color(0xFF111111),
-        secondary: QuantAppColors.quantmail,
-        onSecondary: const Color(0xFFFFFFFF),
-        border: QuantColors.neutral700,
-        muted: QuantColors.surfaceDarkOverlay,
-        mutedForeground: QuantColors.neutral300,
-        error: QuantColors.error600,
-        onError: const Color(0xFFFFFFFF),
-        focusRing: QuantAppColors.quantmail,
-        appAccent: QuantAppColors.quantmail,
       );
 
-  /// QuantMail app theme (light): brand light surfaces with the QuantMail app
-  /// accent blue `#3B82F6` as the secondary color and focus ring.
-  static ThemeData get quantMailLight => _buildTheme(
+  /// QuantMail app theme (light): brand light surfaces with the lava accent
+  /// `#C2410C` as the single brand voice.
+  ///
+  /// P2-24 decision 2026-10-04 (design-atelier): single lava accent — light
+  /// primary is lava-deep `#C2410C`; indigo `#4F46E5` removed (Gmail pattern:
+  /// one accent hue per app, tonal per-mode adapt — see
+  /// design-atelier/tokens/LAVA_TOKENS_SPEC.md). Reversible from one place:
+  /// the `primary:` line below. [_quantMailPolish] is fully
+  /// scheme-relative: focus, chips, and tonal containers follow
+  /// `scheme.primary` automatically.
+  static ThemeData get quantMailLight => _quantMailPolish(
+        _buildTheme(
+          brightness: Brightness.light,
+          background: QuantColors.surfaceLight,
+          foreground: const Color(0xFF0F172A),
+          surface: QuantColors.surfaceLightElevated,
+          surfaceElevated: QuantColors.surfaceLight,
+          primary: const Color(0xFFC2410C), // P2-24: lava-deep (5.18:1 on white)
+          onPrimary: const Color(0xFFFFFFFF),
+          secondary: QuantAppColors.quantmail,
+          onSecondary: const Color(0xFFFFFFFF),
+          border: const Color(0xFFE2E8F0),
+          muted: const Color(0xFFF1F5F9),
+          mutedForeground: const Color(0xFF64748B),
+          error: QuantColors.error600,
+          onError: const Color(0xFFFFFFFF),
+          focusRing: QuantAppColors.quantmail,
+          appAccent: QuantAppColors.quantmail,
+        ),
         brightness: Brightness.light,
-        background: QuantColors.surfaceLight,
-        foreground: const Color(0xFF0F172A),
-        surface: QuantColors.surfaceLightElevated,
-        surfaceElevated: QuantColors.surfaceLight,
-        primary: const Color(0xFF4F46E5),
-        onPrimary: const Color(0xFFFFFFFF),
-        secondary: QuantAppColors.quantmail,
-        onSecondary: const Color(0xFFFFFFFF),
-        border: const Color(0xFFE2E8F0),
-        muted: const Color(0xFFF1F5F9),
-        mutedForeground: const Color(0xFF64748B),
-        error: QuantColors.error600,
-        onError: const Color(0xFFFFFFFF),
-        focusRing: QuantAppColors.quantmail,
-        appAccent: QuantAppColors.quantmail,
       );
 
   /// The default theme for the app: dark-first.
@@ -135,6 +154,125 @@ abstract final class QuantTheme {
       Theme.of(context).brightness == Brightness.dark ? brandDark : brandLight;
 
   // -- Builder ------------------------------------------------------------------
+
+  /// QuantMail-only polish applied on top of [_buildTheme].
+  ///
+  /// Surgical override point for the quantMail themes ONLY — the shared
+  /// [_buildTheme] defaults (used by brandDark/brandLight and the whole
+  /// fleet) are never touched here. Everything below is reversible by
+  /// editing this one method (design-atelier can reverse the P2-11 call).
+  static ThemeData _quantMailPolish(
+    ThemeData base, {
+    required Brightness brightness,
+  }) {
+    final bool isDark = brightness == Brightness.dark;
+    final ColorScheme scheme = base.colorScheme;
+    return base.copyWith(
+      // VQA-P2-22 (2026-10-04): blue-appAccent resurfacing kill —
+      // `focusColor` on ThemeData (was focusRing blue `#3B82F6` from
+      // [_buildTheme]) now follows scheme.primary, so focus glow,
+      // FocusRing widgets and any focusColor consumers speak the theme
+      // accent, not blue. Mirrors the P2-11 single-accent call.
+      focusColor: scheme.primary,
+      // VQA-P2-03: explicit dark-mode error container — deep desaturated
+      // red bg + light red text (error ramp), instead of the loud derived
+      // fallback that rendered full-saturation #DC2626 on #090A0C.
+      //
+      // VQA-P2-22 (2026-10-04): secondaryContainer / onSecondaryContainer
+      // derived from scheme.primary, not the blue `secondary`
+      // (`#3B82F6`). Selected FilterChip "Unread" and error-state
+      // FilledButton.tonal "Retry" read these slots; they now tint from
+      // the accent primary. Scheme-relative by design: a future primary
+      // flip (see [quantMailLight]) needs no code change here.
+      colorScheme: scheme.copyWith(
+        errorContainer:
+            isDark ? const Color(0xFF3A1214) : QuantColors.error100,
+        onErrorContainer:
+            isDark ? QuantColors.error300 : QuantColors.error900,
+        secondaryContainer: Color.alphaBlend(
+          scheme.primary.withValues(alpha: 0.18),
+          scheme.surface,
+        ),
+        onSecondaryContainer: scheme.primary,
+      ),
+      // VQA-P2-04: Indic font fallback per DESIGN_TOKENS §3a — Devanagari
+      // falls back to Noto Sans Devanagari, then Inter. ThemeData.copyWith
+      // has no fontFamilyFallback slot, so this mirrors what the ThemeData
+      // constructor itself does: apply the fallback to textTheme +
+      // primaryTextTheme.
+      textTheme: base.textTheme.apply(
+        fontFamilyFallback: QuantTypography.fontFamilyFallbackIndic,
+      ),
+      primaryTextTheme: base.primaryTextTheme.apply(
+        fontFamilyFallback: QuantTypography.fontFamilyFallbackIndic,
+      ),
+      // VQA-P2-05: disabled ElevatedButton dims (M3: onSurface @ 12%
+      // container, onSurface @ 38% label) instead of staying full-orange
+      // via WidgetStatePropertyAll(primary).
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStateProperty.resolveWith<Color>(
+            (Set<WidgetState> states) =>
+                states.contains(WidgetState.disabled)
+                    ? scheme.onSurface.withValues(alpha: 0.12)
+                    : scheme.primary,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith<Color>(
+            (Set<WidgetState> states) =>
+                states.contains(WidgetState.disabled)
+                    ? scheme.onSurface.withValues(alpha: 0.38)
+                    : scheme.onPrimary,
+          ),
+          textStyle:
+              const WidgetStatePropertyAll<TextStyle>(QuantTextStyles.button),
+          padding: const WidgetStatePropertyAll<EdgeInsets>(
+            EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          ),
+          shape: const WidgetStatePropertyAll<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+            ),
+          ),
+        ),
+      ),
+      // P2-11 decision 2026-10-03: single orange accent — TextButton speaks
+      // the primary CTA language, not the blue appAccent.
+      // design-atelier reverse kar sakta hai (revert to
+      // `base.textButtonTheme`).
+      textButtonTheme: TextButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStatePropertyAll<Color>(scheme.primary),
+          textStyle:
+              const WidgetStatePropertyAll<TextStyle>(QuantTextStyles.button),
+          shape: const WidgetStatePropertyAll<OutlinedBorder>(
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.all(Radius.circular(10)),
+            ),
+          ),
+        ),
+      ),
+      // VQA-P2-22 (2026-10-04): focused search-field border follows
+      // scheme.primary, not the blue focusRing from [_buildTheme].
+      // BorderRadius mirrors the base (10) — shape stays identical.
+      inputDecorationTheme: base.inputDecorationTheme.copyWith(
+        focusedBorder: OutlineInputBorder(
+          borderRadius: const BorderRadius.all(Radius.circular(10)),
+          borderSide: BorderSide(color: scheme.primary, width: 2),
+        ),
+      ),
+      // VQA-P2-22 (2026-10-04): selected FilterChip ("Unread") speaks the
+      // accent primary — selectedColor/checkmark derive from
+      // scheme.primary/scheme.onPrimary instead of the blue `secondary`.
+      // Selected label rides the primary too (secondaryLabelStyle), so the
+      // label stays legible on the tinted fill.
+      chipTheme: base.chipTheme.copyWith(
+        selectedColor: scheme.primary,
+        checkmarkColor: scheme.onPrimary,
+        secondaryLabelStyle:
+            QuantTextStyles.bodySmall.copyWith(color: scheme.onPrimary),
+      ),
+    );
+  }
 
   static ThemeData _buildTheme({
     required Brightness brightness,

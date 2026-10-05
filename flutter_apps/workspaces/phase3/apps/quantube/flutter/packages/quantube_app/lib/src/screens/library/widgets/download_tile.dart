@@ -262,7 +262,12 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) => IconButton(
         icon: Icon(icon),
         tooltip: tooltip,
-        visualDensity: VisualDensity.compact,
+        // 48dp minimum touch target (a11y): VisualDensity.compact shrinks the
+        // hit area below 48dp, so it is removed here. The explicit
+        // constraints keep every tile action at the 48x48 Material minimum
+        // (VQA-P3-11). This helper serves ALL tile actions, so this one fix
+        // covers pause/resume/retry/cancel/delete.
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         onPressed: onPressed,
       );
 }

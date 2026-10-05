@@ -19,6 +19,48 @@
 // QuanTube-specific endpoints are invented here — everything marked
 // TODO(UNVERIFIED) is a prod/deployment value to confirm later.
 
+/// SECURITY (board S4): runtime https guard for a base URL — release-safe.
+///
+/// `https` always passes. `http` is only accepted for loopback/private dev
+/// hosts (`localhost`, `127.0.0.1`, `::1`, `10.0.0.0/8`, `192.168.0.0/16`,
+/// `172.16.0.0/12`); anything else throws [ArgumentError] (S4 lesson, QuantAI
+/// template: never send OAuth tokens over plaintext to a public host).
+void requireHttpsBaseUrl(String baseUrl) {
+  final uri = Uri.tryParse(baseUrl);
+  if (uri == null || !uri.hasScheme) {
+    throw ArgumentError('apiBaseUrl must be an absolute URL: "$baseUrl"');
+  }
+  if (uri.scheme == 'https') return;
+  if (uri.scheme != 'http') {
+    throw ArgumentError(
+      'apiBaseUrl must use https, not "${uri.scheme}": "$baseUrl"',
+    );
+  }
+  final host = uri.host.toLowerCase();
+  final isLocal =
+      host == 'localhost' ||
+      host == '127.0.0.1' ||
+      host == '::1' ||
+      host.startsWith('10.') ||
+      host.startsWith('192.168.') ||
+      (host.startsWith('172.') && _is172Private(host));
+  if (!isLocal) {
+    throw ArgumentError(
+      'SECURITY (board S4): apiBaseUrl must be https; http is only allowed '
+      'for local/dev hosts (localhost, 127.0.0.1, ::1, 10.x, 192.168.x, '
+      '172.16-31.x): "$baseUrl"',
+    );
+  }
+}
+
+/// `true` for the `172.16.0.0/12` private range (second octet 16–31).
+bool _is172Private(String host) {
+  final octets = host.split('.');
+  if (octets.length != 4) return false;
+  final second = int.tryParse(octets[1]);
+  return second != null && second >= 16 && second <= 31;
+}
+
 /// Compile-time application configuration for the QuanTube Flutter clients.
 ///
 /// All values are `--dart-define` backed with documented fallbacks. Prefer

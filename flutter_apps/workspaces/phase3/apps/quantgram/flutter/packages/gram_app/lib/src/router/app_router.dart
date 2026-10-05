@@ -191,6 +191,20 @@ class _OAuthCallbackGateState extends ConsumerState<OAuthCallbackGate> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _handedOff) return;
       _handedOff = true;
+      // C-P2-2 (defense-in-depth, zero-defect): sirf configured OAuth
+      // redirect scheme par aayi URIs stash hoti hain. In-app navigation
+      // (`router.go('/oauth/callback?...')`, widget tests) EMPTY scheme
+      // ke saath aata hai — accepted. Koi bhi doosra non-empty scheme
+      // foreign deep link hai jise OS kabhi yahan route nahi karna chahiye —
+      // uska `code`/`state` auth notifier tak kabhi nahi pahunchna chahiye.
+      final expectedScheme = ref.read(appConfigProvider).oauthRedirectScheme;
+      final actualScheme = widget.uri.scheme;
+      if (actualScheme.isNotEmpty && actualScheme != expectedScheme) {
+        // /login par bhejo; auth gate authenticated users ko wahan se
+        // /home bhej dega, to koi atak nahi jata.
+        GoRouter.of(context).go('/login');
+        return;
+      }
       // W3-sync: notifier (gram_core) pendingOAuthRedirectProvider ko khud
       // consume karta hai.
       ref.read(pendingOAuthRedirectProvider.notifier).state = widget.uri;
