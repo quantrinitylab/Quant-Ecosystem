@@ -30,6 +30,12 @@ import { retryWithBackoff } from './retry';
 import { SemanticCache } from './semantic-cache';
 import { SafetyPipeline } from './safety';
 import { CostTracker } from './cost-tracker';
+import {
+  toVercelTools,
+  validateToolDefinitions,
+  parseToolCall,
+  type ToolCall,
+} from './tool-calling';
 
 /** Default engine configuration */
 const DEFAULT_CONFIG: AIEngineConfig = {
@@ -115,7 +121,7 @@ export class AIEngine {
     }
 
     // Meta AI: primary provider for the ecosystem (Muse Spark models,
-    // multimodal, voice, agentic). OpenAI-compatible API.
+    // multimodal, voice, agentic). OpenAI-compatible API at api.meta.ai.
     const metaKey = process.env['META_API_KEY'] ?? process.env['META_AI_API_KEY'];
     if (metaKey) {
       this.metaProvider = createOpenAI({
@@ -399,12 +405,29 @@ export class AIEngine {
 
             const providerModel = this.getProviderModel(model);
 
-            const result = await generateText({
+            // Function calling: validate and pass tools to the model
+            const tools = request.tools ?? [];
+            if (tools.length > 0) {
+              validateToolDefinitions(tools);
+            }
+
+            const generateOptions: Record<string, unknown> = {
               model: providerModel as any,
               messages,
               temperature: request.temperature ?? 0.7,
               maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
-            });
+            };
+            if (tools.length > 0) {
+              generateOptions['tools'] = toVercelTools(tools);
+              // Map our toolChoice to Vercel SDK format
+              const tc = request.toolChoice ?? 'auto';
+              if (tc === 'auto') generateOptions['toolChoice'] = 'auto';
+              else if (tc === 'none') generateOptions['toolChoice'] = 'none';
+              else if (tc === 'required') generateOptions['toolChoice'] = 'required';
+              else generateOptions['toolChoice'] = { type: 'tool', toolName: tc.toolName };
+            }
+
+            const result = await generateText(generateOptions as any);
 
             return result;
           },
@@ -445,11 +468,25 @@ export class AIEngine {
 
       const content = response.text || '';
 
+      // Extract tool calls requested by the model
+      const toolCalls: ToolCall[] = [];
+      const rawToolCalls = (response as any).toolCalls as Array<{
+        toolCallId: string;
+        toolName: string;
+        input: unknown;
+      }> | undefined;
+      if (rawToolCalls && rawToolCalls.length > 0) {
+        for (const rtc of rawToolCalls) {
+          toolCalls.push(parseToolCall(rtc));
+        }
+      }
+
       // Process output through safety pipeline
       const outputSafety = this.safetyPipeline.processOutput(content);
 
-      // Cache the response
-      if (this.config.enableCaching) {
+      // Cache the response (skip caching when tool calls are involved,
+      // since the response depends on tool execution results)
+      if (this.config.enableCaching && toolCalls.length === 0) {
         this.semanticCache.set(safePrompt, outputSafety.text);
       }
 
@@ -460,10 +497,11 @@ export class AIEngine {
         id: this.generateRequestId(),
         content: outputSafety.text,
         model: model.id,
-        finishReason: 'stop',
+        finishReason: toolCalls.length > 0 ? 'tool_calls' : 'stop',
         usage,
         latencyMs,
         cached: false,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
     } finally {
       this.activeRequests--;
@@ -519,14 +557,39 @@ export class AIEngine {
       } else {
         const providerModel = this.getProviderModel(model);
         const result = await breaker.execute(async () => {
-          return streamText({
+          const streamOptions: Record<string, unknown> = {
             model: providerModel as any,
             messages,
             temperature: request.temperature ?? 0.7,
             maxOutputTokens: request.maxTokens ?? model.maxOutputTokens,
-          });
+          };
+          const tools = request.tools ?? [];
+          if (tools.length > 0) {
+            validateToolDefinitions(tools);
+            streamOptions['tools'] = toVercelTools(tools);
+            const tc = request.toolChoice ?? 'auto';
+            if (tc === 'auto') streamOptions['toolChoice'] = 'auto';
+            else if (tc === 'none') streamOptions['toolChoice'] = 'none';
+            else if (tc === 'required') streamOptions['toolChoice'] = 'required';
+            else streamOptions['toolChoice'] = { type: 'tool', toolName: tc.toolName };
+          }
+          return streamText(streamOptions as any);
         });
         textStream = result.textStream;
+        // Capture tool calls from the stream result for the final chunk
+        const toolCallsPromise = (async () => {
+          try {
+            const rtc = (await (result as any).toolCalls) as Array<{
+              toolCallId: string;
+              toolName: string;
+              input: unknown;
+            }> | undefined;
+            return (rtc ?? []).map(parseToolCall);
+          } catch {
+            return [];
+          }
+        })();
+        (textStream as any).__toolCallsPromise = toolCallsPromise;
       }
     } catch (error) {
       // Circuit breaker recorded the failure
@@ -553,11 +616,23 @@ export class AIEngine {
     }
 
     if (!streamFailed) {
+      // Collect any tool calls the model requested during streaming
+      let streamToolCalls: ToolCall[] | undefined;
+      try {
+        const p = (textStream as any).__toolCallsPromise as Promise<ToolCall[]> | undefined;
+        if (p) {
+          const tc = await p;
+          if (tc.length > 0) streamToolCalls = tc;
+        }
+      } catch {
+        // ignore tool-call collection errors; text already streamed
+      }
       yield {
         id: requestId,
         content: '',
         done: true,
-        finishReason: 'stop',
+        finishReason: streamToolCalls ? 'tool_calls' : 'stop',
+        toolCalls: streamToolCalls,
       };
     }
 
