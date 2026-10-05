@@ -194,7 +194,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
   // session → the user bounced back to /login forever.
   //
   // This PUBLIC endpoint verifies the SSO token back-channel against QuantMail's
-  // `/oauth/userinfo`, upserts the user by verified email, and returns
+  // `/api/oauth/userinfo`, upserts the user by verified email, and returns
   // QuantChat-native tokens minted by `sessionTokens`.
   fastify.post('/sso/exchange', async (request, reply) => {
     const parsed = ssoExchangeSchema.safeParse(request.body);
@@ -220,7 +220,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
       try {
-        const res = await fetch(`${quantmailBase}/oauth/userinfo`, {
+        const res = await fetch(`${quantmailBase}/api/oauth/userinfo`, {
           headers: { Authorization: `Bearer ${ssoToken}` },
           signal: controller.signal,
         });
