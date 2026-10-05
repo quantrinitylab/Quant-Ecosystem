@@ -14,11 +14,16 @@ import {
 } from './voice-personas';
 import { VoiceOrb } from './VoiceOrb';
 import { VoiceFloatingChip } from './VoiceFloatingChip';
+import { useVoiceCapture } from '../../hooks/useVoiceCapture';
 
 export interface VoiceModeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSendMessage?: (text: string) => void;
+  /** Latest assistant reply text from the real chat pipeline — spoken via TTS. */
+  assistantReply?: string | null;
+  /** Fired when the assistant reply has been consumed (to avoid re-speaking). */
+  onAssistantReplyConsumed?: () => void;
   initialPersonaId?: VoicePersonaId;
   initialConfig?: Partial<VoiceSessionConfig>;
   initialTranscripts?: TranscriptItem[];
@@ -28,6 +33,8 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
   isOpen,
   onClose,
   onSendMessage,
+  assistantReply,
+  onAssistantReplyConsumed,
   initialPersonaId = 'aura',
   initialConfig,
   initialTranscripts,
@@ -43,7 +50,17 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
   // Voice State Machine
   const [voiceState, setVoiceState] = useState<VoiceState>('listening');
-  const [audioLevel, setAudioLevel] = useState<number>(0.4);
+  // Real mic capture: getUserMedia + AudioWorklet PCM + AnalyserNode levels.
+  const {
+    state: captureState,
+    audioLevel: micLevel,
+    error: captureError,
+    startCapture,
+    stopCapture,
+    cancelCapture,
+  } = useVoiceCapture();
+  // Orb level: live mic RMS while capturing, else idle baseline.
+  const audioLevel = captureState === 'capturing' ? micLevel : 0.05;
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showPersonaMenu, setShowPersonaMenu] = useState<boolean>(false);
@@ -68,7 +85,6 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
   const transcriptScrollRef = useRef<HTMLDivElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const recognitionRef = useRef<any>(null);
   const synthUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Auto-scroll transcript ticker to bottom
@@ -78,30 +94,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     }
   }, [transcripts, interimSpeech]);
 
-  // Audio level animation loop for visual feedback
-  useEffect(() => {
-    if (!isOpen || config.isMuted) {
-      setAudioLevel(0.05);
-      return;
-    }
 
-    const interval = setInterval(() => {
-      if (voiceState === 'listening') {
-        // Natural ambient mic fluctuations (0.1 to 0.7)
-        setAudioLevel(0.15 + Math.random() * 0.45);
-      } else if (voiceState === 'speaking') {
-        // Dynamic voice wave amplitude (0.3 to 0.95)
-        setAudioLevel(0.35 + Math.random() * 0.6);
-      } else if (voiceState === 'thinking') {
-        // Steady pulsating hum (0.2 to 0.4)
-        setAudioLevel(0.25 + Math.sin(Date.now() / 200) * 0.1);
-      } else {
-        setAudioLevel(0.05);
-      }
-    }, 120);
-
-    return () => clearInterval(interval);
-  }, [isOpen, voiceState, config.isMuted]);
 
   // Interrupt active assistant speech (Voice Activity Detection trigger or tap)
   const handleInterrupt = useCallback(() => {
@@ -124,11 +117,12 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
   // Mute / Unmute live microphone
   const toggleMute = useCallback(() => {
-    setConfig((prev) => ({ ...prev, isMuted: !prev.isMuted }));
-    if (!config.isMuted && voiceState === 'listening') {
-      setAudioLevel(0.02);
-    }
-  }, [config.isMuted, voiceState]);
+    setConfig((prev) => {
+      const next = !prev.isMuted;
+      if (next) cancelCapture();
+      return { ...prev, isMuted: next };
+    });
+  }, [cancelCapture]);
 
   // Persona Switching
   const handleSelectPersona = useCallback((personaId: VoicePersonaId) => {
@@ -155,72 +149,137 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     }
   }, []);
 
-  // Simulate or execute assistant vocal response
-  const triggerAssistantResponse = useCallback(
-    (userQuery: string) => {
-      setVoiceState('thinking');
-      setInterimSpeech('');
+  // Speak text: try backend TTS first, fall back to browser speech.
+  const speakText = useCallback(
+    async (text: string) => {
+      setVoiceState('speaking');
+      const botMsg: TranscriptItem = {
+        id: `bot-${Date.now()}`,
+        speaker: 'assistant',
+        personaId: config.persona,
+        text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setTranscripts((prev) => [...prev, botMsg]);
 
-      // Add user query to transcripts
+      let played = false;
+      try {
+        const res = await fetch('/api/voice/tts', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text, voiceId: config.persona }),
+        });
+        if (res.ok) {
+          const buf = await res.arrayBuffer();
+          if (buf.byteLength > 0) {
+            const url = URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' }));
+            const audio = new Audio(url);
+            audio.onended = () => {
+              URL.revokeObjectURL(url);
+              setVoiceState('listening');
+            };
+            audio.onerror = () => {
+              URL.revokeObjectURL(url);
+              setVoiceState('listening');
+            };
+            await audio.play();
+            played = true;
+          }
+        }
+      } catch {
+        played = false;
+      }
+
+      if (!played && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.pitch = config.pitch;
+        utterance.rate = config.rate;
+        synthUtteranceRef.current = utterance;
+        utterance.onend = () => setVoiceState('listening');
+        utterance.onerror = () => setVoiceState('listening');
+        window.speechSynthesis.speak(utterance);
+      } else if (!played) {
+        setTimeout(() => setVoiceState('listening'), 3000);
+      }
+    },
+    [config.persona, config.pitch, config.rate],
+  );
+
+  // When the real chat pipeline produces an assistant reply, speak it.
+  const lastSpokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (assistantReply && assistantReply !== lastSpokenRef.current && voiceState === 'thinking') {
+      lastSpokenRef.current = assistantReply;
+      onAssistantReplyConsumed?.();
+      void speakText(assistantReply);
+    }
+  }, [assistantReply, voiceState, speakText, onAssistantReplyConsumed]);
+
+  // Real voice turn: mic capture -> Meta STT -> chat pipeline -> TTS.
+  const handleVoiceTurn = useCallback(async () => {
+    if (config.isMuted) return;
+    setInterimSpeech('');
+    try {
+      await startCapture();
+    } catch {
+      return;
+    }
+    // Capture until the user taps the mic button again (toggle behavior is
+    // handled by the caller) — this entry point starts a fresh turn.
+  }, [config.isMuted, startCapture]);
+
+  const finishVoiceTurn = useCallback(async () => {
+    const wav = await stopCapture();
+    if (!wav) {
+      setVoiceState('listening');
+      return;
+    }
+    setVoiceState('thinking');
+    try {
+      const form = new FormData();
+      form.append('file', wav, 'audio.wav');
+      const res = await fetch('/api/voice/stt', { method: 'POST', body: form });
+      const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
+      if (!res.ok || !data.text) {
+        throw new Error(data.error || 'Transcription failed');
+      }
+      const transcript = data.text.trim();
+      setInterimSpeech('');
       const userMsg: TranscriptItem = {
         id: `user-${Date.now()}`,
         speaker: 'user',
-        text: userQuery,
+        text: transcript,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-
       setTranscripts((prev) => [...prev, userMsg]);
-      onSendMessage?.(userQuery);
-
-      // Simulate AI synthesis turn
+      // Into the REAL chat pipeline — the reply comes back via assistantReply.
+      onSendMessage?.(transcript);
+      // If the parent doesn't feed assistantReply back, don't hang in thinking.
       setTimeout(() => {
-        setVoiceState('speaking');
-        let responseText = '';
-        if (config.persona === 'aura') {
-          responseText = `I hear you completely. When approaching ${userQuery.slice(0, 30)}..., let's begin with clarity and make sure you feel confident at every step.`;
-        } else if (config.persona === 'vesper') {
-          responseText = `Analysis complete. Core parameters for '${userQuery.slice(0, 25)}' indicate optimal execution along three discrete paths. Let's inspect the telemetry.`;
-        } else if (config.persona === 'zenith') {
-          responseText = `Acknowledged. The strategic imperative for this directive is clear. We shall mobilize resources and ensure uncompromising parity.`;
-        } else {
-          responseText = `Awesome question! Let's dive right in and break this wide open—check this out!`;
-        }
+        setVoiceState((s) => (s === 'thinking' ? 'listening' : s));
+      }, 45000);
+    } catch (err) {
+      const errMsg: TranscriptItem = {
+        id: `err-${Date.now()}`,
+        speaker: 'assistant',
+        personaId: config.persona,
+        text: `Sorry, I couldn't transcribe that: ${err instanceof Error ? err.message : 'unknown error'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setTranscripts((prev) => [...prev, errMsg]);
+      setVoiceState('listening');
+    }
+  }, [stopCapture, onSendMessage, config.persona]);
 
-        const botMsg: TranscriptItem = {
-          id: `bot-${Date.now()}`,
-          speaker: 'assistant',
-          personaId: config.persona,
-          text: responseText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-
-        setTranscripts((prev) => [...prev, botMsg]);
-
-        // Speak via Web Speech API if supported
-        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(responseText);
-          utterance.pitch = config.pitch;
-          utterance.rate = config.rate;
-          synthUtteranceRef.current = utterance;
-
-          utterance.onend = () => {
-            setVoiceState('listening');
-          };
-          utterance.onerror = () => {
-            setVoiceState('listening');
-          };
-          window.speechSynthesis.speak(utterance);
-        } else {
-          // Fallback timer for speaking duration
-          setTimeout(() => {
-            setVoiceState('listening');
-          }, 3000);
-        }
-      }, 1200);
-    },
-    [config.persona, config.pitch, config.rate, onSendMessage],
-  );
+  // Mic button: tap to start, tap again to stop & transcribe.
+  const handleMicButton = useCallback(() => {
+    if (captureState === 'capturing') {
+      void finishVoiceTurn();
+    } else if (!config.isMuted) {
+      void handleVoiceTurn();
+    }
+  }, [captureState, config.isMuted, finishVoiceTurn, handleVoiceTurn]);
 
   // Clean up Web Speech API on unmount or close
   useEffect(() => {
@@ -540,9 +599,16 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
                 audioLevel={audioLevel}
                 size="hero"
                 isMuted={config.isMuted}
-                onClick={voiceState === 'speaking' ? handleInterrupt : toggleMute}
+                onClick={voiceState === 'speaking' ? handleInterrupt : handleMicButton}
               />
             </div>
+
+            {/* Mic capture error (permission denied, etc.) */}
+            {(captureError || captureState === 'denied') && (
+              <div className="mt-4 px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/40 text-red-300 text-xs max-w-sm text-center">
+                {captureError || 'Microphone unavailable.'}
+              </div>
+            )}
 
             {/* Interrupt Action Banner (Appears when assistant is speaking) */}
             <div className="h-10 mt-10 flex items-center justify-center">
@@ -635,31 +701,35 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
               {/* Primary Live Microphone Toggle */}
               <button
                 type="button"
-                onClick={toggleMute}
-                aria-label={config.isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                onClick={handleMicButton}
+                onDoubleClick={toggleMute}
+                aria-label={
+                  captureState === 'capturing'
+                    ? 'Stop and transcribe'
+                    : config.isMuted
+                      ? 'Unmute microphone'
+                      : 'Start voice capture'
+                }
+                title="Tap to talk, tap again to transcribe (double-click to mute)"
                 data-testid="mute-toggle-button"
                 className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-xl ${
-                  config.isMuted
-                    ? 'bg-red-500/20 border-2 border-red-500 text-red-400 hover:bg-red-500/30'
-                    : 'bg-white text-zinc-950 hover:bg-zinc-200'
+                  captureState === 'capturing'
+                    ? 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400 animate-pulse'
+                    : config.isMuted
+                      ? 'bg-red-500/20 border-2 border-red-500 text-red-400 hover:bg-red-500/30'
+                      : 'bg-white text-zinc-950 hover:bg-zinc-200'
                 }`}
               >
                 {config.isMuted ? (
                   <span className="text-xl">🔇</span>
+                ) : captureState === 'capturing' ? (
+                  <span className="text-xl">⏹️</span>
                 ) : (
                   <span className="text-xl">🎙️</span>
                 )}
               </button>
 
-              {/* Quick Speech Trigger Button for testing/manual push-to-talk */}
-              <button
-                type="button"
-                onClick={() => triggerAssistantResponse('How does QuantAI voice parity work?')}
-                aria-label="Simulate voice turn"
-                className="px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold border border-zinc-700 transition-colors cursor-pointer"
-              >
-                Simulate Voice Turn
-              </button>
+
             </div>
 
             {/* Right: End Voice Session */}

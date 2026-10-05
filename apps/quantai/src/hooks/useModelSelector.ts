@@ -39,8 +39,15 @@ export function useModelSelector() {
     [models],
   );
 
-  const currentModel = useMemo(() => {
-    return models.find((m) => m.id === selectedModelId) || models[0];
+  const currentModel: AIModel = useMemo(() => {
+    // Guaranteed non-undefined: fall back through fetched models, then the
+    // static list (never empty), so consumers can safely dereference.
+    return (
+      models.find((m) => m.id === selectedModelId) ||
+      models[0] ||
+      AVAILABLE_MODELS.find((m) => m.id === selectedModelId) ||
+      AVAILABLE_MODELS[0]
+    );
   }, [models, selectedModelId]);
 
   return {

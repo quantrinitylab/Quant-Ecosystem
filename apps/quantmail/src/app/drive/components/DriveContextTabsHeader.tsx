@@ -80,7 +80,11 @@ export function DriveContextTabsHeader({
     <div
       role="tablist"
       aria-label="Drive Context Sub-Navigation"
-      className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[#090A0E]/95 backdrop-blur-md sticky top-0 z-20"
+      // Desktop-only: on mobile the shell's ContextBottomNavBar already drives
+      // these same five tabs (My Files/Shared/Vault/Starred/Cleaner), so a
+      // mid-page duplicate row is the exact double-stack the mobile QA shots
+      // flagged. `hidden md:flex` keeps the desktop layout pixel-identical.
+      className="hidden md:flex items-center gap-1.5 overflow-x-auto no-scrollbar py-2.5 px-4 sm:px-8 border-b border-[#232938] bg-[#090A0E]/95 backdrop-blur-md sticky top-0 z-20"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
@@ -136,6 +140,10 @@ export function DriveContextTabsHeader({
           </button>
         );
       })}
+      {/* Trailing spacer: padding-right collapses inside overflow-x-auto, so
+          without this the last tab ("Cleaner") renders flush-cut at the edge
+          on narrow screens — the "St..." clipping from the mobile QA shots. */}
+      <div aria-hidden="true" className="shrink-0 w-4" />
     </div>
   );
 }

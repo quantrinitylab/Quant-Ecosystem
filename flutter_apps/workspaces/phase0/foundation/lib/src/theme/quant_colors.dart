@@ -91,6 +91,28 @@ abstract final class QuantColors {
   /// `accent.950`
   static const Color accent950 = Color(0xFF451A03);
 
+  // -- QuantMail lava ramp (brand truth) --------------------------------------
+  //
+  // Design-atelier LAVA_TOKENS_SPEC.md (P2-24, 2026-10-04): QuantMail's
+  // accent voice is lava — one hue family, tonal per-mode. Not a generic
+  // orange ramp: these are the brand anchor values (mascot gradient,
+  // dark accent, light accent, gradient highlights).
+
+  /// QuantMail lava ramp — brand anchor (mascot gradient mid).
+  static const Color lavaCore = Color(0xFFFF4500);
+
+  /// QuantMail lava ramp — dark-mode accent (== primary500).
+  static const Color lavaBright = Color(0xFFFF8C42);
+
+  /// QuantMail lava ramp — light-mode accent (P2-24, 5.18:1 on white).
+  static const Color lavaDeep = Color(0xFFC2410C);
+
+  /// QuantMail lava ramp — gradient highlight (mascot rim).
+  static const Color lavaGold = Color(0xFFFFC700);
+
+  /// QuantMail lava ramp — gradient depth (mascot base).
+  static const Color lavaCrimson = Color(0xFFD61800);
+
   // -- Neutral (slate) ramp -------------------------------------------------
 
   /// `neutral.50`

@@ -403,6 +403,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.60.0
         version: 5.100.14(react@19.2.6)
+      argon2:
+        specifier: ^0.43.0
+        version: 0.43.1
       fastify:
         specifier: 5.12.5
         version: 5.12.5

@@ -460,7 +460,8 @@ export default function LoginPage(props: LoginPageProps) {
               void verifyCode();
             }}
           >
-            {/* Auto-Fill Demo OTP banner */}
+            {/* Auto-Fill Demo OTP banner — DEVELOPMENT ONLY, never in production */}
+            {process.env.NODE_ENV === 'development' && (
             <div
               className="rounded-xl border border-violet-500/30 bg-violet-500/10 p-3.5 flex flex-col items-center gap-2"
               data-testid="demo-otp-banner"
@@ -478,6 +479,7 @@ export default function LoginPage(props: LoginPageProps) {
                 Development sandbox mode — no SMS gateway required
               </span>
             </div>
+            )}
 
             <div className="space-y-3">
               <label htmlFor="otp" className="block text-xs font-medium text-slate-400 text-center">
@@ -554,6 +556,15 @@ export default function LoginPage(props: LoginPageProps) {
             </div>
           </form>
         )}
+      </div>
+
+      {/* Legal links — WhatsApp/Telegram standard */}
+      <div className="mt-8 flex items-center justify-center gap-4 text-[11px] text-slate-500">
+        <a href="/terms" className="hover:text-slate-300 transition-colors">Terms</a>
+        <span className="text-slate-700">·</span>
+        <a href="/privacy" className="hover:text-slate-300 transition-colors">Privacy Policy</a>
+        <span className="text-slate-700">·</span>
+        <a href="/support" className="hover:text-slate-300 transition-colors">Support</a>
       </div>
     </main>
   );

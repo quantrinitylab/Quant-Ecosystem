@@ -43,7 +43,7 @@ import {
   type PrismaPushSubscriptionClient,
 } from './services/push-dispatcher';
 import authRoutes from './routes/auth';
-import { OtpService, AwsSnsSmsSender } from './lib/otp-service';
+import { OtpService, Msg91SmsSender } from './lib/otp-service';
 import { SessionTokenIssuer } from './lib/session-tokens';
 
 export function getConfig(): AppConfig {
@@ -92,7 +92,7 @@ export async function buildApp(config?: AppConfig) {
 
   app.decorate(
     'otpService',
-    new OtpService(new AwsSnsSmsSender(undefined, (message) => app.log.info(message))),
+    new OtpService(new Msg91SmsSender((message) => app.log.info(message))),
   );
   app.decorate(
     'sessionTokens',

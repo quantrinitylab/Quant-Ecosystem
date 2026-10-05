@@ -28,7 +28,10 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
       // Verify frosted glass dock container classes
       expect(html).toContain('fixed bottom-6 left-1/2 -translate-x-1/2 z-40');
       expect(html).toContain('backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl');
-      expect(html).toContain('flex items-center gap-3 text-xs text-gray-300 select-none');
+      // Desktop-only chrome: hidden below md, flex at md+ (mobile QA: the bar
+      // used to sit glued over the inbox's bottom nav on phones).
+      expect(html).toContain('hidden md:flex');
+      expect(html).toContain('items-center gap-3 text-xs text-gray-300 select-none');
       expect(html).toContain('rounded-full');
       expect(html).toContain('px-4 py-2');
 

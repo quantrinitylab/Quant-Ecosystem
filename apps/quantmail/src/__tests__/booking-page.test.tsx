@@ -185,8 +185,6 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
           activeYear={2026}
           goMonth={vi.fn()}
           goToday={vi.fn()}
-          activeView="agenda"
-          selectView={vi.fn()}
           openDedicatedSheet={vi.fn()}
           onOpenBookingLinks={onOpenBookingLinks}
         />,
@@ -204,8 +202,6 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
           activeYear={2026}
           goMonth={vi.fn()}
           goToday={vi.fn()}
-          activeView="agenda"
-          selectView={vi.fn()}
           openDedicatedSheet={vi.fn()}
         />,
       );

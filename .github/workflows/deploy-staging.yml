@@ -20,6 +20,7 @@ on:
           - cdc-relay
           - signal-projector
           - quantchat
+          - quantchat-backend
           - quantai
           - admin
           - ws-gateway
@@ -178,6 +179,10 @@ jobs:
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
               deployment=quant-quantchat; container=quant-quantchat
+              needs_cloudflare=false ;;
+            quantchat-backend)
+              repository=quant-quantchat-backend; dockerfile=apps/quantchat/Dockerfile.backend
+              deployment=quant-quantchat; container=quant-quantchat-backend
               needs_cloudflare=false ;;
             quantai)
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
@@ -342,6 +347,7 @@ jobs:
           NEEDS_CLOUDFLARE: ${{ steps.target.outputs.needs_cloudflare }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          MSG91_AUTH_KEY: ${{ secrets.MSG91_AUTH_KEY }}
         run: |
           set -euo pipefail
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
@@ -391,6 +397,17 @@ jobs:
               -n "$K8S_NAMESPACE" >/dev/null 2>&1 || true
             kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
               --type=merge --patch-file "$work/patch.yaml"
+
+            # MSG91_AUTH_KEY for QuantChat real SMS (patch into same secret)
+            if [ -n "${MSG91_AUTH_KEY:-}" ]; then
+              printf '%s' "$MSG91_AUTH_KEY" > "$work/MSG91_AUTH_KEY"
+              kubectl create secret generic quant-staging-secrets \
+                -n "$K8S_NAMESPACE" \
+                --from-file="$work/MSG91_AUTH_KEY" \
+                --dry-run=client -o yaml > "$work/msg91-patch.yaml"
+              kubectl patch secret quant-staging-secrets -n "$K8S_NAMESPACE" \
+                --type=merge --patch-file "$work/msg91-patch.yaml"
+            fi
 
             # The non-secret half stays plain env. Removing the old literal in
             # the same call costs one rollout instead of two.

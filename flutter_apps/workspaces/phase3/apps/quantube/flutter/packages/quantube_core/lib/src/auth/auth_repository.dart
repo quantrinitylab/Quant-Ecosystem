@@ -25,8 +25,17 @@
 // the URL in a browser and finishes with [completeBrowserUpgrade].
 
 import 'package:dio/dio.dart';
-import 'package:quant_foundation/quant_foundation.dart';
+// Foundation-canonical `requireHttpsBaseUrl` is hidden BY DESIGN: the
+// foundation guard is deliberately stricter (loopback-only http for
+// password transports), while the app-level guard in `../config/app_config.dart`
+// additionally allows RFC1918 LAN hosts (10.x/192.168.x/172.16-31.x) for
+// LAN-dev builds. The app-level guard is the documented S4 contract for this
+// app's transports (QuantAI VQA-P1-08 class fix) — the local function wins
+// so no behavior changes.
+import 'package:quant_foundation/quant_foundation.dart'
+    hide requireHttpsBaseUrl;
 
+import '../config/app_config.dart';
 import 'auth_exceptions.dart';
 
 /// Orchestrates QuanTube authentication: password login (+ TOTP 2FA) against
@@ -100,25 +109,42 @@ class AuthRepository {
     this.redirectUri = defaultRedirectUri,
     Duration timeout = const Duration(seconds: 30),
     Dio? loginDio,
-  })  : assert(
-          apiBaseUrl.toLowerCase().startsWith('https://'),
-          'SECURITY (board S4): API base URL must be https — refusing '
-          '"$apiBaseUrl". http:// is never silently accepted.',
-        ),
-        _loginDio = loginDio ??
-            Dio(
-              BaseOptions(
-                baseUrl: apiBaseUrl.replaceAll(RegExp(r'/+$'), ''),
-                connectTimeout: timeout,
-                receiveTimeout: timeout,
-                sendTimeout: timeout,
-                contentType: Headers.jsonContentType,
-                // Verified on the QuantMail SSO surface (AUTH_CONTRACT.md
-                // §1.9): an allowlisted Origin header is mandatory on
-                // /auth/login and /auth/2fa/verify.
-                headers: <String, dynamic>{'Origin': webOrigin},
-              ),
-            );
+  }) : _loginDio = _guardedLoginDio(
+          loginDio: loginDio,
+          apiBaseUrl: apiBaseUrl,
+          webOrigin: webOrigin,
+          timeout: timeout,
+        );
+
+  /// Resolves the login Dio, enforcing the S4 https guard at RUNTIME.
+  ///
+  /// [requireHttpsBaseUrl] runs in ALL build modes — including when a test
+  /// injects [loginDio] — so a non-local `http://` [apiBaseUrl] throws
+  /// [ArgumentError] instead of being silently accepted. (The old
+  /// debug-only initializer-list assert is gone: asserts are stripped in
+  /// release builds.)
+  static Dio _guardedLoginDio({
+    required Dio? loginDio,
+    required String apiBaseUrl,
+    required String webOrigin,
+    required Duration timeout,
+  }) {
+    requireHttpsBaseUrl(apiBaseUrl);
+    return loginDio ??
+        Dio(
+          BaseOptions(
+            baseUrl: apiBaseUrl.replaceAll(RegExp(r'/+$'), ''),
+            connectTimeout: timeout,
+            receiveTimeout: timeout,
+            sendTimeout: timeout,
+            contentType: Headers.jsonContentType,
+            // Verified on the QuantMail SSO surface (AUTH_CONTRACT.md
+            // §1.9): an allowlisted Origin header is mandatory on
+            // /auth/login and /auth/2fa/verify.
+            headers: <String, dynamic>{'Origin': webOrigin},
+          ),
+        );
+  }
 
   /// The in-flight PKCE authorization request (non-null while a browser
   /// consent round-trip is outstanding).

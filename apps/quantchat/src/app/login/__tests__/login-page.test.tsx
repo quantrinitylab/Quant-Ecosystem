@@ -64,14 +64,12 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('data-testid="phone-view-sso-btn"');
   });
 
-  it('renders OTP state with auto-fill demo banner and 6-digit input boxes', () => {
+  it('renders OTP state with 6-digit input boxes (demo banner hidden in non-dev)', () => {
     const html = renderToString(<LoginPage initialStep="otp" initialPhoneNumber="9876543210" />);
 
-    // Auto-fill demo banner
-    expect(html).toContain('data-testid="demo-otp-banner"');
-    expect(html).toContain('data-testid="auto-fill-otp-btn"');
-    expect(html).toContain('✨ Auto-Fill Demo OTP:');
-    expect(html).toContain('123456');
+    // Demo banner should NOT appear in test/production (dev-only)
+    expect(html).not.toContain('data-testid="demo-otp-banner"');
+    expect(html).not.toContain('✨ Auto-Fill Demo OTP:');
 
     // 6-digit input boxes
     expect(html).toContain('data-testid="otp-boxes-container"');
@@ -90,13 +88,14 @@ describe('QuantChat Luxury Phone Login UI — LoginPage & Page', () => {
     expect(html).toContain('data-testid="resend-code-btn"');
   });
 
-  it('renders dynamic received demo code in OTP auto-fill banner', () => {
+  it('hides demo OTP banner in non-development environments', () => {
     const html = renderToString(
       <LoginPage initialStep="otp" initialPhoneNumber="9876543210" initialDemoCode="654321" />,
     );
 
-    expect(html).toContain('✨ Auto-Fill Demo OTP:');
-    expect(html).toContain('654321');
+    // Demo banner is dev-only, should not leak to test/prod
+    expect(html).not.toContain('✨ Auto-Fill Demo OTP:');
+    expect(html).not.toContain('data-testid="demo-otp-banner"');
   });
 
   it('renders Continue with Quant Account tab and credentials view', () => {

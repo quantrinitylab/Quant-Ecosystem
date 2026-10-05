@@ -194,7 +194,9 @@ export function SuperhumanShortcutDock({
         data-testid="superhuman-dock-collapsed"
         aria-label="Expand dock"
         onClick={() => setCollapsed(false)}
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl rounded-full px-4 py-2 flex items-center gap-2.5 text-xs text-gray-300 hover:text-white transition-all cursor-pointer ${className}`}
+        // Desktop-only chrome: keyboard hints are meaningless on a phone, and
+        // the bar used to sit glued over the inbox's bottom nav on mobile.
+        className={`hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl rounded-full px-4 py-2 items-center gap-2.5 text-xs text-gray-300 hover:text-white transition-all cursor-pointer ${className}`}
       >
         <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
         <span className="font-semibold text-white">Shortcuts</span>
@@ -211,7 +213,11 @@ export function SuperhumanShortcutDock({
     <div
       role="toolbar"
       aria-label="Superhuman Keyboard Shortcuts Dock"
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl flex items-center gap-3 text-xs text-gray-300 select-none rounded-full px-4 py-2 transition-all ${className}`}
+      // `hidden md:flex`: the dock is a desktop keyboard-shortcut bar. On a
+      // phone it rendered as a stuck strip over the inbox's bottom nav (mobile
+      // QA screenshot). The key listener below keeps working — this is purely
+      // about the visible chrome.
+      className={`hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl items-center gap-3 text-xs text-gray-300 select-none rounded-full px-4 py-2 transition-all ${className}`}
     >
       {/* Brand mark */}
       <div className="flex items-center gap-1.5 font-medium text-white shrink-0 pr-1">

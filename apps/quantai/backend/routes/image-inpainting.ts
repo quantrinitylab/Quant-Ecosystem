@@ -62,8 +62,15 @@ export default async function imageInpaintingRoutes(fastify: FastifyInstance) {
       autoProcess,
     } = parseResult.data;
 
-    const userId =
-      (request as any).user?.id || (request.headers['x-user-id'] as string) || 'user_default';
+    // P0 fix: fail closed — only verified auth middleware identity is accepted.
+    // Never trust client-supplied identity headers, never fall back to a default identity.
+    const authUserId =
+      (request as unknown as { auth?: { userId?: string } }).auth?.userId ??
+      (request as unknown as { user?: { id?: string } }).user?.id;
+    if (!authUserId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const userId = authUserId;
 
     try {
       let job = createInpaintingJob(userId, {

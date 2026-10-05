@@ -1,16 +1,14 @@
 'use client';
 
 import React from 'react';
-import type { CalendarView, EntryType } from '../types';
-import { CALENDAR_VIEWS, TIMEZONES } from '../types';
+import type { EntryType } from '../types';
+import { TIMEZONES } from '../types';
 
 export interface CalendarHeaderProps {
   activeMonthName: string;
   activeYear: number;
   goMonth: (delta: number) => void;
   goToday: () => void;
-  activeView: CalendarView;
-  selectView: (view: CalendarView) => void;
   openDedicatedSheet: (type: EntryType) => void;
   activeTimezone?: string;
   onChangeTimezone?: (tz: string) => void;
@@ -59,8 +57,6 @@ export function CalendarHeader({
   activeYear,
   goMonth,
   goToday,
-  activeView,
-  selectView,
   openDedicatedSheet,
   activeTimezone,
   onChangeTimezone,
@@ -68,6 +64,13 @@ export function CalendarHeader({
 }: CalendarHeaderProps) {
   return (
     <>
+      {/*
+        View switching moved out of this header: the single merged tab row
+        (CalendarContextSubTabs: Agenda/Week/Day/Month/Booking/QuantMeet/
+        Reminders) now owns it, so the header no longer duplicates Agenda and
+        Month. This toolbar keeps month navigation, Today, timezone, booking
+        links and New Entry.
+      */}
       {/* Desktop Header Toolbar */}
       <div className="hidden md:flex items-center justify-between border-b border-[#282C35]/80 px-6 py-3 bg-[#0c0c0f]">
         <div className="flex items-center gap-3">
@@ -128,23 +131,11 @@ export function CalendarHeader({
             </div>
           )}
 
-          <div className="flex items-center rounded-lg border border-[#282C35] bg-[#111318] p-0.5">
-            {CALENDAR_VIEWS.map((v) => (
-              <button
-                key={v.key}
-                type="button"
-                onClick={() => selectView(v.key)}
-                aria-pressed={activeView === v.key}
-                className={`px-3 py-1 text-xs rounded-md font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                  activeView === v.key
-                    ? 'bg-[#FF8C42] text-[#111111] font-semibold shadow-sm'
-                    : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
+          {/*
+            View switcher removed: CalendarContextSubTabs is the single merged
+            row now (Agenda/Week/Day/Month/Booking/QuantMeet/Reminders).
+            Keeping it here duplicated Agenda and Month.
+          */}
 
           {onOpenBookingLinks && (
             <button
@@ -246,27 +237,12 @@ export function CalendarHeader({
           </div>
         )}
 
-        <div
-          className="mt-2 flex items-center gap-1 overflow-x-auto no-scrollbar rounded-xl border border-[#282C35] bg-[#111318] p-0.5"
-          role="group"
-          aria-label="Calendar view"
-        >
-          {CALENDAR_VIEWS.map((v) => (
-            <button
-              key={v.key}
-              type="button"
-              onClick={() => selectView(v.key)}
-              aria-pressed={activeView === v.key}
-              className={`min-h-11 flex-1 rounded-lg px-3 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
-                activeView === v.key
-                  ? 'bg-[#FF8C42] font-semibold text-[#111111] shadow-sm'
-                  : 'text-[#A1A4AC] hover:text-[#F5F5F5]'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
+        {/*
+          View switcher removed from the mobile toolbar too: the merged
+          CalendarContextSubTabs row below owns Agenda/Week/Day/Month (plus
+          Booking/QuantMeet/Reminders). This toolbar keeps month stepping,
+          Today, timezone and booking links.
+        */}
       </div>
     </>
   );

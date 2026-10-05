@@ -53,10 +53,8 @@ function getAuthenticatedUserId(request: FastifyRequest): string {
   if (user?.id) {
     return user.id;
   }
-  const headerUser = request.headers['x-user-id'];
-  if (typeof headerUser === 'string' && headerUser.trim()) {
-    return headerUser.trim();
-  }
+  // P0 fix: never trust the client-supplied identity headers for identity.
+  // Only verified auth middleware may establish identity; otherwise fail closed.
   throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
 }
 

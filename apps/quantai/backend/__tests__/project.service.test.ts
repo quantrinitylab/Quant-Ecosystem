@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { ProjectService } from '../services/project.service';
 import projectsRoutes from '../routes/projects';
 
@@ -297,6 +297,11 @@ describe('Projects Fastify Route Integration Tests', () => {
     service = new ProjectService();
     app = Fastify();
     (app as any).projectService = service;
+    // Simulate the production verified-auth hook: identity is set server-side
+    // on request.auth (never from client headers — P0: x-user-id removed).
+    app.addHook('onRequest', async (request: FastifyRequest) => {
+      (request as any).auth = { userId: testUserId };
+    });
     await app.register(projectsRoutes, { prefix: '/projects' });
     await app.ready();
   });
@@ -305,7 +310,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/projects',
-      headers: { 'x-user-id': testUserId },
     });
 
     expect(res.statusCode).toBe(200);
@@ -318,7 +322,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/projects',
-      headers: { 'x-user-id': testUserId },
       payload: {
         name: 'Machine Learning Lab',
         description: 'Model training workspace',
@@ -338,7 +341,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/projects',
-      headers: { 'x-user-id': testUserId },
       payload: {
         name: '',
       },
@@ -351,7 +353,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'GET',
       url: '/projects/proj-unknown',
-      headers: { 'x-user-id': testUserId },
     });
 
     expect(res.statusCode).toBe(404);
@@ -366,7 +367,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'PATCH',
       url: `/projects/${created.id}`,
-      headers: { 'x-user-id': testUserId },
       payload: {
         name: 'Updated Name',
         memoryIsolationMode: 'UNIFIED',
@@ -386,7 +386,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const attachRes = await app.inject({
       method: 'POST',
       url: `/projects/${created.id}/files`,
-      headers: { 'x-user-id': testUserId },
       payload: {
         name: 'model.py',
         content: 'def predict(): pass',
@@ -403,7 +402,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const removeRes = await app.inject({
       method: 'DELETE',
       url: `/projects/${created.id}/files/${fileId}`,
-      headers: { 'x-user-id': testUserId },
     });
 
     expect(removeRes.statusCode).toBe(200);
@@ -427,7 +425,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'GET',
       url: `/projects/${project.id}/context`,
-      headers: { 'x-user-id': testUserId },
     });
 
     expect(res.statusCode).toBe(200);
@@ -444,7 +441,6 @@ describe('Projects Fastify Route Integration Tests', () => {
     const res = await app.inject({
       method: 'DELETE',
       url: `/projects/${project.id}`,
-      headers: { 'x-user-id': testUserId },
     });
 
     expect(res.statusCode).toBe(200);

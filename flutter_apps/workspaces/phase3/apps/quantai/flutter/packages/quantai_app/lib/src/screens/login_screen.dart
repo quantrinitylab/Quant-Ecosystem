@@ -232,7 +232,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: const Icon(
               Icons.auto_awesome,
               size: 36,
-              color: Color(0xFFFFFFFF),
+              color: scheme.onPrimary,
             ),
           ),
         ),

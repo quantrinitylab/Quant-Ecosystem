@@ -7,6 +7,11 @@ import {
   generateSsml,
   type TTSProvider,
 } from '../services/voiceover-tts.service';
+import {
+  transcribeWithMeta,
+  isMetaSTTConfigured,
+  MetaVoiceSTTError,
+} from '../services/meta-voice.service';
 
 // TODO(UNVERIFIED): injectable agent-ownership seam. Merge-time wiring must
 // decorate 'agentOwnership' with the real @quant/agentic agent-owner lookup:
@@ -37,6 +42,17 @@ function getAgentOwnershipPort(fastify: FastifyInstance): AgentOwnershipPort {
 export default async function voiceRoutes(fastify: FastifyInstance) {
   const ownership = getAgentOwnershipPort(fastify);
 
+  // Honest capability reporting — the frontend gates voice UI on this.
+  fastify.get('/status', async (_request, reply) => {
+    const stt = isMetaSTTConfigured() ? 'meta' : voiceInterface.isBackendConfigured() ? 'openai' : 'none';
+    return reply.send({
+      stt,
+      sttModel: stt === 'meta' ? process.env['META_VOICE_MODEL'] ?? 'muse-voice-transcribe-1.0' : null,
+      tts: 'browser',
+      metaVoiceConfigured: isMetaSTTConfigured(),
+    });
+  });
+
   fastify.post('/tts', async (request, reply) => {
     const { text } = request.body as any;
 
@@ -48,11 +64,36 @@ export default async function voiceRoutes(fastify: FastifyInstance) {
 
   fastify.post('/stt', async (request, reply) => {
     const data = await (request as any).file();
-    const buffer = await data.toBuffer();
+    if (!data) {
+      return reply.status(400).send({ error: 'No audio file uploaded (multipart field "file")' });
+    }
+    const buffer: Buffer = await data.toBuffer();
 
-    const text = await voiceInterface.speechToText(buffer);
+    // Prefer Meta STT when configured (real transcription, no placeholder).
+    if (isMetaSTTConfigured()) {
+      try {
+        const result = await transcribeWithMeta(buffer);
+        return reply.send({
+          text: result.text,
+          provider: result.provider,
+          model: result.model,
+          durationMs: result.durationMs,
+        });
+      } catch (err) {
+        const status = err instanceof MetaVoiceSTTError ? err.statusCode : 500;
+        const message = err instanceof Error ? err.message : 'STT failed';
+        return reply.status(status).send({ error: message, provider: 'meta' });
+      }
+    }
 
-    return reply.send({ text });
+    // Fallback to the legacy voice interface (OpenAI Whisper when configured).
+    try {
+      const text = await voiceInterface.speechToText(buffer);
+      return reply.send({ text, provider: 'openai' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'STT failed';
+      return reply.status(503).send({ error: message, provider: 'none' });
+    }
   });
 
   fastify.post('/command', async (request, reply) => {
