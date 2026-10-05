@@ -35,7 +35,12 @@ import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';
-import { CalendarContextSubTabs } from './components/CalendarContextSubTabs';
+import {
+  CalendarContextSubTabs,
+  mergedTabTargets,
+  resolveMergedTab,
+  type CalendarMergedTab,
+} from './components/CalendarContextSubTabs';
 import { CalendarAgendaView } from './components/CalendarAgendaView';
 import { CalendarMonthView } from './components/CalendarMonthView';
 import { CalendarBookingView } from './components/CalendarBookingView';
@@ -597,6 +602,25 @@ function CalendarPageContent() {
     if (next === 'agenda') hasAnchoredTodayRef.current = false;
   }, []);
 
+  /*
+   * The single merged tab row (CalendarContextSubTabs) owns view switching
+   * now — the header's old Agenda/Week/Day/Month switcher is gone. Week/Day
+   * keep the agenda sub-view and only reshape it; agenda/month go through the
+   * normal context-tab path so the URL stays in sync.
+   */
+  const handleSelectMergedTab = useCallback(
+    (tab: CalendarMergedTab) => {
+      const targets = mergedTabTargets(tab);
+      if (tab === 'week' || tab === 'day') {
+        setActiveContextTab(targets.contextTab);
+        selectView(targets.view);
+        return;
+      }
+      handleSelectContextTab(targets.contextTab);
+    },
+    [handleSelectContextTab, selectView],
+  );
+
   useEffect(() => {
     if (hasAnchoredTodayRef.current || isInitialLoading || activeView !== 'agenda') return;
     const host = scrollHostRef.current;
@@ -984,12 +1008,6 @@ function CalendarPageContent() {
           activeYear={activeYear}
           goMonth={goMonth}
           goToday={goToday}
-          activeView={activeView}
-          selectView={(v) => {
-            selectView(v);
-            if (v === 'month') handleSelectContextTab('month');
-            else if (v === 'agenda') handleSelectContextTab('agenda');
-          }}
           openDedicatedSheet={openDedicatedSheet}
           activeTimezone={activeTimezone}
           onChangeTimezone={handleTimezoneChange}
@@ -999,10 +1017,14 @@ function CalendarPageContent() {
           }}
         />
 
-        {/* Desktop Context Sub-Tabs Selector */}
+        {/*
+          The single merged tab row: Agenda/Week/Day/Month/Booking/QuantMeet/
+          Reminders. Replaces the old double stack (header view switcher +
+          context strip) that duplicated Agenda and Month.
+        */}
         <CalendarContextSubTabs
-          activeTab={activeContextTab}
-          onSelectTab={handleSelectContextTab}
+          activeTab={resolveMergedTab(activeContextTab, activeView)}
+          onSelectTab={handleSelectMergedTab}
         />
 
         {/* 5 Sovereign Contextual Sub-Views */}

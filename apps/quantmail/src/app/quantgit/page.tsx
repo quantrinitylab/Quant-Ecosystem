@@ -63,6 +63,8 @@ import {
 } from './constants';
 
 import { QuantGitHeader } from './components/QuantGitHeader';
+import { AppShell } from '../../components/AppShell';
+import { AppSidebar } from '../../components/AppSidebar';
 import { ReposDirectoryView } from './components/ReposDirectoryView';
 import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
@@ -1973,34 +1975,62 @@ function QuantGitContent() {
     [currentBranch, handleCommitBlob],
   );
 
-  return (
-    <main className="h-dvh max-h-dvh w-full overflow-hidden flex flex-col bg-[#0D1117] text-[#E6EDF3] font-sans antialiased">
-      {/* 1. Global Navigation Bar & Sliding History Drawer */}
-      <QuantGitHeader
-        activeDeckTab={activeDeckTab}
-        setActiveDeckTab={setActiveDeckTab}
-        selectedRepo={selectedRepo}
-        setSelectedRepo={setSelectedRepo}
-        viewingFile={viewingFile}
-        setViewingFile={setViewingFile}
-        setActiveGitHubTab={setActiveGitHubTab}
-        currentUsername={currentUsername}
-        isHistoryOpen={isHistoryOpen}
-        setIsHistoryOpen={setIsHistoryOpen}
-        chatSessions={chatSessions}
-        setChatSessions={setChatSessions}
-        activeSessionId={activeSessionId}
-        setActiveSessionId={setActiveSessionId}
-        pinnedSessionIds={pinnedSessionIds}
-        setPinnedSessionIds={setPinnedSessionIds}
-        setChatMessages={setChatMessages}
-        setModalState={setModalState}
-        setIsPersonalizeOpen={setIsPersonalizeOpen}
-        showToast={showToast}
-        isCopilotDrawerOpen={isCopilotDrawerOpen}
-        setIsCopilotDrawerOpen={setIsCopilotDrawerOpen}
-      />
+  /*
+   * Mobile opens inside the same AppShell as the rest of the suite: the
+   * 5-pillar dock on top, the shell's context bottom nav, no nested
+   * sub-header and no second bottom tab bar. Desktop keeps its own nested
+   * QuantGitHeader and no pillar bar — pixel-unchanged.
+   *
+   * Starts `false` so the server render and the first client render agree;
+   * the effect corrects it on mount (the same pattern AppShell uses for its
+   * own `isWide`).
+   */
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsMobileViewport(query.matches);
+    sync();
+    query.addEventListener('change', sync);
+    return () => query.removeEventListener('change', sync);
+  }, []);
 
+  // The nested sub-header, hoisted into the shell's `customHeader` slot on
+  // desktop only. On mobile the shell owns the chrome instead.
+  const nestedHeader = (
+    <QuantGitHeader
+      activeDeckTab={activeDeckTab}
+      setActiveDeckTab={setActiveDeckTab}
+      selectedRepo={selectedRepo}
+      setSelectedRepo={setSelectedRepo}
+      viewingFile={viewingFile}
+      setViewingFile={setViewingFile}
+      setActiveGitHubTab={setActiveGitHubTab}
+      currentUsername={currentUsername}
+      isHistoryOpen={isHistoryOpen}
+      setIsHistoryOpen={setIsHistoryOpen}
+      chatSessions={chatSessions}
+      setChatSessions={setChatSessions}
+      activeSessionId={activeSessionId}
+      setActiveSessionId={setActiveSessionId}
+      pinnedSessionIds={pinnedSessionIds}
+      setPinnedSessionIds={setPinnedSessionIds}
+      setChatMessages={setChatMessages}
+      setModalState={setModalState}
+      setIsPersonalizeOpen={setIsPersonalizeOpen}
+      showToast={showToast}
+      isCopilotDrawerOpen={isCopilotDrawerOpen}
+      setIsCopilotDrawerOpen={setIsCopilotDrawerOpen}
+    />
+  );
+
+  return (
+    <AppShell
+      sidebar={<AppSidebar />}
+      theme="dark"
+      customHeader={isMobileViewport ? undefined : nestedHeader}
+      topBar={isMobileViewport ? undefined : <></>}
+    >
+      <div className="flex h-full w-full flex-col overflow-hidden bg-[#0D1117] text-[#E6EDF3] font-sans antialiased">
       {/* 2. Repository Sub-Navigation Bar & 10 Tabs (When in Repo view with selected repo) */}
       {activeDeckTab === 'repos' && selectedRepo && (
         <div className="bg-[#010409] border-b border-[#30363D] pt-4 px-4 sm:px-8">
@@ -2574,10 +2604,12 @@ function QuantGitContent() {
         showToast={showToast}
       />
 
-      {/* 5. Bottom Navigation Dock */}
+      {/* 5. Bottom Navigation Dock — desktop only. On mobile the shell's
+          ContextBottomNavBar drives Repos/PRs/Issues/Actions/Copilot; a
+          second tab bar is the bug this fixes. */}
       <nav
         aria-label="Bottom primary workspace navigation"
-        className="fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-[#232938] bg-[#090A0E]/95 backdrop-blur-md flex items-center justify-around px-3 sm:px-6 select-none shadow-2xl"
+        className="hidden md:flex fixed bottom-0 inset-x-0 z-40 h-[72px] border-t border-[#232938] bg-[#090A0E]/95 backdrop-blur-md items-center justify-around px-3 sm:px-6 select-none shadow-2xl"
       >
         <button
           type="button"
@@ -2836,7 +2868,8 @@ function QuantGitContent() {
           {toastMessage}
         </div>
       )}
-    </main>
+      </div>
+    </AppShell>
   );
 }
 

@@ -465,7 +465,12 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={state.isSemantic ? placeholder : 'Search files by name...'}
           data-testid="drive-ai-search-input"
-          className="flex-1 bg-transparent border-0 outline-none text-sm text-slate-100 placeholder-slate-500 font-sans"
+          // `min-w-0` is the fix for the clipped mode pill on narrow screens:
+          // a flex item's default `min-width: auto` lets a long query (or the
+          // input's intrinsic width) refuse to shrink, which shoves the
+          // `shrink-0` pill out of the bar. With `min-w-0` the field yields
+          // and the pill stays fully visible.
+          className="flex-1 min-w-0 bg-transparent border-0 outline-none text-sm text-slate-100 placeholder-slate-500 font-sans"
         />
 
         {/* Mode Toggle Pill */}
@@ -474,7 +479,10 @@ export const DriveAISearchBar: React.FC<DriveAISearchBarProps> = ({
           onClick={handleToggleSemantic}
           data-testid="semantic-toggle-pill"
           aria-label="Toggle Search Mode"
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 shrink-0 select-none ${
+          // `whitespace-nowrap` + `shrink-0`: the label ("AI Content Search")
+          // must never wrap or compress — it was getting clipped on phones
+          // when the input refused to shrink (fixed via `min-w-0` above).
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all duration-150 shrink-0 whitespace-nowrap select-none ${
             state.isSemantic
               ? 'bg-[#60A5FA]/15 text-[#60A5FA] border border-[#60A5FA]/30 hover:bg-[#60A5FA]/25'
               : 'bg-[#282C35] text-slate-300 border border-slate-700 hover:bg-slate-800'
