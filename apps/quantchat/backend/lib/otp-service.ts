@@ -439,15 +439,23 @@ export class Msg91SmsSender implements SmsSender {
     }
 
     try {
-      // MSG91 Flow API — send SMS via flow
+      // MSG91 APIs — send SMS via widget, flow, or direct
       // Format: 91XXXXXXXXXX (remove + and spaces)
       const mobile = phoneNumber.replace(/[^0-9]/g, '');
+      const widgetId = process.env.MSG91_WIDGET_ID?.trim();
       const flowId = process.env.MSG91_FLOW_ID?.trim();
 
       let url: string;
       let body: unknown;
 
-      if (flowId) {
+      if (widgetId) {
+        // OTP Widget API — simplest, no DLT needed
+        url = 'https://api.msg91.com/api/v5/otp';
+        body = {
+          widgetId,
+          mobile: `91${mobile.slice(-10)}`,
+        };
+      } else if (flowId) {
         // Flow API with template
         url = 'https://api.msg91.com/api/v5/flow/';
         body = {
