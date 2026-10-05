@@ -20,6 +20,7 @@ import reelsRoutes from './routes/reels';
 import avatarRoutes from './routes/avatar';
 import memoriesRoutes from './routes/memories';
 import spotlightRoutes from './routes/spotlight';
+import storiesRoutes from './routes/stories';
 import notificationsRoutes from './routes/notifications';
 import themesRoutes from './routes/themes';
 import ephemeralRoutes from './routes/ephemeral';
@@ -164,6 +165,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(voiceNoteRoutes, { prefix: '/voice-notes' });
   await app.register(memoriesRoutes, { prefix: '/memories' });
   await app.register(spotlightRoutes, { prefix: '/spotlight' });
+  await app.register(storiesRoutes, { prefix: '/stories' });
   await app.register(mapRoutes, { prefix: '/map' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });
   await app.register(audioRoomsRoutes, { prefix: '/audio-rooms' });
