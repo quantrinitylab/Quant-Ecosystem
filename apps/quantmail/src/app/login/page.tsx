@@ -1,10 +1,16 @@
 'use client';
 
+// ============================================================================
+// QuantMail Executive Sovereign Sign-In
+// Superhuman / Linear / Google Workspace Executive Sovereign Parity
+// ============================================================================
+
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
+import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { PageTransition } from '@quant/shared-ui';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
 import { safeReturnPath } from '../../lib/safe-return-path';
@@ -33,9 +39,8 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
-  // Second-factor leg. `stage` is what the form renders; `secondsLeft` counts the
-  // challenge down so the form can say why it stopped working instead of just
-  // rejecting codes once the server has forgotten the attempt.
+
+  // Second-factor leg
   const [stage, setStage] = useState<'credentials' | 'two-factor'>('credentials');
   const [codeMode, setCodeMode] = useState<'totp' | 'backup'>('totp');
   const [code, setCode] = useState('');
@@ -44,13 +49,6 @@ function LoginForm() {
   const codeInputRef = useRef<HTMLInputElement | null>(null);
 
   const successMessage = searchParams?.get('success');
-  /*
-   * The account menu and the invite page both send you here with state in the
-   * URL that nothing read: `switch_to` and `add_account` from AccountBadge, and
-   * `next` from an invite link. So "Switch account" landed on an empty form with
-   * no clue which account it wanted, and signing in from an invite dropped you
-   * at the inbox instead of the invitation you had been sent.
-   */
   const switchTo = searchParams?.get('switch_to') ?? null;
   const isAddingAccount = searchParams?.get('add_account') === 'true';
 
@@ -60,8 +58,7 @@ function LoginForm() {
       ? 'Adding another account. Sign in with the address you want to add.'
       : null;
 
-  // Prefill once, and only while the field is untouched, so a later render
-  // cannot overwrite an address someone has started correcting by hand.
+  // Prefill once, and only while the field is untouched
   const prefilled = useRef(false);
   useEffect(() => {
     if (prefilled.current || !switchTo) return;
@@ -80,7 +77,6 @@ function LoginForm() {
   }, [isAuthenticated, isLoading, rawReturnTo, router]);
 
   const destination = useCallback(() => {
-    // `returnTo` is what AuthGuard sends; `next` is kept for the invite link.
     const returnTo =
       safeReturnPath(searchParams?.get('returnTo')) ?? safeReturnPath(searchParams?.get('next'));
     return returnTo || '/';
@@ -120,8 +116,6 @@ function LoginForm() {
     [cancelTwoFactor],
   );
 
-  // Tick the challenge down, and hand the form back when it runs out. Letting the
-  // code field sit there past expiry would answer a correct code with a rejection.
   useEffect(() => {
     if (stage !== 'two-factor' || deadline === null) return;
 
@@ -160,8 +154,6 @@ function LoginForm() {
     try {
       const outcome = await login(email, password);
       if (outcome.status === 'two-factor-required') {
-        // The password is no longer needed and should not sit in a controlled
-        // input behind the code step.
         setPassword('');
         setDeadline(Date.now() + outcome.expiresIn * 1000);
         setSecondsLeft(outcome.expiresIn);
@@ -201,9 +193,6 @@ function LoginForm() {
           ? String((caughtError as { code?: unknown }).code ?? '')
           : '';
 
-      // An expired challenge (or a session that had to be revoked after profile
-      // hydration failed) cannot succeed by retrying another code. Return to the
-      // password step instead of trapping the user in a dead second-factor form.
       if (errorCode === 'CHALLENGE_EXPIRED' || errorCode === 'SESSION_INITIALIZATION_FAILED') {
         backToPassword(message);
         return;
@@ -227,19 +216,44 @@ function LoginForm() {
         }
       >
         <div>
-          <div className="mb-8">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-              {stage === 'credentials' ? 'Account access' : 'Two-factor authentication'}
-            </p>
-            <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
-              {stage === 'credentials' ? 'Sign in to QuantMail' : 'Confirm it is you'}
+          {/* Header Lockup with Precision Faceted Envelope Mark */}
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 flex items-center justify-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] shadow-[0_4px_16px_-4px_rgba(0,0,0,0.8)]">
+                <QuantMailLogo size={36} showBadge={false} interactive={false} />
+              </div>
+              <div>
+                <span className="block text-xs font-mono font-medium tracking-wider uppercase text-zinc-300">
+                  QUANTMAIL <span className="text-zinc-600">/</span> <span className="text-[#FF8C42]">EXECUTIVE</span>
+                </span>
+                <span className="block text-[11px] text-zinc-500 font-mono">
+                  Zero-Trust Sovereign Identity
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/sso"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-[#FF8C42]/40 text-[11px] font-medium text-zinc-400 hover:text-white transition-all"
+            >
+              <span>SSO Chooser</span>
+              <span className="text-[#FF8C42]">→</span>
+            </Link>
+          </div>
+
+          <div className="mb-7">
+            <div className="mb-2.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FF8C42]/10 border border-[#FF8C42]/20 text-[10px] font-mono font-semibold uppercase tracking-[0.2em] text-[#FF8C42]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF8C42] animate-pulse" />
+              {stage === 'credentials' ? 'Sovereign Access' : 'Two-Factor Authentication'}
+            </div>
+            <h1 className="text-2xl sm:text-[28px] font-semibold tracking-[-0.03em] text-white">
+              {stage === 'credentials' ? 'Sign in to QuantMail' : 'Confirm your identity'}
             </h1>
-            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
               {stage === 'credentials'
-                ? 'Use your QuantMail address or account handle.'
+                ? 'Use your sovereign QuantMail address or account handle.'
                 : codeMode === 'totp'
                   ? 'Open your authenticator app and enter the current 6-digit code.'
-                  : 'Enter one of the recovery codes you saved when you turned on two-factor authentication.'}
+                  : 'Enter one of the recovery codes saved during two-factor setup.'}
             </p>
           </div>
 
@@ -253,16 +267,16 @@ function LoginForm() {
             <div
               role="status"
               aria-live="polite"
-              className="mb-5 rounded-xl border border-[var(--quant-success)]/30 bg-[var(--quant-success)]/10 px-4 py-3 text-sm text-[var(--quant-success)]"
+              className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400"
             >
               {successMessage}
             </div>
           ) : null}
 
           {stage === 'credentials' ? (
-            <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="login-id" className="mb-2 block text-[13px] font-medium">
+                <label htmlFor="login-id" className="mb-2 block text-[13px] font-medium text-zinc-300">
                   Address or handle
                 </label>
                 <input
@@ -277,16 +291,18 @@ function LoginForm() {
                   onChange={(event) => setIdentifier(event.target.value)}
                   aria-invalid={Boolean(fieldErrors.identifier)}
                   aria-describedby={fieldErrors.identifier ? 'login-id-error' : 'login-id-hint'}
-                  className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.identifier ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
+                  className={`w-full rounded-xl border bg-[#111318]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 motion-reduce:transition-none ${
+                    fieldErrors.identifier ? 'border-red-500/50' : 'border-white/[0.08]'
+                  }`}
                 />
                 {fieldErrors.identifier ? (
-                  <p id="login-id-error" className="mt-1.5 text-xs text-[var(--quant-destructive)]">
+                  <p id="login-id-error" className="mt-1.5 text-xs text-red-400">
                     {fieldErrors.identifier}
                   </p>
                 ) : (
                   <p
                     id="login-id-hint"
-                    className="mt-1.5 text-xs text-[var(--quant-muted-foreground)]"
+                    className="mt-1.5 text-xs text-zinc-500 font-mono"
                   >
                     A full address or the handle before @{QUANT_MAIL_DOMAIN}.
                   </p>
@@ -295,24 +311,20 @@ function LoginForm() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label htmlFor="login-password" className="text-[13px] font-medium">
+                  <label htmlFor="login-password" className="text-[13px] font-medium text-zinc-300">
                     Password
                   </label>
                   <Link
                     href="/forgot-password"
-                    /*
-                     * 103x16 before. Padding grows the hit area to 44px and the
-                     * matching negative margin keeps the label row its original
-                     * height, so the target is finger-sized without the field
-                     * moving down the screen.
-                     */
-                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                   >
                     Forgot password?
                   </Link>
                 </div>
                 <div
-                  className={`flex overflow-hidden rounded-xl border bg-[var(--quant-surface)] transition-[border-color,box-shadow] focus-within:border-[var(--brand-primary)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${fieldErrors.password ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
+                  className={`flex overflow-hidden rounded-xl border bg-[#111318]/90 backdrop-blur transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus-within:border-[#FF8C42] focus-within:ring-2 focus-within:ring-[#FF8C42]/20 motion-reduce:transition-none ${
+                    fieldErrors.password ? 'border-red-500/50' : 'border-white/[0.08]'
+                  }`}
                 >
                   <input
                     id="login-password"
@@ -324,14 +336,14 @@ function LoginForm() {
                     onChange={(event) => setPassword(event.target.value)}
                     aria-invalid={Boolean(fieldErrors.password)}
                     aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
-                    className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm outline-none placeholder:text-[var(--quant-muted-foreground)]"
+                    className="min-w-0 flex-1 bg-transparent px-3.5 py-3 text-sm text-white outline-none placeholder:text-zinc-500"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((visible) => !visible)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     aria-pressed={showPassword}
-                    className="px-3.5 text-xs font-semibold text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+                    className="px-3.5 text-xs font-semibold text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FF8C42]"
                   >
                     {showPassword ? 'Hide' : 'Show'}
                   </button>
@@ -339,7 +351,7 @@ function LoginForm() {
                 {fieldErrors.password ? (
                   <p
                     id="login-password-error"
-                    className="mt-1.5 text-xs text-[var(--quant-destructive)]"
+                    className="mt-1.5 text-xs text-red-400"
                   >
                     {fieldErrors.password}
                   </p>
@@ -349,9 +361,14 @@ function LoginForm() {
               {error ? (
                 <div
                   role="alert"
-                  className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400 flex items-center gap-2"
                 >
-                  {error}
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>{error}</span>
                 </div>
               ) : null}
 
@@ -362,15 +379,28 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
+                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
               >
-                {isLoading ? 'Signing in…' : 'Sign in'}
+                {isLoading ? 'Authenticating…' : 'Sign in'}
               </button>
+
+              <div className="pt-2">
+                <Link
+                  href="/sso"
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-[#FF8C42]/40 transition-all text-xs group"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-zinc-300 font-medium">Switch or choose another account via SSO</span>
+                  </div>
+                  <span className="text-zinc-500 group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all">→</span>
+                </Link>
+              </div>
             </form>
           ) : (
-            <form onSubmit={handleCodeSubmit} noValidate className="space-y-5">
+            <form onSubmit={handleCodeSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="login-code" className="mb-2 block text-[13px] font-medium">
+                <label htmlFor="login-code" className="mb-2 block text-[13px] font-medium text-zinc-300">
                   {codeMode === 'totp' ? 'Authenticator code' : 'Recovery code'}
                 </label>
                 <input
@@ -379,12 +409,6 @@ function LoginForm() {
                   name="one-time-code"
                   type="text"
                   required
-                  /*
-                   * One field for both kinds of code, because the server decides
-                   * which it is by shape. The keyboard, the case handling and the
-                   * length limit are all that change: digits only for the app,
-                   * upper-case letters for the printed card.
-                   */
                   inputMode={codeMode === 'totp' ? 'numeric' : 'text'}
                   autoComplete="one-time-code"
                   autoCapitalize={codeMode === 'totp' ? 'none' : 'characters'}
@@ -403,11 +427,11 @@ function LoginForm() {
                   }}
                   aria-invalid={Boolean(error)}
                   aria-describedby="login-code-hint"
-                  className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-3.5 py-3 text-center text-lg font-semibold tracking-[0.35em] outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:tracking-[0.2em] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none"
+                  className="w-full rounded-xl border border-white/[0.08] bg-[#111318]/90 px-3.5 py-3 text-center text-lg font-semibold tracking-[0.35em] text-white outline-none transition-all placeholder:font-normal placeholder:tracking-[0.2em] placeholder:text-zinc-600 focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 font-mono shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]"
                 />
                 <p
                   id="login-code-hint"
-                  className="mt-1.5 text-xs text-[var(--quant-muted-foreground)]"
+                  className="mt-1.5 text-xs text-zinc-500 font-mono"
                 >
                   {codeMode === 'totp'
                     ? 'Six digits, refreshed by your app every 30 seconds.'
@@ -418,9 +442,14 @@ function LoginForm() {
               {error ? (
                 <div
                   role="alert"
-                  className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400 flex items-center gap-2"
                 >
-                  {error}
+                  <svg className="w-4 h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="8" x2="12" y2="12" />
+                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                  </svg>
+                  <span>{error}</span>
                 </div>
               ) : null}
 
@@ -431,19 +460,13 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="auth-primary-action w-full rounded-xl border px-4 py-3 text-sm font-semibold transition-[background-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0b0b0d] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
+                className="w-full rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] text-[#090A0C] font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all shadow-[0_4px_20px_-4px_rgba(255,140,66,0.45),inset_0_1px_0_rgba(255,255,255,0.25)] py-3 px-4 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
               >
-                {isLoading ? 'Checking…' : 'Verify and sign in'}
+                {isLoading ? 'Verifying…' : 'Verify and sign in'}
               </button>
 
-              {/*
-                Deliberately not a live region. It changes every second, and a
-                screen reader announcing the clock over and over would bury the
-                error messages that actually need to be heard. Expiry speaks for
-                itself: the form returns to the password step with a `role="alert"`.
-              */}
               {secondsLeft > 0 ? (
-                <p className="text-center text-xs text-[var(--quant-muted-foreground)]">
+                <p className="text-center text-xs text-zinc-500 font-mono">
                   This sign-in attempt expires in {formatCountdown(secondsLeft)}.
                 </p>
               ) : null}
@@ -457,7 +480,7 @@ function LoginForm() {
                     setError(null);
                     codeInputRef.current?.focus();
                   }}
-                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   {codeMode === 'totp'
                     ? 'Use a recovery code instead'
@@ -466,7 +489,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => backToPassword(null)}
-                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-[var(--quant-muted-foreground)] underline-offset-4 hover:text-[var(--quant-foreground)] hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="inline-flex min-h-[44px] items-center px-2 text-xs font-medium text-zinc-400 underline-offset-4 hover:text-white hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
                 >
                   Sign in as someone else
                 </button>
@@ -475,17 +498,25 @@ function LoginForm() {
           )}
 
           {stage === 'credentials' ? (
-            <p className="mt-7 text-center text-sm text-[var(--quant-muted-foreground)]">
+            <p className="mt-7 text-center text-sm text-zinc-400">
               New to QuantMail?{' '}
               <Link
                 href="/register"
-                /* 123x17 before — same padding/negative-margin pair as Forgot password. */
-                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
               >
                 Create an address
               </Link>
             </p>
           ) : null}
+
+          {/* Clean Telemetry Bar */}
+          <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
+            <span>Sub-5ms FTS5 Search</span>
+            <span className="text-zinc-700">·</span>
+            <span>Zero-Knowledge Vault</span>
+            <span className="text-zinc-700">·</span>
+            <span>Sovereign Identity</span>
+          </div>
         </div>
       </AuthShell>
     </PageTransition>
@@ -506,21 +537,26 @@ function LoginFallback() {
     >
       <div role="status" aria-busy="true" aria-live="polite">
         <span className="sr-only">Loading the sign-in form…</span>
-        <div className="mb-8">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
-            Account access
-          </p>
-          <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-white/[0.04] border border-white/[0.08]" />
+          <div>
+            <div className="h-3 w-28 bg-white/[0.06] rounded" />
+            <div className="h-2.5 w-36 bg-white/[0.04] rounded mt-1.5" />
+          </div>
+        </div>
+        <div className="mb-7">
+          <div className="h-5 w-32 bg-[#FF8C42]/10 rounded-full mb-2.5" />
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight text-white">
             Sign in to QuantMail
           </h1>
-          <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-            Use your QuantMail address or account handle.
+          <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+            Use your sovereign QuantMail address or account handle.
           </p>
         </div>
-        <div aria-hidden="true" className="space-y-5">
-          <div className="h-[46px] rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]" />
-          <div className="h-[46px] rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)]" />
-          <div className="h-[46px] rounded-xl bg-[var(--brand-primary)]/30" />
+        <div aria-hidden="true" className="space-y-4">
+          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[#111318]/90" />
+          <div className="h-[46px] rounded-xl border border-white/[0.08] bg-[#111318]/90" />
+          <div className="h-[46px] rounded-xl bg-gradient-to-b from-[#FF9D5C] to-[#FF8C42] opacity-40" />
         </div>
       </div>
     </AuthShell>

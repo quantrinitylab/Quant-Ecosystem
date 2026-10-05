@@ -91,7 +91,7 @@ export async function createApp(config: AppConfig) {
 
   // Register cookie support
   const cookie = await import('@fastify/cookie');
-  await fastify.register(cookie.default);
+  await fastify.register(cookie.default as any);
 
   // Register error handler
   await fastify.register(errorHandler);
