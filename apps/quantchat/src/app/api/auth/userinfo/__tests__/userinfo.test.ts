@@ -171,4 +171,110 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     expect(json.data.username).toBe('RealUpstreamUser');
     expect(json.data.isFallback).toBeUndefined();
   });
+
+  it('handles upstream 401 by attempting transparent SSO exchange and returning exchanged user with cookies', async () => {
+    const ssoUser = {
+      id: 'usr_sso_exchanged_456',
+      email: 'pilot@quantmail.in',
+      username: 'pilot',
+      displayName: 'SSO Pilot',
+      role: 'USER',
+    };
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/auth/me')) {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({ error: 'Unauthorized JWT' }),
+        } as unknown as Response;
+      }
+      if (urlStr.includes('/auth/sso/exchange')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            success: true,
+            data: {
+              user: ssoUser,
+              accessToken: 'qc_native_access_token_xyz',
+              refreshToken: 'qc_native_refresh_token_xyz',
+            },
+          }),
+        } as unknown as Response;
+      }
+      return { ok: false, status: 404 } as unknown as Response;
+    });
+
+    global.fetch = fetchMock;
+
+    const req = new Request('http://localhost:3000/api/auth/userinfo', {
+      method: 'GET',
+      headers: {
+        authorization: 'Bearer unexchanged_quantmail_jwt',
+      },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.id).toBe('usr_sso_exchanged_456');
+    expect(json.data.email).toBe('pilot@quantmail.in');
+
+    const cookies = res.cookies.getAll();
+    expect(cookies.some((c) => c.name === 'quant_access_token' && c.value === 'qc_native_access_token_xyz')).toBe(true);
+    expect(cookies.some((c) => c.name === 'token' && c.value === 'qc_native_access_token_xyz')).toBe(true);
+  });
+
+  it('handles upstream 401 with failing SSO exchange by falling back to decoded JWT identity', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (url: string | URL) => {
+      const urlStr = url.toString();
+      if (urlStr.includes('/auth/me')) {
+        return {
+          ok: false,
+          status: 401,
+          json: async () => ({ error: 'Unauthorized JWT' }),
+        } as unknown as Response;
+      }
+      if (urlStr.includes('/auth/sso/exchange')) {
+        return {
+          ok: false,
+          status: 400,
+          json: async () => ({ success: false, error: { message: 'Invalid ticket' } }),
+        } as unknown as Response;
+      }
+      return { ok: false, status: 404 } as unknown as Response;
+    });
+
+    global.fetch = fetchMock;
+
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: 'usr_quantmail_fallback',
+        email: 'fallback@quantmail.in',
+        name: 'Fallback User',
+      }),
+    ).toString('base64url');
+    const rawJwt = `${header}.${payload}.mockSignature`;
+
+    const req = new Request('http://localhost:3000/api/auth/userinfo', {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${rawJwt}`,
+      },
+    });
+
+    const res = await GET(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.data.id).toBe('usr_quantmail_fallback');
+    expect(json.data.email).toBe('fallback@quantmail.in');
+    expect(json.data.isFallback).toBe(true);
+  });
 });

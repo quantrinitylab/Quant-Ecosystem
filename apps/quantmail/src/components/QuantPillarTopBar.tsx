@@ -1064,6 +1064,7 @@ export function QuantPillarTopBar({
                 className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
+                  transition: 'transform 200ms ease-out',
                 }}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -1072,8 +1073,8 @@ export function QuantPillarTopBar({
                   style={{
                     display: 'block',
                     // Per-app theme glow (NOT all orange!) — each logo glows its own color
-                    filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}55)` : undefined,
-                    transition: 'filter 0.2s ease-out',
+                    filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}66)` : undefined,
+                    transition: 'transform 200ms ease-out, filter 0.2s ease-out',
                     opacity: isActive ? 1 : 0.75,
                   }}
                 >

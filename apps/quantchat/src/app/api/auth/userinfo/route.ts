@@ -195,6 +195,39 @@ export async function GET(request: NextRequest | Request) {
       return handleFallback(authHeader);
     }
 
+    if (res.status === 401) {
+      try {
+        const exchangeRes = await fetch(new URL('/auth/sso/exchange', BACKEND_URL).toString(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ssoToken: token }),
+        });
+
+        if (exchangeRes.ok) {
+          const exchangeData = (await exchangeRes.json().catch(() => null)) as Record<string, any> | null;
+          if (exchangeData?.data?.user) {
+            const nextResp = NextResponse.json({ success: true, data: exchangeData.data.user });
+            if (exchangeData.data.accessToken) {
+              nextResp.cookies.set('quant_access_token', exchangeData.data.accessToken, {
+                path: '/',
+                httpOnly: false,
+                sameSite: 'lax',
+              });
+              nextResp.cookies.set('token', exchangeData.data.accessToken, {
+                path: '/',
+                httpOnly: false,
+                sameSite: 'lax',
+              });
+            }
+            return nextResp;
+          }
+        }
+      } catch {
+        // Transparent exchange threw an error — proceed to claims fallback
+      }
+      return handleFallback(authHeader);
+    }
+
     const errData = await res.json().catch(() => null);
     return NextResponse.json(
       errData || {

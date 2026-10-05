@@ -40,14 +40,23 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       const allowedOrigins = [
         'https://quantmail.in/sso',
         'https://quantchat.quantrinity.in/dms',
+        'https://quantchat.in/dms',
         'https://quantube.quantrinity.in/watch?v=xyz',
+        'https://quantube.in/watch?v=xyz',
         'https://quantmax.quantrinity.in/workspaces',
+        'https://quantmax.in/workspaces',
         'https://quantgram.quantrinity.in/feed',
+        'https://quantgram.in/feed',
         'https://quantai.quantrinity.in/canvas',
+        'https://quantai.in/canvas',
         'https://quantwave.quantrinity.in/explore',
+        'https://quantwave.in/explore',
         'https://quantcooks.quantrinity.in/kitchen',
+        'https://quantcooks.in/kitchen',
         'https://quantads.quantrinity.in/campaigns',
+        'https://quantads.in/campaigns',
         'https://quanttrinity.in/vault',
+        'https://sub.quantchat.in/room',
         'http://localhost:3000/inbox',
         'http://localhost:3001/dms',
         'http://127.0.0.1:3000/callback',
@@ -216,11 +225,27 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
     });
 
     it('verifies SIBLING_SSO_DOMAINS contains authorized sibling domains', () => {
+      // Subdomains on quantrinity.in
       expect(SIBLING_SSO_DOMAINS).toContain('https://quantchat.quantrinity.in');
       expect(SIBLING_SSO_DOMAINS).toContain('https://quantube.quantrinity.in');
       expect(SIBLING_SSO_DOMAINS).toContain('https://quantmax.quantrinity.in');
       expect(SIBLING_SSO_DOMAINS).toContain('https://quantgram.quantrinity.in');
       expect(SIBLING_SSO_DOMAINS).toContain('https://quantai.quantrinity.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantwave.quantrinity.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantcooks.quantrinity.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantads.quantrinity.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quanttrinity.quantrinity.in');
+
+      // Canonical direct *.in domains
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantchat.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantube.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantmax.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantgram.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantai.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantwave.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantcooks.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quantads.in');
+      expect(SIBLING_SSO_DOMAINS).toContain('https://quanttrinity.in');
     });
 
     it('renders 9-dots launcher button with user account chip', () => {

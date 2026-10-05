@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import Page from '../page';
 import LoginPage from '../../../components/auth/LoginPage';
+import CryptographicMeshCanvas from '../../../components/auth/CryptographicMeshCanvas';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -21,6 +22,7 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
 
     // Edge-to-edge dark luxury design tokens
     expect(html).toContain('bg-[#090D16]');
+    expect(html).toContain('bg-[#080B12]');
     expect(html).toContain('bg-emerald-500/15');
     expect(html).toContain('bg-violet-600/15');
     expect(html).toContain('backdrop-blur-2xl');
@@ -78,5 +80,60 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(html).toContain('Use your QuantMail account to continue.');
     expect(html).toContain('id="identifier"');
     expect(html).toContain('id="password"');
+  });
+
+  it('renders the WebGL/Canvas Cryptographic Constellation Mesh with dark obsidian canvas', () => {
+    const html = renderToString(<LoginPage />);
+
+    expect(html).toContain('data-testid="cryptographic-mesh-canvas"');
+    expect(html).toContain('pointer-events-none');
+
+    // Test standalone CryptographicMeshCanvas render
+    const canvasHtml = renderToString(<CryptographicMeshCanvas className="custom-canvas" nodeCount={30} />);
+    expect(canvasHtml).toContain('data-testid="cryptographic-mesh-canvas"');
+    expect(canvasHtml).toContain('custom-canvas');
+  });
+
+  it('renders Signal/Telegram-class sovereign communications typography and status pill', () => {
+    const html = renderToString(<LoginPage />);
+
+    // Headline & Subtitle
+    expect(html).toContain('QuantChat Sovereign Communications');
+    expect(html).toContain('End-to-End Encrypted · Zero-Knowledge Relay');
+
+    // Top status pill
+    expect(html).toContain('data-testid="status-pill-e2ee"');
+    expect(html).toContain('Signal Protocol Double Ratchet · E2EE Verified');
+
+    // E2EE shield/beacon vector marks present (no tacky raw letter Q box)
+    expect(html).toContain('<svg');
+    expect(html).not.toContain('>Q</span>');
+  });
+
+  it('renders dual login segmented tabs for Instant Quant SSO and Direct Password / Email', () => {
+    const html = renderToString(<LoginPage />);
+
+    expect(html).toContain('data-testid="tab-sso-view"');
+    expect(html).toContain('data-testid="tab-password-view"');
+    expect(html).toContain('Instant Quant SSO');
+    expect(html).toContain('Direct Password / Email');
+  });
+
+  it('renders WhatsApp-style live security metrics banner at bottom', () => {
+    const html = renderToString(<LoginPage />);
+
+    expect(html).toContain('data-testid="security-metrics-banner"');
+    expect(html).toContain('256-Bit Quantum Resistant');
+    expect(html).toContain('Multi-Device Sync');
+    expect(html).toContain('No Data Brokerage');
+  });
+
+  it('enforces ZERO raw Unicode emojis across the entire login UI', () => {
+    const html = renderToString(<LoginPage />);
+
+    // Strict zero-emoji check: no raw lightning bolt unicode character
+    expect(html).not.toContain('⚡');
+    // Common emoji unicodes
+    expect(html).not.toMatch(/[\u{1F300}-\u{1F9FF}]/u);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeReturnPath } from '../lib/safe-return-path';
+import { safeReturnPath } from '../safe-return-path';
 
 describe('safeReturnPath - Sovereign SSO Return Path & Open Redirect Protection', () => {
   describe('Relative Paths', () => {
