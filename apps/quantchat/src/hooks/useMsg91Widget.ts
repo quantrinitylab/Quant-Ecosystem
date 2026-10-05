@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 // MSG91 Widget configuration
-// Note: tokenAuth is designed by MSG91 to be used client-side
+// NOTE: tokenAuth is intentionally public - MSG91 designed it for client-side use
+// (see https://msg91.com/help/sendotp/how-to-integrate-the-new-login-with-otp-widget)
+// It appears in client-side HTML/JS by design, not a secret.
 const WIDGET_ID = '366a656641323138343334330';
-const TOKEN_AUTH = process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN || '';
+const TOKEN_AUTH = process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN || '578356TMwotuew6ac349e9P1';
 
 declare global {
   interface Window {
