@@ -107,7 +107,7 @@ export default function SpotlightPage() {
           )}
         </header>
 
-        {isError && (
+        {isError ? (
           <div className="flex flex-col items-center gap-3 py-24 text-center">
             <p className="text-gray-400">Couldn&apos;t load Spotlight.</p>
             <button
@@ -118,9 +118,7 @@ export default function SpotlightPage() {
               Retry
             </button>
           </div>
-        )}
-
-        {isLoading && reels.length === 0 ? (
+        ) : isLoading && reels.length === 0 ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -128,6 +126,24 @@ export default function SpotlightPage() {
                 className="aspect-[9/16] animate-pulse rounded-2xl border border-white/10 bg-white/5"
               />
             ))}
+          </div>
+        ) : reels.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-24 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 text-3xl">
+              &#10024;
+            </div>
+            <h2 className="text-lg font-semibold text-white">No reels yet</h2>
+            <p className="max-w-xs text-sm text-gray-400">
+              Be the first to share a reel with the community — the top reels get
+              featured right here.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push(routes.camera)}
+              className="mt-1 rounded-full bg-gradient-to-r from-fuchsia-500 to-purple-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 active:scale-95"
+            >
+              Create your first reel
+            </button>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
