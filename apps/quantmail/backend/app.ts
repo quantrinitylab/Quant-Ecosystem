@@ -4,6 +4,7 @@ import emailsRoutes from './routes/emails';
 import emailsChangesRoutes from './routes/emails-changes';
 import labelsRoutes from './routes/labels';
 import threadsRoutes from './routes/threads';
+import quantyAgentRoutes from './routes/quanty-agent';
 import foldersRoutes from './routes/folders';
 import contactsRoutes from './routes/contacts';
 import contactGroupsRoutes from './routes/contact-groups';
@@ -369,6 +370,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(emailsChangesRoutes, { prefix: '/emails' });
   await app.register(labelsRoutes, { prefix: '/labels' });
   await app.register(threadsRoutes, { prefix: '/threads' });
+  await app.register(quantyAgentRoutes);
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
   await app.register(contactsRoutes, { prefix: '/api/contacts' });

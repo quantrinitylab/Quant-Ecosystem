@@ -286,6 +286,26 @@ function ScheduleClockIcon({ className }: { className?: string; active?: boolean
   );
 }
 
+function WeekGridIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="22" />
+      <line x1="15" y1="4" x2="15" y2="22" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
 // Drive icons
 function FolderFilesIcon({ className }: { className?: string; active?: boolean }) {
   return (
@@ -692,6 +712,14 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         description: 'Continuous scroll month calendar',
       },
       {
+        id: 'week',
+        label: 'Week',
+        icon: WeekGridIcon,
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'week' },
+        description: '7-day time grid with drag-to-create',
+      },
+      {
         id: 'events',
         label: 'Events',
         icon: CalendarEventsTrackerIcon,
@@ -882,6 +910,7 @@ export function resolveActiveTab(
 
   if (pillar === 'calendar') {
     if (tabParam === 'month') return 'month';
+    if (tabParam === 'week') return 'week';
     if (tabParam === 'events') return 'events';
     if (
       tabParam === 'schedule' ||
