@@ -163,13 +163,13 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       run: go('/drafts'),
     },
     {
-      id: 'nav.starred',
-      label: 'Go to starred',
+      id: 'nav.pinned',
+      label: 'Go to pinned',
       group: 'Navigation',
       keys: 'g *',
       icon: 'star',
-      keywords: ['pinned', 'important', 'flagged'],
-      run: go('/starred'),
+      keywords: ['pinned', 'important', 'flagged', 'starred'],
+      run: go('/?filter=starred'),
     },
     {
       id: 'nav.snoozed',

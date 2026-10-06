@@ -37,7 +37,7 @@ const CONDITION_FIELDS = [
 const ACTION_TYPES = [
   { value: 'label', label: 'Apply label', needsValue: true },
   { value: 'archive', label: 'Skip inbox (archive)', needsValue: false },
-  { value: 'star', label: 'Star it', needsValue: false },
+  { value: 'star', label: 'Pin it', needsValue: false },
   { value: 'mark_read', label: 'Mark as read', needsValue: false },
   { value: 'forward', label: 'Forward to', needsValue: true },
   { value: 'delete', label: 'Delete it', needsValue: false },

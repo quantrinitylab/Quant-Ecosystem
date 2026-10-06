@@ -23,6 +23,7 @@ import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
+import { MobilePillarBottomNav } from './MobilePillarBottomNav';
 import { DesktopPillarRail } from './DesktopPillarRail';
 import { AccountBadge } from './AccountBadge';
 
@@ -910,7 +911,11 @@ export function AppShell({
             <main
               id="main-content"
               tabIndex={-1}
-              className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+              className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
+                /* Reserve room for the mobile pillar bottom nav (h-16) on main
+                   suite routes. Desktop keeps its rail/context-bar layout. */
+                isMainSuiteRoute ? 'pb-16 md:pb-0' : ''
+              }`}
             >
               {animated ? <PageTransition>{children}</PageTransition> : children}
             </main>
@@ -926,8 +931,16 @@ export function AppShell({
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
 
-          {/* Context-Specific Bottom Navigation — anchored on mobile and desktop */}
+          {/* Context-Specific Bottom Navigation — anchored on mobile and desktop.
+              On mobile it sits ABOVE the thumb-reachable pillar bottom nav
+              (bottom-16), on desktop it keeps its bottom-0 rail-adjacent spot. */}
           <ContextBottomNavBar badgeOverrides={{ inbox: unreadCount, teams: 3 }} />
+
+          {/* Mobile Pillar Bottom Navigation — thumb-reachable 5-pillar switcher
+              (Mail/Calendar/Drive/Contacts/QuantGit). Mobile only; desktop uses
+              the DesktopPillarRail. Hidden on /thread/* and /compose where the
+              bottom edge belongs to the conversation / compose toolbar. */}
+          <MobilePillarBottomNav mailUnreadCount={unreadCount} />
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />

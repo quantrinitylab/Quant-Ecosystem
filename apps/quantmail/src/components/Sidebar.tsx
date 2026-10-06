@@ -55,7 +55,7 @@ interface NavItem {
 
 const mailItems: NavItem[] = [
   { id: 'inbox', label: 'Inbox', icon: 'inbox', countKey: 'inbox' },
-  { id: 'starred', label: 'Starred', icon: 'star', countKey: 'starred' },
+  { id: 'starred', label: 'Pinned', icon: 'star', countKey: 'starred' },
   { id: 'sent', label: 'Sent', icon: 'send' },
   { id: 'drafts', label: 'Drafts', icon: 'file', countKey: 'drafts' },
   { id: 'archive', label: 'Archive', icon: 'archive' },

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -33,6 +34,7 @@ import {
   IconX,
 } from './icons';
 import { useContacts } from '../hooks/useContacts';
+import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
 
@@ -268,19 +270,6 @@ export function EmailComposer({
     authUser = null;
   }
 
-  // Back Navigation Helper (Back exactly 1 page in history)
-  const handleBack = () => {
-    if (onClose) {
-      onClose();
-    } else if (onDiscard) {
-      onDiscard();
-    } else if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push('/');
-    }
-  };
-
   const { data: contacts } = useContacts();
 
   // Core Fields
@@ -358,6 +347,43 @@ export function EmailComposer({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Unsaved-changes guard for back/close/discard. The branded confirm dialog
+  // replaces the old silent discard: closing /compose with typed To/Subject/
+  // body used to vaporise the draft with no warning and nothing in Drafts.
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
+  const hasUnsavedContent =
+    toRecipients.length > 0 ||
+    ccRecipients.length > 0 ||
+    bccRecipients.length > 0 ||
+    subject.trim().length > 0 ||
+    body.trim().length > 0 ||
+    opening.trim().length > 0 ||
+    attachments.length > 0;
+
+  // Back Navigation Helper (Back exactly 1 page in history)
+  const handleBack = async () => {
+    if (hasUnsavedContent) {
+      const discard = await confirm({
+        title: 'Discard draft?',
+        message: 'You have unsaved changes. Discard this draft and go back?',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        variant: 'destructive',
+      });
+      if (!discard) return;
+    }
+    if (onClose) {
+      onClose();
+    } else if (onDiscard) {
+      onDiscard();
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
+
   // Formatting state
   const [showFormattingBar, setShowFormattingBar] = useState(false);
   const [selectedFont, setSelectedFont] = useState(FONT_FAMILIES[0]);
@@ -403,6 +429,10 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // Anchor + position for the Send-options dropup. The menu renders via portal
+  // (fixed positioning) so the scrollable toolbar's overflow can never clip it.
+  const sendOptionsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [sendMenuPos, setSendMenuPos] = useState<{ left: number; bottom: number } | null>(null);
 
   /*
     Trigger refs for the four disclosure popovers in the header and formatting
@@ -1130,8 +1160,11 @@ export function EmailComposer({
             </div>
           </div>
 
-          {/* Main Composer Scrollable Body (Hidden during Print) */}
-          <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
+          {/* Main Composer Scrollable Body (Hidden during Print).
+              flex-col so the body canvas below can flex-1 to fill the viewport:
+              otherwise the editor stays 200px tall and the rest of the region
+              renders as an empty black void above the pinned Send toolbar. */}
+          <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="border-b border-[#282C35]/80 pb-2 space-y-2 w-full max-w-full">
               {/* To: Row */}
@@ -1317,8 +1350,10 @@ export function EmailComposer({
               </div>
             )}
 
-            {/* Main Fluid Body Canvas */}
-            <div className="space-y-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
+            {/* Main Fluid Body Canvas — flex-1 stretches the editor to fill the
+                scroll region (parent is now flex-col), so no black void sits
+                between the editor and the Send toolbar. */}
+            <div className="flex flex-col gap-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
               <textarea
                 id="composer-body"
                 name="body"
@@ -1341,7 +1376,7 @@ export function EmailComposer({
                     `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                     'none',
                 }}
-                className={`w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
+                className={`flex-1 w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
               />
 
               {/* Smart Compose Predictive Autocomplete Chip */}
@@ -1981,12 +2016,18 @@ export function EmailComposer({
             )}
           </AnimatePresence>
 
-          {/* Bottom Unified Action Toolbar (Hidden during Print) */}
-          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+          {/* Bottom Unified Action Toolbar (Hidden during Print).
+              Horizontally scrollable on narrow screens: Send + 5x44px touch
+              targets exceed 360px viewports, so the bar scrolls instead of
+              clipping trailing buttons. Scrollbar hidden for a clean look. */}
+          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-max">
               {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
-              <div className="relative flex items-center rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] font-semibold shadow-sm transition-colors">
+              <div
+                ref={sendOptionsAnchorRef}
+                className="relative flex items-center rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] font-semibold shadow-sm transition-colors"
+              >
                 <button
                   type="button"
                   onClick={() => handleSend()}
@@ -2005,7 +2046,19 @@ export function EmailComposer({
 
                 <button
                   type="button"
-                  onClick={() => setShowSendOptionsDropdown((prev) => !prev)}
+                  onClick={() => {
+                    // Capture the anchor rect BEFORE toggling, so the portaled
+                    // menu can position itself above the Send button even
+                    // though the toolbar scrolls horizontally on mobile.
+                    if (!showSendOptionsDropdown && sendOptionsAnchorRef.current) {
+                      const rect = sendOptionsAnchorRef.current.getBoundingClientRect();
+                      setSendMenuPos({
+                        left: Math.max(8, rect.left),
+                        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                      });
+                    }
+                    setShowSendOptionsDropdown((prev) => !prev);
+                  }}
                   disabled={busy}
                   className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                   title="Send options (Save draft / Schedule send)"
@@ -2015,14 +2068,27 @@ export function EmailComposer({
                   <IconChevronUp size={14} />
                 </button>
 
-                {/* Dropup Menu for Send Options */}
-                {showSendOptionsDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowSendOptionsDropdown(false)}
-                    />
-                    <div className="absolute left-0 bottom-full mb-2 w-48 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                {/* Dropup Menu for Send Options — portaled to document.body with
+                    fixed positioning so the horizontally-scrollable toolbar
+                    (overflow-x-auto on mobile) can never clip it. */}
+                {showSendOptionsDropdown &&
+                  typeof document !== 'undefined' &&
+                  createPortal(
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowSendOptionsDropdown(false)}
+                      />
+                      <div
+                        className="fixed w-48 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs"
+                        style={
+                          sendMenuPos
+                            ? { left: sendMenuPos.left, bottom: sendMenuPos.bottom }
+                            : { left: 12, bottom: 76 }
+                        }
+                        role="menu"
+                        aria-label="Send options"
+                      >
                       <button
                         type="button"
                         onClick={() => {
@@ -2045,9 +2111,10 @@ export function EmailComposer({
                         <IconFileText className="size-3.5 text-[#A1A4AC]" />
                         <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
                       </button>
-                    </div>
-                  </>
-                )}
+                      </div>
+                    </>,
+                    document.body
+                  )}
               </div>
 
               {/* Aa Formatting Options Toggle */}
@@ -2255,6 +2322,9 @@ export function EmailComposer({
               onApplyAction={handleApplyQuantyAction}
             />
           )}
+
+          {/* Unsaved-changes confirm dialog for back/close/discard */}
+          {confirmDialog}
         </motion.div>
       )}
     </AnimatePresence>

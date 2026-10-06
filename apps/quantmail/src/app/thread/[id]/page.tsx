@@ -95,6 +95,15 @@ export default function ThreadPage() {
           }}
           variant="full"
           className="h-full flex-1"
+          /*
+           * Horizontal swipe on the stream moves between conversations. Keep
+           * the returnTo chain so swiping through threads still lands back in
+           * the same inbox lens instead of the default view.
+           */
+          onNavigateToThread={(targetId) => {
+            const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+            router.push(`/thread/${encodeURIComponent(targetId)}${suffix}`);
+          }}
         />
       </div>
     </AppShell>

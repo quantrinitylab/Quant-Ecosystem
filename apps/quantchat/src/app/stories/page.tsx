@@ -1,5 +1,15 @@
 'use client';
 
+// ============================================================================
+// QuantChat - Stories Page
+//
+// The shell (TopBar + BottomNav) always renders so loading, empty and error
+// states never strand the user without navigation. A failed fetch shows an
+// inline error card with retry; a successful-but-empty feed shows an empty
+// state with a create-story CTA. Story creation opens the StoryCreator
+// overlay; real posting works for http(s) media URLs, anything else shows an
+// honest "coming soon" notice because media upload has no real backend yet.
+// ============================================================================
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -7,27 +17,118 @@ import { AppShell, TopBar, BottomNav } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useStories } from '../../hooks/useStories';
 import { StoryViewer } from '../../components/StoryViewer';
+import { StoryCreator } from '../../components/StoryCreator';
 import { navItems, routes } from '../../lib/navigation';
 import { circleVariants, staggerContainer } from '../../lib/motion-variants';
 
+interface CreatorStory {
+  type: 'photo' | 'video' | 'text';
+  mediaUrl?: string;
+  text?: string;
+}
+
 export default function StoriesPage() {
   const router = useRouter();
-  const { storyGroups, currentStory, loading, error, nextStory, prevStory, setCurrentStoryGroup } =
-    useStories();
+  const {
+    storyGroups,
+    currentStory,
+    loading,
+    error,
+    fetchStories,
+    createStory,
+    nextStory,
+    prevStory,
+    setCurrentStoryGroup,
+  } = useStories();
   const [viewerOpen, setViewerOpen] = useState(false);
   const [activeGroupIndex, setActiveGroupIndex] = useState(0);
-
-  if (loading) return <LoadingState variant="skeleton" text="Loading stories..." />;
-  if (error) return <ErrorState message={error} onRetry={() => window.location.reload()} />;
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [creatorNotice, setCreatorNotice] = useState<string | null>(null);
+  const [posting, setPosting] = useState(false);
 
   const activeGroup = storyGroups[activeGroupIndex];
   const activeStoryIndex = activeGroup?.stories.findIndex((s) => s.id === currentStory?.id) ?? 0;
 
+  const openGroup = (idx: number, userId: string) => {
+    setActiveGroupIndex(idx);
+    setCurrentStoryGroup(userId);
+    setViewerOpen(true);
+  };
+
+  const handlePostStory = async (story: CreatorStory) => {
+    setCreatorNotice(null);
+    const url = story.mediaUrl;
+    // Only remote (already-hosted) media can be posted today: camera/gallery
+    // captures are data URLs and the media upload service is simulated, so
+    // there is no real storage to upload them to yet.
+    if (url && /^https?:\/\//i.test(url)) {
+      setPosting(true);
+      try {
+        await createStory({ type: story.type, mediaUrl: url, duration: 5 });
+        setCreatorOpen(false);
+      } finally {
+        setPosting(false);
+      }
+    } else {
+      setCreatorNotice(
+        'Story uploads are coming soon — photo and video posting will be enabled shortly.',
+      );
+    }
+  };
+
   return (
-    <AppShell topBar={<TopBar title="Stories" />}>
+    <AppShell
+      topBar={
+        <TopBar
+          title="Stories"
+          rightActions={[
+            <button
+              key="create-story"
+              onClick={() => {
+                setCreatorNotice(null);
+                setCreatorOpen(true);
+              }}
+              aria-label="Create story"
+              className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-[var(--quant-muted)] transition-colors min-w-touch min-h-touch"
+            >
+              <svg
+                className="w-6 h-6 text-[var(--quant-foreground)]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>,
+          ]}
+        />
+      }
+    >
       <div className="flex flex-col h-full pb-16">
-        {storyGroups.length === 0 ? (
-          <EmptyState title="No stories" description="Stories from friends will appear here" />
+        {loading ? (
+          <LoadingState variant="skeleton" text="Loading stories..." />
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <ErrorState message={error} onRetry={() => fetchStories()} />
+          </div>
+        ) : storyGroups.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <EmptyState
+              title="No stories yet"
+              description="Share a moment with friends — it disappears after 24 hours"
+              actionLabel="Create story"
+              onAction={() => {
+                setCreatorNotice(null);
+                setCreatorOpen(true);
+              }}
+            />
+          </div>
         ) : (
           <div className="p-4">
             {/* Story circles - horizontal scroll */}
@@ -42,11 +143,7 @@ export default function StoriesPage() {
                   key={group.userId}
                   variants={circleVariants}
                   whileTap={{ scale: 0.92 }}
-                  onClick={() => {
-                    setActiveGroupIndex(idx);
-                    setCurrentStoryGroup(group.userId);
-                    setViewerOpen(true);
-                  }}
+                  onClick={() => openGroup(idx, group.userId)}
                   className="flex flex-col items-center gap-1 flex-shrink-0 min-w-touch min-h-touch"
                 >
                   <div
@@ -90,11 +187,7 @@ export default function StoriesPage() {
                   key={group.userId}
                   variants={circleVariants}
                   whileTap={{ scale: 0.97 }}
-                  onClick={() => {
-                    setActiveGroupIndex(idx);
-                    setCurrentStoryGroup(group.userId);
-                    setViewerOpen(true);
-                  }}
+                  onClick={() => openGroup(idx, group.userId)}
                   className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-[var(--quant-muted)] transition-colors min-h-touch"
                 >
                   <div
@@ -126,7 +219,7 @@ export default function StoriesPage() {
       <BottomNav
         items={navItems}
         activeId="stories"
-        onChange={(id) => {
+        onChange={(id: string) => {
           const route = routes[id];
           if (route) router.push(route);
         }}
@@ -142,6 +235,40 @@ export default function StoriesPage() {
           onNext={nextStory}
           onPrev={prevStory}
         />
+      )}
+
+      {/* Story Creator Overlay */}
+      {creatorOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create story"
+        >
+          <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--quant-background)]">
+            <button
+              onClick={() => setCreatorOpen(false)}
+              aria-label="Close story creator"
+              className="absolute top-2 right-2 z-10 flex items-center justify-center w-10 h-10 rounded-full bg-black/40 text-white hover:bg-black/60 min-w-touch min-h-touch"
+            >
+              ✕
+            </button>
+            {creatorNotice && (
+              <div
+                role="status"
+                className="m-4 mb-0 p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm text-amber-200"
+              >
+                {creatorNotice}
+              </div>
+            )}
+            {posting && (
+              <div className="m-4 mb-0 p-3 rounded-xl text-sm text-[var(--quant-muted-foreground)]">
+                Posting your story…
+              </div>
+            )}
+            <StoryCreator onPost={handlePostStory} onClose={() => setCreatorOpen(false)} />
+          </div>
+        </div>
       )}
     </AppShell>
   );

@@ -16,11 +16,13 @@ import { GroupInfoModal, ContactProfileInspector } from './GroupInfoModal';
 import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
 import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
+import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
+import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { IconChat, IconMail } from './icons';
@@ -38,6 +40,8 @@ import { plainTextToHtml } from '../lib/email-body';
 import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { isCoarsePointer } from './SwipeableEmailRow';
 
 /**
  * The thread reader is what a mail click lands on, so its chunk is on the
@@ -129,6 +133,31 @@ function formatMessageDate(value?: string | Date): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * Read-receipt status for a message bubble, WhatsApp-style.
+ *
+ * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
+ * them, exactly like a messaging app.
+ *
+ * TODO(read-pipeline): the backend does not yet track delivery/read events, so
+ * `readAt`/`deliveredAt` are absent from the Email type. Until the pipeline
+ * exists this reads them off the message object (server may attach them later)
+ * and falls back to 'sent' for anything outbound. Wire the real pipeline and
+ * delete the `(message as any)` casts.
+ */
+function receiptStatusOf(
+  message: Email,
+  isOutbound: boolean,
+): { status: 'sent' | 'delivered' | 'read' | 'unknown'; readAt?: string; deliveredAt?: string } | null {
+  if (!isOutbound) return null;
+  const anyMsg = message as any;
+  const readAt = anyMsg.readAt ?? undefined;
+  const deliveredAt = anyMsg.deliveredAt ?? undefined;
+  if (readAt) return { status: 'read', readAt, deliveredAt };
+  if (deliveredAt) return { status: 'delivered', deliveredAt };
+  return { status: 'sent' };
+}
+
 function cleanContactName(name: string | undefined, email: string): string {
   const explicit = name?.trim();
   if (explicit && normalizeAddress(explicit) !== normalizeAddress(email)) return explicit;
@@ -173,6 +202,14 @@ export interface ConversationalThreadViewProps {
   variant?: 'pane' | 'full';
   isSpam?: boolean;
   onNotSpam?: (messageIds: string[]) => void;
+  /**
+   * Horizontal swipe on the message stream moves to the adjacent conversation
+   * (Gmail mobile's between-email swipe). The view figures out the neighbors
+   * from the same inbox grouping the rows use; the parent decides how the move
+   * happens. When absent and the variant is 'full', the view pushes
+   * `/thread/<id>` itself.
+   */
+  onNavigateToThread?: (threadId: string) => void;
 }
 
 export function ConversationalThreadView({
@@ -189,6 +226,7 @@ export function ConversationalThreadView({
   variant = 'pane',
   isSpam = false,
   onNotSpam,
+  onNavigateToThread,
 }: ConversationalThreadViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -286,6 +324,13 @@ export function ConversationalThreadView({
 
   // Quick reply & AI state
   const [quickReplyText, setQuickReplyText] = useState('');
+  /*
+   * Quoted reply: set when a thread gesture (swipe-right, menu Reply) targets
+   * a specific message. The send below replies to this message instead of the
+   * latest one, and a chip above the bar shows what is being answered.
+   */
+  const [quotedMessage, setQuotedMessage] = useState<Email | null>(null);
+  const quickReplyInputRef = useRef<HTMLInputElement>(null);
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   const showQuanty = useDeferredMount(isQuantyOpen);
@@ -370,6 +415,30 @@ export function ConversationalThreadView({
       `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
     );
   }, [messages, primaryMessage, router, threadSubject]);
+
+  /*
+   * Per-message gestures: swipe-right / menu Reply quotes this message into
+   * the quick-reply bar; menu Forward carries this message's body into the
+   * full composer. Both land the user in the bar they were already using.
+   */
+  const startQuoteReply = useCallback((message: Email) => {
+    setQuotedMessage(message);
+    // A quoted answer is a chat line, not a letter — even if the mode switch
+    // above was flipped to Mail, the gesture means "answer this now".
+    setComposeMode('chat');
+    requestAnimationFrame(() => quickReplyInputRef.current?.focus());
+  }, []);
+
+  const forwardMessage = useCallback(
+    (message: Email) => {
+      const body = message.bodyText || message.snippet || '';
+      const subj = threadSubject.startsWith('Fwd:') ? threadSubject : `Fwd: ${threadSubject}`;
+      router.push(
+        `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
+      );
+    },
+    [router, threadSubject],
+  );
 
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
@@ -520,6 +589,215 @@ export function ConversationalThreadView({
     }
     return Array.from(byId.values());
   }, [inboxMail, archivedMail]);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Thread navigation gestures — swipe between conversations, a "new messages"
+   * jump pill, and pull-to-load-older. All three live on the message stream's
+   * scroll container.
+   */
+
+  /** Neighbors in the inbox's own conversation order (newest first). */
+  const orderedConversations = useMemo(() => {
+    if (!threadId || conversationSource.length === 0) return [];
+    return groupEmailsIntoThreads(conversationSource, currentEmail);
+  }, [threadId, conversationSource, currentEmail]);
+
+  const adjacentThreadIds = useMemo(() => {
+    if (orderedConversations.length === 0) return { previous: null as string | null, next: null as string | null };
+    const current = findConversation(orderedConversations, threadId);
+    if (!current) return { previous: null, next: null };
+    const index = orderedConversations.indexOf(current);
+    return {
+      // "previous" is the newer conversation (up the inbox list).
+      previous: index > 0 ? orderedConversations[index - 1].id : null,
+      // "next" is the older conversation (down the inbox list).
+      next: index < orderedConversations.length - 1 ? orderedConversations[index + 1].id : null,
+    };
+  }, [orderedConversations, threadId]);
+
+  const navigateToThread = useCallback(
+    (targetId: string) => {
+      if (!targetId || targetId === threadId) return;
+      if (onNavigateToThread) {
+        onNavigateToThread(targetId);
+        return;
+      }
+      if (variant === 'full') router.push(`/thread/${encodeURIComponent(targetId)}`);
+    },
+    [onNavigateToThread, router, threadId, variant],
+  );
+
+  /**
+   * Pull-to-load-older: at the very top of the stream, a downward pull asks the
+   * server for the full thread and folds in any messages the mailbox grouping
+   * had not seen (older history beyond the held page). A merge by id keeps this
+   * idempotent — when everything is already here it is a quiet no-op.
+   */
+  const loadOlderMessages = useCallback(async () => {
+    invalidateMailLists(queryClient);
+    try {
+      const threadRes = await apiClient.getThread(threadId).catch(() => null);
+      const serverMessages = (threadRes?.data?.messages ||
+        (threadRes?.data as { emails?: Email[] } | undefined)?.emails ||
+        []) as Email[];
+      if (serverMessages.length === 0) return;
+      setMessages((prev) => {
+        const known = new Set(prev.map((message) => message.id));
+        const fresh = serverMessages.filter((message) => message?.id && !known.has(message.id));
+        if (fresh.length === 0) return prev;
+        const merged = [...fresh, ...prev];
+        merged.sort(
+          (a, b) =>
+            new Date(a.receivedAt || a.createdAt || 0).getTime() -
+            new Date(b.receivedAt || b.createdAt || 0).getTime(),
+        );
+        return merged;
+      });
+    } catch {
+      // The spinner already finished; a failed pull is silence, not an error
+      // banner — the stream keeps what it has.
+    }
+  }, [queryClient, threadId]);
+
+  const {
+    listProps: pullListProps,
+    pullDistance,
+    isRefreshing: isLoadingOlder,
+  } = usePullToRefresh({ onRefresh: loadOlderMessages });
+
+  /** "↓ N new" pill: arrivals while the reader is up in history. */
+  const [newArrivedCount, setNewArrivedCount] = useState(0);
+  const lastSeenCountRef = useRef(0);
+  const initialLoadDoneRef = useRef(false);
+
+  const scrollToLatest = useCallback(() => {
+    setNewArrivedCount(0);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const handleStreamScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    // The reader caught up on their own — the pill has nothing to offer.
+    if (distanceFromBottom < 120) setNewArrivedCount(0);
+  }, []);
+
+  useEffect(() => {
+    // New conversation: the pill belongs to the old one.
+    setNewArrivedCount(0);
+    lastSeenCountRef.current = messages.length;
+    initialLoadDoneRef.current = messages.length > 0;
+  }, [threadId]);
+
+  useEffect(() => {
+    // Incoming growth while reading history — the 30s mailbox poll lands here.
+    // Own sends are excluded: the send handler scrolls to the bottom itself and
+    // the new bubble is one of ours.
+    if (!initialLoadDoneRef.current) {
+      if (messages.length > 0) {
+        initialLoadDoneRef.current = true;
+        lastSeenCountRef.current = messages.length;
+      }
+      return;
+    }
+    const previous = lastSeenCountRef.current;
+    lastSeenCountRef.current = messages.length;
+    if (messages.length <= previous) return;
+    const latest = messages[messages.length - 1];
+    const fromMe =
+      normalizedEmail(latest?.from?.email) === normalizedEmail(currentEmail) ||
+      Boolean((latest as { isOutbound?: boolean } | undefined)?.isOutbound);
+    if (fromMe) return;
+    const container = scrollContainerRef.current;
+    const nearBottom = container
+      ? container.scrollHeight - container.scrollTop - container.clientHeight < 120
+      : true;
+    if (nearBottom) {
+      // Already watching the bottom — keep it pinned instead of yanking.
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    setNewArrivedCount((count) => count + (messages.length - previous));
+  }, [messages, currentEmail]);
+
+  /**
+   * Horizontal swipe on the stream moves between conversations, Gmail-mobile
+   * style: swipe left goes to the older conversation, swipe right to the newer.
+   * Only on touch devices, and only when the gesture is clearly horizontal from
+   * the start — anything else stays a vertical scroll. The pull-to-load-older
+   * gesture owns downward travel at the top, so this one yields there.
+   */
+  const swipeTrackRef = useRef<{ startX: number; startY: number; claimed: boolean } | null>(null);
+  const adjacentRef = useRef(adjacentThreadIds);
+  useEffect(() => {
+    adjacentRef.current = adjacentThreadIds;
+  }, [adjacentThreadIds]);
+
+  const handleSwipeTouchStart = useCallback(
+    (event: React.TouchEvent) => {
+      pullListProps.onTouchStart(event);
+      if (!isCoarsePointer()) {
+        swipeTrackRef.current = null;
+        return;
+      }
+      const touch = event.touches[0];
+      if (!touch) {
+        swipeTrackRef.current = null;
+        return;
+      }
+      swipeTrackRef.current = { startX: touch.clientX, startY: touch.clientY, claimed: false };
+    },
+    [pullListProps],
+  );
+
+  const handleSwipeTouchMove = useCallback(
+    (event: React.TouchEvent) => {
+      pullListProps.onTouchMove(event);
+      const track = swipeTrackRef.current;
+      if (!track || track.claimed || pullDistance > 0) return;
+      const touch = event.touches[0];
+      if (!touch) return;
+      const dx = touch.clientX - track.startX;
+      const dy = touch.clientY - track.startY;
+      // Claim only a decisively horizontal gesture; vertical stays a scroll.
+      if (Math.abs(dx) > 28 && Math.abs(dx) > Math.abs(dy) * 1.8) track.claimed = true;
+    },
+    [pullListProps, pullDistance],
+  );
+
+  const handleSwipeTouchEnd = useCallback(
+    (event: React.TouchEvent) => {
+      pullListProps.onTouchEnd(event);
+      const track = swipeTrackRef.current;
+      swipeTrackRef.current = null;
+      if (!track?.claimed) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      const dx = touch.clientX - track.startX;
+      if (Math.abs(dx) < 90) return;
+      const target = dx < 0 ? adjacentRef.current.next : adjacentRef.current.previous;
+      if (!target) return;
+      try {
+        navigator.vibrate?.(12);
+      } catch {
+        /* haptics are best-effort */
+      }
+      navigateToThread(target);
+    },
+    [pullListProps, navigateToThread],
+  );
+
+  const handleSwipeTouchCancel = useCallback(
+    (event: React.TouchEvent) => {
+      pullListProps.onTouchCancel(event);
+      swipeTrackRef.current = null;
+    },
+    [pullListProps],
+  );
 
   const resolvedConversation = useMemo(() => {
     if (!threadId || conversationSource.length === 0) return null;
@@ -713,7 +991,7 @@ export function ConversationalThreadView({
     if (targetId) {
       try {
         await apiClient.toggleStar(targetId);
-        showToast({ text: nextState ? 'Thread starred' : 'Thread unstarred', type: 'info' });
+        showToast({ text: nextState ? 'Pinned to top' : 'Unpinned from top', type: 'info' });
       } catch {
         setStarred(!nextState);
       }
@@ -764,7 +1042,9 @@ export function ConversationalThreadView({
     quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
-    const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
+    // A quoted reply answers the message the gesture targeted; otherwise the
+    // latest message, as before.
+    const replyTarget = quotedMessage?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
 
     try {
       // `'chat'` is the whole point of the bar: what is typed here is a line in the
@@ -836,6 +1116,8 @@ export function ConversationalThreadView({
 
       setQuickReplyText('');
       setPendingAttachments([]);
+      // A quoted reply is one-shot: the chip clears once the answer is away.
+      setQuotedMessage(null);
       quantyReact('mail:sent');
       showToast({ text: 'Reply sent successfully', type: 'success' });
 
@@ -860,6 +1142,7 @@ export function ConversationalThreadView({
     pendingAttachments,
     isSendingQuickReply,
     messages,
+    quotedMessage,
     threadId,
     threadSubject,
     expandedIndices,
@@ -1289,7 +1572,27 @@ export function ConversationalThreadView({
       </div>
 
       {/* Main Conversation Stream (Chronological Stack) */}
-      <div className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleStreamScroll}
+        onTouchStart={handleSwipeTouchStart}
+        onTouchMove={handleSwipeTouchMove}
+        onTouchEnd={handleSwipeTouchEnd}
+        onTouchCancel={handleSwipeTouchCancel}
+        className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 space-y-4 max-w-4xl mx-auto w-full"
+      >
+        {/* Pull-to-load-older indicator */}
+        {(pullDistance > 0 || isLoadingOlder) && (
+          <div
+            className="flex items-center justify-center overflow-hidden transition-[height]"
+            style={{ height: isLoadingOlder ? 44 : pullDistance }}
+            aria-hidden="true"
+          >
+            <span
+              className={`size-5 rounded-full border-2 border-[#FF8C42]/30 border-t-[#FF8C42] ${isLoadingOlder ? 'animate-spin' : ''}`}
+            />
+          </div>
+        )}
         {isQuarantined && (
           <div className="p-3.5 sm:p-4 rounded-xl bg-[#16181D] border border-[#282C35] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -1407,9 +1710,22 @@ export function ConversationalThreadView({
             const msgKey = message.id ?? `msg-${index}`;
             const msgReactionList = messageReactions[msgKey] ?? [];
 
+            /*
+             * Read receipt: WhatsApp-style ticks on YOUR messages only.
+             * `receiptStatusOf` returns null for inbound messages.
+             */
+            const receipt = receiptStatusOf(message, isOutbound);
+
             return (
-              <motion.div
+              <ThreadBubbleShell
                 key={message.id || index}
+                message={message}
+                senderName={msgFromName}
+                isOutbound={isOutbound}
+                onQuoteReply={startQuoteReply}
+                onForwardMessage={forwardMessage}
+              >
+              <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -1508,6 +1824,13 @@ export function ConversationalThreadView({
                       <span className="text-[11px] text-[#A1A4AC] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
+                      {receipt && (
+                        <EmailReadReceipt
+                          status={receipt.status}
+                          readAt={receipt.readAt}
+                          deliveredAt={receipt.deliveredAt}
+                        />
+                      )}
                       <svg
                         className="size-4 text-[#6B6E76] group-hover:text-[#A1A4AC] transition-colors"
                         viewBox="0 0 24 24"
@@ -1586,6 +1909,13 @@ export function ConversationalThreadView({
                             <span className="text-xs text-[#A1A4AC] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
+                            {receipt && (
+                              <EmailReadReceipt
+                                status={receipt.status}
+                                readAt={receipt.readAt}
+                                deliveredAt={receipt.deliveredAt}
+                              />
+                            )}
                           </div>
 
                           {/* "to me ⌵" Security Accordion Trigger */}
@@ -1732,14 +2062,82 @@ export function ConversationalThreadView({
                   </div>
                 )}
               </motion.div>
+              </ThreadBubbleShell>
             );
           })}
+
+        {/* "↓ N new" jump pill: arrivals while the reader was up in history */}
+        {newArrivedCount > 0 && (
+          <div className="sticky bottom-4 z-30 flex justify-center pointer-events-none">
+            <button
+              type="button"
+              onClick={scrollToLatest}
+              className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full bg-[#FF8C42] px-4 py-2 text-[13px] font-semibold text-black shadow-lg shadow-black/40 transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              aria-label={`${newArrivedCount} new message${newArrivedCount === 1 ? '' : 's'} — jump to latest`}
+            >
+              <svg
+                className="size-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+                aria-hidden="true"
+              >
+                <path d="M12 5v14m0 0 6-6m-6 6-6-6" />
+              </svg>
+              {newArrivedCount} new
+            </button>
+          </div>
+        )}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          Quoted-reply chip: what a swipe-right or menu Reply targeted. One tap
+          on the × (or Escape in the input) stands the bar back down to replying
+          to the latest message.
+        */}
+        {quotedMessage && (
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#FF8C42]/[0.06] border border-[#FF8C42]/25">
+            <svg
+              className="size-4 shrink-0 text-[#FF8C42]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 17l-5-5 5-5" />
+              <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-[#FF8C42]">
+                Replying to{' '}
+                {quotedMessage.from?.name ||
+                  quotedMessage.from?.email?.split('@')[0] ||
+                  'message'}
+              </p>
+              <p className="truncate text-xs text-[#A1A4AC]">
+                {quotedMessage.snippet || quotedMessage.bodyText?.slice(0, 80) || '(No preview)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuotedMessage(null)}
+              aria-label="Cancel quoted reply"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            >
+              <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
         {/*
           Message or Mail: the choice, stated.
 
@@ -1880,6 +2278,7 @@ export function ConversationalThreadView({
           {/* Chat Input Text Area */}
           <input
             id="chatbot-reply-input"
+            ref={quickReplyInputRef}
             type="text"
             value={quickReplyText}
             onChange={(e) => setQuickReplyText(e.target.value)}
@@ -1887,6 +2286,9 @@ export function ConversationalThreadView({
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleBarSend();
+              }
+              if (e.key === 'Escape' && quotedMessage) {
+                setQuotedMessage(null);
               }
             }}
             placeholder={

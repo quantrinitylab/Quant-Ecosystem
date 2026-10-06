@@ -18,6 +18,7 @@ import { DocumentHeader } from './DocumentHeader';
 import { DocumentVersionHistoryModal } from './DocumentVersionHistoryModal';
 import { BlockEditor } from './BlockEditor';
 import { blocksToMarkdown, markdownToBlocks, downloadMarkdownFile } from './markdown-serializer';
+import { useConfirm } from '../../../../hooks/useConfirm';
 
 const EMOJI_PRESETS = ['📄', '🚀', '💡', '📝', '📊', '⚡', '🔒', '🎯', '✨', '🔥'];
 
@@ -145,16 +146,34 @@ export default function DocumentPage() {
   }, [title, blocks, metadata, router]);
 
   // Delete document handler
+  // Was: window.confirm() + localStorage-only removal. The native confirm is
+  // unreliable in embedded/automated browsers (the click appeared to do
+  // nothing: no dialog, no toast, doc remained), and the server copy was
+  // never trashed. Now: in-app confirm + real backend trash call.
+  const { confirm: confirmDelete, dialog: confirmDeleteDialog } = useConfirm();
   const handleDeleteDocument = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    const ok = await confirmDelete({
+      title: 'Delete this document?',
+      message: `"${
+        title || 'Untitled document'
+      }" will be moved to Trash. You can restore it anytime from the Trash tab.`,
+      confirmLabel: 'Move to Trash',
+      variant: 'destructive',
+    });
+    if (!ok) return;
     try {
+      const res = await browserApiRequest('/api/drive/files/trash', {
+        method: 'POST',
+        body: JSON.stringify({ fileIds: [docId] }),
+      });
+      if (!res.ok) throw new Error('Delete failed');
       localStorage.removeItem(`quant_doc_${docId}`);
       showToast({ text: 'Document moved to trash', type: 'info', subject: 'doc-delete' });
       router.push('/drive');
     } catch {
       showToast({ text: 'Failed to delete document', type: 'error', subject: 'doc-delete' });
     }
-  }, [docId, router]);
+  }, [docId, router, title, confirmDelete]);
 
   return (
     <AppShell
@@ -354,6 +373,7 @@ export default function DocumentPage() {
           setBlocks(markdownToBlocks(content));
         }}
       />
+      {confirmDeleteDialog}
     </AppShell>
   );
 }
