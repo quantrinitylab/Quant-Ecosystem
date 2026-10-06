@@ -145,7 +145,7 @@ function CalendarPageContent() {
     }
   }, [queryTab]);
 
-  // Synchronize with quant:subtab-change custom event dispatched by ContextBottomNavBar
+  // Synchronize with quant:subtab-change custom event dispatched by the shell's MobileSubTabStrip
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const custom = e as CustomEvent<{ pillar: string; tabId: string }>;

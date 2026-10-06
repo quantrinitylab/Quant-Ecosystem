@@ -159,7 +159,10 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2.5 md:hidden"
+      // Clears the single h-16 bottom bar plus the device safe-area inset:
+      // bottom-20 (5rem) overlapped the bar on notched phones, where the bar
+      // occupies 4rem + ~34px of safe-area padding.
+      className="fixed right-4 z-40 flex flex-col items-end gap-2.5 md:hidden bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
     >
       <AnimatePresence>
         {isDial && isOpen && (

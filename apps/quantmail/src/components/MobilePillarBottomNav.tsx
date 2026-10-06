@@ -5,13 +5,11 @@
 // ============================================================================
 //
 // Gmail / WhatsApp / Instagram paradigm: the 5 productivity pillars live in a
-// thumb-reachable bottom bar on mobile. The top QuantPillarTopBar keeps search
-// + lens pills; this bar is the fast pillar switcher for one-handed use.
-//
-// Coexists with <ContextBottomNavBar /> (contextual sub-tabs): the context
-// bar is shifted up on mobile via `bottom-16 md:bottom-0` so the two never
-// overlap. Both hide on /thread/* and /compose where the bottom edge belongs
-// to the conversation / compose toolbar.
+// thumb-reachable bottom bar on mobile. This bar is the ONE and ONLY bottom
+// navigation on mobile — the old second context bar was removed; its sub-tab
+// navigation now lives in <MobileSubTabStrip /> under the app bar. Desktop
+// uses the DesktopPillarRail. The bar hides on /thread/* and /compose where
+// the bottom edge belongs to the conversation / compose toolbar.
 //
 // Mounts the REAL approved app marks (same PILLAR_TILES as the top switcher),
 // per-pillar accent colors, haptic tap feedback, 44px touch floors, and an
@@ -44,6 +42,31 @@ function resolvePillar(pathname: string): PillarId {
   return 'mail';
 }
 
+/**
+ * Pure tap handler, mirroring `executePillarTileClick` from QuantPillarTopBar.
+ * Tapping a different pillar navigates; re-tapping the ACTIVE pillar
+ * refreshes the current app's content (user requirement: active-tab retap
+ * must do something visible, not sit there dead).
+ */
+export function executeMobilePillarTap(
+  tileId: PillarId,
+  path: string,
+  options: {
+    pathname: string;
+    router: { push: (path: string) => void };
+  },
+) {
+  if (resolvePillar(path) !== resolvePillar(options.pathname)) {
+    options.router.push(path);
+    return;
+  }
+  // Re-tap on the active pillar: refresh current app content.
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent('quant:refresh'));
+    window.dispatchEvent(new CustomEvent('quant:pillar-retap', { detail: { pillar: tileId } }));
+  }
+}
+
 export function MobilePillarBottomNav({
   mailUnreadCount = 0,
   className = '',
@@ -51,8 +74,7 @@ export function MobilePillarBottomNav({
   const router = useRouter();
   const pathname = usePathname() ?? '/';
 
-  // The bottom edge belongs to the conversation / compose UI on these routes —
-  // same hide rule as ContextBottomNavBar.
+  // The bottom edge belongs to the conversation / compose UI on these routes.
   if (pathname.startsWith('/thread') || pathname.startsWith('/compose')) {
     return null;
   }
@@ -61,9 +83,7 @@ export function MobilePillarBottomNav({
 
   const handlePillarTap = (tileId: PillarId, path: string) => {
     triggerHapticTap(10);
-    if (resolvePillar(path) !== currentPillar) {
-      router.push(path);
-    }
+    executeMobilePillarTap(tileId, path, { pathname, router });
   };
 
   return (
