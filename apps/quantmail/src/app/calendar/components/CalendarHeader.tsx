@@ -147,6 +147,22 @@ export function CalendarHeader({
     }
   }, [now]);
 
+  // Pacific abbreviation is PDT in summer / PST in winter — never hardcode it.
+  const pacificCode = useMemo(() => {
+    try {
+      return (
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Los_Angeles',
+          timeZoneName: 'short',
+        })
+          .formatToParts(now)
+          .find((p) => p.type === 'timeZoneName')?.value ?? 'PT'
+      );
+    } catch {
+      return 'PT';
+    }
+  }, [now]);
+
   return (
     <header className="border-b border-[#282C35]/80 bg-[#0c0c0f]">
       {/* ======================================================================
@@ -193,7 +209,7 @@ export function CalendarHeader({
           {/* Single Clean IST / PST Pill (Removes duplicate dropdowns & banners) */}
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111318] border border-[#282C35] text-xs font-mono text-[#F59E0B] shadow-inner select-none"
-            title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time (PST)"
+            title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time"
           >
             <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
             <span className="font-semibold text-white">IST</span>
@@ -201,7 +217,7 @@ export function CalendarHeader({
             <span className="text-[#3A404D]" aria-hidden="true">
               /
             </span>
-            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
             <span className="text-[#A1A4AC]">{pstTime}</span>
           </div>
 
@@ -284,13 +300,13 @@ export function CalendarHeader({
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <div
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111318] border border-[#282C35] text-[11px] font-mono text-[#F59E0B] shadow-inner select-none"
-            title="Live Dual World Clocks (IST & PST)"
+            title="Live Dual World Clocks (IST & Pacific)"
           >
             <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
             <span className="font-semibold text-white">IST</span>
             <span className="text-[#F5F5F5]">{istTime}</span>
             <span className="text-[#3A404D]">/</span>
-            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
             <span className="text-[#A1A4AC]">{pstTime}</span>
           </div>
 

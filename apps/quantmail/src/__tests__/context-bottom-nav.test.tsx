@@ -170,7 +170,7 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       expect(html).toContain('Calendar contextual navigation');
       expect(html).toContain('Feed');
       expect(html).toContain('Month');
-      expect(html).toContain('Events');
+      expect(html).toContain('Trackers');
       expect(html).toContain('Schedule');
     });
 

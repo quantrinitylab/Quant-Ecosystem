@@ -69,7 +69,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       expect(tabIds).toEqual(['feed', 'month', 'week', 'events', 'schedule']);
 
       const tabLabels = calConfig.tabs.map((t) => t.label);
-      expect(tabLabels).toEqual(['Feed', 'Month', 'Week', 'Events', 'Schedule']);
+      expect(tabLabels).toEqual(['Feed', 'Month', 'Week', 'Trackers', 'Schedule']);
     });
 
     it('matches exact specifications for Feed, Month, Week, Events, and Schedule tabs', () => {
@@ -105,7 +105,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       // 4. Events
       expect(tabs[3]).toMatchObject({
         id: 'events',
-        label: 'Events',
+        label: 'Trackers',
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'events' },
         description: 'Trackers hub: Period, Health & Life trackers',
@@ -177,9 +177,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         />,
       );
 
-      // Contains live dual timezone pill
+      // Contains live dual timezone pill — Pacific code is DST-aware (PDT in Oct 2026, not hardcoded PST)
       expect(html).toContain('IST');
-      expect(html).toContain('PST');
+      expect(html).toMatch(/PD[TS]/);
       expect(html).toContain('Live Dual World Clocks');
     });
 
@@ -352,10 +352,13 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
           />,
         );
 
+        // Zone codes are DST-aware (computed via Intl): Oct 2026 -> PDT/EDT,
+        // Asia/Kolkata -> GMT+5:30 style code, London -> GMT+1 style code
         expect(html).toContain('IST');
-        expect(html).toContain('PST');
-        expect(html).toContain('EST');
-        expect(html).toContain('GMT');
+        expect(html).toContain('UTC+5:30');
+        expect(html).toContain('PDT');
+        expect(html).toContain('EDT');
+        expect(html).toContain('UTC+1');
         expect(html).toContain('Hourly Time Blocking Schedule');
       });
     });
@@ -426,4 +429,69 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
       expect(RAW_EMOJI_REGEX.test(html)).toBe(false);
     });
   });
+
+    // ------------------------------------------------------------------------
+    // Regression: nav unification + drag-to-create + upcoming events
+    // ------------------------------------------------------------------------
+    describe('Calendar nav unification & drag-to-create (fix-calendar-nav-drag)', () => {
+      it('month toolbar follows the controlled viewDate (single source of truth)', () => {
+        const controlled = new Date(2026, 10, 1); // November 2026
+        const html = renderToStaticMarkup(
+          <CalendarMonthSubView
+            events={mockEvents}
+            selectedDate={new Date(2026, 9, 15)}
+            onSelectDate={vi.fn()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+            viewDate={controlled}
+            onPrevMonth={vi.fn()}
+            onNextMonth={vi.fn()}
+            onGoToday={vi.fn()}
+          />,
+        );
+        // Toolbar title must reflect the controlled month, not selectedDate's month
+        expect(html).toContain('November');
+        expect(html).toContain('2026');
+      });
+
+      it('falls back to internal month state when uncontrolled (back-compat)', () => {
+        const html = renderToStaticMarkup(
+          <CalendarMonthSubView
+            events={mockEvents}
+            selectedDate={new Date(2026, 9, 15)}
+            onSelectDate={vi.fn()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+          />,
+        );
+        expect(html).toContain('October');
+      });
+
+      it('exposes drag-to-create affordance: day cells carry data-day-key and a hint', () => {
+        const html = renderToStaticMarkup(
+          <CalendarMonthSubView
+            events={mockEvents}
+            selectedDate={new Date()}
+            onSelectDate={vi.fn()}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+          />,
+        );
+        expect(html).toContain('data-day-key');
+        expect(html).toContain('drag across days');
+      });
+
+      it('trackers view renders upcoming real calendar events', () => {
+        const html = renderToStaticMarkup(
+          <CalendarTrackersSubView
+            events={mockEvents}
+            openDedicatedSheet={vi.fn()}
+            onSelectEvent={vi.fn()}
+          />,
+        );
+        expect(html).toContain('Upcoming Events');
+        expect(html).toContain('Sovereign Architecture Sprint Review');
+      });
+    });
+
 });

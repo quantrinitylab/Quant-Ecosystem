@@ -208,7 +208,7 @@ export interface CalendarFeedSubViewProps {
   holidaysByDay?: Record<string, Holiday[]>;
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  openDedicatedSheet: (type: EntryType, date?: Date) => void;
+  openDedicatedSheet: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent: (event: CalendarEventLike) => void;
   searchFilter?: string;
   className?: string;
@@ -333,7 +333,7 @@ export function CalendarFeedSubView({
   }, [eventsByDay, holidaysByDay, searchFilter, filterType]);
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Feed Filters Strip */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div className="flex items-center gap-2">
@@ -556,9 +556,17 @@ export interface CalendarMonthSubViewProps {
   holidaysByDay?: Record<string, Holiday[]>;
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
-  openDedicatedSheet: (type: EntryType, date?: Date) => void;
+  openDedicatedSheet: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent: (event: CalendarEventLike) => void;
   className?: string;
+  // Controlled month navigation (single source of truth shared with the page
+  // header). When `viewDate` is provided the sub-view no longer keeps its own
+  // month state, so the top header steppers and this toolbar can never
+  // desynchronize. Omitted in tests/back-compat: falls back to internal state.
+  viewDate?: Date;
+  onPrevMonth?: () => void;
+  onNextMonth?: () => void;
+  onGoToday?: () => void;
 }
 
 const MON_SUN_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -571,40 +579,60 @@ export function CalendarMonthSubView({
   openDedicatedSheet,
   onSelectEvent,
   className = '',
+  viewDate: controlledViewDate,
+  onPrevMonth,
+  onNextMonth,
+  onGoToday,
 }: CalendarMonthSubViewProps) {
-  const [viewDate, setViewDate] = useState<Date>(
+  const [internalViewDate, setInternalViewDate] = useState<Date>(
     () => new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1),
   );
+
+  // Single source of truth: when the page passes `viewDate` + handlers, the
+  // toolbar steppers drive the same month state as the top header. Otherwise
+  // (tests/legacy) the sub-view keeps its own month state.
+  const isControlled = controlledViewDate !== undefined;
+  const viewDate = isControlled ? controlledViewDate : internalViewDate;
 
   const viewYear = viewDate.getFullYear();
   const viewMonth = viewDate.getMonth();
 
   const handlePrevMonth = () => {
-    setViewDate(new Date(viewYear, viewMonth - 1, 1));
+    if (onPrevMonth) onPrevMonth();
+    else setInternalViewDate(new Date(viewYear, viewMonth - 1, 1));
   };
 
   const handleNextMonth = () => {
-    setViewDate(new Date(viewYear, viewMonth + 1, 1));
+    if (onNextMonth) onNextMonth();
+    else setInternalViewDate(new Date(viewYear, viewMonth + 1, 1));
   };
 
   const handlePrevWeek = () => {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() - 7);
     onSelectDate(next);
-    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+    if (!isControlled) {
+      setInternalViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+    }
   };
 
   const handleNextWeek = () => {
     const next = new Date(selectedDate);
     next.setDate(next.getDate() + 7);
     onSelectDate(next);
-    setViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+    if (!isControlled) {
+      setInternalViewDate(new Date(next.getFullYear(), next.getMonth(), 1));
+    }
   };
 
   const handleGoToday = () => {
+    if (onGoToday) {
+      onGoToday();
+      return;
+    }
     const now = new Date();
     onSelectDate(now);
-    setViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    setInternalViewDate(new Date(now.getFullYear(), now.getMonth(), 1));
   };
 
   // Group events by day key
@@ -721,8 +749,108 @@ export function CalendarMonthSubView({
   const selectedDayEvents = eventsByDayKey[dayKey(selectedDate)] || [];
   const selectedDayHolidays = holidaysByDay[dayKey(selectedDate)] || [];
 
+  // ------------------------------------------------------------------
+  // Drag-to-create: press on a day and drag across cells to select a
+  // date range, release to open the create sheet pre-filled with it.
+  // ------------------------------------------------------------------
+  const dayByKey = useMemo(() => {
+    const map = new Map<string, Date>();
+    for (const week of monthWeeks) for (const day of week) map.set(day.key, day.date);
+    return map;
+  }, [monthWeeks]);
+
+  const [dragRange, setDragRange] = useState<{ startKey: string; endKey: string } | null>(null);
+  const dragStartKeyRef = React.useRef<string | null>(null);
+  const suppressClickRef = React.useRef(false);
+
+  const dragRangeKeys = useMemo(() => {
+    if (!dragRange) return null;
+    const keys = [...dayByKey.keys()];
+    const a = keys.indexOf(dragRange.startKey);
+    const b = keys.indexOf(dragRange.endKey);
+    if (a === -1 || b === -1) return null;
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    return new Set(keys.slice(lo, hi + 1));
+  }, [dragRange, dayByKey]);
+
+  const dragRangeLabel = useMemo(() => {
+    if (!dragRangeKeys || dragRangeKeys.size < 2) return null;
+    const dates = [...dragRangeKeys]
+      .map((k) => dayByKey.get(k)!)
+      .sort((x, y) => x.getTime() - y.getTime());
+    const fmt = (d: Date) => `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+    return `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}`;
+  }, [dragRangeKeys, dayByKey]);
+
+  const handleDayPointerDown = useCallback(
+    (key: string) => (e: React.PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      dragStartKeyRef.current = key;
+      suppressClickRef.current = false;
+      setDragRange({ startKey: key, endKey: key });
+    },
+    [],
+  );
+
+  const handleGridPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragStartKeyRef.current) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const cell = el?.closest?.('[data-day-key]') as HTMLElement | null;
+      const key = cell?.dataset?.dayKey;
+      if (!key) return;
+      setDragRange((prev) => {
+        if (!prev || prev.endKey === key) return prev;
+        suppressClickRef.current = true;
+        return { startKey: prev.startKey, endKey: key };
+      });
+    },
+    [],
+  );
+
+  const finishDrag = useCallback(() => {
+    const startKey = dragStartKeyRef.current;
+    dragStartKeyRef.current = null;
+    if (startKey && dragRangeKeys && dragRangeKeys.size >= 2) {
+      const dates = [...dragRangeKeys]
+        .map((k) => dayByKey.get(k)!)
+        .sort((x, y) => x.getTime() - y.getTime());
+      // Keep the click from also firing after a real drag.
+      suppressClickRef.current = true;
+      setTimeout(() => {
+        suppressClickRef.current = false;
+      }, 0);
+      openDedicatedSheet?.('event', dates[0], dates[dates.length - 1]);
+    }
+    setDragRange(null);
+  }, [dragRangeKeys, dayByKey, openDedicatedSheet]);
+
+  // Releasing the pointer anywhere (even outside the grid) finishes a drag.
+  useEffect(() => {
+    const onUp = () => {
+      if (dragStartKeyRef.current) finishDrag();
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, [finishDrag]);
+
+  const handleDayClick = useCallback(
+    (date: Date) => () => {
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
+      onSelectDate(date);
+    },
+    [onSelectDate],
+  );
+
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Month Toolbar & Steppers */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#12151E] border border-[#232938] rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-3">
@@ -782,28 +910,56 @@ export function CalendarMonthSubView({
       </div>
 
       {/* Month Calendar Grid (Mon-Sun) */}
-      <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
+      <div className="bg-[#12151E] border border-[#232938] rounded-2xl p-4 sm:p-5 shadow-sm space-y-2 min-w-0">
         {/* Weekday Columns Header */}
         <div className="grid grid-cols-7 gap-1 text-center font-semibold text-xs text-[#A1A4AC] py-2 border-b border-[#232938]">
           {MON_SUN_WEEKDAYS.map((wd) => (
-            <div key={wd}>{wd}</div>
+            <div key={wd} className="min-w-0 truncate">{wd}</div>
           ))}
         </div>
 
+        {/* Drag-to-create hint */}
+        {dragRangeLabel ? (
+          <div className="flex items-center justify-center gap-2 text-[11px] font-semibold text-[#F59E0B]">
+            <span className="px-2.5 py-1 rounded-full bg-[#F59E0B]/15 border border-[#F59E0B]/40">
+              {dragRangeLabel} · release to create
+            </span>
+          </div>
+        ) : (
+          <p className="text-center text-[10px] text-[#A1A4AC]/50">
+            Tip: drag across days to create a multi-day event
+          </p>
+        )}
+
         {/* Weeks Matrix */}
-        <div className="space-y-1">
+        <div
+          className="space-y-1 select-none"
+          style={{ touchAction: 'pan-y' }}
+          onPointerMove={handleGridPointerMove}
+          onPointerUp={finishDrag}
+          onPointerCancel={finishDrag}
+          onPointerLeave={() => {
+            // Keep the in-progress range if the pointer briefly leaves;
+            // a pointerup outside still finishes via the window fallback.
+          }}
+        >
           {monthWeeks.map((week, wIdx) => (
             <div key={`w-${wIdx}`} className="grid grid-cols-7 gap-1.5">
               {week.map((day) => {
                 const totalItems = day.events.length + day.holidays.length;
+                const inDragRange = dragRangeKeys?.has(day.key) ?? false;
 
                 return (
                   <button
                     key={day.key}
                     type="button"
-                    onClick={() => onSelectDate(day.date)}
-                    className={`min-h-16 sm:min-h-20 p-1.5 rounded-xl border flex flex-col justify-between text-left transition-all ${
-                      day.isSelected
+                    data-day-key={day.key}
+                    onPointerDown={handleDayPointerDown(day.key)}
+                    onClick={handleDayClick(day.date)}
+                    className={`min-h-16 sm:min-h-20 p-1.5 rounded-xl border flex flex-col justify-between text-left transition-all min-w-0 ${
+                      inDragRange
+                        ? 'border-[#F59E0B] bg-[#F59E0B]/20 ring-2 ring-[#F59E0B]/40'
+                        : day.isSelected
                         ? 'border-[#F59E0B] bg-[#F59E0B]/10 ring-2 ring-[#F59E0B]/30'
                         : day.isToday
                         ? 'border-[#384156] bg-[#181C26]'
@@ -996,12 +1152,15 @@ export interface CustomLifeTracker {
 
 export interface CalendarTrackersSubViewProps {
   events?: CalendarEventLike[];
-  openDedicatedSheet?: (type: EntryType, date?: Date) => void;
+  openDedicatedSheet?: (type: EntryType, date?: Date, endDate?: Date) => void;
+  onSelectEvent?: (event: CalendarEventLike) => void;
   className?: string;
 }
 
 export function CalendarTrackersSubView({
+  events = [],
   openDedicatedSheet,
+  onSelectEvent,
   className = '',
 }: CalendarTrackersSubViewProps) {
   // Discreet mode toggle for Period Tracker
@@ -1080,8 +1239,24 @@ export function CalendarTrackersSubView({
     showToast({ text: 'Tracker deleted', type: 'info' });
   };
 
+  // Real calendar events in the next 7 days — the tab is named "Trackers"
+  // but users also expect their actual upcoming events here.
+  const upcomingEvents = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const in7 = new Date(now);
+    in7.setDate(now.getDate() + 7);
+    return (events ?? [])
+      .filter((ev) => {
+        const d = startOf(ev);
+        return !Number.isNaN(d.getTime()) && d >= now && d <= in7;
+      })
+      .sort((a, b) => startOf(a).getTime() - startOf(b).getTime())
+      .slice(0, 6);
+  }, [events]);
+
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Top Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div>
@@ -1110,6 +1285,50 @@ export function CalendarTrackersSubView({
           <span>+ Add Tracker</span>
         </button>
       </div>
+
+      {/* Upcoming real calendar events (next 7 days) */}
+      <section aria-label="Upcoming events" className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC]">
+            Upcoming Events · Next 7 Days
+          </h3>
+          <span className="text-[10px] font-mono text-[#A1A4AC]">{upcomingEvents.length}</span>
+        </div>
+        {upcomingEvents.length === 0 ? (
+          <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[#12151E] rounded-xl border border-dashed border-[#232938]">
+            No events in the next 7 days
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {upcomingEvents.map((ev) => {
+              const d = startOf(ev);
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => onSelectEvent?.(ev)}
+                  className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[#12151E] border border-[#232938] hover:border-[#384156] transition-all text-left"
+                >
+                  <span
+                    className="size-2 rounded-full shrink-0"
+                    style={{ backgroundColor: ev.color || '#F59E0B' }}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-semibold text-[#F5F5F5]">
+                      {ev.title}
+                    </span>
+                    <span className="block text-[10px] text-[#A1A4AC]">
+                      {FULL_WEEKDAYS[d.getDay()].slice(0, 3)}, {MONTH_NAMES[d.getMonth()].slice(0, 3)}{' '}
+                      {d.getDate()} · {ev.allDay ? 'All day' : hhmm(d)}
+                    </span>
+                  </span>
+                  <span className="text-[11px] font-mono text-[#F59E0B] shrink-0">›</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Grid: 3 Main Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1440,6 +1659,49 @@ export function CalendarTrackersSubView({
 // Segmented sub-tabs: Clock (time blocking & live world clock) & Reminders (alerts with snooze/complete)
 // ============================================================================
 
+// World-clock zones rendered in the Clock matrix. Labels are derived from the
+// IANA zone at render time (see tzLabelInfo) so DST is always correct.
+const WORLD_CLOCK_ZONES: ReadonlyArray<{ city: string; tz: string }> = [
+  { city: 'New Delhi / Mumbai', tz: 'Asia/Kolkata' },
+  { city: 'San Francisco', tz: 'America/Los_Angeles' },
+  { city: 'New York', tz: 'America/New_York' },
+  { city: 'London', tz: 'Europe/London' },
+];
+
+/**
+ * Derive the correct zone abbreviation (IST/PDT/EDT/BST…) and UTC offset
+ * (UTC+5:30 / UTC-7 / UTC+1…) for a zone at a given instant. Hardcoding
+ * these is wrong half the year because of daylight saving time.
+ */
+function tzLabelInfo(tz: string, at: Date): { code: string; offset: string } {
+  try {
+    let code =
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'short' })
+        .formatToParts(at)
+        .find((p) => p.type === 'timeZoneName')?.value ?? '';
+    // Zones without DST get a GMT-style code from ICU (e.g. "GMT+5:30");
+    // prefer the conventional abbreviation for well-known zones.
+    if (code.startsWith('GMT')) {
+      code = STATIC_ZONE_CODES[tz] ?? code;
+    }
+    const rawOffset =
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
+        .formatToParts(at)
+        .find((p) => p.type === 'timeZoneName')?.value ?? '';
+    // shortOffset yields "GMT+5:30" / "GMT-7" — normalize to UTC style.
+    const offset = rawOffset.replace(/^GMT/, 'UTC');
+    return { code, offset };
+  } catch {
+    return { code: '', offset: '' };
+  }
+}
+
+// Conventional abbreviations for zones where ICU returns a GMT-offset code
+// (these zones have no daylight saving time, so the code is stable).
+const STATIC_ZONE_CODES: Record<string, string> = {
+  'Asia/Kolkata': 'IST',
+};
+
 export interface ScheduledReminder {
   id: string;
   title: string;
@@ -1451,7 +1713,7 @@ export interface ScheduledReminder {
 export interface CalendarScheduleSubViewProps {
   events?: CalendarEventLike[];
   selectedDate?: Date;
-  openDedicatedSheet?: (type: EntryType, date?: Date) => void;
+  openDedicatedSheet?: (type: EntryType, date?: Date, endDate?: Date) => void;
   onSelectEvent?: (event: CalendarEventLike) => void;
   className?: string;
 }
@@ -1609,7 +1871,7 @@ export function CalendarScheduleSubView({
   }, [events, selectedDate]);
 
   return (
-    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 space-y-6 ${className}`}>
+    <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
       {/* Top Header & Segmented Sub-Tab Switcher */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#232938] pb-4">
         <div>
@@ -1658,31 +1920,31 @@ export function CalendarScheduleSubView({
       {/* SUB-TAB 1: CLOCK & TIME BLOCKING */}
       {subTab === 'clock' && (
         <div className="space-y-6">
-          {/* Live World Clocks Matrix */}
+          {/* Live World Clocks Matrix — codes & offsets are computed from the
+              IANA zone at render time so DST is always correct (e.g. PDT not
+              PST in October, BST not GMT for London in summer). */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-            {[
-              { code: 'IST', city: 'New Delhi / Mumbai', tz: 'Asia/Kolkata', offset: 'UTC+5:30' },
-              { code: 'PST', city: 'San Francisco', tz: 'America/Los_Angeles', offset: 'UTC-7' },
-              { code: 'EST', city: 'New York', tz: 'America/New_York', offset: 'UTC-4' },
-              { code: 'GMT', city: 'London / UTC', tz: 'Europe/London', offset: 'UTC+1' },
-            ].map((clock) => (
-              <div
-                key={clock.code}
-                className="p-3.5 rounded-2xl bg-[#12151E] border border-[#232938] space-y-1 shadow-sm"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#F59E0B] flex items-center gap-1.5">
-                    <SvgGlobe className="size-3" />
-                    {clock.code}
-                  </span>
-                  <span className="font-mono text-[10px] text-[#A1A4AC]">{clock.offset}</span>
+            {WORLD_CLOCK_ZONES.map((zone) => {
+              const info = tzLabelInfo(zone.tz, now);
+              return (
+                <div
+                  key={zone.tz}
+                  className="p-3.5 rounded-2xl bg-[#12151E] border border-[#232938] space-y-1 shadow-sm"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-[#F59E0B] flex items-center gap-1.5">
+                      <SvgGlobe className="size-3" />
+                      {info.code}
+                    </span>
+                    <span className="font-mono text-[10px] text-[#A1A4AC]">{info.offset}</span>
+                  </div>
+                  <div className="text-base sm:text-lg font-bold font-mono tracking-tight text-[#F5F5F5]">
+                    {formatTz(zone.tz)}
+                  </div>
+                  <span className="text-[10px] text-[#A1A4AC] block truncate">{zone.city}</span>
                 </div>
-                <div className="text-base sm:text-lg font-bold font-mono tracking-tight text-[#F5F5F5]">
-                  {formatTz(clock.tz)}
-                </div>
-                <span className="text-[10px] text-[#A1A4AC] block truncate">{clock.city}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Time Blocking Schedule Matrix */}
