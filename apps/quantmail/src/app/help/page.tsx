@@ -1,51 +1,85 @@
+'use client';
+
 import Link from 'next/link';
+import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
+import { AuthShell } from '../../components/auth/AuthShell';
+import { PageTransition } from '@quant/shared-ui';
 
-export const metadata = { title: 'Help · QuantMail' };
-
-const TOPICS: Array<{ heading: string; body: string }> = [
+const TOPICS = [
   {
-    heading: 'I forgot my email address',
-    body: 'On the sign-in page, choose "Forgot email?" and enter the mobile number linked to your account. If it matches, we will send your address to that number.',
+    title: 'Signing in',
+    body: 'Use the QuantMail address you created, for example you@quantmail.in. If you forgot which address you used, try Find your email address with the mobile number linked to your account.',
+    href: '/forgot-email',
+    linkLabel: 'Find your email address',
   },
   {
-    heading: 'I forgot my password',
-    body: 'On the sign-in page, choose "Forgot password?" and enter your full QuantMail address. Reset instructions will be sent if the address is eligible.',
+    title: 'Resetting your password',
+    body: 'Choose Forgot password? on the sign-in page and follow the instructions sent to your address.',
+    href: '/forgot-password',
+    linkLabel: 'Reset your password',
   },
   {
-    heading: 'Create an address',
-    body: 'New to QuantMail? Choose "Create an address" on the sign-in page and follow the steps to claim your address.',
-  },
-  {
-    heading: 'Something else is wrong',
-    body: 'If the app shows an error while loading, wait a moment and retry. If it persists, note what you were doing and the time it happened before contacting support.',
+    title: 'Creating an address',
+    body: 'New to QuantMail? Pick an address during registration. One identity gives you access to all Quant apps.',
+    href: '/register',
+    linkLabel: 'Create an address',
   },
 ];
 
 export default function HelpPage() {
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-16 text-zinc-300">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#FF8C42]">
-        Support
-      </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-        Help
-      </h1>
-      <p className="mt-3 text-sm leading-6 text-zinc-500">
-        Answers to the most common sign-in questions.
-      </p>
-      <div className="mt-8 space-y-6">
-        {TOPICS.map((topic) => (
-          <section key={topic.heading}>
-            <h2 className="text-sm font-semibold text-white">{topic.heading}</h2>
-            <p className="mt-1.5 text-sm leading-6 text-zinc-400">{topic.body}</p>
-          </section>
-        ))}
-      </div>
-      <p className="mt-10 text-sm">
-        <Link href="/login" className="font-semibold text-[#FF8C42] underline-offset-4 hover:underline">
-          Return to sign in
-        </Link>
-      </p>
-    </main>
+    <PageTransition>
+      <AuthShell
+        brand={
+          <AuthBrandPanel
+            eyebrow="Support"
+            title="How can we help?"
+            subtitle="Answers to the questions we hear most about signing in and managing your QuantMail account."
+          />
+        }
+      >
+        <div>
+          <div className="mb-8">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+              Help
+            </p>
+            <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+              Help center
+            </h1>
+          </div>
+
+          <div className="space-y-4">
+            {TOPICS.map((topic) => (
+              <section
+                key={topic.title}
+                className="rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-5"
+              >
+                <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+                  {topic.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+                  {topic.body}
+                </p>
+                <Link
+                  href={topic.href}
+                  className="mt-3 inline-flex min-h-[44px] items-center text-sm font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                >
+                  {topic.linkLabel}
+                </Link>
+              </section>
+            ))}
+          </div>
+
+          <p className="mt-8 text-center text-sm text-[var(--quant-muted-foreground)]">
+            <Link
+              href="/login"
+              className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"
+            >
+              Return to sign in
+            </Link>
+          </p>
+        </div>
+      </AuthShell>
+    </PageTransition>
   );
 }

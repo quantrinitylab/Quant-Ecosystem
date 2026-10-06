@@ -1,8 +1,8 @@
 'use client';
 
 // ============================================================================
-// QuantMail Sign-In
-// Gmail-parity: one logo, one email field, one primary action, minimal footer
+// QuantMail Executive Sovereign Sign-In
+// Superhuman / Linear / Google Workspace Executive Sovereign Parity
 // ============================================================================
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
@@ -219,7 +219,17 @@ function LoginForm() {
         <div>
           <div className="mb-7">
             <h1 className="text-2xl sm:text-[28px] font-semibold tracking-[-0.03em] text-white">
-              {stage === 'credentials' ? 'Sign in to QuantMail' : 'Confirm your identity'}
+              {stage === 'credentials' ? (
+                <>
+                  Sign in to{' '}
+                  <span className="signin-wordmark" aria-label="QuantMail">
+                    <span className="wm-quant">Quant</span>
+                    <span className="wm-mail">Mail</span>
+                  </span>
+                </>
+              ) : (
+                'Confirm your identity'
+              )}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
               {stage === 'credentials'
@@ -249,9 +259,17 @@ function LoginForm() {
           {stage === 'credentials' ? (
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="login-id" className="mb-2 block text-[13px] font-medium text-zinc-300">
-                  Email address
-                </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label htmlFor="login-id" className="text-[13px] font-medium text-zinc-300">
+                    Email address
+                  </label>
+                  <Link
+                    href="/forgot-email"
+                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  >
+                    Forgot email?
+                  </Link>
+                </div>
                 <input
                   id="login-id"
                   type="text"
@@ -263,7 +281,7 @@ function LoginForm() {
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   aria-invalid={Boolean(fieldErrors.identifier)}
-                  aria-describedby={fieldErrors.identifier ? 'login-id-error' : 'login-id-hint'}
+                  aria-describedby={fieldErrors.identifier ? 'login-id-error' : undefined}
                   className={`w-full rounded-xl border bg-[#111318]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 motion-reduce:transition-none ${
                     fieldErrors.identifier ? 'border-red-500/50' : 'border-white/[0.08]'
                   }`}
@@ -272,22 +290,7 @@ function LoginForm() {
                   <p id="login-id-error" className="mt-1.5 text-xs text-red-400">
                     {fieldErrors.identifier}
                   </p>
-                ) : (
-                  <p
-                    id="login-id-hint"
-                    className="mt-1.5 text-xs text-zinc-500 font-mono"
-                  >
-                    Enter your full QuantMail address.
-                  </p>
-                )}
-                <div className="mt-1.5 flex justify-end">
-                  <Link
-                    href="/forgot-email"
-                    className="inline-flex items-center px-1 py-1 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                  >
-                    Forgot email?
-                  </Link>
-                </div>
+                ) : null}
               </div>
 
               <div>
@@ -477,20 +480,11 @@ function LoginForm() {
             </p>
           ) : null}
 
-          {/* Minimal footer — Help · Privacy · Terms */}
-          <nav
-            aria-label="Legal"
-            className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-center gap-5 text-xs text-zinc-500"
-          >
-            <Link href="/help" className="hover:text-zinc-300 transition-colors">
-              Help
-            </Link>
-            <Link href="/privacy" className="hover:text-zinc-300 transition-colors">
-              Privacy
-            </Link>
-            <Link href="/terms" className="hover:text-zinc-300 transition-colors">
-              Terms
-            </Link>
+          {/* Minimal legal footer — no marketing claims */}
+          <nav aria-label="Legal" className="auth-legal-footer">
+            <Link href="/help">Help</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
           </nav>
         </div>
       </AuthShell>
@@ -520,6 +514,7 @@ function LoginFallback() {
           </div>
         </div>
         <div className="mb-7">
+          <div className="h-5 w-32 bg-[#FF8C42]/10 rounded-full mb-2.5" />
           <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight text-white">
             Sign in to QuantMail
           </h1>

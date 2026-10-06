@@ -13,13 +13,11 @@ const PUBLIC_PATHS = [
   '/forgot-email',
   '/reset-password',
   '/help',
-  '/privacy',
   '/terms',
+  '/privacy',
   '/sso',
   '/oauth',
-  // NOTE: /quantgit is intentionally NOT public — it gates behind the same
-  // sign-in view as /, /calendar, /drive and /contacts (AuthGuard redirects
-  // signed-out users to /login).
+  '/quantgit',
   // Per-app public marketing landing (apps/quantmail/src/app/marketing). It is
   // the product's own "marketing" surface from the restructure and must be
   // readable signed-out, so it stays out of the login redirect.
@@ -43,6 +41,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     PUBLIC_PATHS.includes(pathname ?? '') ||
     pathname?.startsWith('/sso') ||
     pathname?.startsWith('/oauth') ||
+    pathname?.startsWith('/quantgit') ||
     isInternalLabPath(pathname ?? '');
 
   useEffect(() => {

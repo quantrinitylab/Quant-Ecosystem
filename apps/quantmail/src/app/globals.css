@@ -1152,6 +1152,40 @@ body {
 .auth-proof-footer { display: flex; gap: .45rem; padding: .7rem 1rem; }.auth-proof-footer span { border-radius: 999px; padding: .22rem .5rem; background: rgba(255,255,255,.04); color: #A1A4AC; font-size: .62rem; }
 .auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .63rem; letter-spacing: .1em; text-transform: uppercase; }
 
+/* ---- v2: honest feature cards (replaces the fabricated demo-inbox proof card) ---- */
+.auth-feature-cards { display: grid; gap: .8rem; max-width: 36rem; margin-top: 2.2rem; }
+.auth-feature-card { display: flex; align-items: flex-start; gap: .9rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1rem; background: rgba(18,18,20,.72); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(18px); padding: 1rem 1.1rem; }
+.auth-feature-icon { display: grid; width: 2.6rem; height: 2.6rem; flex: none; place-items: center; border-radius: .7rem; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: #FF8C42; overflow: hidden; }
+.auth-feature-icon svg { width: 100%; height: 100%; display: block; }
+.auth-feature-card strong { display: block; color: #ececee; font-size: .78rem; font-weight: 700; letter-spacing: -.01em; }
+.auth-feature-card p { margin-top: .25rem; color: #A1A4AC; font-size: .74rem; line-height: 1.55; }
+
+/* ---- v2: designed QuantMail wordmark for the sign-in heading (Instagram-style script) ---- */
+.signin-wordmark { font-family: "Brush Script MT", "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.signin-wordmark .wm-quant { color: #fff; }
+.signin-wordmark .wm-mail { color: #FF8C42; }
+
+/* ---- v2: minimal legal footer under the sign-in form ---- */
+.auth-legal-footer { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; gap: 1.25rem; font-size: 11px; color: #6b6e76; }
+.auth-legal-footer a { color: #8b8e96; text-decoration: none; transition: color 150ms ease; }
+.auth-legal-footer a:hover { color: #c9c9ce; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Quant AI logo animations (transform/opacity only; reduced-motion safe) ---- */
+.qai-logo { display: inline-block; vertical-align: middle; animation: qai-float 5s ease-in-out infinite; }
+@keyframes qai-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.qai-eyes { transform-box: fill-box; transform-origin: center; animation: qai-blink 4.6s ease-in-out infinite; }
+@keyframes qai-blink { 0%, 90.5%, 97.5%, 100% { transform: scaleY(1); } 93.5% { transform: scaleY(.07); } }
+.qai-ring { filter: drop-shadow(0 0 9px rgba(168,85,247,.55)); animation: qai-glow 3.2s ease-in-out infinite; }
+@keyframes qai-glow { 0%, 100% { filter: drop-shadow(0 0 7px rgba(168,85,247,.45)); } 50% { filter: drop-shadow(0 0 16px rgba(168,85,247,.85)); } }
+.qai-think-arc { opacity: 0; transform-origin: 100px 100px; }
+.qai-thinking .qai-think-arc { opacity: 1; animation: qai-spin 1.15s linear infinite; }
+.qai-thinking .qai-ring { animation-duration: 1.15s; }
+@keyframes qai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .qai-logo, .qai-eyes, .qai-ring, .qai-thinking .qai-think-arc { animation: none !important; }
+  .qai-think-arc { opacity: 0 !important; }
+}
+
 /* Composer — floating, focused, and complete */
 .compose-page { height: 100%; overflow-y: auto; background: radial-gradient(circle at 50% -10%, rgba(255, 140, 66,.055), transparent 35rem), #090A0C; }
 .email-composer { min-height: 100%; height: auto; padding: clamp(.75rem, 2vw, 1.8rem); background: transparent; }
