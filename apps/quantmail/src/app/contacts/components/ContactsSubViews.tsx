@@ -969,6 +969,51 @@ export function ContactDetailSheet({
     }
   };
 
+  // Hooks must run unconditionally before any early return: when the selected
+  // contact changes from null to a contact (desktop auto-select after load),
+  // calling hooks after the return would change the hook count between renders
+  // and React throws "Rendered more hooks than during the previous render",
+  // crashing the whole contacts page into the global error boundary.
+  const contactEmailLower = (contact?.email || '').toLowerCase();
+  const contactThreads = React.useMemo(() => {
+    if (!contactEmailLower) return [];
+    const seen = new Set<string>();
+    const list: any[] = [];
+    for (const mail of recentMail) {
+      const participants = [mail.from, ...(mail.to || []), ...(mail.cc || [])];
+      const match = participants.some((p: any) => p?.email?.toLowerCase() === contactEmailLower);
+      if (match) {
+        const id = mail.threadId || mail.id;
+        if (!seen.has(id)) {
+          seen.add(id);
+          list.push(mail);
+        }
+      }
+    }
+    return list.slice(0, 5);
+  }, [recentMail, contactEmailLower]);
+
+  // Shared meetings for this contact
+  const sharedMeetings = React.useMemo(() => {
+    const list = [
+      {
+        id: 'meet-1',
+        title: `Product Sync with ${contact?.name || 'Contact'}`,
+        time: 'Tomorrow at 10:30 AM',
+        duration: '30 mins',
+        room: 'QuantMeet Sovereign Stage',
+      },
+      {
+        id: 'meet-2',
+        title: `Architecture Review & Planning`,
+        time: 'Thursday at 2:00 PM',
+        duration: '45 mins',
+        room: 'Virtual Room #8',
+      },
+    ];
+    return list;
+  }, [contact?.name]);
+
   // If no contact is selected
   if (!contact) {
     return (
@@ -1000,47 +1045,6 @@ export function ContactDetailSheet({
     : 'tag' in contact && typeof contact.tag === 'string'
       ? [contact.tag]
       : [];
-
-  // Filter mail history for this contact
-  const contactEmailLower = (contact.email || '').toLowerCase();
-  const contactThreads = React.useMemo(() => {
-    if (!contactEmailLower) return [];
-    const seen = new Set<string>();
-    const list: any[] = [];
-    for (const mail of recentMail) {
-      const participants = [mail.from, ...(mail.to || []), ...(mail.cc || [])];
-      const match = participants.some((p: any) => p?.email?.toLowerCase() === contactEmailLower);
-      if (match) {
-        const id = mail.threadId || mail.id;
-        if (!seen.has(id)) {
-          seen.add(id);
-          list.push(mail);
-        }
-      }
-    }
-    return list.slice(0, 5);
-  }, [recentMail, contactEmailLower]);
-
-  // Shared meetings for this contact
-  const sharedMeetings = React.useMemo(() => {
-    const list = [
-      {
-        id: 'meet-1',
-        title: `Product Sync with ${contact.name || 'Contact'}`,
-        time: 'Tomorrow at 10:30 AM',
-        duration: '30 mins',
-        room: 'QuantMeet Sovereign Stage',
-      },
-      {
-        id: 'meet-2',
-        title: `Architecture Review & Planning`,
-        time: 'Thursday at 2:00 PM',
-        duration: '45 mins',
-        room: 'Virtual Room #8',
-      },
-    ];
-    return list;
-  }, [contact.name]);
 
   return (
     <div className="h-full flex flex-col space-y-6">
