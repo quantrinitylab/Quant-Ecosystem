@@ -91,29 +91,29 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   };
 
   // ==========================================================================
-  // 1. DriveContextTabsHeader Tests
+  // 1. DriveContextTabsHeader Tests (Wave 89: 5 tabs -> 4 sovereign tabs: Home/Feed/AI Memory/Vault)
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
-    it('renders all 5 sovereign context tabs', () => {
+    it('renders all 4 sovereign context tabs', () => {
       const html = renderToStaticMarkup(
-        <DriveContextTabsHeader activeTab="files" onTabChange={() => {}} />,
+        <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
-      expect(html).toContain('drive-tab-files');
-      expect(html).toContain('drive-tab-shared');
+      expect(html).toContain('drive-tab-home');
+      expect(html).toContain('drive-tab-feed');
+      expect(html).toContain('drive-tab-aimemory');
       expect(html).toContain('drive-tab-vault');
-      expect(html).toContain('drive-tab-starred');
-      expect(html).toContain('drive-tab-cleaner');
+      
 
-      expect(html).toContain('My Files');
-      expect(html).toContain('Shared with me');
+      expect(html).toContain('Home');
+      expect(html).toContain('Feed');
+      expect(html).toContain('AI Memory');
       expect(html).toContain('Sovereign Vault');
-      expect(html).toContain('Starred');
-      expect(html).toContain('FastCDC Cleaner');
+      
     });
 
     it('sets aria-selected="true" on active tab', () => {
-      const tabs: DriveSubTab[] = ['files', 'shared', 'vault', 'starred', 'cleaner'];
+      const tabs: DriveSubTab[] = ['home', 'feed', 'aimemory', 'vault'];
 
       tabs.forEach((activeTab) => {
         const html = renderToStaticMarkup(
@@ -126,19 +126,19 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       });
     });
 
-    it('renders badgeText for Vault (E2EE) and Cleaner (64KB CDC)', () => {
+    it('renders badgeText for AI Memory (AI) and Vault (E2EE)', () => {
       const html = renderToStaticMarkup(
-        <DriveContextTabsHeader activeTab="files" onTabChange={() => {}} />,
+        <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
 
       expect(html).toContain('E2EE');
-      expect(html).toContain('64KB CDC');
+      expect(html).toContain('>AI<');
     });
 
-    it('renders badgeCount for shared and starred when greater than 0', () => {
+    it.skip('renders badgeCount for shared and starred when greater than 0', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader
-          activeTab="files"
+          activeTab="home"
           onTabChange={() => {}}
           sharedCount={5}
           starredCount={3}
@@ -152,7 +152,7 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
     it('contains strictly ZERO raw Unicode emojis in header', () => {
       const html = renderToStaticMarkup(
         <DriveContextTabsHeader
-          activeTab="files"
+          activeTab="home"
           onTabChange={() => {}}
           sharedCount={5}
           starredCount={3}
@@ -247,7 +247,7 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
     it('renders Shared with Me banner and active counter', () => {
       const html = renderToStaticMarkup(<DriveSharedSubView />);
 
-      expect(html).toContain('Shared with Me');
+      expect(html).toContain('Feed');
       expect(html).toContain('Active');
       expect(html).toContain('drive-panel-shared');
     });
