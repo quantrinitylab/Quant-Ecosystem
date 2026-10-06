@@ -265,11 +265,11 @@ const TAB_ICONS: Record<CalendarMergedTab, (props: { className?: string }) => Re
 const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLegacy?: boolean }> = [
   { key: 'feed', label: 'Feed' },
   { key: 'month', label: 'Month' },
+  { key: 'week', label: 'Week' },
   { key: 'events', label: 'Events' },
   { key: 'schedule', label: 'Schedule' },
   // Legacy merged tabs supported for backward compatibility with existing tests and deep links
   { key: 'agenda', label: 'Agenda', isLegacy: true },
-  { key: 'week', label: 'Week', isLegacy: true },
   { key: 'day', label: 'Day', isLegacy: true },
   { key: 'booking', label: 'Booking', isLegacy: true },
   { key: 'quantmeet', label: 'QuantMeet', isLegacy: true },

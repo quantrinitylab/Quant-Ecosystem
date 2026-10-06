@@ -949,9 +949,10 @@ export function DockedComposer({
         </div>
       </div>
 
-      {/* BOTTOM TOOLBAR */}
-      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2">
+      {/* BOTTOM TOOLBAR — horizontally scrollable on narrow screens so the
+          Send + action buttons never clip on 360px viewports. Scrollbar hidden. */}
+      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-2 min-w-max">
           {/* Molten Amber Send Button */}
           <button
             type="button"
@@ -1066,7 +1067,7 @@ export function DockedComposer({
             onDiscard?.();
             onClose();
           }}
-          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors"
+          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
           title="Discard draft"
         >
           <IconTrash className="size-4" />

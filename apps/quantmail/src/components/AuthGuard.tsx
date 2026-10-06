@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { LoadingState } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
 
@@ -27,7 +27,12 @@ function isInternalLabPath(pathname: string): boolean {
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
   const pathname = usePathname();
-  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isPublicPath =
     PUBLIC_PATHS.includes(pathname ?? '') ||
     pathname?.startsWith('/sso') ||
@@ -36,13 +41,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     isInternalLabPath(pathname ?? '');
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isPublicPath) {
+    if (mounted && !isLoading && !isAuthenticated && !isPublicPath) {
       const search = typeof window !== 'undefined' ? window.location.search : '';
       const full = pathname ? `${pathname}${search}` : '';
       const returnTo = full && full !== '/' ? `?returnTo=${encodeURIComponent(full)}` : '';
-      router.replace(`/login${returnTo}`);
+      if (typeof window !== 'undefined') {
+        window.location.replace(`/login${returnTo}`);
+      }
     }
-  }, [isLoading, isAuthenticated, isPublicPath, router, pathname]);
+  }, [mounted, isLoading, isAuthenticated, isPublicPath, pathname]);
 
   if (isLoading && !isPublicPath) {
     return (
