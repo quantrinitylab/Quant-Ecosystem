@@ -37,14 +37,15 @@ export async function POST(req: Request) {
     } catch (error) {
       clearTimeout(timeoutId);
 
-      // Fallback logic
+      // Fallback: verify ONLY against codes issued by this service's own
+      // store (which can only hold codes issued with a real SMS). There is
+      // no universal/demo code — '123456' was removed as a critical auth
+      // backdoor. If the upstream provider and the local store both have no
+      // valid code, verification fails.
       const fallbackEntry = activeOtpCodes.get(normalizedPhone);
-      const isValidUniversal = otp === '123456';
 
       let isValid = false;
-      if (isValidUniversal) {
-        isValid = true;
-      } else if (
+      if (
         fallbackEntry &&
         fallbackEntry.code === otp &&
         fallbackEntry.expiresAt > Date.now()
