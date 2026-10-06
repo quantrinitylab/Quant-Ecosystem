@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PageTransition } from '../Motion';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -49,6 +50,14 @@ export const AppShell: React.FC<AppShellProps> = ({
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // P0 (QuantAds mobile audit): below the md breakpoint the pinned choice is
+  // ignored and the sidebar is always an off-canvas drawer. A pin persisted
+  // from a desktop session otherwise docks a fixed-width column on a 390px
+  // phone and clips the content off-canvas.
+  const breakpoint = useBreakpoint();
+  const forceOverlayBelowMd = breakpoint === 'xs' || breakpoint === 'sm';
+  const effectivePinned = pinned && !forceOverlayBelowMd;
+
   useEffect(() => {
     if (!overlayMode || typeof window === 'undefined') return;
     setPinned(window.localStorage.getItem(PIN_STORAGE_KEY) === '1');
@@ -91,8 +100,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     return () => window.removeEventListener('popstate', close);
   }, [overlayMode]);
 
-  const dockedSidebar = sidebar && (!overlayMode || pinned);
-  const showHamburger = overlayMode && !pinned;
+  const dockedSidebar = sidebar && (!overlayMode || effectivePinned);
+  const showHamburger = overlayMode && !effectivePinned;
 
   return (
     <section
@@ -106,7 +115,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         `<aside>`, the header, `<main>`) stop behaving like landmarks. A named
         `<section>` is a `region`, which is all the `aria-label` ever wanted.
       */
-      data-shell-fullscreen={overlayMode && !pinned ? 'true' : undefined}
+      data-shell-fullscreen={overlayMode && !effectivePinned ? 'true' : undefined}
     >
       {dockedSidebar && (
         <aside className="relative flex-shrink-0" aria-label="Sidebar">
