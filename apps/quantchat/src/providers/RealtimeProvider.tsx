@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { getAuthToken } from '../lib/auth';
+import { getAuthToken, getWsProtocols } from '../lib/auth';
 import { ChannelRouter } from './eventRouter';
 import { RealtimeContext } from './realtime-context';
 import type {
@@ -42,16 +42,15 @@ function getBackoffDelay(attempt: number): number {
   return Math.min((attempt + 1) * 1000, 3000);
 }
 
-/** Default WebSocket URL */
+/** Default WebSocket URL — same origin as the page; the ingress routes `/ws`
+ * to the chat backend. (P0-1: previously hardcoded the undeployed
+ * `wss://quantws.quantrinity.in/ws`, whose handshake timed out.) */
 function getWsUrl(): string {
   if (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_WS_URL) {
     return process.env.NEXT_PUBLIC_WS_URL;
   }
   if (typeof window !== 'undefined') {
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      if (window.location.hostname === 'quantchat.quantrinity.in') {
-        return 'wss://quantws.quantrinity.in/ws';
-      }
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       return `${proto}//${window.location.host}/ws`;
     }
@@ -175,7 +174,11 @@ export function RealtimeProvider({ children }: Props) {
     setConnectionState('reconnecting');
 
     try {
-      const ws = new WebSocket(wsUrl);
+      // P1: the bearer token travels as a negotiated subprotocol
+      // (Sec-WebSocket-Protocol handshake header) — never in the URL, and no
+      // post-connect `{type:'auth'}` frame (the backend authenticates the
+      // upgrade itself and ignores unknown frames).
+      const ws = new WebSocket(wsUrl, getWsProtocols());
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -183,9 +186,6 @@ export function RealtimeProvider({ children }: Props) {
           ws.close();
           return;
         }
-
-        // Task 16.1: Authenticate by sending JWT as first message
-        ws.send(JSON.stringify({ type: 'auth', token }));
 
         // Task 16.5: Re-subscribe all active channels on (re)connect
         subscribedChannelsRef.current.forEach((channel) => {

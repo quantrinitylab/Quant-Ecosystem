@@ -3,7 +3,7 @@
 // WebSocket connection, send/receive messages, typing, read receipts, status
 // ============================================================================
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getAuthHeaders, getAuthHeadersWithContent, getWsAuthUrl } from '../lib/auth';
+import { getAuthHeaders, getAuthHeadersWithContent, getWsAuthUrl, getWsProtocols } from '../lib/auth';
 
 interface ChatMessage {
   id: string;
@@ -61,7 +61,8 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   const connect = useCallback(() => {
     const wsUrl = getWsAuthUrl(conversationId);
     try {
-      const ws = new WebSocket(wsUrl);
+      // Auth via negotiated subprotocol — never `?token=` in the URL (P1).
+      const ws = new WebSocket(wsUrl, getWsProtocols());
       ws.onopen = () => {
         setConnected(true);
         reconnectAttempts.current = 0;
