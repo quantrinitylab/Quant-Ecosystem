@@ -1130,8 +1130,11 @@ export function EmailComposer({
             </div>
           </div>
 
-          {/* Main Composer Scrollable Body (Hidden during Print) */}
-          <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border">
+          {/* Main Composer Scrollable Body (Hidden during Print).
+              flex-col so the body canvas below can flex-1 to fill the viewport:
+              otherwise the editor stays 200px tall and the rest of the region
+              renders as an empty black void above the pinned Send toolbar. */}
+          <div className="print:hidden flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3 sm:px-6 py-3 space-y-3 w-full max-w-full box-border flex flex-col">
             {/* Recipient Rows (To, Cc, Bcc) */}
             <div className="border-b border-[#282C35]/80 pb-2 space-y-2 w-full max-w-full">
               {/* To: Row */}
@@ -1317,8 +1320,10 @@ export function EmailComposer({
               </div>
             )}
 
-            {/* Main Fluid Body Canvas */}
-            <div className="space-y-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
+            {/* Main Fluid Body Canvas — flex-1 stretches the editor to fill the
+                scroll region (parent is now flex-col), so no black void sits
+                between the editor and the Send toolbar. */}
+            <div className="flex flex-col gap-1.5 w-full max-w-full box-border flex-1 min-h-[220px]">
               <textarea
                 id="composer-body"
                 name="body"
@@ -1341,7 +1346,7 @@ export function EmailComposer({
                     `${isUnderline ? 'underline ' : ''}${isStrikethrough ? 'line-through' : ''}`.trim() ||
                     'none',
                 }}
-                className={`w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50 resize-y leading-relaxed shadow-inner min-h-[200px]`}
+                className={`flex-1 w-full max-w-full box-border bg-[#090A0C]/40 border border-[#282C35]/80 rounded-2xl p-4 text-xs sm:text-sm ${selectedFont.css} ${selectedSize.css} placeholder-[#A1A4AC] focus:outline-none focus:border-[#FF8C42]/50 resize-none leading-relaxed shadow-inner min-h-[200px]`}
               />
 
               {/* Smart Compose Predictive Autocomplete Chip */}
