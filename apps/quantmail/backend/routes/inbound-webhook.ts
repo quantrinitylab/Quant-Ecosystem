@@ -45,6 +45,7 @@ import {
   type AuthVerdict,
 } from '../services/deliverability-auth.service';
 import { InboundIngestAdapter, type InboundRawMessage } from '../services/inbound-ingest.service';
+import { MailFilterService } from '../services/mail-filter.service';
 import { suppressionService } from '../services/suppression.service';
 import { createAppError } from '@quant/server-core';
 
@@ -307,7 +308,11 @@ let adapterSingleton: InboundIngestAdapter | undefined;
 function ingestAdapter(): InboundIngestAdapter {
   if (!adapterSingleton) {
     const db = prisma as unknown as ConstructorParameters<typeof InboundIngestAdapter>[0];
-    adapterSingleton = new InboundIngestAdapter(db, new DeliverabilityAuthService(db));
+    // P0 fix: wire the filter service so user filters auto-trigger on inbound
+    // mail instead of only on manual "Apply Now".
+    adapterSingleton = new InboundIngestAdapter(db, new DeliverabilityAuthService(db), {
+      filters: new MailFilterService(prisma as never),
+    });
   }
   return adapterSingleton;
 }
