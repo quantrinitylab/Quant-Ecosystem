@@ -7,7 +7,7 @@ export default function StarredPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/');
+    router.replace('/?filter=starred');
   }, [router]);
 
   return null;

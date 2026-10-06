@@ -445,10 +445,10 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      ...inboxCommand('inbox.star'),
+      ...inboxCommand('inbox.pin'),
       scope: SCOPE,
       icon: 'star',
-      keywords: ['flag', 'pin', 'important'],
+      keywords: ['flag', 'pin', 'important', 'star'],
       enabled: () => focusedRow !== null,
       run: () => {
         if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));

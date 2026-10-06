@@ -697,7 +697,7 @@ export function ConversationalThreadView({
     if (targetId) {
       try {
         await apiClient.toggleStar(targetId);
-        showToast({ text: nextState ? 'Thread starred' : 'Thread unstarred', type: 'info' });
+        showToast({ text: nextState ? 'Pinned to top' : 'Unpinned from top', type: 'info' });
       } catch {
         setStarred(!nextState);
       }

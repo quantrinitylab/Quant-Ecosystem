@@ -1112,6 +1112,11 @@ export default function InboxPage() {
       setActiveTab('inbox');
       setShowArchivedView(false);
     }
+    // Deep-link support: ?filter=starred applies the Pinned filter chip.
+    const f = searchParams?.get('filter');
+    if (f === 'starred') {
+      setActiveFilters(new Set(['starred' as InboxFilter]));
+    }
   }, [searchParams]);
 
   useEffect(() => {
