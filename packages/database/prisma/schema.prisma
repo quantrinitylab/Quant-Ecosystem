@@ -74,6 +74,7 @@ model User {
   stories            Story[]
   notifications      Notification[]
   aiSessions         AISession[]
+  quantyArtifacts    QuantyArtifact[]
   campaigns          Campaign[]
   datingProfile      DatingProfile?
   shortVideos        ShortVideo[]
@@ -516,6 +517,7 @@ model Email {
   snippet        String?
   isRead         Boolean       @default(false)
   isStarred      Boolean       @default(false)
+  isPinned       Boolean       @default(false)
   isImportant    Boolean       @default(false)
   isDraft        Boolean       @default(false)
   isSent         Boolean       @default(false)
@@ -550,6 +552,16 @@ model Email {
   // position in that timeline and cannot be shown next to the conversation it
   // belongs to. Nullable only because drafts have not entered any timeline yet.
   receivedAt     DateTime?
+  // Read-receipt pipeline (WhatsApp-style ticks). `deliveredAt` is stamped when
+  // the message reaches the recipient's mailbox (internal delivery is immediate;
+  // external delivery stamps it when SES accepts the message or the queued
+  // delivery pipeline completes). `readAt` is stamped on the *sender's* sent
+  // copy when a recipient opens the thread (ThreadService.markThreadRead
+  // propagates it via the shared messageId). Nullable: rows written before this
+  // pipeline existed have no events, and a queued-but-unsent message is neither
+  // delivered nor read.
+  deliveredAt     DateTime?
+  readAt          DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
@@ -1388,6 +1400,32 @@ model AIMessage {
   @@index([sessionId])
   @@index([createdAt])
   @@map("ai_messages")
+}
+
+// ==================== Quanty (Muse parity) ====================
+
+model QuantyArtifact {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  kind        String    @default("artifact") // 'artifact' | 'media'
+  type        String?   // artifact subtype: 'component' | 'code' | 'markdown'
+  language    String?
+  code        String?   @db.Text
+  markdown    String?   @db.Text
+  previewHtml String?   @db.Text
+  contentRef  String?   // external storage reference (e.g. media object key)
+  systemFile  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  openedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
+  @@index([userId, updatedAt])
+  @@map("quanty_artifacts")
 }
 
 enum AIMessageRole {

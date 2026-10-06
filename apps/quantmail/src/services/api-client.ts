@@ -40,6 +40,9 @@ import type {
   MeetingExtraction,
 } from '../types';
 
+// Re-export shared types used by settings and other surfaces.
+export type { EmailLabel } from '../types';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -458,6 +461,10 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/star`, {});
   }
 
+  async togglePin(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/pin`, {});
+  }
+
   async markAsRead(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/read`, {});
   }
@@ -534,6 +541,10 @@ export class QuantMailApiClient {
     return this.put(`/email-signatures/${id}`, data);
   }
 
+  async deleteEmailSignature(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.delete(`/email-signatures/${id}`);
+  }
+
   async getVacationResponder(): Promise<ApiResponse<VacationResponderPreference | null>> {
     return this.get('/vacation-responder');
   }
@@ -600,6 +611,15 @@ export class QuantMailApiClient {
 
   async getThread(threadId: string): Promise<ApiResponse<EmailThread>> {
     return this.get(`/threads/${threadId}`);
+  }
+
+  /**
+   * Read-receipt pipeline: mark a thread as read. The server stamps `readAt`
+   * on the viewer's unread received messages and propagates it to the
+   * senders' sent copies so their ticks flip to double-green. Idempotent.
+   */
+  async markThreadRead(threadId: string): Promise<ApiResponse<{ marked: number; readAt: string }>> {
+    return this.post(`/threads/${threadId}/read`, {});
   }
 
   // --------------------------------------------------------------------------

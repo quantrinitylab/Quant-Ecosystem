@@ -46,6 +46,7 @@ import mcpRoutes from './routes/mcp';
 import automationsRoutes from './routes/automations';
 import scheduledTasksRoutes from './routes/scheduled-tasks';
 import fileLibraryRoutes from './routes/file-library';
+import quantyArtifactsRoutes from './routes/quanty-artifacts';
 import projectContextRoutes from './routes/project-context';
 import projectMemoryRoutes from './routes/project-memory';
 import imageWizardRoutes from './routes/image-wizard';
@@ -149,6 +150,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(scheduledTasksRoutes, { prefix: '/agents/scheduled' });
   await app.register(mcpConnectorsRoutes, { prefix: '/connectors' });
   await app.register(fileLibraryRoutes, { prefix: '/files/library' });
+  await app.register(quantyArtifactsRoutes, { prefix: '/quanty/artifacts' });
   await app.register(projectContextRoutes, { prefix: '/projects' });
   await app.register(projectMemoryRoutes, { prefix: '/projects' });
   await app.register(imageWizardRoutes, { prefix: '/image-wizard' });

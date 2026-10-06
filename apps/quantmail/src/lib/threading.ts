@@ -32,6 +32,7 @@ export interface ConversationThread {
   participantsSummary: string;
   isRead: boolean;
   isStarred: boolean;
+  isPinned: boolean;
   receivedAt: string | Date;
   category: EmailCategory;
   priority?: string;
@@ -547,6 +548,7 @@ function collapseDuplicateSends(messages: Email[]): Email[] {
       ...twin,
       isRead: Boolean(twin.isRead) || Boolean(message.isRead),
       isStarred: Boolean(twin.isStarred) || Boolean(message.isStarred),
+      isPinned: Boolean((twin as { isPinned?: boolean }).isPinned) || Boolean((message as { isPinned?: boolean }).isPinned),
       snippet: twin.snippet || message.snippet,
       threadId: twin.threadId || message.threadId,
       // A pair can itself be paired with a third copy, so the loser's own folded
@@ -840,6 +842,7 @@ export function groupEmailsIntoThreads(
     const latest = messages[messages.length - 1];
     const isRead = messages.every((m) => m.isRead || isFromMe(m, currentEmail));
     const isStarred = messages.some((m) => m.isStarred);
+    const isPinned = messages.some((m) => (m as { isPinned?: boolean }).isPinned);
 
     const participants = threadParticipants(messages, currentEmail);
 
@@ -861,6 +864,7 @@ export function groupEmailsIntoThreads(
       participantsSummary: summarizeParticipants(participants),
       isRead,
       isStarred,
+      isPinned,
       receivedAt: latest.receivedAt || latest.createdAt || new Date(),
       category,
       priority: latest.priority,

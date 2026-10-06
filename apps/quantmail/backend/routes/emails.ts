@@ -300,6 +300,7 @@ export default async function emailsRoutes(
             inReplyTo: d.inReplyTo,
             attachments: d.attachments,
             messageKind: toMessageKind(d.messageKind),
+            messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
           });
         } catch (err) {
           request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
@@ -470,6 +471,7 @@ export default async function emailsRoutes(
           inReplyTo: email.inReplyTo ?? undefined,
           attachments: (email.attachments as any[]) ?? [],
           messageKind: toMessageKind((email as any).messageKind),
+          messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
         });
       } catch (error) {
         request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');
@@ -1277,6 +1279,20 @@ export default async function emailsRoutes(
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
     const email = await service.markStarred(request.params.id, userId);
+
+    return reply.send({ success: true, data: formatEmailRecord(email) });
+  });
+
+  // POST /emails/:id/pin — toggle pin-to-top. Independent from star.
+  fastify.post<{ Params: { id: string } }>('/:id/pin', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
+    const email = await service.togglePin(request.params.id, userId);
 
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
