@@ -496,15 +496,15 @@ function EmailRow({
           }}
           aria-label={`Select conversation with ${thread.participantsSummary}`}
         />
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelect(event);
-          }}
-          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-          title="Select conversation"
-          aria-label={`Select ${groupInfo?.name ?? thread.participantsSummary}`}
+        {/*
+          Decorative avatar: tapping it opens the thread like any other part of
+          the row. Selection is the checkbox's job alone (Gmail-style) — the old
+          "tap avatar to select" button was a 44px mis-tap magnet that made
+          single taps feel like they selected instead of opened.
+        */}
+        <span
+          aria-hidden="true"
+          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
         >
           {groupInfo ? (
             <span
@@ -521,7 +521,7 @@ function EmailRow({
           ) : (
             <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
           )}
-        </button>
+        </span>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -2490,8 +2490,13 @@ export default function InboxPage() {
       // is an `every`, so clearing only the newest left the row bold after the user
       // had plainly just read it.
       void mutations.markRead(conversationIds(email.id));
+      // Gmail-style interaction model: a single click/tap ALWAYS opens the
+      // conversation in the thread view, on every viewport. The reading pane
+      // used to swallow desktop opens (state-only, no navigation), which made
+      // a click look like a mere highlight/select. Selection is the checkbox's
+      // job alone — never the row's.
       const targetId = email.threadId || email.id;
-      if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
+      if (typeof window !== 'undefined') {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
       }
