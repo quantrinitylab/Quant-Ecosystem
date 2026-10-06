@@ -16,6 +16,7 @@ import { GroupInfoModal, ContactProfileInspector } from './GroupInfoModal';
 import { GroupEditorModal, type GroupDraft } from './GroupEditorModal';
 import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
+import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
@@ -212,6 +213,13 @@ export function ConversationalThreadView({
 
   // Quick reply & AI state
   const [quickReplyText, setQuickReplyText] = useState('');
+  /*
+   * Quoted reply: set when a thread gesture (swipe-right, menu Reply) targets
+   * a specific message. The send below replies to this message instead of the
+   * latest one, and a chip above the bar shows what is being answered.
+   */
+  const [quotedMessage, setQuotedMessage] = useState<Email | null>(null);
+  const quickReplyInputRef = useRef<HTMLInputElement>(null);
   const [isSendingQuickReply, setIsSendingQuickReply] = useState(false);
   const [isQuantyOpen, setIsQuantyOpen] = useState(false);
   const showQuanty = useDeferredMount(isQuantyOpen);
@@ -296,6 +304,30 @@ export function ConversationalThreadView({
       `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
     );
   }, [messages, primaryMessage, router, threadSubject]);
+
+  /*
+   * Per-message gestures: swipe-right / menu Reply quotes this message into
+   * the quick-reply bar; menu Forward carries this message's body into the
+   * full composer. Both land the user in the bar they were already using.
+   */
+  const startQuoteReply = useCallback((message: Email) => {
+    setQuotedMessage(message);
+    // A quoted answer is a chat line, not a letter — even if the mode switch
+    // above was flipped to Mail, the gesture means "answer this now".
+    setComposeMode('chat');
+    requestAnimationFrame(() => quickReplyInputRef.current?.focus());
+  }, []);
+
+  const forwardMessage = useCallback(
+    (message: Email) => {
+      const body = message.bodyText || message.snippet || '';
+      const subj = threadSubject.startsWith('Fwd:') ? threadSubject : `Fwd: ${threadSubject}`;
+      router.push(
+        `/compose?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body ? `\n\n---------- Forwarded message ---------\n${body}` : '')}`,
+      );
+    },
+    [router, threadSubject],
+  );
 
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
@@ -690,7 +722,9 @@ export function ConversationalThreadView({
     quantyReact('mail:sending');
 
     const replyContent = quickReplyText.trim();
-    const replyTarget = messages.length > 0 ? messages[messages.length - 1].id : threadId;
+    // A quoted reply answers the message the gesture targeted; otherwise the
+    // latest message, as before.
+    const replyTarget = quotedMessage?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
 
     try {
       // `'chat'` is the whole point of the bar: what is typed here is a line in the
@@ -762,6 +796,8 @@ export function ConversationalThreadView({
 
       setQuickReplyText('');
       setPendingAttachments([]);
+      // A quoted reply is one-shot: the chip clears once the answer is away.
+      setQuotedMessage(null);
       quantyReact('mail:sent');
       showToast({ text: 'Reply sent successfully', type: 'success' });
 
@@ -786,6 +822,7 @@ export function ConversationalThreadView({
     pendingAttachments,
     isSendingQuickReply,
     messages,
+    quotedMessage,
     threadId,
     threadSubject,
     expandedIndices,
@@ -1331,8 +1368,15 @@ export function ConversationalThreadView({
             const messageKind = messageKindOf(message);
 
             return (
-              <motion.div
+              <ThreadBubbleShell
                 key={message.id || index}
+                message={message}
+                senderName={msgFromName}
+                isOutbound={isOutbound}
+                onQuoteReply={startQuoteReply}
+                onForwardMessage={forwardMessage}
+              >
+              <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -1599,6 +1643,7 @@ export function ConversationalThreadView({
                   </div>
                 )}
               </motion.div>
+              </ThreadBubbleShell>
             );
           })}
 
@@ -1607,6 +1652,49 @@ export function ConversationalThreadView({
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          Quoted-reply chip: what a swipe-right or menu Reply targeted. One tap
+          on the × (or Escape in the input) stands the bar back down to replying
+          to the latest message.
+        */}
+        {quotedMessage && (
+          <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#FF8C42]/[0.06] border border-[#FF8C42]/25">
+            <svg
+              className="size-4 shrink-0 text-[#FF8C42]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 17l-5-5 5-5" />
+              <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+            </svg>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-[#FF8C42]">
+                Replying to{' '}
+                {quotedMessage.from?.name ||
+                  quotedMessage.from?.email?.split('@')[0] ||
+                  'message'}
+              </p>
+              <p className="truncate text-xs text-[#A1A4AC]">
+                {quotedMessage.snippet || quotedMessage.bodyText?.slice(0, 80) || '(No preview)'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuotedMessage(null)}
+              aria-label="Cancel quoted reply"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full text-[#A1A4AC] transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+            >
+              <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
         {/*
           Message or Mail: the choice, stated.
 
@@ -1747,6 +1835,7 @@ export function ConversationalThreadView({
           {/* Chat Input Text Area */}
           <input
             id="chatbot-reply-input"
+            ref={quickReplyInputRef}
             type="text"
             value={quickReplyText}
             onChange={(e) => setQuickReplyText(e.target.value)}
@@ -1754,6 +1843,9 @@ export function ConversationalThreadView({
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleBarSend();
+              }
+              if (e.key === 'Escape' && quotedMessage) {
+                setQuotedMessage(null);
               }
             }}
             placeholder={
