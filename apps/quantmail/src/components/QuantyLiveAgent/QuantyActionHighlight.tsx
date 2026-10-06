@@ -109,7 +109,6 @@ export function QuantyActionHighlight({
       window.removeEventListener('scroll', measure, true);
       window.removeEventListener('resize', measure);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, selector, targetKey]);
 
   const show = active && rect !== null;

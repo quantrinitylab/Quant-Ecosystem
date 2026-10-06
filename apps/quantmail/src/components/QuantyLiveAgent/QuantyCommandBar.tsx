@@ -122,7 +122,6 @@ export function QuantyCommandBar({
       autoStartedRef.current = true;
       startListening();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStartListening, speechSupported]);
 
   const toggleListening = () => {

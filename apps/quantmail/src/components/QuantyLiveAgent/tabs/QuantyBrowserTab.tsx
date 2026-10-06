@@ -70,7 +70,6 @@ export function QuantyBrowserTab({ tasks = [], loading = false, className = '' }
                   aria-label={`${task.title} — ${STATUS_LABEL[task.status]}`}
                 >
                   {task.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={task.thumbnailUrl}
                       alt=""

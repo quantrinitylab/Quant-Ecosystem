@@ -72,7 +72,9 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       const pillars: ProductivityPillar[] = ['mail', 'calendar', 'drive', 'contacts', 'quantgit'];
       pillars.forEach((p) => {
         expect(PILLAR_SUB_CONFIGS[p]).toBeDefined();
-        expect(PILLAR_SUB_CONFIGS[p].tabs).toHaveLength(p === 'quantgit' || p === 'contacts' ? 5 : 4);
+        expect(PILLAR_SUB_CONFIGS[p].tabs).toHaveLength(
+          p === 'quantgit' || p === 'contacts' || p === 'calendar' ? 5 : 4,
+        );
       });
     });
 
@@ -92,11 +94,11 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       expect(agentsTab?.badgeText).toBe('AI');
     });
 
-    it('Calendar pillar config has [Feed], [Month], [Events], [Schedule]', () => {
+    it('Calendar pillar config has [Feed], [Month], [Week], [Events], [Schedule]', () => {
       const calConfig = PILLAR_SUB_CONFIGS.calendar;
       expect(calConfig.accentColor).toBe('#F59E0B');
       const tabIds = calConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['feed', 'month', 'events', 'schedule']);
+      expect(tabIds).toEqual(['feed', 'month', 'week', 'events', 'schedule']);
     });
 
     it('Drive pillar config has [Home], [Feed], [AI Memory] (AI), [Vault] (E2EE)', () => {

@@ -255,7 +255,6 @@ export function CalendarWeekView({
     // Scroll so the current time is visible on first mount (Google-like).
     const el = bodyRef.current;
     if (el) el.scrollTop = Math.max(0, minutesToTop(nowMinutes) - 160);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- drag-to-create ---------------------------------------------------
