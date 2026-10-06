@@ -131,7 +131,7 @@ class QuantMaxApiClient {
 
   // Video Chat
   async joinVideoChat(
-    preferences: VideoChatPreferences,
+    preferences: Partial<VideoChatPreferences>,
   ): Promise<ApiResponse<{ chatId: string | null; status: string }>> {
     return this.request('POST', '/videochat/join', preferences);
   }
