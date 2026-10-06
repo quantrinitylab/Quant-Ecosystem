@@ -177,6 +177,39 @@ function formatReceivedAt(value?: string | Date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+/**
+ * Maps raw error objects to user-friendly messages.
+ * Never expose technical details (status codes, stack traces, API internals)
+ * to end users.
+ */
+function getFriendlyErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  const lower = message.toLowerCase();
+
+  if (lower.includes('network') || lower.includes('fetch') || lower.includes('failed to fetch')) {
+    return 'Could not connect. Check your internet connection and try again.';
+  }
+  if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('auth')) {
+    return 'Your session expired. Please sign in again.';
+  }
+  if (lower.includes('403') || lower.includes('forbidden')) {
+    return 'You do not have permission to view these emails.';
+  }
+  if (lower.includes('404') || lower.includes('not found')) {
+    return 'The requested mailbox could not be found.';
+  }
+  if (lower.includes('429') || lower.includes('rate limit') || lower.includes('too many')) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  if (lower.includes('500') || lower.includes('502') || lower.includes('503') || lower.includes('server')) {
+    return 'Something went wrong on our side. Please try again in a moment.';
+  }
+  if (lower.includes('timeout')) {
+    return 'The request took too long. Please try again.';
+  }
+  return 'Something went wrong loading your emails. Please try again.';
+}
+
 function SpamBanner({
   spamCount,
   onEmptySpam,
@@ -435,6 +468,15 @@ function EmailRow({
         </div>
       )}
       <article
+        role="button"
+        tabIndex={0}
+        aria-label={`Open email: ${thread.subject}`}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onOpen();
+          }
+        }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onTouchStart={(event) => {
@@ -529,7 +571,9 @@ function EmailRow({
             </div>
             {!thread.isRead && <UnreadDot />}
             {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
-            <time>{formatReceivedAt(thread.receivedAt)}</time>
+            <time dateTime={thread.receivedAt.toISOString()}>
+              {formatReceivedAt(thread.receivedAt)}
+            </time>
           </div>
           <h3 className="text-xs sm:text-sm font-medium text-[#A1A4AC] truncate">
             {groupInfo && thread.subject.toLowerCase() === `[group] ${groupInfo.name.toLowerCase()}`
@@ -2859,15 +2903,20 @@ export default function InboxPage() {
             )}
 
             {(isLoading || isSearching) && (
-              <div className="mail-loading">
+              <div className="mail-loading" role="status" aria-label="Loading emails">
                 {Array.from({ length: 6 }, (_, index) => (
-                  <Skeleton key={index} variant="rect" width="100%" height="76px" />
+                  <div key={index} aria-hidden="true">
+                    <Skeleton variant="rect" width="100%" height="76px" />
+                  </div>
                 ))}
               </div>
             )}
             {error && (
               <div className="mail-error">
-                <ErrorState message={error.message} onRetry={() => void refetch()} />
+                <ErrorState
+                  message={getFriendlyErrorMessage(error)}
+                  onRetry={() => void refetch()}
+                />
               </div>
             )}
             {!isLoading && !isSearching && !error && showGroupsView && (
@@ -3000,7 +3049,10 @@ export default function InboxPage() {
                                   </strong>
 
                                   {matchingThread && (
-                                    <time className="shrink-0 text-[10px] text-[#A1A4AC]">
+                                    <time
+                                      className="shrink-0 text-[10px] text-[#A1A4AC]"
+                                      dateTime={matchingThread.receivedAt.toISOString()}
+                                    >
                                       {formatReceivedAt(matchingThread.receivedAt)}
                                     </time>
                                   )}

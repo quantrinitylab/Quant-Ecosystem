@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import { QuantMailLogo } from './QuantMailLogo';
 
 /**
@@ -10,6 +11,8 @@ import { QuantMailLogo } from './QuantMailLogo';
  * no dead blank space below.
  */
 export function InboxZeroState({ query }: { query?: string }) {
+  const router = useRouter();
+
   return (
     <motion.div
       className="inbox-zero"
@@ -37,6 +40,16 @@ export function InboxZeroState({ query }: { query?: string }) {
         <>
           <h2 className="inbox-zero-title">All done for the day</h2>
           <p className="inbox-zero-subtitle">Enjoy your empty inbox.</p>
+          <button
+            type="button"
+            onClick={() => router.push('/compose')}
+            className="mt-6 inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-[#FF8C42] px-6 text-sm font-bold text-[#090A0C] transition-colors hover:bg-[#FF9B5A] active:bg-[#E8752F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] focus-visible:ring-offset-2 focus-visible:ring-offset-[#090A0C]"
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              ✎
+            </span>
+            Compose new email
+          </button>
         </>
       )}
     </motion.div>
