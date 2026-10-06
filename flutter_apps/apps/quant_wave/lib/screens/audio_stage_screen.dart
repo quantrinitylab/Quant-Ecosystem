@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
 import 'spaces_controller_sheet.dart';
 
 class AudioStageScreen extends StatefulWidget {
@@ -20,7 +19,8 @@ class AudioStageScreen extends StatefulWidget {
 }
 
 class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerProviderStateMixin {
-  late WaveSpaceRoom _room;
+  // Honest default: no fabricated live room. Null until a real room is joined.
+  WaveSpaceRoom? _room;
   late AnimationController _pulseController;
   bool _isMicMuted = false;
   bool _isHandRaised = false;
@@ -28,7 +28,7 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _room = widget.room ?? WaveMockData.getLiveAudioSpaces().first;
+    _room = widget.room;
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -66,10 +66,10 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
     );
 
     setState(() {
-      final updatedListeners = _room.listeners.where((l) => l.id != listener.id).toList();
-      final updatedQueue = _room.raisedHandsQueue.where((id) => id != listener.id).toList();
-      _room = _room.copyWith(
-        speakers: [..._room.speakers, newSpeaker],
+      final updatedListeners = _room!.listeners.where((l) => l.id != listener.id).toList();
+      final updatedQueue = _room!.raisedHandsQueue.where((id) => id != listener.id).toList();
+      _room = _room!.copyWith(
+        speakers: [..._room!.speakers, newSpeaker],
         listeners: updatedListeners,
         raisedHandsQueue: updatedQueue,
       );
@@ -88,12 +88,32 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    final hostSpeaker = _room.speakers.firstWhere(
+    // Honest empty state: no fabricated live room.
+    if (_room == null) {
+      return Scaffold(
+        backgroundColor: QuantColors.voidObsidian,
+        appBar: AppBar(
+          backgroundColor: QuantColors.voidObsidian,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, color: QuantColors.textPrimary),
+            onPressed: () => Navigator.maybePop(context),
+          ),
+        ),
+        body: const Center(
+          child: Text(
+            'No live audio space right now.',
+            style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+          ),
+        ),
+      );
+    }
+    final hostSpeaker = _room!.speakers.firstWhere(
       (s) => s.role == SpaceParticipantRole.host,
-      orElse: () => _room.speakers.first,
+      orElse: () => _room!.speakers.first,
     );
-    final otherSpeakers = _room.speakers.where((s) => s.id != hostSpeaker.id).toList();
-    final queuedListeners = _room.listeners.where((l) => l.isHandRaised || _room.raisedHandsQueue.contains(l.id)).toList();
+    final otherSpeakers = _room!.speakers.where((s) => s.id != hostSpeaker.id).toList();
+    final queuedListeners = _room!.listeners.where((l) => l.isHandRaised || _room!.raisedHandsQueue.contains(l.id)).toList();
 
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
@@ -127,13 +147,13 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${_room.listenerCount} listening',
+                  '${_room!.listenerCount} listening',
                   style: const TextStyle(color: QuantColors.textSecondary, fontSize: 11),
                 ),
               ],
             ),
             Text(
-              _room.title,
+              _room!.title,
               style: const TextStyle(color: QuantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.bold),
               overflow: TextOverflow.ellipsis,
             ),
@@ -194,7 +214,7 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
                         style: TextStyle(color: QuantColors.textMuted, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                       ),
                       const Spacer(),
-                      Text('${_room.listeners.length} listening', style: const TextStyle(color: QuantColors.textMuted, fontSize: 11)),
+                      Text('${_room!.listeners.length} listening', style: const TextStyle(color: QuantColors.textMuted, fontSize: 11)),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -207,8 +227,8 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
                       crossAxisSpacing: 10,
                       childAspectRatio: 0.8,
                     ),
-                    itemCount: _room.listeners.length,
-                    itemBuilder: (context, idx) => _buildListenerAvatar(_room.listeners[idx]),
+                    itemCount: _room!.listeners.length,
+                    itemBuilder: (context, idx) => _buildListenerAvatar(_room!.listeners[idx]),
                   ),
                 ],
               ),
@@ -386,7 +406,7 @@ class _AudioStageScreenState extends State<AudioStageScreen> with SingleTickerPr
   }
 
   Widget _buildSpeakerAvatar(SpaceSpeaker speaker) {
-    final isActive = speaker.isSpeaking || _room.activeSpeakerId == speaker.id;
+    final isActive = speaker.isSpeaking || _room!.activeSpeakerId == speaker.id;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -31,7 +31,8 @@ class _AgendaViewScreenState extends State<AgendaViewScreen> {
   @override
   void initState() {
     super.initState();
-    _events = CalendarEvent.sampleEvents();
+    // No mock data: honestly empty until the real calendar source is wired.
+    _events = <CalendarEvent>[];
   }
 
   void _triggerCalDavSync() {

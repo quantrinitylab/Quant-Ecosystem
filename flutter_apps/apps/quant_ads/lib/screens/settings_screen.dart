@@ -219,18 +219,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: (v) => setState(() => _instantPayoutsAuto = v),
           ),
           const Divider(color: QuantColors.subtleDivider, height: 1),
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            title: const Text(
-              'Default Payout Destination',
-              style: TextStyle(color: QuantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+          // Material wrapper: ListTile ink effects need a Material ancestor
+          // above the DecoratedBox background.
+          Material(
+            color: Colors.transparent,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              title: const Text(
+                'Default Payout Destination',
+                style: TextStyle(color: QuantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              subtitle: const Text(
+                'Razorpay UPI: sovereign.creator@okquant',
+                style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded, color: QuantColors.textMuted, size: 14),
+              onTap: () {},
             ),
-            subtitle: const Text(
-              'Razorpay UPI: sovereign.creator@okquant',
-              style: TextStyle(color: QuantColors.textMuted, fontSize: 11),
-            ),
-            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: QuantColors.textMuted, size: 14),
-            onTap: () {},
           ),
         ],
       ),
@@ -318,23 +323,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return SwitchListTile.adaptive(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      title: Text(
-        title,
-        style: const TextStyle(
-          color: QuantColors.textPrimary,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+    // Material wrapper: ListTile ink effects need a Material ancestor
+    // above the DecoratedBox background.
+    return Material(
+      color: Colors.transparent,
+      child: SwitchListTile.adaptive(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: QuantColors.textPrimary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
+        ),
+        value: value,
+        activeColor: adsAmber,
+        onChanged: onChanged,
       ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(color: QuantColors.textMuted, fontSize: 11),
-      ),
-      value: value,
-      activeColor: adsAmber,
-      onChanged: onChanged,
     );
   }
 }

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/chat_models.dart';
-import '../services/chat_mock_data.dart';
 import 'conversation_screen.dart';
 import 'group/create_group_sheet.dart';
 
@@ -26,7 +25,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
   @override
   void initState() {
     super.initState();
-    _conversations = ChatMockData.getInitialConversations();
+    _conversations = <ChatConversation>[];
   }
 
   @override

@@ -2,11 +2,11 @@
 // Strictly ZERO raw Unicode emojis throughout this file.
 // Pure 120Hz Impeller & Skia hardware acceleration.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_wave/main.dart';
 import 'package:quant_wave/models/wave_models.dart';
-import 'package:quant_wave/services/wave_mock_data.dart';
 import 'package:quant_wave/screens/timeline_screen.dart';
 import 'package:quant_wave/screens/feed_screen.dart';
 import 'package:quant_wave/screens/subwaves_screen.dart';
@@ -123,75 +123,79 @@ void main() {
       expect(upvoted.userVote, 1);
     });
 
-    test('WaveSpaceRoom active speakers, host podium, and raised hands queue', () {
-      final rooms = WaveMockData.getLiveAudioSpaces();
-      final liveRoom = rooms.firstWhere((r) => r.isLive);
+    test('WaveSpaceRoom holds real room state', () {
+      const room = WaveSpaceRoom(
+        id: 'room-test-1',
+        title: 'Test Room',
+        topic: 'Testing',
+        hostName: 'Host',
+        hostHandle: '@host',
+        hostAvatarColor: QuantColors.sovereignCyan,
+        listenerCount: 0,
+        isLive: true,
+        speakers: [],
+        listeners: [],
+        raisedHandsQueue: [],
+        activeSpeakerId: null,
+      );
 
-      expect(liveRoom.isLive, isTrue);
-      expect(liveRoom.speakers.isNotEmpty, isTrue);
-      expect(liveRoom.speakers.any((s) => s.isSpeaking), isTrue);
-      expect(liveRoom.activeSpeakerId, isNotNull);
-      expect(liveRoom.raisedHandsQueue.isNotEmpty, isTrue);
-      expect(liveRoom.listeners.any((l) => l.isHandRaised), isTrue);
+      expect(room.id, 'room-test-1');
+      expect(room.isLive, isTrue);
+      expect(room.speakers, isEmpty);
+      expect(room.listeners, isEmpty);
     });
 
-    test('LobbyGame Trivia Blitz, Werewolf, Word Clue, countdown, and score ticker', () {
-      final games = WaveMockData.getLobbyGames();
-      expect(games.length, greaterThanOrEqualTo(5));
+    test('LobbyGame and GameLeaderboardEntry hold real game data', () {
+      const game = LobbyGame(
+        id: 'game-test-1',
+        title: 'Test Game',
+        category: 'Test',
+        description: 'A test game',
+        activeTables: 0,
+        playersCount: 0,
+        maxPlayers: 4,
+        stakeCredits: 0,
+        minRank: 'Rookie',
+        difficulty: 'Easy',
+        icon: Icons.games_rounded,
+        accentColor: QuantColors.sovereignCyan,
+        roundCountdownSeconds: 15,
+        liveScoreTicker: 0,
+      );
+      expect(game.id, 'game-test-1');
+      expect(game.title, 'Test Game');
+      expect(game.maxPlayers, 4);
 
-      final trivia = games.firstWhere((g) => g.id == 'game-trivia-blitz');
-      expect(trivia.title, 'Trivia Blitz');
-      expect(trivia.roundCountdownSeconds, 15);
-      expect(trivia.liveScoreTicker, 2840);
-
-      final werewolf = games.firstWhere((g) => g.id == 'game-werewolf');
-      expect(werewolf.title, 'Werewolf');
-      expect(werewolf.maxPlayers, 10);
-
-      final wordClue = games.firstWhere((g) => g.id == 'game-word-clue');
-      expect(wordClue.title, 'Word Clue');
-
-      final leaderboard = WaveMockData.getGameLeaderboard();
-      expect(leaderboard.length, 5);
-      expect(leaderboard.first.rank, 1);
-      expect(leaderboard.first.creditsWon, greaterThan(30000));
-      expect(leaderboard.any((e) => e.gameSpecialty == 'Werewolf'), isTrue);
+      const entry = GameLeaderboardEntry(
+        rank: 1,
+        username: 'player1',
+        handle: '@player1',
+        creditsWon: 0,
+        winStreak: 0,
+        avatarColor: QuantColors.sovereignCyan,
+        gameSpecialty: 'Test Game',
+      );
+      expect(entry.rank, 1);
+      expect(entry.creditsWon, 0);
     });
   });
 
   group('QuantWave Strict Invariant Verification', () {
-    test('ZERO raw Unicode emojis in mock data and domain models', () {
-      final posts = WaveMockData.getInitialTimelinePosts();
-      final hashtags = WaveMockData.getTrendingHashtags();
-      final spaces = WaveMockData.getLiveAudioSpaces();
-      final games = WaveMockData.getLobbyGames();
-      final leaderboard = WaveMockData.getGameLeaderboard();
-
+    test('ZERO raw Unicode emojis across all .dart source files in quant_wave/lib', () {
+      final libDir = Directory('lib');
       final emojiRegex = RegExp(r'[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}]', unicode: true);
 
-      for (final p in posts) {
-        expect(emojiRegex.hasMatch(p.content), isFalse, reason: 'Found emoji in post: ${p.id}');
-        expect(emojiRegex.hasMatch(p.authorName), isFalse);
-      }
+      final dartFiles = libDir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.dart'));
 
-      for (final h in hashtags) {
-        expect(emojiRegex.hasMatch(h), isFalse, reason: 'Found emoji in hashtag: $h');
-      }
-
-      for (final s in spaces) {
-        expect(emojiRegex.hasMatch(s.title), isFalse, reason: 'Found emoji in space: ${s.title}');
-      }
-
-      for (final g in games) {
-        expect(emojiRegex.hasMatch(g.title), isFalse, reason: 'Found emoji in game: ${g.title}');
-        expect(emojiRegex.hasMatch(g.description), isFalse);
-      }
-
-      for (final l in leaderboard) {
-        expect(emojiRegex.hasMatch(l.username), isFalse);
+      for (final file in dartFiles) {
+        final content = file.readAsStringSync();
+        expect(emojiRegex.hasMatch(content), isFalse,
+            reason: 'Found emoji in ${file.path}');
       }
     });
-
     test('ZERO Skia clipPath invocations invariant', () {
       // Hardware-accelerated rounded borders only - all shapes use BorderRadius or BoxShape
       const border = BorderRadius.all(Radius.circular(16));
@@ -217,7 +221,7 @@ void main() {
       expect(find.text('Profile'), findsOneWidget);
     });
 
-    testWidgets('TimelineScreen renders tabs, composer, hashtags, quote cards, and polls', (tester) async {
+    testWidgets('TimelineScreen renders tabs and composer with honest empty feed', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -228,24 +232,10 @@ void main() {
       // Tabs & Quick Composer
       expect(find.text('For You'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
-      expect(find.text('Wave'), findsOneWidget);
 
-      // Trending Hashtags
-      expect(find.text('QuantSovereign'), findsWidgets);
-      expect(find.text('Impeller120Hz'), findsWidgets);
-
-      // Posts & Polls
-      expect(find.text('CEO Astra'), findsWidgets);
-      expect(find.text('Which sovereign pillar will replace incumbents fastest?'), findsOneWidget);
-      expect(find.text('QuantWave (Twitter / Reddit / Spaces)'), findsOneWidget);
-
-      // Thread expansion action
-      expect(find.textContaining('Replies in Thread'), findsWidgets);
-
-      // Action icons
-      expect(find.byIcon(Icons.chat_bubble_outline_rounded), findsWidgets);
-      expect(find.byIcon(Icons.repeat_on_rounded), findsWidgets);
-      expect(find.byIcon(Icons.favorite_rounded), findsWidgets);
+      // No fabricated posts or trending hashtags
+      expect(find.text('CEO Astra'), findsNothing);
+      expect(find.text('QuantSovereign'), findsNothing);
     });
 
     testWidgets('FeedScreen alias renders identical TimelineScreen tree', (tester) async {
@@ -260,7 +250,7 @@ void main() {
       expect(find.text('Following'), findsOneWidget);
     });
 
-    testWidgets('SubWavesScreen renders communities bar, sort buttons and vote counters', (tester) async {
+    testWidgets('SubWavesScreen renders communities bar with honest empty state', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -270,8 +260,6 @@ void main() {
 
       // Community selector
       expect(find.text('All Waves'), findsOneWidget);
-      expect(find.text('w/tech'), findsWidgets);
-      expect(find.text('w/devs'), findsWidgets);
 
       // Sorting
       expect(find.text('SORT BY:'), findsOneWidget);
@@ -279,12 +267,11 @@ void main() {
       expect(find.text('New'), findsOneWidget);
       expect(find.text('Top'), findsOneWidget);
 
-      // Vote buttons
-      expect(find.byIcon(Icons.arrow_upward_rounded), findsWidgets);
-      expect(find.byIcon(Icons.arrow_downward_rounded), findsWidgets);
+      // No fabricated communities
+      expect(find.text('w/tech'), findsNothing);
     });
 
-    testWidgets('WaveSpacesScreen renders live stage rooms and schedule button', (tester) async {
+    testWidgets('WaveSpacesScreen renders header with honest empty room list', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -294,8 +281,10 @@ void main() {
 
       expect(find.text('Live Wave Spaces'), findsOneWidget);
       expect(find.text('Schedule'), findsOneWidget);
-      expect(find.text('LIVE NOW'), findsWidgets);
-      expect(find.text('Join Space'), findsWidgets);
+
+      // No fabricated live rooms
+      expect(find.text('LIVE NOW'), findsNothing);
+      expect(find.text('Join Space'), findsNothing);
     });
 
     testWidgets('SpacesScreen alias renders WaveSpacesScreen properly', (tester) async {
@@ -309,7 +298,7 @@ void main() {
       expect(find.text('Live Wave Spaces'), findsOneWidget);
     });
 
-    testWidgets('AudioStageScreen renders host podium, speakers, and control dock', (tester) async {
+    testWidgets('AudioStageScreen shows honest empty state without fabricated room', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -317,14 +306,11 @@ void main() {
         ),
       );
 
-      expect(find.text('HOST PODIUM'), findsOneWidget);
-      expect(find.text('LIVE STAGE'), findsOneWidget);
-      expect(find.text('SPEAKERS ON STAGE'), findsOneWidget);
-      expect(find.text('Leave Stage'), findsOneWidget);
-      expect(find.byIcon(Icons.pan_tool_rounded), findsWidgets);
+      expect(find.text('No live audio space right now.'), findsOneWidget);
+      expect(find.text('HOST PODIUM'), findsNothing);
     });
 
-    testWidgets('GamesLobbyScreen renders QC balance, countdown, ticker, games and leaderboard', (tester) async {
+    testWidgets('GamesLobbyScreen renders honest zero balance without fabricated games', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -335,13 +321,14 @@ void main() {
       expect(find.text('Games Lobby'), findsOneWidget);
       expect(find.text('Leaderboard'), findsOneWidget);
       expect(find.text('QUANT CREDITS BALANCE'), findsOneWidget);
-      expect(find.text('12,500 QC'), findsOneWidget);
-      expect(find.text('Trivia Blitz'), findsOneWidget);
-      expect(find.text('Werewolf'), findsOneWidget);
-      expect(find.text('Word Clue'), findsOneWidget);
-      expect(find.text('Play Now'), findsWidgets);
-      expect(find.textContaining('ROUND:'), findsOneWidget);
-      expect(find.textContaining('LIVE TICKER:'), findsOneWidget);
+
+      // Honest zero balance (no fabricated 12,500 QC)
+      expect(find.text('0 QC'), findsOneWidget);
+      expect(find.text('12,500 QC'), findsNothing);
+
+      // No fabricated games
+      expect(find.text('Trivia Blitz'), findsNothing);
+      expect(find.text('Werewolf'), findsNothing);
     });
 
     testWidgets('PartyGamesScreen alias renders GamesLobbyScreen properly', (tester) async {
@@ -352,11 +339,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Trivia Blitz'), findsOneWidget);
-      expect(find.text('Werewolf'), findsOneWidget);
+      expect(find.text('Games Lobby'), findsOneWidget);
+      expect(find.text('0 QC'), findsOneWidget);
     });
 
-    testWidgets('ProfileScreen renders user bio, metrics and 4 tab headers', (tester) async {
+    testWidgets('ProfileScreen shows honest empty state without fabricated profile', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -364,21 +351,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Quant Sovereign'), findsWidgets);
-      expect(find.text('@quant_user'), findsOneWidget);
-      expect(find.text('Following'), findsOneWidget);
-      expect(find.text('Followers'), findsOneWidget);
-      expect(find.text('Karma'), findsOneWidget);
-      expect(find.text('Credits'), findsOneWidget);
-
-      // 4 tabs
-      expect(find.text('Waves'), findsOneWidget);
-      expect(find.text('Replies'), findsOneWidget);
-      expect(find.text('Highlights'), findsOneWidget);
-      expect(find.text('Media'), findsOneWidget);
+      expect(find.text('Profile is not available yet.'), findsOneWidget);
+      expect(find.text('@quant_user'), findsNothing);
     });
 
-    testWidgets('SubWavesHubScreen renders community cards, flairs, rules and join/leave toggle', (tester) async {
+    testWidgets('SubWavesHubScreen shows honest empty state without fabricated communities', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -387,91 +364,31 @@ void main() {
       );
       await tester.pump();
 
-      // Verify Header & Search
+      // Header & Search still render
       expect(find.text('SubWaves Community Hub'), findsOneWidget);
       expect(find.text('Search communities, flairs, and topics...'), findsOneWidget);
 
-      // Verify Communities & Categories
-      expect(find.text('w/tech'), findsOneWidget);
-      expect(find.text('w/devs'), findsOneWidget);
-      expect(find.text('w/quantai'), findsOneWidget);
-      expect(find.text('All'), findsOneWidget);
-      expect(find.text('Systems'), findsWidgets);
-
-      // Verify Flairs
-      expect(find.text('#BENCHMARK'), findsOneWidget);
-      expect(find.text('#120HZ'), findsOneWidget);
-
-      // Expand Rules
-      expect(find.textContaining('Community Rules'), findsWidgets);
-      await tester.tap(find.textContaining('Community Rules').first);
-      await tester.pump();
-      expect(find.text('Community Post Rules'), findsOneWidget);
-      expect(find.text('Hide Rules'), findsOneWidget);
-
-      // Toggle Join / Leave on first joined community ('w/tech' is joined initially)
-      expect(find.text('Joined'), findsWidgets);
-      await tester.tap(find.text('Joined').first);
-      await tester.pump();
-      expect(find.text('Join Wave'), findsWidgets);
+      // Honest empty state (no fabricated communities)
+      expect(find.text('No communities yet.'), findsOneWidget);
+      expect(find.text('w/tech'), findsNothing);
+      expect(find.text('#BENCHMARK'), findsNothing);
     });
 
-    testWidgets('SpacesControllerSheet renders equalizer monitor, master controls and actions', (tester) async {
-      bool spaceEndedCalled = false;
-
+    testWidgets('SpacesControllerSheet shows honest empty state without fabricated room', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
           home: Scaffold(
             body: SpacesControllerSheet(
-              onSpaceEnded: () => spaceEndedCalled = true,
+              onSpaceEnded: () {},
             ),
           ),
         ),
       );
       await tester.pump();
 
-      // Equalizer Monitor & Telemetry
-      expect(find.text('Host Controller Dashboard'), findsOneWidget);
-      expect(find.text('Audio Stage Equalizer Monitor'), findsOneWidget);
-      expect(find.text('128 kbps Opus HD'), findsOneWidget);
-      expect(find.text('14ms'), findsOneWidget);
-      expect(find.text('0.00%'), findsOneWidget);
-
-      // Master Controls
-      expect(find.text('Mute All Speakers'), findsOneWidget);
-      expect(find.text('Host Mic'), findsOneWidget);
-
-      // Tap Mute All
-      await tester.tap(find.text('Mute All Speakers'));
-      await tester.pump();
-      expect(find.text('Unmute All'), findsOneWidget);
-
-      // Tap Host Mic
-      await tester.tap(find.text('Host Mic'));
-      await tester.pump();
-      expect(find.text('Host Muted'), findsOneWidget);
-
-      // Speakers section
-      expect(find.text('Stage Speakers Management'), findsOneWidget);
-      expect(find.text('CEO Astra'), findsWidgets);
-      expect(find.text('Node A Lead'), findsWidgets);
-
-      // Audience Invite pipeline
-      expect(find.text('Audience Invitation Pipeline'), findsOneWidget);
-      expect(find.text('Invite'), findsWidgets);
-
-      // End Space trigger
-      expect(find.text('End Live Space (Disconnect All)'), findsOneWidget);
-      await tester.tap(find.text('End Live Space (Disconnect All)'));
-      await tester.pump();
-      expect(find.text('End Live Space?'), findsOneWidget);
-      expect(find.text('End Space'), findsOneWidget);
-
-      // Confirm end space
-      await tester.tap(find.text('End Space'));
-      await tester.pump();
-      expect(spaceEndedCalled, isTrue);
+      expect(find.text('No live audio space right now.'), findsOneWidget);
+      expect(find.text('Host Controller Dashboard'), findsNothing);
     });
   });
 }

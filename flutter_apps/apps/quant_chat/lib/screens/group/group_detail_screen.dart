@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../../models/chat_models.dart';
-import '../../services/chat_mock_data.dart';
 import '../security/safety_number_screen.dart';
 
 class GroupDetailScreen extends StatefulWidget {
@@ -32,8 +31,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _members = List.from(ChatMockData.getInitialGroupMembers());
-    _mediaItems = ChatMockData.getInitialMediaItems();
+    // No mock data: members and media load from the real backend.
+    _members = <ChatGroupMember>[];
+    _mediaItems = <ChatMediaItem>[];
     _isMuted = widget.conversation.isMuted;
     _disappearingOption = widget.conversation.disappearingOption;
   }

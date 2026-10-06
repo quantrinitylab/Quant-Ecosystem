@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/gram_models.dart';
-import '../data/gram_repository.dart';
 
 /// Sovereign 24-Hour Ephemeral Stories Tray
 /// Features glowing gradient squircle borders, segmented countdown progress,

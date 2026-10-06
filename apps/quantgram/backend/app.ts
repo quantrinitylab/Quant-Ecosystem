@@ -14,6 +14,7 @@ import federationRoutes, { createFederationService } from './routes/federation';
 import feedRoutes from './routes/feed';
 import gamesRoutes from './routes/games';
 import dmRoutes from './routes/dm';
+import shoppingRoutes from './routes/shopping';
 import { createFeedEngines } from './lib/feed-engines';
 import { NeonGamesService } from './services/neon-games.service';
 
@@ -125,6 +126,11 @@ export async function buildApp(config?: AppConfig) {
   // Message Prisma models (membership-gated). Routes under `/dm` sit behind the
   // global auth hook.
   await app.register(dmRoutes, { prefix: '/dm' });
+
+  // Shopping — real product catalog (empty until products are actually listed)
+  // plus per-user carts. Checkout answers 501 until a payment provider is
+  // wired; it never fabricates orders.
+  await app.register(shoppingRoutes, { prefix: '/shopping' });
 
   return app;
 }

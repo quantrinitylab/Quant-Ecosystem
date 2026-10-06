@@ -338,6 +338,11 @@ export class BoostLedgerService {
   getBoost(boostId: string): BoostRequest | undefined {
     return this.boosts.get(boostId);
   }
+
+  /** All boosts created by a given user (the `/boost/active/:userId` view). */
+  getActiveBoosts(userId: string): BoostRequest[] {
+    return [...this.boosts.values()].filter((b) => b.userId === userId);
+  }
 }
 
 // ---------------------------------------------------------------------------

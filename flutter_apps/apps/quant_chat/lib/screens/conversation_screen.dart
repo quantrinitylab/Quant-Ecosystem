@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
-import '../services/chat_mock_data.dart';
 import '../widgets/call_sheet.dart';
 import '../widgets/chat_media_sheet.dart';
 import 'call_screen.dart';
@@ -48,7 +47,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void initState() {
     super.initState();
-    _messages = List.from(ChatMockData.getInitialMessages(widget.conversation.id));
+    // No mock data: messages load from the real backend for this conversation.
+    _messages = <ChatMessage>[];
     _isDisappearingMode = widget.conversation.isDisappearingModeEnabled;
     _startDisappearingCountdown();
   }
