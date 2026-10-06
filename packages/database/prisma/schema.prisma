@@ -74,6 +74,7 @@ model User {
   stories            Story[]
   notifications      Notification[]
   aiSessions         AISession[]
+  quantyArtifacts    QuantyArtifact[]
   campaigns          Campaign[]
   datingProfile      DatingProfile?
   shortVideos        ShortVideo[]
@@ -1389,6 +1390,32 @@ model AIMessage {
   @@index([sessionId])
   @@index([createdAt])
   @@map("ai_messages")
+}
+
+// ==================== Quanty (Muse parity) ====================
+
+model QuantyArtifact {
+  id          String    @id @default(cuid())
+  userId      String
+  title       String
+  kind        String    @default("artifact") // 'artifact' | 'media'
+  type        String?   // artifact subtype: 'component' | 'code' | 'markdown'
+  language    String?
+  code        String?   @db.Text
+  markdown    String?   @db.Text
+  previewHtml String?   @db.Text
+  contentRef  String?   // external storage reference (e.g. media object key)
+  systemFile  Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  openedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, kind])
+  @@index([userId, updatedAt])
+  @@map("quanty_artifacts")
 }
 
 enum AIMessageRole {
