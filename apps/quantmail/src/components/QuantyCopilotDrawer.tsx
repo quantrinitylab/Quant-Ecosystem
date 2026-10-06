@@ -49,6 +49,42 @@ interface ChatHistoryItem {
   messages: Array<{ role: 'user' | 'assistant'; text: string }>;
 }
 
+/**
+ * Strip a raw tool-call envelope the model sometimes emits instead of prose:
+ *   tool_call {"name": "compose", "arguments": {"body": "Dear ..."}}
+ * The envelope must never reach the transcript or the draft — only the
+ * resolved text. Falls back to dropping the marker and keeping any
+ * surrounding prose when the JSON cannot be parsed.
+ */
+export function unwrapToolCallResponse(text: string): string {
+  const match = text.match(/tool_call\s*(\{[\s\S]*\})/);
+  if (!match) return text;
+  try {
+    const parsed = JSON.parse(match[1]) as {
+      name?: string;
+      arguments?: Record<string, unknown> | string;
+    };
+    const rawArgs = parsed.arguments;
+    const args =
+      typeof rawArgs === 'string' ? (JSON.parse(rawArgs) as Record<string, unknown>) : rawArgs;
+    if (args && typeof args === 'object') {
+      const ordered: string[] = [];
+      for (const key of ['subject', 'greeting', 'opening', 'body', 'closing', 'signoff']) {
+        const v = (args as Record<string, unknown>)[key];
+        if (typeof v === 'string' && v.trim()) ordered.push(v.trim());
+      }
+      if (ordered.length > 0) return ordered.join('\n\n');
+      const rest = Object.values(args).filter(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0,
+      );
+      if (rest.length > 0) return rest.join('\n\n');
+    }
+  } catch {
+    // fall through to the marker-strip fallback below
+  }
+  return text.replace(/tool_call\s*\{[\s\S]*\}/, '').trim() || text;
+}
+
 export function parseEmailActionFromText(text: string): QuantyEmailAction {
   const emailMatch = text.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
   const subjectMatch = text.match(/Subject:\s*([^\n]+)/i);
@@ -431,13 +467,13 @@ export function QuantyCopilotDrawer({
       return;
     }
 
-    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: result.message }];
+    const finalMsgs: ChatTurn[] = [...turns, { role: 'assistant', text: unwrapToolCallResponse(result.message) }];
     setMessages(finalMsgs);
     quantyReact('ai:answered');
     saveCurrentConversation(finalMsgs);
 
     if (isComposeContext && onApplyAction) {
-      onApplyAction(parseEmailActionFromText(result.message));
+      onApplyAction(parseEmailActionFromText(unwrapToolCallResponse(result.message)));
       showToast({ text: 'Quanty updated your email draft', type: 'success' });
     }
   };

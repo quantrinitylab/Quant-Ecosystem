@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatBytes } from '../lib/format-bytes';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
+import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { composeMessageBodies } from '../lib/email-body';
@@ -335,6 +336,10 @@ export function DockedComposer({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Unsaved-changes guard for the discard button — same protection as the
+  // full composer: typed content is never silently thrown away.
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Signature
   const [signatureHtml, setSignatureHtml] = useState('');
@@ -878,7 +883,17 @@ export function DockedComposer({
           <textarea
             ref={bodyRef}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              // The placeholder promises "Type '++' to trigger AI ghostwriter" —
+              // honour it: strip the trigger and open the ghostwrite menu.
+              if (next.endsWith('++')) {
+                setBody(next.slice(0, -2));
+                setShowAiMenu(true);
+                return;
+              }
+              setBody(next);
+            }}
             placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none text-xs leading-relaxed"
           />
@@ -1005,7 +1020,24 @@ export function DockedComposer({
         {/* Discard Draft */}
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
+            const hasContent =
+              to.trim().length > 0 ||
+              cc.trim().length > 0 ||
+              bcc.trim().length > 0 ||
+              subject.trim().length > 0 ||
+              body.trim().length > 0 ||
+              attachments.length > 0;
+            if (hasContent) {
+              const discard = await confirm({
+                title: 'Discard draft?',
+                message: 'You have unsaved changes. Discard this draft?',
+                confirmLabel: 'Discard',
+                cancelLabel: 'Keep editing',
+                variant: 'destructive',
+              });
+              if (!discard) return;
+            }
             onDiscard?.();
             onClose();
           }}
@@ -1015,6 +1047,7 @@ export function DockedComposer({
           <IconTrash className="size-4" />
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }
