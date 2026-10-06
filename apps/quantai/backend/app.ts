@@ -58,6 +58,7 @@ import videoGenerationRoutes from './routes/video-generation';
 import codeAssistantRoutes from './routes/code-assistant';
 import imageInpaintingRoutes from './routes/image-inpainting';
 import fluxStylesRoutes from './routes/flux-styles';
+import quantyFeedRoutes from './routes/quanty-feed';
 import { ScheduledTasksService } from './services/scheduled-tasks.service';
 import { FileLibraryService } from './services/file-library.service';
 import { ProjectContextService, projectContextService } from './services/project-context.service';
@@ -206,6 +207,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(codeAssistantRoutes, { prefix: '/api/ai' });
   await app.register(imageInpaintingRoutes, { prefix: '/api/ai' });
   await app.register(fluxStylesRoutes, { prefix: '/api/ai' });
+  await app.register(quantyFeedRoutes, { prefix: '/quanty/feed' });
 
   app.get('/models', async (request, reply) => {
     return reply.send([

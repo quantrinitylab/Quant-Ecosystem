@@ -1156,6 +1156,23 @@ function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const prefersReducedMotion = useReducedMotion();
 
+  // Quanty Feed "Discuss" handoff: pre-fill the composer with the feed post
+  // context so the user reviews it before sending (never auto-sends).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem('quanty:feed-discuss');
+      if (!raw) return;
+      sessionStorage.removeItem('quanty:feed-discuss');
+      const parsed = JSON.parse(raw) as { openingPrompt?: string };
+      if (parsed?.openingPrompt) {
+        setInput(parsed.openingPrompt);
+        textareaRef.current?.focus();
+      }
+    } catch {
+      /* sessionStorage unavailable or corrupt — ignore */
+    }
+  }, []);
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
