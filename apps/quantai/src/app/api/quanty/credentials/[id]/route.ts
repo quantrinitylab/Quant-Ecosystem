@@ -2,6 +2,7 @@
 import type { NextRequest } from 'next/server';
 import { proxyAgentRequest } from '../../../_lib/agent-proxy';
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  return proxyAgentRequest(request, `/quanty/credentials/${params.id}`);
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return proxyAgentRequest(request, `/quanty/credentials/${id}`);
 }
