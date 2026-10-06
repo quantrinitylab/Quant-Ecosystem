@@ -70,6 +70,7 @@ export interface MailMutations {
   trash: (ids: string | string[]) => Promise<void>;
   restore: (ids: string | string[]) => Promise<void>;
   toggleStar: (ids: string | string[]) => Promise<void>;
+  togglePin: (ids: string | string[]) => Promise<void>;
   markRead: (ids: string | string[]) => Promise<void>;
   markUnread: (ids: string | string[]) => Promise<void>;
   moveToCategory: (
@@ -446,6 +447,23 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
     [queryClient, run],
   );
 
+  const togglePin = useCallback(
+    (ids: string | string[]) => {
+      const list = idList(ids);
+      const target = !list.some(
+        (id) => (findCachedEmail(queryClient, id) as { isPinned?: boolean } | undefined)?.isPinned,
+      );
+      const wrongSide = list.filter(
+        (id) =>
+          Boolean(
+            (findCachedEmail(queryClient, id) as { isPinned?: boolean } | undefined)?.isPinned,
+          ) !== target,
+      );
+      return run({ kind: 'togglePin', ids: wrongSide, patch: { isPinned: target } as EmailPatch });
+    },
+    [queryClient, run],
+  );
+
   const markRead = useCallback(
     (ids: string | string[]) =>
       run({
@@ -543,6 +561,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       trash,
       restore,
       toggleStar,
+      togglePin,
       markRead,
       markUnread,
       moveToCategory,
@@ -555,6 +574,7 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       trash,
       restore,
       toggleStar,
+      togglePin,
       markRead,
       markUnread,
       moveToCategory,

@@ -269,8 +269,11 @@ type EmailRowProps = {
    * mouse event to stop propagating on.
    */
   onToggleStar: (event: React.MouseEvent | null) => void;
+  onTogglePin: (event: React.MouseEvent | null) => void;
   onOpen: () => void;
   onArchive: () => void;
+  onUnarchive?: () => void;
+  isArchiveView?: boolean;
   onDelete: () => void;
   onMarkRead: () => void;
   onMarkUnread: () => void;
@@ -287,8 +290,11 @@ function EmailRow({
   onRescueSpam,
   onToggleSelect,
   onToggleStar,
+  onTogglePin,
   onOpen,
   onArchive,
+  onUnarchive,
+  isArchiveView,
   onDelete,
   onMarkRead,
   onMarkUnread,
@@ -559,12 +565,14 @@ function EmailRow({
               emailId={thread.id}
               isRead={thread.isRead}
               isStarred={email.isStarred}
+              isPinned={(email as { isPinned?: boolean }).isPinned}
               onArchive={onArchive}
               onDelete={onDelete}
               onMarkRead={onMarkRead}
               onMarkUnread={onMarkUnread}
               onSnooze={() => setShowSnoozeMenu((prev) => !prev)}
               onToggleStar={onToggleStar}
+              onTogglePin={onTogglePin}
               isSpam={isSpamMode}
               onRescueSpam={onRescueSpam}
             />
@@ -664,9 +672,38 @@ function EmailRow({
                     onClick={(e) => {
                       e.stopPropagation();
                       close();
-                      onToggleStar(e);
+                      onTogglePin(e);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] hover:text-[#FF8C42] rounded-lg transition-colors text-left"
+                  >
+                    <svg
+                      className="size-3.5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill={
+                        (email as { isPinned?: boolean }).isPinned ? 'currentColor' : 'none'
+                      }
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <line x1="12" y1="17" x2="12" y2="22" />
+                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+                    </svg>
+                    <span>
+                      {(email as { isPinned?: boolean }).isPinned
+                        ? 'Unpin from top'
+                        : 'Pin to top'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      close();
+                      onToggleStar(e);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] hover:text-[#FFC531] rounded-lg transition-colors text-left"
                   >
                     <svg
                       className="size-3.5 shrink-0"
@@ -674,11 +711,11 @@ function EmailRow({
                       fill={email.isStarred ? 'currentColor' : 'none'}
                       stroke="currentColor"
                       strokeWidth="2"
+                      strokeLinejoin="round"
                     >
-                      <line x1="12" y1="17" x2="12" y2="22" />
-                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                     </svg>
-                    <span>{email.isStarred ? 'Unpin from top' : 'Pin to top'}</span>
+                    <span>{email.isStarred ? 'Unstar' : 'Star'}</span>
                   </button>
 
                   <button
@@ -734,12 +771,16 @@ function EmailRow({
                     onClick={(e) => {
                       e.stopPropagation();
                       close();
-                      void onArchive();
+                      if (isArchiveView && onUnarchive) void onUnarchive();
+                      else void onArchive();
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#1E2128] rounded-lg transition-colors text-left"
                   >
-                    <MailIcon name="archive" className="size-3.5 shrink-0" />
-                    <span>Archive</span>
+                    <MailIcon
+                      name={isArchiveView ? 'mail' : 'archive'}
+                      className="size-3.5 shrink-0"
+                    />
+                    <span>{isArchiveView ? 'Move to inbox' : 'Archive'}</span>
                   </button>
 
                   <button
@@ -771,14 +812,39 @@ function EmailRow({
           </div>
         )}
         {/* Pin button: shown on resting row only when pinned, or on hover via HoverActions */}
+        {!isSpamMode &&
+          (email as { isPinned?: boolean }).isPinned &&
+          !isHovered &&
+          !showSnoozeMenu && (
+            <button
+              type="button"
+              className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15"
+              onClick={onTogglePin}
+              aria-label="Unpin email"
+              aria-pressed={true}
+              title="Pinned to top"
+            >
+              <svg
+                className="size-4"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="12" y1="17" x2="12" y2="22" />
+                <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+              </svg>
+            </button>
+          )}
+        {/* Star badge: shown on resting row when starred (independent from pin) */}
         {!isSpamMode && email.isStarred && !isHovered && !showSnoozeMenu && (
           <button
             type="button"
-            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] text-[#FF8C42] fill-[#FF8C42] bg-[#FF8C42]/15"
+            className="flex items-center justify-center shrink-0 p-1.5 rounded-xl transition-all min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC531] text-[#FFC531] fill-[#FFC531] bg-[#FFC531]/15"
             onClick={onToggleStar}
-            aria-label="Unpin email"
+            aria-label="Unstar email"
             aria-pressed={true}
-            title="Pinned to top"
+            title="Starred"
           >
             <svg
               className="size-4"
@@ -786,9 +852,9 @@ function EmailRow({
               fill="currentColor"
               stroke="currentColor"
               strokeWidth="2"
+              strokeLinejoin="round"
             >
-              <line x1="12" y1="17" x2="12" y2="22" />
-              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.89A2 2 0 0 1 15 10.77V6a3 3 0 0 0-6 0v4.77a2 2 0 0 1-1.11 1.79l-1.78.89A2 2 0 0 0 5 15.24Z" />
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
             </svg>
           </button>
         )}
@@ -2066,8 +2132,10 @@ export default function InboxPage() {
     const sourceThreads = narrowThreads(activeThreadPool, activeLens, activeTurn, activeFilters);
 
     return [...sourceThreads].sort((a, b) => {
-      if (a.isStarred !== b.isStarred) {
-        return a.isStarred ? -1 : 1;
+      const aPinned = (a as { isPinned?: boolean }).isPinned === true;
+      const bPinned = (b as { isPinned?: boolean }).isPinned === true;
+      if (aPinned !== bPinned) {
+        return aPinned ? -1 : 1;
       }
       return new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime();
     });
@@ -2084,7 +2152,7 @@ export default function InboxPage() {
    * or everything is.
    */
   const pinnedCount = useMemo(
-    () => displayThreads.filter((t) => t.isStarred).length,
+    () => displayThreads.filter((t) => (t as { isPinned?: boolean }).isPinned).length,
     [displayThreads],
   );
   const showPinnedNotice =
@@ -2386,6 +2454,20 @@ export default function InboxPage() {
     [mutations, conversationIds],
   );
 
+  const batchTogglePin = useCallback(
+    async (ids: string[], allPinned: boolean) => {
+      setSelectedIds(new Set());
+      await Promise.all(ids.map((id) => mutations.togglePin(conversationIds(id))));
+      showToast({
+        text: allPinned
+          ? 'Unpinned selected conversations'
+          : 'Pinned selected conversations to top',
+        type: 'success',
+      });
+    },
+    [mutations, conversationIds],
+  );
+
   /**
    * Snooze the whole selection, which is the action the bulk bar was missing —
    * a phone's only route to snooze is long-press to select, so its absence here
@@ -2442,8 +2524,21 @@ export default function InboxPage() {
     [mutations, conversationIds],
   );
 
+  const togglePin = useCallback(
+    async (event: React.MouseEvent | null, id: string) => {
+      event?.stopPropagation();
+      await mutations.togglePin(conversationIds(id));
+    },
+    [mutations, conversationIds],
+  );
+
   const archiveEmail = useCallback(
     (id: string) => mutations.archive(conversationIds(id)),
+    [mutations, conversationIds],
+  );
+
+  const unarchiveEmail = useCallback(
+    (id: string) => mutations.unarchive(conversationIds(id)),
     [mutations, conversationIds],
   );
 
@@ -2588,9 +2683,11 @@ export default function InboxPage() {
     () =>
       Array.from(selectedIds).every(
         (id) =>
-          displayThreads.find(
-            (t) => t.id === id || t.threadId === id || t.messages.some((m) => m.id === id),
-          )?.isStarred,
+          (
+            displayThreads.find(
+              (t) => t.id === id || t.threadId === id || t.messages.some((m) => m.id === id),
+            ) as { isPinned?: boolean } | undefined
+          )?.isPinned,
       ),
     [selectedIds, displayThreads],
   );
@@ -2602,7 +2699,7 @@ export default function InboxPage() {
       allPinned={allSelectedPinned}
       onDeselectAll={() => setSelectedIds(new Set())}
       onSelectAllVisible={() => setSelectedIds(new Set(displayThreads.map((t) => t.id)))}
-      onTogglePin={() => void batchToggleStar(Array.from(selectedIds), allSelectedPinned)}
+      onTogglePin={() => void batchTogglePin(Array.from(selectedIds), allSelectedPinned)}
       onMarkRead={() => void batchMarkRead(Array.from(selectedIds), true)}
       onMarkUnread={() => void batchMarkRead(Array.from(selectedIds), false)}
       onMoveToCategory={(category) => void moveSelectedToCategory(category)}
@@ -3325,11 +3422,14 @@ export default function InboxPage() {
                               savedGroups={savedGroups}
                               onToggleSelect={(event) => toggleSelect(thread.id, event)}
                               onToggleStar={(event) => void toggleStar(event, thread.id)}
+                              onTogglePin={(event) => void togglePin(event, thread.id)}
                               onOpen={() => {
                                 focusRow(thread.id);
                                 openEmail(thread.latestEmail, thread);
                               }}
                               onArchive={() => void archiveEmail(thread.id)}
+                              onUnarchive={() => void unarchiveEmail(thread.id)}
+                              isArchiveView={showArchivedView}
                               onDelete={() => void deleteEmail(thread.id)}
                               onMarkRead={() => void markRead(thread.id)}
                               onMarkUnread={() => void markUnread(thread.id)}
@@ -3598,11 +3698,14 @@ export default function InboxPage() {
                           onRescueSpam={() => void handleRescueSpamThread(thread)}
                           onToggleSelect={(event) => toggleSelect(thread.id, event)}
                           onToggleStar={(event) => void toggleStar(event, thread.id)}
+                          onTogglePin={(event) => void togglePin(event, thread.id)}
                           onOpen={() => {
                             focusRow(thread.id);
                             openEmail(thread.latestEmail, thread);
                           }}
                           onArchive={() => void archiveEmail(thread.id)}
+                          onUnarchive={() => void unarchiveEmail(thread.id)}
+                          isArchiveView={showArchivedView}
                           onDelete={() => void deleteEmail(thread.id)}
                           onMarkRead={() => void markRead(thread.id)}
                           onMarkUnread={() => void markUnread(thread.id)}
