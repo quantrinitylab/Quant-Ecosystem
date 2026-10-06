@@ -20,8 +20,8 @@ export default function ForgotEmailPage() {
     setRequestError(null);
 
     const digits = phone.replace(/\D/g, '');
-    if (digits.length < 10) {
-      setPhoneError('Enter the 10-digit mobile number on your account.');
+    if (digits.length < 7) {
+      setPhoneError('Enter the mobile number linked to your account.');
       return;
     }
 
@@ -34,6 +34,7 @@ export default function ForgotEmailPage() {
       return;
     }
 
+    // Neutral confirmation either way — we never reveal whether a number is registered.
     setIsComplete(true);
   }
 
@@ -44,7 +45,7 @@ export default function ForgotEmailPage() {
           <AuthBrandPanel
             eyebrow="Account recovery"
             title="Find your address."
-            subtitle="Enter the mobile number on your account and we will send your QuantMail address to it."
+            subtitle="Enter the mobile number linked to your QuantMail account and we'll point you back to it."
           />
         }
       >
@@ -54,10 +55,10 @@ export default function ForgotEmailPage() {
               Account recovery
             </p>
             <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
-              Find your email
+              Find your email address
             </h1>
             <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-              Enter the mobile number linked to your QuantMail account.
+              Enter the mobile number you used when creating your address.
             </p>
           </div>
 
@@ -71,8 +72,8 @@ export default function ForgotEmailPage() {
                 Check your phone
               </h2>
               <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
-                If an account matches that number, your QuantMail address has been sent to it
-                by SMS. We do not confirm whether an account exists.
+                If a QuantMail address is linked to that number, recovery details are on
+                their way. We do not confirm whether a number is registered.
               </p>
               <Link
                 href="/login"
@@ -97,7 +98,7 @@ export default function ForgotEmailPage() {
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   aria-invalid={Boolean(phoneError)}
-                  aria-describedby={phoneError ? 'recover-phone-error' : 'recover-phone-hint'}
+                  aria-describedby={phoneError ? 'recover-phone-error' : undefined}
                   className={`w-full rounded-xl border bg-[var(--quant-surface)] px-3.5 py-3 text-sm outline-none transition-[border-color,box-shadow] placeholder:text-[var(--quant-muted-foreground)] focus:border-[var(--brand-primary)] focus:ring-2 focus:ring-[var(--brand-primary)]/20 motion-reduce:transition-none ${phoneError ? 'border-[var(--quant-destructive)]' : 'border-[var(--quant-border)]'}`}
                 />
                 {phoneError ? (
@@ -107,14 +108,7 @@ export default function ForgotEmailPage() {
                   >
                     {phoneError}
                   </p>
-                ) : (
-                  <p
-                    id="recover-phone-hint"
-                    className="mt-1.5 text-xs text-[var(--quant-muted-foreground)]"
-                  >
-                    The number you used when creating your address.
-                  </p>
-                )}
+                ) : null}
               </div>
 
               {requestError ? (
@@ -134,22 +128,20 @@ export default function ForgotEmailPage() {
                 disabled={isSubmitting}
                 className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-[#111111] shadow-[0_10px_30px_rgba(255,140,66,0.2)] transition-[background-color,transform,box-shadow] hover:bg-[var(--brand-primary-hover)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transform-none motion-reduce:transition-none"
               >
-                {isSubmitting ? 'Looking up…' : 'Find my email'}
+                {isSubmitting ? 'Looking up…' : 'Find my address'}
               </button>
+
+              <p className="text-center text-sm text-[var(--quant-muted-foreground)]">
+                Remember your password?{' '}
+                <Link
+                  href="/login"
+                  className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"
+                >
+                  Sign in
+                </Link>
+              </p>
             </form>
           )}
-
-          {!isComplete ? (
-            <p className="mt-7 text-center text-sm text-[var(--quant-muted-foreground)]">
-              Remember your address?{' '}
-              <Link
-                href="/login"
-                className="-my-3.5 inline-flex items-center px-1.5 py-3.5 font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-              >
-                Sign in
-              </Link>
-            </p>
-          ) : null}
         </div>
       </AuthShell>
     </PageTransition>

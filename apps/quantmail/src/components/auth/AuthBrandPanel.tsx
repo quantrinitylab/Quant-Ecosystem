@@ -1,7 +1,6 @@
-import type { ReactNode } from 'react';
 import { QuantMailLogo } from '../QuantMailLogo';
 import { BrandWordmark } from '../BrandWordmark';
-import { Interactive3DLogo } from '../Interactive3DLogo';
+import { QuantAiLogo } from '../QuantAiLogo';
 import { quantMailAuthLockup } from './auth-brand-contract';
 
 interface AuthBrandPanelProps {
@@ -35,42 +34,39 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
           <h2>{title}</h2>
           <p className="auth-brand-subtitle">{subtitle}</p>
 
-          <div className="auth-feature-list" aria-label="QuantMail highlights">
+          <div className="auth-feature-cards">
             <FeatureCard
+              icon={
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                  <path d="M3.5 7.5 L12 13 L20.5 7.5" />
+                </svg>
+              }
               title="Mail + chat threads"
-              detail="Email and chat live in one thread. Reply in seconds, not days."
-              icon={
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                </svg>
-              }
+              copy="Email and chat in one thread."
             />
             <FeatureCard
+              icon={<QuantAiLogo size={34} />}
               title="AI triage"
-              detail="Quant AI surfaces what is urgent and drafts the reply."
-              icon={
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
-                  <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
-                </svg>
-              }
+              copy="Quant AI surfaces what's urgent and drafts the reply."
             />
             <FeatureCard
-              title="End-to-end encrypted"
-              detail="Your mail, sealed. Only you hold the key."
               icon={
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <rect x="3" y="11" width="18" height="11" rx="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
+                  <path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 v3" />
+                  <circle cx="12" cy="15.2" r="1.4" fill="currentColor" stroke="none" />
                 </svg>
               }
+              title="End-to-end encrypted"
+              copy="Encrypted in transit and at rest. Your mail stays private."
             />
           </div>
         </div>
 
         <footer>
-          <span>One identity. Every tool.</span>
-          <span>Private by design · 2026</span>
+          <span>One identity. Access to all Quant apps.</span>
+          <span>© 2026</span>
         </footer>
       </div>
     </div>
@@ -101,13 +97,13 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
 }
 
 function FeatureCard({
-  title,
-  detail,
   icon,
+  title,
+  copy,
 }: {
+  icon: React.ReactNode;
   title: string;
-  detail: string;
-  icon: ReactNode;
+  copy: string;
 }) {
   return (
     <div className="auth-feature-card">
@@ -116,7 +112,7 @@ function FeatureCard({
       </span>
       <div>
         <strong>{title}</strong>
-        <p>{detail}</p>
+        <p>{copy}</p>
       </div>
     </div>
   );

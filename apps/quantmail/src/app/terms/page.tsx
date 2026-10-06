@@ -1,51 +1,81 @@
+'use client';
+
 import Link from 'next/link';
+import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
+import { AuthShell } from '../../components/auth/AuthShell';
+import { PageTransition } from '@quant/shared-ui';
 
-export const metadata = { title: 'Terms of Service · QuantMail' };
-
-const SECTIONS: Array<{ heading: string; body: string }> = [
+const SECTIONS = [
   {
-    heading: 'Your account',
-    body: 'Your QuantMail address is yours. You are responsible for keeping your password and recovery details private, and for activity under your account.',
+    title: 'Your account',
+    body: 'You are responsible for keeping your password private and for activity under your address. If you believe your account is compromised, reset your password immediately.',
   },
   {
-    heading: 'Acceptable use',
-    body: 'Do not use QuantMail to send spam, phishing, or unlawful content, or to interfere with the service or other users. We may suspend accounts that do.',
+    title: 'Acceptable use',
+    body: 'Do not use QuantMail to send spam, phishing, malware, or content that violates the law. Accounts used for abuse may be limited or closed.',
   },
   {
-    heading: 'Your data',
-    body: 'Your mail is end-to-end encrypted where indicated. We do not sell your personal data. See the Privacy Policy for what we collect and why.',
+    title: 'Your content',
+    body: 'Your mail and files remain yours. We do not sell your personal data. How we handle it is described in the Privacy Policy.',
   },
   {
-    heading: 'Changes',
-    body: 'We may update these terms as the service evolves. Continued use of QuantMail after a change means you accept the updated terms.',
+    title: 'Service availability',
+    body: 'QuantMail is provided as-is. We work to keep it reliable, but we do not guarantee uninterrupted access.',
+  },
+  {
+    title: 'Changes',
+    body: 'We may update these terms as the product evolves. Continued use after a change means you accept the updated terms.',
   },
 ];
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-16 text-zinc-300">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#FF8C42]">
-        Legal
-      </p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-        Terms of Service
-      </h1>
-      <p className="mt-3 text-sm leading-6 text-zinc-500">
-        The short, plain version of the rules for using QuantMail.
-      </p>
-      <div className="mt-8 space-y-6">
-        {SECTIONS.map((section) => (
-          <section key={section.heading}>
-            <h2 className="text-sm font-semibold text-white">{section.heading}</h2>
-            <p className="mt-1.5 text-sm leading-6 text-zinc-400">{section.body}</p>
-          </section>
-        ))}
-      </div>
-      <p className="mt-10 text-sm">
-        <Link href="/login" className="font-semibold text-[#FF8C42] underline-offset-4 hover:underline">
-          Return to sign in
-        </Link>
-      </p>
-    </main>
+    <PageTransition>
+      <AuthShell
+        brand={
+          <AuthBrandPanel
+            eyebrow="Legal"
+            title="Terms of Service."
+            subtitle="The short version of the rules that keep QuantMail fair for everyone."
+          />
+        }
+      >
+        <div>
+          <div className="mb-8">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--brand-primary)]">
+              Legal
+            </p>
+            <h1 className="text-[28px] font-semibold tracking-[-0.035em] text-[var(--quant-foreground)] sm:text-[30px]">
+              Terms of Service
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+              Last updated October 2026.
+            </p>
+          </div>
+
+          <div className="space-y-6">
+            {SECTIONS.map((section, index) => (
+              <section key={section.title}>
+                <h2 className="text-sm font-semibold text-[var(--quant-foreground)]">
+                  {index + 1}. {section.title}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--quant-muted-foreground)]">
+                  {section.body}
+                </p>
+              </section>
+            ))}
+          </div>
+
+          <p className="mt-8 text-center text-sm text-[var(--quant-muted-foreground)]">
+            <Link
+              href="/login"
+              className="font-semibold text-[var(--brand-primary)] underline-offset-4 hover:underline"
+            >
+              Return to sign in
+            </Link>
+          </p>
+        </div>
+      </AuthShell>
+    </PageTransition>
   );
 }

@@ -216,9 +216,9 @@ export class QuantMailApiClient {
   }
 
   /**
-   * Find-my-email: look up the account address registered to a mobile number.
-   * The backend must implement POST /auth/recover-email; until it does, the
-   * caller surfaces the failure honestly instead of fabricating a result.
+   * Find-my-email via the mobile number linked to the account.
+   * Backend: POST /auth/recover-email (not yet implemented — the UI treats
+   * every outcome as a neutral confirmation and never fabricates a result).
    */
   async requestEmailLookup(phone: string): Promise<ApiResponse<{ message: string }>> {
     return this.post('/auth/recover-email', { phone });
