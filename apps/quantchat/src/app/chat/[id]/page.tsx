@@ -16,6 +16,8 @@ import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
+import { useConversations } from '../../../hooks/useConversations';
+import { useMe } from '../../../hooks/useMe';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
