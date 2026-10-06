@@ -2373,7 +2373,7 @@ pnpm install && pnpm dev
                     <span className="text-white font-bold flex items-center gap-1">
                       <span>{seg.name}</span>
                       {currentPath && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF]">
+                        <span className="text-[10px] px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF]">
                           active
                         </span>
                       )}
@@ -2425,7 +2425,7 @@ pnpm install && pnpm dev
           </div>
 
           <div className="flex items-center gap-3 shrink-0 text-[#7D8590]">
-            <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
+            <span className="px-1.5 py-px rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
               ✓ Verified
             </span>
             <button

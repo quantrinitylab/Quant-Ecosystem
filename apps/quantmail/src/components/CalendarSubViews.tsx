@@ -507,7 +507,7 @@ export function CalendarFeedSubView({
                             )}
                             {ev.priority && (
                               <span
-                                className={`px-1.5 py-0.2 rounded text-[10px] uppercase font-bold ${
+                                className={`px-1.5 py-px rounded text-[10px] uppercase font-bold ${
                                   ev.priority === 'urgent'
                                     ? 'bg-rose-900/40 text-rose-300'
                                     : 'bg-amber-900/40 text-amber-300'
@@ -837,7 +837,7 @@ export function CalendarMonthSubView({
                       {day.holidays.slice(0, 1).map((h) => (
                         <div
                           key={h.name}
-                          className="truncate text-[10px] px-1 py-0.2 rounded bg-[#F59E0B]/20 text-[#F59E0B] font-medium"
+                          className="truncate text-[10px] px-1 py-px rounded bg-[#F59E0B]/20 text-[#F59E0B] font-medium"
                           title={h.name}
                         >
                           {h.name}
@@ -846,7 +846,7 @@ export function CalendarMonthSubView({
                       {day.events.slice(0, 2).map((ev) => (
                         <div
                           key={ev.id}
-                          className="truncate text-[10px] px-1 py-0.2 rounded font-medium"
+                          className="truncate text-[10px] px-1 py-px rounded font-medium"
                           style={{
                             backgroundColor: `${ev.color || '#F59E0B'}25`,
                             color: ev.color || '#F59E0B',
@@ -1852,7 +1852,7 @@ export function CalendarScheduleSubView({
                       <span className="font-mono">{r.dueTime}</span>
                       <span>·</span>
                       <span
-                        className={`px-1.5 py-0.2 rounded text-[9px] uppercase font-bold ${
+                        className={`px-1.5 py-px rounded text-[9px] uppercase font-bold ${
                           r.priority === 'urgent'
                             ? 'bg-rose-900/40 text-rose-300'
                             : r.priority === 'medium'

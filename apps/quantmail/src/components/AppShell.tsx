@@ -680,7 +680,7 @@ export function AppShell({
           )}
 
           <div
-            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20'}`}
+            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20 md:pb-0'}`}
           >
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
@@ -961,7 +961,6 @@ export function AppShell({
               On mobile it sits ABOVE the thumb-reachable pillar bottom nav
               (bottom-16), on desktop it keeps its bottom-0 rail-adjacent spot. */}
           <ContextBottomNavBar badgeOverrides={{ inbox: unreadCount, teams: 3 }} />
-
           {/* Mobile Pillar Bottom Navigation — thumb-reachable 5-pillar switcher
               (Mail/Calendar/Drive/Contacts/QuantGit). Mobile only; desktop uses
               the DesktopPillarRail. Hidden on /thread/* and /compose where the

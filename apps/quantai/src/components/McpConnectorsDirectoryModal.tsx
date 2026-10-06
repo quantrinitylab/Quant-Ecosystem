@@ -1093,7 +1093,7 @@ export function McpConnectorsDirectoryModal({
                 >
                   <span>{category}</span>
                   <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                    className={`text-[10px] px-1.5 py-px rounded-full ${
                       isActive
                         ? 'bg-emerald-500/30 text-emerald-300'
                         : 'bg-gray-700/80 text-gray-400'

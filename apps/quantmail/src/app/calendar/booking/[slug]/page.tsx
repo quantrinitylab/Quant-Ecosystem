@@ -489,7 +489,7 @@ export default function PublicBookingPage(props: PageProps) {
           <div>
             <span className="font-bold text-sm tracking-tight text-white flex items-center gap-1.5">
               QuantCalendar
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.2 rounded bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/25">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-px rounded bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/25">
                 Sovereign Booking
               </span>
             </span>

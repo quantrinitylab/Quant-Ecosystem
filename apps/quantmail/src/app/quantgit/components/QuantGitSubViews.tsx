@@ -617,7 +617,7 @@ export function QuantGitReposSubView({
                         <span
                           title="Protected branch (enforces CI gates and signed PR reviews)"
                           data-testid="protected-branch-badge"
-                          className="ml-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-1 py-0.2 rounded border border-[#A78BFA]/30"
+                          className="ml-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-1 py-px rounded border border-[#A78BFA]/30"
                         >
                           <SvgShieldIcon className="size-2.5" />
                           <span>Protected</span>

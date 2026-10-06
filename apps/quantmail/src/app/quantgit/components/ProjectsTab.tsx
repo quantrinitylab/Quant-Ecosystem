@@ -18,7 +18,7 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
           <div key={col} className="bg-[#161B22] border border-[#30363D] rounded-md p-3 space-y-3">
             <div className="flex items-center justify-between font-bold text-white border-b border-[#21262D] pb-2">
               <span>{title}</span>
-              <span className="px-2 py-0.2 rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
+              <span className="px-2 py-px rounded-full bg-[#21262D] text-[#7D8590] text-[10px]">
                 {colCards.length}
               </span>
             </div>
@@ -28,7 +28,7 @@ export function ProjectsTab({ projects, handleMoveKanban }: ProjectsTabProps) {
                   key={card.id}
                   className="p-3 rounded bg-[#0D1117] border border-[#30363D] space-y-2 shadow-sm"
                 >
-                  <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] text-[10px] font-bold">
+                  <span className="px-1.5 py-px rounded bg-[#1F242C] text-[#58A6FF] text-[10px] font-bold">
                     {card.tag}
                   </span>
                   <h5 className="font-bold text-white">{card.title}</h5>

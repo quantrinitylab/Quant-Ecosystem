@@ -141,7 +141,7 @@ export default function CallPage() {
   // ─── Render: Ended state (Task 6.5) ─────────────────────────────────────────
   if (state.status === 'ended') {
     return (
-      <div className="h-screen bg-black flex flex-col items-center justify-center">
+      <div className="h-dvh bg-black flex flex-col items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -167,7 +167,7 @@ export default function CallPage() {
   // ─── Render: Reconnecting state (Task 6.6) ──────────────────────────────────
   if (state.status === 'reconnecting') {
     return (
-      <div className="h-screen bg-black relative overflow-hidden">
+      <div className="h-dvh bg-black relative overflow-hidden">
         {/* Background dimmed video area */}
         <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 opacity-50" />
 
@@ -250,7 +250,7 @@ export default function CallPage() {
   // ─── Render: Connecting state ───────────────────────────────────────────────
   if (state.status === 'connecting' || state.status === 'outgoing') {
     return (
-      <div className="h-screen bg-black flex flex-col items-center justify-center">
+      <div className="h-dvh bg-black flex flex-col items-center justify-center">
         <motion.div
           className="text-center"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -296,7 +296,7 @@ export default function CallPage() {
 
   // ─── Render: Active call (Task 6.3) ─────────────────────────────────────────
   return (
-    <div className="h-screen bg-black relative overflow-hidden">
+    <div className="h-dvh bg-black relative overflow-hidden">
       {/* Remote video area (full-screen) */}
       <div className="absolute inset-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
         {/* In production: <video> element for remote participant stream */}

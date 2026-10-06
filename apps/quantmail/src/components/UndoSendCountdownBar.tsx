@@ -368,7 +368,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
       aria-live="polite"
       aria-atomic="true"
       data-testid="undo-send-bar"
-      className={`fixed bottom-6 right-6 z-50 flex flex-col min-w-[320px] max-w-md bg-[#18181B] border border-[#27272A] rounded-xl shadow-2xl shadow-black/70 p-3.5 text-white transition-all duration-200 select-none ${props.className || ''}`}
+      className={`fixed bottom-[76px] sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6 z-50 flex flex-col min-w-0 sm:min-w-[320px] max-w-[calc(100vw-3rem)] sm:max-w-md bg-[#18181B] border border-[#27272A] rounded-xl shadow-2xl shadow-black/70 p-3.5 text-white transition-all duration-200 select-none ${props.className || ''}`}
     >
       {status === 'counting' && (
         <>
@@ -393,7 +393,7 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
                 type="button"
                 data-testid="undo-button"
                 onClick={handleUndo}
-                className="px-2.5 py-1 text-xs font-semibold rounded-md bg-[#FF8C42]/15 text-[#FF8C42] hover:bg-[#FF8C42]/25 border border-[#FF8C42]/30 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
+                className="px-2.5 py-1 min-h-[44px] min-w-[44px] inline-flex items-center justify-center text-xs font-semibold rounded-md bg-[#FF8C42]/15 text-[#FF8C42] hover:bg-[#FF8C42]/25 border border-[#FF8C42]/30 transition-colors focus:outline-none focus:ring-1 focus:ring-[#FF8C42]"
                 title="Undo send (Press Z)"
               >
                 Undo (Z)

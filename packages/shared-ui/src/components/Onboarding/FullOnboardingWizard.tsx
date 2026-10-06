@@ -116,7 +116,7 @@ export const FullOnboardingWizard: React.FC<FullOnboardingWizardProps> = ({
 
   return (
     <div
-      className="flex flex-col min-h-screen bg-[var(--quant-surface-hover,#f9fafb)]"
+      className="flex flex-col min-h-dvh bg-[var(--quant-surface-hover,#f9fafb)]"
       role="form"
       aria-label="Onboarding wizard"
     >

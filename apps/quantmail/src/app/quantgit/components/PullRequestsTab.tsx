@@ -428,11 +428,11 @@ export function PullRequestsTab({
                   Merged by{' '}
                   <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -440,11 +440,11 @@ export function PullRequestsTab({
                 <span>
                   <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -471,7 +471,7 @@ export function PullRequestsTab({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-[#E6EDF3]">{rev.author}</span>
                       <span
-                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                        className={`px-1.5 py-px rounded text-[10px] font-bold ${
                           rev.state === 'APPROVED'
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : rev.state === 'CHANGES_REQUESTED'
@@ -748,8 +748,7 @@ export function PullRequestsTab({
                 </p>
                 <p className="mt-1 text-[11px] text-[#6E7681]">
                   Browse the repository code tab to review the changes.
-                </p>
-              </div>
+                </p>              </div>
             ) : (
               <div
                 data-testid="diff-empty"
@@ -841,13 +840,13 @@ export function PullRequestsTab({
                       <span className="font-semibold text-xs text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
                         {pr.title}
                       </span>
-                      <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
+                      <span className="px-1.5 py-px rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
                         {pr.branchSource}
                       </span>
-                      <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold">
+                      <span className="px-1.5 py-px rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold">
                         ✓ 55/56 passed
                       </span>
-                      <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
+                      <span className="px-1.5 py-px rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
                         Review required
                       </span>
                     </div>

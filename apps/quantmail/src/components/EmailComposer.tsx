@@ -2022,7 +2022,7 @@ export function EmailComposer({
               clipping trailing buttons. Scrollbar hidden for a clean look. */}
           <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
-            <div className="flex items-center gap-1 sm:gap-2 min-w-max">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-max [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
               <div
                 ref={sendOptionsAnchorRef}

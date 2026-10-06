@@ -352,7 +352,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
               {/* Remote collaborator name tag */}
               {remoteCollab && (
                 <span
-                  className="absolute -top-3 left-4 text-[10px] font-bold px-1.5 py-0.2 rounded text-white shadow-sm z-20"
+                  className="absolute -top-3 left-4 text-[10px] font-bold px-1.5 py-px rounded text-white shadow-sm z-20"
                   style={{ backgroundColor: remoteCollab.color }}
                 >
                   {remoteCollab.name}

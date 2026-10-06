@@ -432,7 +432,7 @@ export function SecurityTab({
               }`}
             >
               <span>Critical</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px]">
+              <span className="px-1.5 py-px rounded-full bg-black/40 text-[10px]">
                 {severityCounts.critical}
               </span>
             </button>
@@ -448,7 +448,7 @@ export function SecurityTab({
               }`}
             >
               <span>High</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px]">
+              <span className="px-1.5 py-px rounded-full bg-black/40 text-[10px]">
                 {severityCounts.high}
               </span>
             </button>
@@ -466,7 +466,7 @@ export function SecurityTab({
               }`}
             >
               <span>Moderate</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px]">
+              <span className="px-1.5 py-px rounded-full bg-black/40 text-[10px]">
                 {severityCounts.moderate}
               </span>
             </button>
@@ -482,7 +482,7 @@ export function SecurityTab({
               }`}
             >
               <span>Low</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-black/40 text-[10px]">
+              <span className="px-1.5 py-px rounded-full bg-black/40 text-[10px]">
                 {severityCounts.low}
               </span>
             </button>
@@ -601,13 +601,13 @@ export function SecurityTab({
                     <div className="flex items-center gap-4 text-[11px] text-[#7D8590]">
                       <span>
                         Vulnerable version:{' '}
-                        <code className="text-[#F85149] font-mono bg-[#F85149]/10 px-1 py-0.2 rounded">
+                        <code className="text-[#F85149] font-mono bg-[#F85149]/10 px-1 py-px rounded">
                           {sec.vulnerableRange || '< patched'}
                         </code>
                       </span>
                       <span>
                         Patched version:{' '}
-                        <code className="text-[#3FB950] font-mono bg-[#3FB950]/10 px-1 py-0.2 rounded">
+                        <code className="text-[#3FB950] font-mono bg-[#3FB950]/10 px-1 py-px rounded">
                           {sec.patchedVersion || 'latest'}
                         </code>
                       </span>
@@ -665,7 +665,7 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔑 Git Credential & Secret Scanner</span>
-                <span className="px-2 py-0.2 rounded-full bg-[#F85149]/20 text-[#F85149] font-mono text-[10px]">
+                <span className="px-2 py-px rounded-full bg-[#F85149]/20 text-[#F85149] font-mono text-[10px]">
                   Active Protection
                 </span>
               </h3>
@@ -834,7 +834,7 @@ export function SecurityTab({
             <div className="space-y-1">
               <h3 className="font-bold text-white text-sm flex items-center gap-2">
                 <span>🔬 CodeQL Static Application Security Testing (SAST)</span>
-                <span className="px-2 py-0.2 rounded-full bg-[#58A6FF]/20 text-[#58A6FF] font-mono text-[10px]">
+                <span className="px-2 py-px rounded-full bg-[#58A6FF]/20 text-[#58A6FF] font-mono text-[10px]">
                   v2.17.2
                 </span>
               </h3>
@@ -1063,7 +1063,7 @@ export function SecurityTab({
                   <span>🔒 Branch Protection Security Checks</span>
                   <span
                     data-testid="branch-rules-enforced-badge"
-                    className="px-2 py-0.2 rounded-full bg-[#238636]/20 text-[#3FB950] font-mono text-[10px] font-bold"
+                    className="px-2 py-px rounded-full bg-[#238636]/20 text-[#3FB950] font-mono text-[10px] font-bold"
                   >
                     main: Enforced
                   </span>

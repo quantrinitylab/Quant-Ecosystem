@@ -1065,7 +1065,7 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
+                className="relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out',
@@ -1224,7 +1224,7 @@ export function QuantPillarTopBar({
             <button
               type="button"
               onClick={handleClearClick}
-              className="p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
               title="Clear search"
               aria-label="Clear search"
             >
@@ -1235,7 +1235,7 @@ export function QuantPillarTopBar({
           <button
             type="button"
             onClick={handleMicClick}
-            className={`p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
               isListening
                 ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
                 : 'text-[#94A3B8] hover:text-white hover:bg-[#1F2430]'
@@ -1354,7 +1354,7 @@ export function QuantPillarTopBar({
               <span>{lens.label}</span>
               {lensBadge !== undefined && (
                 <span
-                  className="px-1 py-0.2 rounded-full text-[9px] font-bold leading-none font-mono"
+                  className="px-1 py-px rounded-full text-[9px] font-bold leading-none font-mono"
                   style={
                     isSelected
                       ? {

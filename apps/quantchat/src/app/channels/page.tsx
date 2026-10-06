@@ -58,7 +58,7 @@ export default function ChannelsPage() {
   if (error) return <ErrorState message={error.message} onRetry={() => void refetch()} />;
 
   return (
-    <AppShell topBar={<TopBar title={selected ? (selected.name ?? 'Channel') : 'Channels'} />}>
+    <AppShell topBar={<TopBar title={selected ? (selected.name ?? 'Channel') : 'Channels'} profileHref="/profile" />}>
       <div className="flex h-full flex-col overflow-y-auto pb-20">
         {selected ? (
           <ChannelDetail

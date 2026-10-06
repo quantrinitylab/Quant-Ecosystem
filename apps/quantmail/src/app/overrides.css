@@ -52,7 +52,7 @@
   height: 24px;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .quant-compose-fab {
     right: 16px;
     bottom: 18px;
@@ -637,7 +637,7 @@
   font-size: 12px;
   color: #A1A4AC;
 }
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .mail-row-copy p {
     white-space: normal;
     display: -webkit-box;
@@ -772,7 +772,7 @@
 }
 
 /* Mobile: one solid colour edge to edge + FAB clears the bottom nav */
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .inbox-workspace.is-single,
   .inbox-workspace.is-single .inbox-list-pane {
     background: var(--quant-background, #0b0f14);
@@ -817,13 +817,13 @@
 .inbox-search-wrap .inbox-search-logo {
   margin-right: 2px;
 }
-@media (max-width: 899px) {
+@media (max-width: 767px) {
   .inbox-hero,
   .inbox-search-wrap {
     display: none; /* search moved up into the nav bar */
   }
 }
-@media (min-width: 900px) {
+@media (min-width: 768px) {
   .mobile-nav-search {
     display: none;
   }

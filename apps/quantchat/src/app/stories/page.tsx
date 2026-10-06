@@ -81,6 +81,7 @@ export default function StoriesPage() {
       topBar={
         <TopBar
           title="Stories"
+          profileHref="/profile"
           rightActions={[
             <button
               key="create-story"
@@ -109,8 +110,7 @@ export default function StoriesPage() {
           ]}
         />
       }
-    >
-      <div className="flex flex-col h-full pb-16">
+    >      <div className="flex flex-col h-full pb-16">
         {loading ? (
           <LoadingState variant="skeleton" text="Loading stories..." />
         ) : error ? (

@@ -484,9 +484,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-dvh">
       <TopBar
         title={chatDisplayName}
+        profileHref="/profile"
         subtitle="🔥 5 Day Streak · Active now"
         onBack={() => {
           window.location.href = '/';

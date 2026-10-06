@@ -54,7 +54,7 @@ export function DiscussionsTab({
           >
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#1F242C] text-[#58A6FF]">
+                <span className="px-2 py-px rounded-full text-[10px] font-bold bg-[#1F242C] text-[#58A6FF]">
                   {d.category}
                 </span>
                 <h4 className="font-bold text-white hover:text-[#58A6FF] cursor-pointer">

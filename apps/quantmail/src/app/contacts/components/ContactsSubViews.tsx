@@ -267,7 +267,7 @@ export function VipContactsSubView({
                       <h3 className="text-sm font-bold text-white truncate group-hover:text-[#FBBF24] transition-colors">
                         {contact.name}
                       </h3>
-                      <span className="rounded border border-[#F59E0B]/60 bg-[#78350F]/40 px-1.5 py-0.2 text-[9px] font-bold text-[#FBBF24]">
+                      <span className="rounded border border-[#F59E0B]/60 bg-[#78350F]/40 px-1.5 py-px text-[9px] font-bold text-[#FBBF24]">
                         VIP Executive
                       </span>
                     </div>

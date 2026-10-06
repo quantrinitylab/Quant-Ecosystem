@@ -1982,7 +1982,7 @@ function QuantGitContent() {
                   <circle cx="12" cy="12" r="3" />
                 </svg>
                 <span>Watch</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
+                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.watching}
                 </span>
               </button>
@@ -1999,7 +1999,7 @@ function QuantGitContent() {
                   <path d="M12 12v3" />
                 </svg>
                 <span>Fork</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
+                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.forks}
                 </span>
               </button>
@@ -2012,7 +2012,7 @@ function QuantGitContent() {
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                 </svg>
                 <span>Star</span>
-                <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
+                <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#7D8590]">
                   {selectedRepo.stars}
                 </span>
               </button>
@@ -2055,7 +2055,7 @@ function QuantGitContent() {
                   <span>{t.label}</span>
                   {t.badge !== null && (
                     <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      className={`px-1.5 py-px rounded-full text-[10px] ${
                         active
                           ? 'bg-[#FF8C42]/20 text-[#FF8C42] font-bold'
                           : 'bg-[#21262D] text-[#7D8590]'
@@ -2533,7 +2533,6 @@ function QuantGitContent() {
         aria-hidden="true"
         className="fixed bottom-0 inset-x-0 h-[80px] bg-[#090A0E] pointer-events-none z-20"
       />
-
       {/* Floating Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#111318]/90 backdrop-blur-xl border border-[#FF8C42]/35 text-[#FF8C42] text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.8),inset_0_1px_0_0_rgba(255,255,255,0.08),0_0_20px_rgba(255,140,66,0.15)] animate-in fade-in slide-in-from-bottom-3">

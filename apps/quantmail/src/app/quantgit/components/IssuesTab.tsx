@@ -427,7 +427,7 @@ export function IssuesTab({
                       {issue.labels.map((lbl) => (
                         <span
                           key={lbl.name}
-                          className="px-2 py-0.2 rounded-full text-[10px] font-bold text-white"
+                          className="px-2 py-px rounded-full text-[10px] font-bold text-white"
                           style={{ backgroundColor: lbl.color }}
                         >
                           {lbl.name}

@@ -219,7 +219,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                       {contact.name || 'Unnamed'}
                                     </span>
                                     {isSelectedPrimary && (
-                                      <span className="rounded bg-[#FF8C42] px-1 py-0.2 text-[9px] font-bold text-[#111111]">
+                                      <span className="rounded bg-[#FF8C42] px-1 py-px text-[9px] font-bold text-[#111111]">
                                         PRIMARY
                                       </span>
                                     )}
@@ -256,7 +256,7 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                                   {contact.tags.map((tag) => (
                                     <span
                                       key={tag}
-                                      className="rounded bg-[#282C35] px-1.5 py-0.2 text-[9px] text-[#A1A4AC]"
+                                      className="rounded bg-[#282C35] px-1.5 py-px text-[9px] text-[#A1A4AC]"
                                     >
                                       {tag}
                                     </span>

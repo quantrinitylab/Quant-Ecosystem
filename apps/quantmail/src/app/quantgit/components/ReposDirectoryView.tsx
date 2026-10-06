@@ -100,7 +100,7 @@ export function ReposDirectoryView({
                       </svg>
                       {r.name}
                     </button>
-                    <span className="px-2 py-0.2 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase">
+                    <span className="px-2 py-px rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase">
                       {r.visibility}
                     </span>
                   </div>

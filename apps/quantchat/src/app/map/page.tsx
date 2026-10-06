@@ -250,7 +250,7 @@ export default function MapPage() {
 
   return (
     <motion.div
-      className="relative h-screen w-full overflow-hidden"
+      className="relative h-dvh w-full overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ type: 'spring', ...spring.gentle }}
