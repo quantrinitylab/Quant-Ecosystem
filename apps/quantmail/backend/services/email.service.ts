@@ -4,6 +4,7 @@ import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
+import { MailFilterService } from './mail-filter.service';
 
 export interface PaginationOptions {
   page?: number;
@@ -300,7 +301,7 @@ export class EmailService {
         recipientThreadId = null;
       }
 
-      await this.prisma.email.create({
+      const created = await this.prisma.email.create({
         data: {
           userId: recipient.id,
           folderId: inboxFolder?.id ?? null,
@@ -325,9 +326,87 @@ export class EmailService {
           deliveryStatus: 'delivered',
         } as never,
       });
+      // P0 fix: run the recipient's filters on internally delivered mail.
+      // Previously filters only ran (when wired at all) on the external
+      // inbound path, so a QuantMail-to-QuantMail message — including a
+      // self-send — never got starred/labeled/moved automatically.
+      await this.applyRecipientFilters(recipient.id, created.id, {
+        fromAddress: senderEmail,
+        toAddresses: input.toAddresses,
+        subject: input.subject,
+        bodyPlain: input.bodyPlain ?? null,
+        bodyHtml: input.bodyHtml ?? null,
+        hasAttachments,
+      });
       delivered++;
     }
     return delivered;
+  }
+
+  /**
+   * Evaluate the recipient's enabled mail filters against a newly delivered
+   * internal message and apply the resolved actions. Best-effort: a filter
+   * failure must never break delivery of the (already persisted) message.
+   */
+  private async applyRecipientFilters(
+    recipientId: string,
+    emailId: string,
+    email: {
+      fromAddress: string;
+      toAddresses: string[];
+      subject: string;
+      bodyPlain?: string | null;
+      bodyHtml?: string | null;
+      hasAttachments: boolean;
+    },
+  ): Promise<void> {
+    try {
+      const filters = new MailFilterService(this.prisma);
+      const actions = await filters.computeActions(recipientId, email);
+      if (actions.matchedFilterIds.length === 0) return;
+
+      const data: Record<string, unknown> = {};
+      if (actions.markRead) data['isRead'] = true;
+      if (actions.star) data['isStarred'] = true;
+      if (actions.addLabelIds.length > 0) data['labels'] = actions.addLabelIds;
+
+      const folderDelegate = (
+        this.prisma as unknown as {
+          emailFolder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+          folder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+        }
+      ).emailFolder ?? (this.prisma as unknown as {
+        folder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+      }).folder;
+      const folderIdFor = async (type: string): Promise<string | null> => {
+        if (!folderDelegate) return null;
+        return (
+          (await folderDelegate.findFirst({ where: { userId: recipientId, type } }).catch(() => null))
+            ?.id ?? null
+        );
+      };
+
+      // Routing — highest-precedence destination wins (mirrors inbound ingest).
+      if (actions.delete) {
+        data['isTrash'] = true;
+        const trashId = await folderIdFor('TRASH');
+        if (trashId) data['folderId'] = trashId;
+      } else if (actions.markSpam) {
+        data['isSpam'] = true;
+        const spamId = await folderIdFor('SPAM');
+        if (spamId) data['folderId'] = spamId;
+      } else if (actions.archive) {
+        const archiveId = await folderIdFor('ARCHIVE');
+        if (archiveId) data['folderId'] = archiveId;
+      } else if (actions.moveToFolderId) {
+        data['folderId'] = actions.moveToFolderId;
+      }
+
+      if (Object.keys(data).length === 0) return;
+      await this.prisma.email.update({ where: { id: emailId }, data: data as never });
+    } catch {
+      // Swallow: filters are best-effort on top of completed delivery.
+    }
   }
 
   async send(

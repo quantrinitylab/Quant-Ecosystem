@@ -666,3 +666,82 @@ describe('EmailService', () => {
     });
   });
 });
+
+describe('EmailService.deliverInternally applies recipient filters (P0)', () => {
+  function deliverPrisma() {
+    const base = createMockPrisma();
+    return {
+      ...base,
+      mailFilter: { findMany: vi.fn() },
+      emailFolder: { findFirst: vi.fn().mockResolvedValue({ id: 'inbox-folder' }) },
+    };
+  }
+
+  const baseInput = {
+    fromUserId: 'user-1',
+    subject: 'hello',
+    bodyPlain: 'hi there',
+    toAddresses: ['user-2@quantmail.in'],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('stars the recipient copy when a matching star filter exists', async () => {
+    const prisma = deliverPrisma();
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'user-2', email: 'user-2@quantmail.in', username: 'user2' },
+    ]);
+    prisma.email.create.mockResolvedValue({ id: 'email-new' });
+    // One enabled filter: from contains "user-1" -> star.
+    prisma.mailFilter.findMany.mockResolvedValue([
+      {
+        id: 'filter-1',
+        userId: 'user-2',
+        enabled: true,
+        priority: 0,
+        matchAll: true,
+        conditions: [{ from: 'user-1' }],
+        actions: [{ star: true }],
+      },
+    ]);
+    const service = new EmailService(prisma as never);
+
+    const delivered = await service.deliverInternally(baseInput);
+
+    expect(delivered).toBe(1);
+    expect(prisma.email.update).toHaveBeenCalledWith({
+      where: { id: 'email-new' },
+      data: expect.objectContaining({ isStarred: true }),
+    });
+  });
+
+  it('leaves the copy untouched when no filter matches', async () => {
+    const prisma = deliverPrisma();
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'user-2', email: 'user-2@quantmail.in', username: 'user2' },
+    ]);
+    prisma.email.create.mockResolvedValue({ id: 'email-new' });
+    prisma.mailFilter.findMany.mockResolvedValue([]);
+    const service = new EmailService(prisma as never);
+
+    await service.deliverInternally(baseInput);
+
+    expect(prisma.email.update).not.toHaveBeenCalled();
+  });
+
+  it('still delivers when filter evaluation throws (best-effort)', async () => {
+    const prisma = deliverPrisma();
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'user-2', email: 'user-2@quantmail.in', username: 'user2' },
+    ]);
+    prisma.email.create.mockResolvedValue({ id: 'email-new' });
+    prisma.mailFilter.findMany.mockRejectedValue(new Error('db down'));
+    const service = new EmailService(prisma as never);
+
+    const delivered = await service.deliverInternally(baseInput);
+
+    expect(delivered).toBe(1);
+  });
+});

@@ -187,7 +187,7 @@ describe('useInboxKeyboard & Done/Archive Instant Undo Sentinel (Task W39-SH05)'
       expect(toast.type).toBe('info');
       expect(typeof toast.undoAction).toBe('function');
 
-      // 3. Verify lastArchivedThread was captured
+      // 3. Verify lastArchivedThread was captured (including the archived ids)
       expect(controller.lastArchivedThread).toEqual({
         id: 'msg-3',
         threadId: 'thread-3',
@@ -195,6 +195,7 @@ describe('useInboxKeyboard & Done/Archive Instant Undo Sentinel (Task W39-SH05)'
           { id: 'msg-3a', subject: 'Design token alignment' },
           { id: 'msg-3b', subject: 'Re: Design token alignment' },
         ],
+        ids: ['msg-3a', 'msg-3b'],
       });
     });
 
@@ -241,8 +242,10 @@ describe('useInboxKeyboard & Done/Archive Instant Undo Sentinel (Task W39-SH05)'
       const undone = controller.undoLastArchive();
       expect(undone).toBe(true);
 
-      // 1. Verify unarchive was called with the archived thread id
-      expect(mockMutations.unarchive).toHaveBeenCalledWith('msg-1');
+      // 1. Verify unarchive was called with the full archived id list
+      // (P0 fix: previously only the row id was unarchived, leaving the rest
+      // of the thread's messages archived)
+      expect(mockMutations.unarchive).toHaveBeenCalledWith(['msg-1']);
 
       // 2. Verify "Action undone" toast was shown
       const undoneToast = receivedToasts[receivedToasts.length - 1];
@@ -278,8 +281,36 @@ describe('useInboxKeyboard & Done/Archive Instant Undo Sentinel (Task W39-SH05)'
       // Simulate user clicking "Undo" inside the toast popup
       toast.undoAction?.();
 
-      expect(mockMutations.unarchive).toHaveBeenCalledWith('msg-2');
+      expect(mockMutations.unarchive).toHaveBeenCalledWith(['msg-2']);
       expect(controller.lastArchivedThread).toBe(null);
+    });
+
+    it('unarchives every message id of a multi-message thread, not just the row id (P0)', () => {
+      const expandIds = (row: MockRow): string[] =>
+        row.messages?.map((m) => m.id) ?? [row.id];
+      const controller = new InboxKeyboardController({
+        rows: SAMPLE_ROWS,
+        selectedId: null,
+        onOpen: vi.fn(),
+        onClose: vi.fn(),
+        onToggleSelect: vi.fn(),
+        mutations: mockMutations,
+        expandIds,
+      });
+
+      // Row 3 is a thread of two messages; archiving must act on both ids.
+      controller.focusRow('msg-3');
+      controller.archiveFocused();
+
+      expect(mockMutations.archive).toHaveBeenCalledWith(['msg-3a', 'msg-3b']);
+      expect(controller.lastArchivedThread?.ids).toEqual(['msg-3a', 'msg-3b']);
+
+      const undone = controller.undoLastArchive();
+      expect(undone).toBe(true);
+      // The regression: undo previously called unarchive('msg-3') — a single
+      // id that is not even one of the archived messages — leaving the thread
+      // archived (or duplicated across inbox and archive).
+      expect(mockMutations.unarchive).toHaveBeenCalledWith(['msg-3a', 'msg-3b']);
     });
   });
 
@@ -344,7 +375,7 @@ describe('useInboxKeyboard & Done/Archive Instant Undo Sentinel (Task W39-SH05)'
       // Run undo command
       const undoResult = runCommand('inbox.undo');
       expect(undoResult).toBe(true);
-      expect(mockMutations.unarchive).toHaveBeenCalledWith('msg-1');
+      expect(mockMutations.unarchive).toHaveBeenCalledWith(['msg-1']);
 
       // After undo: undo is disabled again
       expect(undoCmd?.enabled?.()).toBe(false);
