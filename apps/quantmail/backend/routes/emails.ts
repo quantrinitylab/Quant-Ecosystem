@@ -4,6 +4,7 @@ import type { PrismaClient, Prisma } from '@quant/database';
 import { createAppError } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
+import type { EmailSearchFilters } from '../services/email.service';
 import type { LearnedInboxCategoryStore } from '../services/learned-inbox-category.service';
 import { SmartInboxBackfillService } from '../services/smart-inbox-backfill.service';
 import { SmartInboxService } from '../services/smart-inbox.service';
@@ -163,6 +164,17 @@ const searchSchema = z.object({
   q: z.string().min(1),
   page: z.coerce.number().int().min(1).optional(),
   pageSize: z.coerce.number().int().min(1).max(100).optional(),
+  // Advanced search filters (the /search page's filter chips). These used to be
+  // silently stripped here, which made every chip cosmetic — the schema is the
+  // reason `From:kundan` never changed the result count.
+  from: z.string().optional(),
+  to: z.string().optional(),
+  subject: z.string().optional(),
+  // Arrives as the string "true" over query params; accept a real boolean too.
+  hasAttachment: z.union([z.boolean(), z.enum(['true', 'false'])]).optional(),
+  label: z.string().optional(),
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
 });
 
 /**
@@ -1148,10 +1160,20 @@ export default async function emailsRoutes(
     const prisma = getPrisma(fastify);
     const service = new EmailService(prisma);
 
-    const result = await service.search(userId, queryResult.data.q, {
-      page: queryResult.data.page,
-      pageSize: queryResult.data.pageSize,
-    });
+    const data = queryResult.data;
+    const filters: EmailSearchFilters = {
+      from: data.from,
+      to: data.to,
+      subject: data.subject,
+      hasAttachment: data.hasAttachment === true || data.hasAttachment === 'true',
+      label: data.label,
+      dateFrom: data.dateFrom,
+      dateTo: data.dateTo,
+    };
+    const result = await service.search(userId, data.q, {
+      page: data.page,
+      pageSize: data.pageSize,
+    }, filters);
 
     // One API, one shape for a list of emails. Same envelope as the folder listing now,
     // pagination fields alongside the array rather than wrapped around it.
