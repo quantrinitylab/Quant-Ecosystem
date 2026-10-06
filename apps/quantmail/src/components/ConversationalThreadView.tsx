@@ -18,6 +18,7 @@ import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
+import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
@@ -80,6 +81,29 @@ function messageParticipantAddresses(messages: Email[], currentEmail: string): S
   }
 
   return addresses;
+}
+
+/**
+ * Which messages start expanded when a thread loads.
+ *
+ * Chat-kind messages always start expanded — in chat you read the whole
+ * conversation, you don't open letters one at a time. Mail-kind keeps the
+ * old rule: short threads (≤2 messages) open everything, long threads open
+ * only the latest message.
+ *
+ * Exported for unit tests.
+ */
+export function autoExpandedIndices(msgs: Email[]): Set<number> {
+  const expanded = new Set<number>();
+  msgs.forEach((m, i) => {
+    if (messageKindOf(m) === 'chat') expanded.add(i);
+  });
+  if (msgs.length <= 2) {
+    msgs.forEach((_, i) => expanded.add(i));
+  } else {
+    expanded.add(msgs.length - 1);
+  }
+  return expanded;
 }
 
 function findActiveGroup(
@@ -828,7 +852,7 @@ export function ConversationalThreadView({
     if (adoptedThreadIdRef.current !== threadId) {
       adoptedThreadIdRef.current = threadId;
       loadedThreadIdRef.current = threadId;
-      setExpandedIndices(new Set(msgs.length <= 2 ? msgs.map((_, i) => i) : [msgs.length - 1]));
+      setExpandedIndices(autoExpandedIndices(msgs));
 
       // Read-receipt pipeline: opening the thread marks the viewer's unread
       // received messages as read and propagates `readAt` to the senders'
@@ -858,7 +882,7 @@ export function ConversationalThreadView({
     if (initialEmails && initialEmails.length > 0) {
       if (!resolvedConversation) {
         setMessages(initialEmails);
-        setExpandedIndices(new Set([initialEmails.length - 1]));
+        setExpandedIndices(autoExpandedIndices(initialEmails));
       }
       setIsLoading(false);
       return;
@@ -897,11 +921,7 @@ export function ConversationalThreadView({
             setMessages(msgs);
             setThreadSubject(threadRes.data.subject || msgs[0]?.subject || '(No Subject)');
             setStarred(threadRes.data.isStarred || false);
-            if (msgs.length <= 2) {
-              setExpandedIndices(new Set(msgs.map((_, i) => i)));
-            } else {
-              setExpandedIndices(new Set([msgs.length - 1]));
-            }
+            setExpandedIndices(autoExpandedIndices(msgs));
             setIsLoading(false);
             return;
           }
@@ -929,9 +949,7 @@ export function ConversationalThreadView({
                     '(No Subject)',
                 );
                 setStarred(fullThreadRes.data.isStarred || email.isStarred || false);
-                setExpandedIndices(
-                  new Set(fullMsgs.length <= 2 ? fullMsgs.map((_, i) => i) : [fullMsgs.length - 1]),
-                );
+                setExpandedIndices(autoExpandedIndices(fullMsgs));
                 setIsLoading(false);
                 return;
               }
@@ -1850,6 +1868,65 @@ export function ConversationalThreadView({
                       </svg>
                     </span>
                   </button>
+                ) : messageKind === 'chat' ? (
+                  /*
+                    Chat bubble: WhatsApp-style compact bubble. Side, colour and
+                    tail say who spoke — no avatar or header-card chrome, which
+                    is what made every chat line read as a Gmail letter. Mail
+                    keeps the rich card below.
+                  */
+                  <div
+                    className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-md ${
+                      isOutbound
+                        ? 'rounded-br-md bg-[#1E5AA8] text-white'
+                        : 'rounded-bl-md bg-[#1F232B] text-[#F5F5F5]'
+                    }`}
+                  >
+                    {/* Tail */}
+                    <span
+                      aria-hidden="true"
+                      className={`absolute top-0 h-0 w-0 border-y-[8px] border-y-transparent ${
+                        isOutbound
+                          ? '-right-[7px] border-l-[8px] border-l-[#1E5AA8]'
+                          : '-left-[7px] border-r-[8px] border-r-[#1F232B]'
+                      }`}
+                    />
+                    {!isOutbound && (
+                      <p className="mb-0.5 text-[11px] font-semibold text-[#FFB875]">
+                        {msgFromName}
+                      </p>
+                    )}
+                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {message.bodyText || message.snippet || '(No content)'}
+                    </div>
+                    {hasAtt && (
+                      <p
+                        className={`mt-1.5 text-[11px] ${
+                          isOutbound ? 'text-white/70' : 'text-[#A1A4AC]'
+                        }`}
+                      >
+                        <span aria-hidden="true">📎 </span>
+                        {msgAttachments.length}{' '}
+                        {msgAttachments.length === 1 ? 'attachment' : 'attachments'}
+                      </p>
+                    )}
+                    <div className="mt-1 flex items-center justify-end gap-1">
+                      <span
+                        className={`font-mono text-[10px] ${
+                          isOutbound ? 'text-white/70' : 'text-[#A1A4AC]'
+                        }`}
+                      >
+                        {formatMessageDate(message.receivedAt)}
+                      </span>
+                      {receipt && (
+                        <EmailReadReceipt
+                          status={receipt.status}
+                          readAt={receipt.readAt}
+                          deliveredAt={receipt.deliveredAt}
+                        />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   /* Expanded Rich Card */
                   <div
@@ -2102,6 +2179,22 @@ export function ConversationalThreadView({
 
       {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
       <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          AI quick-reply chips: suggestions for the latest message. One tap
+          fills the reply bar — previously imported but never rendered, so
+          users never saw any AI suggestions.
+        */}
+        {composeMode === 'chat' && messages.length > 0 && (
+          <SmartReplySuggestions
+            emailId={messages[messages.length - 1]?.id || threadId}
+            onSelectReply={(text) => {
+              setQuickReplyText(text);
+              setTimeout(() => {
+                document.getElementById('chatbot-reply-input')?.focus();
+              }, 50);
+            }}
+          />
+        )}
         {/*
           Quoted-reply chip: what a swipe-right or menu Reply targeted. One tap
           on the × (or Escape in the input) stands the bar back down to replying
