@@ -200,7 +200,7 @@ function SvgFlag({ className }: { className?: string }) {
 
 // ============================================================================
 // SUB-VIEW 1: Feed (CalendarFeedSubView)
-// Chronological date feed of upcoming meetings, tasks, and tracker milestones
+// Chronological date feed of upcoming meetings and tasks
 // ============================================================================
 
 export interface CalendarFeedSubViewProps {
@@ -251,7 +251,6 @@ export function CalendarFeedSubView({
       dateLabel: string;
       events: CalendarEventLike[];
       holidays: Holiday[];
-      milestones: Array<{ id: string; title: string; type: string; subtitle: string; tone: string }>;
     }> = [];
 
     for (let offset = -2; offset <= 30; offset++) {
@@ -274,38 +273,10 @@ export function CalendarFeedSubView({
 
       const dayHols = holidaysByDay[k] || [];
 
-      // Synthetic tracker milestones for cycle predictions & health checkpoints
-      const milestones: Array<{ id: string; title: string; type: string; subtitle: string; tone: string }> = [];
-      if (offset === 0) {
-        milestones.push({
-          id: `ms-${k}-1`,
-          title: 'Daily Wellness & Steps Milestone',
-          type: 'health',
-          subtitle: 'Target: 10,000 steps · Hydration: 2.5L',
-          tone: 'emerald',
-        });
-      } else if (offset === 5) {
-        milestones.push({
-          id: `ms-${k}-2`,
-          title: 'Predicted Cycle Phase: Luteal',
-          type: 'period',
-          subtitle: 'Estimated cycle day 21 · High progesterone window',
-          tone: 'rose',
-        });
-      } else if (offset === 12) {
-        milestones.push({
-          id: `ms-${k}-3`,
-          title: 'Quarterly Passport / Visa Audit',
-          type: 'life',
-          subtitle: 'Life Tracker Countdown: 12 days remaining',
-          tone: 'sky',
-        });
-      }
-
       // Filter check
       const hasMeetings = dayEvs.some((e) => !e.type || e.type === 'event');
       const hasTasks = dayEvs.some((e) => e.type === 'task');
-      const hasTrackerEvents = dayEvs.some((e) => e.type === 'period' || e.type === 'birthday') || milestones.length > 0;
+      const hasTrackerEvents = dayEvs.some((e) => e.type === 'period' || e.type === 'birthday');
       const hasHolidays = dayHols.length > 0;
 
       let include = false;
@@ -315,7 +286,7 @@ export function CalendarFeedSubView({
       else if (filterType === 'trackers' && hasTrackerEvents) include = true;
       else if (filterType === 'holidays' && hasHolidays) include = true;
 
-      if (include && (dayEvs.length > 0 || dayHols.length > 0 || milestones.length > 0 || isToday)) {
+      if (include && (dayEvs.length > 0 || dayHols.length > 0 || isToday)) {
         days.push({
           date: d,
           key: k,
@@ -325,7 +296,6 @@ export function CalendarFeedSubView({
           dateLabel,
           events: dayEvs,
           holidays: dayHols,
-          milestones,
         });
       }
     }
@@ -398,7 +368,7 @@ export function CalendarFeedSubView({
                       <span className="text-xs font-normal text-[#A1A4AC]">{day.dateLabel}</span>
                     </h3>
                     <p className="text-[11px] text-[#A1A4AC]">
-                      {day.events.length} entries · {day.holidays.length} holidays · {day.milestones.length} milestones
+                      {day.events.length} entries · {day.holidays.length} holidays
                     </p>
                   </div>
                 </div>
@@ -430,32 +400,7 @@ export function CalendarFeedSubView({
                   </div>
                 ))}
 
-                {/* Tracker Milestones */}
-                {day.milestones.map((ms) => (
-                  <div
-                    key={ms.id}
-                    className={`flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl border text-xs ${
-                      ms.tone === 'rose'
-                        ? 'bg-rose-950/20 border-rose-800/40 text-rose-200'
-                        : ms.tone === 'emerald'
-                        ? 'bg-emerald-950/20 border-emerald-800/40 text-emerald-200'
-                        : 'bg-sky-950/20 border-sky-800/40 text-sky-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <SvgPulse className="size-4 shrink-0" />
-                      <div>
-                        <span className="font-semibold">{ms.title}</span>
-                        <p className="text-[11px] opacity-80">{ms.subtitle}</p>
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-black/40 border border-white/10">
-                      Milestone
-                    </span>
-                  </div>
-                ))}
-
-                {/* Regular Calendar Events & Tasks */}
+{/* Regular Calendar Events & Tasks */}
                 {day.events.map((ev) => {
                   const isTask = ev.type === 'task';
                   const isPeriod = ev.type === 'period';
@@ -532,7 +477,7 @@ export function CalendarFeedSubView({
                   );
                 })}
 
-                {day.events.length === 0 && day.holidays.length === 0 && day.milestones.length === 0 && (
+                {day.events.length === 0 && day.holidays.length === 0 && (
                   <div className="py-4 text-center text-xs text-[#A1A4AC]/60 bg-[#0B0D13]/40 rounded-xl border border-dashed border-[#232938]/60">
                     No scheduled items · Free day
                   </div>
