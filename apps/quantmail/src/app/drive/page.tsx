@@ -600,7 +600,18 @@ function DrivePageContent() {
   });
 
   const handleUploadTrigger = useCallback(() => {
-    fileInputRef.current?.click();
+    const input = fileInputRef.current;
+    if (!input) {
+      // The picker element is missing (should never happen) — say so instead
+      // of silently doing nothing, which is what a dead Upload button looks like.
+      showToast({
+        text: 'Upload is temporarily unavailable. Please reload and try again.',
+        type: 'error',
+        subject: UPLOAD_TOAST,
+      });
+      return;
+    }
+    input.click();
   }, []);
 
   /**
@@ -877,13 +888,34 @@ function DrivePageContent() {
       searchPlaceholder="Search files, folders, documents…"
     >
       <div className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
+        {/*
+         * Visually hidden but RENDERED. A `display: none` (Tailwind `hidden`)
+         * file input ignores programmatic .click() in Chrome, which made the
+         * Upload button completely dead — no picker, no toast, nothing.
+         * This keeps the input in layout (1px, clipped, transparent) so the
+         * picker reliably opens from a real user gesture.
+         */}
         <input
           id="drive-file-input"
           name="driveFiles"
           ref={fileInputRef}
           type="file"
           multiple
-          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: 0,
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
           onChange={handleFileInputChange}
         />
 
