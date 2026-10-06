@@ -140,8 +140,9 @@ describe('ContextBottomNavBar & QuantPillarTopBar Component Tests', () => {
         expect(html).toContain(tile.label);
       });
 
-      expect(html).toContain('Quant AI:');
-      expect(html).toContain('3 urgent items prioritized');
+      // The live AI capsule pill only renders when a real status string is supplied —
+      // never a fabricated "3 urgent items" fallback.
+      expect(html).not.toContain('3 urgent items prioritized');
     });
 
     it('renders sticky search bar with placeholder and mic button', () => {

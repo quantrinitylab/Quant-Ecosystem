@@ -289,8 +289,10 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
   // 3. Dynamic Island Quant AI Live Capsule
   // ==========================================================================
   describe('Dynamic Island Quant AI Live Capsule', () => {
-    it('renders the frosted obsidian capsule with pulsing molten orb and live text', () => {
-      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+    it('renders the frosted obsidian capsule with pulsing molten orb when aiLiveText is supplied', () => {
+      const html = renderToStaticMarkup(
+        <QuantPillarTopBar aiLiveText="Quant AI: 3 urgent items prioritized" />,
+      );
 
       // Frosted pill container
       expect(html).toContain('rounded-full bg-[#111318]/90 border border-[#232938]');
@@ -300,9 +302,15 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]');
 
       // Live text
-      expect(html).toContain('Quant AI:');
-      expect(html).toContain('3 urgent items prioritized');
-      expect(html).toContain('&lt;5ms E2EE');
+      expect(html).toContain('Quant AI: 3 urgent items prioritized');
+    });
+
+    it('renders nothing for the live capsule when aiLiveText is not supplied (no fake status)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      expect(html).not.toContain('3 urgent items prioritized');
+      expect(html).not.toContain('5ms E2EE');
+      expect(html).not.toContain('rounded-full bg-[#111318]/90 border border-[#232938]');
     });
 
     it('renders custom live AI text when aiLiveText prop is supplied', () => {
