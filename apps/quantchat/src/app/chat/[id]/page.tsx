@@ -18,9 +18,6 @@ import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
 import { useConversations } from '../../../hooks/useConversations';
 import { useMe } from '../../../hooks/useMe';
-import { ChatThemePicker } from '../../../components/chat/ChatThemePicker';
-import { useChatThemeSync } from '../../../hooks/useChatThemeSync';
-import { themeToCssVars } from '../../../lib/chat-themes';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
@@ -130,17 +127,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   // Orphaned-feature wiring: AI auto-reply panel + in-chat games launcher.
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showGames, setShowGames] = useState(false);
-
-  // Chat theme picker — the conversation theme is applied to this chat's
-  // backdrop, persisted to the backend, and synced to all participants
-  // in real time via `theme_changed` events (Requirement 14.3).
-  const [showThemePicker, setShowThemePicker] = useState(false);
-  const {
-    theme: chatTheme,
-    isSaving: isThemeSaving,
-    error: themeError,
-    setTheme: applyChatTheme,
-  } = useChatThemeSync(id);
 
   // Snap Ephemeral state tracking
   const [snapStates, setSnapStates] = useState<
@@ -494,7 +480,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   };
 
   return (
-    <div className="flex flex-col h-screen" style={themeToCssVars(chatTheme)}>
+    <div className="flex flex-col h-screen">
       <TopBar
         title={chatDisplayName}
         subtitle="🔥 5 Day Streak · Active now"
@@ -548,16 +534,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             title="Quant AI"
           >
             👽
-          </button>,
-          <button
-            key="theme"
-            type="button"
-            onClick={() => setShowThemePicker(true)}
-            aria-label="Change chat theme"
-            title="Chat Theme"
-            className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
-          >
-            🎨
           </button>,
           <div key="status" className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
@@ -1227,47 +1203,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 onPostSystemMessage={handlePostSystemMessage}
                 onClose={() => setShowGames(false)}
               />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Chat theme picker (bottom sheet) */}
-      <AnimatePresence>
-        {showThemePicker && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setShowThemePicker(false)}
-          >
-            <motion.div
-              className="w-full max-w-md rounded-t-2xl bg-[var(--quant-background)] p-4 pb-6 max-h-[80vh] overflow-y-auto"
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', ...spring.stiff }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {themeError && (
-                <p className="mb-2 text-xs text-red-500" role="alert">
-                  {themeError}
-                </p>
-              )}
-              <ChatThemePicker
-                conversationId={id}
-                currentThemeId={chatTheme.id}
-                onThemeSelect={(selected) => applyChatTheme(selected.id)}
-                isSaving={isThemeSaving}
-              />
-              <button
-                type="button"
-                onClick={() => setShowThemePicker(false)}
-                className="w-full mt-3 text-sm text-[var(--quant-muted-foreground)] text-center py-2"
-              >
-                Close
-              </button>
             </motion.div>
           </motion.div>
         )}
