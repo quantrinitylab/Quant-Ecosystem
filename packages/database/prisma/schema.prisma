@@ -4643,3 +4643,54 @@ model LegalHold {
   @@index([active])
   @@map("legal_holds")
 }
+
+// ==================== QUANTY FEED (Q8) ====================
+/// Per-user personalized feed: editable instruction prompt, generated posts,
+/// and like/dislike reactions. Provenance is explicit: posts are either
+/// 'agent_brief' (AI-generated from the user's instructions, clearly labeled)
+/// or 'external' (real fetched URLs only — never fabricated headlines).
+model FeedInstruction {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  prompt    String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("feed_instructions")
+}
+
+model FeedPost {
+  id         String        @id @default(cuid())
+  userId     String        @map("user_id")
+  title      String
+  excerpt    String        @db.Text
+  /// Only set for provenance='external' and only with real fetched URLs.
+  sourceUrl  String?       @map("source_url")
+  sourceName String?       @map("source_name")
+  imageUrl   String?       @map("image_url")
+  emoji      String?
+  /// 'agent_brief' = AI-generated from instructions (labeled in UI).
+  /// 'external' = real fetched URL (sourceUrl required).
+  provenance String        @default("agent_brief")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  reactions FeedReaction[]
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("feed_posts")
+}
+
+model FeedReaction {
+  id        String   @id @default(cuid())
+  postId    String   @map("post_id")
+  userId    String   @map("user_id")
+  kind      String   /// 'like' | 'dislike'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([postId])
+  @@map("feed_reactions")
+}
