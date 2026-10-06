@@ -553,28 +553,34 @@ function DrivePageContent() {
 
   const filteredItems = useMemo(() => {
     let result = items;
-    if (activeFilter === 'folders') {
-      result = result.filter((i) => i.type === 'folder');
-    } else if (activeFilter === 'documents') {
-      result = result.filter((i) => {
-        const m = (i.mimeType || '').toLowerCase();
-        return (
-          i.type !== 'folder' &&
-          (m.includes('pdf') ||
-            m.includes('doc') ||
-            m.includes('text') ||
-            m.includes('sheet') ||
-            m.includes('csv') ||
-            m.includes('json'))
-        );
-      });
-    } else if (activeFilter === 'images') {
-      result = result.filter((i) => i.type !== 'folder' && (i.mimeType || '').startsWith('image/'));
-    } else if (activeFilter === 'starred') {
-      result = result.filter((i) => i.isStarred);
+    // When searching, the search API already filtered server-side — applying
+    // the header filter pills on top would hide valid results (e.g. a .pem
+    // file while the "Documents" pill is active). Skip client filtering.
+    const isSearching = searchQuery.trim().length > 0;
+    if (!isSearching) {
+      if (activeFilter === 'folders') {
+        result = result.filter((i) => i.type === 'folder');
+      } else if (activeFilter === 'documents') {
+        result = result.filter((i) => {
+          const m = (i.mimeType || '').toLowerCase();
+          return (
+            i.type !== 'folder' &&
+            (m.includes('pdf') ||
+              m.includes('doc') ||
+              m.includes('text') ||
+              m.includes('sheet') ||
+              m.includes('csv') ||
+              m.includes('json'))
+          );
+        });
+      } else if (activeFilter === 'images') {
+        result = result.filter((i) => i.type !== 'folder' && (i.mimeType || '').startsWith('image/'));
+      } else if (activeFilter === 'starred') {
+        result = result.filter((i) => i.isStarred);
+      }
     }
     return result;
-  }, [items, activeFilter]);
+  }, [items, activeFilter, searchQuery]);
 
   const folders = useMemo(() => filteredItems.filter((i) => i.type === 'folder'), [filteredItems]);
   const regularFiles = useMemo(
@@ -1396,6 +1402,14 @@ function DrivePageContent() {
 
           {activeTab === 'feed' && (
             <DriveFeedSubView
+              files={regularFiles.map((f) => ({
+                id: f.id,
+                name: f.name,
+                mimeType: f.mimeType,
+                size: f.size,
+                modifiedAt: f.modifiedAt,
+                isStarred: f.isStarred,
+              }))}
               onPreviewItem={(item) =>
                 setPreviewItem({
                   id: item.id,
