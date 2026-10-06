@@ -10,7 +10,9 @@ function createMockPrisma() {
       update: vi.fn(),
     },
     email: {
+      findFirst: vi.fn(),
       findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
   };
 }
@@ -226,6 +228,70 @@ describe('ThreadService', () => {
       await expect(service.snoozeThread('thread-1', 'user-1', new Date())).rejects.toThrow(
         'Not authorized',
       );
+    });
+  });
+
+  describe('markThreadRead', () => {
+    it('marks unread received messages as read and stamps readAt', async () => {
+      prisma.email.findFirst.mockResolvedValue(null); // id is already a thread id
+      prisma.email.findMany.mockResolvedValue([
+        { id: 'email-1', messageId: '<m1@quantmail.in>' },
+        { id: 'email-2', messageId: null },
+      ]);
+      prisma.email.updateMany.mockResolvedValue({ count: 2 });
+
+      const result = await service.markThreadRead('thread-1', 'user-1');
+
+      expect(result.marked).toBe(2);
+      expect(typeof result.readAt).toBe('string');
+      // Only the viewer's unread received messages are touched.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['email-1', 'email-2'] } },
+        data: { isRead: true, readAt: expect.any(Date) },
+      });
+      // readAt propagates to the senders' sent copies via the shared messageId.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: {
+          messageId: { in: ['<m1@quantmail.in>'] },
+          isSent: true,
+          readAt: null,
+          deletedAt: null,
+        },
+        data: { readAt: expect.any(Date) },
+      });
+    });
+
+    it('resolves an email id to its thread id', async () => {
+      prisma.email.findFirst.mockResolvedValue({ threadId: 'thread-9' });
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.markThreadRead('email-7', 'user-1');
+
+      expect(result.marked).toBe(0);
+      expect(prisma.email.findMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-1',
+          OR: [{ threadId: 'thread-9' }, { id: 'email-7' }],
+          isRead: false,
+          isSent: false,
+          isDraft: false,
+          deletedAt: null,
+        },
+        select: { id: true, messageId: true },
+      });
+    });
+
+    it('is idempotent: marks nothing when the thread is fully read', async () => {
+      prisma.email.findFirst.mockResolvedValue(null);
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.updateMany.mockResolvedValue({ count: 0 });
+
+      const result = await service.markThreadRead('thread-1', 'user-1');
+
+      expect(result.marked).toBe(0);
+      // No propagation without unread messages.
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
     });
   });
 });

@@ -21,6 +21,7 @@ export type MailMutationKind =
   | 'trash'
   | 'restore'
   | 'toggleStar'
+  | 'togglePin'
   | 'markRead'
   | 'markUnread'
   | 'snooze'
@@ -55,6 +56,8 @@ function execute(entry: OutboxEntry): Promise<Envelope> {
       return apiClient.restoreEmail(entry.emailId);
     case 'toggleStar':
       return apiClient.toggleStar(entry.emailId);
+    case 'togglePin':
+      return apiClient.togglePin(entry.emailId);
     case 'markRead':
       return apiClient.markAsRead(entry.emailId);
     case 'markUnread':
