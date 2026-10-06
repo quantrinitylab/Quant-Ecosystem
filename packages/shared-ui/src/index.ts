@@ -40,7 +40,6 @@ export {
   Polls,
   BreakoutRoomPanel,
   BackgroundBlur,
-  useBackgroundBlur,
 } from './components/Media';
 export type {
   MeetingRoomProps,
@@ -144,7 +143,6 @@ export type {
 // Hooks
 export { useAuth } from './hooks/useAuth';
 export type { UseAuthReturn, AuthUser } from './hooks/useAuth';
-export { configureQuantAuth } from './hooks/useAuth';
 export type { QuantAuthEndpoints } from './hooks/useAuth';
 
 export { useRealtime } from './hooks/useRealtime';
@@ -203,7 +201,6 @@ export {
   lightTokens,
   darkTokens,
   neonTokens,
-  tokensToCssVariables,
   density,
   elevation,
   breakpoints,
@@ -375,14 +372,10 @@ export type { LoginPageProps, ConsentScreenProps, Permission } from './component
 // Motion / Animation primitives (union of phase-67/68 motion systems)
 export {
   MotionProvider,
-  useMotionConfig,
   FadeIn,
   StaggerList,
   PageTransition,
   SpringButton,
-  AnimatedSkeleton,
-  SlidePanel,
-  ScaleOnHover,
   AnimatedPage,
   AnimatedList,
   BottomSheet,
@@ -416,7 +409,6 @@ export type { ResponsiveShellProps } from './components/Responsive';
 export { useReducedMotion } from './hooks/useReducedMotion';
 export { useBreakpoint } from './hooks/useBreakpoint';
 export type { BreakpointName } from './hooks/useBreakpoint';
-export { useOrientation } from './hooks/useOrientation';
 export type { Orientation } from './hooks/useOrientation';
 
 // Focus trap for `aria-modal` surfaces
@@ -424,7 +416,6 @@ export { useFocusTrap } from './hooks/useFocusTrap';
 export type { UseFocusTrapOptions } from './hooks/useFocusTrap';
 
 // Keyboard Shortcuts hook
-export { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 export type {
   ShortcutDefinition,
   UseKeyboardShortcutsOptions,
@@ -432,11 +423,9 @@ export type {
 } from './hooks/useKeyboardShortcuts';
 
 // Drag and Drop hook
-export { useDragDrop } from './hooks/useDragDrop';
 export type { UseDragDropOptions, UseDragDropReturn } from './hooks/useDragDrop';
 
 // Swipe actions hook — horizontal row actions that survive a vertical scroll
-export { useSwipeActions } from './hooks/useSwipeActions';
 export type {
   SwipeAction,
   UseSwipeActionsOptions,
@@ -454,7 +443,6 @@ export {
 } from './components/CommandPaletteUI/CommandPaletteProvider';
 
 // useAskQuant hook
-export { useAskQuant } from './hooks/useAskQuant';
 export type { AskQuantMessage, UseAskQuantOptions, UseAskQuantReturn } from './hooks/useAskQuant';
 
 // ThemeProvider component
@@ -473,7 +461,6 @@ export type {
 } from './components/EmptyStateIllustration';
 
 // useOptimisticAction hook
-export { useOptimisticAction } from './hooks/useOptimisticAction';
 export type { UseOptimisticActionReturn } from './hooks/useOptimisticAction';
 
 // Sanitization utilities
@@ -523,11 +510,6 @@ export type {
 } from './components/EcosystemShell';
 // Backend-backed surface hooks (bharat-ai localization, wellbeing controls) —
 // consumed via @quant/api-client against the Next /api/* proxy (no inline fetch).
-export {
-  useBharatLocale,
-  useWellbeingSummary,
-  useRecordWellbeingUsage,
-} from './components/EcosystemShell';
 export type {
   BharatLocaleBundle,
   WellbeingSummary,

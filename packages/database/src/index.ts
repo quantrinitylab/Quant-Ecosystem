@@ -20,7 +20,6 @@ export type {
 } from '@prisma/client';
 
 // Transaction Helper
-export { withTx } from './transaction';
 export type { TransactionClient } from './transaction';
 
 // Repositories

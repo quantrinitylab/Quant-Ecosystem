@@ -7,8 +7,6 @@ export {
   PermissionLevel,
   PermissionLevelSchema,
   canAct,
-  canExecuteHighRisk,
-  isFullAuto,
   PermissionGuard,
 } from './permissions.js';
 export type { ActionRequest } from './permissions.js';
@@ -27,8 +25,6 @@ export type { UndoAction } from './undo-engine.js';
 // Trust Score
 export {
   TrustScore,
-  scoreToPermissionLevel,
-  permissionLevelToScore,
   AUTO_PAUSE_THRESHOLD,
   REVIEW_ZONE_THRESHOLD,
 } from './trust-score.js';
@@ -201,7 +197,7 @@ export type { SafetyRule } from './safety-classifier.js';
 export { CostTracker } from './cost-tracker.js';
 
 // Execution Engine
-export { ExecutionEngine, tierToPermissionLevel } from './execution-engine.js';
+export { ExecutionEngine } from './execution-engine.js';
 export type { ExecutionEngineOptions } from './execution-engine.js';
 
 // Workflows
