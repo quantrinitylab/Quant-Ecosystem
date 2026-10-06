@@ -247,7 +247,7 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
     it('renders Shared with Me banner and active counter', () => {
       const html = renderToStaticMarkup(<DriveSharedSubView />);
 
-      expect(html).toContain('Feed');
+      expect(html).toContain('Shared with Me');
       expect(html).toContain('Active');
       expect(html).toContain('drive-panel-shared');
     });
