@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { showToast } from '../../../components/InboxToast';
+import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck } from '../../../components/icons';
 
 export interface BookingLinkItem {
   id: string;
@@ -294,7 +295,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#282C35]/80 bg-[#0c0c0f]">
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-xl bg-[#FF8C42]/10 border border-[#FF8C42]/20 flex items-center justify-center text-[#FF8C42] text-lg font-bold">
-              🔗
+              <IconLink size={18} />
             </div>
             <div>
               <h2
@@ -319,7 +320,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
             aria-label="Close modal"
             className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#282C35] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           >
-            ✕
+            <IconX size={16} />
           </button>
         </div>
 
@@ -366,7 +367,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
           {activeTab === 'list' ? (
             links.length === 0 ? (
               <div className="text-center py-12 px-4 space-y-3">
-                <div className="text-4xl">📅</div>
+                <div className="flex justify-center"><IconCalendar size={36} className="text-[#FF8C42]" /></div>
                 <h3 className="text-sm font-semibold text-white">No booking links created yet</h3>
                 <p className="text-xs text-[#A1A4AC] max-w-sm mx-auto">
                   Create your first shareable link to let others book slots directly on your
@@ -408,11 +409,11 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
 
                         <div className="flex items-center gap-3 text-xs text-[#8B949E] pt-1">
                           <span className="flex items-center gap-1">
-                            🕒 {formatHour(link.startHour)} – {formatHour(link.endHour)}
+                            <IconClock size={12} className="text-[#8B949E]" /> {formatHour(link.startHour)} – {formatHour(link.endHour)}
                           </span>
                           <span>•</span>
                           <span className="flex items-center gap-1">
-                            📅 {getDayNamesSummary(link.availableDays)}
+                            <IconCalendar size={12} className="text-[#8B949E]" /> {getDayNamesSummary(link.availableDays)}
                           </span>
                         </div>
 
@@ -433,7 +434,17 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
                           }`}
                           title="Copy direct booking link to clipboard"
                         >
-                          {isCopied ? '✓ Copied!' : '📋 Copy Link'}
+                          {isCopied ? (
+                            <>
+                              <IconCheck size={13} className="text-emerald-400" />
+                              <span>Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <IconClipboard size={13} />
+                              <span>Copy Link</span>
+                            </>
+                          )}
                         </button>
 
                         <a

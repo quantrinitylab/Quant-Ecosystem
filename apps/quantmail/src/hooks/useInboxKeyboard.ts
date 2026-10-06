@@ -88,6 +88,8 @@ export interface UseInboxKeyboardOptions<Row extends InboxKeyboardRow> {
   scrollToIndex?: (index: number) => void;
   /** Set `false` on views that render the list but should not own the keys. */
   active?: boolean;
+  /** Triggered by pressing 'c' to open docked composer on desktop or navigate on mobile. */
+  onCompose?: () => void;
 }
 
 export interface InboxKeyboardState {
@@ -495,6 +497,20 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       enabled: () => focusedRow !== null,
       run: () => {
         if (focusedRow) onToggleSelect(focusedRow.id);
+      },
+    },
+    {
+      ...inboxCommand('inbox.compose'),
+      scope: SCOPE,
+      icon: 'compose',
+      keywords: ['compose', 'new', 'write', 'draft'],
+      enabled: () => true,
+      run: () => {
+        if (options.onCompose) {
+          options.onCompose();
+        } else {
+          router.push('/compose');
+        }
       },
     },
   ];
