@@ -214,6 +214,77 @@ export class ThreadService {
   }
 
   /**
+   * Read-receipt pipeline: mark a thread as read for the viewing user.
+   *
+   * Marks every unread received message in the thread as read (`isRead`) and
+   * stamps `readAt` on them. Then propagates `readAt` to the *senders'* sent
+   * copies via the shared `messageId` — stamped by `EmailService.send` on the
+   * sender's copy and by `deliverInternally` on each recipient copy — so the
+   * sender's WhatsApp-style ticks flip to double-green.
+   *
+   * The id may be a thread id or an email id (the frontend falls back to the
+   * email id for deep links); both resolve, mirroring GET /threads/:id.
+   */
+  async markThreadRead(
+    threadId: string,
+    userId: string,
+  ): Promise<{ marked: number; readAt: string }> {
+    const prisma = this.prisma as unknown as {
+      email: {
+        findFirst(a: unknown): Promise<{ threadId: string | null } | null>;
+        findMany(a: unknown): Promise<Array<{ id: string; messageId: string | null }>>;
+        updateMany(a: unknown): Promise<{ count: number }>;
+      };
+    };
+
+    // Resolve an email id to its thread, mirroring GET /threads/:id.
+    let resolvedThreadId = threadId;
+    const asEmail = await prisma.email
+      .findFirst({ where: { id: threadId, userId }, select: { threadId: true } })
+      .catch(() => null);
+    if (asEmail?.threadId) resolvedThreadId = asEmail.threadId;
+
+    const now = new Date();
+    const unread = await prisma.email.findMany({
+      where: {
+        userId,
+        OR: [{ threadId: resolvedThreadId }, { id: threadId }],
+        isRead: false,
+        isSent: false,
+        isDraft: false,
+        deletedAt: null,
+      },
+      select: { id: true, messageId: true },
+    });
+
+    if (unread.length > 0) {
+      await prisma.email.updateMany({
+        where: { id: { in: unread.map((u) => u.id) } },
+        data: { isRead: true, readAt: now },
+      });
+    }
+
+    // Propagate to the senders' sent copies: same messageId, other mailboxes.
+    // Only fills in blanks so an earlier read is never overwritten.
+    const messageIds = [
+      ...new Set(unread.map((u) => u.messageId).filter((m): m is string => Boolean(m))),
+    ];
+    if (messageIds.length > 0) {
+      await prisma.email.updateMany({
+        where: {
+          messageId: { in: messageIds },
+          isSent: true,
+          readAt: null,
+          deletedAt: null,
+        },
+        data: { readAt: now },
+      });
+    }
+
+    return { marked: unread.length, readAt: now.toISOString() };
+  }
+
+  /**
    * Snooze a thread until a specified date. Persisted on the EmailThread
    * `snoozedUntil` column.
    */

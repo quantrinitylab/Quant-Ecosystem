@@ -198,6 +198,13 @@ export class EmailService {
     inReplyTo?: string;
     attachments?: unknown[];
     /**
+     * The sender's sent copy's Message-ID, stamped on every recipient copy so
+     * read receipts can be propagated back to the sender when a recipient opens
+     * the thread (ThreadService.markThreadRead). The sender's copy gets this
+     * value in EmailService.send; routes pass `sent.messageId` through.
+     */
+    messageId?: string;
+    /**
      * Stamped on the recipient's copy so both sides of the conversation mark the
      * message the same way. Without it a line typed into the thread would arrive
      * badged as a letter in the recipient's inbox.
@@ -321,8 +328,14 @@ export class EmailService {
           isSent: false,
           isDraft: false,
           receivedAt: new Date(),
+          messageId: input.messageId ?? null,
           messageKind: toMessageKind(input.messageKind),
           deliveryStatus: 'delivered',
+          // Internal delivery is immediate: the copy lands in the recipient's
+          // mailbox the moment it is created. (Ticks only render on the
+          // sender's outbound copy; this keeps the recipient's own record
+          // honest if it is ever surfaced.)
+          deliveredAt: new Date(),
         } as never,
       });
       delivered++;
@@ -551,6 +564,16 @@ export class EmailService {
     }
 
     const sentAt = options?.sendAt ?? new Date();
+    /*
+     * Cross-mailbox read receipts need one stable identity for the message that
+     * both the sender's Sent copy and every recipient's inbox copy share.
+     * `deliverInternally` stamps this same value on the recipient copies, and
+     * `ThreadService.markThreadRead` uses it to propagate `readAt` back to the
+     * sender's copy when a recipient opens the thread. Generated once here so a
+     * re-send keeps the same identity.
+     */
+    const messageId =
+      (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
     const updated = await this.prisma.email.update({
       where: { id: emailId },
       data: {
@@ -558,6 +581,7 @@ export class EmailService {
         isSent: true,
         folderId: sentFolderId,
         sentAt,
+        messageId,
         /*
          * A sent copy needs a timeline position, not just a send time.
          *
@@ -570,6 +594,14 @@ export class EmailService {
          */
         receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
         deliveryStatus,
+        /*
+         * Read-receipt pipeline: the message is delivered the moment this send
+         * completes (internal recipients get their copies below; external SES
+         * delivery succeeded above). A queued/deferred send leaves
+         * `deliveredAt` null until the delivery worker's finalizeEmailState
+         * stamps it on completion.
+         */
+        ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
       } as never,
     });
 
@@ -745,10 +777,29 @@ export class EmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
-    return this.prisma.email.update({
+    const now = new Date();
+    const updated = await this.prisma.email.update({
       where: { id: emailId },
-      data: { isRead: true },
+      data: { isRead: true, readAt: now } as never,
     });
+
+    // Read-receipt pipeline: a received message being read flips the sender's
+    // ticks to double-green. The sender's sent copy shares this messageId
+    // (stamped by send()/deliverInternally).
+    const messageId = (email as { messageId?: string | null }).messageId;
+    const isReceived = !(email as { isSent?: boolean }).isSent;
+    if (messageId && isReceived) {
+      await this.prisma.email
+        .updateMany({
+          where: { messageId, isSent: true, readAt: null, deletedAt: null },
+          data: { readAt: now },
+        })
+        .catch(() => {
+          // Best-effort: the read itself already succeeded.
+        });
+    }
+
+    return updated;
   }
 
   async markStarred(emailId: string, userId: string): Promise<Email> {

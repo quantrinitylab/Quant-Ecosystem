@@ -136,4 +136,19 @@ export default async function threadsRoutes(fastify: FastifyInstance) {
     const result = await service.unmuteThread(request.params.id, userId);
     return reply.send({ success: true, data: result });
   });
+
+  // POST /threads/:id/read - mark a thread as read (read-receipt pipeline).
+  // Marks the viewer's unread received messages in the thread as read and
+  // propagates `readAt` to the senders' sent copies, so their ticks flip to
+  // double-green. Idempotent: re-reading a fully-read thread marks nothing.
+  fastify.post<{ Params: { id: string } }>('/:id/read', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+    const prisma = (fastify as unknown as { prisma: any }).prisma;
+    const service = new ThreadService(prisma as never);
+    const result = await service.markThreadRead(request.params.id, userId);
+    return reply.send({ success: true, data: result });
+  });
 }
