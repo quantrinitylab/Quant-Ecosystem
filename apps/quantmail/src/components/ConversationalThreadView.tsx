@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
+import { Fragment, useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -179,6 +179,41 @@ function receiptStatusOf(
   if (readAt) return { status: 'read', readAt, deliveredAt };
   if (deliveredAt) return { status: 'delivered', deliveredAt };
   return { status: 'sent' };
+}
+
+/*
+ * Chat-bubble vision: the thread reads like WhatsApp, so the stream is broken
+ * into day groups with a centered pill — "Today", "Yesterday", the weekday for
+ * the last week, then the full date.
+ */
+function dayKey(value?: string | Date): number | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start.getTime();
+}
+
+function formatDayDivider(value?: string | Date): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const thatDay = new Date(date);
+  thatDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - thatDay.getTime()) / 86_400_000);
+
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 function cleanContactName(name: string | undefined, email: string): string {
@@ -1741,9 +1776,27 @@ export function ConversationalThreadView({
              */
             const receipt = receiptStatusOf(message, isOutbound);
 
+            // Day-group divider (chat-bubble vision): a centered pill whenever
+            // the day changes — "Today", "Yesterday", weekday, or full date.
+            const thisDay = dayKey(message.receivedAt);
+            const prevDay = index > 0 ? dayKey(messages[index - 1]?.receivedAt) : null;
+            const showDivider = thisDay !== null && thisDay !== prevDay;
+            const dividerLabel = showDivider ? formatDayDivider(message.receivedAt) : '';
+
             return (
+              <Fragment key={message.id || index}>
+                {showDivider && dividerLabel && (
+                  <div
+                    className="flex justify-center py-1"
+                    role="separator"
+                    aria-label={dividerLabel}
+                  >
+                    <span className="rounded-full bg-[#282C35] px-3 py-1 text-[11px] font-semibold text-[#A1A4AC] shadow-sm">
+                      {dividerLabel}
+                    </span>
+                  </div>
+                )}
               <ThreadBubbleShell
-                key={message.id || index}
                 message={message}
                 senderName={msgFromName}
                 isOutbound={isOutbound}
@@ -2147,6 +2200,7 @@ export function ConversationalThreadView({
                 )}
               </motion.div>
               </ThreadBubbleShell>
+              </Fragment>
             );
           })}
 
