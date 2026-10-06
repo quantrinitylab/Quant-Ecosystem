@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
+import '../../widgets/quant_ai_logo.dart';
 
 /// Tone Setting for Quanty Synthesis
 enum QuantyTone {
@@ -64,11 +65,8 @@ class QuantyAiDraftModal extends StatefulWidget {
   State<QuantyAiDraftModal> createState() => _QuantyAiDraftModalState();
 }
 
-class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
-    with SingleTickerProviderStateMixin {
+class _QuantyAiDraftModalState extends State<QuantyAiDraftModal> {
   late final TextEditingController _promptController;
-  late final AnimationController _beaconController;
-  late final Animation<double> _beaconGlowAnimation;
 
   QuantyTone _selectedTone = QuantyTone.professional;
   String _generatedText = '';
@@ -79,22 +77,22 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
     {
       'label': 'Follow-up on Proposal',
       'icon': Icons.handshake_outlined,
-      'prompt': 'Follow up on the technical architecture proposal sent earlier this week, highlighting sub-5ms benchmarks.',
+      'prompt': 'Follow up on the proposal sent earlier this week.',
     },
     {
       'label': 'Meeting Confirmation & Agenda',
       'icon': Icons.event_available_rounded,
-      'prompt': 'Confirm tomorrow sync at 10:00 AM IST with agenda on Wave 76 Flutter verification.',
+      'prompt': 'Confirm tomorrow\u2019s meeting and include a short agenda.',
     },
     {
       'label': 'Polite Decline',
       'icon': Icons.block_rounded,
-      'prompt': 'Politely decline an external partnership invitation due to total focus on sovereign monorepo.',
+      'prompt': 'Politely decline an invitation.',
     },
     {
       'label': 'Executive Briefing',
       'icon': Icons.summarize_rounded,
-      'prompt': 'Executive briefing on QuantMail performance, zero-cloud encryption, and 20 pods running in quant-staging.',
+      'prompt': 'Summarize this week\u2019s key updates for an executive briefing.',
     },
   ];
 
@@ -102,14 +100,6 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
   void initState() {
     super.initState();
     _promptController = TextEditingController(text: widget.initialPrompt ?? '');
-    _beaconController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat(reverse: true);
-
-    _beaconGlowAnimation = Tween<double>(begin: 0.25, end: 0.85).animate(
-      CurvedAnimation(parent: _beaconController, curve: Curves.easeInOut),
-    );
 
     if (_promptController.text.isNotEmpty) {
       _startSynthesis(_promptController.text);
@@ -123,7 +113,6 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
   void dispose() {
     _streamingTimer?.cancel();
     _promptController.dispose();
-    _beaconController.dispose();
     super.dispose();
   }
 
@@ -138,7 +127,7 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
     final words = targetText.split(' ');
     int currentWordIndex = 0;
 
-    // Simulate 120 tokens/sec local ONNX streaming
+    // Simulated word-by-word streaming of the local demo template.
     _streamingTimer = Timer.periodic(const Duration(milliseconds: 28), (timer) {
       if (currentWordIndex < words.length) {
         setState(() {
@@ -154,53 +143,56 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
     });
   }
 
+  /// Demo draft templates. These are clearly-labeled local templates, not
+  /// live AI output: generic wording with no fabricated metrics, names, or
+  /// infrastructure claims. The user edits before sending.
   String _resolveSynthesizedText(String prompt, QuantyTone tone) {
     final lower = prompt.toLowerCase();
 
     if (lower.contains('follow-up') || lower.contains('proposal')) {
       switch (tone) {
         case QuantyTone.professional:
-          return 'Dear Team,\n\nI wanted to follow up on the sovereign ecosystem architectural proposal submitted earlier this week. Our telemetry demonstrates 100% test passing rates across all microservices, sub-5ms local indexing, and hardware-accelerated Impeller rendering at 120Hz.\n\nPlease let me know if you have any questions or if you would like to schedule a 15-minute sync to finalize the deployment roadmap.\n\nBest regards,\nQuant Engineering Team';
+          return 'Dear Team,\n\nI wanted to follow up on the proposal submitted earlier this week.\n\nPlease let me know if you have any questions or if you would like to schedule a short call to discuss next steps.\n\nBest regards';
         case QuantyTone.concise:
-          return 'Hi Team,\n\nFollowing up on the proposal submitted this week:\n• Benchmark: Sub-5ms indexing active\n• Verification: 100% test suite green\n• Next step: Cluster staging sign-off\n\nPlease send your approval by EOD.\n\nThanks,\nQuant Lab';
+          return 'Hi Team,\n\nFollowing up on the proposal submitted this week.\n\nPlease share your feedback when you have a moment.\n\nThanks';
         case QuantyTone.friendly:
-          return 'Hi everyone,\n\nHope your week is going great! Just checking in on the architecture proposal we shared. We have seen stellar results in testing with zero compromises on performance.\n\nWould love to hear your thoughts whenever you have a chance!\n\nWarmly,\nQuant Engineering';
+          return 'Hi everyone,\n\nHope your week is going well! Just checking in on the proposal we shared.\n\nWould love to hear your thoughts whenever you have a chance!\n\nWarmly';
         case QuantyTone.urgent:
-          return 'Priority Attention Required:\n\nFollowing up on the pending proposal submission. Deployment staging windows close tomorrow morning, and we require architectural sign-off today to maintain the Wave 76 schedule.\n\nPlease confirm approval immediately.';
+          return 'Following up on the pending proposal.\n\nPlease confirm your feedback at the earliest so we can proceed.';
       }
     } else if (lower.contains('meeting') || lower.contains('agenda') || lower.contains('sync')) {
       switch (tone) {
         case QuantyTone.professional:
-          return 'Hi Alex,\n\nConfirming our upcoming sync scheduled for tomorrow at 10:00 AM IST.\n\nAgenda:\n1. Wave 76 Flutter Omni-Presence Verification\n2. 10-Second Undo-Send Queue Integration & Impeller Benchmark\n3. Fastify Sovereign Mail Gateway Latency Telemetry\n\nLooking forward to our discussion.\n\nWarm regards,\nQuant Operations';
+          return 'Hello,\n\nConfirming our upcoming meeting.\n\nProposed agenda:\n1. Project updates\n2. Open action items\n3. Next steps\n\nLooking forward to our discussion.\n\nWarm regards';
         case QuantyTone.concise:
-          return 'Confirmed: Tomorrow at 10:00 AM IST.\n\nAgenda items:\n• Flutter Omni-presence verification\n• 10s undo-send queue\n• Fastify gateway latency\n\nSee you then.';
+          return 'Meeting confirmed.\n\nAgenda:\n• Updates\n• Action items\n• Next steps';
         case QuantyTone.friendly:
-          return 'Hey Alex,\n\nReally excited for our sync tomorrow at 10:00 AM IST! I put together a quick agenda covering our Flutter omni-presence milestones and the new undo-send engine.\n\nLet me know if you would like to add anything else to the list!\n\nBest,\nSundar';
+          return 'Hey,\n\nLooking forward to our meeting! I put together a short agenda — let me know if you would like to add anything.\n\nBest';
         case QuantyTone.urgent:
-          return 'Urgent Briefing Confirmation:\n\nMandatory sync scheduled for tomorrow at 10:00 AM IST. All leads must attend prepared to review critical wave deliverables.\n\nPrompt attendance required.';
+          return 'Confirming the meeting. Please come prepared to review the open items.\n\nPrompt attendance appreciated.';
       }
     } else if (lower.contains('decline') || lower.contains('reject')) {
       switch (tone) {
         case QuantyTone.professional:
-          return 'Dear Partner,\n\nThank you for considering our team for this initiative. While the proposed collaboration offers great merit, our current engineering commitments are entirely dedicated to the sovereign monorepo and live cluster verification.\n\nWe appreciate your understanding and wish your venture continued success.\n\nSincerely,\nQuant Trinity Lab';
+          return 'Dear Partner,\n\nThank you for considering us for this initiative. After review, we will not be able to participate at this time.\n\nWe appreciate your understanding and wish you continued success.\n\nSincerely';
         case QuantyTone.concise:
-          return 'Thank you for the opportunity. We must respectfully decline at this stage due to full capacity on sovereign infrastructure development.\n\nWe wish you all the best.';
+          return 'Thank you for the opportunity. We must respectfully decline at this stage.\n\nWe wish you all the best.';
         case QuantyTone.friendly:
-          return 'Hi there,\n\nThanks so much for reaching out with this exciting project! Unfortunately, our team is knee-deep in sovereign cluster builds right now, so we won\'t be able to participate.\n\nI hope we can connect again down the line!\n\nAll the best,\nQuant Team';
+          return 'Hi there,\n\nThanks so much for reaching out! Unfortunately we will not be able to participate this time.\n\nHope we can connect again down the line!\n\nAll the best';
         case QuantyTone.urgent:
-          return 'Notice of Immediate Decline:\n\nWe are unable to proceed with this request. All engineering resources are locked for active wave milestones.';
+          return 'We are unable to proceed with this request at this time. Thank you for your understanding.';
       }
     } else {
-      // Executive Briefing / General
+      // General / briefing
       switch (tone) {
         case QuantyTone.professional:
-          return 'Executive Summary — Wave 76 Deployment Status:\n\n• Platform: Sovereign Superhuman & Gmail Killer Flutter client\n• Search Performance: Sub-5ms FTS5 index and FastCDC vault architecture\n• Security: Zero-cloud E2EE with AES-256 pre-keys\n• Infrastructure: 20 sovereign cluster pods operational in quant-staging\n\nNext Milestone: Public release candidate build distribution.';
+          return 'Executive Summary\n\n• Updates: [add key updates]\n• Risks: [add open risks]\n• Next steps: [add planned actions]';
         case QuantyTone.concise:
-          return 'Wave 76 Briefing:\n• Status: All systems green\n• Latency: <5ms local FTS5\n• Security: E2EE AES-256 verified\n• Fleet: 20 pods running in quant-staging\n\nReady for production dispatch.';
+          return 'Briefing:\n• Updates: [add]\n• Next steps: [add]';
         case QuantyTone.friendly:
-          return 'Hello Team,\n\nSuper proud to share our latest milestone briefing! Everything across the Flutter omni-presence suite is performing exceptionally well with zero crashes and blazingly fast sub-5ms search.\n\nBig thanks to everyone for the incredible effort!\n\nCheers,\nQuant Lead';
+          return 'Hello Team,\n\nSharing a quick update: [add highlights].\n\nThanks to everyone for the effort!\n\nCheers';
         case QuantyTone.urgent:
-          return 'Action Required: Executive Briefing\n\nImmediate review needed for Wave 76 staging deployment. 20 pods are active with sub-5ms telemetry. Please review and verify release candidate.';
+          return 'Action Required\n\nPlease review the items below and respond with your feedback: [add items].';
       }
     }
   }
@@ -239,40 +231,12 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
             ),
             const SizedBox(height: 14),
 
-            // Header with Molten Glowing Beacon & Title
+            // Header with official animated Quant AI logo & title
             Row(
               children: [
-                AnimatedBuilder(
-                  animation: _beaconGlowAnimation,
-                  builder: (context, child) {
-                    return Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [QuantColors.moltenAmber, Color(0xFFFF6B00)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: QuantColors.moltenAmber
-                                .withOpacity(_beaconGlowAnimation.value),
-                            blurRadius: 14,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.auto_awesome_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                      ),
-                    );
-                  },
+                QuantAiLogo(
+                  size: 40.0,
+                  thinking: _isGenerating,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -292,7 +256,7 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
                           ),
                           const SizedBox(width: 8),
                           QuantBadge(
-                            label: 'Local ONNX',
+                            label: 'Demo draft',
                             variant: QuantBadgeVariant.amber,
                             leadingIcon: Icons.memory_rounded,
                           ),
@@ -300,7 +264,7 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
                       ),
                       const SizedBox(height: 2),
                       const Text(
-                        'Sovereign AI Email Synthesis • Sub-5ms E2EE',
+                        'AI-assisted email drafting',
                         style: TextStyle(
                           fontSize: 11,
                           color: QuantColors.textMuted,
@@ -551,30 +515,14 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
                           const SizedBox(width: 6),
                           Text(
                             _isGenerating
-                                ? 'Synthesizing with local ONNX weights...'
-                                : 'Synthesis Complete',
+                                ? 'Drafting...'
+                                : 'Draft ready',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: _isGenerating
                                   ? QuantColors.moltenAmber
                                   : QuantColors.statusSuccess,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Row(
-                        children: [
-                          Icon(Icons.speed_rounded,
-                              size: 13, color: QuantColors.statusSuccess),
-                          SizedBox(width: 4),
-                          Text(
-                            '128 tok/s',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'monospace',
-                              fontWeight: FontWeight.w700,
-                              color: QuantColors.statusSuccess,
                             ),
                           ),
                         ],
@@ -586,7 +534,7 @@ class _QuantyAiDraftModalState extends State<QuantyAiDraftModal>
                     child: SingleChildScrollView(
                       child: Text(
                         _generatedText.isEmpty && _isGenerating
-                            ? 'Preparing neural context tokens...'
+                            ? 'Preparing draft...'
                             : _generatedText,
                         style: const TextStyle(
                           fontSize: 13.5,

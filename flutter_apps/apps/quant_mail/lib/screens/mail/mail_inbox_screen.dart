@@ -1125,16 +1125,13 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Text(
+          const Text(
             'Inbox Zero Achieved',
-            style: QuantTypography.titleMedium.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           const Text(
-            'All emails in this lens have been triaged (<5ms local latency)',
+            'New mail will appear here.',
             style: TextStyle(color: QuantColors.textSecondary, fontSize: 12),
           ),
         ],
