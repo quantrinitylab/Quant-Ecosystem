@@ -361,6 +361,15 @@ export function DockedComposer({
     if (initialBody) setBody(initialBody);
   }, [initialBody]);
 
+  // Reset window state when the composer is closed, so reopening always starts
+  // with the full composer — not a stale minimized badge with a dead restore.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsMinimized(false);
+      setIsExpanded(false);
+    }
+  }, [isOpen]);
+
   // Filter contacts matching current 'to' text
   const filteredSuggestions = useMemo(() => {
     const query = to.trim().toLowerCase();
@@ -459,12 +468,28 @@ export function DockedComposer({
           ? body.replace(/\bhi\b/gi, 'Dear').replace(/\bthanks\b/gi, 'Thank you for your consideration.')
           : `Dear Sir/Madam,\n\nI trust this communication finds you well. I wish to formally present our strategic objectives for your review.\n\nSincerely,\n`;
       } else if (promptType === 'concise') {
-        generated = `Quick update on ${subject || 'the project'}:\n• Milestones on schedule\n• Next review this Friday\n\nPlease let me know your thoughts.\n`;
+        // Rephrase ONLY — never invent facts, dates, milestones, or meetings.
+        // Condense the existing draft to its first two sentences, stripped of filler.
+        const sentences = body
+          ? body.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
+          : [];
+        const condensed = sentences
+          .slice(0, 2)
+          .join(' ')
+          .replace(/\b(just wanted to|i wanted to|i am writing to let you know|please note that)\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        generated = condensed || `Quick update${subject ? ` on ${subject}` : ''}.`;
       } else {
         generated = `Hi there,\n\nFollowing up on our earlier note regarding ${subject || 'the project'}. Please let me know when you have a moment to connect.\n\nThanks,\n`;
       }
 
-      setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      // "Make Concise" rewrites the draft in place; other presets append.
+      if (promptType === 'concise' && body) {
+        setBody(generated);
+      } else {
+        setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      }
       showToast({ text: 'Quant AI ghostwrote email draft', type: 'success' });
       bodyRef.current?.focus();
     } catch {

@@ -207,13 +207,22 @@ export default function ComposePage() {
     [composeDraft],
   );
 
-  const handleDiscard = useCallback(() => {
+  const handleDiscard = useCallback(async () => {
+    // Delete the saved server draft (if any) so "Discard" actually discards.
+    if (currentDraftId) {
+      try {
+        await apiClient.deleteEmail(currentDraftId);
+      } catch {
+        // Best-effort: still navigate away even if the delete fails.
+      }
+      setCurrentDraftId(null);
+    }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
       router.push('/');
     }
-  }, [router]);
+  }, [router, currentDraftId]);
 
   const handleAIAssist = useCallback(
     async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {
