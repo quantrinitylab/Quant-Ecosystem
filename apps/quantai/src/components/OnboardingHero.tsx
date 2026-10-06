@@ -10,13 +10,15 @@ import { spring } from '@quant/brand';
 
 interface OnboardingHeroProps {
   onContinueQuantSSO: () => void;
-  onContinueAsGuest: () => void;
+  // Guest mode was removed (P0-2, 2026-10-06): guest chat 401'd on every
+  // message. The second CTA is now a plain sign-in entry point.
+  onSignIn: () => void;
   onDismiss?: () => void;
 }
 
 export function OnboardingHero({
   onContinueQuantSSO,
-  onContinueAsGuest,
+  onSignIn,
   onDismiss,
 }: OnboardingHeroProps) {
   return (
@@ -110,10 +112,10 @@ export function OnboardingHero({
 
           <button
             type="button"
-            onClick={onContinueAsGuest}
+            onClick={onSignIn}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] hover:bg-[var(--quant-surface-hover)] text-[var(--foreground)] font-medium text-sm transition-colors cursor-pointer"
           >
-            <span>Continue as Guest</span>
+            <span>Sign in to start chatting</span>
             <span className="text-xs text-[var(--foreground-secondary)]">→</span>
           </button>
         </div>
