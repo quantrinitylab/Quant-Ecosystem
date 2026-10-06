@@ -891,7 +891,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen>
                       const SizedBox(width: 10),
                       Text(
                         summary.summaryTitle,
-                        style: QuantTypography.titleSmall.copyWith(
+                        style: QuantTypography.bodyMedium.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1028,7 +1028,7 @@ class _ThreadDetailScreenState extends State<ThreadDetailScreen>
             const SizedBox(width: 6),
             Text(
               'Attachments (${_thread.attachments.length})',
-              style: QuantTypography.titleSmall.copyWith(
+              style: QuantTypography.bodyMedium.copyWith(
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
               ),

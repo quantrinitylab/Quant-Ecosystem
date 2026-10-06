@@ -637,7 +637,7 @@ class _MailInboxScreenState extends State<MailInboxScreen> {
               const SizedBox(width: 4),
               Text(
                 '${_selectedThreadIds.length} selected',
-                style: QuantTypography.titleSmall.copyWith(
+                style: QuantTypography.bodyMedium.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
                 ),

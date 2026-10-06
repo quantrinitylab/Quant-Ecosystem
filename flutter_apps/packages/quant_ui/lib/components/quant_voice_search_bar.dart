@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/quant_pillar.dart';
-import '../theme/quant_colors.dart';
-import '../theme/quant_typography.dart';
+import 'package:quant_theme/quant_theme.dart';
+
 
 /// Sticky Voice Search Bar with Sub-5ms Contextual Querying
 ///

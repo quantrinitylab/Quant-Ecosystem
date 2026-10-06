@@ -4,11 +4,10 @@ import '../models/sync_operation.dart';
 
 /// Offline storage manager providing immediate persistence, cache, and sync queue.
 class QuantOfflineStore {
-  final SharedPreferences? _prefs;
   final List<SyncOperation> _inMemoryQueue = [];
   final Map<String, Map<String, dynamic>> _inMemoryCache = {};
 
-  QuantOfflineStore({SharedPreferences? prefs}) : _prefs = prefs;
+  QuantOfflineStore();
 
   /// Enqueue an offline mutation
   Future<void> enqueueSyncOperation(SyncOperation operation) async {

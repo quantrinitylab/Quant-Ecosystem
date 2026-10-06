@@ -800,7 +800,7 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
         break;
       case PayoutMethodType.wireTransfer:
         railIcon = Icons.swap_horiz_rounded;
-        railColor = const Color(0xFFA78BFA),
+        railColor = const Color(0xFFA78BFA);
         railName = 'SWIFT Wire';
         break;
     }

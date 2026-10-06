@@ -15,12 +15,6 @@ class QuantApiClient {
     _bearerToken = token;
   }
 
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        if (_bearerToken != null) 'Authorization': 'Bearer $_bearerToken',
-      };
-
   /// Simulated / Fastify REST request wrapper
   Future<Map<String, dynamic>> get(String endpoint) async {
     debugPrint('[QuantApi GET] $baseUrl$endpoint');

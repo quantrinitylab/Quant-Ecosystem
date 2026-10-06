@@ -177,7 +177,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
             tooltip: 'Group E2EE Safety Number',
             onPressed: () {
               Navigator.of(context).push(
-                MaterialApp.defaultRoute(
+                MaterialPageRoute(
                   builder: (ctx) => SafetyNumberScreen(
                     contactName: conv.name,
                     contactInitials: conv.avatarInitials,
@@ -789,7 +789,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
             trailing: const Icon(Icons.chevron_right_rounded, color: QuantColors.textSecondary),
             onTap: () {
               Navigator.of(context).push(
-                MaterialApp.defaultRoute(
+                MaterialPageRoute(
                   builder: (ctx) => SafetyNumberScreen(
                     contactName: widget.conversation.name,
                     contactInitials: widget.conversation.avatarInitials,
@@ -1057,7 +1057,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> with SingleTicker
               onTap: () {
                 Navigator.of(ctx).pop();
                 Navigator.of(context).push(
-                  MaterialApp.defaultRoute(
+                  MaterialPageRoute(
                     builder: (c) => SafetyNumberScreen(
                       contactName: member.name,
                       contactInitials: member.avatarInitials,

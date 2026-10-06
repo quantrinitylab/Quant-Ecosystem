@@ -272,7 +272,7 @@ class QuantAuthService {
         debugPrint('[QuantAuthService] No cached session found. Ready for sign-in.');
       }
     } catch (e, st) {
-      debugPrint('[QuantAuthService] Error reading secure keystore: \$e\\n\$st');
+      debugPrint('[QuantAuthService] Error reading secure keystore: $e\n$st');
       sessionNotifier.value = null;
       _sessionStreamController.add(null);
       authStateNotifier.value = QuantAuthState.unauthenticated;
