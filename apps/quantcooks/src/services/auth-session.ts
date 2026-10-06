@@ -79,4 +79,38 @@ export const authSession = {
     await postAuth('logout').catch(() => undefined);
     clearAccessToken();
   },
+  /**
+   * Consume a QuantMail SSO handoff token (?token=... in the URL).
+   *
+   * The raw handoff JWT is never trusted on its own claims: this POSTs it to
+   * the same-origin /api/auth/sso/exchange route, which verifies it
+   * back-channel against the identity service before it becomes a session.
+   * On success the verified access token is stored memory-only, exactly like a
+   * password login.
+   */
+  async exchangeSso(ssoToken: string): Promise<SessionResult> {
+    try {
+      const res = await fetch('/api/auth/sso/exchange', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ssoToken }),
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      const json = (await res.json().catch(() => null)) as SessionResult | null;
+      if (!json) {
+        return {
+          success: false,
+          error: { code: 'INVALID_RESPONSE', message: 'Unexpected response.' },
+        };
+      }
+      if (json.data?.accessToken) setAccessToken(json.data.accessToken);
+      return json;
+    } catch {
+      return {
+        success: false,
+        error: { code: 'NETWORK', message: 'Could not reach the sign-in service.' },
+      };
+    }
+  },
 };

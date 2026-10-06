@@ -18,6 +18,29 @@
     --destructive: #ef4444;
     --destructive-foreground: #ffffff;
     --ring: #7c3aed;
+
+    /* --quant-* / --brand-* semantic tokens (light). Components are themed on
+       these names, but they were never defined here and the @quant/brand
+       preset was never imported — so every themed surface degraded to
+       transparent/inherited (invisible "Sign in" button, invisible logo
+       tile, white-on-white text). Values are the ecosystem's canonical
+       @quant/brand `light` theme, hardcoded so the button is visible whether
+       or not the brand pipeline is wired up. */
+    --brand-primary: #4f46e5;
+    --brand-primary-foreground: #ffffff;
+    --brand-accent: #d97706;
+    --brand-accent-foreground: #000000;
+    --quant-background: #ffffff;
+    --quant-foreground: #0f172a;
+    --quant-surface: #f8fafc;
+    --quant-surface-elevated: #ffffff;
+    --quant-border: #e2e8f0;
+    --quant-muted: #f1f5f9;
+    --quant-muted-foreground: #64748b;
+    --quant-destructive: #dc2626;
+    --quant-destructive-foreground: #ffffff;
+    --brand-font-display: 'Inter', system-ui, sans-serif;
+    --brand-font-body: 'Inter', system-ui, sans-serif;
   }
 
   .dark {
@@ -35,6 +58,22 @@
     --destructive: #f87171;
     --destructive-foreground: #0f172a;
     --ring: #a78bfa;
+
+    /* Dark-mode values for the same tokens (canonical @quant/brand `dark`
+       theme), so themed components stay visible in dark mode too. */
+    --brand-primary: #ff8c42;
+    --brand-primary-foreground: #111111;
+    --brand-accent: #ffb875;
+    --brand-accent-foreground: #111111;
+    --quant-background: #090a0c;
+    --quant-foreground: #f5f5f5;
+    --quant-surface: #111318;
+    --quant-surface-elevated: #16181d;
+    --quant-border: #282c35;
+    --quant-muted: #16181d;
+    --quant-muted-foreground: #a1a4ac;
+    --quant-destructive: #dc2626;
+    --quant-destructive-foreground: #ffffff;
   }
 
   * {

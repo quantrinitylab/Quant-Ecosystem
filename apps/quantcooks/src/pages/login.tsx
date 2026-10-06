@@ -18,7 +18,7 @@ function safeReturnPath(raw: string | string[] | undefined): string | null {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const { login, isLoading, isAuthenticated, ssoError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -98,6 +98,15 @@ export default function LoginPage() {
           </span>
           <div className="h-px flex-1 bg-[var(--quant-border)]"></div>
         </div>
+
+        {ssoError ? (
+          <div
+            role="alert"
+            className="mb-5 rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
+          >
+            {ssoError}
+          </div>
+        ) : null}
 
         {twoFactorNotice ? (
           <div
