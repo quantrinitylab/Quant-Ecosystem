@@ -101,9 +101,8 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       // ContextBottomNavBar is present for Mail
       expect(html).toContain('Mail contextual navigation');
       expect(html).toContain('Inbox');
-      expect(html).toContain('Priority');
       expect(html).toContain('Teams');
-      expect(html).toContain('Sent');
+      expect(html).toContain('Agents');
       expect(html).toContain('Archive');
     });
 
@@ -121,11 +120,10 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
 
       // ContextBottomNavBar renders Calendar sub-tabs
       expect(html).toContain('Calendar contextual navigation');
-      expect(html).toContain('Agenda');
+      expect(html).toContain('Feed');
       expect(html).toContain('Month');
-      expect(html).toContain('Booking');
-      expect(html).toContain('QuantMeet');
-      expect(html).toContain('Reminders');
+      expect(html).toContain('Events');
+      expect(html).toContain('Schedule');
     });
 
     it('mounts QuantPillarTopBar and ContextBottomNavBar on Drive route (/drive)', () => {
@@ -140,11 +138,10 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('#38BDF8');
 
       expect(html).toContain('Drive contextual navigation');
-      expect(html).toContain('My Files');
-      expect(html).toContain('Shared');
+      expect(html).toContain('Home');
+      expect(html).toContain('Feed');
+      expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
-      expect(html).toContain('Starred');
-      expect(html).toContain('Cleaner');
     });
 
     it('mounts QuantPillarTopBar and ContextBottomNavBar on Contacts route (/contacts)', () => {
@@ -159,11 +156,11 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('#10B981');
 
       expect(html).toContain('Contacts contextual navigation');
-      expect(html).toContain('Contacts');
-      expect(html).toContain('VIPs');
+      expect(html).toContain('Home');
+      expect(html).toContain('Favorites');
+      expect(html).toContain('Groups');
       expect(html).toContain('Companies');
       expect(html).toContain('AI Dedup');
-      expect(html).toContain('Circles');
     });
 
     it('mounts QuantPillarTopBar and ContextBottomNavBar on QuantGit route (/quantgit)', () => {
