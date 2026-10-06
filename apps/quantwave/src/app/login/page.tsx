@@ -9,6 +9,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/auth-provider';
+import { readSsoTokenFromSearch, scrubSsoParamsFromUrl } from '../../lib/sso-handoff';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -20,17 +21,22 @@ function safeReturnPath(value: string | null): string | null {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isLoading, isAuthenticated } = useAuth();
+  const { login, loginWithSSO, isLoading, isAuthenticated, error: authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
+  const [ssoCompleting, setSsoCompleting] = useState(false);
 
   const destination = useCallback(
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Provider-level errors (e.g. a failed SSO exchange) surface through the
+  // same banner as form errors.
+  const visibleError = error ?? authError ?? null;
 
   // Auto-redirect if already authenticated
   useEffect(() => {
@@ -38,6 +44,51 @@ function LoginForm() {
       router.replace(destination());
     }
   }, [isAuthenticated, isLoading, router, destination]);
+
+  // SSO RETURN HANDLER (P0-1 fix): QuantMail's /sso chooser redirects back to
+  // this page with the session token as ?token= (aliases: ?accessToken=,
+  // ?access_token=, ?__quant_sso_ticket=). This effect consumes it: exchange
+  // the token server-side for a QuantWave session, then SCRUB the token out of
+  // the URL (history.replaceState — never leaves ?token= in browser history),
+  // and land the user on the safe ?returnTo= destination. Previously this was
+  // a dead end: the button navigated out, but nothing on the return leg ever
+  // read the token, so login never completed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
+    (async () => {
+      const ssoToken = readSsoTokenFromSearch(new URLSearchParams(window.location.search));
+      if (!ssoToken) return;
+
+      setSsoCompleting(true);
+      setError(null);
+      setTwoFactorNotice(false);
+      try {
+        await loginWithSSO(ssoToken);
+        // The provider flips to authenticated; its auto-redirect lands the
+        // user. Scrub first so the token never lingers in the address bar.
+        scrubSsoParamsFromUrl();
+        if (!cancelled) router.replace(destination());
+      } catch (caught) {
+        // loginWithSSO sets the provider error; mirror it into the local
+        // banner and stay on /login so the user can retry.
+        scrubSsoParamsFromUrl();
+        if (!cancelled) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : 'Quant SSO sign-in failed. Please try again.',
+          );
+        }
+      } finally {
+        if (!cancelled) setSsoCompleting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleQuantSSO = useCallback(() => {
     const target = destination();
@@ -146,12 +197,21 @@ function LoginForm() {
             </div>
           </div>
 
-          {error ? (
+          {visibleError ? (
             <div
               role="alert"
               className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
             >
-              {error}
+              {visibleError}
+            </div>
+          ) : null}
+
+          {ssoCompleting ? (
+            <div
+              role="status"
+              className="rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-4 py-3 text-sm text-[var(--quant-foreground)]"
+            >
+              Completing Quant SSO sign-in…
             </div>
           ) : null}
 
@@ -173,9 +233,10 @@ function LoginForm() {
           <button
             type="button"
             onClick={handleQuantSSO}
-            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px"
+            disabled={ssoCompleting}
+            className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
-            ⚡ Continue with Quant SSO
+            {ssoCompleting ? 'Completing Quant SSO sign-in…' : '⚡ Continue with Quant SSO'}
           </button>
         </form>
 

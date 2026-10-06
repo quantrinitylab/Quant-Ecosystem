@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../theme/quant_colors.dart';
+import 'package:quant_theme/quant_theme.dart';
 
 /// The 5 Sovereign Pillars of the Quant Unified Enterprise Suite.
 enum QuantPillar {

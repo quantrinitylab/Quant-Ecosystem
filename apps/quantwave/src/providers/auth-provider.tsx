@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import { authSession, clearAccessToken, hasRefreshCookie, isTwoFactorChallenge } from '../services/auth-session';
 import { quantSyncAPI } from '../services/api-client';
 
 export type LoginOutcome =
@@ -15,6 +15,8 @@ interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
+  /** Establish a session from a QuantMail SSO handoff token (the ?token= param). */
+  loginWithSSO: (quantMailToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -65,12 +67,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Rotate the access token before its ~15-minute lifetime ends. The rotated
   // refresh token stays inside the HttpOnly cookie and never reaches this provider.
+  // SSO-established sessions have no refresh cookie: skip rotation for them, or
+  // the cookie-less /auth/refresh (NO_SESSION) would nuke a good session. The
+  // token lives its natural life; API 401s still clear via onUnauthorized.
   const authedRef = useRef(isAuthenticated);
   authedRef.current = isAuthenticated;
   useEffect(() => {
     if (!isAuthenticated) return;
     const timer = window.setInterval(
       async () => {
+        if (!hasRefreshCookie()) return;
         const session = await authSession.refresh();
         if (!session.success || !session.data?.accessToken) clearSession();
       },
@@ -116,8 +122,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
   }, []);
 
+  // SSO return leg: exchange the QuantMail handoff token for a session and flip
+  // the provider to authenticated. Called by the login page's return handler.
+  const loginWithSSO = useCallback(
+    async (quantMailToken: string): Promise<void> => {
+      setError(null);
+      setIsLoading(true);
+      try {
+        const session = await authSession.loginWithSSO(quantMailToken);
+        if (!session.success || !session.data?.accessToken) {
+          throw new Error(session.error?.message ?? 'Quant SSO sign-in failed.');
+        }
+        setIsAuthenticated(true);
+      } catch (caught) {
+        clearSession();
+        const message = caught instanceof Error ? caught.message : 'Quant SSO sign-in failed.';
+        setError(message);
+        throw caught;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearSession],
+  );
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, loginWithSSO, logout }}>
       {children}
     </AuthContext.Provider>
   );

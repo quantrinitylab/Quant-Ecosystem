@@ -32,6 +32,15 @@ class TimelineEditorScreen extends StatefulWidget {
 
   @override
   State<TimelineEditorScreen> createState() => _TimelineEditorScreenState();
+
+  /// Format milliseconds into precise SMPTE millisecond timecode: HH:MM:SS.mmm
+  static String formatTimestampPrecise(int ms) {
+    final hours = ms ~/ 3600000;
+    final minutes = (ms % 3600000) ~/ 60000;
+    final seconds = (ms % 60000) ~/ 1000;
+    final milliseconds = ms % 1000;
+    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${milliseconds.toString().padLeft(3, '0')}';
+  }
 }
 
 class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
@@ -82,15 +91,6 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
   void dispose() {
     _timelineScrollController.dispose();
     super.dispose();
-  }
-
-  /// Format milliseconds into precise SMPTE millisecond timecode: HH:MM:SS.mmm
-  static String formatTimestampPrecise(int ms) {
-    final hours = ms ~/ 3600000;
-    final minutes = (ms % 3600000) ~/ 60000;
-    final seconds = (ms % 60000) ~/ 1000;
-    final milliseconds = ms % 1000;
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${milliseconds.toString().padLeft(3, '0')}';
   }
 
   void _onTimelineScrub(double localDx) {
@@ -209,7 +209,7 @@ class _TimelineEditorScreenState extends State<TimelineEditorScreen> {
 
   Widget _buildTimelineActionToolbar() {
     final precisePlayheadStr =
-        formatTimestampPrecise(widget.project.currentPlayheadMs);
+        TimelineEditorScreen.formatTimestampPrecise(widget.project.currentPlayheadMs);
 
     return Container(
       height: 48,

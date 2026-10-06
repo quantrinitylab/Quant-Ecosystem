@@ -308,14 +308,14 @@ export default function LoginPage(props: LoginPageProps) {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-600/15 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Top Status Pill: Signal Protocol Double Ratchet · E2EE Verified */}
+      {/* Top Status Pill: honest E2EE description (custom X25519-ECIES + ratchet KDF, NOT Signal protocol) */}
       <div className="relative z-10 mb-5 flex items-center justify-center">
         <div
           data-testid="status-pill-e2ee"
           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono tracking-wide shadow-[0_0_20px_rgba(16,185,129,0.15)] backdrop-blur-md"
         >
           <span className="text-emerald-400 select-none leading-none">●</span>
-          <span>Signal Protocol Double Ratchet · E2EE Verified</span>
+          <span>E2EE · X25519-ECIES + ratchet KDF (custom, not Signal protocol)</span>
         </div>
       </div>
 

@@ -71,7 +71,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   };
 
   // Undo Send Manager
-  final UndoSendManager _undoSendManager = UndoSendManager();
+  final UndoSendManager _undoSendManager = UndoSendManager.instance;
 
   @override
   void initState() {
@@ -85,7 +85,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   @override
   void dispose() {
     _searchController.dispose();
-    _undoSendManager.dispose();
     super.dispose();
   }
 
@@ -263,7 +262,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                                   const SizedBox(height: 2.0),
                                   Text(
                                     '${ws['desc']} · ${ws['members']} members',
-                                    style: QuantTypography.labelSmall.copyWith(
+                                    style: QuantTypography.pillarLabel.copyWith(
                                       color: Colors.white54,
                                       fontSize: 11.0,
                                     ),
@@ -465,7 +464,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       const SizedBox(height: 8.0),
                       Text(
                         'Align QR Code in frame',
-                        style: QuantTypography.labelSmall.copyWith(
+                        style: QuantTypography.pillarLabel.copyWith(
                           color: Colors.white54,
                           fontSize: 10.5,
                         ),
@@ -520,18 +519,19 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     EmailComposerModal.show(
       context,
       onSendQueued: (draft) {
-        _undoSendManager.queueSend(
+        _undoSendManager.enqueueDraft(
           draft: draft,
-          onSent: (d) {
+          onFinalSend: (d) async {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 backgroundColor: QuantColors.darkSlateSurface,
                 content: Text(
-                  'Email dispatched via Kyber-1024 envelope to ${d.toRecipients.map((r) => r.email).join(', ')}',
+                  'Email dispatched via Kyber-1024 envelope to ${d.to.map((r) => r.email).join(', ')}',
                 ),
               ),
             );
           },
+          onRecall: (_) {},
         );
       },
     );
@@ -782,7 +782,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 const SizedBox(width: 6.0),
                 Text(
                   'EXECUTIVE SUITE AT A GLANCE',
-                  style: QuantTypography.labelSmall.copyWith(
+                  style: QuantTypography.pillarLabel.copyWith(
                     color: Colors.white70,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.8,
@@ -847,7 +847,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const SizedBox(width: 6.0),
               Text(
                 'PRIORITY MAIL',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: QuantColors.moltenAmber,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -862,7 +862,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 ),
                 child: Text(
                   '3 Urgent',
-                  style: QuantTypography.labelSmall.copyWith(
+                  style: QuantTypography.pillarLabel.copyWith(
                     color: QuantColors.moltenAmber,
                     fontWeight: FontWeight.w700,
                     fontSize: 9.5,
@@ -910,7 +910,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       'Kyber-1024 E2EE sealed · Sub-5ms FTS5 verified',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: QuantTypography.labelSmall.copyWith(
+                      style: QuantTypography.pillarLabel.copyWith(
                         color: Colors.white54,
                         fontSize: 10.5,
                       ),
@@ -921,7 +921,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const SizedBox(width: 6.0),
               Text(
                 '2m ago',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: Colors.white38,
                   fontSize: 10.0,
                 ),
@@ -997,7 +997,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const SizedBox(width: 5.0),
               Text(
                 'NEXT MEETING',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: QuantColors.sunsetGold,
                   fontWeight: FontWeight.w700,
                   fontSize: 9.5,
@@ -1007,7 +1007,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const Spacer(),
               Text(
                 'In 25m',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: Colors.white70,
                   fontSize: 9.5,
                 ),
@@ -1030,7 +1030,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const SizedBox(height: 2.0),
               Text(
                 '14:30 - 15:15 IST · #alpha-room',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: Colors.white54,
                   fontSize: 10.0,
                 ),
@@ -1069,7 +1069,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   const SizedBox(width: 4.0),
                   Text(
                     'Join Video Stage',
-                    style: QuantTypography.labelSmall.copyWith(
+                    style: QuantTypography.pillarLabel.copyWith(
                       color: QuantColors.sunsetGold,
                       fontWeight: FontWeight.w700,
                       fontSize: 10.0,
@@ -1110,7 +1110,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const SizedBox(width: 5.0),
               Text(
                 'FASTCDC STORAGE',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: QuantColors.sovereignCyan,
                   fontWeight: FontWeight.w700,
                   fontSize: 9.5,
@@ -1120,7 +1120,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               const Spacer(),
               Text(
                 '3.4x Dedup',
-                style: QuantTypography.labelSmall.copyWith(
+                style: QuantTypography.pillarLabel.copyWith(
                   color: Colors.white70,
                   fontSize: 9.5,
                 ),
@@ -1143,7 +1143,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   ),
                   Text(
                     '100 GB Quota',
-                    style: QuantTypography.labelSmall.copyWith(
+                    style: QuantTypography.pillarLabel.copyWith(
                       color: Colors.white54,
                       fontSize: 10.0,
                     ),
@@ -1203,7 +1203,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   const SizedBox(width: 4.0),
                   Text(
                     'Open E2EE Vault',
-                    style: QuantTypography.labelSmall.copyWith(
+                    style: QuantTypography.pillarLabel.copyWith(
                       color: QuantColors.sovereignCyan,
                       fontWeight: FontWeight.w700,
                       fontSize: 10.0,
@@ -1283,7 +1283,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                     const SizedBox(width: 5.0),
                     Text(
                       label,
-                      style: QuantTypography.labelSmall.copyWith(
+                      style: QuantTypography.pillarLabel.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
                         fontSize: 10.5,
@@ -1327,7 +1327,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             const SizedBox(width: 4.0),
             Text(
               label,
-              style: QuantTypography.labelSmall.copyWith(
+              style: QuantTypography.pillarLabel.copyWith(
                 color: c,
                 fontSize: 10.0,
                 fontWeight: FontWeight.w600,
@@ -1424,7 +1424,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       children: [
         Text(
           '${_filteredThreads.length} Threads in ${_activeMailLens.label}',
-          style: QuantTypography.labelSmall.copyWith(
+          style: QuantTypography.pillarLabel.copyWith(
             color: Colors.white54,
             fontWeight: FontWeight.w600,
             fontSize: 11.0,
@@ -1440,7 +1440,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             const SizedBox(width: 3.0),
             Text(
               'Sub-5ms FTS5 Index',
-              style: QuantTypography.labelSmall.copyWith(
+              style: QuantTypography.pillarLabel.copyWith(
                 color: QuantColors.moltenAmber,
                 fontSize: 10.0,
                 fontWeight: FontWeight.w600,
@@ -1555,7 +1555,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                         ),
                         Text(
                           thread.senderEmail,
-                          style: QuantTypography.labelSmall.copyWith(
+                          style: QuantTypography.pillarLabel.copyWith(
                             color: Colors.white54,
                             fontSize: 10.5,
                           ),
@@ -1631,7 +1631,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                         const SizedBox(width: 3.0),
                         Text(
                           'Kyber-1024 E2EE',
-                          style: QuantTypography.labelSmall.copyWith(
+                          style: QuantTypography.pillarLabel.copyWith(
                             color: Colors.white70,
                             fontSize: 9.0,
                           ),
@@ -1642,7 +1642,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   const Spacer(),
                   Text(
                     '10:42 AM',
-                    style: QuantTypography.labelSmall.copyWith(
+                    style: QuantTypography.pillarLabel.copyWith(
                       color: Colors.white38,
                       fontSize: 10.0,
                     ),
@@ -1735,7 +1735,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           children: [
             Text(
               'TODAY · RFC 5545 AGENDA',
-              style: QuantTypography.labelSmall.copyWith(
+              style: QuantTypography.pillarLabel.copyWith(
                 color: QuantColors.sunsetGold,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
@@ -1751,7 +1751,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 const SizedBox(width: 4.0),
                 Text(
                   'Asia/Kolkata (IST)',
-                  style: QuantTypography.labelSmall.copyWith(
+                  style: QuantTypography.pillarLabel.copyWith(
                     color: Colors.white54,
                     fontSize: 10.5,
                   ),
@@ -1804,7 +1804,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       const Spacer(),
                       Text(
                         item['time'] as String,
-                        style: QuantTypography.labelSmall.copyWith(
+                        style: QuantTypography.pillarLabel.copyWith(
                           color: Colors.white70,
                           fontWeight: FontWeight.w600,
                         ),
@@ -1831,7 +1831,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       const SizedBox(width: 4.0),
                       Text(
                         item['location'] as String,
-                        style: QuantTypography.labelSmall.copyWith(
+                        style: QuantTypography.pillarLabel.copyWith(
                           color: Colors.white54,
                           fontSize: 11.0,
                         ),
@@ -1845,7 +1845,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       const SizedBox(width: 4.0),
                       Text(
                         item['organizer'] as String,
-                        style: QuantTypography.labelSmall.copyWith(
+                        style: QuantTypography.pillarLabel.copyWith(
                           color: Colors.white54,
                           fontSize: 11.0,
                         ),
@@ -1914,7 +1914,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           children: [
             Text(
               'RECENT ENCRYPTED OBJECTS',
-              style: QuantTypography.labelSmall.copyWith(
+              style: QuantTypography.pillarLabel.copyWith(
                 color: QuantColors.sovereignCyan,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.5,
@@ -1982,7 +1982,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                         const SizedBox(height: 2.0),
                         Text(
                           '${file['size']} · ${file['chunks']} · ${file['status']}',
-                          style: QuantTypography.labelSmall.copyWith(
+                          style: QuantTypography.pillarLabel.copyWith(
                             color: Colors.white54,
                             fontSize: 10.5,
                           ),

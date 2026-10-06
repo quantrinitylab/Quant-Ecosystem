@@ -81,7 +81,7 @@ class GramRepository {
 
   static List<ReelItem> getReels() {
     return [
-      const ReelItem(
+      ReelItem(
         id: 'reel-1',
         creatorId: 'c-quantrinity',
         creatorHandle: 'quantrinity',
@@ -105,7 +105,7 @@ class GramRepository {
         createdAt: DateTime(2026, 10, 1),
         gradientColors: [Color(0xFF3B0764), Color(0xFF090A0E)],
       ),
-      const ReelItem(
+      ReelItem(
         id: 'reel-2',
         creatorId: 'c-astra',
         creatorHandle: 'astra_ai',
@@ -129,7 +129,7 @@ class GramRepository {
         createdAt: DateTime(2026, 9, 30),
         gradientColors: [Color(0xFF083344), Color(0xFF090A0E)],
       ),
-      const ReelItem(
+      ReelItem(
         id: 'reel-3',
         creatorId: 'c-devnikhil',
         creatorHandle: 'nikhil_arch',
@@ -153,7 +153,7 @@ class GramRepository {
         createdAt: DateTime(2026, 9, 29),
         gradientColors: [Color(0xFF14532D), Color(0xFF090A0E)],
       ),
-      const ReelItem(
+      ReelItem(
         id: 'reel-4',
         creatorId: 'c-sara',
         creatorHandle: 'sara_luxury',
@@ -177,7 +177,7 @@ class GramRepository {
         createdAt: DateTime(2026, 9, 28),
         gradientColors: [Color(0xFF701A75), Color(0xFF090A0E)],
       ),
-      const ReelItem(
+      ReelItem(
         id: 'reel-5',
         creatorId: 'c-codehub',
         creatorHandle: 'codehub_sovereign',
@@ -270,7 +270,7 @@ class GramRepository {
           ),
         ],
       ),
-      const CommentItem(
+      CommentItem(
         id: 'cmt-3',
         reelId: reelId,
         userId: 'u-sophia',
@@ -281,7 +281,7 @@ class GramRepository {
         likesCount: 68,
         isLiked: false,
       ),
-      const CommentItem(
+      CommentItem(
         id: 'cmt-4',
         reelId: reelId,
         userId: 'u-zane',

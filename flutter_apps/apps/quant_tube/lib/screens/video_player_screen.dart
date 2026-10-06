@@ -1051,7 +1051,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             ),
           ),
           ElevatedButton(
-            onTap: () {
+            onPressed: () {
               setState(() {
                 _isSubscribed = !_isSubscribed;
               });

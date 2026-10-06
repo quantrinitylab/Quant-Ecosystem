@@ -54,6 +54,10 @@ class VirtualGiftsSheet extends StatefulWidget {
     this.onGiftSent,
   });
 
+  /// Public accessor for the 8-item gift catalog (backed by state catalog).
+  static List<VirtualGiftItem> get giftsCatalog =>
+      _VirtualGiftsSheetState.giftsCatalog;
+
   /// Displays the Virtual Gifts sheet as a modal bottom sheet
   static Future<void> show(
     BuildContext context, {

@@ -9,7 +9,6 @@ library quant_core;
 
 export 'storage/quant_secure_storage.dart';
 export 'auth/quant_session_state.dart';
-export 'auth/quant_auth_session.dart';
 export 'auth/quant_auth_service.dart';
 export 'api/quant_api_client.dart';
 export 'models/pillar_models.dart';

@@ -10,6 +10,7 @@ import 'package:quant_drive/screens/fastcdc_cleaner_screen.dart';
 import 'package:quant_drive/screens/document_viewer_screen.dart';
 import 'package:quant_drive/screens/file_preview_lightbox.dart';
 import 'package:quant_drive/screens/drive_upload_sheet.dart';
+import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_core/quant_core.dart';
 
 void main() {

@@ -1,6 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../theme/quant_colors.dart';
+import 'package:quant_theme/quant_theme.dart';
 
 /// Frosted Glass Obsidian Card Widget
 ///

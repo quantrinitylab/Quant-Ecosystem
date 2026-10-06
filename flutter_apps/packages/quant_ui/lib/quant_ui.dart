@@ -5,9 +5,10 @@
 /// and context-specific bottom navigation bars.
 library quant_ui;
 
-export 'theme/quant_colors.dart';
-export 'theme/quant_typography.dart';
-export 'theme/quant_theme.dart';
+// Canonical theme tokens live in package:quant_theme (single source of truth).
+// quant_ui re-exports them so apps importing only quant_ui keep working.
+export 'package:quant_theme/quant_theme.dart';
+
 export 'models/quant_pillar.dart';
 export 'components/quant_pillar_top_bar.dart';
 export 'components/quant_ai_capsule.dart';

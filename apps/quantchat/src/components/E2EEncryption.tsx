@@ -101,7 +101,7 @@ export const E2EEncryption: React.FC<E2EEncryptionProps> = ({
         <div className="encryption-details">
           <div className="detail-section">
             <h4>Encryption Protocol</h4>
-            <p>{status.protocol} (Double Ratchet + X3DH)</p>
+            <p>{status.protocol} (X25519-ECIES + ratchet KDF — custom, not Signal protocol)</p>
             <p className="detail-note">
               Only you and {peerName} can read these messages. Not even QuantChat can access them.
             </p>
