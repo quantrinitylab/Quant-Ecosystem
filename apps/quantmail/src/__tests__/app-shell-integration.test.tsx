@@ -122,7 +122,7 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Calendar contextual navigation');
       expect(html).toContain('Feed');
       expect(html).toContain('Month');
-      expect(html).toContain('Events');
+      expect(html).toContain('Trackers');
       expect(html).toContain('Schedule');
     });
 

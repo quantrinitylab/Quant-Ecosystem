@@ -721,7 +721,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'events',
-        label: 'Events',
+        label: 'Trackers',
         icon: CalendarEventsTrackerIcon,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'events' },

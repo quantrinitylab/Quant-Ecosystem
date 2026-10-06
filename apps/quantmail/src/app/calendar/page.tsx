@@ -35,6 +35,7 @@ import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';
+import type { WeekViewSheetOpts } from './components/CalendarWeekView';
 import {
   CalendarContextSubTabs,
   mergedTabTargets,
@@ -658,14 +659,19 @@ function CalendarPageContent() {
   }, [isInitialLoading, activeView, continuousAgendaDays, today]);
 
   const openDedicatedSheet = useCallback(
-    (type: EntryType, date?: Date, opts?: { startTime?: string; endTime?: string }) => {
+    // 3rd arg is a union: the month grid's drag-to-create passes the range
+    // end date, the week view passes time opts. Disambiguated at runtime.
+    (type: EntryType, date?: Date, rangeOrOpts?: Date | WeekViewSheetOpts) => {
       const base = date ? new Date(date) : new Date(selectedDate);
       const dateStr = toDateInput(base);
+      const endDate = rangeOrOpts instanceof Date ? rangeOrOpts : undefined;
+      const opts = rangeOrOpts instanceof Date ? undefined : rangeOrOpts;
+      const endDateStr = endDate ? toDateInput(endDate) : dateStr;
 
       setFormState({
         title: '',
         startDate: dateStr,
-        endDate: dateStr,
+        endDate: endDateStr,
         startTime: opts?.startTime ?? '10:00',
         endTime: opts?.endTime ?? '11:00',
         allDay: false,
@@ -1070,7 +1076,10 @@ function CalendarPageContent() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       onQuantyOpenChange={setIsQuantyDrawerOpen}
     >
-      <div className="flex flex-col h-full bg-[#08080a] text-white relative">
+      <div className="flex flex-col h-full bg-[#08080a] text-white relative -mb-20">
+        {/* -mb-20: extend the dark page background over the AppShell's pb-20
+            bottom-nav reserve so no light-theme gap strip shows between the
+            content and the fixed bottom nav. */}
         <CalendarHeader
           activeMonthName={activeMonthName}
           activeYear={activeYear}
@@ -1127,6 +1136,10 @@ function CalendarPageContent() {
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
             onSelectEvent={setSelectedEvent}
+            viewDate={currentDate}
+            onPrevMonth={() => goMonth(-1)}
+            onNextMonth={() => goMonth(1)}
+            onGoToday={goToday}
           />
         )}
 
@@ -1134,6 +1147,7 @@ function CalendarPageContent() {
           <CalendarTrackersSubView
             events={events}
             openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
           />
         )}
 

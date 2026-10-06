@@ -266,7 +266,7 @@ const MERGED_TABS: ReadonlyArray<{ key: CalendarMergedTab; label: string; isLega
   { key: 'feed', label: 'Feed' },
   { key: 'month', label: 'Month' },
   { key: 'week', label: 'Week' },
-  { key: 'events', label: 'Events' },
+  { key: 'events', label: 'Trackers' },
   { key: 'schedule', label: 'Schedule' },
   // Legacy merged tabs supported for backward compatibility with existing tests and deep links
   { key: 'agenda', label: 'Agenda', isLegacy: true },
