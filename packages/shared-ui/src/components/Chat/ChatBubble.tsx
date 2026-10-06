@@ -77,7 +77,14 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             <span className={`text-xs ${isSelf ? 'text-blue-200' : 'text-gray-400'}`}>edited</span>
           )}
           {isSelf && status && (
-            <span className={`text-xs ${status === 'read' ? 'text-blue-200' : 'text-blue-300'}`}>
+            // WhatsApp tick convention: sent/delivered = grey, read = blue.
+            // Delivered grey #8696a0 and read blue #53bdeb are WhatsApp's exact
+            // palette so the two states are instantly distinguishable.
+            <span
+              className={`text-xs ${status === 'read' ? 'text-[#53bdeb]' : 'text-[#8696a0]'}`}
+              aria-label={`Message ${status}`}
+              title={`Message ${status}`}
+            >
               {statusIcons[status]}
             </span>
           )}
