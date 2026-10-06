@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
 import { VideoService } from '../services/video.service';
+import { findSampleVideo, toSampleApiRecord } from '../lib/sample-catalog';
 
 const uploadVideoSchema = z.object({
   channelId: z.string(),
@@ -95,31 +96,15 @@ export default async function videosRoutes(fastify: FastifyInstance) {
       const video = await service.getVideo(request.params.id);
       return reply.send({ success: true, data: video });
     } catch (err: any) {
-      if (
-        request.params.id.startsWith('guest-vid-') ||
-        request.params.id === 'PUBLIC_FEATURED_VIDEOS'
-      ) {
-        return reply.send({
-          success: true,
-          data: {
-            id: request.params.id,
-            title: 'Guest Fallback Video',
-            description: 'This is a fallback video for guest users.',
-            videoUrl: 'https://cdn.quantube.com/fallback.mp4',
-            thumbnailUrl: 'https://cdn.quantube.com/fallback-thumb.jpg',
-            duration: 120,
-            views: 0,
-            channelId: 'guest-channel',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            channel: {
-              id: 'guest-channel',
-              name: 'Guest Channel',
-              handle: 'guestchannel',
-              avatarUrl: 'https://cdn.quantube.com/guest-avatar.jpg',
-            },
-          },
-        });
+      // P0-1: the old fallback fabricated a "Guest Fallback Video" pointing at
+      // a dead cdn.quantube.com URL — the watch page rendered a black player.
+      // Serve the REAL shared sample catalog instead (real playable videoUrls,
+      // flagged isSample:true); unknown ids get an honest 404, never a fake.
+      if (request.params.id.startsWith('guest-vid-')) {
+        const sample = findSampleVideo(request.params.id);
+        if (sample) {
+          return reply.send({ success: true, data: toSampleApiRecord(sample) });
+        }
       }
       throw err;
     }
