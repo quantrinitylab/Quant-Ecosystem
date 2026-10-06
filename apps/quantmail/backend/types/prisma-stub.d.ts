@@ -25,6 +25,7 @@ declare module '@prisma/client' {
     attachments: unknown[];
     isRead: boolean;
     isStarred: boolean;
+    isPinned?: boolean;
     isDraft: boolean;
     isSent: boolean;
     isTrash: boolean;
