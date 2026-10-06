@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Button, Avatar, Skeleton } from '@quant/shared-ui';
 import { apiClient } from '../../../services/api-client';
 import { showToast } from '../../../components/InboxToast';
+import { IconPhone, IconBriefcase } from '../../../components/icons';
 import type { Contact } from '../../../types';
 
 export interface DuplicateCluster {
@@ -238,8 +239,18 @@ export function ContactsDedupeModal({ isOpen, onClose, onMerged }: ContactsDedup
                             </div>
 
                             <div className="mt-2.5 space-y-1 text-[11px] text-[#6B6E76]">
-                              {contact.phone && <p className="truncate">📞 {contact.phone}</p>}
-                              {contact.company && <p className="truncate">🏢 {contact.company}</p>}
+                              {contact.phone && (
+                                <p className="truncate flex items-center gap-1.5">
+                                  <IconPhone size={12} className="text-[#A1A4AC]" />
+                                  <span>{contact.phone}</span>
+                                </p>
+                              )}
+                              {contact.company && (
+                                <p className="truncate flex items-center gap-1.5">
+                                  <IconBriefcase size={12} className="text-[#A1A4AC]" />
+                                  <span>{contact.company}</span>
+                                </p>
+                              )}
                               {contact.tags && contact.tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 pt-1">
                                   {contact.tags.map((tag) => (

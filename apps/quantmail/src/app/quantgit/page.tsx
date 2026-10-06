@@ -995,9 +995,11 @@ function QuantGitContent() {
         e.preventDefault();
         setModalState('file-finder');
       }
-      if (e.key === '/' && selectedRepo) {
+      if (e.key === '/') {
         e.preventDefault();
-        const searchInput = document.getElementById('global-search-input');
+        const searchInput =
+          document.getElementById('app-shell-search-input') ||
+          document.getElementById('app-shell-mobile-search-input');
         searchInput?.focus();
       }
       if (e.key === 'Escape') {
@@ -1975,62 +1977,44 @@ function QuantGitContent() {
     [currentBranch, handleCommitBlob],
   );
 
-  /*
-   * Mobile opens inside the same AppShell as the rest of the suite: the
-   * 5-pillar dock on top, the shell's context bottom nav, no nested
-   * sub-header and no second bottom tab bar. Desktop keeps its own nested
-   * QuantGitHeader and no pillar bar — pixel-unchanged.
-   *
-   * Starts `false` so the server render and the first client render agree;
-   * the effect corrects it on mount (the same pattern AppShell uses for its
-   * own `isWide`).
-   */
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-  useEffect(() => {
-    const query = window.matchMedia('(max-width: 767px)');
-    const sync = () => setIsMobileViewport(query.matches);
-    sync();
-    query.addEventListener('change', sync);
-    return () => query.removeEventListener('change', sync);
-  }, []);
-
-  // The nested sub-header, hoisted into the shell's `customHeader` slot on
-  // desktop only. On mobile the shell owns the chrome instead.
-  const nestedHeader = (
-    <QuantGitHeader
-      activeDeckTab={activeDeckTab}
-      setActiveDeckTab={setActiveDeckTab}
-      selectedRepo={selectedRepo}
-      setSelectedRepo={setSelectedRepo}
-      viewingFile={viewingFile}
-      setViewingFile={setViewingFile}
-      setActiveGitHubTab={setActiveGitHubTab}
-      currentUsername={currentUsername}
-      isHistoryOpen={isHistoryOpen}
-      setIsHistoryOpen={setIsHistoryOpen}
-      chatSessions={chatSessions}
-      setChatSessions={setChatSessions}
-      activeSessionId={activeSessionId}
-      setActiveSessionId={setActiveSessionId}
-      pinnedSessionIds={pinnedSessionIds}
-      setPinnedSessionIds={setPinnedSessionIds}
-      setChatMessages={setChatMessages}
-      setModalState={setModalState}
-      setIsPersonalizeOpen={setIsPersonalizeOpen}
-      showToast={showToast}
-      isCopilotDrawerOpen={isCopilotDrawerOpen}
-      setIsCopilotDrawerOpen={setIsCopilotDrawerOpen}
-    />
-  );
-
   return (
     <AppShell
       sidebar={<AppSidebar />}
       theme="dark"
-      customHeader={isMobileViewport ? undefined : nestedHeader}
-      topBar={isMobileViewport ? undefined : <></>}
+      className="quantmail-shell"
+      searchValue={repoSearchQuery}
+      onSearchChange={(val) => {
+        setRepoSearchQuery(val);
+        setFileSearchQuery(val);
+      }}
+      searchPlaceholder="Search in QuantGit (repositories, files, branches)..."
     >
       <div className="flex h-full w-full flex-col overflow-hidden bg-[#0D1117] text-[#E6EDF3] font-sans antialiased">
+        {/* 1. QuantGit Sovereign Sub-Header */}
+        <QuantGitHeader
+          activeDeckTab={activeDeckTab}
+          setActiveDeckTab={setActiveDeckTab}
+          selectedRepo={selectedRepo}
+          setSelectedRepo={setSelectedRepo}
+          viewingFile={viewingFile}
+          setViewingFile={setViewingFile}
+          setActiveGitHubTab={setActiveGitHubTab}
+          currentUsername={currentUsername}
+          isHistoryOpen={isHistoryOpen}
+          setIsHistoryOpen={setIsHistoryOpen}
+          chatSessions={chatSessions}
+          setChatSessions={setChatSessions}
+          activeSessionId={activeSessionId}
+          setActiveSessionId={setActiveSessionId}
+          pinnedSessionIds={pinnedSessionIds}
+          setPinnedSessionIds={setPinnedSessionIds}
+          setChatMessages={setChatMessages}
+          setModalState={setModalState}
+          setIsPersonalizeOpen={setIsPersonalizeOpen}
+          showToast={showToast}
+          isCopilotDrawerOpen={isCopilotDrawerOpen}
+          setIsCopilotDrawerOpen={setIsCopilotDrawerOpen}
+        />
       {/* 2. Repository Sub-Navigation Bar & 10 Tabs (When in Repo view with selected repo) */}
       {activeDeckTab === 'repos' && selectedRepo && (
         <div className="bg-[#010409] border-b border-[#30363D] pt-4 px-4 sm:px-8">
@@ -2164,6 +2148,8 @@ function QuantGitContent() {
         {activeDeckTab === 'repos' && !selectedRepo && (
           <QuantGitSubViews
             activeTab={activeContextSubTab}
+            searchQuery={repoSearchQuery}
+            onSearchChange={setRepoSearchQuery}
             onSelectTab={(tab) => {
               setActiveContextSubTab(tab);
               router.push(`/quantgit?tab=${tab}`);

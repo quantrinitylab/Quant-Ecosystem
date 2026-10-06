@@ -1,8 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { EntryType } from '../types';
-import { TIMEZONES } from '../types';
 
 export interface CalendarHeaderProps {
   activeMonthName: string;
@@ -52,27 +51,109 @@ function HeaderLinkIcon({ className }: { className?: string }) {
   );
 }
 
+function HeaderPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-3.5'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function ChevronLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
+
 export function CalendarHeader({
   activeMonthName,
   activeYear,
   goMonth,
   goToday,
   openDedicatedSheet,
-  activeTimezone,
-  onChangeTimezone,
+  activeTimezone: _activeTimezone,
+  onChangeTimezone: _onChangeTimezone,
   onOpenBookingLinks,
 }: CalendarHeaderProps) {
+  // Live Dual-Timezone Clock (IST: Asia/Kolkata, PST: America/Los_Angeles)
+  const [now, setNow] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const istTime = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(now);
+    } catch {
+      return '--:--';
+    }
+  }, [now]);
+
+  const pstTime = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Los_Angeles',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }).format(now);
+    } catch {
+      return '--:--';
+    }
+  }, [now]);
+
   return (
-    <>
-      {/*
-        View switching moved out of this header: the single merged tab row
-        (CalendarContextSubTabs: Agenda/Week/Day/Month/Booking/QuantMeet/
-        Reminders) now owns it, so the header no longer duplicates Agenda and
-        Month. This toolbar keeps month navigation, Today, timezone, booking
-        links and New Entry.
-      */}
-      {/* Desktop Header Toolbar */}
-      <div className="hidden md:flex items-center justify-between border-b border-[#282C35]/80 px-6 py-3 bg-[#0c0c0f]">
+    <header className="border-b border-[#282C35]/80 bg-[#0c0c0f]">
+      {/* ======================================================================
+          Desktop Header Toolbar (Clean 1-row layout)
+          ====================================================================== */}
+      <div className="hidden md:flex items-center justify-between px-6 py-3">
+        {/* Left: Navigation Stepper & Month Name */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
             <button
@@ -81,7 +162,7 @@ export function CalendarHeader({
               aria-label="Previous month"
               className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              ‹
+              <ChevronLeftIcon className="size-4" />
             </button>
             <button
               type="button"
@@ -89,7 +170,7 @@ export function CalendarHeader({
               aria-label="Next month"
               className="size-8 grid place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] hover:text-white hover:bg-[#282C35]/80 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             >
-              ›
+              <ChevronRightIcon className="size-4" />
             </button>
           </div>
 
@@ -107,35 +188,22 @@ export function CalendarHeader({
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
-          {onChangeTimezone && (
-            <div className="relative">
-              <select
-                value={activeTimezone || 'Asia/Kolkata'}
-                onChange={(e) => onChangeTimezone(e.target.value)}
-                className="appearance-none rounded-lg border border-[#282C35] bg-[#111318] pl-7 pr-6 py-1 text-xs text-[#A1A4AC] hover:text-[#F5F5F5] hover:border-[#3A404D] focus:outline-none focus:border-[#FF8C42] cursor-pointer transition-colors"
-                title="Select Calendar Timezone"
-              >
-                {TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value} className="bg-[#16181D] text-[#F5F5F5]">
-                    {tz.label}
-                  </option>
-                ))}
-              </select>
-              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
-                <HeaderGlobeIcon className="size-3 text-[#A1A4AC]" />
-              </span>
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
-                ▼
-              </span>
-            </div>
-          )}
-
-          {/*
-            View switcher removed: CalendarContextSubTabs is the single merged
-            row now (Agenda/Week/Day/Month/Booking/QuantMeet/Reminders).
-            Keeping it here duplicated Agenda and Month.
-          */}
+        {/* Right: Consolidated IST/PST Pill + Action Buttons */}
+        <div className="flex items-center gap-3">
+          {/* Single Clean IST / PST Pill (Removes duplicate dropdowns & banners) */}
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111318] border border-[#282C35] text-xs font-mono text-[#F59E0B] shadow-inner select-none"
+            title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time (PST)"
+          >
+            <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
+            <span className="font-semibold text-white">IST</span>
+            <span className="text-[#F5F5F5]">{istTime}</span>
+            <span className="text-[#3A404D]" aria-hidden="true">
+              /
+            </span>
+            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="text-[#A1A4AC]">{pstTime}</span>
+          </div>
 
           {onOpenBookingLinks && (
             <button
@@ -150,100 +218,96 @@ export function CalendarHeader({
             </button>
           )}
 
+          {/* Consolidated Single Sleek Top-Right Action Button */}
           <button
             type="button"
             onClick={() => openDedicatedSheet('event')}
-            className="px-3.5 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
           >
-            + New Entry
+            <HeaderPlusIcon className="size-3.5 text-[#111111]" />
+            <span>New Event</span>
           </button>
         </div>
       </div>
 
-      {/*
-       * Mobile toolbar.
-       *
-       * The toolbar above is `hidden md:flex`, and the picker only draws its own
-       * `‹ ›` once the month grid is expanded — so a phone had no month
-       * navigation, no "Today" and no view switcher at all. It could reach
-       * another month only by dragging the handle open first, and could not
-       * leave Agenda by any route. Two rows rather than one: 375px will not
-       * hold a month name, a stepper and four view chips side by side.
-       */}
-      <div className="md:hidden border-b border-[#282C35]/80 bg-[#0c0c0f] px-3 py-2">
+      {/* ======================================================================
+          Mobile Clean 2-Row Layout (Collapsing 7-layer stacked header)
+          ====================================================================== */}
+      <div className="md:hidden px-3.5 py-2 space-y-2">
+        {/* Row 1: Month Title & Navigation + Sleek Single + New Event Button */}
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[#F5F5F5]">
-            <span className="truncate">{activeMonthName}</span>
-            <span className="font-normal text-[#A1A4AC]">{activeYear}</span>
-          </h2>
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={() => goMonth(-1)}
-              aria-label="Previous month"
-              className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              onClick={() => goMonth(1)}
-              aria-label="Next month"
-              className="grid size-11 place-items-center rounded-xl border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              ›
-            </button>
-            <button
-              type="button"
-              onClick={goToday}
-              className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-3 text-xs font-medium text-[#F5F5F5] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-            >
-              Today
-            </button>
-            {onOpenBookingLinks && (
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="flex min-w-0 items-baseline gap-1.5 truncate text-base font-bold tracking-tight text-[#F5F5F5]">
+              <span className="truncate">{activeMonthName}</span>
+              <span className="font-normal text-xs text-[#A1A4AC]">{activeYear}</span>
+            </h2>
+
+            <div className="flex shrink-0 items-center gap-1">
               <button
                 type="button"
-                onClick={onOpenBookingLinks}
-                aria-label="Booking Links"
-                className="min-h-11 rounded-xl border border-[#282C35] bg-[#16181D] px-2.5 text-xs font-medium text-[#FF8C42] transition-colors hover:bg-[#1C1F26] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                title="Share Booking Links"
+                onClick={() => goMonth(-1)}
+                aria-label="Previous month"
+                className="size-8 grid place-items-center rounded-lg border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white"
               >
-                <HeaderLinkIcon className="size-4 text-[#FF8C42]" />
+                <ChevronLeftIcon className="size-3.5" />
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => goMonth(1)}
+                aria-label="Next month"
+                className="size-8 grid place-items-center rounded-lg border border-[#282C35] text-[#A1A4AC] transition-colors hover:bg-[#282C35]/80 hover:text-white"
+              >
+                <ChevronRightIcon className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={goToday}
+                className="h-8 rounded-lg border border-[#282C35] bg-[#16181D] px-2.5 text-[11px] font-medium text-[#F5F5F5] transition-colors hover:bg-[#1C1F26]"
+              >
+                Today
+              </button>
+            </div>
           </div>
+
+          {/* Consolidated Single Sleek Action Button on Mobile */}
+          <button
+            type="button"
+            onClick={() => openDedicatedSheet('event')}
+            className="inline-flex shrink-0 items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all"
+          >
+            <HeaderPlusIcon className="size-3 text-[#111111]" />
+            <span>Event</span>
+          </button>
         </div>
 
-        {onChangeTimezone && (
-          <div className="mt-2 relative">
-            <select
-              value={activeTimezone || 'Asia/Kolkata'}
-              onChange={(e) => onChangeTimezone(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-[#282C35] bg-[#111318] pl-7 pr-6 py-1.5 text-xs text-[#A1A4AC] focus:outline-none focus:border-[#FF8C42] cursor-pointer"
-              title="Select Calendar Timezone"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value} className="bg-[#16181D] text-[#F5F5F5]">
-                  {tz.label}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC]">
-              <HeaderGlobeIcon className="size-3 text-[#A1A4AC]" />
-            </span>
-            <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
-              ▼
-            </span>
+        {/* Row 2: Single Clean IST/PST Pill + Booking Links */}
+        <div className="flex items-center justify-between gap-2 pt-0.5">
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111318] border border-[#282C35] text-[11px] font-mono text-[#F59E0B] shadow-inner select-none"
+            title="Live Dual World Clocks (IST & PST)"
+          >
+            <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
+            <span className="font-semibold text-white">IST</span>
+            <span className="text-[#F5F5F5]">{istTime}</span>
+            <span className="text-[#3A404D]">/</span>
+            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="text-[#A1A4AC]">{pstTime}</span>
           </div>
-        )}
 
-        {/*
-          View switcher removed from the mobile toolbar too: the merged
-          CalendarContextSubTabs row below owns Agenda/Week/Day/Month (plus
-          Booking/QuantMeet/Reminders). This toolbar keeps month stepping,
-          Today, timezone and booking links.
-        */}
+          {onOpenBookingLinks && (
+            <button
+              type="button"
+              onClick={onOpenBookingLinks}
+              aria-label="Booking Links"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium text-[11px] text-[#A1A4AC] hover:text-[#F5F5F5] bg-[#16181D] hover:bg-[#20232B] border border-[#282C35] transition-all"
+              title="Share Booking Links"
+            >
+              <HeaderLinkIcon className="size-3 text-[#FF8C42]" />
+              <span>Booking</span>
+            </button>
+          )}
+        </div>
       </div>
-    </>
+    </header>
   );
 }
