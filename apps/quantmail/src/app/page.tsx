@@ -39,6 +39,7 @@ import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
 import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { DockedComposer } from '../components/DockedComposer';
 import { useKeyboardSurfaces } from '../components/KeyboardProvider';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
 import {
@@ -62,6 +63,9 @@ import {
 import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
+import { MailTeamsCollaborationPanel } from '../components/MailTeamsCollaborationPanel';
+import { MailSwarmAgentAccessPanel } from '../components/MailSwarmAgentAccessPanel';
+import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
 export type { ConversationThread };
@@ -99,32 +103,42 @@ const ESTIMATED_ROW_HEIGHT = 80;
  * `Spam` sits in the chip row as an inline lens, filtering junk messages directly
  * in the active thread pool without navigating away.
  */
+export interface CustomFolder {
+  id: string;
+  name: string;
+  color?: string;
+  filterType: 'contact' | 'keyword' | 'standard';
+  filterValue?: string;
+  createdAt?: number;
+}
+
 type InboxLens =
   | 'all'
-  | 'primary'
   | 'unread'
+  | 'contacts'
+  | 'spam'
+  | 'primary'
   | 'important'
   | 'teams'
   | 'updates'
   | 'social'
   | 'promotions'
   | 'forums'
-  | 'contacts'
   | 'groups'
   | 'snoozed'
-  | 'spam';
+  | (string & {});
 type InboxTurn = 'any' | 'needs_you' | 'waiting';
 type InboxFilter = 'starred' | 'attachment';
 
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   /*
-   * `All` leads because it is the default and the widest: a reader lands on the
-   * full list and narrows from there, so the first chip should be the one already
-   * selected rather than a partition they have to opt out of.
+   * Under the Inbox tab: All, Unread, Contacts, Spam lead as the primary filter lenses.
    */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
-  { key: 'primary', label: 'Primary', hint: 'Direct person-to-person human correspondence' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
+  { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
+  { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
+  { key: 'primary', label: 'Primary', hint: 'Direct person-to-person human correspondence' },
   {
     key: 'updates',
     label: 'Updates',
@@ -141,10 +155,8 @@ const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
     label: 'Forums',
     hint: 'Mailing lists, group discussions, and community digests',
   },
-  { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'groups', label: 'Groups', hint: 'Conversations with multiple people or saved groups' },
   { key: 'snoozed', label: 'Snoozed', hint: 'Conversations waiting for their wake time' },
-  { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
 ];
 
 /**
@@ -1078,10 +1090,55 @@ export default function InboxPage() {
     return 'all';
   });
 
+  const tabParam = searchParams?.get('tab');
+  const [activeTab, setActiveTab] = useState<'inbox' | 'teams' | 'agents' | 'archive'>(() => {
+    if (typeof window !== 'undefined') {
+      const t = new URLSearchParams(window.location.search).get('tab');
+      if (t === 'teams' || t === 'agents' || t === 'archive') return t;
+    }
+    return 'inbox';
+  });
+
   useEffect(() => {
     setActiveLens(normalizeLensParam(searchParams?.get('lens')));
-    setShowArchivedView(false);
+    const t = searchParams?.get('tab');
+    if (t === 'teams' || t === 'agents') {
+      setActiveTab(t);
+      setShowArchivedView(false);
+    } else if (t === 'archive') {
+      setActiveTab('archive');
+      setShowArchivedView(true);
+    } else {
+      setActiveTab('inbox');
+      setShowArchivedView(false);
+    }
   }, [searchParams]);
+
+  useEffect(() => {
+    const handleSubtabChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ pillar?: string; tabId?: string }>;
+      if (customEvent.detail?.pillar === 'mail') {
+        const id = customEvent.detail.tabId;
+        if (id === 'teams') {
+          setActiveTab('teams');
+          router.push('/?tab=teams');
+        } else if (id === 'agents') {
+          setActiveTab('agents');
+          router.push('/?tab=agents');
+        } else if (id === 'archive') {
+          setActiveTab('archive');
+          setShowArchivedView(true);
+          router.push('/?tab=archive');
+        } else if (id === 'inbox') {
+          setActiveTab('inbox');
+          setShowArchivedView(false);
+          router.push('/');
+        }
+      }
+    };
+    window.addEventListener('quant:subtab-change', handleSubtabChange);
+    return () => window.removeEventListener('quant:subtab-change', handleSubtabChange);
+  }, [router]);
 
   const [activeTurn, setActiveTurn] = useState<InboxTurn>('any');
   const [activeFilters, setActiveFilters] = useState<Set<InboxFilter>>(() => new Set());
@@ -1151,6 +1208,49 @@ export default function InboxPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [selectedThread, setSelectedThread] = useState<ConversationThread | null>(null);
+  const selectedThreadId = selectedThread?.id || selectedEmail?.id || null;
+
+  // Custom Folders & Filter Lenses
+  const [customFolders, setCustomFolders] = useState<CustomFolder[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('quant_custom_folders');
+        if (saved) return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return [];
+  });
+  const [isAddFolderModalOpen, setIsAddFolderModalOpen] = useState(false);
+
+  const handleCreateFolder = useCallback((draft: FolderDraft) => {
+    const newFolder: CustomFolder = {
+      id: `custom_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      name: draft.name.trim(),
+      color: draft.color || '#FF8C42',
+      filterType: draft.filterType,
+      filterValue: draft.filterValue?.trim() || '',
+      createdAt: Date.now(),
+    };
+
+    setCustomFolders((prev) => {
+      const next = [...prev, newFolder];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('quant_custom_folders', JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+
+    setIsAddFolderModalOpen(false);
+    setActiveLens(`folder_${newFolder.id}`);
+    showToast({ text: `Folder "${newFolder.name}" created`, type: 'success' });
+  }, []);
+
   /** Conversation the next shift-click extends from. See `toggleSelect`. */
   const selectionAnchorId = useRef<string | null>(null);
   // The scroll container is needed as state by the virtualizer (so it re-measures
@@ -1184,6 +1284,10 @@ export default function InboxPage() {
    * the second look like the first.
    */
   const { data: contactDirectory, isPending: isDirectoryPending } = useContactDirectory();
+  const savedContactsList = useMemo(() => {
+    if (!contactDirectory) return [];
+    return Array.from(contactDirectory.keys()).map((email) => ({ email }));
+  }, [contactDirectory]);
   /**
    * The saved groups, for the strip inside the `Groups` lens.
    *
@@ -1225,6 +1329,45 @@ export default function InboxPage() {
     };
   }, [savedGroups]);
 
+  // Superhuman Docked Composer State
+  const [isDockedComposerOpen, setIsDockedComposerOpen] = useState(false);
+  const [dockedComposerInitialTo, setDockedComposerInitialTo] = useState('');
+  const [dockedComposerInitialSubject, setDockedComposerInitialSubject] = useState('');
+  const [dockedComposerInitialBody, setDockedComposerInitialBody] = useState('');
+  const [dockedComposerReplyToId, setDockedComposerReplyToId] = useState<string | undefined>(undefined);
+
+  const handleOpenCompose = useCallback(
+    (options?: { to?: string; subject?: string; body?: string; replyToId?: string }) => {
+      const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
+      if (isDesktop) {
+        if (options?.to !== undefined) setDockedComposerInitialTo(options.to);
+        if (options?.subject !== undefined) setDockedComposerInitialSubject(options.subject);
+        if (options?.body !== undefined) setDockedComposerInitialBody(options.body);
+        if (options?.replyToId !== undefined) setDockedComposerReplyToId(options.replyToId);
+        setIsDockedComposerOpen(true);
+      } else {
+        let url = '/compose';
+        const params = new URLSearchParams();
+        if (options?.to) params.set('to', options.to);
+        if (options?.subject) params.set('subject', options.subject);
+        if (options?.replyToId) params.set('replyTo', options.replyToId);
+        const q = params.toString();
+        if (q) url += `?${q}`;
+        router.push(url);
+      }
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    const onComposeEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ to?: string; subject?: string; body?: string; replyToId?: string }>;
+      handleOpenCompose(customEvent.detail);
+    };
+    window.addEventListener('quant:compose:open', onComposeEvent);
+    return () => window.removeEventListener('quant:compose:open', onComposeEvent);
+  }, [handleOpenCompose]);
+
   /**
    * Write to a group. The chip is the compose surface, so this is what "using" a
    * saved group means.
@@ -1247,9 +1390,9 @@ export default function InboxPage() {
         setGroupEditorTarget(group);
         return;
       }
-      router.push(`/compose?to=${encodeURIComponent(group.emails.join(','))}`);
+      handleOpenCompose({ to: group.emails.join(',') });
     },
-    [router],
+    [handleOpenCompose],
   );
 
   /**
@@ -1529,9 +1672,33 @@ export default function InboxPage() {
       if (lens === 'groups') return isGroupThread(t);
       if (lens === 'snoozed') return true;
       if (lens === 'spam') return true;
+      if (typeof lens === 'string' && lens.startsWith('folder_')) {
+        const folderId = lens.replace('folder_', '');
+        const folder = customFolders.find((f) => f.id === folderId);
+        if (!folder) return true;
+        if (folder.filterType === 'contact') {
+          if (folder.filterValue) {
+            const query = folder.filterValue.toLowerCase();
+            return threadAddresses(t.messages, currentEmail).some((a) =>
+              a.toLowerCase().includes(query),
+            );
+          }
+          return isContactThread(t);
+        }
+        if (folder.filterType === 'keyword') {
+          const query = folder.filterValue?.toLowerCase() || '';
+          return (
+            t.subject.toLowerCase().includes(query) ||
+            t.messages.some((m) =>
+              (m.snippet || m.bodyText || '').toLowerCase().includes(query),
+            )
+          );
+        }
+        return true;
+      }
       return true;
     },
-    [isContactThread, isGroupThread, isImportantThread],
+    [customFolders, currentEmail, isContactThread, isGroupThread, isImportantThread],
   );
 
   const matchesFilter = useCallback(
@@ -1755,10 +1922,7 @@ export default function InboxPage() {
     const snoozedUnread = allSnoozedThreads.filter((t) => !t.isRead).length;
     const snoozedTotal = allSnoozedThreads.length;
 
-    const counts: Record<InboxLens, number | null> & {
-      unreadCounts: Record<InboxLens, number | null>;
-      totalCounts: Record<InboxLens, number | null>;
-    } = {
+    const counts: Record<string, any> = {
       all: allUnread,
       primary: primaryUnread,
       unread: allUnread,
@@ -2362,6 +2526,7 @@ export default function InboxPage() {
       // `e` and `#` act on the conversation the cursor is on, all of it.
       expandIds: threadMessageIds,
       scrollToIndex: virtualizer.scrollToIndex,
+      onCompose: () => handleOpenCompose(),
     });
 
   /**
@@ -2452,12 +2617,37 @@ export default function InboxPage() {
       onSearchChange={setSearchQuery}
       searchPlaceholder="Search in QuantMail (sender, subject, keyword)…"
       onFabClick={() =>
-        activeLens === 'groups' ? setGroupEditorTarget('new') : router.push('/compose')
+        activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
       }
       fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
       aria-label="QuantMail inbox"
     >
-      <div className="inbox-workspace">
+      {activeTab === 'teams' ? (
+        <MailTeamsCollaborationPanel
+          onBackToInbox={() => {
+            setActiveTab('inbox');
+            setShowArchivedView(false);
+            router.push('/');
+          }}
+          onNavigateTab={(tab) => {
+            setActiveTab(tab as any);
+            router.push(`/?tab=${tab}`);
+          }}
+        />
+      ) : activeTab === 'agents' ? (
+        <MailSwarmAgentAccessPanel
+          onBackToInbox={() => {
+            setActiveTab('inbox');
+            setShowArchivedView(false);
+            router.push('/');
+          }}
+          onNavigateTab={(tab) => {
+            setActiveTab(tab as any);
+            router.push(`/?tab=${tab}`);
+          }}
+        />
+      ) : (
+        <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
           <header className="inbox-hero">
             <div>
@@ -2471,7 +2661,7 @@ export default function InboxPage() {
               type="button"
               className="hero-compose"
               onClick={() =>
-                activeLens === 'groups' ? setGroupEditorTarget('new') : router.push('/compose')
+                activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
               }
             >
               <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
@@ -2577,6 +2767,61 @@ export default function InboxPage() {
                     </button>
                   );
                 })}
+
+                {/* Custom Folders */}
+                {customFolders.map((folder) => {
+                  const lensKey = `folder_${folder.id}`;
+                  const isActive = activeLens === lensKey;
+                  return (
+                    <button
+                      key={folder.id}
+                      type="button"
+                      role="tab"
+                      id={`lens-folder-${folder.id}`}
+                      aria-selected={isActive}
+                      aria-controls={lensPanelId}
+                      tabIndex={isActive ? 0 : -1}
+                      onClick={() => selectLens(lensKey)}
+                      className={`px-3.5 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                        isActive
+                          ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
+                          : 'border border-white/[0.07] bg-white/[0.02] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.05] hover:border-white/[0.12]'
+                      }`}
+                    >
+                      <span
+                        className="size-2 rounded-full shrink-0"
+                        style={{ backgroundColor: folder.color || '#FF8C42' }}
+                        aria-hidden="true"
+                      />
+                      <span>{folder.name}</span>
+                    </button>
+                  );
+                })}
+
+                {/* + Folder Button */}
+                <button
+                  type="button"
+                  onClick={() => setIsAddFolderModalOpen(true)}
+                  data-testid="add-folder-button"
+                  className="px-3 min-h-[44px] sm:min-h-[32px] rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all inline-flex items-center gap-1.5 border border-dashed border-[#3A404D] bg-[#16181D]/60 text-[#A1A4AC] hover:text-[#FF8C42] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  title="Create custom folder or contact filter"
+                  aria-label="Add Folder"
+                >
+                  <svg
+                    className="size-3.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  <span>+ Folder</span>
+                </button>
                 {/* Trailing spacer: padding-right collapses inside overflow-x-auto,
                     so the last lens chip would otherwise sit flush-cut at the edge. */}
                 <div aria-hidden="true" className="shrink-0 w-1" />
@@ -2810,7 +3055,7 @@ export default function InboxPage() {
           </AnimatePresence>
 
           <div
-            className="mail-list"
+            className="mail-list pb-20"
             ref={listRef}
             /*
               The lens tablist's panel. See `lensPanelId` for why one panel serves
@@ -3231,7 +3476,7 @@ export default function InboxPage() {
                 </div>
               )}
             {showThreadList && (
-              /**
+              /*
                * Windowed list. Only the visible rows plus an overscan margin are
                * mounted, so ten thousand conversations cost the same as thirty.
                *
@@ -3401,6 +3646,7 @@ export default function InboxPage() {
           }}
         />
       </div>
+      )}
 
       {/*
         Mounted only while open, and keyed on what it is editing.
@@ -3554,8 +3800,43 @@ export default function InboxPage() {
           </div>
         </div>
       )}
-      {/* Superhuman Shortcut Dock (Floating at bottom center) */}
-      <SuperhumanShortcutDock onCommandPalette={openPalette} onUndo={undoLastArchive} initialCollapsed />
+      {/* Superhuman Docked Composer */}
+      <DockedComposer
+        isOpen={isDockedComposerOpen}
+        onClose={() => setIsDockedComposerOpen(false)}
+        initialTo={dockedComposerInitialTo}
+        initialSubject={dockedComposerInitialSubject}
+        initialBody={dockedComposerInitialBody}
+        replyToId={dockedComposerReplyToId}
+        onSendSuccess={() => {
+          refetch();
+        }}
+        onDiscard={() => {
+          setDockedComposerInitialTo('');
+          setDockedComposerInitialSubject('');
+          setDockedComposerInitialBody('');
+          setDockedComposerReplyToId(undefined);
+        }}
+      />
+
+      {/* Add Custom Folder / Contact Filter Modal */}
+      {isAddFolderModalOpen && (
+        <AddFolderModal
+          isOpen={isAddFolderModalOpen}
+          onClose={() => setIsAddFolderModalOpen(false)}
+          onSave={handleCreateFolder}
+          existingContacts={savedContactsList}
+        />
+      )}
+
+      {/* Superhuman Shortcut Dock (Floating at bottom center, auto-collapsing to bottom-left rail when thread is open) */}
+      <SuperhumanShortcutDock
+        onCommandPalette={openPalette}
+        onUndo={undoLastArchive}
+        initialCollapsed
+        selectedThreadId={selectedThreadId}
+        isThreadOpen={Boolean(selectedThreadId)}
+      />
     </AppShell>
   );
 }

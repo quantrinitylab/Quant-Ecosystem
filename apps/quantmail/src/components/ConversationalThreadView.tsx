@@ -20,6 +20,7 @@ import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
+import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
 import { IconChat, IconMail } from './icons';
@@ -126,6 +127,31 @@ function formatMessageDate(value?: string | Date): string {
   if (diffDay === 1) return 'Yesterday';
   if (diffDay < 7) return `${diffDay}d ago`;
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+/**
+ * Read-receipt status for a message bubble, WhatsApp-style.
+ *
+ * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
+ * them, exactly like a messaging app.
+ *
+ * TODO(read-pipeline): the backend does not yet track delivery/read events, so
+ * `readAt`/`deliveredAt` are absent from the Email type. Until the pipeline
+ * exists this reads them off the message object (server may attach them later)
+ * and falls back to 'sent' for anything outbound. Wire the real pipeline and
+ * delete the `(message as any)` casts.
+ */
+function receiptStatusOf(
+  message: Email,
+  isOutbound: boolean,
+): { status: 'sent' | 'delivered' | 'read' | 'unknown'; readAt?: string; deliveredAt?: string } | null {
+  if (!isOutbound) return null;
+  const anyMsg = message as any;
+  const readAt = anyMsg.readAt ?? undefined;
+  const deliveredAt = anyMsg.deliveredAt ?? undefined;
+  if (readAt) return { status: 'read', readAt, deliveredAt };
+  if (deliveredAt) return { status: 'delivered', deliveredAt };
+  return { status: 'sent' };
 }
 
 function cleanContactName(name: string | undefined, email: string): string {
@@ -1330,6 +1356,12 @@ export function ConversationalThreadView({
              */
             const messageKind = messageKindOf(message);
 
+            /*
+             * Read receipt: WhatsApp-style ticks on YOUR messages only.
+             * `receiptStatusOf` returns null for inbound messages.
+             */
+            const receipt = receiptStatusOf(message, isOutbound);
+
             return (
               <motion.div
                 key={message.id || index}
@@ -1423,6 +1455,13 @@ export function ConversationalThreadView({
                       <span className="text-[11px] text-[#A1A4AC] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
+                      {receipt && (
+                        <EmailReadReceipt
+                          status={receipt.status}
+                          readAt={receipt.readAt}
+                          deliveredAt={receipt.deliveredAt}
+                        />
+                      )}
                       <svg
                         className="size-4 text-[#6B6E76] group-hover:text-[#A1A4AC] transition-colors"
                         viewBox="0 0 24 24"
@@ -1484,6 +1523,13 @@ export function ConversationalThreadView({
                             <span className="text-xs text-[#A1A4AC] font-mono">
                               {formatMessageDate(message.receivedAt)}
                             </span>
+                            {receipt && (
+                              <EmailReadReceipt
+                                status={receipt.status}
+                                readAt={receipt.readAt}
+                                deliveredAt={receipt.deliveredAt}
+                              />
+                            )}
                           </div>
 
                           {/* "to me ⌵" Security Accordion Trigger */}

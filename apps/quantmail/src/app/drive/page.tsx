@@ -9,6 +9,9 @@ import {
   DriveVaultSubView,
   DriveStarredSubView,
   DriveCleanerSubView,
+  DriveHomeSubView,
+  DriveFeedSubView,
+  DriveAiMemorySubView,
   type DriveSubTab,
 } from './components';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
@@ -35,7 +38,6 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
-import { DriveAISearchBar } from '../../components/drive/DriveAISearchBar';
 
 type DriveItem = {
   id: string;
@@ -289,14 +291,16 @@ function DrivePageContent() {
   const tabFromQuery = searchParams?.get('tab');
 
   const normalizeTab = useCallback((t: string | null | undefined): DriveSubTab => {
-    if (!t) return 'files';
+    if (!t) return 'home';
     const lower = t.toLowerCase();
-    if (lower === 'my_files' || lower === 'files') return 'files';
-    if (lower === 'shared') return 'shared';
+    if (lower === 'home' || lower === 'my_files' || lower === 'files') return 'home';
+    if (lower === 'feed') return 'feed';
+    if (lower === 'aimemory' || lower === 'memory' || lower === 'ai_memory') return 'aimemory';
     if (lower === 'vault') return 'vault';
+    if (lower === 'shared') return 'shared';
     if (lower === 'starred') return 'starred';
     if (lower === 'cleaner') return 'cleaner';
-    return 'files';
+    return 'home';
   }, []);
 
   const [activeTab, setActiveTab] = useState<DriveSubTab>(() => normalizeTab(tabFromQuery));
@@ -941,8 +945,6 @@ function DrivePageContent() {
                 { key: 'folders', label: 'Folders' },
                 { key: 'documents', label: 'Documents' },
                 { key: 'images', label: 'Images' },
-                { key: 'starred', label: 'Starred' },
-                { key: 'shared', label: 'Shared with me' },
                 { key: 'trash', label: 'Trash' },
               ] as const
             ).map((filter) => (
@@ -950,28 +952,12 @@ function DrivePageContent() {
                 key={filter.key}
                 type="button"
                 onClick={() => {
-                  if (filter.key === 'shared') {
-                    handleTabChange('shared');
-                  } else if (filter.key === 'starred') {
-                    handleTabChange('starred');
-                  } else {
-                    setActiveFilter(filter.key);
-                    if (activeTab !== 'files') handleTabChange('files');
-                  }
+                  setActiveFilter(filter.key);
+                  if (activeTab !== 'home' && activeTab !== 'files') handleTabChange('home');
                 }}
-                aria-pressed={
-                  filter.key === 'shared'
-                    ? activeTab === 'shared'
-                    : filter.key === 'starred'
-                    ? activeTab === 'starred'
-                    : activeFilter === filter.key && activeTab === 'files'
-                }
+                aria-pressed={activeFilter === filter.key && (activeTab === 'home' || activeTab === 'files')}
                 className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] sm:min-h-0 ${
-                  (filter.key === 'shared'
-                    ? activeTab === 'shared'
-                    : filter.key === 'starred'
-                    ? activeTab === 'starred'
-                    : activeFilter === filter.key && activeTab === 'files')
+                  activeFilter === filter.key && (activeTab === 'home' || activeTab === 'files')
                     ? 'bg-[#FF8C42]/12 text-[#FF8C42] border border-[#FF8C42]/35 shadow-[0_0_14px_rgba(255,140,66,0.15),inset_0_1px_0_0_rgba(255,255,255,0.06)] font-semibold'
                     : 'border border-white/[0.08] bg-white/[0.03] text-[#A1A4AC] hover:text-[#F5F5F5] hover:bg-white/[0.06] hover:border-white/[0.14]'
                 }`}
@@ -1065,32 +1051,6 @@ function DrivePageContent() {
               <IconUpload size={14} />
               <span>Upload</span>
             </button>
-          </div>
-        </div>
-
-        {/* Storage Quota & Semantic Search Header Bar */}
-        <div className="border-b border-[var(--quant-border)] bg-[#0C0D11] px-4 py-3 sm:px-8 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-          <div className="w-full lg:max-w-xl">
-            <DriveAISearchBar
-              onSelectFile={(selectedFileId) => {
-                const target = files.find((f) => f.id === selectedFileId);
-                if (target) {
-                  setPreviewItem(target);
-                } else {
-                  downloadFile(selectedFileId, 'file');
-                }
-              }}
-            />
-          </div>
-          <div className="w-full lg:max-w-md shrink-0">
-            <StorageQuotaBar
-              onUpgradeClick={() =>
-                showToast({
-                  text: 'Storage upgrade options: contact enterprise admin or visit settings.',
-                  type: 'info',
-                })
-              }
-            />
           </div>
         </div>
 
@@ -1312,7 +1272,7 @@ function DrivePageContent() {
             />
           )}
 
-          {activeTab === 'files' && activeFilter === 'trash' && (
+          {(activeTab === 'home' || activeTab === 'files') && activeFilter === 'trash' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between pb-2 border-b border-[var(--quant-border)]">
                 <div>
@@ -1404,8 +1364,8 @@ function DrivePageContent() {
             </div>
           )}
 
-          {activeTab === 'files' && activeFilter !== 'trash' && (
-            <DriveFilesSubView
+          {(activeTab === 'home' || activeTab === 'files') && activeFilter !== 'trash' && (
+            <DriveHomeSubView
               files={regularFiles}
               folders={folders}
               loading={loading}
@@ -1421,6 +1381,49 @@ function DrivePageContent() {
               onOpenAiSummary={(item) => setAiSummaryFile(item as any)}
               onNavigateToFolder={(folderId, folderName) =>
                 navigateToFolder(folderId, folderName)
+              }
+              trashItems={trashItems}
+              onRestoreTrashItem={handleRestoreItem}
+              onPurgeTrashItem={handlePurgeItem}
+              onUpgradeClick={() =>
+                showToast({
+                  text: 'Sovereign Enterprise Plan: Upgrade options requested.',
+                  type: 'info',
+                })
+              }
+            />
+          )}
+
+          {activeTab === 'feed' && (
+            <DriveFeedSubView
+              onPreviewItem={(item) =>
+                setPreviewItem({
+                  id: item.id,
+                  name: item.name,
+                  type: 'file',
+                  mimeType: item.mimeType,
+                  size: item.size,
+                  modifiedAt: new Date().toISOString(),
+                  isStarred: item.isStarred,
+                })
+              }
+              onDownloadFile={downloadFile}
+              onShareItem={(item) =>
+                showToast({
+                  text: `Share link created for "${item.name}"`,
+                  type: 'success',
+                })
+              }
+            />
+          )}
+
+          {activeTab === 'aimemory' && (
+            <DriveAiMemorySubView
+              onRecallInChat={(mem) =>
+                showToast({
+                  text: `Recalled context from ${mem.app}: "${mem.title}"`,
+                  type: 'success',
+                })
               }
             />
           )}

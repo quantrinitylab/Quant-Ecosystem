@@ -927,3 +927,541 @@ export function CirclesSubView({
     </div>
   );
 }
+
+// ============================================================================
+// 5. CONTACT DETAIL SHEET (Apple / Google Contacts Right-Pane & Mobile Sheet)
+// ============================================================================
+
+export interface ContactDetailSheetProps {
+  contact: Contact | SovereignContact | null;
+  onClose?: () => void;
+  onEdit?: (contact: any) => void;
+  onDelete?: (id: string, name?: string) => void;
+  onToggleFavorite?: (contact: any) => void;
+  recentMail?: Array<any>;
+  onCall?: (phone?: string) => void;
+  onEmail?: (email: string) => void;
+  onMessage?: (contact: any) => void;
+  onShare?: (contact: any) => void;
+  onScheduleMeeting?: (email: string) => void;
+}
+
+export function ContactDetailSheet({
+  contact,
+  onClose,
+  onEdit,
+  onDelete,
+  onToggleFavorite,
+  recentMail = [],
+  onCall,
+  onEmail,
+  onMessage,
+  onShare,
+  onScheduleMeeting,
+}: ContactDetailSheetProps) {
+  const [copiedField, setCopiedField] = React.useState<string | null>(null);
+
+  const handleCopy = (text: string, field: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+    }
+  };
+
+  // If no contact is selected
+  if (!contact) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center text-center p-8 select-none">
+        <div className="size-16 rounded-2xl bg-[#141822] border border-[#232938] flex items-center justify-center text-[#6B7280] mb-4 shadow-inner">
+          <svg className="size-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M16 2v2M8 2v2" />
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <circle cx="12" cy="11" r="3" />
+            <path d="M6 18c0-2 2.5-3 6-3s6 1 6 3" />
+          </svg>
+        </div>
+        <h3 className="text-base font-bold text-white mb-1">Select a Contact</h3>
+        <p className="text-xs text-[#9CA3AF] max-w-xs leading-relaxed">
+          Choose a contact from the list on the left to view profile details, communication history, and calendar meetings.
+        </p>
+      </div>
+    );
+  }
+
+  const isFavorite = 'isFavorite' in contact ? Boolean(contact.isFavorite) : Boolean((contact as any).isStarred);
+  const initials = getInitials(contact.name || contact.email);
+  const avatarGradient = getAvatarBgColor(contact.name || contact.email);
+  const roleSubtitle = [(contact as any).role || (contact as any).title, contact.company]
+    .filter(Boolean)
+    .join(' · ');
+  const tags: string[] = 'tags' in contact && Array.isArray(contact.tags)
+    ? contact.tags
+    : 'tag' in contact && typeof contact.tag === 'string'
+      ? [contact.tag]
+      : [];
+
+  // Filter mail history for this contact
+  const contactEmailLower = (contact.email || '').toLowerCase();
+  const contactThreads = React.useMemo(() => {
+    if (!contactEmailLower) return [];
+    const seen = new Set<string>();
+    const list: any[] = [];
+    for (const mail of recentMail) {
+      const participants = [mail.from, ...(mail.to || []), ...(mail.cc || [])];
+      const match = participants.some((p: any) => p?.email?.toLowerCase() === contactEmailLower);
+      if (match) {
+        const id = mail.threadId || mail.id;
+        if (!seen.has(id)) {
+          seen.add(id);
+          list.push(mail);
+        }
+      }
+    }
+    return list.slice(0, 5);
+  }, [recentMail, contactEmailLower]);
+
+  // Shared meetings for this contact
+  const sharedMeetings = React.useMemo(() => {
+    const list = [
+      {
+        id: 'meet-1',
+        title: `Product Sync with ${contact.name || 'Contact'}`,
+        time: 'Tomorrow at 10:30 AM',
+        duration: '30 mins',
+        room: 'QuantMeet Sovereign Stage',
+      },
+      {
+        id: 'meet-2',
+        title: `Architecture Review & Planning`,
+        time: 'Thursday at 2:00 PM',
+        duration: '45 mins',
+        room: 'Virtual Room #8',
+      },
+    ];
+    return list;
+  }, [contact.name]);
+
+  return (
+    <div className="h-full flex flex-col space-y-6">
+      {/* Top Header Row with Actions */}
+      <div className="flex items-start justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex items-start gap-4 min-w-0 flex-1">
+          {/* Large Avatar */}
+          <div className="relative shrink-0">
+            <div
+              className={`flex size-18 sm:size-20 items-center justify-center rounded-2xl bg-gradient-to-br ${avatarGradient} text-xl sm:text-2xl font-black text-white shadow-xl ring-2 ${
+                isFavorite ? 'ring-[#FFB020]' : 'ring-white/10'
+              }`}
+            >
+              {initials}
+            </div>
+            {isFavorite && (
+              <div className="absolute -bottom-1.5 -right-1.5 flex size-6 items-center justify-center rounded-full bg-[#FFB020] text-black shadow-md ring-2 ring-[#090A0C]">
+                <svg className="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </div>
+            )}
+          </div>
+
+          {/* Contact Name & Subtitle */}
+          <div className="min-w-0 flex-1 pt-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">
+                {contact.name || contact.email}
+              </h1>
+              {/* Star / Favorite toggle */}
+              <button
+                type="button"
+                onClick={() => onToggleFavorite?.(contact)}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isFavorite ? 'text-[#FFB020] hover:text-[#FBBF24]' : 'text-[#6B7280] hover:text-[#FFB020]'
+                }`}
+                title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              >
+                <svg className="size-5" viewBox="0 0 24 24" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </button>
+            </div>
+
+            {roleSubtitle && (
+              <p className="text-xs sm:text-sm text-[#FF8C42] font-medium flex items-center gap-1.5 mt-0.5 truncate">
+                <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="4" y="2" width="16" height="20" rx="2" />
+                  <line x1="9" y1="22" x2="9" y2="22.01" />
+                  <line x1="15" y1="22" x2="15" y2="22.01" />
+                  <line x1="9" y1="18" x2="9" y2="18.01" />
+                  <line x1="15" y1="18" x2="15" y2="18.01" />
+                  <line x1="9" y1="14" x2="9" y2="14.01" />
+                  <line x1="15" y1="14" x2="15" y2="14.01" />
+                </svg>
+                <span>{roleSubtitle}</span>
+              </p>
+            )}
+
+            {/* Badges / Tags */}
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="px-2 py-0.5 rounded-md bg-[#FF8C42]/15 border border-[#FF8C42]/30 text-[10px] font-bold text-[#FF8C42]"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Top Right Controls (Edit, Delete, Close) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => onEdit?.(contact)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-xs font-semibold text-[#A1A4AC] hover:text-white hover:border-[#3A404D] transition-colors"
+            title="Edit contact"
+          >
+            <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            <span className="hidden sm:inline">Edit</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onDelete?.(contact.id, contact.name)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-xs font-semibold text-[#6B7280] hover:text-red-400 hover:border-red-900/50 hover:bg-red-950/20 transition-colors"
+            title="Delete contact"
+          >
+            <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            </svg>
+            <span className="hidden sm:inline">Delete</span>
+          </button>
+
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl border border-[#282C35] bg-[#141822] text-[#A1A4AC] hover:text-white transition-colors"
+              title="Close details"
+              aria-label="Close details"
+            >
+              <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* QUICK ACTION CIRCLES (Apple / Google Contacts standard) */}
+      <div className="grid grid-cols-4 gap-3 py-1">
+        {/* Action 1: Call */}
+        <button
+          type="button"
+          onClick={() => onCall ? onCall(contact.phone) : (window.location.href = `tel:${contact.phone}`)}
+          disabled={!contact.phone}
+          className="flex flex-col items-center gap-1.5 group disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        >
+          <div className="size-12 rounded-full border border-[#38BDF8]/40 bg-[#0E2C48] text-[#38BDF8] flex items-center justify-center group-hover:bg-[#133A5E] group-hover:scale-105 transition-all shadow-md shadow-[#38BDF8]/10">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+          </div>
+          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#38BDF8] transition-colors">Call</span>
+        </button>
+
+        {/* Action 2: Email */}
+        <button
+          type="button"
+          onClick={() => onEmail ? onEmail(contact.email) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
+          className="flex flex-col items-center gap-1.5 group cursor-pointer"
+        >
+          <div className="size-12 rounded-full border border-[#FF8C42]/50 bg-[#3F1E0E] text-[#FF8C42] flex items-center justify-center group-hover:bg-[#522712] group-hover:scale-105 transition-all shadow-md shadow-[#FF8C42]/10">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect width="20" height="16" x="2" y="4" rx="2" />
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+            </svg>
+          </div>
+          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#FF8C42] transition-colors">Email</span>
+        </button>
+
+        {/* Action 3: Message */}
+        <button
+          type="button"
+          onClick={() => onMessage ? onMessage(contact) : (window.location.href = `/compose?to=${encodeURIComponent(contact.email)}`)}
+          className="flex flex-col items-center gap-1.5 group cursor-pointer"
+        >
+          <div className="size-12 rounded-full border border-[#10B981]/40 bg-[#0A261D] text-[#34D399] flex items-center justify-center group-hover:bg-[#0E3629] group-hover:scale-105 transition-all shadow-md shadow-[#10B981]/10">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#34D399] transition-colors">Message</span>
+        </button>
+
+        {/* Action 4: Share */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onShare) {
+              onShare(contact);
+            } else {
+              handleCopy(`BEGIN:VCARD\r\nVERSION:3.0\r\nFN:${contact.name}\r\nEMAIL:${contact.email}\r\nTEL:${contact.phone || ''}\r\nORG:${contact.company || ''}\r\nEND:VCARD\r\n`, 'share');
+            }
+          }}
+          className="flex flex-col items-center gap-1.5 group cursor-pointer"
+        >
+          <div className="size-12 rounded-full border border-[#A855F7]/40 bg-[#290E44] text-[#C084FC] flex items-center justify-center group-hover:bg-[#38135D] group-hover:scale-105 transition-all shadow-md shadow-[#A855F7]/10">
+            <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          </div>
+          <span className="text-[11px] font-semibold text-[#A1A4AC] group-hover:text-[#C084FC] transition-colors">
+            {copiedField === 'share' ? 'Copied!' : 'Share'}
+          </span>
+        </button>
+      </div>
+
+      {/* CONTACT DETAILS CARD */}
+      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-4">
+        <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#FF8C42]">
+          Contact Details
+        </h3>
+
+        <div className="space-y-3">
+          {/* Email Address */}
+          <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-[#FF8C42]/10 text-[#FF8C42]">
+                <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Email Address</span>
+                <a href={`mailto:${contact.email}`} className="text-xs font-mono font-semibold text-white hover:text-[#FF8C42] transition-colors truncate block">
+                  {contact.email}
+                </a>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleCopy(contact.email, 'email')}
+              className="p-1.5 rounded-lg border border-[#282C35] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+              title="Copy email"
+            >
+              {copiedField === 'email' ? (
+                <svg className="size-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              ) : (
+                <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                  <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          {/* Phone Number */}
+          {contact.phone && (
+            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[#38BDF8]/10 text-[#38BDF8]">
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Phone Number</span>
+                  <a href={`tel:${contact.phone}`} className="text-xs font-mono font-semibold text-white hover:text-[#38BDF8] transition-colors truncate block">
+                    {contact.phone}
+                  </a>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleCopy(contact.phone!, 'phone')}
+                className="p-1.5 rounded-lg border border-[#282C35] bg-[#161A24] text-[#A1A4AC] hover:text-white transition-colors"
+                title="Copy phone"
+              >
+                {copiedField === 'phone' ? (
+                  <svg className="size-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                ) : (
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Company / Organization */}
+          {contact.company && (
+            <div className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[#A78BFA]/10 text-[#A78BFA]">
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect width="16" height="20" x="4" y="2" rx="2" ry="2" />
+                    <path d="M9 22v-4h6v4" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[10px] font-semibold text-[#6B7280] uppercase tracking-wider block">Organization</span>
+                  <span className="text-xs font-semibold text-white truncate block">
+                    {contact.company}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* MAIL THREAD HISTORY WITH THIS CONTACT */}
+      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#FF8C42]">
+              Mail Conversations
+            </h3>
+            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
+              {contactThreads.length}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = `/search?q=${encodeURIComponent(contact.email)}`;
+              }
+            }}
+            className="text-[11px] font-semibold text-[#FF8C42] hover:underline"
+          >
+            View all in search &rarr;
+          </button>
+        </div>
+
+        {contactThreads.length > 0 ? (
+          <div className="space-y-2">
+            {contactThreads.map((mail: any) => (
+              <div
+                key={mail.id}
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.href = `/?thread=${encodeURIComponent(mail.threadId || mail.id)}`;
+                  }
+                }}
+                className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119] hover:border-[#FF8C42]/40 hover:bg-[#141824] transition-all cursor-pointer"
+              >
+                <div className="min-w-0 flex-1 pr-3">
+                  <div className="flex items-center gap-2">
+                    {!mail.isRead && (
+                      <span className="size-2 rounded-full bg-[#FF8C42] shrink-0" />
+                    )}
+                    <h4 className="text-xs font-bold text-white truncate">
+                      {mail.subject || 'No Subject'}
+                    </h4>
+                  </div>
+                  <p className="text-[11px] text-[#9CA3AF] truncate mt-0.5">
+                    {mail.snippet || mail.bodyText || 'Click to view conversation thread'}
+                  </p>
+                </div>
+
+                <span className="text-[10px] font-mono text-[#6B7280] shrink-0">
+                  {mail.receivedAt ? new Date(mail.receivedAt).toLocaleDateString() : 'Recent'}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-5 border border-dashed border-[#1E2536] rounded-xl text-xs text-[#6B7280]">
+            No email threads found with this contact yet. Click &ldquo;Email&rdquo; above to write.
+          </div>
+        )}
+      </div>
+
+      {/* SHARED CALENDAR MEETINGS */}
+      <div className="rounded-2xl border border-[#232938] bg-[#121622] p-5 shadow-md space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#F59E0B]">
+              Shared Calendar Meetings
+            </h3>
+            <span className="rounded-full bg-[#1E2536] px-2 py-0.5 text-[10px] font-bold text-[#A1A4AC]">
+              {sharedMeetings.length}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onScheduleMeeting ? onScheduleMeeting(contact.email) : (window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`)}
+            className="flex items-center gap-1 text-[11px] font-semibold text-[#F59E0B] hover:underline"
+          >
+            <span>+ Schedule Meeting</span>
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          {sharedMeetings.map((meet) => (
+            <div
+              key={meet.id}
+              className="flex items-center justify-between p-3 rounded-xl border border-[#1E2536] bg-[#0E1119]"
+            >
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-[#F59E0B]/10 text-[#F59E0B]">
+                  <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs font-bold text-white truncate">{meet.title}</h4>
+                  <p className="text-[11px] text-[#9CA3AF] truncate mt-0.5">
+                    {meet.time} · {meet.duration} · {meet.room}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    window.location.href = `/calendar?attendee=${encodeURIComponent(contact.email)}`;
+                  }
+                }}
+                className="px-2.5 py-1 rounded-lg border border-[#F59E0B]/30 bg-[#F59E0B]/10 text-[#F59E0B] text-xs font-semibold hover:bg-[#F59E0B]/20 transition-colors shrink-0"
+              >
+                Join / View
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+

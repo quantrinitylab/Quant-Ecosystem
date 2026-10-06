@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useTransition, useCallback } from 'react';
 import { getFts5Indexer, type Fts5SearchResult } from '../lib/sqlite-fts5';
 import { SearchClearButton } from './SearchClearButton';
+import { IconSearch, IconBolt } from './icons';
 
 export interface SearchBarProps {
   value?: string;
@@ -124,10 +125,10 @@ export function SearchBar({
       <div className="relative flex items-center w-full">
         {/* Search icon */}
         <span
-          className="absolute left-3 text-neutral-400 pointer-events-none select-none text-sm"
+          className="absolute left-3 text-neutral-400 pointer-events-none select-none flex items-center"
           aria-hidden="true"
         >
-          🔍
+          <IconSearch size={15} />
         </span>
 
         <input
@@ -151,10 +152,11 @@ export function SearchBar({
         <div className="absolute right-2 flex items-center space-x-1">
           {searchLatency !== null && query.trim().length > 0 && (
             <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 select-none"
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 select-none flex items-center gap-1"
               title="Superhuman Local SQLite FTS5 search execution time"
             >
-              ⚡ {searchLatency.toFixed(1)}ms
+              <IconBolt size={10} className="text-emerald-400" />
+              <span>{searchLatency.toFixed(1)}ms</span>
             </span>
           )}
 

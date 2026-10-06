@@ -9,6 +9,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
 import { generateGoogleCalendarUrl, generateIcsContent } from './booking-utils';
+import {
+  IconLock,
+  IconClock,
+  IconVideoCall,
+  IconCalendar,
+  IconGlobe,
+  IconUsers,
+  IconMail,
+  IconDownload,
+  IconBan,
+  IconCheck,
+} from '../../../../components/icons';
 
 // Helper to format Date to YYYY-MM-DD
 function formatDateToYmd(d: Date): string {
@@ -485,7 +497,8 @@ export default function PublicBookingPage(props: PageProps) {
         </div>
 
         <div className="text-xs text-[#A1A4AC] hidden sm:flex items-center gap-2">
-          <span>🔒 End-to-End Encrypted Scheduling</span>
+          <IconLock size={13} className="text-[#A1A4AC]" />
+          <span>End-to-End Encrypted Scheduling</span>
         </div>
       </header>
 
@@ -529,14 +542,14 @@ export default function PublicBookingPage(props: PageProps) {
               <div className="space-y-2 pt-2">
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#F5F5F5]">
                   <span className="size-6 rounded-lg bg-[#FF8C42]/15 text-[#FF8C42] border border-[#FF8C42]/20 flex items-center justify-center text-[11px]">
-                    ⏱️
+                    <IconClock size={12} />
                   </span>
                   <span>{meetingDetails.duration} min duration</span>
                 </div>
 
                 <div className="flex items-center gap-2 text-xs font-semibold text-[#F5F5F5]">
                   <span className="size-6 rounded-lg bg-[#58A6FF]/15 text-[#58A6FF] border border-[#58A6FF]/20 flex items-center justify-center text-[11px]">
-                    📹
+                    <IconVideoCall size={12} />
                   </span>
                   <span>QuantMeet Video Call</span>
                 </div>
@@ -548,10 +561,12 @@ export default function PublicBookingPage(props: PageProps) {
                       Selected Slot
                     </div>
                     <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                      📅 {formattedSelectedDate}
+                      <IconCalendar size={13} className="text-[#FF8C42]" />
+                      <span>{formattedSelectedDate}</span>
                     </div>
                     <div className="text-xs text-[#A1A4AC] flex items-center gap-1.5">
-                      🕒 {selectedSlot.timeLabel} ({meetingDetails.duration}m)
+                      <IconClock size={13} />
+                      <span>{selectedSlot.timeLabel} ({meetingDetails.duration}m)</span>
                     </div>
                   </div>
                 )}
@@ -576,8 +591,8 @@ export default function PublicBookingPage(props: PageProps) {
                       </option>
                     ))}
                   </select>
-                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs">
-                    🌐
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-[#A1A4AC] flex items-center">
+                    <IconGlobe size={13} />
                   </span>
                   <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-[#A1A4AC]">
                     ▼
@@ -693,12 +708,13 @@ export default function PublicBookingPage(props: PageProps) {
                     </div>
 
                     {isLoadingSlots ? (
-                      <div className="py-12 text-center text-xs text-[#A1A4AC]">
-                        <span className="inline-block animate-spin mr-1.5">⏳</span> Loading slots…
+                      <div className="py-12 text-center text-xs text-[#A1A4AC] flex items-center justify-center gap-2">
+                        <span className="inline-block size-3 rounded-full border-2 border-white/30 border-t-[#FF8C42] animate-spin" />
+                        <span>Loading slots…</span>
                       </div>
                     ) : availableSlots.filter((s) => s.available).length === 0 ? (
                       <div className="py-10 text-center text-xs text-[#8B949E] space-y-2">
-                        <div>🚫</div>
+                        <div className="flex justify-center"><IconBan size={22} className="text-[#8B949E]" /></div>
                         <p>No available slots on this date.</p>
                         <p className="text-[10px] text-[#58A6FF]">Please select another date.</p>
                       </div>
@@ -819,11 +835,14 @@ export default function PublicBookingPage(props: PageProps) {
                   >
                     {isSubmitting ? (
                       <>
-                        <span className="animate-spin">⏳</span>
+                        <span className="inline-block size-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin mr-1" />
                         <span>Confirming…</span>
                       </>
                     ) : (
-                      <span>Confirm Booking ✓</span>
+                      <span className="flex items-center gap-1.5">
+                        <span>Confirm Booking</span>
+                        <IconCheck size={14} className="text-[#090A0C]" />
+                      </span>
                     )}
                   </button>
                 </div>
@@ -835,7 +854,7 @@ export default function PublicBookingPage(props: PageProps) {
               <div className="space-y-6 text-center py-4 animate-in zoom-in-95 duration-200">
                 {/* Animated Success Checkmark */}
                 <div className="size-16 rounded-full bg-emerald-500/20 border-2 border-emerald-500/40 text-emerald-400 mx-auto flex items-center justify-center text-3xl shadow-xl shadow-emerald-500/10">
-                  ✓
+                  <IconCheck size={32} className="text-emerald-400" />
                 </div>
 
                 <div>
@@ -857,7 +876,7 @@ export default function PublicBookingPage(props: PageProps) {
 
                   <div className="space-y-1.5 text-[#A1A4AC]">
                     <div className="flex items-center gap-2 text-white">
-                      <span>📅</span>
+                      <IconCalendar size={14} className="text-[#FF8C42]" />
                       <span className="font-medium">
                         {confirmedBooking.startTime.toLocaleDateString('en-US', {
                           weekday: 'long',
@@ -869,26 +888,26 @@ export default function PublicBookingPage(props: PageProps) {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span>🕒</span>
+                      <IconClock size={14} />
                       <span>
                         {selectedSlot?.timeLabel} ({meetingDetails.duration} min)
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span>🌐</span>
+                      <IconGlobe size={14} />
                       <span>{selectedTimezone}</span>
                     </div>
 
                     <div className="flex items-center gap-2 pt-1">
-                      <span>👤</span>
+                      <IconUsers size={14} />
                       <span>
                         Host: {confirmedBooking.hostName} ({confirmedBooking.hostEmail})
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span>✉️</span>
+                      <IconMail size={14} />
                       <span>
                         Invitee: {confirmedBooking.bookerName} ({confirmedBooking.bookerEmail})
                       </span>
@@ -910,7 +929,8 @@ export default function PublicBookingPage(props: PageProps) {
                     rel="noopener noreferrer"
                     className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#1F2430] hover:bg-[#282E3E] text-[#58A6FF] border border-[#58A6FF]/30 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                   >
-                    <span>📅 Add to Google Calendar</span>
+                    <IconCalendar size={14} className="text-[#58A6FF]" />
+                    <span>Add to Google Calendar</span>
                   </a>
 
                   {/* Download .ics RFC 5545 button */}
@@ -919,7 +939,8 @@ export default function PublicBookingPage(props: PageProps) {
                     onClick={handleDownloadIcs}
                     className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#21262D] hover:bg-[#30363D] text-[#F0F6FC] border border-[#30363D] font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                   >
-                    <span>📥 Download .ics Invite</span>
+                    <IconDownload size={14} className="text-[#F0F6FC]" />
+                    <span>Download .ics Invite</span>
                   </button>
                 </div>
 
