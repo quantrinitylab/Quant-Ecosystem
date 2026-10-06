@@ -1125,6 +1125,101 @@ function toEmailList(payload: unknown): Email[] {
 }
 
 /**
+ * Client-side advanced-search filter matching.
+ *
+ * The /search page's filter chips (From / To / Has attachment / Label / Since)
+ * are sent to the backend, which applies them server-side — but two paths need
+ * a client-side twin:
+ *
+ * 1. The instant local SQLite FTS5 hits (placeholderData) never see the
+ *    backend, so without this they would show unfiltered results first.
+ * 2. The `to` filter's bare-fragment case (`kundan` rather than a full
+ *    address) cannot be expressed against the Postgres Json array, so the
+ *    backend deliberately leaves it alone and this matcher applies the
+ *    substring check on the returned set.
+ *
+ * Exported for unit tests.
+ */
+export interface ClientSearchFilters {
+  from?: string;
+  to?: string;
+  subject?: string;
+  hasAttachment?: boolean;
+  label?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+function toComparableDate(value: unknown): Date | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value as string);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function parseClientFilterDate(value: string | undefined, endOfDay = false): Date | null {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null;
+  const d = new Date(`${trimmed}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function matchesSearchFilters(
+  email: Email,
+  filters: ClientSearchFilters | null | undefined,
+): boolean {
+  if (!filters) return true;
+
+  const from = filters.from?.trim().toLowerCase();
+  if (from) {
+    const addr = (email.from?.email ?? '').toLowerCase();
+    const name = (email.from?.name ?? '').toLowerCase();
+    if (!addr.includes(from) && !name.includes(from)) return false;
+  }
+
+  const to = filters.to?.trim().toLowerCase();
+  if (to) {
+    const recipients = [
+      ...(email.to ?? []),
+      ...(email.cc ?? []),
+      ...(email.bcc ?? []),
+    ].map((r) => `${r.email ?? ''} ${r.name ?? ''}`.toLowerCase());
+    if (!recipients.some((r) => r.includes(to))) return false;
+  }
+
+  const subject = filters.subject?.trim().toLowerCase();
+  if (subject && !(email.subject ?? '').toLowerCase().includes(subject)) return false;
+
+  if (filters.hasAttachment === true) {
+    const count = email.attachments?.length ?? 0;
+    const flag = (email as unknown as { hasAttachments?: boolean }).hasAttachments;
+    if (count === 0 && flag !== true) return false;
+  }
+
+  // Emails carry label ids; the chip collects a name. The server resolves
+  // name→id, so client-side compares raw values case-insensitively — enough to
+  // keep the instant local results honest without a label-list lookup.
+  const label = filters.label?.trim().toLowerCase();
+  if (label) {
+    const labels = (email.labels ?? []).map((l) => String(l).toLowerCase());
+    if (!labels.some((l) => l === label || l.includes(label))) return false;
+  }
+
+  const dateFrom = parseClientFilterDate(filters.dateFrom);
+  if (dateFrom) {
+    const received = toComparableDate(email.receivedAt);
+    if (!received || received < dateFrom) return false;
+  }
+  const dateTo = parseClientFilterDate(filters.dateTo, true);
+  if (dateTo) {
+    const received = toComparableDate(email.receivedAt);
+    if (!received || received > dateTo) return false;
+  }
+
+  return true;
+}
+
+/**
  * Superhuman local-first email search hook.
  * Instantly queries local SQLite FTS5 index (sub-5ms display),
  * while concurrently querying the background server search and unifying hits.
@@ -1132,6 +1227,32 @@ function toEmailList(payload: unknown): Email[] {
 export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
   const queryClient = useQueryClient();
   const queryText = params?.query?.trim() || '';
+  // Individual filter values (not the params object) so the memo only rebuilds
+  // when a filter actually changes.
+  const filterFrom = params?.from;
+  const filterTo = params?.to;
+  const filterSubject = params?.subject;
+  const filterHasAttachment = params?.hasAttachment;
+  const filterLabel = params?.label;
+  const filterDateFrom = params?.dateFrom;
+  const filterDateTo = params?.dateTo;
+  const clientFilters: ClientSearchFilters = {
+    from: filterFrom,
+    to: filterTo,
+    subject: filterSubject,
+    hasAttachment: filterHasAttachment,
+    label: filterLabel,
+    dateFrom: filterDateFrom,
+    dateTo: filterDateTo,
+  };
+  const hasActiveFilters =
+    !!filterFrom?.trim() ||
+    !!filterTo?.trim() ||
+    !!filterSubject?.trim() ||
+    filterHasAttachment === true ||
+    !!filterLabel?.trim() ||
+    !!filterDateFrom?.trim() ||
+    !!filterDateTo?.trim();
 
   // Synchronous instant sub-5ms local SQLite FTS5 search
   const localHits = useMemo(() => {
@@ -1163,8 +1284,23 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
         } as unknown as Email);
       }
     }
-    return emails;
-  }, [queryClient, queryText, params?.pageSize]);
+    // The local index never sees the backend's filter handling, so apply the
+    // chips here — otherwise the instant placeholder would show unfiltered
+    // results while the server response is in flight.
+    return hasActiveFilters ? emails.filter((e) => matchesSearchFilters(e, clientFilters)) : emails;
+  }, [
+    queryClient,
+    queryText,
+    params?.pageSize,
+    hasActiveFilters,
+    filterFrom,
+    filterTo,
+    filterSubject,
+    filterHasAttachment,
+    filterLabel,
+    filterDateFrom,
+    filterDateTo,
+  ]);
 
   return useQuery<Email[]>({
     queryKey: mailQueryKeys.search(params),
@@ -1188,7 +1324,13 @@ export function useSearchEmails(params: Partial<SearchEmailRequest> | null) {
             seen.add(local.id);
           }
         }
-        return combined;
+        // Belt-and-suspenders: the backend applies every filter it can, but the
+        // `to` bare-fragment case is intentionally client-side (Postgres Json
+        // arrays only support exact element matches), so re-apply the chips to
+        // the unified set. With no active filters this is a no-op pass.
+        return hasActiveFilters
+          ? combined.filter((e) => matchesSearchFilters(e, clientFilters))
+          : combined;
       } catch {
         // Fall back gracefully to instant local SQLite FTS5 hits
         return localHits;
