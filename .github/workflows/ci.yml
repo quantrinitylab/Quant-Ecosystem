@@ -73,15 +73,19 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
           workspaces=$(git diff --name-only "$ref"...HEAD | grep -E '^(apps|packages|services)/' | cut -d/ -f1,2 | sort -u)
-          if [ -n "$workspaces" ]; then
-            filter=""
-            for ws in $workspaces; do
+          filter=""
+          for ws in $workspaces; do
+            # Deleted workspaces no longer match a turbo filter and would fail
+            # the run ("Directory ... specified in filter does not exist"),
+            # so only gate on workspaces that still exist.
+            if [ -d "$ws" ]; then
               filter="$filter --filter={$ws}"
-            done
-            echo "filter=$filter" >> "$GITHUB_OUTPUT"
-          else
-            echo "filter=--filter=[$ref]" >> "$GITHUB_OUTPUT"
+            fi
+          done
+          if [ -z "$filter" ]; then
+            filter="--filter=[$ref]"
           fi
+          echo "filter=$filter" >> "$GITHUB_OUTPUT"
 
       - name: Test dependency heatmap scanner
         run: pnpm test:dependency-heatmap
