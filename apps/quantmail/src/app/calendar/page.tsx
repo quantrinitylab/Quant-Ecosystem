@@ -187,6 +187,10 @@ function CalendarPageContent() {
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Ref mirror of isSaving: guards against stale closures and React state
+  // timing issues. A save in flight must never be re-entered, and the flag
+  // must never get stuck — the ref is the source of truth for "busy".
+  const isSavingRef = useRef(false);
   const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
   const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
 
@@ -799,7 +803,9 @@ function CalendarPageContent() {
 
   const handleSaveEntry = useCallback(async () => {
     if (!activeSheetType) return;
-    if (isSaving) return;
+    // Belt-and-braces double-submit guard: the ref is the source of truth so
+    // a stale closure can never re-enter a save already in flight.
+    if (isSavingRef.current || isSaving) return;
     if (!formState.title.trim() && activeSheetType !== 'period') {
       // Never silently swallow a Save click — tell the user what is missing
       // and focus the title field so it can be fixed immediately.
@@ -892,10 +898,11 @@ function CalendarPageContent() {
       cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
     };
 
+    isSavingRef.current = true;
     setIsSaving(true);
-    // Never leave `isSaving` stuck on a hung request: race the mutation
-    // against a timeout so the UI always recovers (previously a stalled
-    // request left the Save button disabled and `closeSheet` trapped).
+    // Never leave the save flag stuck on a hung request: race the mutation
+    // against a timeout so the UI always recovers. The ref is cleared in a
+    // `finally` so no exception path can leave the Save button dead.
     const SAVE_TIMEOUT_MS = 25000;
     try {
       const savePromise = editingEventId
@@ -910,6 +917,7 @@ function CalendarPageContent() {
         ),
       ]);
       setTimeout(() => {
+        isSavingRef.current = false;
         setIsSaving(false);
         setActiveSheetType(null);
         setEditingEventId(null);
@@ -920,7 +928,11 @@ function CalendarPageContent() {
         void refetch();
       }, 350);
     } catch (err) {
+      isSavingRef.current = false;
       setIsSaving(false);
+      // Log for debuggability — a save that fails must leave a trace.
+      // eslint-disable-next-line no-console
+      console.error('[calendar] save entry failed:', err);
       const timedOut = err instanceof Error && err.message === 'SAVE_TIMEOUT';
       showToast({
         text: timedOut
@@ -930,6 +942,10 @@ function CalendarPageContent() {
             : 'Failed to save entry',
         type: 'error',
       });
+    } finally {
+      // Absolute guarantee: the in-flight flag can never stick, even if a
+      // future code path above throws outside the try/catch.
+      isSavingRef.current = false;
     }
   }, [activeSheetType, formState, createEvent, updateEvent, editingEventId, refetch, isSaving]);
 
