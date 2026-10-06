@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: quantsync-backend
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync-backend:bootstrap
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantsync-backend:e10bbb864ad023ab3f7fd464fdc90f6e5550967b
           ports:
             - containerPort: 3004
               name: http

@@ -22,7 +22,6 @@ on:
           - quantchat
           - quantchat-backend
           - quantai
-          - admin
           - ws-gateway
           - quantsync
           - quantmax
@@ -30,7 +29,6 @@ on:
           - quantube
           - quantedits
           - quantads
-          - quanttrinity
       release_sha:
         description: Exact 40-character SHA of the current protected main commit
         required: true
@@ -188,10 +186,6 @@ jobs:
               repository=quant-quantai; dockerfile=apps/quantai/Dockerfile
               deployment=quant-quantai; container=quant-quantai
               needs_cloudflare=true ;;
-            admin)
-              repository=quant-admin; dockerfile=apps/admin/Dockerfile
-              deployment=quant-platform-staging-admin; container=admin
-              needs_cloudflare=false ;;
             ws-gateway)
               repository=quant-ws-gateway; dockerfile=services/ws-gateway/Dockerfile
               deployment=quant-ws-gateway; container=ws-gateway
@@ -257,10 +251,6 @@ jobs:
             quantads)
               repository=quant-quantads; dockerfile=apps/quantads/Dockerfile
               deployment=quant-quantads; container=quant-quantads
-              needs_cloudflare=false ;;
-            quanttrinity)
-              repository=quant-quanttrinity; dockerfile=apps/quanttrinity/Dockerfile
-              deployment=quant-quanttrinity; container=quant-quanttrinity
               needs_cloudflare=false ;;
             *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
           esac

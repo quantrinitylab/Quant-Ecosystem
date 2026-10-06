@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
         - name: quantads-backend
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads-backend:bootstrap
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantads-backend:53096784f0d462574a88330238c09c5e84536492
           ports:
             - containerPort: 3010
               name: http
