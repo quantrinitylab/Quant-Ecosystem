@@ -144,16 +144,21 @@ describe('ConversationShareService', () => {
   });
 
   describe('getShareUrl', () => {
-    it('generates correct share URL', () => {
+    it('generates correct share URL with explicit base URL', () => {
       const share = service.createShare('conv-1', 'user-1');
-      const url = service.getShareUrl(share);
-      expect(url).toBe(`https://quant.ai/share/${share.token}`);
+      const url = service.getShareUrl(share, 'https://quantai.quantrinity.in');
+      expect(url).toBe(`https://quantai.quantrinity.in/share/${share.token}`);
     });
 
     it('uses custom base URL', () => {
       const share = service.createShare('conv-1', 'user-1');
       const url = service.getShareUrl(share, 'https://dev.quant.ai');
       expect(url).toBe(`https://dev.quant.ai/share/${share.token}`);
+    });
+
+    it('throws when baseUrl is missing — no fake default allowed', () => {
+      const share = service.createShare('conv-1', 'user-1');
+      expect(() => service.getShareUrl(share, '')).toThrow(/explicit baseUrl/);
     });
   });
 

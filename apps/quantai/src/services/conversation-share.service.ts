@@ -110,7 +110,18 @@ export class ConversationShareService {
     return { allowed: true, share };
   }
 
-  getShareUrl(share: ShareLink, baseUrl: string = 'https://quant.ai'): string {
+  /**
+   * Builds the public share URL for a share link.
+   *
+   * `baseUrl` is REQUIRED — there is no default. A hardcoded default
+   * (previously https://quant.ai) produced bogus links for a route that does
+   * not exist. Callers must pass the real app origin (e.g.
+   * `window.location.origin` client-side or the configured public URL).
+   */
+  getShareUrl(share: ShareLink, baseUrl: string): string {
+    if (!baseUrl) {
+      throw new Error('getShareUrl requires an explicit baseUrl — no default is provided');
+    }
     return `${baseUrl}/share/${share.token}`;
   }
 

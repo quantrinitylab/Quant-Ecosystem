@@ -29,22 +29,21 @@ describe('sessions-fallback', () => {
     });
   });
 
-  it('POST /api/sessions fallback', async () => {
+  it('POST /api/sessions fallback returns honest 503 (never fabricates a session)', async () => {
     const req = new NextRequest('http://localhost:3000/api/sessions', { method: 'POST' });
     const res = await proxyAgentRequest(req, '/sessions', {
       body: { title: 'Test Session', model: 'gpt-4o' },
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.title).toBe('Test Session');
-    expect(body.data.model).toBe('gpt-4o');
-    expect(body.data.id).toMatch(/^sess_\d+$/);
-    expect(body.data.messages).toEqual([]);
-    expect(body.data.createdAt).toBeDefined();
+    expect(body.success).toBe(false);
+    expect(body.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(body.error).toBeDefined();
+    // No fabricated session id may be present.
+    expect(body.data).toBeUndefined();
   });
 
-  it('Stream fallback when backend is offline', async () => {
+  it('Stream fallback returns honest 503 when backend is offline (no canned greeting)', async () => {
     mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
 
     const req = new NextRequest('http://localhost:3000/api/sessions/sess_123/messages/stream', {
@@ -54,25 +53,12 @@ describe('sessions-fallback', () => {
     const params = Promise.resolve({ id: 'sess_123' });
     const res = await StreamPOST(req, { params });
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toBe('text/event-stream');
-    expect(res.headers.get('Connection')).toBe('keep-alive');
+    expect(res.status).toBe(503);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
 
-    if (!res.body) {
-      throw new Error('Response body is null');
-    }
-
-    const reader = (res.body as any).getReader();
-    const decoder = new TextDecoder();
-    let result = '';
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      result += decoder.decode(value);
-    }
-
-    expect(result).toContain('event: token');
-    expect(result).toContain('Quant AI');
-    expect(result).toContain('event: done');
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(body.error).toBeDefined();
   });
 });
