@@ -7,6 +7,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PageTransition } from '../Motion';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
+// Off-canvas shell CSS ships with the component so every consuming app
+// (QuantAI, QuantChat, …) gets working overlay navigation — not just the
+// app that happened to define the styles locally.
+import './AppShell.css';
 
 export interface AppShellProps {
   children: React.ReactNode;

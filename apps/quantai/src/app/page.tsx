@@ -26,7 +26,6 @@ import {
   getAuthToken,
   getAuthUser,
   clearAuthSession,
-  setGuestMode,
   savePreservedChatState,
   type AuthUser,
 } from '../lib/auth';
@@ -112,7 +111,6 @@ export default function AIPage() {
   // Authentication & Guest State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [isGuest, setIsGuest] = useState(false);
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [dismissGuestBanner, setDismissGuestBanner] = useState(false);
@@ -130,13 +128,13 @@ export default function AIPage() {
   useEffect(() => {
     try {
       const token = getAuthToken();
-      const guestStored = localStorage.getItem('quantai_guest') === 'true';
       if (token) {
         setIsAuthenticated(true);
         setAuthUser(getAuthUser());
-      } else if (guestStored) {
-        setIsGuest(true);
       }
+      // Guest mode was removed: the backend has no guest path, so every guest
+      // message 401'd and surfaced as a fake assistant error. Clear stale flags.
+      localStorage.removeItem('quantai_guest');
     } catch {}
     setHasCheckedAuth(true);
   }, []);
@@ -157,7 +155,6 @@ export default function AIPage() {
     clearAuthSession();
     setIsAuthenticated(false);
     setAuthUser(null);
-    setIsGuest(true);
     setShowProfileMenu(false);
   }, []);
 
@@ -186,11 +183,20 @@ export default function AIPage() {
     window.location.href = `https://quantmail.in/login?returnTo=${returnTo}`;
   }, [conversations, activeConversation]);
 
-  const handleContinueAsGuest = useCallback(() => {
-    setGuestMode(true);
-    setIsGuest(true);
-    setIgnoreError(true);
-  }, []);
+  // Guest chat was removed (P0-2, 2026-10-06): the stream endpoint requires
+  // auth, so every guest message returned 401 and showed as a fake assistant
+  // "Sorry, I encountered an error." Chat now requires sign-in.
+  // Sends while signed out route to /login instead of hitting the API.
+  const sendMessageAuthed = useCallback(
+    (text: string) => {
+      if (!isAuthenticated) {
+        handleNavigateToLogin();
+        return;
+      }
+      return sendMessage(text);
+    },
+    [isAuthenticated, handleNavigateToLogin, sendMessage],
+  );
 
   const handleModelSwitch = (modelId: string) => {
     switchModel(modelId);
@@ -371,10 +377,10 @@ export default function AIPage() {
           <ErrorState message={error} onRetry={() => window.location.reload()} />
           <button
             type="button"
-            onClick={handleContinueAsGuest}
+            onClick={handleNavigateToLogin}
             className="px-4 py-2 rounded-lg bg-[var(--quant-surface-hover)] border border-[var(--quant-border)] text-sm hover:bg-[var(--quant-surface)] transition-colors"
           >
-            Continue as Guest
+            Sign In
           </button>
         </div>
       </AppShell>
@@ -439,7 +445,7 @@ export default function AIPage() {
                 </div>
               ) : (
                 <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
-                  <span className="text-[11px] text-zinc-400">Guest exploration</span>
+                  <span className="text-[11px] text-zinc-400">Sign in to chat</span>
                   <button
                     type="button"
                     onClick={handleNavigateToLogin}
@@ -667,30 +673,29 @@ export default function AIPage() {
               }`}
             >
               {/* Unauthenticated Onboarding Hero prompt */}
-              {!isAuthenticated && !isGuest && hasCheckedAuth && (
+              {!isAuthenticated && hasCheckedAuth && (
                 <div className="p-4 border-b border-[var(--quant-border)] bg-[var(--quant-surface)]/30 overflow-y-auto max-h-[60vh]">
                   <OnboardingHero
                     onContinueQuantSSO={handleQuantSSO}
-                    onContinueAsGuest={handleContinueAsGuest}
+                    onSignIn={handleNavigateToLogin}
                   />
                 </div>
               )}
 
-              {/* Sleek Guest Sign-In Banner to save conversations */}
+              {/* Sign-in gate: guest chat was removed (P0-2) — chat requires a Quant account */}
               {!isAuthenticated && !dismissGuestBanner && hasCheckedAuth && (
                 <div className="px-4 py-2.5 m-3 rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-zinc-900/60 to-violet-950/30 backdrop-blur-md flex items-center justify-between gap-3 shadow-lg shadow-violet-950/20">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-violet-500/20 text-violet-400 text-xs shrink-0">
-                      ✨
+                      🔒
                     </span>
                     <div className="text-xs text-zinc-300 truncate">
-                      <span className="font-semibold text-white">Guest Exploration:</span>{' '}
+                      <span className="font-semibold text-white">Sign in to chat with Quanty:</span>{' '}
                       <span className="text-zinc-400 hidden sm:inline">
-                        Sign in to save your conversation history across devices, access deep
-                        reasoning models, and sync memory.
+                        chat requires a Quant account — sign in to start a conversation.
                       </span>
                       <span className="text-zinc-400 sm:hidden">
-                        Sign in to save conversations.
+                        Chat requires sign-in.
                       </span>
                     </div>
                   </div>
@@ -700,7 +705,7 @@ export default function AIPage() {
                       onClick={handleNavigateToLogin}
                       className="px-3 py-1 rounded-lg bg-gradient-to-r from-[#8B5CF6] to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-sm transition-all cursor-pointer"
                     >
-                      Sign In to Save
+                      Sign In
                     </button>
                     <button
                       type="button"
@@ -722,7 +727,7 @@ export default function AIPage() {
                     isStreaming={isStreaming}
                     onFeedback={setFeedback}
                     onRegenerate={retryLastMessage}
-                    onSelectPrompt={(text) => sendMessage(text)}
+                    onSelectPrompt={(text) => sendMessageAuthed(text)}
                     onStartVoice={() => setVoiceActive(true)}
                     onOpenCanvas={() => setIsCanvasOpen(true)}
                     onAttachFile={() => fileInputRef.current?.click()}
@@ -740,20 +745,35 @@ export default function AIPage() {
                       </button>
                     </div>
                   )}
-                  <ChatInput
-                    onSend={sendMessage}
-                    isStreaming={isStreaming}
-                    imagePreview={imagePreview}
-                    attachedFile={attachedFile}
-                    voiceRecording={voiceRecording}
-                    onImageUpload={() => imageInputRef.current?.click()}
-                    onFileAttach={() => fileInputRef.current?.click()}
-                    onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
-                    onClearImage={() => setImagePreview(null)}
-                    onClearFile={() => setAttachedFile(null)}
-                    currentModel={currentModel.name}
-                    onStop={stopStreaming}
-                  />
+                  {/* Guest chat removed (P0-2): signed-out users get a clear
+                      sign-in gate instead of a chat box that 401s. */}
+                  {isAuthenticated ? (
+                    <ChatInput
+                      onSend={sendMessageAuthed}
+                      isStreaming={isStreaming}
+                      imagePreview={imagePreview}
+                      attachedFile={attachedFile}
+                      voiceRecording={voiceRecording}
+                      onImageUpload={() => imageInputRef.current?.click()}
+                      onFileAttach={() => fileInputRef.current?.click()}
+                      onVoiceToggle={() => setVoiceRecording(!voiceRecording)}
+                      onClearImage={() => setImagePreview(null)}
+                      onClearFile={() => setAttachedFile(null)}
+                      currentModel={currentModel.name}
+                      onStop={stopStreaming}
+                    />
+                  ) : (
+                    <div className="p-4">
+                      <button
+                        type="button"
+                        onClick={handleNavigateToLogin}
+                        className="w-full flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-[#8B5CF6] to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-violet-500/20 transition-all cursor-pointer"
+                      >
+                        <span>🔒</span>
+                        <span>Sign in to chat with Quanty</span>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Hidden file inputs */}
                   <input
@@ -825,7 +845,7 @@ export default function AIPage() {
                   activeDocument={activeCanvasDoc}
                   onDocumentChange={(doc) => setActiveCanvasDoc(doc)}
                   isStreaming={isStreaming}
-                  onSendToChat={(prompt) => sendMessage(prompt)}
+                  onSendToChat={(prompt) => sendMessageAuthed(prompt)}
                   onClose={() => setIsCanvasOpen(false)}
                 />
               </div>
@@ -836,7 +856,7 @@ export default function AIPage() {
           <VoiceModeModal
             isOpen={voiceActive}
             onClose={() => setVoiceActive(false)}
-            onSendMessage={(text) => sendMessage(text)}
+            onSendMessage={(text) => sendMessageAuthed(text)}
           />
         </motion.div>
       </AnimatedPage>

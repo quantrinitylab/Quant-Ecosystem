@@ -24,12 +24,12 @@ describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
   describe('OnboardingHero', () => {
     it('renders onboarding hero with Quant branding and feature grid', () => {
       const onSSO = vi.fn();
-      const onGuest = vi.fn();
+      const onSignIn = vi.fn();
 
       const html = renderToStaticMarkup(
         React.createElement(OnboardingHero, {
           onContinueQuantSSO: onSSO,
-          onContinueAsGuest: onGuest,
+          onSignIn: onSignIn,
         }),
       );
 
@@ -37,7 +37,7 @@ describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
       expect(html).toContain('Meet');
       expect(html).toContain('Quanty');
       expect(html).toContain('Continue with Quant Account');
-      expect(html).toContain('Continue as Guest');
+      expect(html).toContain('Sign in to start chatting');
       expect(html).toContain('Chat Mode');
       expect(html).toContain('Agent &amp; Code Mode');
       expect(html).toContain('Split-Screen Canvas');
