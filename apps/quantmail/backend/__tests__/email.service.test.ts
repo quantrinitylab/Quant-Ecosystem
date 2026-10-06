@@ -183,6 +183,9 @@ describe('EmailService', () => {
           isSent: true,
           folderId: 'sent-folder-id',
           sentAt: expect.any(Date),
+          // Cross-mailbox read receipts: the sender's copy and every recipient
+          // copy share one Message-ID so `readAt` can propagate back.
+          messageId: '<email-1@quantmail.in>',
           // The sender's own copy needs a position on the inbox timeline, not just
           // a send time: the mailbox list is ordered by `receivedAt`, so a null
           // here is why a message you sent never appeared beside the conversation
@@ -191,6 +194,66 @@ describe('EmailService', () => {
           deliveryStatus: expect.any(String),
         },
       });
+    });
+
+    it('stamps deliveredAt when delivery completes immediately', async () => {
+      // No external recipients and no delay: deliveryStatus lands on 'delivered'
+      // synchronously, so the sender's ticks move to double grey at once.
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isDraft: true,
+        toAddresses: [],
+        ccAddresses: [],
+        bccAddresses: [],
+        fromAddress: 'user-1@quantmail.in',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1' });
+
+      await service.send('user-1', 'email-1', 'sent-folder-id');
+
+      const { data } = prisma.email.update.mock.calls[0][0];
+      expect(data.deliveryStatus).toBe('delivered');
+      expect(data.deliveredAt).toEqual(data.sentAt);
+    });
+
+    it('leaves deliveredAt empty when delivery is deferred', async () => {
+      // External recipient with no transport: 'deferred'. The delivery worker
+      // stamps deliveredAt when the queued send actually completes.
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isDraft: true,
+        toAddresses: ['someone@gmail.com'],
+        ccAddresses: [],
+        bccAddresses: [],
+        fromAddress: 'user-1@quantmail.in',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1' });
+
+      await service.send('user-1', 'email-1', 'sent-folder-id');
+
+      const { data } = prisma.email.update.mock.calls[0][0];
+      expect(data.deliveryStatus).toBe('deferred');
+      expect(data.deliveredAt).toBeUndefined();
+    });
+
+    it('keeps an existing messageId instead of generating one', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isDraft: true,
+        toAddresses: [],
+        fromAddress: 'user-1@quantmail.in',
+        messageId: '<original@quantmail.in>',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1' });
+
+      await service.send('user-1', 'email-1', 'sent-folder-id');
+
+      const { data } = prisma.email.update.mock.calls[0][0];
+      // A re-send keeps the same cross-mailbox identity.
+      expect(data.messageId).toBe('<original@quantmail.in>');
     });
 
     it('gives the sent copy the same timeline position as its send time', async () => {
@@ -541,6 +604,45 @@ describe('EmailService', () => {
 
       expect(result.isRead).toBe(true);
     });
+
+    it('stamps readAt and propagates it to the sender sent copy', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-2',
+        userId: 'user-1',
+        isRead: false,
+        isSent: false,
+        messageId: '<m1@quantmail.in>',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-2', isRead: true });
+      prisma.email.updateMany.mockResolvedValue({ count: 1 });
+
+      await service.markRead('email-2', 'user-1');
+
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'email-2' },
+        data: { isRead: true, readAt: expect.any(Date) },
+      });
+      // The sender's ticks flip to double-green via the shared messageId.
+      expect(prisma.email.updateMany).toHaveBeenCalledWith({
+        where: { messageId: '<m1@quantmail.in>', isSent: true, readAt: null, deletedAt: null },
+        data: { readAt: expect.any(Date) },
+      });
+    });
+
+    it('skips propagation for the sender reading their own sent copy', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-3',
+        userId: 'user-1',
+        isRead: false,
+        isSent: true,
+        messageId: '<m1@quantmail.in>',
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-3', isRead: true });
+
+      await service.markRead('email-3', 'user-1');
+
+      expect(prisma.email.updateMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('markStarred', () => {
@@ -558,6 +660,41 @@ describe('EmailService', () => {
       expect(prisma.email.update).toHaveBeenCalledWith({
         where: { id: 'email-1' },
         data: { isStarred: true },
+      });
+    });
+  });
+
+  describe('togglePin', () => {
+    it('toggles the pinned state independently from star', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isPinned: false,
+        isStarred: true,
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1', isPinned: true, isStarred: true });
+
+      const result = await service.togglePin('email-1', 'user-1');
+
+      expect(result.isPinned).toBe(true);
+      expect(result.isStarred).toBe(true);
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: { isPinned: true },
+      });
+    });
+
+    it('throws 404 for missing email', async () => {
+      prisma.email.findUnique.mockResolvedValue(null);
+      await expect(service.togglePin('missing', 'user-1')).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    });
+
+    it('throws 403 for other user email', async () => {
+      prisma.email.findUnique.mockResolvedValue({ id: 'email-1', userId: 'user-2' });
+      await expect(service.togglePin('email-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 403,
       });
     });
   });

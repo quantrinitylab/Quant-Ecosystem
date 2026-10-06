@@ -30,6 +30,7 @@ import {
   DedupWizardSubView,
   CirclesSubView,
   SOVEREIGN_DEFAULT_CONTACTS,
+  contactDisplayName,
 } from './components/ContactsSubViews';
 import type { Contact, ContactGroup } from '../../types';
 import { showToast } from '../../components/InboxToast';
@@ -329,7 +330,11 @@ export default function ContactsPage() {
       .sort((a, b) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)))
       .map((letter) => ({
         letter,
-        contacts: map[letter].sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email)),
+        // Contacts may lack both name and email (phone-only records) — fall
+        // back to '' so the comparator never throws on undefined.
+        contacts: map[letter].sort((a, b) =>
+          (a.name || a.email || '').localeCompare(b.name || b.email || ''),
+        ),
       }));
   }, [displayedContacts]);
 
@@ -889,14 +894,14 @@ export default function ContactsPage() {
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                     <Avatar
-                                      name={contact.name || contact.email}
+                                      name={contactDisplayName(contact)}
                                       src={contact.avatarUrl}
                                       size="sm"
                                     />
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-1">
                                         <h4 className="text-xs font-bold truncate group-hover:text-[#FF8C42] transition-colors">
-                                          {contact.name || contact.email}
+                                          {contactDisplayName(contact)}
                                         </h4>
                                         {contact.isFavorite && (
                                           <svg className="size-3 text-[#FFB020] shrink-0" fill="currentColor" viewBox="0 0 24 24">

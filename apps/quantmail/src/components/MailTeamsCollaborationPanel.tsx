@@ -471,6 +471,22 @@ export interface MailTeamsCollaborationPanelProps {
 }
 
 // ============================================================================
+// Mobile single-pane helpers (exported for tests)
+// ============================================================================
+
+/** Which pane is visible on mobile (<md). Desktop always shows all three. */
+export type TeamsMobilePane = 'repos' | 'stream' | 'team';
+
+/**
+ * Returns the mobile visibility class for a Teams pane.
+ * The active pane is `flex`; inactive panes are `hidden` on mobile.
+ * Desktop (md+) always renders all panes — callers append `md:flex`.
+ */
+export function teamsPaneVisibility(activePane: TeamsMobilePane, pane: TeamsMobilePane): string {
+  return activePane === pane ? 'flex' : 'hidden';
+}
+
+// ============================================================================
 // Main Component: MailTeamsCollaborationPanel
 // ============================================================================
 
@@ -485,6 +501,11 @@ export function MailTeamsCollaborationPanel({
 
   const [repositories] = useState<RepositoryItem[]>(INITIAL_REPOSITORIES);
   const [selectedRepoId, setSelectedRepoId] = useState<string>('repo-quant-ecosystem');
+
+  // Mobile single-pane navigation: 'repos' (repo list), 'stream' (collaboration
+  // stream), or 'team' (collaborators). Desktop (md+) always shows all three
+  // panes side-by-side; this state only gates which pane is visible below md.
+  const [mobilePane, setMobilePane] = useState<TeamsMobilePane>('repos');
 
   const [collaborators, setCollaborators] = useState<CollaboratorMember[]>(INITIAL_COLLABORATORS);
   const [activityStream, setActivityStream] = useState<ActivityStreamEvent[]>(INITIAL_EVENTS);
@@ -542,6 +563,12 @@ export function MailTeamsCollaborationPanel({
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
   }, [filteredStream]);
+
+  // Select a repo; on mobile this also switches to the single-pane detail view.
+  const handleSelectRepo = (repoId: string) => {
+    setSelectedRepoId(repoId);
+    setMobilePane('stream');
+  };
 
   // Handle send message
   const handleSendMessage = (e: React.FormEvent) => {
@@ -788,11 +815,65 @@ export function MailTeamsCollaborationPanel({
         </div>
       </header>
 
-      {/* Main Grid: Left Repositories + Middle Activity/Chat + Right Collaborators */}
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-12 min-h-0 divide-y md:divide-y-0 md:divide-x divide-[#1F2430]">
+      {/* Mobile single-pane nav: back + Stream/Team tabs (mobile only).
+          On md+ all three panes render side-by-side and this strip is hidden. */}
+      {mobilePane !== 'repos' && (
+        <div className="md:hidden shrink-0 flex items-center gap-2 border-b border-[#1F2430] bg-[#0E1015]/95 px-3 py-2">
+          <button
+            type="button"
+            onClick={() => setMobilePane('repos')}
+            className="flex size-8 items-center justify-center rounded-lg border border-[#282C35] bg-[#14171F] text-[#A1A4AC] hover:text-white transition-all shrink-0"
+            aria-label="Back to repositories"
+            title="Back to repositories"
+          >
+            <IconArrowLeft className="size-4" />
+          </button>
+          <span className="text-xs font-bold text-white truncate flex-1 min-w-0">
+            {activeRepo.name}
+          </span>
+          <div
+            className="flex items-center gap-0.5 rounded-lg border border-[#282C35] bg-[#111318] p-0.5 shrink-0"
+            role="tablist"
+            aria-label="Detail view"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'stream'}
+              onClick={() => setMobilePane('stream')}
+              className={`rounded-md px-3 py-1 text-[11px] font-semibold transition-all ${
+                mobilePane === 'stream'
+                  ? 'bg-[#FF8C42]/20 text-[#FF8C42] border border-[#FF8C42]/40'
+                  : 'text-[#A1A4AC] hover:text-white border border-transparent'
+              }`}
+            >
+              Stream
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mobilePane === 'team'}
+              onClick={() => setMobilePane('team')}
+              className={`rounded-md px-3 py-1 text-[11px] font-semibold transition-all ${
+                mobilePane === 'team'
+                  ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
+                  : 'text-[#A1A4AC] hover:text-white border border-transparent'
+              }`}
+            >
+              Team
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Grid: Left Repositories + Middle Activity/Chat + Right Collaborators.
+          Desktop (md+): three-pane grid. Mobile: single visible pane fills the
+          row (grid-rows-1) via the mobilePane state above. */}
+      <div className="flex-1 grid grid-cols-1 grid-rows-1 md:grid-cols-12 md:grid-rows-none min-h-0 divide-y md:divide-y-0 md:divide-x divide-[#1F2430]">
         
-        {/* Left Column: Repository Selector & Git Overview (3 Cols) */}
-        <aside className="md:col-span-3 flex flex-col min-h-0 bg-[#0C0E12]/80 p-3 sm:p-4 space-y-3 overflow-y-auto no-scrollbar">
+        {/* Left Column: Repository Selector & Git Overview (3 Cols).
+            Mobile: visible only in 'repos' pane; full-width single pane. */}
+        <aside className={`md:col-span-3 ${teamsPaneVisibility(mobilePane, 'repos')} md:flex flex-col min-h-0 bg-[#0C0E12]/80 p-3 sm:p-4 space-y-3 overflow-y-auto no-scrollbar`}>
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] flex items-center gap-1.5">
               <IconGitRepo className="size-3.5 text-[#38BDF8]" />
@@ -811,7 +892,7 @@ export function MailTeamsCollaborationPanel({
                 <button
                   key={repo.id}
                   type="button"
-                  onClick={() => setSelectedRepoId(repo.id)}
+                  onClick={() => handleSelectRepo(repo.id)}
                   className={`w-full text-left p-2.5 rounded-xl border transition-all ${
                     isSelected
                       ? 'border-[#FF8C42]/50 bg-[#FF8C42]/10 shadow-[0_0_12px_rgba(255,140,66,0.12)]'
@@ -864,8 +945,9 @@ export function MailTeamsCollaborationPanel({
           </div>
         </aside>
 
-        {/* Center Column: Live Activity Stream & Real-Time Chat (6 Cols) */}
-        <main className="md:col-span-6 flex flex-col min-h-0 bg-[#090A0E]">
+        {/* Center Column: Live Activity Stream & Real-Time Chat (6 Cols).
+            Mobile: visible only in 'stream' pane; full-width single pane. */}
+        <main className={`md:col-span-6 ${teamsPaneVisibility(mobilePane, 'stream')} md:flex flex-col min-h-0 bg-[#090A0E]`}>
           {/* Header Filters */}
           <div className="shrink-0 flex items-center justify-between border-b border-[#1F2430] bg-[#0E1015] px-4 py-2.5">
             <div className="flex items-center gap-2 min-w-0">
@@ -915,6 +997,15 @@ export function MailTeamsCollaborationPanel({
             ref={chatScrollRef}
             className="flex-1 overflow-y-auto p-4 space-y-3.5 scroll-smooth"
           >
+            {filteredStream.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-14 px-6 text-center">
+                <IconMessageSquare className="size-8 text-[#282C35] mb-3" />
+                <p className="text-xs font-bold text-[#A1A4AC]">No activity in this stream yet</p>
+                <p className="text-[11px] text-[#7D8590] mt-1.5 max-w-[240px] leading-relaxed">
+                  Send a message below or use the quick triggers to log a PR, commit, or deploy event.
+                </p>
+              </div>
+            )}
             {filteredStream.map((item) => {
               const isGitEvent = item.type !== 'chat';
 
@@ -1046,8 +1137,9 @@ export function MailTeamsCollaborationPanel({
           </form>
         </main>
 
-        {/* Right Column: Collaborator Selector & Presence Badges (3 Cols) */}
-        <aside className="md:col-span-3 flex flex-col min-h-0 bg-[#0C0E12]/80 p-3 sm:p-4 space-y-3 overflow-y-auto no-scrollbar">
+        {/* Right Column: Collaborator Selector & Presence Badges (3 Cols).
+            Mobile: visible only in 'team' pane; full-width single pane. */}
+        <aside className={`md:col-span-3 ${teamsPaneVisibility(mobilePane, 'team')} md:flex flex-col min-h-0 bg-[#0C0E12]/80 p-3 sm:p-4 space-y-3 overflow-y-auto no-scrollbar`}>
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[#A1A4AC] flex items-center gap-1.5">
               <IconUsers className="size-3.5 text-[#10B981]" />

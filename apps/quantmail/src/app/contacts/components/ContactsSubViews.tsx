@@ -117,8 +117,8 @@ export const SOVEREIGN_DEFAULT_CONTACTS: SovereignContact[] = [
   },
 ];
 
-export function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+export function getInitials(name?: string | null): string {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return `${parts[0][0].toUpperCase()}${parts[1][0].toUpperCase()}`;
   }
@@ -128,7 +128,7 @@ export function getInitials(name: string): string {
   return 'CT';
 }
 
-export function getAvatarBgColor(name: string): string {
+export function getAvatarBgColor(name?: string | null): string {
   const gradients = [
     'from-indigo-600 to-purple-600',
     'from-pink-600 to-rose-600',
@@ -138,11 +138,23 @@ export function getAvatarBgColor(name: string): string {
     'from-violet-600 to-fuchsia-600',
   ];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const seed = name || '';
+  for (let i = 0; i < seed.length; i++) {
+    hash = seed.charCodeAt(i) + ((hash << 5) - hash);
   }
   const index = Math.abs(hash) % gradients.length;
   return gradients[index];
+}
+
+/**
+ * Display label for a contact that may lack a name and/or email (phone-only
+ * records, legacy rows created before validation). Centralizes the fallback so
+ * no render path ever passes undefined into string methods — a nameless,
+ * emailless contact used to throw "Cannot read properties of undefined" and
+ * crash the whole contacts view into the global error boundary.
+ */
+export function contactDisplayName(c: { name?: string | null; email?: string | null; phone?: string | null }): string {
+  return c.name || c.email || c.phone || 'Unnamed contact';
 }
 
 // ============================================================================
@@ -187,7 +199,11 @@ export function VipContactsSubView({
     // Ensure sovereign VIPs are present
     const map = new Map<string, any>();
     SOVEREIGN_DEFAULT_CONTACTS.filter((s) => s.isVip).forEach((s) => map.set(s.email.toLowerCase(), s));
-    list.forEach((c) => map.set(c.email.toLowerCase(), c));
+    list.forEach((c) => {
+      // Contacts without an email (phone-only records) still render — key by id.
+      const key = (c.email || '').toLowerCase() || `id:${c.id}`;
+      map.set(key, c);
+    });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [contacts]);
 
@@ -218,8 +234,8 @@ export function VipContactsSubView({
       {/* Grid of Prominent Gold Star Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {vipList.map((contact) => {
-          const initials = getInitials(contact.name || contact.email);
-          const gradient = getAvatarBgColor(contact.name || contact.email);
+          const initials = getInitials(contactDisplayName(contact));
+          const gradient = getAvatarBgColor(contactDisplayName(contact));
           const roleSubtitle = [contact.role || contact.title, contact.company]
             .filter(Boolean)
             .join(' · ');
@@ -344,7 +360,9 @@ export function CompaniesSubView({
     // Merge contacts with sovereign default contacts
     const all = [...SOVEREIGN_DEFAULT_CONTACTS];
     contacts.forEach((c) => {
-      if (!all.some((a) => a.email.toLowerCase() === c.email.toLowerCase())) {
+      // Email may be absent on phone-only records — compare case-insensitively only when present.
+      const emailLower = (c.email || '').toLowerCase();
+      if (!all.some((a) => (a.email || '').toLowerCase() === emailLower && emailLower !== '')) {
         all.push({
           id: c.id,
           name: c.name,
@@ -468,8 +486,8 @@ export function CompaniesSubView({
               {/* Members List */}
               <div className="mt-3.5 space-y-2">
                 {group.members.map((member) => {
-                  const initials = getInitials(member.name);
-                  const gradient = getAvatarBgColor(member.name);
+                  const initials = getInitials(contactDisplayName(member));
+                  const gradient = getAvatarBgColor(contactDisplayName(member));
 
                   return (
                     <div
@@ -1035,8 +1053,8 @@ export function ContactDetailSheet({
   }
 
   const isFavorite = 'isFavorite' in contact ? Boolean(contact.isFavorite) : Boolean((contact as any).isStarred);
-  const initials = getInitials(contact.name || contact.email);
-  const avatarGradient = getAvatarBgColor(contact.name || contact.email);
+  const initials = getInitials(contactDisplayName(contact));
+  const avatarGradient = getAvatarBgColor(contactDisplayName(contact));
   const roleSubtitle = [(contact as any).role || (contact as any).title, contact.company]
     .filter(Boolean)
     .join(' · ');
