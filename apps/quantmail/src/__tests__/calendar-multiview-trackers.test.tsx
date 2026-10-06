@@ -60,19 +60,19 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
   // 1. CALENDAR SUB-TABS CONFIGURATION (ContextBottomNavBar.tsx)
   // ==========================================================================
   describe('1. Calendar Sub-Tabs Configuration', () => {
-    it('configures exactly the 4 required calendar sub-tabs', () => {
+    it('configures exactly the 5 required calendar sub-tabs', () => {
       const calConfig = PILLAR_SUB_CONFIGS.calendar;
       expect(calConfig).toBeDefined();
-      expect(calConfig.tabs).toHaveLength(4);
+      expect(calConfig.tabs).toHaveLength(5);
 
       const tabIds = calConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['feed', 'month', 'events', 'schedule']);
+      expect(tabIds).toEqual(['feed', 'month', 'week', 'events', 'schedule']);
 
       const tabLabels = calConfig.tabs.map((t) => t.label);
-      expect(tabLabels).toEqual(['Feed', 'Month', 'Events', 'Schedule']);
+      expect(tabLabels).toEqual(['Feed', 'Month', 'Week', 'Events', 'Schedule']);
     });
 
-    it('matches exact specifications for Feed, Month, Events, and Schedule tabs', () => {
+    it('matches exact specifications for Feed, Month, Week, Events, and Schedule tabs', () => {
       const tabs = PILLAR_SUB_CONFIGS.calendar.tabs;
 
       // 1. Feed
@@ -93,8 +93,17 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         description: 'Continuous scroll month calendar',
       });
 
-      // 3. Events
+      // 3. Week
       expect(tabs[2]).toMatchObject({
+        id: 'week',
+        label: 'Week',
+        targetPath: '/calendar',
+        queryParam: { key: 'tab', value: 'week' },
+        description: '7-day time grid with drag-to-create',
+      });
+
+      // 4. Events
+      expect(tabs[3]).toMatchObject({
         id: 'events',
         label: 'Events',
         targetPath: '/calendar',
@@ -102,8 +111,8 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         description: 'Trackers hub: Period, Health & Life trackers',
       });
 
-      // 4. Schedule
-      expect(tabs[3]).toMatchObject({
+      // 5. Schedule
+      expect(tabs[4]).toMatchObject({
         id: 'schedule',
         label: 'Schedule',
         targetPath: '/calendar',
@@ -120,6 +129,9 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
 
       // month -> month
       expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=month'))).toBe('month');
+
+      // week -> week
+      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=week'))).toBe('week');
 
       // events -> events
       expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=events'))).toBe('events');
