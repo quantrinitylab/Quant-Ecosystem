@@ -33,8 +33,14 @@ export function LevelProgress({
   compact = false,
   className = '',
 }: LevelProgressProps) {
-  const level = externalLevel ?? Math.floor(xp / 1000) + 1;
-  const xpInCurrentLevel = xp % 1000;
+  // Guard against undefined/NaN xp (e.g. fallback identities that omit xpPoints):
+  // without this the UI renders "LevelNaN" / "NaN/1000XP".
+  const safeXp = Number.isFinite(xp) ? Math.max(0, Math.floor(xp)) : 0;
+  const level =
+    externalLevel !== undefined && Number.isFinite(externalLevel)
+      ? Math.max(1, Math.floor(externalLevel))
+      : Math.floor(safeXp / 1000) + 1;
+  const xpInCurrentLevel = safeXp % 1000;
   const xpForNextLevel = 1000;
   const progress = (xpInCurrentLevel / xpForNextLevel) * 100;
 

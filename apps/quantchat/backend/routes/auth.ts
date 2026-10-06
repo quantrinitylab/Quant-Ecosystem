@@ -45,6 +45,14 @@ const ssoExchangeSchema = z.object({
   ssoToken: z.string().min(10).max(8192),
 });
 
+const updateProfileSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(80).optional(),
+    bio: z.string().trim().max(280).optional(),
+    avatarUrl: z.string().url().max(2048).optional(),
+  })
+  .strict();
+
 /** Marker for an unusable password (phone-OTP users never log in by password). */
 const UNUSABLE_PASSWORD = '!phone-otp-no-password';
 
@@ -80,6 +88,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
         email: true,
         username: true,
         displayName: true,
+        bio: true,
         avatarUrl: true,
         role: true,
         xpPoints: true,
@@ -99,12 +108,60 @@ export default async function authRoutes(fastify: FastifyInstance) {
         email: user.email,
         username: user.username,
         displayName: user.displayName,
+        ...(user.bio ? { bio: user.bio } : {}),
         ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
         role: String(user.role).toLowerCase(),
         xpPoints: user.xpPoints,
         level: user.level,
       },
     });
+  });
+
+  // PUT /auth/profile — update the caller's editable profile fields
+  // (displayName, bio, avatarUrl). Previously the frontend's updateProfile()
+  // called this endpoint but no route existed, so profile edits 404'd.
+  fastify.put('/profile', async (request, reply) => {
+    const authUserId = (request as { auth?: { userId?: string } }).auth?.userId;
+    if (!authUserId) {
+      return reply.status(401).send({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'Authentication required', statusCode: 401 },
+      });
+    }
+    const parsed = updateProfileSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        success: false,
+        error: { code: 'BAD_REQUEST', message: 'Invalid profile payload', statusCode: 400 },
+      });
+    }
+    const { displayName, bio, avatarUrl } = parsed.data;
+    if (displayName === undefined && bio === undefined && avatarUrl === undefined) {
+      return reply.status(400).send({
+        success: false,
+        error: {
+          code: 'BAD_REQUEST',
+          message: 'At least one of displayName, bio, avatarUrl is required',
+          statusCode: 400,
+        },
+      });
+    }
+    const updated = await prisma.user.update({
+      where: { id: authUserId },
+      data: {
+        ...(displayName !== undefined ? { displayName } : {}),
+        ...(bio !== undefined ? { bio } : {}),
+        ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+      },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        bio: true,
+        avatarUrl: true,
+      },
+    });
+    return reply.send({ success: true, data: updated });
   });
 
   // POST /auth/login — Email/Username/Phone + Password direct authentication

@@ -152,6 +152,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
   const [language, setLanguage] = useState<string>('en');
   const [blockedUsers, setBlockedUsers] = useState<BlockedUser[]>([]);
   const [saving, setSaving] = useState<boolean>(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState<string>('');
   const [exporting, setExporting] = useState<boolean>(false);
@@ -164,7 +165,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to load settings');
-      const data = await response.json();
+      const payload = await response.json();
+      // Backend wraps in { success, data } — accept both enveloped and bare shapes.
+      const data = (payload && typeof payload === 'object' && 'data' in payload
+        ? (payload as { data: Record<string, unknown> }).data
+        : payload) as {
+        privacy?: PrivacySettings;
+        notifications?: NotificationSettings;
+        theme?: string;
+        language?: string;
+        blockedUsers?: BlockedUser[];
+      };
       if (data.privacy) setPrivacy(data.privacy);
       if (data.notifications) setNotifications(data.notifications);
       if (data.theme) setSelectedTheme(data.theme);
@@ -183,14 +194,24 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
 
   const handleSaveSettings = useCallback(async () => {
     setSaving(true);
+    setSaveMessage(null);
+    setError(null);
     try {
-      await fetch('/api/settings', {
+      const response = await fetch('/api/settings', {
         method: 'PUT',
         headers: {
           ...getAuthHeadersWithContent(),
         },
         body: JSON.stringify({ privacy, notifications, theme: selectedTheme, language }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          (data as { error?: { message?: string } } | null)?.error?.message ||
+            `Save failed (${response.status})`,
+        );
+      }
+      setSaveMessage('Saved ✓');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     } finally {
@@ -269,9 +290,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ userId }) => {
     <div className="settings-page">
       <header className="settings-header">
         <h1>Settings</h1>
-        <button onClick={handleSaveSettings} disabled={saving} className="save-btn">
-          {saving ? 'Saving...' : 'Save'}
-        </button>
+        <div className="save-area">
+          {saveMessage && <span className="save-message">{saveMessage}</span>}
+          <button onClick={handleSaveSettings} disabled={saving} className="save-btn">
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
       </header>
       <nav className="settings-nav">
         {['privacy', 'notifications', 'theme', 'blocked', 'data', 'account'].map((s) => (
