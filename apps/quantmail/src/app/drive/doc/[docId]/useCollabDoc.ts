@@ -52,66 +52,14 @@ function generateCollaboratorColor(): string {
 
 const DEFAULT_BLOCKS: EditorBlock[] = [
   {
-    id: 'b_welcome_callout',
-    type: 'callout',
-    calloutIcon: '✨',
-    content:
-      'Welcome to your QuantDrive collaborative workspace! Type "/" on any line for block commands.',
-  },
-  {
-    id: 'b_h1_starter',
+    id: 'b_title',
     type: 'h1',
-    content: 'Getting Started with QuantDrive Docs',
+    content: 'Untitled Document',
   },
   {
-    id: 'b_p_starter_1',
+    id: 'b_body',
     type: 'paragraph',
-    content:
-      'This document is powered by real-time Yjs CRDT synchronization and server-side Postgres durability. Work with team members simultaneously with conflict-free multiplayer editing.',
-  },
-  {
-    id: 'b_todo_1',
-    type: 'todo',
-    checked: true,
-    content: 'Real-time WebSocket connection to /collab/:docId',
-  },
-  {
-    id: 'b_todo_2',
-    type: 'todo',
-    checked: true,
-    content:
-      'Notion-class in-house slash command menu (/h1, /h2, /todo, /table, /code, /callout, /quote, /divider)',
-  },
-  {
-    id: 'b_todo_3',
-    type: 'todo',
-    checked: false,
-    content: 'Invite your teammates and collaborate seamlessly',
-  },
-  {
-    id: 'b_h2_code',
-    type: 'h2',
-    content: 'Rich Code Collaboration',
-  },
-  {
-    id: 'b_code_sample',
-    type: 'code',
-    language: 'typescript',
-    content:
-      '// Fastify WebSocket collaboration gateway (Gate N-G5)\nexport async function handleCollabSync(docId: string, clientToken: string) {\n  const session = await verifySession(clientToken);\n  return setupWSConnection(socket, { docId, userId: session.userId });\n}',
-  },
-  {
-    id: 'b_table_sample',
-    type: 'table',
     content: '',
-    tableData: [
-      ['Gate', 'Standard', 'Status'],
-      ['N-G1', 'Canonical route /drive/doc/:docId', 'Active'],
-      ['N-G2', 'ProseMirror/Block Editor with slash menu', 'Active'],
-      ['N-G3', 'Yjs CRDT framework single source of truth', 'Active'],
-      ['N-G4', 'Postgres durable update persistence', 'Active'],
-      ['N-G5', 'Authenticated handshake & tenant isolation', 'Active'],
-    ],
   },
 ];
 

@@ -18,8 +18,7 @@ interface ParsedBlock {
   rows?: string[][];
 }
 
-function parseBlocks(text: string): ParsedBlock[] {
-  const blocks: ParsedBlock[] = [];
+function parseBlocks(text: string): ParsedBlock[] {  const blocks: ParsedBlock[] = [];
   const lines = text.split('\n');
   let i = 0;
 
@@ -136,6 +135,27 @@ function parseBlocks(text: string): ParsedBlock[] {
   return blocks;
 }
 
+/**
+ * Allowlist-based URL sanitizer for markdown links (XSS defense).
+ * Only http, https, and mailto schemes are permitted, plus relative
+ * URLs and fragment links. Dangerous schemes (javascript:, data:,
+ * vbscript:, etc.) are rejected. Returns null when the URL is unsafe,
+ * in which case the caller should render the text without a link.
+ */
+export function sanitizeMarkdownHref(raw: string): string | null {
+  const url = raw.trim();
+  if (!url) return null;
+  // Extract scheme if present (handles leading whitespace/control chars via trim above)
+  const schemeMatch = url.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):/);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1].toLowerCase();
+    if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') {
+      return null;
+    }
+  }
+  return url;
+}
+
 function renderInline(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   // Process inline formatting with regex
@@ -191,17 +211,23 @@ function renderInline(text: string): React.ReactNode[] {
     else if (segment.startsWith('[')) {
       const linkMatch = segment.match(/\[(.+?)\]\((.+?)\)/);
       if (linkMatch) {
-        nodes.push(
-          <a
-            key={key++}
-            href={linkMatch[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--quant-accent)] hover:underline"
-          >
-            {linkMatch[1]}
-          </a>,
-        );
+        const safeHref = sanitizeMarkdownHref(linkMatch[2]);
+        if (safeHref) {
+          nodes.push(
+            <a
+              key={key++}
+              href={safeHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--quant-accent)] hover:underline"
+            >
+              {linkMatch[1]}
+            </a>,
+          );
+        } else {
+          // Unsafe URL scheme (e.g. javascript:) — render as plain text, never as a link
+          nodes.push(<span key={key++}>{linkMatch[1]}</span>);
+        }
       }
     }
 

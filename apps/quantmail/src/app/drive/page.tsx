@@ -12,6 +12,7 @@ import {
   DriveHomeSubView,
   DriveFeedSubView,
   DriveAiMemorySubView,
+  FileShareModal,
   type DriveSubTab,
 } from './components';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
@@ -424,6 +425,7 @@ function DrivePageContent() {
   const [versionHistoryFile, setVersionHistoryFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
 
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
@@ -553,28 +555,34 @@ function DrivePageContent() {
 
   const filteredItems = useMemo(() => {
     let result = items;
-    if (activeFilter === 'folders') {
-      result = result.filter((i) => i.type === 'folder');
-    } else if (activeFilter === 'documents') {
-      result = result.filter((i) => {
-        const m = (i.mimeType || '').toLowerCase();
-        return (
-          i.type !== 'folder' &&
-          (m.includes('pdf') ||
-            m.includes('doc') ||
-            m.includes('text') ||
-            m.includes('sheet') ||
-            m.includes('csv') ||
-            m.includes('json'))
-        );
-      });
-    } else if (activeFilter === 'images') {
-      result = result.filter((i) => i.type !== 'folder' && (i.mimeType || '').startsWith('image/'));
-    } else if (activeFilter === 'starred') {
-      result = result.filter((i) => i.isStarred);
+    // When searching, the search API already filtered server-side — applying
+    // the header filter pills on top would hide valid results (e.g. a .pem
+    // file while the "Documents" pill is active). Skip client filtering.
+    const isSearching = searchQuery.trim().length > 0;
+    if (!isSearching) {
+      if (activeFilter === 'folders') {
+        result = result.filter((i) => i.type === 'folder');
+      } else if (activeFilter === 'documents') {
+        result = result.filter((i) => {
+          const m = (i.mimeType || '').toLowerCase();
+          return (
+            i.type !== 'folder' &&
+            (m.includes('pdf') ||
+              m.includes('doc') ||
+              m.includes('text') ||
+              m.includes('sheet') ||
+              m.includes('csv') ||
+              m.includes('json'))
+          );
+        });
+      } else if (activeFilter === 'images') {
+        result = result.filter((i) => i.type !== 'folder' && (i.mimeType || '').startsWith('image/'));
+      } else if (activeFilter === 'starred') {
+        result = result.filter((i) => i.isStarred);
+      }
     }
     return result;
-  }, [items, activeFilter]);
+  }, [items, activeFilter, searchQuery]);
 
   const folders = useMemo(() => filteredItems.filter((i) => i.type === 'folder'), [filteredItems]);
   const regularFiles = useMemo(
@@ -594,7 +602,18 @@ function DrivePageContent() {
   });
 
   const handleUploadTrigger = useCallback(() => {
-    fileInputRef.current?.click();
+    const input = fileInputRef.current;
+    if (!input) {
+      // The picker element is missing (should never happen) — say so instead
+      // of silently doing nothing, which is what a dead Upload button looks like.
+      showToast({
+        text: 'Upload is temporarily unavailable. Please reload and try again.',
+        type: 'error',
+        subject: UPLOAD_TOAST,
+      });
+      return;
+    }
+    input.click();
   }, []);
 
   /**
@@ -871,13 +890,34 @@ function DrivePageContent() {
       searchPlaceholder="Search files, folders, documents…"
     >
       <div className="workspace-page drive-workspace flex flex-col h-full bg-[#090A0C]">
+        {/*
+         * Visually hidden but RENDERED. A `display: none` (Tailwind `hidden`)
+         * file input ignores programmatic .click() in Chrome, which made the
+         * Upload button completely dead — no picker, no toast, nothing.
+         * This keeps the input in layout (1px, clipped, transparent) so the
+         * picker reliably opens from a real user gesture.
+         */}
         <input
           id="drive-file-input"
           name="driveFiles"
           ref={fileInputRef}
           type="file"
           multiple
-          className="hidden"
+          aria-hidden="true"
+          tabIndex={-1}
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: 0,
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
           onChange={handleFileInputChange}
         />
 
@@ -1396,6 +1436,14 @@ function DrivePageContent() {
 
           {activeTab === 'feed' && (
             <DriveFeedSubView
+              files={regularFiles.map((f) => ({
+                id: f.id,
+                name: f.name,
+                mimeType: f.mimeType,
+                size: f.size,
+                modifiedAt: f.modifiedAt,
+                isStarred: f.isStarred,
+              }))}
               onPreviewItem={(item) =>
                 setPreviewItem({
                   id: item.id,
@@ -1408,12 +1456,7 @@ function DrivePageContent() {
                 })
               }
               onDownloadFile={downloadFile}
-              onShareItem={(item) =>
-                showToast({
-                  text: `Share link created for "${item.name}"`,
-                  type: 'success',
-                })
-              }
+              onShareItem={(item) => setShareTarget({ id: item.id, name: item.name })}
             />
           )}
 
@@ -1428,6 +1471,16 @@ function DrivePageContent() {
             />
           )}
         </div>
+
+        {/* File Share Modal — real share API, no fake toasts */}
+        {shareTarget && (
+          <FileShareModal
+            isOpen={!!shareTarget}
+            onClose={() => setShareTarget(null)}
+            fileId={shareTarget.id}
+            fileName={shareTarget.name}
+          />
+        )}
 
         {/* File Preview Lightbox Modal */}
         <Modal

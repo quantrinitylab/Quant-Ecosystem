@@ -382,9 +382,9 @@ export function UndoSendCountdownBar(props: UndoSendCountdownBarProps) {
                 data-testid="undo-send-text"
                 className="text-xs sm:text-sm font-medium text-[#F4F4F5] truncate"
               >
-                Sending message to{' '}
-                <span className="font-semibold text-white">{pendingItem.to}</span>... (
-                {remainingSeconds}s)
+                Sending message to&nbsp;
+                <span className="font-semibold text-white">{pendingItem.to}</span>
+                {`... (${remainingSeconds}s)`}
               </p>
             </div>
 

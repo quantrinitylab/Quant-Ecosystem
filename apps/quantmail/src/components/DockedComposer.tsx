@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatBytes } from '../lib/format-bytes';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
+import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { composeMessageBodies } from '../lib/email-body';
@@ -336,6 +337,10 @@ export function DockedComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
+  // Unsaved-changes guard for the discard button — same protection as the
+  // full composer: typed content is never silently thrown away.
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
   // Signature
   const [signatureHtml, setSignatureHtml] = useState('');
   useEffect(() => {
@@ -360,6 +365,15 @@ export function DockedComposer({
   useEffect(() => {
     if (initialBody) setBody(initialBody);
   }, [initialBody]);
+
+  // Reset window state when the composer is closed, so reopening always starts
+  // with the full composer — not a stale minimized badge with a dead restore.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsMinimized(false);
+      setIsExpanded(false);
+    }
+  }, [isOpen]);
 
   // Filter contacts matching current 'to' text
   const filteredSuggestions = useMemo(() => {
@@ -459,12 +473,28 @@ export function DockedComposer({
           ? body.replace(/\bhi\b/gi, 'Dear').replace(/\bthanks\b/gi, 'Thank you for your consideration.')
           : `Dear Sir/Madam,\n\nI trust this communication finds you well. I wish to formally present our strategic objectives for your review.\n\nSincerely,\n`;
       } else if (promptType === 'concise') {
-        generated = `Quick update on ${subject || 'the project'}:\n• Milestones on schedule\n• Next review this Friday\n\nPlease let me know your thoughts.\n`;
+        // Rephrase ONLY — never invent facts, dates, milestones, or meetings.
+        // Condense the existing draft to its first two sentences, stripped of filler.
+        const sentences = body
+          ? body.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
+          : [];
+        const condensed = sentences
+          .slice(0, 2)
+          .join(' ')
+          .replace(/\b(just wanted to|i wanted to|i am writing to let you know|please note that)\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        generated = condensed || `Quick update${subject ? ` on ${subject}` : ''}.`;
       } else {
         generated = `Hi there,\n\nFollowing up on our earlier note regarding ${subject || 'the project'}. Please let me know when you have a moment to connect.\n\nThanks,\n`;
       }
 
-      setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      // "Make Concise" rewrites the draft in place; other presets append.
+      if (promptType === 'concise' && body) {
+        setBody(generated);
+      } else {
+        setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      }
       showToast({ text: 'Quant AI ghostwrote email draft', type: 'success' });
       bodyRef.current?.focus();
     } catch {
@@ -878,7 +908,17 @@ export function DockedComposer({
           <textarea
             ref={bodyRef}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              // The placeholder promises "Type '++' to trigger AI ghostwriter" —
+              // honour it: strip the trigger and open the ghostwrite menu.
+              if (next.endsWith('++')) {
+                setBody(next.slice(0, -2));
+                setShowAiMenu(true);
+                return;
+              }
+              setBody(next);
+            }}
             placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none text-xs leading-relaxed"
           />
@@ -909,9 +949,10 @@ export function DockedComposer({
         </div>
       </div>
 
-      {/* BOTTOM TOOLBAR */}
-      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2">
+      {/* BOTTOM TOOLBAR — horizontally scrollable on narrow screens so the
+          Send + action buttons never clip on 360px viewports. Scrollbar hidden. */}
+      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-2 min-w-max">
           {/* Molten Amber Send Button */}
           <button
             type="button"
@@ -1005,16 +1046,34 @@ export function DockedComposer({
         {/* Discard Draft */}
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
+            const hasContent =
+              to.trim().length > 0 ||
+              cc.trim().length > 0 ||
+              bcc.trim().length > 0 ||
+              subject.trim().length > 0 ||
+              body.trim().length > 0 ||
+              attachments.length > 0;
+            if (hasContent) {
+              const discard = await confirm({
+                title: 'Discard draft?',
+                message: 'You have unsaved changes. Discard this draft?',
+                confirmLabel: 'Discard',
+                cancelLabel: 'Keep editing',
+                variant: 'destructive',
+              });
+              if (!discard) return;
+            }
             onDiscard?.();
             onClose();
           }}
-          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors"
+          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
           title="Discard draft"
         >
           <IconTrash className="size-4" />
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }

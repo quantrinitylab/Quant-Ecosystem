@@ -36,7 +36,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useRegisterCommands } from '../lib/keyboard/hooks';
 import { inboxCommand, type Command } from '../lib/keyboard/command-registry';
-import { showToast } from '../lib/toast-bus';
+import { hasPendingUndo, runPendingUndo, showToast } from '../lib/toast-bus';
 import type { MailMutations } from './useMailMutations';
 
 const SCOPE = 'inbox';
@@ -100,7 +100,7 @@ export interface InboxKeyboardState {
   focusRow: (id: string) => void;
   clearFocus: () => void;
   /** Last archived conversation thread for instant undo */
-  lastArchivedThread: { id: string; threadId: string; messages: unknown[] } | null;
+  lastArchivedThread: { id: string; threadId: string; messages: unknown[]; ids: string[] } | null;
   /** Revert the last archived conversation */
   undoLastArchive: () => void;
 }
@@ -113,7 +113,12 @@ export class InboxKeyboardController<Row extends InboxKeyboardRow> {
   public options: UseInboxKeyboardOptions<Row>;
   public focusedId: string | null = null;
   public lastIndex: number = -1;
-  public lastArchivedThread: { id: string; threadId: string; messages: unknown[] } | null = null;
+  public lastArchivedThread: {
+    id: string;
+    threadId: string;
+    messages: unknown[];
+    ids: string[];
+  } | null = null;
 
   constructor(options: UseInboxKeyboardOptions<Row>) {
     this.options = options;
@@ -173,13 +178,19 @@ export class InboxKeyboardController<Row extends InboxKeyboardRow> {
     const row = this.focusedRow;
     if (!row) return false;
 
+    // A row is a conversation: archive every message id it stands for, and
+    // remember exactly those ids for undo. `row.id` alone is just the newest
+    // message — undoing with only it left the rest of the thread archived,
+    // which is how a conversation ended up in both inbox and archive at once.
+    const ids = this.idsOf(row);
     const threadToArchive = {
       id: row.id,
       threadId: row.threadId,
       messages: (row as unknown as { messages?: unknown[] }).messages ?? [],
+      ids,
     };
     this.lastArchivedThread = threadToArchive;
-    void this.options.mutations.archive(this.idsOf(row));
+    void this.options.mutations.archive(ids);
     showToast({
       text: 'Conversation marked done. [Undo (Z)]',
       type: 'info',
@@ -192,7 +203,7 @@ export class InboxKeyboardController<Row extends InboxKeyboardRow> {
     const thread = this.lastArchivedThread;
     if (!thread) return false;
     this.lastArchivedThread = null;
-    void this.options.mutations.unarchive(thread.id);
+    void this.options.mutations.unarchive(thread.ids);
     showToast({
       text: 'Action undone',
       type: 'success',
@@ -224,11 +235,13 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     id: string;
     threadId: string;
     messages: unknown[];
+    ids: string[];
   } | null>(null);
   const lastArchivedThreadRef = useRef<{
     id: string;
     threadId: string;
     messages: unknown[];
+    ids: string[];
   } | null>(null);
 
   const undoLastArchive = useCallback(() => {
@@ -236,7 +249,10 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
     if (!thread) return;
     lastArchivedThreadRef.current = null;
     setLastArchivedThread(null);
-    void mutations.unarchive(thread.id);
+    // Unarchive the exact message ids the archive acted on. `thread.id` is
+    // only the row's representative message — undoing with it alone left the
+    // rest of the thread archived (conversation in both inbox and archive).
+    void mutations.unarchive(thread.ids);
     showToast({
       text: 'Action undone',
       type: 'success',
@@ -392,14 +408,16 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
         // No explicit advance: the row leaves `rows`, and the re-seat effect
         // hands focus to whatever takes its index.
         if (!focusedRow) return;
+        const ids = idsOf(focusedRow);
         const threadToArchive = {
           id: focusedRow.id,
           threadId: focusedRow.threadId,
           messages: (focusedRow as unknown as { messages?: unknown[] }).messages ?? [],
+          ids,
         };
         lastArchivedThreadRef.current = threadToArchive;
         setLastArchivedThread(threadToArchive);
-        void mutations.archive(idsOf(focusedRow));
+        void mutations.archive(ids);
         showToast({
           text: 'Conversation marked done. [Undo (Z)]',
           type: 'info',
@@ -413,7 +431,11 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       icon: 'undo',
       keywords: ['undo', 'restore', 'revert'],
       enabled: () => {
-        if (lastArchivedThreadRef.current === null) return false;
+        // Either the toast bus has a pending undo (archive, trash, or any other
+        // reversible action) or the legacy archive ref is set. Previously this
+        // command only consulted the archive ref, so `z` after a trash silently
+        // did nothing even though the toast offered an undo.
+        if (lastArchivedThreadRef.current === null && !hasPendingUndo()) return false;
         if (typeof document !== 'undefined') {
           const el = document.activeElement;
           if (el) {
@@ -431,7 +453,11 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
         return true;
       },
       run: () => {
-        undoLastArchive();
+        // The toast bus is the single source of truth for "the last reversible
+        // action" — it knows about trash/restore as well as archive. Only fall
+        // back to the legacy archive ref when the bus has nothing pending
+        // (e.g. the toast already expired but the ref is still set).
+        if (!runPendingUndo()) undoLastArchive();
       },
     },
     {
@@ -445,10 +471,10 @@ export function useInboxKeyboard<Row extends InboxKeyboardRow>(
       },
     },
     {
-      ...inboxCommand('inbox.star'),
+      ...inboxCommand('inbox.pin'),
       scope: SCOPE,
       icon: 'star',
-      keywords: ['flag', 'pin', 'important'],
+      keywords: ['flag', 'pin', 'important', 'star'],
       enabled: () => focusedRow !== null,
       run: () => {
         if (focusedRow) void mutations.toggleStar(idsOf(focusedRow));

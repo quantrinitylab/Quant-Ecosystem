@@ -43,6 +43,20 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function NewChatButton() {
+  const router = useRouter();
+  return (
+    <button
+      onClick={() => router.push('/new-chat')}
+      className="w-9 h-9 rounded-full flex items-center justify-center text-xl hover:bg-gray-100 active:bg-gray-200 transition-colors"
+      aria-label="Start new chat"
+      title="New chat"
+    >
+      <span aria-hidden>✏️</span>
+    </button>
+  );
+}
+
 function UserIndicator() {
   const { user } = useAuth();
   if (!user) return null;
@@ -244,10 +258,21 @@ export default function ChatListPage() {
     return (
       <AppShell
         topBar={
-          <TopBar title="QuantChat" rightActions={[<UserIndicator key="user-indicator" />]} />
+          <TopBar
+            title="QuantChat"
+            rightActions={[
+              <NewChatButton key="new-chat" />,
+              <UserIndicator key="user-indicator" />,
+            ]}
+          />
         }
       >
-        <EmptyState title="No conversations" description="Start a new chat to get connected" />
+        <EmptyState
+          title="No conversations"
+          description="Start a new chat to get connected"
+          actionLabel="Start a new chat"
+          onAction={() => router.push('/new-chat')}
+        />
         <BottomNav
           items={navItems}
           activeId="chats"
@@ -308,7 +333,15 @@ export default function ChatListPage() {
 
   return (
     <AppShell
-      topBar={<TopBar title="QuantChat" rightActions={[<UserIndicator key="user-indicator" />]} />}
+      topBar={
+        <TopBar
+          title="QuantChat"
+          rightActions={[
+            <NewChatButton key="new-chat" />,
+            <UserIndicator key="user-indicator" />,
+          ]}
+        />
+      }
     >
       <motion.div
         className="flex flex-col h-full pb-16 overflow-y-auto"

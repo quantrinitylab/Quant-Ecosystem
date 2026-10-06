@@ -39,20 +39,30 @@ async function fetchQuota(): Promise<StorageQuota> {
 }
 
 export function useStorageQuota() {
-  const query = useQuery({
-    queryKey: ['drive-quota'],
-    queryFn: fetchQuota,
-    staleTime: 60_000,
-    // `retry: 1` used to sit here, which retried a 401 as readily as a 502.
-    // The shared policy in `lib/query-retry.ts` is both quieter and smarter.
-  });
+  try {
+    const query = useQuery({
+      queryKey: ['drive-quota'],
+      queryFn: fetchQuota,
+      staleTime: 60_000,
+      // `retry: 1` used to sit here, which retried a 401 as readily as a 502.
+      // The shared policy in `lib/query-retry.ts` is both quieter and smarter.
+    });
 
-  const quota = query.data;
-  // `known` is the whole point of this hook: callers must be able to render
-  // "Calculating…" rather than a plausible invented number.
-  const known = Boolean(quota && quota.total > 0);
-  const usedPct =
-    quota && quota.total > 0 ? Math.min(100, Math.round((quota.used / quota.total) * 100)) : 0;
+    const quota = query.data;
+    // `known` is the whole point of this hook: callers must be able to render
+    // "Calculating…" rather than a plausible invented number.
+    const known = Boolean(quota && quota.total > 0);
+    const usedPct =
+      quota && quota.total > 0 ? Math.min(100, Math.round((quota.used / quota.total) * 100)) : 0;
 
-  return { quota, known, usedPct, isLoading: query.isLoading, error: query.error };
+    return { quota, known, usedPct, isLoading: query.isLoading, error: query.error };
+  } catch (err) {
+    return {
+      quota: undefined,
+      known: false,
+      usedPct: 0,
+      isLoading: false,
+      error: err instanceof Error ? err : new Error(String(err)),
+    };
+  }
 }

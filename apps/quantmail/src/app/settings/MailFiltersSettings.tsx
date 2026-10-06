@@ -229,7 +229,7 @@ export function MailFiltersSettings() {
     const parts: string[] = [];
     for (const a of actions) {
       if (a.markRead) parts.push('Mark as read');
-      if (a.star) parts.push('Star');
+      if (a.star) parts.push('Pin to top');
       if (a.archive) parts.push('Archive');
       if (a.markSpam) parts.push('Mark as spam');
       if (a.delete) parts.push('Move to trash');
@@ -244,7 +244,7 @@ export function MailFiltersSettings() {
     <div className="space-y-6">
       <SettingsSection
         title="Mail Filters & Routing Rules"
-        description="Automatically organize, label, star, archive, or trash incoming emails based on sender, subject, or content rules."
+        description="Automatically organize, label, pin, archive, or trash incoming emails based on sender, subject, or content rules."
         action={
           <Button
             variant="primary"
@@ -468,7 +468,7 @@ export function MailFiltersSettings() {
                   onChange={(e) => setStar(e.target.checked)}
                   className="accent-[var(--brand-primary)] rounded"
                 />
-                <span>Star message</span>
+                <span>Pin to top</span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer select-none">

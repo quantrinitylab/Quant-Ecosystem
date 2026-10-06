@@ -13,6 +13,7 @@ import type {
 // ============================================================================
 
 import { browserAuthSession } from './browser-auth-session';
+import { browserApiRequest } from './browser-api-request';
 import { readAIIntent } from '../lib/ai-intent-preference';
 import type {
   Email,
@@ -61,6 +62,17 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+}
+
+/**
+ * Result of the bulk contact import endpoints
+ * (`POST /contacts/import/vcard`, `POST /contacts/import/csv`).
+ */
+export interface ContactImportResult {
+  imported: number;
+  duplicates: number;
+  errors: number;
+  total: number;
 }
 
 export interface EmailSignaturePreference {
@@ -863,6 +875,34 @@ export class QuantMailApiClient {
 
   async deduplicateContacts(): Promise<ApiResponse<{ mergedCount: number }>> {
     return this.post('/contacts/deduplicate', {});
+  }
+
+  /**
+   * Full address book as vCard via `GET /contacts/export/vcard`.
+   * Unlike the old client-side export, this is NOT paginated — the backend
+   * exports every contact, not just the current 20-row page.
+   */
+  async exportContactsVCard(): Promise<Response> {
+    // Raw fetch (not JSON) — the backend streams the full address book as
+    // text/vcard. Uses the authenticated browser request helper so the
+    // session token is attached.
+    return browserApiRequest('/api/contacts/export/vcard');
+  }
+
+  /**
+   * Full address book as CSV via `GET /contacts/export/csv`.
+   * Raw Response — caller reads the blob for download.
+   */
+  async exportContactsCsv(): Promise<Response> {
+    return browserApiRequest('/api/contacts/export/csv');
+  }
+
+  async importContactsVCard(content: string): Promise<ApiResponse<ContactImportResult>> {
+    return this.post('/contacts/import/vcard', { content });
+  }
+
+  async importContactsCsv(content: string): Promise<ApiResponse<ContactImportResult>> {
+    return this.post('/contacts/import/csv', { content });
   }
 
   // --------------------------------------------------------------------------

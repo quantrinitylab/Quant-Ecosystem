@@ -12,6 +12,7 @@ import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
 export default function ComposePage() {
   const router = useRouter();
@@ -207,13 +208,25 @@ export default function ComposePage() {
     [composeDraft],
   );
 
-  const handleDiscard = useCallback(() => {
+  const handleDiscard = useCallback(async () => {
+    // Delete the saved server draft (if any) so "Discard" actually discards.
+    if (currentDraftId) {
+      try {
+        await apiClient.deleteEmail(currentDraftId);
+      } catch {
+        // Best-effort: still navigate away even if the delete fails.
+      }
+      setCurrentDraftId(null);
+    }
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
       router.push('/');
     }
-  }, [router]);
+  }, [router, currentDraftId]);
+
+  // Left-edge swipe → same as the composer's close/discard affordance.
+  useEdgeSwipeBack(handleDiscard, { disabled: draftLoading });
 
   const handleAIAssist = useCallback(
     async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {

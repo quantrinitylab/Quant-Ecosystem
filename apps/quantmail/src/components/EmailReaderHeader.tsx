@@ -175,8 +175,8 @@ export function EmailReaderHeader({
               ? 'text-[#FF8C42] bg-[#FF8C42]/10 shadow-sm'
               : 'text-[#A1A4AC] hover:text-[#FF9B5A] hover:bg-white/[0.04]'
           }`}
-          title={isStarred ? 'Unstar (S)' : 'Star (S)'}
-          aria-label="Star"
+          title={isStarred ? 'Unpin (S)' : 'Pin (S)'}
+          aria-label="Pin"
           aria-pressed={isStarred}
         >
           <svg
