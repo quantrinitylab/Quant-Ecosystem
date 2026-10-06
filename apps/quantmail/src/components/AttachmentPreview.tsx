@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface Attachment {
@@ -15,6 +15,17 @@ interface AttachmentPreviewProps {
   attachments: Attachment[];
 }
 
+/*
+ * Zoom bounds mirror the pinch config documented in `src/mobile/gestures.ts`
+ * (PinchConfig: 0.5 – 3.0). The gesture *service* there only models gestures;
+ * this lightbox does the real DOM-level handling: two-finger pinch, wheel
+ * zoom, and double-tap toggle.
+ */
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 3.0;
+
+const clampZoom = (z: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+
 /**
  * Inline attachment preview with thumbnails.
  * Gmail shows attachment chips at the bottom of each email.
@@ -22,6 +33,130 @@ interface AttachmentPreviewProps {
  */
 export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  /*
+   * Refs (not state) for the in-progress gesture: updated dozens of times per
+   * second during a pinch, and we don't want a re-render per touchmove — the
+   * transform is applied directly to the image element for 60fps.
+   */
+  const imgRef = useRef<HTMLImageElement>(null);
+  const gestureRef = useRef<{
+    startDist: number;
+    startZoom: number;
+    lastX: number;
+    lastY: number;
+    panX: number;
+    panY: number;
+    pinch: boolean;
+  } | null>(null);
+
+  const applyTransform = useCallback((z: number, x: number, y: number) => {
+    const img = imgRef.current;
+    if (img) {
+      img.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
+    }
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+    gestureRef.current = null;
+    const img = imgRef.current;
+    if (img) img.style.transform = '';
+  }, []);
+
+  // Zoom resets whenever a different image is previewed or the lightbox closes.
+  useEffect(() => {
+    resetZoom();
+  }, [previewUrl, resetZoom]);
+
+  const distance = (a: Touch, b: Touch) =>
+    Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const [a, b] = [e.touches[0], e.touches[1]];
+      gestureRef.current = {
+        startDist: distance(a, b),
+        startZoom: zoom,
+        lastX: 0,
+        lastY: 0,
+        panX: pan.x,
+        panY: pan.y,
+        pinch: true,
+      };
+    } else if (e.touches.length === 1 && zoom > 1) {
+      // One-finger pan while zoomed in.
+      const t = e.touches[0];
+      gestureRef.current = {
+        startDist: 0,
+        startZoom: zoom,
+        lastX: t.clientX,
+        lastY: t.clientY,
+        panX: pan.x,
+        panY: pan.y,
+        pinch: false,
+      };
+    }
+  }, [zoom, pan]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const g = gestureRef.current;
+    if (!g) return;
+    if (g.pinch && e.touches.length === 2) {
+      e.preventDefault();
+      const [a, b] = [e.touches[0], e.touches[1]];
+      const d = distance(a, b);
+      if (g.startDist > 0 && d > 0) {
+        const z = clampZoom((g.startZoom * d) / g.startDist);
+        g.startZoom = z; // rebase so the gesture stays smooth across moves
+        g.startDist = d;
+        setZoom(z);
+        applyTransform(z, g.panX, g.panY);
+      }
+    } else if (!g.pinch && e.touches.length === 1 && zoom > 1) {
+      e.preventDefault();
+      const t = e.touches[0];
+      const x = g.panX + (t.clientX - g.lastX);
+      const y = g.panY + (t.clientY - g.lastY);
+      g.panX = x;
+      g.panY = y;
+      g.lastX = t.clientX;
+      g.lastY = t.clientY;
+      setPan({ x, y });
+      applyTransform(zoom, x, y);
+    }
+  }, [zoom, applyTransform]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 0) gestureRef.current = null;
+    else if (e.touches.length === 1) {
+      // Pinch released into a pan: re-anchor the single finger.
+      const t = e.touches[0];
+      const g = gestureRef.current;
+      if (g) {
+        gestureRef.current = { ...g, pinch: false, lastX: t.clientX, lastY: t.clientY };
+      }
+    }
+  }, []);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    setZoom((z) => {
+      const next = clampZoom(z * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+      const g = gestureRef.current;
+      applyTransform(next, g?.panX ?? pan.x, g?.panY ?? pan.y);
+      return next;
+    });
+  }, [applyTransform, pan]);
+
+  const handleDoubleClick = useCallback(() => {
+    const next = zoom > 1.25 ? 1 : 2;
+    setZoom(next);
+    setPan({ x: 0, y: 0 });
+    applyTransform(next, 0, 0);
+  }, [zoom, applyTransform]);
 
   if (!attachments || attachments.length === 0) return null;
 
@@ -182,7 +317,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
         ))}
       </div>
 
-      {/* Full-size preview modal */}
+      {/* Full-size preview modal with pinch-to-zoom */}
       <AnimatePresence>
         {previewUrl && (
           <motion.div
@@ -198,8 +333,28 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
               animate={{ scale: 1 }}
               exit={{ scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onWheel={handleWheel}
+              style={{ touchAction: 'none', overflow: 'hidden' }}
             >
-              <img src={previewUrl} alt="Attachment preview" />
+              <img
+                ref={imgRef}
+                src={previewUrl}
+                alt="Attachment preview"
+                draggable={false}
+                onDoubleClick={handleDoubleClick}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '80vh',
+                  objectFit: 'contain',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  cursor: zoom > 1 ? 'grab' : 'zoom-in',
+                  transition: 'transform 80ms ease-out',
+                }}
+              />
               <button
                 type="button"
                 className="attachment-lightbox-close"
@@ -208,6 +363,56 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
               >
                 ×
               </button>
+              {/* Zoom controls: discoverability for mouse users who won't pinch */}
+              <div
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-full border border-[#282C35] bg-[#16181D]/95 p-1 shadow-xl"
+                role="group"
+                aria-label="Image zoom"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = clampZoom(zoom / 1.25);
+                    setZoom(next);
+                    applyTransform(next, pan.x, pan.y);
+                  }}
+                  disabled={zoom <= MIN_ZOOM}
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[#282C35] disabled:opacity-30"
+                  aria-label="Zoom out"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setZoom(1);
+                    setPan({ x: 0, y: 0 });
+                    applyTransform(1, 0, 0);
+                  }}
+                  className="min-w-[44px] rounded-full px-1 text-[11px] font-semibold text-[#A1A4AC] transition-colors hover:text-white"
+                  aria-label="Reset zoom"
+                >
+                  {Math.round(zoom * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = clampZoom(zoom * 1.25);
+                    setZoom(next);
+                    applyTransform(next, pan.x, pan.y);
+                  }}
+                  disabled={zoom >= MAX_ZOOM}
+                  className="grid min-h-[36px] min-w-[36px] place-items-center rounded-full text-lg text-[#F5F5F5] transition-colors hover:bg-[#282C35] disabled:opacity-30"
+                  aria-label="Zoom in"
+                >
+                  +
+                </button>
+              </div>
+              {zoom > 1 && (
+                <p className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-[11px] text-white/80">
+                  Drag to pan · double-tap to reset
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}

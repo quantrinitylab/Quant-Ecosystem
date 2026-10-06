@@ -6,6 +6,7 @@ import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
 import { useMailMutations } from '../../../hooks/useMailMutations';
+import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -57,6 +58,9 @@ export default function ThreadPage() {
   useEffect(() => {
     if (!threadId) router.replace(returnTo || '/');
   }, [returnTo, router, threadId]);
+
+  // Left-edge swipe → same as the back affordance: leave the thread.
+  useEdgeSwipeBack(() => leaveThread(false), { disabled: !threadId });
 
   if (!threadId) {
     return (

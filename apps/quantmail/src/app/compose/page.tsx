@@ -12,6 +12,7 @@ import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
+import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
 export default function ComposePage() {
   const router = useRouter();
@@ -214,6 +215,9 @@ export default function ComposePage() {
       router.push('/');
     }
   }, [router]);
+
+  // Left-edge swipe → same as the composer's close/discard affordance.
+  useEdgeSwipeBack(handleDiscard, { disabled: draftLoading });
 
   const handleAIAssist = useCallback(
     async (action: 'compose' | 'improve' | 'shorten' | 'formalize', text: string) => {
