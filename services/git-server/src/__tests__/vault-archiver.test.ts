@@ -56,6 +56,7 @@ describe('VaultArchiverService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
 
     mockGitExec = vi.fn().mockImplementation(async (_cmd: string, args: string[]) => {
       if (args.includes('rev-parse')) {
@@ -70,6 +71,34 @@ describe('VaultArchiverService', () => {
       secretKeyHex: testKeyHex,
       gitExec: mockGitExec,
       uploadFn: mockUpload,
+    });
+  });
+
+  describe('encryption key resolution (fail closed)', () => {
+    it('throws when no key is provided via options or VAULT_ENCRYPTION_KEY', () => {
+      vi.stubEnv('VAULT_ENCRYPTION_KEY', '');
+      expect(() => new VaultArchiverService()).toThrow(
+        /requires an encryption key.*VAULT_ENCRYPTION_KEY/,
+      );
+      expect(() => new VaultArchiverService({})).toThrow(
+        /requires an encryption key.*VAULT_ENCRYPTION_KEY/,
+      );
+    });
+
+    it('reads the key from the VAULT_ENCRYPTION_KEY environment variable', () => {
+      vi.stubEnv('VAULT_ENCRYPTION_KEY', testKeyHex);
+      expect(() => new VaultArchiverService({ gitExec: mockGitExec })).not.toThrow();
+    });
+
+    it('prefers the options key over the environment variable', () => {
+      vi.stubEnv('VAULT_ENCRYPTION_KEY', 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+      expect(() => new VaultArchiverService({ secretKeyHex: testKeyHex })).not.toThrow();
+    });
+
+    it('throws when the key is not 32 bytes (64 hex chars)', () => {
+      expect(() => new VaultArchiverService({ secretKeyHex: 'short' })).toThrow(
+        /64 hex character/,
+      );
     });
   });
 

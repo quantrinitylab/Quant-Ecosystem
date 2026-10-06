@@ -43,10 +43,18 @@ export class VaultArchiverService {
   private readonly records: Map<string, VaultArchiveRecord> = new Map();
 
   constructor(options?: VaultArchiverOptions) {
-    this.secretKeyHex =
-      options?.secretKeyHex ??
-      process.env['VAULT_ENCRYPTION_KEY'] ??
-      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const keyHex = options?.secretKeyHex ?? process.env['VAULT_ENCRYPTION_KEY'];
+    if (!keyHex) {
+      throw new Error(
+        'VaultArchiverService requires an encryption key: pass secretKeyHex in options or set the VAULT_ENCRYPTION_KEY environment variable.',
+      );
+    }
+    if (!/^[0-9a-fA-F]{64}$/.test(keyHex)) {
+      throw new Error(
+        'VaultArchiverService requires a 32-byte (64 hex character) encryption key.',
+      );
+    }
+    this.secretKeyHex = keyHex;
 
     this.gitExec =
       options?.gitExec ??
