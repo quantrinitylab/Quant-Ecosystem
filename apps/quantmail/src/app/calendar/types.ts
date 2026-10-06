@@ -101,14 +101,21 @@ export interface CalendarEventLike {
 
 export type CalendarView = 'agenda' | 'week' | 'day' | 'month';
 
-export type CalendarContextTab = 'agenda' | 'month' | 'booking' | 'quantmeet' | 'reminders';
+export type CalendarContextTab =
+  | 'feed'
+  | 'month'
+  | 'events'
+  | 'schedule'
+  | 'agenda'
+  | 'booking'
+  | 'quantmeet'
+  | 'reminders';
 
 export const CALENDAR_CONTEXT_TABS: ReadonlyArray<{ key: CalendarContextTab; label: string }> = [
-  { key: 'agenda', label: 'Agenda' },
+  { key: 'feed', label: 'Feed' },
   { key: 'month', label: 'Month' },
-  { key: 'booking', label: 'Booking' },
-  { key: 'quantmeet', label: 'QuantMeet' },
-  { key: 'reminders', label: 'Reminders' },
+  { key: 'events', label: 'Events' },
+  { key: 'schedule', label: 'Schedule' },
 ];
 
 export const CALENDAR_VIEWS: ReadonlyArray<{ key: CalendarView; label: string }> = [

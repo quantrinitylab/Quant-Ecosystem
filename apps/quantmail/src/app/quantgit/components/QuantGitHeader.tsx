@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { BubbleAvatar } from '@quant/shared-ui';
-import { QuantGitLogo } from '../../../components/QuantGitLogo';
 import type { MainDeckTab, GitHubTab, Repo, FileNode, ChatSession, ChatMessage } from '../types';
 
 export interface QuantGitHeaderProps {
@@ -63,7 +62,7 @@ export function QuantGitHeader({
   return (
     <>
       {activeDeckTab === 'quanty' ? (
-        <header className="shrink-0 z-30 bg-[#0D1117] border-b border-[#21262D] px-4 py-2.5 flex items-center justify-between text-xs">
+        <div className="shrink-0 z-20 bg-[#090A0E] border-b border-[#21262D] px-4 py-2 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -115,37 +114,43 @@ export function QuantGitHeader({
             <button
               type="button"
               onClick={() => setIsPersonalizeOpen(true)}
-              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors"
+              className="p-1.5 rounded-md hover:bg-[#21262D] text-[#7D8590] hover:text-white transition-colors flex items-center justify-center"
               title="Personalize Quanty AI"
+              aria-label="Personalize Quanty AI"
             >
-              🎨
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
+                <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
+                <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
+                <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2Z" />
+              </svg>
             </button>
           </div>
-        </header>
+        </div>
       ) : (
-        <header className="shrink-0 z-30 bg-[#010409] border-b border-[#30363D] px-4 py-2.5 flex items-center justify-between text-xs">
-          <div className="flex items-center gap-3">
-            {/* Sovereign QuantGit Logo */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveDeckTab('repos');
-                setSelectedRepo(null);
-                setViewingFile(null);
-              }}
-              className="flex items-center gap-2 text-white hover:text-[#FF8C42] transition-colors p-1 rounded-md"
-              title="QuantGit Home"
-            >
-              <QuantGitLogo size={28} />
-              <span className="font-bold text-sm tracking-tight text-[#E6EDF3]">QuantGit</span>
-            </button>
+        <div className="shrink-0 z-20 bg-[#090A0E] border-b border-[#21262D] px-4 sm:px-6 py-2 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Git Branch / Sovereign Repository Icon */}
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+              <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="6" y1="3" x2="6" y2="15" />
+                <circle cx="18" cy="6" r="3" />
+                <circle cx="6" cy="18" r="3" />
+                <path d="M18 9a9 9 0 0 1-9 9" />
+              </svg>
+            </div>
 
-            {/* Breadcrumbs */}
+            {/* Breadcrumbs & Contextual Path */}
             {activeDeckTab === 'lab' ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-[#7D8590]">/</span>
+              <div className="flex items-center gap-2 text-xs sm:text-sm">
                 <span className="text-white font-bold flex items-center gap-1.5">
-                  <span>🧪</span> Agent Lab
+                  <svg className="size-4 text-[#A78BFA]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M10 2v7.31L4.65 18.23A2 2 0 0 0 6.36 21h11.28a2 2 0 0 0 1.71-2.77L14 9.31V2" />
+                    <path d="M8.5 2h7" />
+                    <path d="M7 16h10" />
+                  </svg>
+                  Agent Lab
                 </span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold border border-[#30363D] text-[#7D8590] uppercase tracking-wider">
                   Fleet Command
@@ -153,18 +158,21 @@ export function QuantGitHeader({
               </div>
             ) : selectedRepo ? (
               <div className="flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
-                <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
                   onClick={() => {
+                    setActiveDeckTab('repos');
                     setSelectedRepo(null);
                     setViewingFile(null);
                   }}
-                  className="text-[#58A6FF] hover:underline font-medium truncate max-w-[70px] sm:max-w-[120px] md:max-w-none"
-                  title={currentUsername}
+                  className="text-[#58A6FF] hover:underline font-medium shrink-0"
                 >
-                  {currentUsername}
+                  ← Repos
                 </button>
+                <span className="text-[#7D8590]">/</span>
+                <span className="text-[#8B949E] truncate max-w-[80px] sm:max-w-none" title={currentUsername}>
+                  {currentUsername}
+                </span>
                 <span className="text-[#7D8590]">/</span>
                 <button
                   type="button"
@@ -172,7 +180,7 @@ export function QuantGitHeader({
                     setViewingFile(null);
                     setActiveGitHubTab('code');
                   }}
-                  className="text-[#58A6FF] hover:underline font-bold text-white truncate max-w-[80px] sm:max-w-[140px] md:max-w-none"
+                  className="text-white font-bold hover:text-[#A78BFA] transition-colors truncate max-w-[120px] sm:max-w-none"
                   title={selectedRepo.name}
                 >
                   {selectedRepo.name}
@@ -181,7 +189,7 @@ export function QuantGitHeader({
                   <>
                     <span className="text-[#7D8590]">/</span>
                     <span
-                      className="text-[#7D8590] font-mono text-xs truncate max-w-[90px] sm:max-w-[160px] md:max-w-none"
+                      className="text-[#A78BFA] font-mono text-xs truncate max-w-[100px] sm:max-w-[180px]"
                       title={viewingFile.path}
                     >
                       {viewingFile.path}
@@ -193,42 +201,34 @@ export function QuantGitHeader({
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5 text-xs sm:text-sm min-w-0">
-                <span className="text-[#7D8590]">/</span>
+              <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
                 <span
-                  className="text-white font-bold truncate max-w-[100px] sm:max-w-[160px] md:max-w-none"
+                  className="text-white font-bold truncate max-w-[120px] sm:max-w-none"
                   title={currentUsername}
                 >
                   {currentUsername}
                 </span>
                 <span className="text-[#7D8590] text-xs shrink-0">· Repositories</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 shrink-0">
+                  SOVEREIGN GIT
+                </span>
               </div>
             )}
           </div>
 
-          {/* Global Search & Action Buttons */}
-          <div className="flex items-center gap-3">
-            <div className="relative hidden sm:block">
-              <input
-                id="global-search-input"
-                type="text"
-                placeholder="Type / to search"
-                className="w-56 lg:w-72 bg-[#161B22] border border-[#30363D] rounded-md px-2.5 py-1 text-xs text-[#E6EDF3] placeholder-[#7D8590] focus:outline-none focus:border-[#58A6FF] focus:w-80 transition-all"
-              />
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded border border-[#30363D] bg-[#21262D] text-[10px] font-mono text-[#7D8590]">
-                /
-              </span>
-            </div>
-
+          {/* Action Buttons: + Create New, Notifications, Copilot, Astra Swarm */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="relative">
               <button
                 type="button"
                 data-testid="create-new-dropdown-btn"
                 onClick={() => setIsCreateMenuOpen((prev) => !prev)}
-                className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#21262D] border border-[#30363D] text-[#E6EDF3] hover:bg-[#30363D] transition-colors text-xs font-semibold"
                 title="Create New..."
               >
-                <span className="text-[#7D8590]">+</span> ▼
+                <span className="text-[#A78BFA] font-bold">+</span>
+                <span className="hidden sm:inline text-xs ml-0.5">New</span>
+                <span className="text-[#7D8590] text-[10px] ml-0.5">▼</span>
               </button>
 
               {isCreateMenuOpen && (
@@ -248,7 +248,7 @@ export function QuantGitHeader({
                         }}
                         className="w-full text-left px-3 py-1.5 hover:bg-[#21262D] hover:text-white flex items-center gap-2"
                       >
-                        <span className="text-[#7D8590]">+</span> New repository
+                        <span className="text-[#A78BFA] font-bold">+</span> New repository
                       </button>
                       <button
                         type="button"
@@ -311,7 +311,13 @@ export function QuantGitHeader({
               }`}
               title="Toggle Quanty Copilot"
             >
-              <span>✨</span>
+              <svg className="size-3.5 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" />
+                <path d="M5 3v4" />
+                <path d="M19 17v4" />
+                <path d="M3 5h4" />
+                <path d="M17 19h4" />
+              </svg>
               <span className="hidden md:inline">Copilot</span>
             </button>
 
@@ -322,7 +328,7 @@ export function QuantGitHeader({
               </span>
             </div>
           </div>
-        </header>
+        </div>
       )}
 
       {/* Sliding Left History Drawer with Backdrop */}
@@ -360,8 +366,12 @@ export function QuantGitHeader({
                   type="button"
                   onClick={() => setIsHistoryOpen(false)}
                   className="p-1 rounded text-[#7D8590] hover:text-white transition-colors"
+                  aria-label="Close history"
                 >
-                  ✕
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -370,8 +380,12 @@ export function QuantGitHeader({
               {/* Pinned Chats Section */}
               {pinnedSessionIds.length > 0 && (
                 <div className="space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42] px-2 flex items-center gap-1">
-                    <span>📌</span> Pinned
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#FF8C42] px-2 flex items-center gap-1.5">
+                    <svg className="size-3 text-[#FF8C42]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="12" y1="17" x2="12" y2="22" />
+                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                    </svg>
+                    <span>Pinned</span>
                   </div>
                   <div className="space-y-0.5">
                     {chatSessions
@@ -450,8 +464,12 @@ export function QuantGitHeader({
                                     }}
                                     className="p-1 rounded hover:bg-[#30363D] text-[#FF8C42] hover:text-white"
                                     title="Unpin chat"
+                                    aria-label="Unpin chat"
                                   >
-                                    📌
+                                    <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <line x1="12" y1="17" x2="12" y2="22" />
+                                      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                                    </svg>
                                   </button>
                                   <button
                                     type="button"
@@ -462,8 +480,11 @@ export function QuantGitHeader({
                                     }}
                                     className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                     title="Rename chat"
+                                    aria-label="Rename chat"
                                   >
-                                    ✎
+                                    <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                    </svg>
                                   </button>
                                   <button
                                     type="button"
@@ -485,8 +506,15 @@ export function QuantGitHeader({
                                     }}
                                     className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
                                     title="Delete chat"
+                                    aria-label="Delete chat"
                                   >
-                                    🗑
+                                    <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <path d="M3 6h18" />
+                                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                      <line x1="10" y1="11" x2="10" y2="17" />
+                                      <line x1="14" y1="11" x2="14" y2="17" />
+                                    </svg>
                                   </button>
                                 </div>
                               </>
@@ -576,8 +604,12 @@ export function QuantGitHeader({
                                   }}
                                   className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                   title="Pin chat"
+                                  aria-label="Pin chat"
                                 >
-                                  📌
+                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <line x1="12" y1="17" x2="12" y2="22" />
+                                    <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+                                  </svg>
                                 </button>
                                 <button
                                   type="button"
@@ -588,8 +620,11 @@ export function QuantGitHeader({
                                   }}
                                   className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                   title="Rename chat"
+                                  aria-label="Rename chat"
                                 >
-                                  ✎
+                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                                  </svg>
                                 </button>
                                 <button
                                   type="button"
@@ -604,8 +639,15 @@ export function QuantGitHeader({
                                   }}
                                   className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-[#F85149]"
                                   title="Delete chat"
+                                  aria-label="Delete chat"
                                 >
-                                  🗑
+                                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M3 6h18" />
+                                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                    <line x1="10" y1="11" x2="10" y2="17" />
+                                    <line x1="14" y1="11" x2="14" y2="17" />
+                                  </svg>
                                 </button>
                               </div>
                             </>
