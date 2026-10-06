@@ -258,3 +258,86 @@ describe('the subscription plumbing', () => {
     unsubscribe();
   });
 });
+
+describe('showToast fallback when no subscriber is mounted', () => {
+  // Minimal DOM mock — the repo's vitest runs in node environment without jsdom.
+  const makeDocumentMock = () => {
+    const appended: any[] = [];
+    const removed: any[] = [];
+    const doc = {
+      body: {
+        innerHTML: '',
+        _children: [] as any[],
+        appendChild: (el: any) => {
+          doc.body._children.push(el);
+          appended.push(el);
+        },
+        querySelector: (sel: string) => {
+          if (sel === '[role="alert"]') {
+            return doc.body._children.find((c: any) => c.getAttribute?.('role') === 'alert') ?? null;
+          }
+          return null;
+        },
+      },
+      createElement: (_tag: string) => {
+        const attrs: Record<string, string> = {};
+        return {
+          setAttribute: (k: string, v: string) => (attrs[k] = v),
+          getAttribute: (k: string) => attrs[k] ?? null,
+          style: { cssText: '' },
+          textContent: '',
+          remove: () => removed.push(true),
+        };
+      },
+    };
+    return { doc, appended };
+  };
+
+  it('renders a visible DOM toast instead of dropping the message silently', () => {
+    const { doc, appended } = makeDocumentMock();
+    (globalThis as any).document = doc;
+    (globalThis as any).window = { setTimeout: (fn: () => void) => 0 };
+    try {
+      showToast({ text: 'Please add a title for your entry', type: 'error' });
+      expect(appended).toHaveLength(1);
+      expect(appended[0].textContent).toBe('Please add a title for your entry');
+      expect(appended[0].getAttribute('role')).toBe('alert');
+    } finally {
+      delete (globalThis as any).document;
+      delete (globalThis as any).window;
+    }
+  });
+
+  it('does not render a DOM toast when a subscriber is listening', () => {
+    const { doc, appended } = makeDocumentMock();
+    (globalThis as any).document = doc;
+    (globalThis as any).window = { setTimeout: (fn: () => void) => 0 };
+    const seen: ToastMessage[] = [];
+    const unsubscribe = subscribeToToasts((msg) => seen.push(msg));
+    try {
+      showToast({ text: 'Event "Test" saved', type: 'success' });
+      expect(seen).toHaveLength(1);
+      expect(appended).toHaveLength(0);
+    } finally {
+      unsubscribe();
+      delete (globalThis as any).document;
+      delete (globalThis as any).window;
+    }
+  });
+
+  it('styles error toasts distinctly from success toasts', () => {
+    const { doc, appended } = makeDocumentMock();
+    (globalThis as any).document = doc;
+    (globalThis as any).window = { setTimeout: (fn: () => void) => 0 };
+    try {
+      showToast({ text: 'Failed to save entry', type: 'error' });
+      expect(appended[0].style.cssText).toContain('127, 29, 29');
+      appended.length = 0;
+      showToast({ text: 'Event saved', type: 'success' });
+      expect(appended[0].style.cssText).toContain('20, 83, 45');
+    } finally {
+      delete (globalThis as any).document;
+      delete (globalThis as any).window;
+    }
+  });
+});

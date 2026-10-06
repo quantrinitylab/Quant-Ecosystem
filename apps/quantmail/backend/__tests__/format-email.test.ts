@@ -53,3 +53,54 @@ describe('formatEmailRecord: messageKind', () => {
     expect(formatted.bodyText).toBe('Hello');
   });
 });
+
+/**
+ * Folder-state bridging for the client's `belongsInFolder` predicate.
+ *
+ * The database tracks archive/trash via `folderId` and `isTrash`, but the
+ * client predicate reads `isArchived` / `trashedAt`. These were always
+ * undefined on server data, so optimistic reconciliations and the offline
+ * cache seed mis-filed messages. The formatter now derives them.
+ */
+describe('formatEmailRecord: folder-state bridging', () => {
+  const row = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+    id: 'email-1',
+    fromAddress: 'sender@example.com',
+    toAddresses: ['me@quantmail.in'],
+    subject: 'Design review',
+    bodyPlain: 'Hello',
+    ...over,
+  });
+
+  it('derives trashedAt from isTrash when the field is absent', () => {
+    const formatted = formatEmailRecord(
+      row({ isTrash: true, updatedAt: '2026-10-06T10:00:00.000Z' }),
+    );
+    expect(Boolean(formatted.trashedAt)).toBe(true);
+  });
+
+  it('leaves trashedAt undefined for non-trashed mail', () => {
+    const formatted = formatEmailRecord(row({ isTrash: false }));
+    expect(formatted.trashedAt).toBeUndefined();
+  });
+
+  it('preserves an explicitly set trashedAt', () => {
+    const formatted = formatEmailRecord(row({ isTrash: true, trashedAt: '2026-01-01T00:00:00Z' }));
+    expect(formatted.trashedAt).toBe('2026-01-01T00:00:00Z');
+  });
+
+  it('derives isArchived from the folder relation when present', () => {
+    const formatted = formatEmailRecord(row({ folder: { type: 'ARCHIVE' } }));
+    expect(formatted.isArchived).toBe(true);
+  });
+
+  it('isArchived is false for a non-archive folder relation', () => {
+    const formatted = formatEmailRecord(row({ folder: { type: 'INBOX' } }));
+    expect(formatted.isArchived).toBe(false);
+  });
+
+  it('preserves an explicitly set isArchived over the folder relation', () => {
+    const formatted = formatEmailRecord(row({ isArchived: true, folder: { type: 'INBOX' } }));
+    expect(formatted.isArchived).toBe(true);
+  });
+});

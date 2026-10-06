@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { formatBytes } from '../lib/format-bytes';
 import { showToast } from './InboxToast';
 import { useContacts } from '../hooks/useContacts';
+import { useConfirm } from '../hooks/useConfirm';
 import { apiClient } from '../services/api-client';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { composeMessageBodies } from '../lib/email-body';
@@ -186,6 +187,136 @@ export function DockedComposer({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // --------------------------------------------------------------------------
+  // Composer window gestures: drag-down-to-minimize + top-edge drag-to-resize
+  // --------------------------------------------------------------------------
+  const composerRef = useRef<HTMLDivElement>(null);
+  // User-resized height (null = natural height). Committed on pointer release.
+  const [customHeightPx, setCustomHeightPx] = useState<number | null>(null);
+
+  const MIN_COMPOSER_HEIGHT = 300;
+  const SWIPE_MINIMIZE_THRESHOLD = 80; // px of downward drag before minimizing
+
+  /**
+   * Header drag (touch swipe-down or mouse drag-down): the composer follows the
+   * pointer, and past the threshold it collapses to the minimized draft badge —
+   * the Gmail/Telegram sheet pattern. Ignored when expanded; header buttons
+   * are excluded so they stay clickable.
+   */
+  const handleHeaderDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isExpanded || isMinimized) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[data-resize-handle]')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const el = composerRef.current;
+    let mode: 'swipe' | null = null;
+
+    document.body.style.userSelect = 'none';
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = '';
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!mode) {
+        if (Math.abs(dy) < 10 && Math.abs(dx) < 10) return;
+        // Engage only for a dominant downward drag.
+        if (dy > 0 && dy >= Math.abs(dx)) {
+          mode = 'swipe';
+        } else {
+          cleanup();
+          return;
+        }
+      }
+      ev.preventDefault();
+      if (el) el.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      cleanup();
+      if (mode !== 'swipe' || !el) return;
+      if (dy >= SWIPE_MINIMIZE_THRESHOLD) {
+        el.style.transform = '';
+        setIsMinimized(true);
+      } else {
+        // Spring back to rest position.
+        el.style.transition = 'transform 180ms ease-out';
+        el.style.transform = '';
+        window.setTimeout(() => {
+          if (composerRef.current) composerRef.current.style.transition = '';
+        }, 200);
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  /**
+   * Top-edge drag handle: resize composer height (desktop mouse / touch).
+   * Height is clamped between a usable minimum and 85% of the viewport.
+   */
+  const handleResizeDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isExpanded || isMinimized) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = composerRef.current;
+    if (!el) return;
+
+    const startHeight = el.getBoundingClientRect().height;
+    const startY = e.clientY;
+    let latest = startHeight;
+
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev: PointerEvent) => {
+      ev.preventDefault();
+      const maxH = Math.floor(window.innerHeight * 0.85);
+      const next = Math.min(
+        Math.max(startHeight - (ev.clientY - startY), MIN_COMPOSER_HEIGHT),
+        maxH
+      );
+      latest = next;
+      el.style.height = `${Math.round(next)}px`;
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = '';
+      setCustomHeightPx(Math.round(latest));
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  /** Keyboard access to the resize handle: arrows adjust height by 24px. */
+  const handleResizeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const el = composerRef.current;
+    const base =
+      customHeightPx ?? (el ? Math.round(el.getBoundingClientRect().height) : 520);
+    const maxH = Math.floor(window.innerHeight * 0.85);
+    const next = Math.min(
+      Math.max(base + (e.key === 'ArrowUp' ? 24 : -24), MIN_COMPOSER_HEIGHT),
+      maxH
+    );
+    setCustomHeightPx(next);
+  };
+
   // Field states
   const [to, setTo] = useState(initialTo);
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -205,6 +336,10 @@ export function DockedComposer({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Unsaved-changes guard for the discard button — same protection as the
+  // full composer: typed content is never silently thrown away.
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   // Signature
   const [signatureHtml, setSignatureHtml] = useState('');
@@ -230,6 +365,15 @@ export function DockedComposer({
   useEffect(() => {
     if (initialBody) setBody(initialBody);
   }, [initialBody]);
+
+  // Reset window state when the composer is closed, so reopening always starts
+  // with the full composer — not a stale minimized badge with a dead restore.
+  useEffect(() => {
+    if (!isOpen) {
+      setIsMinimized(false);
+      setIsExpanded(false);
+    }
+  }, [isOpen]);
 
   // Filter contacts matching current 'to' text
   const filteredSuggestions = useMemo(() => {
@@ -329,12 +473,28 @@ export function DockedComposer({
           ? body.replace(/\bhi\b/gi, 'Dear').replace(/\bthanks\b/gi, 'Thank you for your consideration.')
           : `Dear Sir/Madam,\n\nI trust this communication finds you well. I wish to formally present our strategic objectives for your review.\n\nSincerely,\n`;
       } else if (promptType === 'concise') {
-        generated = `Quick update on ${subject || 'the project'}:\n• Milestones on schedule\n• Next review this Friday\n\nPlease let me know your thoughts.\n`;
+        // Rephrase ONLY — never invent facts, dates, milestones, or meetings.
+        // Condense the existing draft to its first two sentences, stripped of filler.
+        const sentences = body
+          ? body.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean)
+          : [];
+        const condensed = sentences
+          .slice(0, 2)
+          .join(' ')
+          .replace(/\b(just wanted to|i wanted to|i am writing to let you know|please note that)\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        generated = condensed || `Quick update${subject ? ` on ${subject}` : ''}.`;
       } else {
         generated = `Hi there,\n\nFollowing up on our earlier note regarding ${subject || 'the project'}. Please let me know when you have a moment to connect.\n\nThanks,\n`;
       }
 
-      setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      // "Make Concise" rewrites the draft in place; other presets append.
+      if (promptType === 'concise' && body) {
+        setBody(generated);
+      } else {
+        setBody((prev) => (prev ? `${prev}\n\n${generated}` : generated));
+      }
       showToast({ text: 'Quant AI ghostwrote email draft', type: 'success' });
       bodyRef.current?.focus();
     } catch {
@@ -530,9 +690,33 @@ export function DockedComposer({
   return (
     <div
       data-testid="docked-composer"
+      ref={composerRef}
       onKeyDown={handleKeyDown}
       className={containerClasses}
+      style={!isExpanded && customHeightPx ? { height: customHeightPx } : undefined}
     >
+      {/* Drag-to-resize handle on the top edge (docked mode only) */}
+      {!isExpanded && (
+        <div
+          data-resize-handle
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize composer height"
+          aria-valuemin={MIN_COMPOSER_HEIGHT}
+          aria-valuemax={850}
+          aria-valuenow={customHeightPx ?? undefined}
+          title="Drag to resize"
+          tabIndex={0}
+          onPointerDown={handleResizeDragStart}
+          onKeyDown={handleResizeKeyDown}
+          className="absolute inset-x-[33%] top-0 z-20 flex h-4 cursor-ns-resize touch-none items-start justify-center pt-1.5 focus-visible:outline-2 focus-visible:outline-[#FF8C42]"
+        >
+          <span
+            aria-hidden="true"
+            className="h-1 w-14 rounded-full bg-[#4A5163] opacity-60 transition-opacity hover:opacity-100"
+          />
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -541,8 +725,12 @@ export function DockedComposer({
         onChange={handleFileChange}
       />
 
-      {/* HEADER BAR */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#121622] border-b border-[#232938] select-none shrink-0">
+      {/* HEADER BAR — drag down (touch or mouse) to minimize to the draft badge */}
+      <div
+        onPointerDown={handleHeaderDragStart}
+        title="Drag down to minimize"
+        className="relative flex items-center justify-between px-4 py-2.5 bg-[#121622] border-b border-[#232938] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
+      >
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex size-6 items-center justify-center rounded-lg bg-[#FF8C42]/20 text-[#FF8C42]">
             <IconSend className="size-3.5" />
@@ -720,7 +908,17 @@ export function DockedComposer({
           <textarea
             ref={bodyRef}
             value={body}
-            onChange={(e) => setBody(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              // The placeholder promises "Type '++' to trigger AI ghostwriter" —
+              // honour it: strip the trigger and open the ghostwrite menu.
+              if (next.endsWith('++')) {
+                setBody(next.slice(0, -2));
+                setShowAiMenu(true);
+                return;
+              }
+              setBody(next);
+            }}
             placeholder="Write your email here... Type '++' to trigger AI ghostwriter."
             className="w-full flex-1 bg-transparent text-white placeholder-[#4B5563] resize-none focus:outline-none text-xs leading-relaxed"
           />
@@ -751,9 +949,10 @@ export function DockedComposer({
         </div>
       </div>
 
-      {/* BOTTOM TOOLBAR */}
-      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2">
+      {/* BOTTOM TOOLBAR — horizontally scrollable on narrow screens so the
+          Send + action buttons never clip on 360px viewports. Scrollbar hidden. */}
+      <div className="px-4 py-3 bg-[#0D1017] border-t border-[#232938] flex items-center justify-between gap-3 shrink-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex items-center gap-2 min-w-max">
           {/* Molten Amber Send Button */}
           <button
             type="button"
@@ -847,16 +1046,34 @@ export function DockedComposer({
         {/* Discard Draft */}
         <button
           type="button"
-          onClick={() => {
+          onClick={async () => {
+            const hasContent =
+              to.trim().length > 0 ||
+              cc.trim().length > 0 ||
+              bcc.trim().length > 0 ||
+              subject.trim().length > 0 ||
+              body.trim().length > 0 ||
+              attachments.length > 0;
+            if (hasContent) {
+              const discard = await confirm({
+                title: 'Discard draft?',
+                message: 'You have unsaved changes. Discard this draft?',
+                confirmLabel: 'Discard',
+                cancelLabel: 'Keep editing',
+                variant: 'destructive',
+              });
+              if (!discard) return;
+            }
             onDiscard?.();
             onClose();
           }}
-          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors"
+          className="p-2 rounded-xl text-[#6B7280] hover:text-red-400 hover:bg-white/5 transition-colors flex-shrink-0"
           title="Discard draft"
         >
           <IconTrash className="size-4" />
         </button>
       </div>
+      {confirmDialog}
     </div>
   );
 }

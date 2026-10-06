@@ -22,6 +22,14 @@ import { apiClient } from '../services/api-client';
 let cached: Promise<string> | null = null;
 
 /**
+ * Strip a stray trailing pipe (e.g. "QA Engineer|") that can leak into a saved
+ * signature from the editor. Preserves any closing HTML tags.
+ */
+function stripTrailingPipe(html: string): string {
+  return html.replace(/\|\s*((?:<\/[^>]+>\s*)*)$/, '$1').trim();
+}
+
+/**
  * The default signature's HTML, or '' when the account has none.
  *
  * Never rejects. A signature that cannot be loaded must not be able to block a
@@ -35,7 +43,8 @@ export function loadDefaultSignatureHtml(): Promise<string> {
     .getDefaultEmailSignature()
     .then((response) => {
       if (!response.success || !response.data) return '';
-      return response.data.contentHtml?.trim() ?? '';
+      const raw = response.data.contentHtml?.trim() ?? '';
+      return stripTrailingPipe(raw);
     })
     .catch(() => '');
 

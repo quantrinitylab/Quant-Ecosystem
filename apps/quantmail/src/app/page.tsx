@@ -496,15 +496,15 @@ function EmailRow({
           }}
           aria-label={`Select conversation with ${thread.participantsSummary}`}
         />
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelect(event);
-          }}
-          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-          title="Select conversation"
-          aria-label={`Select ${groupInfo?.name ?? thread.participantsSummary}`}
+        {/*
+          Decorative avatar: tapping it opens the thread like any other part of
+          the row. Selection is the checkbox's job alone (Gmail-style) — the old
+          "tap avatar to select" button was a 44px mis-tap magnet that made
+          single taps feel like they selected instead of opened.
+        */}
+        <span
+          aria-hidden="true"
+          className="flex shrink-0 items-center justify-center rounded-full min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0"
         >
           {groupInfo ? (
             <span
@@ -521,7 +521,7 @@ function EmailRow({
           ) : (
             <IdentityAvatar name={thread.participants[0] || 'You'} size="sm" />
           )}
-        </button>
+        </span>
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -1116,6 +1116,11 @@ export default function InboxPage() {
     } else {
       setActiveTab('inbox');
       setShowArchivedView(false);
+    }
+    // Deep-link support: ?filter=starred applies the Pinned filter chip.
+    const f = searchParams?.get('filter');
+    if (f === 'starred') {
+      setActiveFilters(new Set(['starred' as InboxFilter]));
     }
   }, [searchParams]);
 

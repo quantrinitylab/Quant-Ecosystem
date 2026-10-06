@@ -157,7 +157,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const lastMarkedRef = useRef<string | null>(null);
 
   const messages: EnhancedMessage[] = useMemo(() => {
-    const restMessages = data ?? [];
+    // Defensive: data must be an array — a paginated envelope or any other
+    // non-array shape here used to crash the page with
+    // "e.filter is not a function". (useMessages unwraps the envelope, this
+    // is belt-and-suspenders.)
+    const restMessages = Array.isArray(data) ? data : [];
     const realtimeIds = new Set(incomingMessages.map((m) => m.id));
     const deduped = restMessages.filter((m: { id: string }) => !realtimeIds.has(m.id));
 

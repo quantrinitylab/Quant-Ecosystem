@@ -187,6 +187,10 @@ function CalendarPageContent() {
   const [activeSheetType, setActiveSheetType] = useState<EntryType | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // Ref mirror of isSaving: guards against stale closures and React state
+  // timing issues. A save in flight must never be re-entered, and the flag
+  // must never get stuck — the ref is the source of truth for "busy".
+  const isSavingRef = useRef(false);
   const [periodSubTab, setPeriodSubTab] = useState<'track' | 'cycle' | 'insights'>('track');
   const [isPeriodCustomizeOpen, setIsPeriodCustomizeOpen] = useState(false);
 
@@ -744,11 +748,14 @@ function CalendarPageContent() {
     setActiveSheetType(type);
   }, []);
 
+  // The sheet must always be dismissible — even while a save is in flight.
+  // A stalled network request must never trap the user in the dialog
+  // (previously `if (isSaving) return` dead-ended the X button, the backdrop
+  // click and Escape whenever a save hung).
   const closeSheet = useCallback(() => {
-    if (isSaving) return;
     setActiveSheetType(null);
     setEditingEventId(null);
-  }, [isSaving]);
+  }, []);
 
   const sheetRef = useFocusTrap<HTMLDivElement>({ active: Boolean(activeSheetType) });
 
@@ -796,7 +803,18 @@ function CalendarPageContent() {
 
   const handleSaveEntry = useCallback(async () => {
     if (!activeSheetType) return;
-    if (!formState.title.trim() && activeSheetType !== 'period') return;
+    // Belt-and-braces double-submit guard: the ref is the source of truth so
+    // a stale closure can never re-enter a save already in flight.
+    if (isSavingRef.current || isSaving) return;
+    if (!formState.title.trim() && activeSheetType !== 'period') {
+      // Never silently swallow a Save click — tell the user what is missing
+      // and focus the title field so it can be fixed immediately.
+      showToast({ text: 'Please add a title for your entry', type: 'error' });
+      sheetRef.current
+        ?.querySelector<HTMLInputElement>('[data-autofocus]')
+        ?.focus();
+      return;
+    }
 
     let finalTitle = formState.title.trim();
     if (activeSheetType === 'period') {
@@ -805,17 +823,24 @@ function CalendarPageContent() {
         `Period Log (Day ${formState.currentCycleDay}, ${formState.flowIntensity} flow)`;
     }
 
+    // Parse + validate dates inside the guarded section: `new Date('T…')`
+    // throws on empty/invalid input, and an unguarded throw used to reject
+    // the promise silently (the click handler voids it) — Save appeared dead.
     let startIso: string;
     let endIso: string;
-
-    if (formState.allDay) {
-      startIso = new Date(`${formState.startDate}T00:00:00`).toISOString();
-      endIso = new Date(`${formState.endDate || formState.startDate}T23:59:59`).toISOString();
-    } else {
-      startIso = new Date(`${formState.startDate}T${formState.startTime}:00`).toISOString();
-      endIso = new Date(
-        `${formState.endDate || formState.startDate}T${formState.endTime}:00`,
-      ).toISOString();
+    try {
+      if (formState.allDay) {
+        startIso = new Date(`${formState.startDate}T00:00:00`).toISOString();
+        endIso = new Date(`${formState.endDate || formState.startDate}T23:59:59`).toISOString();
+      } else {
+        startIso = new Date(`${formState.startDate}T${formState.startTime}:00`).toISOString();
+        endIso = new Date(
+          `${formState.endDate || formState.startDate}T${formState.endTime}:00`,
+        ).toISOString();
+      }
+    } catch {
+      showToast({ text: 'Please choose a valid date and time', type: 'error' });
+      return;
     }
 
     const metaObj = {
@@ -873,14 +898,26 @@ function CalendarPageContent() {
       cycleDay: activeSheetType === 'period' ? formState.currentCycleDay : undefined,
     };
 
+    isSavingRef.current = true;
     setIsSaving(true);
+    // Never leave the save flag stuck on a hung request: race the mutation
+    // against a timeout so the UI always recovers. The ref is cleared in a
+    // `finally` so no exception path can leave the Save button dead.
+    const SAVE_TIMEOUT_MS = 25000;
     try {
-      if (editingEventId) {
-        await updateEvent.mutateAsync({ id: editingEventId, data: payload as never });
-      } else {
-        await createEvent.mutateAsync(payload as never);
-      }
+      const savePromise = editingEventId
+        ? updateEvent.mutateAsync({ id: editingEventId, data: payload as never })
+        : createEvent.mutateAsync(payload as never);
+      // Swallow a late settlement after a timeout win — it is unobserved.
+      savePromise.catch(() => undefined);
+      await Promise.race([
+        savePromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SAVE_TIMEOUT')), SAVE_TIMEOUT_MS),
+        ),
+      ]);
       setTimeout(() => {
+        isSavingRef.current = false;
         setIsSaving(false);
         setActiveSheetType(null);
         setEditingEventId(null);
@@ -890,14 +927,27 @@ function CalendarPageContent() {
         });
         void refetch();
       }, 350);
-    } catch {
+    } catch (err) {
+      isSavingRef.current = false;
       setIsSaving(false);
+      // Log for debuggability — a save that fails must leave a trace.
+      // eslint-disable-next-line no-console
+      console.error('[calendar] save entry failed:', err);
+      const timedOut = err instanceof Error && err.message === 'SAVE_TIMEOUT';
       showToast({
-        text: editingEventId ? 'Failed to update entry' : 'Failed to save entry',
+        text: timedOut
+          ? 'Save is taking too long — check your connection and try again'
+          : editingEventId
+            ? 'Failed to update entry'
+            : 'Failed to save entry',
         type: 'error',
       });
+    } finally {
+      // Absolute guarantee: the in-flight flag can never stick, even if a
+      // future code path above throws outside the try/catch.
+      isSavingRef.current = false;
     }
-  }, [activeSheetType, formState, createEvent, updateEvent, editingEventId, refetch]);
+  }, [activeSheetType, formState, createEvent, updateEvent, editingEventId, refetch, isSaving]);
 
   const handleDeleteEvent = useCallback(
     async (id: string, e?: React.MouseEvent) => {

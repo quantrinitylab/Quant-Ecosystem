@@ -213,6 +213,19 @@ export interface ConversationParticipant {
   nickname?: string;
 }
 
+// ----------------------------------------------------------------------------
+// Contact directory (New-chat picker)
+// ----------------------------------------------------------------------------
+
+/** Safe public profile returned by GET /users/search — no PII beyond the directory. */
+export interface ChatContact {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  bio?: string | null;
+}
+
 // ============================================================================
 // Story Types
 // ============================================================================

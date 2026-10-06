@@ -47,6 +47,7 @@ import inboundWebhookRoutes from './routes/inbound-webhook';
 import { createMemoryService } from '@quant/ai';
 import { DeliverabilityAuthService } from './services/deliverability-auth.service';
 import { InboundIngestAdapter } from './services/inbound-ingest.service';
+import { MailFilterService } from './services/mail-filter.service';
 import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-category.service';
 import { SmartInboxService } from './services/smart-inbox.service';
 import websocketPlugin from '@fastify/websocket';
@@ -172,6 +173,10 @@ export async function buildApp(config?: AppConfig) {
   const inboundIngest = new InboundIngestAdapter(db, new DeliverabilityAuthService(db), {
     learnedCategory,
     smartInbox,
+    // P0 fix: filters were constructed but never wired into ingest, so
+    // user filters never auto-triggered on new mail ("Apply Now" worked
+    // because it calls the service directly).
+    filters: new MailFilterService(db as never),
   });
 
   app.removeContentTypeParser('application/json');

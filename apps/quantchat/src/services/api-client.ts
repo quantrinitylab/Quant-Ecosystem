@@ -5,6 +5,7 @@
 import type {
   Message,
   Conversation,
+  ChatContact,
   Story,
   Snap,
   SnapStreak,
@@ -165,8 +166,19 @@ export class QuantChatApiClient {
   async createConversation(
     participantIds: string[],
     name?: string,
+    type: 'direct' | 'group' = 'direct',
   ): Promise<ApiResponse<Conversation>> {
-    return this.post('/conversations', { participantIds, name });
+    // The backend createConversationSchema REQUIRES `type` ('direct' | 'group');
+    // without it the request 400s, so default to 'direct' for 1:1 chats.
+    return this.post('/conversations', { participantIds, name, type });
+  }
+
+  /**
+   * Search the user directory for contact discovery (New-chat picker).
+   * GET /users/search?q=... — excludes the current user, ACTIVE accounts only.
+   */
+  async searchUsers(query: string): Promise<ApiResponse<ChatContact[]>> {
+    return this.get('/users/search', { params: { q: query } });
   }
 
   async getConversation(conversationId: string): Promise<ApiResponse<Conversation>> {

@@ -100,5 +100,23 @@ export function formatEmailRecord<T extends Record<string, any>>(email: T): T {
     attachments,
     messageKind,
     category: email.aiCategory || email.category || 'primary',
+    /*
+     * Folder-state bridging: the database tracks archive/trash via `folderId`
+     * and `isTrash`, but the client's `belongsInFolder` predicate reads
+     * `isArchived` / `trashedAt`. Without this mapping those fields were always
+     * undefined on server data, so optimistic reconciliations and the offline
+     * cache seed mis-filed messages (e.g. a later mutation could empty the
+     * cached trash list because nothing in it "belonged" there).
+     *
+     * Explicitly-set values win (optimistic patches set them directly); the
+     * folder relation is only consulted when present — most list queries don't
+     * include it, in which case behaviour is unchanged from before.
+     */
+    isArchived:
+      typeof email.isArchived === 'boolean'
+        ? email.isArchived
+        : (email as { folder?: { type?: string } | null }).folder?.type === 'ARCHIVE',
+    trashedAt:
+      email.trashedAt ?? (email.isTrash ? (email.deletedAt ?? email.updatedAt ?? null) : undefined),
   };
 }

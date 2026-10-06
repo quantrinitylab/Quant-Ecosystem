@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { formatBytes } from '../lib/format-bytes';
+import { useStorageQuota } from '../hooks/useStorageQuota';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -174,6 +175,24 @@ function TrashIcon({ className = 'size-4' }: { className?: string }) {
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
       <line x1="10" y1="11" x2="10" y2="17" />
       <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  );
+}
+
+function PencilIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
     </svg>
   );
 }
@@ -503,16 +522,19 @@ export interface SingleEnterpriseStorageGaugeProps {
 }
 
 export function SingleEnterpriseStorageGauge({
-  usedFormatted = '128.4 GB',
-  totalFormatted = '2 TB',
+  usedFormatted = 'Calculating…',
+  totalFormatted = 'Calculating…',
   planName = 'Sovereign Enterprise Plan',
-  remainingFormatted = '1.87 TB remaining',
-  usedBytes = 128.4 * 1024 * 1024 * 1024,
-  totalBytes = 2 * 1024 * 1024 * 1024 * 1024,
+  remainingFormatted = 'Calculating…',
+  usedBytes = 0,
+  totalBytes = 0,
   onUpgradeClick,
   className = '',
 }: SingleEnterpriseStorageGaugeProps) {
-  const percentage = Math.min(100, Math.max(1, Math.round((usedBytes / totalBytes) * 100)));
+  // Never invent numbers: while the quota is unknown show "Calculating…"
+  // (passed in via the formatted props) and a 0% bar.
+  const percentage =
+    totalBytes > 0 ? Math.min(100, Math.max(0, Math.round((usedBytes / totalBytes) * 100))) : 0;
 
   return (
     <div
@@ -636,6 +658,16 @@ export function DriveHomeSubView({
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
+  // Real storage quota — the gauge must reflect actual usage, never invented numbers.
+  const { quota, known: quotaKnown } = useStorageQuota();
+  const gaugeUsedBytes = quota?.used ?? 0;
+  const gaugeTotalBytes = quota?.total ?? 0;
+  const gaugeUsedFormatted = quotaKnown ? formatBytes(gaugeUsedBytes) : 'Calculating…';
+  const gaugeTotalFormatted = quotaKnown ? formatBytes(gaugeTotalBytes) : 'Calculating…';
+  const gaugeRemainingFormatted = quotaKnown
+    ? `${formatBytes(Math.max(0, gaugeTotalBytes - gaugeUsedBytes))} remaining`
+    : 'Calculating…';
+
   // Available tags for the Tags category
   const availableTags = useMemo(
     () => [
@@ -651,31 +683,34 @@ export function DriveHomeSubView({
     [],
   );
 
-  // Compute live item counts based on base seed + live files
+  // Compute live item counts from actual files only — no fabricated seeds.
+  // Previously this hardcoded base counts (1420 images, 892 documents, etc.)
+  // which showed phantom stats contradicting the actual file list.
   const categoryStats = useMemo(() => {
-    let imagesCount = 1420;
-    let imagesSize = 42.8 * 1024 * 1024 * 1024;
+    let imagesCount = 0;
+    let imagesSize = 0;
 
-    let videosCount = 342;
-    let videosSize = 64.2 * 1024 * 1024 * 1024;
+    let videosCount = 0;
+    let videosSize = 0;
 
-    let audiosCount = 185;
-    let audiosSize = 8.4 * 1024 * 1024 * 1024;
+    let audiosCount = 0;
+    let audiosSize = 0;
 
-    let documentsCount = 892;
-    let documentsSize = 9.6 * 1024 * 1024 * 1024;
+    let documentsCount = 0;
+    let documentsSize = 0;
 
-    let archiveCount = 64;
-    let archiveSize = 2.1 * 1024 * 1024 * 1024;
+    let archiveCount = 0;
+    let archiveSize = 0;
 
-    let tagsCount = 28;
-    let tagsSize = 1.3 * 1024 * 1024 * 1024;
+    let tagsCount = 0;
+    let tagsSize = 0;
 
-    let othersCount = 119;
-    let othersSize = 0.8 * 1024 * 1024 * 1024;
+    let othersCount = 0;
+    let othersSize = 0;
 
-    const trashCount = trashItems.length > 0 ? trashItems.length : 14;
-    const trashSize = 340 * 1024 * 1024;
+    // Trash uses the real trash items — no fallback to a fake "14".
+    const trashCount = trashItems.length;
+    const trashSize = trashItems.reduce((sum, t) => sum + (t.size || 0), 0);
 
     // Tally live uploaded files
     files.forEach((f) => {
@@ -976,15 +1011,55 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/5 cursor-pointer transition-all group"
+                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/5 transition-all"
                   >
-                    <div className="size-8 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42] shrink-0">
-                      <FolderIcon className="size-4" />
+                    {/*
+                     * A real <button>: keyboard-focusable, announced as a
+                     * button (not a plain text node), Enter/Space opens it.
+                     * The previous plain <div onClick> was invisible to
+                     * keyboard users and some automation hit-testing.
+                     */}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
+                      aria-label={`Open folder ${folder.name}`}
+                      title={`Open ${folder.name}`}
+                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    >
+                      <div className="size-8 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42] shrink-0">
+                        <FolderIcon className="size-4" />
+                      </div>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#FF8C42] transition-colors">
+                          {folder.name}
+                        </span>
+                        <span className="block text-[10px] text-[#64748B]">Folder</span>
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+                      {onOpenRename && (
+                        <button
+                          type="button"
+                          aria-label={`Rename folder ${folder.name}`}
+                          title="Rename"
+                          onClick={(e) => onOpenRename(folder, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </button>
+                      )}
+                      {onDeleteItem && (
+                        <button
+                          type="button"
+                          aria-label={`Delete folder ${folder.name}`}
+                          title="Delete"
+                          onClick={(e) => onDeleteItem(folder.id, folder.name, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </button>
+                      )}
                     </div>
-                    <span className="text-xs font-semibold text-[#F8FAFC] truncate flex-1 group-hover:text-[#FF8C42] transition-colors">
-                      {folder.name}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -1083,10 +1158,12 @@ export function DriveHomeSubView({
 
           {/* SINGLE Enterprise Storage Gauge at the Bottom of Home View */}
           <SingleEnterpriseStorageGauge
-            usedFormatted="128.4 GB"
-            totalFormatted="2 TB"
+            usedFormatted={gaugeUsedFormatted}
+            totalFormatted={gaugeTotalFormatted}
             planName="Sovereign Enterprise Plan"
-            remainingFormatted="1.87 TB remaining"
+            remainingFormatted={gaugeRemainingFormatted}
+            usedBytes={gaugeUsedBytes}
+            totalBytes={gaugeTotalBytes}
             onUpgradeClick={onUpgradeClick}
           />
         </>
@@ -1268,10 +1345,12 @@ export function DriveHomeSubView({
 
           {/* Gauge at bottom of category view as well */}
           <SingleEnterpriseStorageGauge
-            usedFormatted="128.4 GB"
-            totalFormatted="2 TB"
+            usedFormatted={gaugeUsedFormatted}
+            totalFormatted={gaugeTotalFormatted}
             planName="Sovereign Enterprise Plan"
-            remainingFormatted="1.87 TB remaining"
+            remainingFormatted={gaugeRemainingFormatted}
+            usedBytes={gaugeUsedBytes}
+            totalBytes={gaugeTotalBytes}
             onUpgradeClick={onUpgradeClick}
           />
         </div>
@@ -1303,6 +1382,16 @@ export interface DriveFeedSubViewProps {
   onDownloadFile?: (id: string, name: string) => void;
   onShareItem?: (item: DriveFeedItem) => void;
   className?: string;
+  /** Real media files from the Drive. When provided, the feed renders these
+   * instead of placeholder content. */
+  files?: Array<{
+    id: string;
+    name: string;
+    mimeType: string;
+    size: number;
+    modifiedAt: string;
+    isStarred?: boolean;
+  }>;
 }
 
 export function DriveFeedSubView({
@@ -1310,13 +1399,61 @@ export function DriveFeedSubView({
   onDownloadFile,
   onShareItem,
   className = '',
+  files: realFiles,
 }: DriveFeedSubViewProps) {
   const [selectedFeedIds, setSelectedFeedIds] = useState<Set<string>>(new Set());
   const [mediaFilter, setMediaFilter] = useState<'all' | 'image' | 'video' | 'audio'>('all');
   const [lightboxItem, setLightboxItem] = useState<DriveFeedItem | null>(null);
 
-  // Sample chronological feed dataset
-  const feedItems: DriveFeedItem[] = useMemo(
+  // Feed items: real media files when available, otherwise empty.
+  // Previously this rendered hardcoded sample files (feed-1, feed-2, …) with
+  // fake names/sizes that didn't exist in the database, so downloads 404'd.
+  const feedItems: DriveFeedItem[] = useMemo(() => {
+    if (realFiles && realFiles.length > 0) {
+      return realFiles
+        .filter((f) => {
+          const m = (f.mimeType || '').toLowerCase();
+          return m.startsWith('image/') || m.startsWith('video/') || m.startsWith('audio/');
+        })
+        .map((f) => {
+          const m = (f.mimeType || '').toLowerCase();
+          const type: DriveFeedItem['type'] = m.startsWith('image/')
+            ? 'image'
+            : m.startsWith('video/')
+              ? 'video'
+              : 'audio';
+          const d = new Date(f.modifiedAt);
+          const today = new Date();
+          const yesterday = new Date(today);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const isToday = d.toDateString() === today.toDateString();
+          const isYesterday = d.toDateString() === yesterday.toDateString();
+          const dateGroup: DriveFeedItem['dateGroup'] = isToday
+            ? 'today'
+            : isYesterday
+              ? 'yesterday'
+              : 'last_week';
+          return {
+            id: f.id,
+            name: f.name,
+            type,
+            mimeType: f.mimeType,
+            size: f.size,
+            dateGroup,
+            dateLabel: d.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }),
+            isStarred: f.isStarred,
+          } as DriveFeedItem;
+        });
+    }
+    return [];
+  }, [realFiles]);
+
+  // Legacy sample dataset (kept for reference, no longer rendered):
+  const _sampleFeedItems: DriveFeedItem[] = useMemo(
     () => [
       // Today
       {
@@ -1463,11 +1600,23 @@ export function DriveFeedSubView({
     });
   };
 
-  const handleBatchDownload = () => {
-    selectedFeedIds.forEach((id) => {
-      const item = feedItems.find((i) => i.id === id);
-      if (item) onDownloadFile?.(item.id, item.name);
-    });
+  const handleBatchDownload = async () => {
+    // Download sequentially with a small gap: firing many downloads at once
+    // gets blocked by browsers, which made "Download Batch" appear to do nothing.
+    const ids = Array.from(selectedFeedIds);
+    for (let i = 0; i < ids.length; i++) {
+      const item = feedItems.find((f) => f.id === ids[i]);
+      if (item) {
+        try {
+          await onDownloadFile?.(item.id, item.name);
+        } catch {
+          // Individual download failures shouldn't stop the batch.
+        }
+        if (i < ids.length - 1) {
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      }
+    }
   };
 
   return (

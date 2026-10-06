@@ -6,6 +6,7 @@ import { AppShell } from '../../../components/AppShell';
 import { AppSidebar } from '../../../components/AppSidebar';
 import { ConversationalThreadView } from '../../../components/ConversationalThreadView';
 import { useMailMutations } from '../../../hooks/useMailMutations';
+import { useEdgeSwipeBack } from '../../../hooks/useEdgeSwipeBack';
 
 function validInternalReturnTo(value: string | null): string | null {
   if (!value) return null;
@@ -58,6 +59,9 @@ export default function ThreadPage() {
     if (!threadId) router.replace(returnTo || '/');
   }, [returnTo, router, threadId]);
 
+  // Left-edge swipe → same as the back affordance: leave the thread.
+  useEdgeSwipeBack(() => leaveThread(false), { disabled: !threadId });
+
   if (!threadId) {
     return (
       <AppShell sidebar={<AppSidebar />} theme="dark" className="quantmail-shell">
@@ -91,6 +95,15 @@ export default function ThreadPage() {
           }}
           variant="full"
           className="h-full flex-1"
+          /*
+           * Horizontal swipe on the stream moves between conversations. Keep
+           * the returnTo chain so swiping through threads still lands back in
+           * the same inbox lens instead of the default view.
+           */
+          onNavigateToThread={(targetId) => {
+            const suffix = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
+            router.push(`/thread/${encodeURIComponent(targetId)}${suffix}`);
+          }}
         />
       </div>
     </AppShell>
