@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/api-client';
+import type { Profile } from '../types';
 
 // Backend error codes that mean "retrying will not help": the profile cannot
 // be loaded for this viewer no matter how many times we ask (not found, or the
@@ -28,7 +29,10 @@ export function shouldRetryProfileFetch(failureCount: number, error: unknown): b
 }
 
 export function useProfile(id: string) {
-  return useQuery({
+  // Explicit TError so `error` is ProfileQueryError (not `{}`): the retry
+  // callback's `error: unknown` param otherwise poisons type inference and
+  // `error.message` fails typecheck (TS2339).
+  return useQuery<Profile | undefined, ProfileQueryError>({
     queryKey: ['neon-profile', id],
     queryFn: async () => {
       const response = await apiClient.getProfile(id);

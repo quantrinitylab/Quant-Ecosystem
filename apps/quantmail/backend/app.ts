@@ -238,7 +238,10 @@ export async function buildApp(config?: AppConfig) {
     };
   };
 
-  app.get('/health', async () => ({ status: 'ok' }));
+  // NOTE: GET /health itself is registered by @quant/server-core's healthPlugin
+  // (via createApp). Registering it here too throws
+  // FastifyError: Method 'GET' already declared for route '/health'.
+  // /api/health is NOT registered by the plugin, so it stays here.
   app.get('/api/health', async () => ({ status: 'ok' }));
   app.get('/health/detailed', detailedHealthHandler);
   app.get('/api/health/detailed', detailedHealthHandler);
