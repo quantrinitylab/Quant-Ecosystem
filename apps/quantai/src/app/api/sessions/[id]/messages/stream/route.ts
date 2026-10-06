@@ -31,37 +31,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       throw new Error(`Upstream returned ${upstream.status}`);
     }
   } catch {
-    const encoder = new TextEncoder();
-    const tokens = [
-      'Hello! ',
-      'I am ',
-      'Quant AI, ',
-      'your sovereign ',
-      'intelligence assistant. ',
-      'How can I ',
-      'help you build ',
-      'today?',
-    ];
-    const stream = new ReadableStream({
-      async start(controller) {
-        for (const token of tokens) {
-          controller.enqueue(
-            encoder.encode(`event: token\ndata: ${JSON.stringify({ token })}\n\n`),
-          );
-          await new Promise((r) => setTimeout(r, 60));
-        }
-        controller.enqueue(encoder.encode(`event: done\ndata: {}\n\n`));
-        controller.close();
+    // Honest failure: the backend is unreachable. Return 503 with a JSON
+    // error instead of streaming a canned greeting — a fabricated reply
+    // dressed as success is worse than no reply. The client surfaces this
+    // as an error state on the pending message.
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'AI service unavailable. Please try again in a moment.',
+        code: 'UPSTREAM_UNAVAILABLE',
+      }),
+      {
+        status: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-transform',
+        },
       },
-    });
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
-        Connection: 'keep-alive',
-      },
-    });
+    );
   }
 
   // Non-2xx (e.g. 401/400 JSON) — relay as-is without forcing SSE.
