@@ -8,6 +8,7 @@ import {
   type CreateMailFilterInput,
   type MailFilterCondition,
   type MailFilterAction,
+  type EmailLabel,
 } from '../../services/api-client';
 import { SettingsSection } from './SettingsPrimitives';
 import { showToast } from '../../components/InboxToast';
@@ -33,6 +34,8 @@ export function MailFiltersSettings() {
   const [archive, setArchive] = useState(false);
   const [markSpam, setMarkSpam] = useState(false);
   const [deleteMsg, setDeleteMsg] = useState(false);
+  const [applyLabelId, setApplyLabelId] = useState('');
+  const [availableLabels, setAvailableLabels] = useState<EmailLabel[]>([]);
   const [applyExistingOnCreate, setApplyExistingOnCreate] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -54,9 +57,22 @@ export function MailFiltersSettings() {
     }
   }, []);
 
+  const loadLabels = useCallback(async () => {
+    const res = await apiClient.getLabels();
+    if (res.success && res.data) {
+      setAvailableLabels(res.data);
+    }
+  }, []);
+
   useEffect(() => {
     void loadFilters();
   }, [loadFilters]);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      void loadLabels();
+    }
+  }, [showCreateModal, loadLabels]);
 
   const resetForm = () => {
     setFilterName('');
@@ -70,6 +86,7 @@ export function MailFiltersSettings() {
     setArchive(false);
     setMarkSpam(false);
     setDeleteMsg(false);
+    setApplyLabelId('');
     setApplyExistingOnCreate(false);
   };
 
@@ -100,6 +117,7 @@ export function MailFiltersSettings() {
     if (archive) action.archive = true;
     if (markSpam) action.markSpam = true;
     if (deleteMsg) action.delete = true;
+    if (applyLabelId) action.addLabelId = applyLabelId;
 
     if (Object.keys(action).length === 0) {
       showToast({ text: 'At least one action is required', type: 'error' });
@@ -143,6 +161,19 @@ export function MailFiltersSettings() {
       void loadFilters();
     } else {
       showToast({ text: res.error?.message || 'Failed to delete filter', type: 'error' });
+    }
+  };
+
+  const handleToggleFilter = async (filter: MailFilterItem) => {
+    const res = await apiClient.updateMailFilter(filter.id, { enabled: !filter.enabled });
+    if (res.success) {
+      showToast({
+        text: `Filter "${filter.name}" ${filter.enabled ? 'disabled' : 'enabled'}`,
+        type: 'success',
+      });
+      void loadFilters();
+    } else {
+      showToast({ text: res.error?.message || 'Failed to update filter', type: 'error' });
     }
   };
 
@@ -295,6 +326,24 @@ export function MailFiltersSettings() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => void handleToggleFilter(filter)}
+                      aria-pressed={filter.enabled}
+                      title={filter.enabled ? 'Disable filter' : 'Enable filter'}
+                      className={`relative w-9 h-5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                        filter.enabled ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${
+                          filter.enabled ? 'left-[18px]' : 'left-0.5'
+                        }`}
+                      />
+                      <span className="sr-only">
+                        {filter.enabled ? 'Disable' : 'Enable'} filter {filter.name}
+                      </span>
+                    </button>
                     <Button
                       variant="secondary"
                       size="sm"
@@ -451,6 +500,22 @@ export function MailFiltersSettings() {
                 />
                 <span className="text-rose-400">Move to trash</span>
               </label>
+            </div>
+            <div className="mt-3">
+              <FormField label="Apply label">
+                <select
+                  value={applyLabelId}
+                  onChange={(e) => setApplyLabelId(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--quant-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                >
+                  <option value="">No label</option>
+                  {availableLabels.map((label) => (
+                    <option key={label.id} value={label.id}>
+                      {label.name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
             </div>
           </div>
 

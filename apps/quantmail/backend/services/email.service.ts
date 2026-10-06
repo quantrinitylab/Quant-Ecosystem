@@ -899,6 +899,27 @@ export class EmailService {
   }
 
   /**
+   * Toggle pin-to-top for an email. Pin is independent from star: starring
+   * marks importance, pinning holds the conversation at the top of the list.
+   */
+  async togglePin(emailId: string, userId: string): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    return this.prisma.email.update({
+      where: { id: emailId },
+      data: { isPinned: !(email as { isPinned?: boolean }).isPinned },
+    });
+  }
+
+  /**
    * Reassign every owner-local row represented by one UI conversation. The
    * anchor must be present in the request and every requested row must belong to
    * the same caller; the transaction rejects the whole correction otherwise.

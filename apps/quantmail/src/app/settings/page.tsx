@@ -410,8 +410,25 @@ export default function SettingsPage() {
 
   const saveSignature = useCallback(async () => {
     const contentHtml = signature.trim();
-    if (!contentHtml || !hasSignatureChanges) return;
+    if (!hasSignatureChanges) return;
     setSignatureStatus('saving');
+    // Emptying the field removes the signature entirely.
+    if (!contentHtml && defaultSignatureId) {
+      const response = await apiClient.deleteEmailSignature(defaultSignatureId);
+      if (!response.success) {
+        setSignatureStatus('error');
+        showToast({ text: 'Failed to remove signature', type: 'error' });
+        return;
+      }
+      setDefaultSignatureId(null);
+      setSignature('');
+      setLoadedSignature('');
+      setSignatureStatus('saved');
+      invalidateDefaultSignature();
+      showToast({ text: 'Email signature removed', type: 'success' });
+      return;
+    }
+    if (!contentHtml) return;
     const response = defaultSignatureId
       ? await apiClient.updateEmailSignature(defaultSignatureId, { contentHtml })
       : await apiClient.createEmailSignature({
@@ -726,11 +743,13 @@ export default function SettingsPage() {
                     variant="secondary"
                     size="sm"
                     onClick={() => void saveSignature()}
-                    disabled={
-                      signatureStatus === 'saving' || !hasSignatureChanges || !signature.trim()
-                    }
+                    disabled={signatureStatus === 'saving' || !hasSignatureChanges}
                   >
-                    {signatureStatus === 'saving' ? 'Saving signature…' : 'Save signature'}
+                    {signatureStatus === 'saving'
+                      ? 'Saving signature…'
+                      : !signature.trim() && defaultSignatureId
+                        ? 'Remove signature'
+                        : 'Save signature'}
                   </Button>
                 }
               >

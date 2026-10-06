@@ -1281,6 +1281,20 @@ export default async function emailsRoutes(
     return reply.send({ success: true, data: formatEmailRecord(email) });
   });
 
+  // POST /emails/:id/pin — toggle pin-to-top. Independent from star.
+  fastify.post<{ Params: { id: string } }>('/:id/pin', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const prisma = getPrisma(fastify);
+    const service = new EmailService(prisma);
+    const email = await service.togglePin(request.params.id, userId);
+
+    return reply.send({ success: true, data: formatEmailRecord(email) });
+  });
+
   // PATCH /emails/:id/category — atomically move every stored row behind one
   // visible conversation, then teach the user-owned sender preference. The DB
   // correction is authoritative; memory learning is additive and best-effort.

@@ -40,6 +40,9 @@ import type {
   MeetingExtraction,
 } from '../types';
 
+// Re-export shared types used by settings and other surfaces.
+export type { EmailLabel } from '../types';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -458,6 +461,10 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/star`, {});
   }
 
+  async togglePin(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/pin`, {});
+  }
+
   async markAsRead(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/read`, {});
   }
@@ -532,6 +539,10 @@ export class QuantMailApiClient {
     data: Partial<Pick<EmailSignaturePreference, 'name' | 'contentHtml' | 'isDefault'>>,
   ): Promise<ApiResponse<EmailSignaturePreference>> {
     return this.put(`/email-signatures/${id}`, data);
+  }
+
+  async deleteEmailSignature(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.delete(`/email-signatures/${id}`);
   }
 
   async getVacationResponder(): Promise<ApiResponse<VacationResponderPreference | null>> {

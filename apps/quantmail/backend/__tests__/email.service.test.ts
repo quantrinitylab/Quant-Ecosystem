@@ -562,6 +562,41 @@ describe('EmailService', () => {
     });
   });
 
+  describe('togglePin', () => {
+    it('toggles the pinned state independently from star', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        isPinned: false,
+        isStarred: true,
+      });
+      prisma.email.update.mockResolvedValue({ id: 'email-1', isPinned: true, isStarred: true });
+
+      const result = await service.togglePin('email-1', 'user-1');
+
+      expect(result.isPinned).toBe(true);
+      expect(result.isStarred).toBe(true);
+      expect(prisma.email.update).toHaveBeenCalledWith({
+        where: { id: 'email-1' },
+        data: { isPinned: true },
+      });
+    });
+
+    it('throws 404 for missing email', async () => {
+      prisma.email.findUnique.mockResolvedValue(null);
+      await expect(service.togglePin('missing', 'user-1')).rejects.toMatchObject({
+        statusCode: 404,
+      });
+    });
+
+    it('throws 403 for other user email', async () => {
+      prisma.email.findUnique.mockResolvedValue({ id: 'email-1', userId: 'user-2' });
+      await expect(service.togglePin('email-1', 'user-1')).rejects.toMatchObject({
+        statusCode: 403,
+      });
+    });
+  });
+
   describe('sendEmail', () => {
     it('composes and sends an email in one call', async () => {
       const draftEmail = {
