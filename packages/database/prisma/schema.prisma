@@ -9,8 +9,7 @@ datasource db {
   extensions = [vector]
 }
 
-// ==================== USERS & AUTH ====================
-
+// ==================== USERS & AUTH =============
 model User {
   id                  String     @id @default(cuid())
   email               String     @unique
@@ -362,8 +361,7 @@ model AuthorizationCode {
   @@map("authorization_codes")
 }
 
-// ==================== MESSAGES (QuantChat) ====================
-
+// ==================== MESSAGES (QuantChat) =============
 model Conversation {
   id            String           @id @default(cuid())
   type          ConversationType @default(DIRECT)
@@ -499,8 +497,7 @@ model SnapView {
   @@map("snap_views")
 }
 
-// ==================== EMAILS (QuantMail) ====================
-
+// ==================== EMAILS (QuantMail) =============
 model Email {
   id             String        @id @default(cuid())
   userId         String
@@ -671,8 +668,7 @@ enum EmailFolderType {
   CUSTOM
 }
 
-// ==================== POSTS (QuantSync) ====================
-
+// ==================== POSTS (QuantSync) =============
 model Post {
   id               String           @id @default(cuid())
   userId           String
@@ -841,8 +837,7 @@ model PollVote {
   @@map("poll_votes")
 }
 
-// ==================== ADS (QuantAds) ====================
-
+// ==================== ADS (QuantAds) =============
 model Campaign {
   id               String            @id @default(cuid())
   advertiserId     String
@@ -1006,8 +1001,7 @@ model PublisherPayoutRun {
   @@map("publisher_payout_runs")
 }
 
-// ==================== MEDIA (QuantTube / QuantNeon) ====================
-
+// ==================== MEDIA (QuantTube / QuantNeon) =============
 model Video {
   id               String                @id @default(cuid())
   userId           String
@@ -1235,8 +1229,7 @@ model Music {
   @@map("music")
 }
 
-// ==================== PROFILES (QuantMax) ====================
-
+// ==================== PROFILES (QuantMax) =============
 model DatingProfile {
   id                 String             @id @default(cuid())
   userId             String             @unique
@@ -1356,8 +1349,7 @@ model ShortVideoComment {
   @@map("short_video_comments")
 }
 
-// ==================== AI (QuantAI) ====================
-
+// ==================== AI (QuantAI) =============
 model AISession {
   id              String    @id @default(cuid())
   userId          String
@@ -1404,8 +1396,7 @@ model AIMessage {
   @@map("ai_messages")
 }
 
-// ==================== Quanty (Muse parity) ====================
-
+// ==================== Quanty (Muse parity) =============
 model QuantyArtifact {
   id          String    @id @default(cuid())
   userId      String
@@ -1442,8 +1433,7 @@ enum AIFeedback {
   NEGATIVE
 }
 
-// ==================== NOTIFICATIONS ====================
-
+// ==================== NOTIFICATIONS =============
 model Notification {
   id             String               @id @default(cuid())
   userId         String
@@ -1479,8 +1469,7 @@ enum NotificationPriority {
   URGENT
 }
 
-// ==================== DATA PLANE ====================
-
+// ==================== DATA PLANE =============
 model OutboxEvent {
   id            String    @id @default(cuid())
   aggregateType String
@@ -1529,8 +1518,7 @@ model EncryptionKey {
   @@map("encryption_keys")
 }
 
-// ==================== GIT HOSTING (QuantMail GitHub Killer) ====================
-
+// ==================== GIT HOSTING (QuantMail GitHub Killer) =============
 enum RepoVisibility {
   PUBLIC
   PRIVATE
@@ -1798,8 +1786,7 @@ model CiJob {
   @@map("ci_jobs")
 }
 
-// ==================== QUANTMAIL: LABELS & CONTACTS ====================
-// Additive, quantmail-owned models backing the email label manager
+// ==================== QUANTMAIL: LABELS & CONTACTS =============// Additive, quantmail-owned models backing the email label manager
 // (backend/routes/labels.ts) and the contacts directory
 // (backend/services/contact.service.ts). Email-to-label association is stored
 // as a string-id array on Email.labels (Json); a Label row owns the label's
@@ -1913,8 +1900,7 @@ model ContactGroup {
   @@map("contact_groups")
 }
 
-// ==================== QUANTMAIL: PRODUCTIVITY FEATURES ====================
-// Additive, quantmail-owned models powering Gmail/Superhuman-class features:
+// ==================== QUANTMAIL: PRODUCTIVITY FEATURES =============// Additive, quantmail-owned models powering Gmail/Superhuman-class features:
 // server-side filters/rules, vacation auto-responder, reusable templates, and
 // signatures. Each is per-user and cascade-deleted with the owner.
 
@@ -2005,8 +1991,7 @@ model EmailSignature {
   @@map("email_signatures")
 }
 
-// ==================== AGENT RUNTIME (Pillar 3) ====================
-// quantmail-superhub · Task 12.1 (Requirements 7.1, 7.2)
+// ==================== AGENT RUNTIME (Pillar 3) =============// quantmail-superhub · Task 12.1 (Requirements 7.1, 7.2)
 // Additive models for the bounded, branch-isolated autonomous coding agent.
 // An AgentSession is one execution of the Agent Runtime against a repo, on an
 // isolated agent branch (branchRef != Repository.defaultBranch), bounded by
@@ -2071,8 +2056,7 @@ model AgentTranscript {
   @@map("agent_transcripts")
 }
 
-// ==================== AGENT COMPANY OS (Phase 6) ====================
-// quantmail-superhub · Task 18.1 (Requirements 9.1, 9.2, 9.3, 9.4)
+// ==================== AGENT COMPANY OS (Phase 6) =============// quantmail-superhub · Task 18.1 (Requirements 9.1, 9.2, 9.3, 9.4)
 // Additive models for the autonomous "agent company". An AgentOrg is the
 // company spun up for ONE CEO goal: tenant-scoped (every worker shares the
 // CEO's tenant), with a hard credit budget cap and an iteration cap. The
@@ -2194,8 +2178,7 @@ model AgentMailboxIdentity {
   @@map("agent_mailbox_identities")
 }
 
-// ==================== AGENT EMAIL BUS (Phase 6) ====================
-// quantmail-superhub · Task 20.1 (Requirements 12.1, 12.2, 12.3, 12.4)
+// ==================== AGENT EMAIL BUS (Phase 6) =============// quantmail-superhub · Task 20.1 (Requirements 12.1, 12.2, 12.3, 12.4)
 // Agents coordinate by emailing each other THROUGH the normal mail pipeline
 // (design §"Component: Email as Message Bus"). Two additive models support this
 // WITHOUT changing the mail-domain `Email`/`EmailThread` models:
@@ -2278,8 +2261,7 @@ model AgentBusEmailMeta {
   @@map("agent_bus_email_meta")
 }
 
-// ==================== AGENT ACTION AUDIT + APPROVAL GATING (Phase 6) ====================
-// quantmail-superhub · Task 22.1 (Requirements 14.1, 14.2, 14.3, 23.1, 23.3)
+// ==================== AGENT ACTION AUDIT + APPROVAL GATING (Phase 6) =============// quantmail-superhub · Task 22.1 (Requirements 14.1, 14.2, 14.3, 23.1, 23.3)
 // A unified, ADDITIVE audit trail for every SENSITIVE agent / Gmail-handler
 // action (design §"STRUCTURE AgentActionAudit"). Nothing in the existing schema
 // is modified. A sensitive action (a merge, or an external send above the
@@ -2357,8 +2339,7 @@ model AgentActionAudit {
   @@map("agent_action_audits")
 }
 
-// ==================== ANSWER ENGINE (Pillar 4: Perplexity) ====================
-// A DocumentChunk is the unit of retrievable evidence for the RAG answer
+// ==================== ANSWER ENGINE (Pillar 4: Perplexity) =============// A DocumentChunk is the unit of retrievable evidence for the RAG answer
 // engine. Every chunk is owned by exactly one user (`userId`), and that owner
 // scopes EVERY retrieval (no cross-tenant leakage — Requirement 8.1). The
 // `sourceRef` JSON carries the provenance needed to cite the chunk
@@ -2387,8 +2368,7 @@ model DocumentChunk {
   @@map("document_chunks")
 }
 
-// ==================== AI/AGENT MEMORY (packages/ai MemoryStore, ADR-006) ====================
-// Durable home for the frozen MemoryStore port (ADR-005). Relation-free and
+// ==================== AI/AGENT MEMORY (packages/ai MemoryStore, ADR-006) =============// Durable home for the frozen MemoryStore port (ADR-005). Relation-free and
 // additive: polymorphic ownership (ownerType/ownerId/tenantId) mirrors
 // credit_ledger_entries, so there is NO User FK and this is safe for the shared
 // schema. Vectors live in Qdrant (pointed to by MemoryEmbedding), matching the
@@ -2450,8 +2430,7 @@ model MemoryEmbedding {
   @@map("memory_embeddings")
 }
 
-// ==================== BILLING / CREDITS (Phase 7) ====================
-// quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
+// ==================== BILLING / CREDITS (Phase 7) =============// quantmail-superhub Task 25.1 (Requirements 16.1-16.5).
 //
 // A CreditWallet is owner-scoped (a user OR an org) and DOES NOT store its
 // balance authoritatively — the balance is DERIVED as `sum(ledger)` over the
@@ -2493,8 +2472,7 @@ model CreditLedgerEntry {
   @@map("credit_ledger_entries")
 }
 
-// ==================== PLANS / ENTITLEMENTS (Phase 7) ====================
-// quantmail-superhub Task 28.1 (Requirements 19.1, 19.2, 19.3, 19.4).
+// ==================== PLANS / ENTITLEMENTS (Phase 7) =============// quantmail-superhub Task 28.1 (Requirements 19.1, 19.2, 19.3, 19.4).
 //
 // An owner's active subscription tier. The four Plan_Tiers (free / pro / team /
 // enterprise) and the entitlements each grants (daily allowance, monthly
@@ -2530,8 +2508,7 @@ model PlanSubscription {
   @@map("plan_subscriptions")
 }
 
-// ==================== PAYMENTS / WEBHOOKS (Phase 7) ====================
-// quantmail-superhub Task 29.1 (Requirements 20.1, 20.2, 20.3, 20.4, 20.5).
+// ==================== PAYMENTS / WEBHOOKS (Phase 7) =============// quantmail-superhub Task 29.1 (Requirements 20.1, 20.2, 20.3, 20.4, 20.5).
 //
 // Tracks a single payment intent driven through the vendor-neutral
 // PaymentProvider port. NO card data is ever stored here — checkout is
@@ -2570,8 +2547,7 @@ model PaymentRecord {
   @@map("payment_records")
 }
 
-// ==================== OVERAGE (Phase 7+) ====================
-// Per-owner OVERAGE policy: whether the owner has explicitly OPTED IN to let
+// ==================== OVERAGE (Phase 7+) =============// Per-owner OVERAGE policy: whether the owner has explicitly OPTED IN to let
 // metered actions proceed BEYOND their available credit balance (the excess is
 // recorded as billable overage), and the per-period ceiling on such overage.
 //
@@ -2710,8 +2686,7 @@ model FeatureFlag {
   @@map("feature_flags")
 }
 
-// ==================== ORGANIZATIONS ====================
-
+// ==================== ORGANIZATIONS =============
 enum OrgPlan {
   FREE
   PRO
@@ -2809,8 +2784,7 @@ model Like {
   @@map("likes")
 }
 
-// ==================== QUANTCHAT MEGA UPGRADE ====================
-
+// ==================== QUANTCHAT MEGA UPGRADE =============
 model Reel {
   id               String        @id @default(cuid())
   creatorId        String
@@ -3208,8 +3182,7 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
-// ==================== QUANTCHAT E2EE KEY STORE (W1) ====================
-// Zero-knowledge relay: PUBLIC key material only. Never persist private keys,
+// ==================== QUANTCHAT E2EE KEY STORE (W1) =============// Zero-knowledge relay: PUBLIC key material only. Never persist private keys,
 // ratchet secrets, or plaintext.
 
 model PreKeyBundle {
@@ -3257,8 +3230,7 @@ model KeySession {
 }
 
 
-// ==================== QUANTCHAT DELIVERY & OUTBOX (W3) ====================
-// Reliable delivery: a transactional outbox guarantees an at-least-once delivery
+// ==================== QUANTCHAT DELIVERY & OUTBOX (W3) =============// Reliable delivery: a transactional outbox guarantees an at-least-once delivery
 // intent is committed in the same transaction as a Message, and first-class
 // delivery/read receipts replace race-prone Message.metadata JSON.
 // NOTE: This is distinct from the generic data-plane `OutboxEvent` model above;
@@ -3291,8 +3263,7 @@ model MessageDelivery {
 }
 
 
-// ==================== QUANTCHAT ENCRYPTED SEARCH (W5) ====================
-// Client-built blind index: the client tokenizes plaintext, HMACs each token
+// ==================== QUANTCHAT ENCRYPTED SEARCH (W5) =============// Client-built blind index: the client tokenizes plaintext, HMACs each token
 // with a per-user Search_Key, and uploads only opaque token hashes. The server
 // stores and matches HMAC token hashes only — it never sees plaintext tokens or
 // keys, preserving the zero-knowledge relay invariant (Requirements 14.3, 16.1).
@@ -3312,8 +3283,7 @@ model BlindIndexEntry {
 
 
 
-// ==================== OUTBOUND DELIVERY AUTH (QuantMail SuperHub — Pillar 1) ====================
-//
+// ==================== OUTBOUND DELIVERY AUTH (QuantMail SuperHub — Pillar 1) =============//
 // Real outbound delivery: the OutboundDeliveryPipeline worker (`processDelivery`)
 // DKIM-signs each message, resolves recipient MX, attempts SMTP transmission, and
 // records a per-recipient DeliveryAttempt with a terminal-or-deferred state
@@ -3368,8 +3338,7 @@ model DomainAuthKey {
 }
 
 
-// ==================== QUANTAI MARKETPLACE ====================
-// QuantAI agent marketplace. First-party "official" agents are defined in code
+// ==================== QUANTAI MARKETPLACE =============// QuantAI agent marketplace. First-party "official" agents are defined in code
 // (apps/quantai/backend/services/agent-marketplace.service.ts OFFICIAL_AGENTS);
 // these tables persist USER-CREATED custom agents and durable per-user installs
 // (previously held in a per-request in-memory Map that lost state immediately).
@@ -3624,8 +3593,7 @@ model AiAutomationRun {
 }
 
 
-// ==================== QUANTNEON ADDITIVE MODELS ====================
-// Relation-free bookmark + close-friends tables for the quantneon app.
+// ==================== QUANTNEON ADDITIVE MODELS =============// Relation-free bookmark + close-friends tables for the quantneon app.
 // Kept navigation-free (no User/Post back-relations) so they are additive
 // and safe for the shared schema.
 
@@ -3656,8 +3624,7 @@ model CloseFriend {
 }
 
 
-// ==================== QuantTube Music (YouTube Music / Spotify) ====================
-
+// ==================== QuantTube Music (YouTube Music / Spotify) =============
 model MusicAlbum {
   id          String       @id @default(cuid())
   title       String
@@ -3691,8 +3658,7 @@ model MusicTrack {
 
 
 
-// ==================== QuantTube Channel Subscriptions ====================
-
+// ==================== QuantTube Channel Subscriptions =============
 model VideoChannelSubscription {
   id        String   @id @default(cuid())
   userId    String
@@ -3707,8 +3673,7 @@ model VideoChannelSubscription {
 
 
 
-// ==================== QuantMax Safety (reports + safety settings) ====================
-
+// ==================== QuantMax Safety (reports + safety settings) =============
 enum ReportTargetType {
   VIDEO
   PROFILE
@@ -3762,8 +3727,7 @@ model UserSafetySetting {
   @@map("user_safety_settings")
 }
 
-// ==================== QuantTube Video Interactions (likes + comments) ====================
-
+// ==================== QuantTube Video Interactions (likes + comments) =============
 model VideoLike {
   id        String   @id @default(cuid())
   userId    String
@@ -3789,8 +3753,7 @@ model VideoComment {
 
 
 
-// ==================== QuantEdits Brand Kits ====================
-
+// ==================== QuantEdits Brand Kits =============
 model EditBrandKit {
   id        String   @id @default(cuid())
   userId    String
@@ -3808,8 +3771,7 @@ model EditBrandKit {
 
 
 
-// ==================== QuantEdits Collaboration ====================
-
+// ==================== QuantEdits Collaboration =============
 enum EditCollaboratorRole {
   OWNER
   EDITOR
@@ -3845,8 +3807,7 @@ model EditComment {
 
 
 
-// ==================== QuantMax Video Chat (Omegle-style) ====================
-
+// ==================== QuantMax Video Chat (Omegle-style) =============
 enum VideoChatSessionStatus {
   CONNECTED
   ENDED
@@ -3871,8 +3832,7 @@ model VideoChatSession {
 
 
 
-// ==================== QuantMax Live Streaming ====================
-
+// ==================== QuantMax Live Streaming =============
 enum LiveStreamType {
   SOLO
   DATING_EVENT
@@ -3910,8 +3870,7 @@ model LiveStreamViewer {
   @@map("live_stream_viewers")
 }
 
-// ==================== QuantSync Engagement (votes + bookmarks) ====================
-
+// ==================== QuantSync Engagement (votes + bookmarks) =============
 model PostVote {
   id        String   @id @default(cuid())
   userId    String
@@ -3935,8 +3894,7 @@ model PostBookmark {
   @@map("post_bookmarks")
 }
 
-// ==================== QuantDocs (Google Docs killer) ====================
-
+// ==================== QuantDocs (Google Docs killer) =============
 model Document {
   id        String   @id @default(cuid())
   title     String
@@ -4024,8 +3982,7 @@ model DocumentCollaborator {
 
 
 
-// ==================== QuantDrive (Google Drive killer) ====================
-
+// ==================== QuantDrive (Google Drive killer) =============
 model File {
   id                String    @id @default(cuid())
   name              String
@@ -4142,8 +4099,7 @@ model UserSubscription {
 
 
 
-// ==================== QuantCalendar (Google Calendar killer) ====================
-
+// ==================== QuantCalendar (Google Calendar killer) =============
 model Event {
   id             String    @id @default(cuid())
   title          String
@@ -4215,8 +4171,7 @@ model TrinityControlState {
   @@map("trinity_control_state")
 }
 
-// ==================== WORKSPACE INVITATIONS ====================
-// Email-based invitations that let people from *different* mail addresses join
+// ==================== WORKSPACE INVITATIONS =============// Email-based invitations that let people from *different* mail addresses join
 // one shared workspace and collaborate. The raw token is emailed to the
 // invitee; only its SHA-256 hash is persisted here.
 model WorkspaceInvite {
@@ -4245,8 +4200,7 @@ model WorkspaceInvite {
   @@map("workspace_invites")
 }
 
-// ==================== COLLABORATION WAL (GATE 1) ====================
-/// Append-only Yjs delta log. One row per CRDT update, pruned by compaction.
+// ==================== COLLABORATION WAL (GATE 1) =============/// Append-only Yjs delta log. One row per CRDT update, pruned by compaction.
 /// Deliberately has NO foreign key to Document: this is a write-ahead log that
 /// must outlive document-row churn, and adding a relation would require editing
 /// the Document model inside a 129 KB schema file. See 0064 migration notes.
@@ -4262,8 +4216,7 @@ model CollabDocumentUpdate {
   @@map("collab_document_updates")
 }
 
-// ==================== MAIL ATTACHMENTS (GATE 2) ====================
-/// Mail attachment metadata. Bytes live in object storage (R2/S3) under storageKey.
+// ==================== MAIL ATTACHMENTS (GATE 2) =============/// Mail attachment metadata. Bytes live in object storage (R2/S3) under storageKey.
 /// Status lifecycle: PENDING -> READY, or PENDING -> REJECTED.
 model MailAttachment {
   id           String    @id
@@ -4283,8 +4236,7 @@ model MailAttachment {
   @@map("mail_attachments")
 }
 
-// ==================== EMAIL SUPPRESSIONS (GATE 4) ====================
-/// Recipient suppression list for bounce/complaint protection against AWS SES thresholds.
+// ==================== EMAIL SUPPRESSIONS (GATE 4) =============/// Recipient suppression list for bounce/complaint protection against AWS SES thresholds.
 model EmailSuppression {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -4299,8 +4251,7 @@ model EmailSuppression {
 }
 
 
-// ==================== CROSS-APP INTEREST SIGNALS ====================
-//
+// ==================== CROSS-APP INTEREST SIGNALS =============//
 // The projection side of the event spine. Apps emit domain events into
 // `outbox_events`; `services/cdc-relay` publishes them to per-aggregate Redis
 // Streams; `services/signal-projector` folds the ones that say something about a
@@ -4361,8 +4312,7 @@ model UserInterestSignal {
   @@map("user_interest_signals")
 }
 
-// ==================== WAVE 33 — ENTERPRISE GOVERNANCE ====================
-
+// ==================== WAVE 33 — ENTERPRISE GOVERNANCE =============
 enum DomainVerificationStatus {
   PENDING
   DNS_VERIFIED
@@ -4628,8 +4578,7 @@ model EnterpriseSiemConfig {
   @@map("enterprise_siem_configs")
 }
 
-// ==================== LEGAL HOLDS (W33-03) ====================
-/// Enterprise Legal Holds for custodian accounts to preserve communications against deletion.
+// ==================== LEGAL HOLDS (W33-03) =============/// Enterprise Legal Holds for custodian accounts to preserve communications against deletion.
 model LegalHold {
   id             String    @id @default(cuid())
   custodianEmail String    @map("custodian_email")
@@ -4646,8 +4595,7 @@ model LegalHold {
   @@map("legal_holds")
 }
 
-// ==================== QUANTY FEED (Q8) ====================
-/// Per-user personalized feed: editable instruction prompt, generated posts,
+// ==================== QUANTY FEED (Q8) =============/// Per-user personalized feed: editable instruction prompt, generated posts,
 /// and like/dislike reactions. Provenance is explicit: posts are either
 /// 'agent_brief' (AI-generated from the user's instructions, clearly labeled)
 /// or 'external' (real fetched URLs only — never fabricated headlines).
@@ -4697,8 +4645,7 @@ model FeedReaction {
   @@map("feed_reactions")
 }
 
-// ==================== QUANTY GOALS (user goals) ====================
-// User-facing goals surfaced in the Quanty Goals UI (Tracking / Goals
+// ==================== QUANTY GOALS (user goals) =============// User-facing goals surfaced in the Quanty Goals UI (Tracking / Goals
 // sections). Additive, relation-free: no back-relations to User.
 
 /// A user goal: title, optional description, category, tracking|done status.
@@ -4734,4 +4681,68 @@ model QuantyGoalProposal {
   @@index([userId])
   @@index([userId, status])
   @@map("quanty_goal_proposals")
+// ==================== QUANTY MCP CONNECTIONS (Q2) =============/// External OAuth connections backing Quanty's MCP connectors (e.g. Gmail).
+/// Refresh tokens are encrypted at rest (AES-256-GCM); plaintext tokens
+/// NEVER touch this table — only the encrypted blob.
+model McpConnection {
+  id String @id @default(cuid())
+
+  /// Quant user who owns this grant. Scoped lookups only — no cross-user reads.
+  userId String @map("user_id")
+
+  /// Provider key: 'gmail' (future: 'github', 'calendar', 'notion', ...).
+  provider String
+
+  /// 'connected' | 'revoked' | 'error'
+  status String @default("connected")
+
+  /// AES-256-GCM encrypted refresh token (iv:authTag:data hex). Opaque blob.
+  encryptedTokens String @map("encrypted_tokens") @db.Text
+
+  /// Granted OAuth scopes (verbatim from the provider).
+  scopes String[]
+
+  /// Provider account identity (safe to display in UI).
+  accountEmail String? @map("account_email")
+  accountLabel String? @map("account_label")
+
+  /// Per-connection kill switch — when false, mcp.<provider>.* tools are
+  /// unavailable to the agent for this user.
+  enabled Boolean @default(true)
+
+  connectedAt     DateTime  @default(now()) @map("connected_at")
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  lastTestedAt    DateTime? @map("last_tested_at")
+  lastTestOk      Boolean?  @map("last_test_ok")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider, status])
+  @@map("mcp_connections")
+}
+
+/// Audit trail for MCP grant lifecycle events. Written on every
+/// connect / disconnect / test / token-refresh outcome. Never stores tokens.
+model McpGrantAudit {
+  id String @id @default(cuid())
+
+  userId   String @map("user_id")
+  provider String
+
+  /// 'connected' | 'disconnected' | 'test_ok' | 'test_failed' |
+  /// 'token_refreshed' | 'refresh_failed' | 'revoked'
+  event String
+
+  /// Human-safe detail (no tokens, no codes, no secrets).
+  detail String? @db.Text
+
+  ipAddress String? @map("ip_address")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, provider])
+  @@index([createdAt])
+  @@map("mcp_grant_audit")
 }
