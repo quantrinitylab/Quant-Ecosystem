@@ -501,6 +501,9 @@ export default async function emailsRoutes(
             undefined,
           receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
           createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
+          // Echoed so the sender swaps its optimistic bubble for the persisted
+          // row instead of rendering a duplicate (email-chat P0-3).
+          clientMessageId: parsed.data.clientMessageId,
         });
       } catch (err) {
         request.log.warn({ err, emailId: email.id }, 'thread realtime broadcast failed');
