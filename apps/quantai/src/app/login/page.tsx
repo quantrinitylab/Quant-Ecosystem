@@ -13,6 +13,7 @@ import { useAuth } from '../../providers/auth-provider';
 import { ingestSSOToken } from '../../services/auth-session';
 import { useBrandName } from '../../components/BrandProvider';
 import { NeuralFieldCanvas } from '../../components/auth/NeuralFieldCanvas';
+import { scrubSsoHandoffParams } from '../../lib/sso-url-params';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -128,12 +129,7 @@ function LoginForm() {
       if (resolvedToken) {
         ingestSSOToken(resolvedToken);
         try {
-          const url = new URL(window.location.href);
-          url.searchParams.delete('__quant_sso_ticket');
-          url.searchParams.delete('token');
-          url.searchParams.delete('accessToken');
-          url.searchParams.delete('access_token');
-          url.searchParams.delete('__quant_return');
+          const url = scrubSsoHandoffParams(new URL(window.location.href));
           const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
           window.history.replaceState({}, document.title, cleanUrl);
         } catch {

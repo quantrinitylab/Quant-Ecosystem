@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { safeFetch } from '../../../_lib/safe-fetch';
-import { DRIVE_BACKEND_URL } from '../../../_lib/backend-url';
+import { safeFetch } from '../../_lib/safe-fetch';
+import { DRIVE_BACKEND_URL } from '../../_lib/backend-url';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();

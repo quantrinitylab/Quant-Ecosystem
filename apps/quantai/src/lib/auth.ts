@@ -81,7 +81,8 @@ export function setAuthToken(token: string, user?: AuthUser | null): void {
 
 /**
  * Returns current authenticated user profile from memory or localStorage.
- * If token is present but no user profile is stored, returns a valid default profile.
+ * Returns null when no profile is stored — never fabricates an identity.
+ * Callers treat null as unauthenticated and redirect to login / SSO.
  */
 export function getAuthUser(): AuthUser | null {
   if (memoryUser) return memoryUser;
@@ -93,15 +94,9 @@ export function getAuthUser(): AuthUser | null {
       memoryUser = parsed;
       return parsed;
     }
-    const token = getAuthToken();
-    if (token) {
-      return {
-        id: 'usr_quant',
-        email: 'user@quantmail.in',
-        name: 'Quant Member',
-        plan: 'pro',
-      };
-    }
+    // A token without a stored profile is not a valid session — do not
+    // invent a user (previously fabricated id 'usr_quant'). The auth flow
+    // must complete (login/SSO) to establish identity.
     return null;
   } catch {
     return null;

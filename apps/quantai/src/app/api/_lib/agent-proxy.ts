@@ -71,18 +71,15 @@ export async function proxyAgentRequest(
       );
     }
     if (path === '/sessions' && request.method === 'POST') {
+      // Honest failure: never fabricate a session id. The client falls back
+      // to a clearly-labeled local guest conversation on non-2xx.
       return NextResponse.json(
         {
-          success: true,
-          data: {
-            id: 'sess_' + Date.now(),
-            title: (options?.body as any)?.title || 'New Conversation',
-            model: (options?.body as any)?.model || 'gpt-4o',
-            createdAt: new Date().toISOString(),
-            messages: [],
-          },
+          success: false,
+          error: 'Conversation service unavailable. Please try again in a moment.',
+          code: 'UPSTREAM_UNAVAILABLE',
         },
-        { status: 200 },
+        { status: 503 },
       );
     }
     if (path.startsWith('/usage/stats')) {
