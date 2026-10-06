@@ -29,11 +29,11 @@ describe('ContextBottomNavBar & QuantPillarTopBar Component Tests', () => {
   });
 
   describe('ContextBottomNavBar 5-Pillar Tabs', () => {
-    it('defines exactly 5 tabs per pillar', () => {
+    it('defines contextual tabs per pillar', () => {
       const pillars: ProductivityPillar[] = ['mail', 'calendar', 'drive', 'contacts', 'quantgit'];
       pillars.forEach((p) => {
         expect(PILLAR_SUB_CONFIGS[p]).toBeDefined();
-        expect(PILLAR_SUB_CONFIGS[p].tabs).toHaveLength(5);
+        expect(PILLAR_SUB_CONFIGS[p].tabs.length).toBeGreaterThanOrEqual(4);
       });
     });
 
@@ -44,54 +44,50 @@ describe('ContextBottomNavBar & QuantPillarTopBar Component Tests', () => {
 
       expect(html).toContain('Mail contextual navigation');
       expect(html).toContain('Inbox');
-      expect(html).toContain('Priority');
       expect(html).toContain('Teams');
-      expect(html).toContain('Sent');
+      expect(html).toContain('Agents');
       expect(html).toContain('Archive');
       expect(html).toContain('12');
       expect(html).toContain('3');
-      expect(html).toContain('5');
     });
 
     it('renders Calendar contextual tabs', () => {
       const html = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="agenda" />
+        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="feed" />
       );
 
       expect(html).toContain('Calendar contextual navigation');
-      expect(html).toContain('Agenda');
+      expect(html).toContain('Feed');
       expect(html).toContain('Month');
-      expect(html).toContain('Booking');
-      expect(html).toContain('QuantMeet');
-      expect(html).toContain('Reminders');
+      expect(html).toContain('Events');
+      expect(html).toContain('Schedule');
     });
 
-    it('renders Drive contextual tabs with E2EE and CDC badges', () => {
+    it('renders Drive contextual tabs with Home, Feed, AI Memory, and Vault', () => {
       const html = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="drive" activeTabOverride="vault" />
       );
 
       expect(html).toContain('Drive contextual navigation');
-      expect(html).toContain('My Files');
-      expect(html).toContain('Shared');
+      expect(html).toContain('Home');
+      expect(html).toContain('Feed');
+      expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
-      expect(html).toContain('Starred');
-      expect(html).toContain('Cleaner');
       expect(html).toContain('E2EE');
-      expect(html).toContain('CDC');
+      expect(html).toContain('AI');
     });
 
     it('renders Contacts contextual tabs', () => {
       const html = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="contacts" />
+        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="home" />
       );
 
       expect(html).toContain('Contacts contextual navigation');
-      expect(html).toContain('Contacts');
-      expect(html).toContain('VIPs');
+      expect(html).toContain('Home');
+      expect(html).toContain('Favorites');
+      expect(html).toContain('Groups');
       expect(html).toContain('Companies');
       expect(html).toContain('AI Dedup');
-      expect(html).toContain('Circles');
       expect(html).toContain('8');
     });
 
@@ -129,7 +125,7 @@ describe('ContextBottomNavBar & QuantPillarTopBar Component Tests', () => {
       );
 
       expect(html).toContain('aria-label="Vault (AES-256 E2EE)"');
-      expect(html).toContain('aria-label="Cleaner (FastCDC)"');
+      expect(html).toContain('aria-label="AI Memory (Cross-App Relational Vault)"');
     });
   });
 

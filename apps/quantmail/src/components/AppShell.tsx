@@ -659,7 +659,7 @@ export function AppShell({
           )}
 
           <div
-            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-14 md:pb-0'}`}
+            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20'}`}
           >
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
@@ -926,8 +926,8 @@ export function AppShell({
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
 
-          {/* Context-Specific Bottom Navigation — strictly md:hidden */}
-          <ContextBottomNavBar />
+          {/* Context-Specific Bottom Navigation — anchored on mobile and desktop */}
+          <ContextBottomNavBar badgeOverrides={{ inbox: unreadCount, teams: 3 }} />
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />

@@ -44,6 +44,10 @@ export interface SuperhumanShortcutDockProps {
   onUndo?: () => void;
   onCommandPalette?: () => void;
   className?: string;
+  selectedThreadId?: string | null;
+  isThreadOpen?: boolean;
+  hideWhenThreadOpen?: boolean;
+  dockPosition?: 'center' | 'rail' | 'bottom-bar';
 }
 
 /**
@@ -136,10 +140,32 @@ export function SuperhumanShortcutDock({
   onUndo,
   onCommandPalette,
   className = '',
+  selectedThreadId,
+  isThreadOpen,
+  hideWhenThreadOpen = false,
+  dockPosition,
 }: SuperhumanShortcutDockProps) {
-  const [collapsed, setCollapsed] = useState(initialCollapsed);
+  const isThreadActive = Boolean(selectedThreadId || isThreadOpen);
+  const [collapsed, setCollapsed] = useState(initialCollapsed || isThreadActive);
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-collapse when thread is active so it never overlaps or covers the reply bar
+  useEffect(() => {
+    if (isThreadActive) {
+      setCollapsed(true);
+    }
+  }, [isThreadActive]);
+
+  // If hideWhenThreadOpen is set, completely hide when thread is selected
+  if (isThreadActive && hideWhenThreadOpen) {
+    return null;
+  }
+
+  const isDockedLeft = dockPosition === 'rail' || dockPosition === 'bottom-bar' || isThreadActive;
+  const positionClasses = isDockedLeft
+    ? 'fixed bottom-16 left-4 md:left-[76px] md:translate-x-0 z-40'
+    : 'fixed bottom-6 left-1/2 -translate-x-1/2 z-40';
 
   const effectiveActiveKey = activeKeyOverride !== undefined ? activeKeyOverride : activeKey;
 
@@ -193,14 +219,18 @@ export function SuperhumanShortcutDock({
         type="button"
         data-testid="superhuman-dock-collapsed"
         aria-label="Expand dock"
-        onClick={() => setCollapsed(false)}
+        onClick={() => {
+          if (!isThreadActive) {
+            setCollapsed(false);
+          }
+        }}
         // Desktop-only chrome: keyboard hints are meaningless on a phone, and
         // the bar used to sit glued over the inbox's bottom nav on mobile.
-        className={`hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl rounded-full px-4 py-2 items-center gap-2.5 text-xs text-gray-300 hover:text-white transition-all cursor-pointer ${className}`}
+        className={`hidden md:flex ${positionClasses} backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl rounded-full px-4 py-2 items-center gap-2.5 text-xs text-gray-300 hover:text-white transition-all cursor-pointer ${className}`}
       >
         <span className="size-2 rounded-full bg-[#FF8C42] shadow-[0_0_8px_rgba(255,140,66,0.8)]" />
         <span className="font-semibold text-white">Shortcuts</span>
-        <span className="text-[10px] text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.5 rounded font-mono">
           ?
         </span>
       </button>
@@ -217,7 +247,7 @@ export function SuperhumanShortcutDock({
       // phone it rendered as a stuck strip over the inbox's bottom nav (mobile
       // QA screenshot). The key listener below keeps working — this is purely
       // about the visible chrome.
-      className={`hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-40 backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl items-center gap-3 text-xs text-gray-300 select-none rounded-full px-4 py-2 transition-all ${className}`}
+      className={`hidden md:flex ${positionClasses} backdrop-blur-md bg-black/75 border border-white/10 shadow-2xl items-center gap-3 text-xs text-gray-300 select-none rounded-full px-4 py-2 transition-all ${className}`}
     >
       {/* Brand mark */}
       <div className="flex items-center gap-1.5 font-medium text-white shrink-0 pr-1">

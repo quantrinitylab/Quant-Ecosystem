@@ -338,20 +338,20 @@ export function DesktopPillarRail({
 
             return (
               <div key={tile.id} className="relative group w-full flex items-center justify-center">
-                {/* Vertical glowing active pill or accent line on the left edge */}
+                {/* Vertical glowing active pill on the left edge with specular aura */}
                 {isActive && (
                   <span
                     data-testid={`desktop-pillar-active-indicator-${tile.id}`}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 rounded-r-full pointer-events-none"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-7 rounded-r-full pointer-events-none transition-all duration-300"
                     style={{
                       backgroundColor: tile.accentColor,
-                      boxShadow: `0 0 8px ${tile.accentColor}`,
+                      boxShadow: `0 0 12px ${tile.accentColor}, 0 0 24px ${tile.accentColor}40`,
                     }}
                     aria-hidden="true"
                   />
                 )}
 
-                {/* Squircle tile button */}
+                {/* Squircle tile button with luxury micro-interactions */}
                 <button
                   type="button"
                   role="tab"
@@ -360,25 +360,25 @@ export function DesktopPillarRail({
                   aria-label={`${tile.label} (${tile.shortcutNumber})`}
                   title={`${tile.label} (${isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`})`}
                   onClick={() => handlePillarClick(tile)}
-                  className={`relative flex size-11 items-center justify-center rounded-2xl transition-all duration-200 ease-out active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                  className={`relative flex size-11 items-center justify-center rounded-2xl transition-all duration-200 cubic-bezier(0.16, 1, 0.3, 1) active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                     isActive
                       ? 'scale-105 border'
-                      : 'border border-transparent hover:bg-[#141722] hover:border-[#232938] text-[#8E95A5] hover:text-white'
+                      : 'border border-transparent hover:scale-105 hover:bg-[#141722] hover:border-[#232938] text-[#8E95A5] hover:text-white'
                   }`}
                   style={
                     isActive
                       ? {
                           backgroundColor: `${tile.accentColor}26`,
-                          borderColor: `${tile.accentColor}4D`,
-                          boxShadow: `0 0 16px ${tile.accentColor}33`,
+                          borderColor: `${tile.accentColor}59`,
+                          boxShadow: `0 0 20px ${tile.accentColor}33`,
                         }
                       : undefined
                   }
                 >
                   <span
-                    className="flex items-center justify-center transition-transform duration-200"
+                    className="flex items-center justify-center transition-transform duration-200 group-hover:scale-110"
                     style={{
-                      filter: isActive ? `drop-shadow(0 0 6px ${tile.accentColor}80)` : undefined,
+                      filter: isActive ? `drop-shadow(0 0 8px ${tile.accentColor}99)` : undefined,
                     }}
                   >
                     {tile.renderIcon(isActive)}
@@ -397,13 +397,13 @@ export function DesktopPillarRail({
                   )}
                 </button>
 
-                {/* Rich hover tooltip positioned to the right */}
+                {/* Luxury frosted glass tooltip positioned to the right */}
                 <div
                   role="tooltip"
-                  className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center gap-2 rounded-lg border border-[#232938] bg-[#111318]/95 px-2.5 py-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.7)] backdrop-blur-md whitespace-nowrap"
+                  className="pointer-events-none absolute left-[64px] top-1/2 -translate-y-1/2 z-50 hidden group-hover:flex items-center gap-2 rounded-xl border border-[#282F42] bg-[#0C0F17]/95 px-3 py-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.85)] backdrop-blur-xl whitespace-nowrap animate-in fade-in zoom-in-95 duration-150"
                 >
-                  <span className="text-xs font-semibold text-white">
-                    {tile.label} <span className="text-[#8E95A5] font-normal">({tile.shortcutNumber})</span>
+                  <span className="text-xs font-semibold text-white tracking-wide">
+                    {tile.label}
                   </span>
                   <kbd className="rounded border border-[#30384C] bg-[#181C26] px-1.5 py-0.5 font-mono text-[10px] text-[#A1A4AC] shadow-sm">
                     {isMac ? `⌘${tile.shortcutNumber}` : `Ctrl+${tile.shortcutNumber}`}

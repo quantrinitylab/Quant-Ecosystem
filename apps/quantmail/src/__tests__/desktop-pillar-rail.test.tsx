@@ -107,7 +107,7 @@ describe('DesktopPillarRail Component', () => {
     // Calendar active indicator is rendered
     expect(html).toContain('data-testid="desktop-pillar-active-indicator-calendar"');
     expect(html).toContain('background-color:#3B82F6');
-    expect(html).toContain('box-shadow:0 0 8px #3B82F6');
+    expect(html).toContain('box-shadow:0 0 12px #3B82F6');
 
     // Mail active indicator is NOT rendered
     expect(html).not.toContain('data-testid="desktop-pillar-active-indicator-mail"');
