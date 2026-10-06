@@ -751,12 +751,12 @@ export function SsoChooserContent({
             <svg className="w-3.5 h-3.5 text-[#FF8C42] flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" fillOpacity="0.25" />
             </svg>
-            <span>Sub-5ms Sovereign SSO · Zero-Knowledge Cryptographic Handoff</span>
+            <span>One sign-in for every Quant app</span>
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-zinc-500">
-            To continue, Quant will securely share your profile with{' '}
-            <span className="text-zinc-300 font-medium">{clientApp.name}</span>. Protected by Quant
-            Zero-Trust Auth Architecture.
+            To continue, Quant will share your profile with{' '}
+            <span className="text-zinc-300 font-medium">{clientApp.name}</span>. This happens
+            only when you choose an account above.
           </p>
         </div>
       </div>
