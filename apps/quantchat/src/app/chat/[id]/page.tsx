@@ -16,6 +16,8 @@ import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
+import { useConversations } from '../../../hooks/useConversations';
+import { useMe } from '../../../hooks/useMe';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
@@ -33,60 +35,6 @@ interface EnhancedMessage {
   type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
-}
-
-function DeliveryIndicator({ status }: { status: DeliveryStatus }) {
-  if (status === 'sent') {
-    return (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    );
-  }
-  if (status === 'delivered') {
-    return (
-      <svg
-        width="16"
-        height="14"
-        viewBox="0 0 28 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-        <polyline points="24 6 13 17 10 14" />
-      </svg>
-    );
-  }
-  return (
-    <svg
-      width="16"
-      height="14"
-      viewBox="0 0 28 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-blue-500"
-    >
-      <polyline points="20 6 9 17 4 12" />
-      <polyline points="24 6 13 17 10 14" />
-    </svg>
-  );
 }
 
 function detectLink(text: string): { url: string; title: string; description?: string } | null {
@@ -117,6 +65,27 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const { data, isLoading, error, refetch } = useMessages(id);
   const sendMessage = useSendMessage();
+  const { conversations } = useConversations();
+  const { me } = useMe();
+
+  // Resolve the real contact/group name for the header instead of the raw
+  // conversation id. Group chats use their name; direct chats use the other
+  // participant's nickname/displayName/username. Falls back to a neutral
+  // "Chat" label (never the raw id) until the conversation data loads.
+  const chatDisplayName = useMemo(() => {
+    const conversation = conversations.find((c) => c.id === id);
+    if (!conversation) return 'Chat';
+    if (conversation.name?.trim()) return conversation.name.trim();
+    const other = conversation.participants.find(
+      (p) => p.userId !== me?.id && p.username !== me?.username,
+    );
+    const candidate = other ?? conversation.participants[0];
+    const name =
+      candidate?.nickname?.trim() ||
+      candidate?.displayName?.trim() ||
+      candidate?.username?.trim();
+    return name || 'Chat';
+  }, [conversations, id, me?.id, me?.username]);
   const { typingUsers, incomingMessages, isConnected, sendRealtimeMessage, setTyping, markRead } =
     useRealtimeChat(id);
   const [reactions, setReactions] = useState<Record<string, string[]>>({});
@@ -517,7 +486,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   return (
     <div className="flex flex-col h-screen">
       <TopBar
-        title={`Chat ${id}`}
+        title={chatDisplayName}
         subtitle="🔥 5 Day Streak · Active now"
         onBack={() => {
           window.location.href = '/';
@@ -527,7 +496,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             key="call-video"
             type="button"
             onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend`;
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}`;
             }}
             aria-label="Start video call"
             className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
@@ -539,7 +508,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             key="call-audio"
             type="button"
             onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend&audioOnly=true`;
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}&audioOnly=true`;
             }}
             aria-label="Start audio call"
             className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
@@ -774,13 +743,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       description={msg.linkPreview.description}
                       imageUrl={msg.linkPreview.imageUrl}
                     />
-                  </div>
-                )}
-
-                {/* Delivery status */}
-                {msg.sender === 'self' && (
-                  <div className="flex justify-end mt-0.5 pr-1">
-                    <DeliveryIndicator status={msg.status} />
                   </div>
                 )}
 

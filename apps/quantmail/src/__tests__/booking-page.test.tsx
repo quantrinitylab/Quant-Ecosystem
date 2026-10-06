@@ -192,7 +192,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
 
       expect(html).toContain('Booking Links');
       expect(html).toContain('Share Booking Links');
-      expect(html).toContain('+ New Entry');
+      expect(html).toContain('New Event');
     });
 
     it('omits Booking Links button when onOpenBookingLinks is not provided', () => {
@@ -207,7 +207,7 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       );
 
       expect(html).not.toContain('Share Booking Links');
-      expect(html).toContain('+ New Entry');
+      expect(html).toContain('New Event');
     });
   });
 });
