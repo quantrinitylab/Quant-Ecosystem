@@ -27,6 +27,23 @@ const ProfilePage: React.FC = () => {
   }
 
   if (error) {
+    // An honest 404: the profile genuinely doesn't exist. Show an empty state,
+    // not a retry button that can never succeed. Other errors keep the retry.
+    const code = (error as { code?: string } | null)?.code;
+    if (code === 'PROFILE_NOT_FOUND' || code === 'NOT_FOUND') {
+      return (
+        <PageTransition>
+          <div className="min-h-screen bg-white dark:bg-[#000000] flex items-center justify-center">
+            <EmptyState
+              title="Profile not found"
+              description={`The account "${id}" doesn't exist or was removed. Check the link and try again.`}
+              actionLabel="Back to explore"
+              onAction={() => router.push('/explore')}
+            />
+          </div>
+        </PageTransition>
+      );
+    }
     return (
       <PageTransition>
         <div className="min-h-screen bg-white dark:bg-[#000000] flex items-center justify-center">

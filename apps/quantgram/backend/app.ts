@@ -52,6 +52,12 @@ export function getConfig(): AppConfig {
       { path: '/api/reels/feed', methods: ['GET'], exact: true },
       { path: '/reels/:id', methods: ['GET'], exact: true },
       { path: '/api/reels/:id', methods: ['GET'], exact: true },
+      // Public profile pages are intentionally viewable without login (the
+      // frontend AuthGuard allows `/profile/*` for guests). Guests only ever
+      // see the public profile shape — the route still passes viewerId '' and
+      // `getUserId()` inside mutation routes still 401s without a token.
+      { path: '/profiles/:id', methods: ['GET'], exact: true },
+      { path: '/api/profiles/:id', methods: ['GET'], exact: true },
     ],
     env,
   };
