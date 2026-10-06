@@ -150,62 +150,49 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
       expect(html).toContain('data-testid="secret-search-input"');
     });
 
-    it('displays secret alerts across AWS, GitHub, GitLab, OpenAI, RSA, and Database credentials', () => {
+    it('shows honest empty state instead of fabricated secret alerts', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={[]}
           showToast={MOCK_TOAST}
           initialSubTab="secrets"
         />,
       );
 
-      // Secret Types
-      expect(html).toContain('AWS Access Key');
-      expect(html).toContain('GitHub Personal Access Token');
-      expect(html).toContain('GitLab Personal Access Token');
-      expect(html).toContain('OpenAI API Key');
-      expect(html).toContain('RSA Private Key');
-      expect(html).toContain('Database Connection String');
-
-      // Masked tokens
-      expect(html).toContain('AKIA************');
-      expect(html).toContain('ghp_************');
-      expect(html).toContain('glpat-************');
-      expect(html).toContain('sk-************');
-      expect(html).toContain('-----BEGIN RSA PRIVATE KEY-----************');
-      expect(html).toContain('postgres://quant_admin:************@db.quant.local:5432/quantmail');
+      expect(html).toContain('data-testid="secret-scanning-view"');
+      // Must NOT contain fabricated secret alerts
+      expect(html).not.toContain('AWS Access Key');
+      expect(html).not.toContain('AKIA************');
+      expect(html).not.toContain('ghp_************');
     });
 
-    it('displays exact file paths and line numbers for secret locations', () => {
+    it('does not fabricate file paths for secret locations', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={[]}
           showToast={MOCK_TOAST}
           initialSubTab="secrets"
         />,
       );
 
-      expect(html).toContain('config/aws-credentials.env:14');
-      expect(html).toContain('scripts/deploy-staging.sh:28');
-      expect(html).toContain('.gitlab-ci.yml:45');
-      expect(html).toContain('backend/services/ai.ts:9');
-      expect(html).toContain('certs/server.key:1');
-      expect(html).toContain('prisma/.env:2');
+      expect(html).not.toContain('config/aws-credentials.env:14');
+      expect(html).not.toContain('scripts/deploy-staging.sh:28');
+      expect(html).toContain('data-testid="secret-scanning-view"');
     });
 
-    it('renders status badges (active, revoked) and action buttons (Revoke token, Mark false positive)', () => {
+    it('shows empty secret list without fabricated status badges', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={[]}
           showToast={MOCK_TOAST}
           initialSubTab="secrets"
         />,
       );
 
-      expect(html).toContain('active');
-      expect(html).toContain('revoked');
-      expect(html).toContain('Revoke token');
-      expect(html).toContain('Mark false positive');
+      expect(html).toContain('data-testid="secret-scanning-view"');
+      // No fabricated alerts means no fabricated action buttons
+      expect(html).not.toContain('Revoke token');
+      expect(html).not.toContain('Mark false positive');
     });
   });
 
@@ -226,48 +213,36 @@ describe('QuantGit Security Parity Suite (Screens 33, 108–110, Dependabot & Se
       expect(html).toContain('data-testid="codeql-search-input"');
     });
 
-    it('displays static analysis alerts: SQL Injection, XSS, Path Traversal, Insecure Randomness, and Missing Auth Guard', () => {
+    it('shows honest empty state instead of fabricated CodeQL alerts', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={[]}
           showToast={MOCK_TOAST}
           initialSubTab="codeql"
         />,
       );
 
-      expect(html).toContain('SQL Injection');
-      expect(html).toContain('Cross-Site Scripting (XSS)');
-      expect(html).toContain('Path Traversal');
-      expect(html).toContain('Insecure Randomness');
-      expect(html).toContain('Missing Auth Guard');
-
-      // Rule IDs
-      expect(html).toContain('js/sql-injection');
-      expect(html).toContain('js/xss');
-      expect(html).toContain('js/path-traversal');
-      expect(html).toContain('js/insecure-randomness');
-      expect(html).toContain('js/missing-auth-guard');
+      expect(html).toContain('data-testid="codeql-sast-view"');
+      // Honest empty state: 0 vulnerabilities reported
+      expect(html).toContain('0 Static Security Vulnerabilities');
+      // Must NOT contain fabricated alert rule IDs or alert rows
+      expect(html).not.toContain('js/sql-injection');
+      expect(html).not.toContain('js/missing-auth-guard');
+      expect(html).not.toContain('Recommended Code Fix Diff');
     });
 
-    it('displays file paths, line ranges, and recommended code fix diffs with red/green lines', () => {
+    it('does not fabricate file paths or fix diffs for CodeQL', () => {
       const html = renderToStaticMarkup(
         <SecurityTab
-          securityAlerts={INITIAL_SECURITY_ALERTS}
+          securityAlerts={[]}
           showToast={MOCK_TOAST}
           initialSubTab="codeql"
         />,
       );
 
-      expect(html).toContain('apps/quantmail/backend/routes/repos.ts:42-48');
-      expect(html).toContain('apps/quantmail/src/components/MarkdownPreview.tsx:115-118');
-      expect(html).toContain('backend/services/storage.ts:88-92');
-      expect(html).toContain('packages/auth/src/tokens.ts:25-27');
-      expect(html).toContain('apps/quantmail/backend/routes/admin.ts:30-38');
-
-      // Recommended code fix diff container
-      expect(html).toContain('Recommended Code Fix Diff');
-      expect(html).toContain('Automated Patch Ready');
-      expect(html).toContain('Apply recommended fix');
+      expect(html).not.toContain('apps/quantmail/backend/routes/repos.ts:42-48');
+      expect(html).not.toContain('Recommended Code Fix Diff');
+      expect(html).toContain('data-testid="codeql-sast-view"');
     });
   });
 

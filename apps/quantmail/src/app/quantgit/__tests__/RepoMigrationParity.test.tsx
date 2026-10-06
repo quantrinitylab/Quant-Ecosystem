@@ -241,17 +241,14 @@ env:
       expect(html).toContain('Cancel');
     });
 
-    it('defines all 5 migration steps correctly in MIGRATION_STEPS', () => {
-      expect(MIGRATION_STEPS).toHaveLength(5);
-      expect(MIGRATION_STEPS[0].title).toBe(
-        'Connecting to remote provider & verifying credentials',
-      );
-      expect(MIGRATION_STEPS[1].title).toBe('Ingesting Git commit trees, branches, and tags');
-      expect(MIGRATION_STEPS[2].title).toBe('Converting CI/CD pipelines to QuantGit Actions');
-      expect(MIGRATION_STEPS[3].title).toBe(
-        'Registering environment variables & security policies',
-      );
-      expect(MIGRATION_STEPS[4].title).toBe('Migration Complete!');
+    it('defines honest migration steps in MIGRATION_STEPS (no theatrical fake steps)', () => {
+      expect(MIGRATION_STEPS).toHaveLength(2);
+      expect(MIGRATION_STEPS[0].title).toBe('Importing repository…');
+      expect(MIGRATION_STEPS[1].title).toBe('Import complete!');
+      // Must NOT contain theatrical fake steps
+      const titles = MIGRATION_STEPS.map((s) => s.title).join(' ');
+      expect(titles).not.toContain('verifying credentials');
+      expect(titles).not.toContain('Ingesting Git commit trees');
     });
 
     it('returns empty string when isOpen is false', () => {

@@ -48,19 +48,6 @@ import type {
   BranchItem,
 } from './types';
 
-import {
-  INITIAL_REPOS,
-  MOCK_FILES,
-  INITIAL_ISSUES,
-  INITIAL_PRS,
-  INITIAL_DISCUSSIONS,
-  INITIAL_ACTIONS,
-  INITIAL_PROJECT_CARDS,
-  INITIAL_SECURITY_ALERTS,
-  AGENT_FLEET_CATALOG,
-  INITIAL_COMMITS,
-  INITIAL_BRANCHES,
-} from './constants';
 
 import { QuantGitHeader } from './components/QuantGitHeader';
 import { AppShell } from '../../components/AppShell';
@@ -224,7 +211,7 @@ function QuantGitContent() {
   });
 
   // Data Collections
-  const [baseRepos, setBaseRepos] = useState<Repo[]>(INITIAL_REPOS);
+  const [baseRepos, setBaseRepos] = useState<Repo[]>([]);
   const repos = useMemo(() => {
     return baseRepos.map((r) => ({
       ...r,
@@ -233,14 +220,14 @@ function QuantGitContent() {
       sshUrl: `git@quantmail.in:${currentUsername}/${r.name}.git`,
     }));
   }, [baseRepos, currentUsername]);
-  const [files, setFiles] = useState<FileNode[]>(MOCK_FILES);
-  const [issues, setIssues] = useState<IssueItem[]>(INITIAL_ISSUES);
-  const [pulls, setPulls] = useState<PRItem[]>(INITIAL_PRS);
-  const [discussions, setDiscussions] = useState<DiscussionItem[]>(INITIAL_DISCUSSIONS);
-  const [actions, setActions] = useState<WorkflowRunItem[]>(INITIAL_ACTIONS);
-  const [projects, setProjects] = useState<ProjectCard[]>(INITIAL_PROJECT_CARDS);
-  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>(INITIAL_SECURITY_ALERTS);
-  const [agents, setAgents] = useState<DeployedAgent[]>(AGENT_FLEET_CATALOG);
+  const [files, setFiles] = useState<FileNode[]>([]);
+  const [issues, setIssues] = useState<IssueItem[]>([]);
+  const [pulls, setPulls] = useState<PRItem[]>([]);
+  const [discussions, setDiscussions] = useState<DiscussionItem[]>([]);
+  const [actions, setActions] = useState<WorkflowRunItem[]>([]);
+  const [projects, setProjects] = useState<ProjectCard[]>([]);
+  const [securityAlerts, setSecurityAlerts] = useState<SecurityAlert[]>([]);
+  const [agents, setAgents] = useState<DeployedAgent[]>([]);
 
   // Modals & Drawers
   const [modalState, setModalState] = useState<ModalState>('none');
@@ -253,14 +240,9 @@ function QuantGitContent() {
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
-  const [repoBranches, setRepoBranches] = useState<string[]>([
-    'main',
-    'feat/sprint-7-github-parity',
-    'fix/core-astra-audit',
-    'release/v1.0.0-apk',
-  ]);
-  const [commits, setCommits] = useState<CommitItem[]>(INITIAL_COMMITS);
-  const [detailedBranches, setDetailedBranches] = useState<BranchItem[]>(INITIAL_BRANCHES);
+  const [repoBranches, setRepoBranches] = useState<string[]>([]);
+  const [commits, setCommits] = useState<CommitItem[]>([]);
+  const [detailedBranches, setDetailedBranches] = useState<BranchItem[]>([]);
   const [newBranchInput, setNewBranchInput] = useState('');
   const [settingsName, setSettingsName] = useState('');
   const [settingsDesc, setSettingsDesc] = useState('');
@@ -584,13 +566,14 @@ function QuantGitContent() {
           }));
           setBaseRepos(mappedRepos);
         } else {
-          setBaseRepos(INITIAL_REPOS);
+          // Genuine empty state — no fake repos. UI shows "No repositories yet".
+          setBaseRepos([]);
         }
       } else {
-        setBaseRepos(INITIAL_REPOS);
+        setBaseRepos([]);
       }
     } catch {
-      setBaseRepos(INITIAL_REPOS);
+      setBaseRepos([]);
     }
   }, [currentUsername, apiFetch]);
 
@@ -889,30 +872,33 @@ function QuantGitContent() {
       });
       const json = await res.json().catch(() => null);
       if (res.ok && json?.success) {
+        // Only update local state on real API success — never lie.
+        setRepoBranches((prev) => (prev.includes(name) ? prev : [...prev, name]));
+        setDetailedBranches((prev) => {
+          if (prev.some((b) => b.name === name)) return prev;
+          return [
+            ...prev,
+            {
+              name,
+              sha: json?.data?.sha || 'pending',
+              isDefault: false,
+              isProtected: false,
+              protection: 'none',
+              aheadBy: 0,
+              behindBy: 0,
+              lastCommitAuthor: currentUsername,
+              lastCommitMessage: `Branch created from ${source}`,
+              lastCommitTime: 'just now',
+            },
+          ];
+        });
         showToast(`Branch "${name}" created in repository!`);
+      } else {
+        showToast(json?.error?.message || `Failed to create branch "${name}"`);
       }
     } catch {
-      // Soft ignore
+      showToast(`Failed to create branch "${name}" — network error`);
     }
-    setRepoBranches((prev) => (prev.includes(name) ? prev : [...prev, name]));
-    setDetailedBranches((prev) => {
-      if (prev.some((b) => b.name === name)) return prev;
-      return [
-        ...prev,
-        {
-          name,
-          sha: '948e3612',
-          isDefault: false,
-          isProtected: false,
-          protection: 'none',
-          aheadBy: 0,
-          behindBy: 0,
-          lastCommitAuthor: currentUsername,
-          lastCommitMessage: `Branch created from ${source}`,
-          lastCommitTime: 'just now',
-        },
-      ];
-    });
   };
 
   const handleDeleteBranch = async (name: string) => {
@@ -923,16 +909,22 @@ function QuantGitContent() {
     }
     const repoTarget = selectedRepo.id || selectedRepo.name;
     try {
-      await apiFetch(
+      const res = await apiFetch(
         `/api/repos/${encodeURIComponent(repoTarget)}/branches/${encodeURIComponent(name)}`,
         { method: 'DELETE' },
       );
+      const json = await res.json().catch(() => null);
+      if (res.ok && (json?.success !== false)) {
+        // Only update local state on real API success — never lie.
+        setRepoBranches((prev) => prev.filter((b) => b !== name));
+        setDetailedBranches((prev) => prev.filter((b) => b.name !== name));
+        showToast(`Deleted branch "${name}"`);
+      } else {
+        showToast(json?.error?.message || `Failed to delete branch "${name}"`);
+      }
     } catch {
-      // Soft ignore
+      showToast(`Failed to delete branch "${name}" — network error`);
     }
-    setRepoBranches((prev) => prev.filter((b) => b !== name));
-    setDetailedBranches((prev) => prev.filter((b) => b.name !== name));
-    showToast(`Deleted branch "${name}"`);
   };
 
   const fetchRepoActions = useCallback(
@@ -1119,23 +1111,8 @@ function QuantGitContent() {
       // Fallback
     }
 
-    const nextId = Math.max(...issues.map((i) => i.id), 260) + 1;
-    const created: IssueItem = {
-      id: nextId,
-      title,
-      body,
-      state: 'open',
-      author: currentUsername,
-      labels: [{ name: label, color: label === 'bug' ? '#D73A4A' : '#1D76DB' }],
-      commentsCount: 0,
-      createdAt: 'just now',
-      assignee: 'Developer 6',
-    };
-    setIssues((prev) => [created, ...prev]);
-    setNewIssueTitle('');
-    setNewIssueBody('');
-    setModalState('none');
-    showToast(`Issue #${nextId} created successfully!`);
+    // No fake fallback — never create phantom issues or lie about success.
+    showToast('Failed to create issue. Please try again.');
   };
 
   const handleToggleIssue = async (issueNumber: number) => {
@@ -1144,17 +1121,26 @@ function QuantGitContent() {
     const target = issues.find((i) => i.id === issueNumber);
     if (!target) return;
     const nextState = target.state === 'open' ? 'closed' : 'open';
-    setIssues((prev) => prev.map((i) => (i.id === issueNumber ? { ...i, state: nextState } : i)));
-    if (selectedIssue && selectedIssue.id === issueNumber) {
-      setSelectedIssue((curr) => (curr ? { ...curr, state: nextState } : null));
-    }
-    showToast(`Issue #${issueNumber} marked as ${nextState}!`);
     try {
-      await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`, {
-        method: 'POST',
-      });
+      const res = await apiFetch(
+        `/api/repos/${encodeURIComponent(repoTarget)}/issues/${issueNumber}/toggle`,
+        { method: 'POST' },
+      );
+      const json = await res.json().catch(() => null);
+      if (res.ok && (json?.success !== false)) {
+        // Only update local state on real API success — never lie.
+        setIssues((prev) =>
+          prev.map((i) => (i.id === issueNumber ? { ...i, state: nextState } : i)),
+        );
+        if (selectedIssue && selectedIssue.id === issueNumber) {
+          setSelectedIssue((curr) => (curr ? { ...curr, state: nextState } : null));
+        }
+        showToast(`Issue #${issueNumber} marked as ${nextState}!`);
+      } else {
+        showToast(json?.error?.message || `Failed to update issue #${issueNumber}`);
+      }
     } catch {
-      // Soft ignore
+      showToast(`Failed to update issue #${issueNumber} — network error`);
     }
   };
 
@@ -1249,27 +1235,8 @@ function QuantGitContent() {
       // Fallback
     }
 
-    const nextId = Math.max(...pulls.map((p) => p.id), 261) + 1;
-    const created: PRItem = {
-      id: nextId,
-      title,
-      body,
-      state: 'open',
-      author: currentUsername,
-      branchSource,
-      branchTarget: currentBranch,
-      checksStatus: 'passing',
-      commentsCount: 0,
-      createdAt: 'just now',
-      additions: 128,
-      deletions: 14,
-      changedFiles: 5,
-    };
-    setPulls((prev) => [created, ...prev]);
-    setNewPrTitle('');
-    setNewPrBody('');
-    setModalState('none');
-    showToast(`Pull Request #${nextId} opened successfully!`);
+    // No fake fallback — never create phantom PRs or lie about success.
+    showToast('Failed to open pull request. Please try again.');
   };
 
   const handleStartPullRequest = useCallback(
@@ -1325,25 +1292,14 @@ function QuantGitContent() {
             changedFiles: item.changedFiles || 1,
           };
         } else {
-          throw new Error('Local fallback');
+          throw new Error('Failed to create pull request on server');
         }
-      } catch {
-        const nextId = Math.max(...pulls.map((p) => p.id), 261) + 1;
-        createdPr = {
-          id: nextId,
-          title,
-          body,
-          state: 'open',
-          author: currentUsername,
-          branchSource: params.sourceBranch,
-          branchTarget: targetBranch,
-          checksStatus: 'passing',
-          commentsCount: 0,
-          createdAt: 'just now',
-          additions: 12,
-          deletions: 2,
-          changedFiles: 1,
-        };
+      } catch (err) {
+        // No fake fallback — never create phantom PRs or lie about success.
+        showToast(
+          err instanceof Error ? err.message : 'Failed to create pull request. Please try again.',
+        );
+        throw err;
       }
 
       setPulls((prev) => [createdPr, ...prev]);
@@ -1410,68 +1366,36 @@ function QuantGitContent() {
       // Fallback
     }
 
-    const newRepo: Repo = {
-      id: name.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-      name,
-      fullName: slug,
-      description: desc,
-      visibility,
-      language: 'TypeScript',
-      stars: 1,
-      forks: 0,
-      watching: 1,
-      cloneUrl: `https://quantmail.in/quantgit/${slug}.git`,
-      sshUrl: `git@quantmail.in:${slug}.git`,
-      defaultBranch: 'main',
-      latestCommit: 'Initial repository setup with README.md',
-      latestCommitSha: '1a2b3c4d',
-      latestCommitTime: 'just now',
-      checksStatus: 'passing',
-      license: 'MIT License',
-      website: 'https://quantmail.in',
-      topics: ['quant', 'workspace'],
-    };
-    setBaseRepos((prev) => [newRepo, ...prev]);
-    setSelectedRepo(newRepo);
-    setNewRepoName('');
-    setNewRepoDesc('');
-    setModalState('none');
-    showToast(`Repository ${slug} created!`);
+    // No fake fallback — never create phantom repos or lie about success.
+    showToast('Failed to create repository. Please try again.');
   };
 
   const handleStarRepo = async () => {
     if (!selectedRepo) return;
     const repoTarget = selectedRepo.id || selectedRepo.name;
-    const updatedStars = selectedRepo.stars + 1;
-    setSelectedRepo({ ...selectedRepo, stars: updatedStars });
-    setBaseRepos((prev) =>
-      prev.map((r) =>
-        r.id === selectedRepo.id || r.name === selectedRepo.name
-          ? { ...r, stars: updatedStars }
-          : r,
-      ),
-    );
-    showToast('Starred repository!');
-
     try {
       const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}/star`, {
         method: 'POST',
       });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data?.stars) {
-          setSelectedRepo((curr) => (curr ? { ...curr, stars: json.data.stars } : null));
-          setBaseRepos((prev) =>
-            prev.map((r) =>
-              r.id === selectedRepo.id || r.name === selectedRepo.name
-                ? { ...r, stars: json.data.stars }
-                : r,
-            ),
-          );
-        }
+      const json = await res.json().catch(() => null);
+      if (res.ok && json?.success) {
+        // Only update local state on real API success — never lie.
+        const serverStars =
+          typeof json?.data?.stars === 'number' ? json.data.stars : selectedRepo.stars + 1;
+        setSelectedRepo((curr) => (curr ? { ...curr, stars: serverStars } : null));
+        setBaseRepos((prev) =>
+          prev.map((r) =>
+            r.id === selectedRepo.id || r.name === selectedRepo.name
+              ? { ...r, stars: serverStars }
+              : r,
+          ),
+        );
+        showToast('Starred repository!');
+      } else {
+        showToast(json?.error?.message || 'Failed to star repository');
       }
     } catch {
-      // Keep optimistic increment
+      showToast('Failed to star repository — network error');
     }
   };
 
@@ -1483,18 +1407,22 @@ function QuantGitContent() {
       const res = await apiFetch(`/api/repos/${encodeURIComponent(repoTarget)}`, {
         method: 'DELETE',
       });
-      if (res.ok) {
+      const json = await res.json().catch(() => null);
+      if (res.ok && (json?.success !== false)) {
+        // Only clear local state on real API success — never lie.
+        setBaseRepos((prev) =>
+          prev.filter((r) => r.id !== selectedRepo.id && r.name !== selectedRepo.name),
+        );
+        setSelectedRepo(null);
+        setViewingFile(null);
+        setActiveGitHubTab('code');
         showToast(`Repository ${repoName} archived and deleted.`);
+      } else {
+        showToast(json?.error?.message || `Failed to delete repository ${repoName}`);
       }
     } catch {
-      // Soft ignore
+      showToast(`Failed to delete repository ${repoName} — network error`);
     }
-    setBaseRepos((prev) =>
-      prev.filter((r) => r.id !== selectedRepo.id && r.name !== selectedRepo.name),
-    );
-    setSelectedRepo(null);
-    setViewingFile(null);
-    setActiveGitHubTab('code');
   };
 
   const handleSaveSettings = async () => {
@@ -1647,11 +1575,12 @@ function QuantGitContent() {
       steps: ['Loaded sovereign context', 'Mounted workspace volume'],
       thoughts: 'Ready to execute zero-mock tasks.',
     };
+    // Local-only workspace agent — no backend exists yet. Honest labeling.
     setAgents([...agents, newAg]);
     setNewAgentName('');
     setNewAgentRole('');
     setModalState('none');
-    showToast(`Agent ${newAg.name} deployed to pod ${newAg.pod}!`);
+    showToast(`Agent ${newAg.name} added locally (no backend deployment yet)`);
   };
 
   const handleMoveKanban = (cardId: string, toColumn: 'todo' | 'in_progress' | 'done') => {
@@ -2164,8 +2093,32 @@ function QuantGitContent() {
                 showToast(`Opened repository: ${repoName}`);
               }
             }}
-            onMergePR={(prId) => {
-              showToast(`1-Click 3-Way Merge completed for ${prId}`);
+            onMergePR={async (prId) => {
+              // Real merge via backend — never lie about success.
+              const repoTarget = selectedRepo?.id || selectedRepo?.name;
+              if (!repoTarget) {
+                showToast('Select a repository first to merge');
+                return;
+              }
+              try {
+                const res = await apiFetch(
+                  `/api/repos/${encodeURIComponent(repoTarget)}/pulls/${encodeURIComponent(prId)}/merge`,
+                  { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+                );
+                const json = await res.json().catch(() => null);
+                if (res.ok && (json?.success !== false)) {
+                  setPulls((prev) =>
+                    prev.map((p) =>
+                      String(p.id) === String(prId) ? { ...p, state: 'merged' as const } : p,
+                    ),
+                  );
+                  showToast(`Pull request #${prId} merged successfully!`);
+                } else {
+                  showToast(json?.error?.message || `Could not merge pull request #${prId}`);
+                }
+              } catch {
+                showToast(`Could not merge pull request #${prId} — network error`);
+              }
             }}
             onOpenPR={(prId) => {
               showToast(`Opened PR details: ${prId}`);

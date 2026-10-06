@@ -124,7 +124,7 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).toContain('New pull request');
     });
 
-    it('renders PR details view with interactive Diff Viewer showing additions and deletions', () => {
+    it('renders PR details view with honest diff state (no fabricated diff content)', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -143,17 +143,15 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).toContain('-5');
       expect(html).toContain('data-testid="diff-viewer"');
       expect(html).toContain('Files changed (2)');
-      expect(html).toContain('apps/quantmail/src/app/quantgit/telemetry.ts');
-      expect(html).toContain('apps/quantmail/src/app/quantgit/components/SpeechSynthesizer.tsx');
-
-      // Verify additions (green) and deletions (red)
-      expect(html).toContain('+export const TELEMETRY_SAMPLE_RATE = 1.0;');
-      expect(html).toContain('+export function recordSpeechMetric(event: SpeechEvent): void;');
-      expect(html).toContain('-const legacyRecordingEnabled = false;');
-      expect(html).toContain('-function sendLegacyTelemetry(): void {}');
+      // Honest state: no fabricated diff file contents, shows unavailable notice
+      expect(html).toContain('data-testid="diff-unavailable"');
+      expect(html).toContain('Diff preview is not available for this pull request yet.');
+      // Must NOT contain fabricated diff content
+      expect(html).not.toContain('apps/quantmail/src/app/quantgit/telemetry.ts');
+      expect(html).not.toContain('+export const TELEMETRY_SAMPLE_RATE = 1.0;');
     });
 
-    it('renders hunk headers, line numbers, and unified vs split view modes', () => {
+    it('renders diff viewer shell with unified vs split view modes (honest, no fake hunks)', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -165,14 +163,16 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
         />,
       );
 
-      expect(html).toContain('@@ -14,8 +14,21 @@ export interface SpeechTelemetryConfig');
+      // No fabricated hunk headers
+      expect(html).not.toContain('@@ -14,8 +14,21 @@');
       expect(html).toContain('data-testid="diff-mode-unified"');
       expect(html).toContain('data-testid="diff-mode-split"');
       expect(html).toContain('Unified');
       expect(html).toContain('Split');
+      expect(html).toContain('data-testid="diff-unavailable"');
     });
 
-    it('renders inline review comments and "+ Add comment" hover triggers on diff lines', () => {
+    it('does not render fabricated inline review comments on fake diff lines', () => {
       const html = renderToStaticMarkup(
         <PullRequestsTab
           pullSearchQuery=""
@@ -184,14 +184,10 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
         />,
       );
 
-      // Verify line comment buttons and existing comment by edward0127
-      expect(html).toContain('Add comment');
-      expect(html).toContain('data-testid="add-comment-btn-diff-1-l6"');
-      expect(html).toContain('data-testid="diff-comment-c-1"');
-      expect(html).toContain('edward0127');
-      expect(html).toContain(
-        'Make sure speech metric telemetry handles zero-latency web socket disconnects.',
-      );
+      // No fabricated diff lines means no fabricated inline comments
+      expect(html).not.toContain('data-testid="add-comment-btn-diff-1-l6"');
+      expect(html).not.toContain('data-testid="diff-comment-c-1"');
+      expect(html).toContain('data-testid="diff-unavailable"');
     });
 
     it('enforces Author Restriction in Review Decision Box (author cannot approve own PR)', () => {

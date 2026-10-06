@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Repo, BranchItem } from '../types';
-import { INITIAL_BRANCHES } from '../constants';
 
 export interface BranchesTabProps {
   repo: Repo;
@@ -28,8 +27,9 @@ export function BranchesTab({
   currentUsername = '',
 }: BranchesTabProps) {
   const defaultBranch = propDefaultBranch || repo.defaultBranch || 'main';
+  // Genuine empty state — only real branches from the backend, never fabricated ones.
   const [branchList, setBranchList] = useState<BranchItem[]>(
-    initialBranches && initialBranches.length > 0 ? initialBranches : INITIAL_BRANCHES,
+    initialBranches && initialBranches.length > 0 ? initialBranches : [],
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [isNewBranchModalOpen, setIsNewBranchModalOpen] = useState(false);

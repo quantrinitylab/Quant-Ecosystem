@@ -39,117 +39,7 @@ export interface PullRequestsTabProps {
   initialIsMergeConfirmOpen?: boolean;
 }
 
-const DEFAULT_DIFF_FILES: PRDiffFile[] = [
-  {
-    filename: 'apps/quantmail/src/app/quantgit/telemetry.ts',
-    status: 'modified',
-    additions: 18,
-    deletions: 3,
-    hunks: [
-      {
-        header: '@@ -14,8 +14,21 @@ export interface SpeechTelemetryConfig',
-        lines: [
-          {
-            id: 'diff-1-l1',
-            type: 'context',
-            oldLineNumber: 14,
-            newLineNumber: 14,
-            content: "import { SpeechEvent } from '../types';",
-          },
-          {
-            id: 'diff-1-l2',
-            type: 'context',
-            oldLineNumber: 15,
-            newLineNumber: 15,
-            content: "export const defaultVoiceId = 'nova';",
-          },
-          {
-            id: 'diff-1-l3',
-            type: 'deletion',
-            oldLineNumber: 16,
-            content: '-const legacyRecordingEnabled = false;',
-          },
-          {
-            id: 'diff-1-l4',
-            type: 'deletion',
-            oldLineNumber: 17,
-            content: '-function sendLegacyTelemetry(): void {}',
-          },
-          {
-            id: 'diff-1-l5',
-            type: 'addition',
-            newLineNumber: 16,
-            content: '+export const TELEMETRY_SAMPLE_RATE = 1.0;',
-          },
-          {
-            id: 'diff-1-l6',
-            type: 'addition',
-            newLineNumber: 17,
-            content: '+export function recordSpeechMetric(event: SpeechEvent): void;',
-          },
-          {
-            id: 'diff-1-l7',
-            type: 'addition',
-            newLineNumber: 18,
-            content: '+export function flushTelemetryQueue(): Promise<void>;',
-          },
-          {
-            id: 'diff-1-l8',
-            type: 'context',
-            oldLineNumber: 18,
-            newLineNumber: 19,
-            content: 'export const MAX_RETRY_COUNT = 3;',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    filename: 'apps/quantmail/src/app/quantgit/components/SpeechSynthesizer.tsx',
-    status: 'modified',
-    additions: 6,
-    deletions: 2,
-    hunks: [
-      {
-        header: '@@ -42,6 +42,10 @@ export function SpeechSynthesizer()',
-        lines: [
-          {
-            id: 'diff-2-l1',
-            type: 'context',
-            oldLineNumber: 42,
-            newLineNumber: 42,
-            content: '  const [isPlaying, setIsPlaying] = useState(false);',
-          },
-          {
-            id: 'diff-2-l2',
-            type: 'deletion',
-            oldLineNumber: 43,
-            content: "-  import { oldAudioRecorder } from '../legacy';",
-          },
-          {
-            id: 'diff-2-l3',
-            type: 'addition',
-            newLineNumber: 43,
-            content: "+  import { recordSpeechMetric } from '../telemetry';",
-          },
-          {
-            id: 'diff-2-l4',
-            type: 'addition',
-            newLineNumber: 44,
-            content: '  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });',
-          },
-          {
-            id: 'diff-2-l5',
-            type: 'context',
-            oldLineNumber: 44,
-            newLineNumber: 45,
-            content: '  return <div className="synth-panel">;',
-          },
-        ],
-      },
-    ],
-  },
-];
+
 
 export function PullRequestsTab({
   pullSearchQuery,
@@ -821,7 +711,7 @@ export function PullRequestsTab({
           <div className="space-y-4" data-testid="diff-viewer">
             <div className="flex items-center justify-between">
               <span className="font-semibold text-xs text-[#E6EDF3]">
-                Files changed ({DEFAULT_DIFF_FILES.length})
+                Files changed ({selectedPR?.changedFiles ?? 0})
               </span>
 
               <div className="flex items-center gap-1 bg-[#161B22] p-0.5 rounded border border-[#30363D]">
@@ -848,148 +738,26 @@ export function PullRequestsTab({
               </div>
             </div>
 
-            {DEFAULT_DIFF_FILES.map((file) => (
+            {(selectedPR?.changedFiles ?? 0) > 0 ? (
               <div
-                key={file.filename}
-                data-testid={`diff-file-${file.filename.replace(/[/.]/g, '-')}`}
-                className="rounded-xl bg-[#0D1117] border border-[#30363D] overflow-hidden"
+                data-testid="diff-unavailable"
+                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
               >
-                {/* File Header */}
-                <div className="px-4 py-2.5 bg-[#161B22] border-b border-[#30363D] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-[#E6EDF3] font-mono">
-                      {file.filename}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] uppercase font-mono">
-                      {file.status}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 text-[11px] font-mono">
-                    <span className="text-emerald-400 font-bold">+{file.additions}</span>
-                    <span className="text-red-400 font-bold">-{file.deletions}</span>
-                  </div>
-                </div>
-
-                {/* Hunk Lines */}
-                <div className="font-mono text-[11px] divide-y divide-[#21262D]/40">
-                  {file.hunks.map((hunk, hIdx) => (
-                    <div key={hIdx} className="space-y-0.5">
-                      <div className="px-4 py-1 bg-[#161B22]/60 text-[#8D96A0] text-[10px]">
-                        {hunk.header}
-                      </div>
-
-                      {hunk.lines.map((line) => {
-                        const commentsOnLine = diffComments[line.id] || [];
-                        const isAddingComment = activeCommentLineId === line.id;
-                        const isAdd = line.type === 'addition';
-                        const isDel = line.type === 'deletion';
-
-                        return (
-                          <div key={line.id} className="group relative">
-                            {/* Diff Line Row */}
-                            <div
-                              data-testid={`diff-line-${line.id}`}
-                              className={`flex items-start px-3 py-0.5 transition-colors ${
-                                isAdd
-                                  ? 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15'
-                                  : isDel
-                                    ? 'bg-red-500/10 text-red-300 hover:bg-red-500/15'
-                                    : 'text-[#C9D1D9] hover:bg-[#161B22]'
-                              }`}
-                            >
-                              {/* Line numbers */}
-                              <div className="w-12 select-none text-right pr-3 text-[#7D8590] shrink-0 text-[10px]">
-                                {line.oldLineNumber ?? ''}
-                              </div>
-                              <div className="w-12 select-none text-right pr-3 text-[#7D8590] shrink-0 text-[10px]">
-                                {line.newLineNumber ?? ''}
-                              </div>
-
-                              {/* Diff content */}
-                              <div className="flex-1 whitespace-pre overflow-x-auto flex items-center justify-between">
-                                <span>{line.content}</span>
-
-                                {/* "+ Add comment" hover button */}
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setActiveCommentLineId(isAddingComment ? null : line.id)
-                                  }
-                                  data-testid={`add-comment-btn-${line.id}`}
-                                  className="opacity-0 group-hover:opacity-100 px-1.5 py-0.5 bg-[#21262D] hover:bg-[#30363D] border border-[#30363D] rounded text-[10px] text-[#58A6FF] flex items-center gap-1 transition-opacity cursor-pointer ml-2 shrink-0"
-                                >
-                                  <span>+</span>
-                                  <span>Add comment</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Existing Inline Comments on this line */}
-                            {commentsOnLine.length > 0 && (
-                              <div className="p-3 bg-[#161B22] border-t border-b border-[#30363D] space-y-2 ml-24 mr-4 my-1 rounded-lg">
-                                {commentsOnLine.map((c) => (
-                                  <div
-                                    key={c.id}
-                                    data-testid={`diff-comment-${c.id}`}
-                                    className="space-y-1 text-xs"
-                                  >
-                                    <div className="flex items-center justify-between text-[11px]">
-                                      <span className="font-bold text-[#58A6FF]">{c.author}</span>
-                                      <span className="text-[#8D96A0]">{c.createdAt}</span>
-                                    </div>
-                                    <p className="text-[#E6EDF3] whitespace-pre-wrap">{c.body}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Expandable Inline Comment Textarea */}
-                            {isAddingComment && (
-                              <div
-                                data-testid={`inline-comment-box-${line.id}`}
-                                className="p-3 bg-[#161B22] border border-[#30363D] rounded-lg ml-24 mr-4 my-2 space-y-2 animate-in fade-in"
-                              >
-                                <textarea
-                                  value={lineCommentText}
-                                  onChange={(e) => setLineCommentText(e.target.value)}
-                                  placeholder="Leave a comment on this line..."
-                                  data-testid={`comment-textarea-${line.id}`}
-                                  rows={2}
-                                  className="w-full bg-[#0D1117] border border-[#30363D] focus:border-[#58A6FF] rounded p-2 text-xs text-[#E6EDF3] placeholder-[#8D96A0] outline-none resize-none font-sans"
-                                />
-
-                                <div className="flex items-center gap-2 justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveCommentLineId(null);
-                                      setLineCommentText('');
-                                    }}
-                                    data-testid={`cancel-comment-${line.id}`}
-                                    className="px-2.5 py-1 text-xs text-[#8D96A0] hover:text-[#E6EDF3] cursor-pointer"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleAddInlineComment(line.id)}
-                                    data-testid={`submit-comment-${line.id}`}
-                                    className="px-3 py-1 bg-[#238636] hover:bg-[#2EA043] text-white text-xs font-bold rounded shadow transition-colors cursor-pointer"
-                                  >
-                                    Add comment
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs text-[#8D96A0]">
+                  Diff preview is not available for this pull request yet.
+                </p>
+                <p className="mt-1 text-[11px] text-[#6E7681]">
+                  Browse the repository code tab to review the changes.
+                </p>
               </div>
-            ))}
+            ) : (
+              <div
+                data-testid="diff-empty"
+                className="rounded-xl bg-[#0D1117] border border-dashed border-[#30363D] p-8 text-center"
+              >
+                <p className="text-xs text-[#8D96A0]">No files changed in this pull request.</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (

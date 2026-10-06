@@ -453,7 +453,7 @@ export interface QuantGitReposSubViewProps {
 }
 
 export function QuantGitReposSubView({
-  repos = DEFAULT_SUBVIEW_REPOS,
+  repos = [],
   onSelectRepo,
   onNewRepo,
   searchQuery: externalSearchQuery,
@@ -550,7 +550,31 @@ export function QuantGitReposSubView({
           </div>
         </div>
 
-        {/* Repository Cards Grid */}
+        {/* Repository Cards Grid — genuine empty state, never fake repos */}
+        {filtered.length === 0 ? (
+          <div
+            data-testid="quantgit-repos-empty"
+            className="rounded-2xl border border-dashed border-[#232938] bg-[#12151E] p-12 text-center"
+          >
+            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+              <SvgRepoIcon className="size-6" />
+            </div>
+            <h2 className="text-base font-bold text-white">No repositories yet</h2>
+            <p className="mt-2 text-xs text-[#8B949E] max-w-sm mx-auto">
+              Create a new repository or import one from GitHub to get started. Your real
+              repositories will appear here.
+            </p>
+            {onNewRepo && (
+              <button
+                type="button"
+                onClick={onNewRepo}
+                className="mt-6 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
+              >
+                + New Repository
+              </button>
+            )}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((repo) => (
             <div
@@ -629,6 +653,7 @@ export function QuantGitReposSubView({
             </div>
           ))}
         </div>
+        )}
       </div>
     </div>
   );
