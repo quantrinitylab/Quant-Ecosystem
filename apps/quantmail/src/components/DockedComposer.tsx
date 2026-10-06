@@ -35,6 +35,11 @@ export interface DockedComposerProps {
   replyToId?: string;
   onSendSuccess?: () => void;
   onDiscard?: () => void;
+  /**
+   * Start a chat thread instead of a letter. Defaults to 'mail'; the "New chat"
+   * entry point passes 'chat'.
+   */
+  initialMessageKind?: 'mail' | 'chat';
 }
 
 // ----------------------------------------------------------------------------
@@ -178,6 +183,7 @@ export function DockedComposer({
   replyToId,
   onSendSuccess,
   onDiscard,
+  initialMessageKind = 'mail',
 }: DockedComposerProps) {
   const router = useRouter();
   const { queueSend } = useUndoSend();
@@ -596,16 +602,21 @@ export function DockedComposer({
             .map((email) => ({ email }))
         : undefined;
 
+      // A chat message is a thread start, not a letter: the backend requires a
+      // non-empty subject, so fall back to the recipient line.
+      const sendSubject =
+        draftSnapshot.subject ||
+        (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');
       const composeRes = await apiClient.composeEmail({
         to: toList,
         cc: ccList,
         bcc: bccList,
-        subject: draftSnapshot.subject,
+        subject: sendSubject,
         bodyText: draftSnapshot.bodyText,
         bodyHtml: draftSnapshot.bodyHtml,
         attachments: draftSnapshot.attachments as any,
         inReplyTo: draftSnapshot.replyToId,
-        messageKind: 'mail',
+        messageKind: initialMessageKind,
       });
 
       if (!composeRes.success || !composeRes.data?.id) {

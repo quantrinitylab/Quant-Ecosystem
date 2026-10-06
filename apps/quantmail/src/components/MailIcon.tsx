@@ -29,7 +29,8 @@ export type MailIconName =
   | 'reply'
   | 'forward'
   | 'sparkles'
-  | 'shield';
+  | 'shield'
+  | 'chat';
 
 const PATHS: Record<MailIconName, ReactNode> = {
   archive: (
@@ -119,6 +120,11 @@ const PATHS: Record<MailIconName, ReactNode> = {
     <>
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  chat: (
+    <>
+      <path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-3-.4-4.2-1.1L3 20l1.1-5.3A8.5 8.5 0 1 1 21 11.5Z" />
     </>
   ),
 };
