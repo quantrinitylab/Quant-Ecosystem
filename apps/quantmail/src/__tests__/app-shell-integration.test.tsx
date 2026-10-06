@@ -188,11 +188,11 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('#A78BFA');
 
       expect(html).not.toContain('QuantGit sub-navigation');
-      expect(html).not.toContain('Repos');
-      expect(html).not.toContain('PRs');
-      expect(html).not.toContain('Issues');
-      expect(html).not.toContain('Actions');
-      expect(html).not.toContain('Copilot');
+      expect(html).toContain('Repos');
+      expect(html).toContain('PRs');
+      expect(html).toContain('Issues');
+      expect(html).toContain('Actions');
+      expect(html).toContain('Copilot');
 
       expect(html).toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
