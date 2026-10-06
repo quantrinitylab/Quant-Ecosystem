@@ -3,8 +3,8 @@
 // Stories bar, posts feed, infinite scroll, pull-to-refresh
 // ============================================================================
 
-import React, { useCallback } from 'react';
-import { motion } from 'framer-motion';
+import React, { useCallback, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LoadingState,
   ErrorState,
@@ -16,6 +16,7 @@ import {
 } from '@quant/shared-ui';
 import { sanitizeMediaUrl } from '@quant/common';
 import { useFeed } from '../hooks/useFeed';
+import { ReelsCommentsSheet } from '../components/ReelsCommentsSheet';
 
 function FeedSkeleton() {
   return (
@@ -137,6 +138,28 @@ const FeedPage: React.FC = () => {
   const [state, actions] = useFeed();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const isGuest = (!isAuthenticated && !authLoading) || Boolean(state.isGuest);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState(false);
+  const shareToastTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSharePost = useCallback((postId: string) => {
+    const postUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/p/${postId}`
+        : `https://quantgram.in/p/${postId}`;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(postUrl).catch(() => {});
+    }
+    setShareToast(true);
+    if (shareToastTimer.current) clearTimeout(shareToastTimer.current);
+    shareToastTimer.current = setTimeout(() => setShareToast(false), 2400);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (shareToastTimer.current) clearTimeout(shareToastTimer.current);
+    };
+  }, []);
 
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -283,10 +306,18 @@ const FeedPage: React.FC = () => {
                     >
                       {post.isLiked ? '❤️' : '🤍'}
                     </SpringButton>
-                    <SpringButton className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-gray-700 dark:text-gray-300">
+                    <SpringButton
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-gray-700 dark:text-gray-300"
+                      onClick={() => setCommentsPostId(post.id)}
+                      aria-label={`View comments on post by ${post.authorUsername}`}
+                    >
                       💬
                     </SpringButton>
-                    <SpringButton className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-gray-700 dark:text-gray-300">
+                    <SpringButton
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-gray-700 dark:text-gray-300"
+                      onClick={() => handleSharePost(post.id)}
+                      aria-label={`Share post by ${post.authorUsername}`}
+                    >
                       ↗
                     </SpringButton>
                     <div className="flex-1" />
@@ -306,9 +337,13 @@ const FeedPage: React.FC = () => {
                     <strong>{post.authorUsername}</strong> {post.caption}
                   </p>
                   {post.commentCount > 0 && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400 mt-1 block">
+                    <button
+                      type="button"
+                      onClick={() => setCommentsPostId(post.id)}
+                      className="text-sm text-gray-500 dark:text-gray-400 mt-1 block hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-left"
+                    >
                       View all {post.commentCount} comments
-                    </span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -323,6 +358,33 @@ const FeedPage: React.FC = () => {
         </div>
       </div>
       {isGuest && <GuestStickyPrompt />}
+
+      {/* Share Toast Banner */}
+      <AnimatePresence>
+        {shareToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#262626] text-white px-4 py-2 rounded-full text-xs font-semibold shadow-xl border border-[#3A3A3A] flex items-center gap-2"
+          >
+            <span>✓</span>
+            <span>Post link copied to clipboard</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Feed Post Comments Sheet (reuses Reels comments pattern) */}
+      <ReelsCommentsSheet
+        isOpen={commentsPostId !== null}
+        onClose={() => setCommentsPostId(null)}
+        reelId={commentsPostId ?? ''}
+        initialCommentsCount={
+          commentsPostId
+            ? state.posts.find((p) => p.id === commentsPostId)?.commentCount ?? 0
+            : 0
+        }
+      />
     </PageTransition>
   );
 };
