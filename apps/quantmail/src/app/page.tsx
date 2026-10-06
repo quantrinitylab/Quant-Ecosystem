@@ -851,8 +851,13 @@ function ReadingPane({
   const activeId = thread?.threadId || thread?.id || email?.threadId || email?.id || '';
   const initialEmails = thread?.messages || (email ? [email] : []);
 
+  // Keyed on the selected conversation so that picking a different row always
+  // mounts a fresh thread view for it: selection unambiguously drives the
+  // preview, instead of relying on the view's internal adoption bookkeeping
+  // to notice the prop change.
   return (
     <motion.aside
+      key={activeId}
       className="reading-pane overflow-hidden flex flex-col"
       aria-label="Message preview"
       initial={{ opacity: 0, x: 14 }}
@@ -2469,29 +2474,44 @@ export default function InboxPage() {
 
   const openEmail = useCallback(
     (email: Email | null, explicitThread?: ConversationThread | null) => {
-      if (!email) {
+      // A conversation is selectable even when its latest-email reference is
+      // unavailable: the reading pane renders from the thread's own messages.
+      // The old early-return cleared the whole selection here, which left the
+      // pane stuck on its "Choose the signal" placeholder after a tap that had
+      // clearly selected a conversation.
+      const thread =
+        explicitThread ??
+        (email
+          ? threads?.find(
+              (t) =>
+                t.id === email.id ||
+                t.threadId === email.threadId ||
+                t.messages.some((m) => m.id === email.id),
+            )
+          : undefined) ??
+        null;
+      const resolvedEmail =
+        email ?? thread?.latestEmail ?? thread?.messages[thread.messages.length - 1] ?? null;
+      if (!resolvedEmail && !thread) {
         setSelectedEmail(null);
         setSelectedThread(null);
         return;
       }
-      setSelectedEmail(email);
-      if (explicitThread) {
-        setSelectedThread(explicitThread);
-      } else {
-        const matching = threads?.find(
-          (t) =>
-            t.id === email.id ||
-            t.threadId === email.threadId ||
-            t.messages.some((m) => m.id === email.id),
-        );
-        setSelectedThread(matching || null);
-      }
+      setSelectedEmail(resolvedEmail);
+      setSelectedThread(thread);
       // The whole conversation, not the message that was tapped. `isRead` on a row
       // is an `every`, so clearing only the newest left the row bold after the user
       // had plainly just read it.
-      void mutations.markRead(conversationIds(email.id));
-      const targetId = email.threadId || email.id;
-      if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 900px)').matches) {
+      if (resolvedEmail) {
+        void mutations.markRead(conversationIds(resolvedEmail.id));
+      }
+      const targetId =
+        resolvedEmail?.threadId || resolvedEmail?.id || thread?.threadId || thread?.id;
+      if (
+        targetId &&
+        typeof window !== 'undefined' &&
+        !window.matchMedia('(min-width: 900px)').matches
+      ) {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
       }
