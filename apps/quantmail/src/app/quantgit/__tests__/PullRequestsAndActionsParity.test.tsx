@@ -209,7 +209,9 @@ describe('QuantGit GitHub Sovereign Parity: PR 3-Way Merge & Actions Streaming L
       expect(html).toContain('All checks have passed (55/56 checks verified green)');
       expect(html).toContain('Review decisions:');
       expect(html).toContain('ai-sdk-factory[bot]');
-      expect(html).toContain('✓ Approved');
+      // SVG check icon (QuantGitCheckIcon) + "Approved" label — no "✓" glyph per the SVG-octicon polish.
+      expect(html).toContain('M3 8.5l3.2 3.2L13 5');
+      expect(html).toContain('Approved');
     });
 
     it('renders Merge Box with 3 merge options (merge, squash, rebase) and conflict detection', () => {

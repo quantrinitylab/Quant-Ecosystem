@@ -212,10 +212,11 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       expect(html).toContain('security/dependabot');
       expect(html).toContain('0 critical or high vulnerabilities.');
 
-      // All 3 display green indicator 🟢 and Passed status
+      // All 3 display a green SVG check-circle indicator (QuantGitCheckCircleIcon)
+      // and Passed status — no emoji per the SVG-octicon polish.
       const passedCount = (html.match(/Passed/g) || []).length;
       expect(passedCount).toBeGreaterThanOrEqual(3);
-      expect(html).toContain('🟢');
+      expect(html).toContain('M5.4 8.3l1.9 1.9 3.3-3.9');
     });
 
     it('enables GitHub-class 3-way merge box with 3 merge options when all checks are green', () => {
@@ -274,7 +275,8 @@ describe('QuantGit Live Coding In-Editor PR Creation & 3-Way Merge Security Gate
       );
 
       expect(html).toContain('Some checks have failed or are required before merging');
-      expect(html).toContain('🔴');
+      // Red SVG x-circle indicator (QuantGitXCircleIcon) — no emoji per the SVG-octicon polish.
+      expect(html).toContain('M6 6l4 4M10 6l-4 4');
       expect(html).toContain('Failed');
       expect(html).toContain('data-testid="merge-blocked-box"');
       expect(html).toContain('Merging is blocked. Required security');
