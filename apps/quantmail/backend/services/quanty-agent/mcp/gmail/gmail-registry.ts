@@ -185,4 +185,4 @@ export function buildMcpGmailToolRegistry(deps: McpGmailProductionDeps): ToolReg
   registerMcpGmailTools(registry, deps);
   return registry;
 }
->>>>>>> f05ca635 (feat(quanty): Gmail MCP connector from prototype to production (Q2))
+
