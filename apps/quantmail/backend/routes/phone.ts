@@ -3,14 +3,15 @@
 //
 //   GET  /auth/phone                 -> { phoneNumber, phoneVerified, smsReady }
 //   POST /auth/phone/send-otp        -> { phoneNumber } sends a 6-digit OTP by SMS
+//   (fail-closed: if SMS is unavailable or the send fails, the request fails
+//   with a 5xx — there is NO demo/fallback code, ever.)
 //   POST /auth/phone/verify          -> { code } marks the number verified
 //   DELETE /auth/phone               -> unlink the number
 //
 // Transfer-on-verify: if the number is already verified on another account,
 // entering the correct OTP transfers it to the verifying account (the verifier
 // proved possession of the number). There is no PHONE_TAKEN dead-end.
-// The demo code only works when the backend is actually in demo mode
-// (SMS unavailable); it is the pending code's hash, never a bypass.
+// No demo mode: OTPs are only ever delivered via real SMS.
 //
 // OTPs are never stored in plaintext: only a SHA-256 hash is kept, with a
 // 5-minute expiry, max 5 attempts, and a 60-second resend cooldown.
@@ -19,7 +20,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createHash, randomInt } from 'crypto';
 import { createAppError } from '@quant/server-core';
-import { sendSms, smsReady, smsUnavailableReason } from '../services/sms.service';
+import { sendSms, smsReady } from '../services/sms.service';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -125,21 +126,30 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
     // (the verifier proved possession of the number). This keeps users from
     // getting permanently locked out of phone verification.
 
-    let isDemo = true;
-    let code = '123456';
+    // FAIL CLOSED: the OTP only exists if a real SMS was sent. If the SMS
+    // provider is not configured or the send fails, the request fails with a
+    // 5xx — never with a demo/fallback code that a client could use to verify.
+    if (!smsReady()) {
+      throw createAppError(
+        'SMS service is unavailable. Please try again later.',
+        503,
+        'SMS_UNAVAILABLE',
+      );
+    }
 
-    if (smsReady()) {
-      const generatedCode = String(randomInt(0, 1_000_000)).padStart(6, '0');
-      try {
-        await sendSms(
-          phoneNumber,
-          `${generatedCode} is your QuantMail verification code. It expires in 5 minutes. Never share it.`,
-        );
-        isDemo = false;
-        code = generatedCode;
-      } catch (err) {
-        request.log.warn({ err }, 'OTP SMS send failed, falling back to demo mode');
-      }
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    try {
+      await sendSms(
+        phoneNumber,
+        `${code} is your QuantMail verification code. It expires in 5 minutes. Never share it.`,
+      );
+    } catch (err) {
+      request.log.warn({ err }, 'OTP SMS send failed; failing closed (no demo code)');
+      throw createAppError(
+        'Could not send the verification SMS. Please try again later.',
+        503,
+        'SMS_SEND_FAILED',
+      );
     }
 
     pending.set(userId, {
@@ -155,12 +165,8 @@ export default async function phoneRoutes(fastify: FastifyInstance) {
       data: {
         sent: true,
         sentToPhone: maskNumber(phoneNumber),
-        isDemo,
-        demoCode: isDemo ? '123456' : undefined,
         expiresInSeconds: OTP_TTL_MS / 1000,
-        message: isDemo
-          ? `SMS service unavailable — use demo code 123456 to verify ${maskNumber(phoneNumber)}`
-          : `Verification code sent to ${maskNumber(phoneNumber)}`,
+        message: `Verification code sent to ${maskNumber(phoneNumber)}`,
       },
     });
   });

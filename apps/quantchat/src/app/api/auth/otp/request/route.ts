@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { activeOtpCodes } from '../store';
 
 export async function POST(req: Request) {
   try {
@@ -38,24 +37,18 @@ export async function POST(req: Request) {
     } catch (error) {
       clearTimeout(timeoutId);
 
-      // Fallback
-      const demoCode = '123456';
-      activeOtpCodes.set(normalizedPhone, {
-        code: demoCode,
-        expiresAt: Date.now() + 5 * 60 * 1000,
-      });
-
+      // FAIL CLOSED: when the upstream OTP provider is unreachable, do NOT
+      // mint a working fallback/demo code. Return an error so the client
+      // cannot authenticate without a real OTP.
       return NextResponse.json(
         {
-          success: true,
-          data: {
-            message: 'Verification code sent successfully',
-            demoCode,
-            expiresIn: 300,
-            isFallback: true,
+          success: false,
+          error: {
+            message: 'Verification service is unavailable. Please try again later.',
+            code: 'OTP_UPSTREAM_UNAVAILABLE',
           },
         },
-        { status: 200 },
+        { status: 503 },
       );
     }
   } catch (error: any) {
