@@ -1068,7 +1068,7 @@ export function ContextBottomNavBar({
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 md:left-[68px] z-30 flex h-14 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
+      className={`fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[68px] z-30 flex h-14 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
         isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'
       } ${className}`}
       aria-label={`${pillarConfig.name} contextual navigation`}

@@ -3,6 +3,23 @@
 @tailwind utilities;
 
 /*
+  Touch-target floor utilities (belt-and-suspenders).
+  `min-h-touch` / `min-w-touch` are ALSO declared in tailwind.config.ts
+  (`minHeight.touch` / `minWidth.touch` = 44px), so Tailwind's JIT emits them.
+  These explicit definitions guarantee the 44px floor survives even if a build
+  ever skips the config extension (stale cache, CDN edge CSS, etc.).
+  WCAG 2.5.8 / Apple HIG / Material all mandate >= 44px touch targets.
+*/
+@layer utilities {
+  .min-h-touch {
+    min-height: 44px;
+  }
+  .min-w-touch {
+    min-width: 44px;
+  }
+}
+
+/*
   Text floor: nothing in this file goes below 0.625rem (10px).
   164 rules used to sit between 0.5rem and 0.62rem — timestamps, delivery
   labels, kbd glyphs, badge counts — and on a phone those render at 8-9.9px,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -428,6 +429,10 @@ export function EmailComposer({
   const [showThreeDotsMenu, setShowThreeDotsMenu] = useState(false);
   const [showSendOptionsDropdown, setShowSendOptionsDropdown] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  // Anchor + position for the Send-options dropup. The menu renders via portal
+  // (fixed positioning) so the scrollable toolbar's overflow can never clip it.
+  const sendOptionsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const [sendMenuPos, setSendMenuPos] = useState<{ left: number; bottom: number } | null>(null);
 
   /*
     Trigger refs for the four disclosure popovers in the header and formatting
@@ -2011,12 +2016,18 @@ export function EmailComposer({
             )}
           </AnimatePresence>
 
-          {/* Bottom Unified Action Toolbar (Hidden during Print) */}
-          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border">
+          {/* Bottom Unified Action Toolbar (Hidden during Print).
+              Horizontally scrollable on narrow screens: Send + 5x44px touch
+              targets exceed 360px viewports, so the bar scrolls instead of
+              clipping trailing buttons. Scrollbar hidden for a clean look. */}
+          <div className="print:hidden flex items-center justify-between px-3 sm:px-5 py-2.5 border-t border-[#282C35]/80 bg-[#121622] shrink-0 w-full max-w-full box-border overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Left Toolbar Group: Send + Dropup, Formatting, Attach, Link, Drive, Discard, Desktop Quanty */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-max">
               {/* Primary Send Button with Dropup Menu for Save draft & Schedule send */}
-              <div className="relative flex items-center rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] font-semibold shadow-sm transition-colors">
+              <div
+                ref={sendOptionsAnchorRef}
+                className="relative flex items-center rounded-xl bg-[#FF8C42] hover:bg-[#FF9B5A] text-[#111111] font-semibold shadow-sm transition-colors"
+              >
                 <button
                   type="button"
                   onClick={() => handleSend()}
@@ -2035,7 +2046,19 @@ export function EmailComposer({
 
                 <button
                   type="button"
-                  onClick={() => setShowSendOptionsDropdown((prev) => !prev)}
+                  onClick={() => {
+                    // Capture the anchor rect BEFORE toggling, so the portaled
+                    // menu can position itself above the Send button even
+                    // though the toolbar scrolls horizontally on mobile.
+                    if (!showSendOptionsDropdown && sendOptionsAnchorRef.current) {
+                      const rect = sendOptionsAnchorRef.current.getBoundingClientRect();
+                      setSendMenuPos({
+                        left: Math.max(8, rect.left),
+                        bottom: Math.max(8, window.innerHeight - rect.top + 8),
+                      });
+                    }
+                    setShowSendOptionsDropdown((prev) => !prev);
+                  }}
                   disabled={busy}
                   className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 px-2 py-2 border-l border-[#111111]/20 text-[#111111] hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#111111]"
                   title="Send options (Save draft / Schedule send)"
@@ -2045,14 +2068,27 @@ export function EmailComposer({
                   <IconChevronUp size={14} />
                 </button>
 
-                {/* Dropup Menu for Send Options */}
-                {showSendOptionsDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowSendOptionsDropdown(false)}
-                    />
-                    <div className="absolute left-0 bottom-full mb-2 w-48 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs">
+                {/* Dropup Menu for Send Options — portaled to document.body with
+                    fixed positioning so the horizontally-scrollable toolbar
+                    (overflow-x-auto on mobile) can never clip it. */}
+                {showSendOptionsDropdown &&
+                  typeof document !== 'undefined' &&
+                  createPortal(
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowSendOptionsDropdown(false)}
+                      />
+                      <div
+                        className="fixed w-48 rounded-2xl border border-[#282C35] bg-[#121622] py-2 shadow-2xl z-50 text-xs"
+                        style={
+                          sendMenuPos
+                            ? { left: sendMenuPos.left, bottom: sendMenuPos.bottom }
+                            : { left: 12, bottom: 76 }
+                        }
+                        role="menu"
+                        aria-label="Send options"
+                      >
                       <button
                         type="button"
                         onClick={() => {
@@ -2075,9 +2111,10 @@ export function EmailComposer({
                         <IconFileText className="size-3.5 text-[#A1A4AC]" />
                         <span>{isSaving ? 'Saving draft…' : 'Save draft'}</span>
                       </button>
-                    </div>
-                  </>
-                )}
+                      </div>
+                    </>,
+                    document.body
+                  )}
               </div>
 
               {/* Aa Formatting Options Toggle */}
