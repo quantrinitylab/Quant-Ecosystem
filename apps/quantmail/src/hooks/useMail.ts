@@ -441,7 +441,12 @@ export function useMailMutations(options: UseMailMutationsOptions = {}): MailMut
       const wrongSide = list.filter(
         (id) => Boolean(findCachedEmail(queryClient, id)?.isStarred) !== target,
       );
-      return run({ kind: 'toggleStar', ids: wrongSide, patch: { isStarred: target } });
+      return run({
+        kind: 'toggleStar',
+        ids: wrongSide,
+        patch: { isStarred: target },
+        toast: target ? 'Pinned to top' : 'Unpinned from top',
+      });
     },
     [queryClient, run],
   );

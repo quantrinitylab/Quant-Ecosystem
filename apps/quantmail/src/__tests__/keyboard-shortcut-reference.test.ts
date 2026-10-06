@@ -48,7 +48,7 @@ describe('INBOX_COMMAND_REFERENCE', () => {
 
   it('documents the conversation actions the sheet is specified to show', () => {
     expect(primary('inbox.archive')).toBe('e');
-    expect(primary('inbox.star')).toBe('s');
+    expect(primary('inbox.pin')).toBe('s');
     expect(primary('inbox.toggleRead')).toBe('u');
     expect(primary('inbox.trash')).toBe('#');
     expect(primary('inbox.next')).toBe('j');
@@ -59,7 +59,7 @@ describe('INBOX_COMMAND_REFERENCE', () => {
     // in Navigation and pushed the sheet into one tall column.
     for (const id of [
       'inbox.archive',
-      'inbox.star',
+      'inbox.pin',
       'inbox.toggleRead',
       'inbox.trash',
       'inbox.next',
