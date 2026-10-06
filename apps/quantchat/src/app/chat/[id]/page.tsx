@@ -6,6 +6,8 @@ import { spring } from '@quant/brand';
 import { ChatBubble, ChatInput, TypingIndicator, TopBar } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useMessages } from '../../../hooks/useMessages';
+import { useConversations } from '../../../hooks/useConversations';
+import { useMe } from '../../../hooks/useMe';
 import { useSendMessage } from '../../../hooks/useSendMessage';
 import { useRealtimeChat } from '../../../hooks/useRealtimeChat';
 import { useChatSocket } from '../../../hooks/useChatSocket';
@@ -117,6 +119,27 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const { id } = use(params);
   const { data, isLoading, error, refetch } = useMessages(id);
   const sendMessage = useSendMessage();
+  const { conversations } = useConversations();
+  const { me } = useMe();
+
+  // Resolve the real contact/group name for the header instead of the raw
+  // conversation id. Group chats use their name; direct chats use the other
+  // participant's nickname/displayName/username. Falls back to a neutral
+  // "Chat" label (never the raw id) until the conversation data loads.
+  const chatDisplayName = useMemo(() => {
+    const conversation = conversations.find((c) => c.id === id);
+    if (!conversation) return 'Chat';
+    if (conversation.name?.trim()) return conversation.name.trim();
+    const other = conversation.participants.find(
+      (p) => p.userId !== me?.id && p.username !== me?.username,
+    );
+    const candidate = other ?? conversation.participants[0];
+    const name =
+      candidate?.nickname?.trim() ||
+      candidate?.displayName?.trim() ||
+      candidate?.username?.trim();
+    return name || 'Chat';
+  }, [conversations, id, me?.id, me?.username]);
   const { typingUsers, incomingMessages, isConnected, sendRealtimeMessage, setTyping, markRead } =
     useRealtimeChat(id);
   const [reactions, setReactions] = useState<Record<string, string[]>>({});
@@ -513,7 +536,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   return (
     <div className="flex flex-col h-screen">
       <TopBar
-        title={`Chat ${id}`}
+        title={chatDisplayName}
         subtitle="🔥 5 Day Streak · Active now"
         onBack={() => {
           window.location.href = '/';
@@ -523,7 +546,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             key="call-video"
             type="button"
             onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend`;
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}`;
             }}
             aria-label="Start video call"
             className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
@@ -535,7 +558,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             key="call-audio"
             type="button"
             onClick={() => {
-              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=Friend&audioOnly=true`;
+              window.location.href = `/call?roomId=${encodeURIComponent(id)}&callerName=${encodeURIComponent(chatDisplayName)}&audioOnly=true`;
             }}
             aria-label="Start audio call"
             className="min-w-touch min-h-touch flex items-center justify-center text-lg hover:scale-110 active:scale-95 transition-transform"
