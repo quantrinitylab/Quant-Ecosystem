@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Card, Button, ErrorState } from '@quant/shared-ui';
@@ -81,6 +82,7 @@ function LoadingSkeleton() {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const {
     data: campaigns,
     isLoading,
@@ -98,8 +100,7 @@ export default function DashboardPage() {
     },
   });
 
-  const activeCampaigns = campaigns?.filter((c) => c.status === 'active') || [];
-  const totalSpend = campaigns?.reduce((sum, c) => sum + c.budget.spent, 0) || 0;
+  const activeCampaigns = campaigns?.filter((c) => c.status === 'active') || [];  const totalSpend = campaigns?.reduce((sum, c) => sum + c.budget.spent, 0) || 0;
   const totalImpressions = campaigns?.reduce((sum, c) => sum + c.metrics.impressions, 0) || 0;
   const totalClicks = campaigns?.reduce((sum, c) => sum + c.metrics.clicks, 0) || 0;
   const avgCtr =
@@ -109,7 +110,7 @@ export default function DashboardPage() {
     <main className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Ads Dashboard</h1>
-        <Button variant="primary" size="sm">
+        <Button variant="primary" size="sm" onClick={() => router.push('/create-campaign')}>
           New Campaign
         </Button>
       </div>
