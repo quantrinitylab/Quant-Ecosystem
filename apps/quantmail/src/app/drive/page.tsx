@@ -12,6 +12,7 @@ import {
   DriveHomeSubView,
   DriveFeedSubView,
   DriveAiMemorySubView,
+  FileShareModal,
   type DriveSubTab,
 } from './components';
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
@@ -424,6 +425,7 @@ function DrivePageContent() {
   const [versionHistoryFile, setVersionHistoryFile] = useState<DriveItem | null>(null);
   const [aiSummaryFile, setAiSummaryFile] = useState<DriveItem | null>(null);
   const [isDuplicateCleanerOpen, setIsDuplicateCleanerOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<{ id: string; name: string } | null>(null);
 
   const [textPreviewContent, setTextPreviewContent] = useState<string | null>(null);
   const [isLoadingTextPreview, setIsLoadingTextPreview] = useState(false);
@@ -1454,12 +1456,7 @@ function DrivePageContent() {
                 })
               }
               onDownloadFile={downloadFile}
-              onShareItem={(item) =>
-                showToast({
-                  text: `Share link created for "${item.name}"`,
-                  type: 'success',
-                })
-              }
+              onShareItem={(item) => setShareTarget({ id: item.id, name: item.name })}
             />
           )}
 
@@ -1474,6 +1471,16 @@ function DrivePageContent() {
             />
           )}
         </div>
+
+        {/* File Share Modal — real share API, no fake toasts */}
+        {shareTarget && (
+          <FileShareModal
+            isOpen={!!shareTarget}
+            onClose={() => setShareTarget(null)}
+            fileId={shareTarget.id}
+            fileName={shareTarget.name}
+          />
+        )}
 
         {/* File Preview Lightbox Modal */}
         <Modal

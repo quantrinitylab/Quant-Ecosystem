@@ -384,6 +384,152 @@ describe('EmailService', () => {
         }),
       );
     });
+
+    it('applies the from filter as a case-insensitive sender match', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { from: 'kundan' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  expect.objectContaining({
+                    fromAddress: { contains: 'kundan', mode: 'insensitive' },
+                  }),
+                  expect.objectContaining({
+                    fromName: { contains: 'kundan', mode: 'insensitive' },
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('applies a full-address to filter as an exact recipient element match', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { to: 'friend@example.com' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  expect.objectContaining({
+                    toAddresses: { array_contains: 'friend@example.com' },
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('does not filter server-side on a bare to fragment (client matches it)', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { to: 'kundan' });
+
+      const where = prisma.email.findMany.mock.calls[0][0].where as Record<string, unknown>;
+      expect(where.AND).toBeUndefined();
+      expect(where).not.toHaveProperty('toAddresses');
+    });
+
+    it('applies the hasAttachment filter', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { hasAttachment: true });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ hasAttachments: true }),
+        }),
+      );
+    });
+
+    it('applies the dateFrom filter as a receivedAt lower bound', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { dateFrom: '2026-10-01' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            receivedAt: expect.objectContaining({
+              gte: new Date('2026-10-01T00:00:00'),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('ignores a malformed dateFrom instead of failing the search', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { dateFrom: 'not-a-date' });
+
+      const where = prisma.email.findMany.mock.calls[0][0].where as Record<string, unknown>;
+      expect(where).not.toHaveProperty('receivedAt');
+    });
+
+    it('resolves a label name to its id for the labels filter', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+      prisma.label.findMany.mockResolvedValue([{ id: 'label-9', name: 'Work' }]);
+
+      await service.search('user-1', 'hello', {}, { label: 'work' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            labels: { array_contains: 'label-9' },
+          }),
+        }),
+      );
+    });
+
+    it('matches zero rows when the label name resolves to nothing', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+      prisma.label.findMany.mockResolvedValue([]);
+
+      await service.search('user-1', 'hello', {}, { label: 'nope' });
+
+      const where = prisma.email.findMany.mock.calls[0][0].where as Record<string, unknown>;
+      expect(where).toHaveProperty('labels');
+    });
+
+    it('applies the subject filter case-insensitively', async () => {
+      prisma.email.findMany.mockResolvedValue([]);
+      prisma.email.count.mockResolvedValue(0);
+
+      await service.search('user-1', 'hello', {}, { subject: 'Invoice' });
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                subject: { contains: 'Invoice', mode: 'insensitive' },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
   });
 
   describe('markRead', () => {
