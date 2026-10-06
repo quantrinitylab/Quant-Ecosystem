@@ -16,9 +16,9 @@ export { SLOTracker } from './core/slo-tracker';
 export { ChaosEngine } from './core/chaos-engineering';
 export { CanaryAnalyzer } from './core/canary-analyzer';
 
-export { instrument, configureInstrument } from './instrument';
+export { instrument } from './instrument';
 export { OTelSetup } from './otel-setup';
-export { ServiceSLODefinitions, parseSLOConfig, getServiceSLO } from './slo-definitions';
+export { ServiceSLODefinitions } from './slo-definitions';
 export { BurnRateCalculator } from './slo-burn-rate';
 export { ChaosExperimentRunner } from './chaos-experiments';
 export { RunbookGenerator } from './runbook-generator';
@@ -145,7 +145,6 @@ export type {
 // OpenTelemetry SDK integration
 export {
   initTracing,
-  getTracer,
   getActiveTraceContext,
   trace,
   context,
@@ -153,7 +152,6 @@ export {
   initMetrics,
   getMeter,
   createHttpMetrics,
-  createLogger,
 } from './sdk/index';
 export type {
   TracingConfig,

@@ -4,7 +4,7 @@
 
 // ActivityPub
 export { Actor, ActorSchema } from './activitypub/actor.js';
-export { signRequest, verifySignature } from './activitypub/http-signatures.js';
+export { verifySignature } from './activitypub/http-signatures.js';
 export { WebFingerHandler, WebFingerResponseSchema } from './activitypub/webfinger.js';
 export { NodeInfoHandler, NodeInfoSchema } from './activitypub/nodeinfo.js';
 export { InboxProcessor, ActivitySchema } from './activitypub/inbox.js';

@@ -81,29 +81,16 @@ export type {
   MemoryEmbeddingCreateData,
   VectorMemoryIndexerOptions,
 } from './core/vector-memory-indexer';
-export { runMemoryEval, formatDashboard } from './eval/memory-eval';
-export {
-  runExtractionEval,
-  ruleExtractorAdapter,
-  llmExtractorAdapter,
-  formatExtractionDashboard,
-} from './eval/extraction-eval';
 export type { EvaluableExtractor, ExtractionQualityMetrics } from './eval/extraction-eval';
 export { extractionCases } from './eval/extraction-datasets';
 export type { ExtractionCase, ExpectedMemory } from './eval/extraction-datasets';
-export { replay, diffPolicies, histogramOf, formatPolicyDiff } from './eval/policy-replay';
+export { replay } from './eval/policy-replay';
 export type {
   ReplayRecord,
   ReplayOutcome,
   PolicyDiff,
   ActionHistogram,
 } from './eval/policy-replay';
-export {
-  acceptanceMetrics,
-  calibrationByProvenance,
-  formatAcceptanceDashboard,
-  formatCalibrationByProvenance,
-} from './eval/acceptance-metrics';
 export type {
   AcceptanceMetrics,
   CalibrationSample,
@@ -114,7 +101,6 @@ export type { EvalScenario, EvalCase, EvalQuery, EvalMetrics } from './eval/type
 export {
   DefaultMemoryConflictResolver,
   DEFAULT_SLOT_REGISTRY,
-  recallHintForSlot,
   residenceSlot,
   employerSlot,
   nameSlot,
@@ -139,7 +125,6 @@ export type { MemoryArchiver } from './core/default-memory-service';
 export {
   DefaultMemoryAcceptancePolicy,
   DEFAULT_MEMORY_POLICY,
-  effectiveWeight,
 } from './core/memory-acceptance-policy';
 export type {
   MemoryAcceptancePolicy,
@@ -155,7 +140,7 @@ export {
   OPENAI_EMBEDDING_DIMENSIONS,
 } from './adapters/openai-embedding-provider';
 export type { OpenAIEmbeddingConfig } from './adapters/openai-embedding-provider';
-export { QdrantVectorBackend, loadQdrantConfig, toPointId } from './adapters/qdrant-vector-backend';
+export { QdrantVectorBackend, loadQdrantConfig } from './adapters/qdrant-vector-backend';
 export {
   UserStyleMemory,
   UserStyleProfileSchema,
@@ -189,9 +174,6 @@ export type { QdrantConfig } from './adapters/qdrant-vector-backend';
 export { LlmExtractionModel } from './adapters/llm-extraction-model';
 export type { LlmExtractionConfig } from './adapters/llm-extraction-model';
 export {
-  mapFactToCandidate,
-  fingerprintFact,
-  trustForProvenance,
   DEFAULT_TRUST_BY_FAMILY,
 } from './core/extraction-schema';
 export type {
@@ -201,7 +183,7 @@ export type {
   Evidence,
   InstrumentedExtractionModel,
 } from './core/extraction-schema';
-export { MemoryFacade, compareRecalls } from './core/memory-facade';
+export { MemoryFacade } from './core/memory-facade';
 export type {
   FacadeMode,
   MemoryBackend,
@@ -215,7 +197,6 @@ export type {
 export { LegacyMemoryAdapter } from './core/legacy-memory-adapter';
 export {
   aggregateShadowReports,
-  verifyReproducible,
   evaluateCutoverGates,
 } from './eval/shadow-replay';
 export type { ShadowAggregate, CutoverGateResult } from './eval/shadow-replay';
@@ -285,17 +266,14 @@ export type { TokenCountResult } from './core/token-counter';
 // Providers & Adapters
 export {
   CloudflareEmbeddingProvider,
-  loadCloudflareEmbeddingConfig,
   CLOUDFLARE_EMBEDDING_DIMENSIONS,
 } from './adapters/cloudflare-embedding-provider';
 export type { CloudflareEmbeddingConfig } from './adapters/cloudflare-embedding-provider';
 export {
   OpenRouterProvider,
-  loadOpenRouterConfig,
   DEFAULT_OPENROUTER_BASE_URL,
   resolveUserModel,
   resolveUserModelDetailed,
-  isModelAllowed,
 } from './providers';
 export type {
   OpenRouterConfig,
@@ -339,18 +317,9 @@ export type {
 // Config
 export {
   getAvailableProviders,
-  getFallbackChain,
-  getProviderConfig,
-  hasAnyProvider,
 } from './config/providers';
 export type { ProviderConfig, FallbackChainConfig } from './config/providers';
-export { isFailClosedMode, isProductionRuntime } from './config/runtime';
-export {
-  generateMockTextResponse,
-  generateMockStreamChunks,
-  generateMockEmbedding,
-  generateMockModerationResult,
-} from './config/mock-responses';
+export { isFailClosedMode } from './config/runtime';
 
 // Assistant
 export { UniversalAssistant } from './assistant/assistant';

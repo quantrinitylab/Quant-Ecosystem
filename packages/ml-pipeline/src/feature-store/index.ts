@@ -24,9 +24,6 @@ export {
   UserFeatureSchema,
   ItemFeatureSchema,
   InteractionFeatureSchema,
-  getFeatureDefinition,
-  listFeatureDefinitions,
-  registerFeatureDefinition,
 } from './feature-definitions';
 export type {
   UserFeatures,

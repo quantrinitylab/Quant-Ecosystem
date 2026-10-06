@@ -78,10 +78,6 @@ export { MinorSafetyService } from './services/minor-safety.service.js';
 export {
   UnoEngine,
   UnoError,
-  buildDeck,
-  isPlayable,
-  isWildValue,
-  nextTurn,
 } from './services/uno-engine.service.js';
 export type {
   UnoErrorCode,
