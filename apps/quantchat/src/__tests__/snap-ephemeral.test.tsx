@@ -80,7 +80,15 @@ vi.mock('../hooks/useRealtimeChat', () => ({
   }),
 }));
 
-vi.mock('../hooks/useConversations', () => ({   useConversations: () => ({ conversations: [], isLoading: false, error: null }), }));  vi.mock('../hooks/useMe', () => ({   useMe: () => ({ me: { id: 'self', username: 'self' }, isLoading: false, error: null }), }));  vi.mock('@quant/brand', () => ({ spring: { gentle: {}, snappy: {}, stiff: {} } }));
+vi.mock('../hooks/useConversations', () => ({
+  useConversations: () => ({ conversations: [], isLoading: false, error: null }),
+}));
+
+vi.mock('../hooks/useMe', () => ({
+  useMe: () => ({ me: { id: 'self', username: 'self' }, isLoading: false, error: null }),
+}));
+
+vi.mock('@quant/brand', () => ({ spring: { gentle: {}, snappy: {}, stiff: {} } }));
 
 vi.mock('framer-motion', () => {
   const SAFE = /^(className|id|children|role|onClick|style|title|type|disabled)$|^(aria-|data-)/;

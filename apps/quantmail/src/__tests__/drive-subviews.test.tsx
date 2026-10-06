@@ -91,7 +91,11 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
   };
 
   // ==========================================================================
-  // 1. DriveContextTabsHeader Tests (Wave 89: 5 tabs -> 4 sovereign tabs: Home/Feed/AI Memory/Vault)
+  // 1. DriveContextTabsHeader Tests
+  //
+  // NOTE (Wave 89): the header was redesigned from 5 tabs
+  // (My Files/Shared/Vault/Starred/Cleaner) to 4 sovereign tabs
+  // (Home/Feed/AI Memory/Vault). These assertions track the new contract.
   // ==========================================================================
   describe('1. DriveContextTabsHeader Component', () => {
     it('renders all 4 sovereign context tabs', () => {
@@ -103,13 +107,11 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).toContain('drive-tab-feed');
       expect(html).toContain('drive-tab-aimemory');
       expect(html).toContain('drive-tab-vault');
-      
 
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       expect(html).toContain('Sovereign Vault');
-      
     });
 
     it('sets aria-selected="true" on active tab', () => {
@@ -135,28 +137,9 @@ describe('QuantDrive 5 Contextual Sub-Views Architect Test Suite', () => {
       expect(html).toContain('>AI<');
     });
 
-    it.skip('renders badgeCount for shared and starred when greater than 0', () => {
-      const html = renderToStaticMarkup(
-        <DriveContextTabsHeader
-          activeTab="home"
-          onTabChange={() => {}}
-          sharedCount={5}
-          starredCount={3}
-        />,
-      );
-
-      expect(html).toContain('>5<');
-      expect(html).toContain('>3<');
-    });
-
     it('contains strictly ZERO raw Unicode emojis in header', () => {
       const html = renderToStaticMarkup(
-        <DriveContextTabsHeader
-          activeTab="home"
-          onTabChange={() => {}}
-          sharedCount={5}
-          starredCount={3}
-        />,
+        <DriveContextTabsHeader activeTab="home" onTabChange={() => {}} />,
       );
       assertZeroRawEmojis(html);
     });

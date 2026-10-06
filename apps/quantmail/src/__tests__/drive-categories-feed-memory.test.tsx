@@ -9,6 +9,18 @@ import {
   type DriveItem,
 } from '../components/DriveSubViews';
 
+// The quota meter reads the real GET /api/drive/quota through this hook; the
+// suite pins it to a known value instead of letting the meter fetch.
+vi.mock('../hooks/useStorageQuota', () => ({
+  useStorageQuota: () => ({
+    quota: { used: 14.2 * 1024 ** 3, total: 100 * 1024 ** 3 },
+    known: true,
+    usedPct: 14,
+    isLoading: false,
+    error: null,
+  }),
+}));
+
 describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
   const sampleFiles: DriveItem[] = [
     {
@@ -62,21 +74,31 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
     it('renders exactly one enterprise storage gauge with total used, plan name, and remaining capacity', () => {
       const html = renderToStaticMarkup(
         <SingleEnterpriseStorageGauge
-          usedFormatted="128.4 GB"
-          totalFormatted="2 TB"
+          usedFormatted="14.2 GB"
+          totalFormatted="100 GB"
           planName="Sovereign Enterprise Plan"
-          remainingFormatted="1.87 TB remaining"
+          remainingFormatted="85.8 GB remaining"
+          usedBytes={14.2 * 1024 ** 3}
+          totalBytes={100 * 1024 ** 3}
         />,
       );
 
       expect(html).toContain('data-testid="single-enterprise-storage-gauge"');
-      expect(html).toContain('128.4 GB');
-      expect(html).toContain('/ 2 TB');
+      expect(html).toContain('14.2 GB');
+      expect(html).toContain('/ 100 GB');
       expect(html).toContain('Sovereign Enterprise Plan');
-      expect(html).toContain('1.87 TB remaining');
+      expect(html).toContain('85.8 GB remaining');
       expect(html).toContain('Upgrade Plan');
       expect(html).toContain('role="progressbar"');
       expect(html).toContain('FastCDC 64KB CAS · Zero-Egress Storage');
+    });
+
+    it('shows Calculating… instead of invented numbers when quota is unknown', () => {
+      const html = renderToStaticMarkup(<SingleEnterpriseStorageGauge />);
+      // Default props must never be fabricated stats like the old "128.4 GB / 2 TB".
+      expect(html).not.toContain('128.4 GB');
+      expect(html).not.toContain('2 TB');
+      expect(html).toContain('Calculating…');
     });
 
     it('contains strictly ZERO raw Unicode emojis in single enterprise storage gauge', () => {
@@ -114,15 +136,17 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('Others');
       expect(html).toContain('Trash');
 
-      // Verify counts exist in the cards
-      expect(html).toContain('1,421'); // 1420 base + 1 live sample image
-      expect(html).toContain('343'); // 342 base + 1 live sample video
-      expect(html).toContain('185'); // Audios
-      expect(html).toContain('893'); // 892 base + 1 live sample doc
-      expect(html).toContain('64'); // Archive
-      expect(html).toContain('28'); // Tags
-      expect(html).toContain('119'); // Others
-      expect(html).toContain('14'); // Trash
+      // Verify counts reflect REAL files only — no fabricated base seeds.
+      // sampleFiles: 1 image (png), 1 video (mp4), 1 document (pdf)
+      expect(html).toContain('data-testid="category-card-images"');
+      // Images count should be 1 (not 1,421 from the old hardcoded 1420 seed)
+      expect(html).not.toContain('1,421');
+      // Videos count should be 1 (not 343 from the old hardcoded 342 seed)
+      expect(html).not.toContain('343');
+      // Documents count should be 1 (not 893 from the old hardcoded 892 seed)
+      expect(html).not.toContain('893');
+      // Trash should be 0 (not 14 from the old fallback) when trashItems is empty
+      // (the "14" fallback was a fabricated number)
     });
 
     it('renders single enterprise storage gauge at the bottom of the Home view', () => {
@@ -131,10 +155,12 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       );
 
       expect(html).toContain('data-testid="single-enterprise-storage-gauge"');
-      expect(html).toContain('128.4 GB');
-      expect(html).toContain('2 TB');
+      // Uses the mocked quota (14.2 GB / 100 GB), never the old hardcoded 128.4 GB / 2 TB
+      expect(html).toContain('14.2 GB');
+      expect(html).toContain('100 GB');
+      expect(html).not.toContain('128.4 GB');
+      expect(html).not.toContain('2 TB');
       expect(html).toContain('Sovereign Enterprise Plan');
-      expect(html).toContain('1.87 TB remaining');
     });
 
     it('renders folders and recent items in Home view', () => {
@@ -160,14 +186,10 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
   // 3. DriveFeedSubView (Visual Media Feed)
   // ==========================================================================
   describe('3. DriveFeedSubView (Visual Media Feed)', () => {
-    it('renders visual media feed grouped by chronological dates', () => {
+    it('renders visual media feed header and filter pills', () => {
       const html = renderToStaticMarkup(<DriveFeedSubView />);
 
       expect(html).toContain('Visual Media Feed');
-      expect(html).toContain('Today');
-      expect(html).toContain('Yesterday');
-      expect(html).toContain('Last Week');
-      expect(html).toContain('September 2026');
     });
 
     it('renders media filter pills: All Media, Images, Videos, Audios', () => {
@@ -179,15 +201,30 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('Audios');
     });
 
-    it('renders media preview cards with dimensions, 4K video duration, and FLAC chips', () => {
+    it('shows empty state (not fake sample files) when no real files are provided', () => {
       const html = renderToStaticMarkup(<DriveFeedSubView />);
+      // The old hardcoded sample files (Ecosystem_Architecture_Q3_HighRes.png etc.)
+      // were fake data that didn't exist in the DB, causing downloads to 404.
+      expect(html).not.toContain('Ecosystem_Architecture_Q3_HighRes.png');
+      expect(html).not.toContain('QuantMeet_Keynote_Recording_4K.mp4');
+      expect(html).not.toContain('Voice_Note_Sprint_Review.flac');
+    });
 
-      expect(html).toContain('3840 x 2160');
-      expect(html).toContain('18:42');
-      expect(html).toContain('04:15');
-      expect(html).toContain('Ecosystem_Architecture_Q3_HighRes.png');
-      expect(html).toContain('QuantMeet_Keynote_Recording_4K.mp4');
-      expect(html).toContain('Voice_Note_Sprint_Review.flac');
+    it('renders real media files when provided via the files prop', () => {
+      const html = renderToStaticMarkup(
+        <DriveFeedSubView
+          files={[
+            {
+              id: 'real-1',
+              name: 'Real_Photo.png',
+              mimeType: 'image/png',
+              size: 1000000,
+              modifiedAt: '2026-10-06T10:00:00Z',
+            },
+          ]}
+        />,
+      );
+      expect(html).toContain('Real_Photo.png');
     });
 
     it('contains strictly ZERO raw Unicode emojis in DriveFeedSubView', () => {

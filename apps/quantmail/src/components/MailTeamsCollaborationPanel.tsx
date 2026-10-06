@@ -1135,15 +1135,7 @@ export function MailTeamsCollaborationPanel({
             })}
           </div>
 
-          {/* Quick Invite Button inside sidebar */}
-          <button
-            type="button"
-            onClick={() => setShowInviteModal(true)}
-            className="w-full flex items-center justify-center gap-1.5 p-2 rounded-xl border border-dashed border-[#282C35] hover:border-[#10B981]/60 text-xs text-[#A1A4AC] hover:text-[#10B981] bg-[#111318]/50 transition-all mt-auto"
-          >
-            <IconUserPlus className="size-3.5" />
-            <span>+ Add Collaborator to Repo</span>
-          </button>
+          {/* Invite via header button — sidebar duplicate removed */}
         </aside>
       </div>
 

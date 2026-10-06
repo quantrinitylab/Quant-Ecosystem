@@ -18,6 +18,8 @@ import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
+import { useConversations } from '../../../hooks/useConversations';
+import { useMe } from '../../../hooks/useMe';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
@@ -35,60 +37,6 @@ interface EnhancedMessage {
   type: 'text' | 'image' | 'voice' | 'snap_photo' | 'snap_video';
   voiceDurationMs?: number;
   snapDurationSec?: number;
-}
-
-function DeliveryIndicator({ status }: { status: DeliveryStatus }) {
-  if (status === 'sent') {
-    return (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    );
-  }
-  if (status === 'delivered') {
-    return (
-      <svg
-        width="16"
-        height="14"
-        viewBox="0 0 28 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-        <polyline points="24 6 13 17 10 14" />
-      </svg>
-    );
-  }
-  return (
-    <svg
-      width="16"
-      height="14"
-      viewBox="0 0 28 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-blue-500"
-    >
-      <polyline points="20 6 9 17 4 12" />
-      <polyline points="24 6 13 17 10 14" />
-    </svg>
-  );
 }
 
 function detectLink(text: string): { url: string; title: string; description?: string } | null {
@@ -211,7 +159,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const lastMarkedRef = useRef<string | null>(null);
 
   const messages: EnhancedMessage[] = useMemo(() => {
-    const restMessages = data ?? [];
+    // Defensive: data must be an array — a paginated envelope or any other
+    // non-array shape here used to crash the page with
+    // "e.filter is not a function". (useMessages unwraps the envelope, this
+    // is belt-and-suspenders.)
+    const restMessages = Array.isArray(data) ? data : [];
     const realtimeIds = new Set(incomingMessages.map((m) => m.id));
     const deduped = restMessages.filter((m: { id: string }) => !realtimeIds.has(m.id));
 
@@ -793,13 +745,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       description={msg.linkPreview.description}
                       imageUrl={msg.linkPreview.imageUrl}
                     />
-                  </div>
-                )}
-
-                {/* Delivery status */}
-                {msg.sender === 'self' && (
-                  <div className="flex justify-end mt-0.5 pr-1">
-                    <DeliveryIndicator status={msg.status} />
                   </div>
                 )}
 

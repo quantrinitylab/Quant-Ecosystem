@@ -101,7 +101,6 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       // ContextBottomNavBar is present for Mail
       expect(html).toContain('Mail contextual navigation');
       expect(html).toContain('Inbox');
-      
       expect(html).toContain('Teams');
       expect(html).toContain('Agents');
       expect(html).toContain('Archive');
@@ -125,7 +124,6 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Month');
       expect(html).toContain('Events');
       expect(html).toContain('Schedule');
-      
     });
 
     it('mounts QuantPillarTopBar and ContextBottomNavBar on Drive route (/drive)', () => {
@@ -139,12 +137,11 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#38BDF8');
 
-      expect(html).toContain('Drive contextual navigation'); expect(html).toContain('Home'); expect(html).toContain('Feed');
+      expect(html).toContain('Drive contextual navigation');
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
-      
     });
 
     it('mounts QuantPillarTopBar and ContextBottomNavBar on Contacts route (/contacts)', () => {
@@ -158,7 +155,7 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#10B981');
 
-      expect(html).toContain('Contacts contextual navigation'); expect(html).toContain('Home');
+      expect(html).toContain('Contacts contextual navigation');
       expect(html).toContain('Home');
       expect(html).toContain('Favorites');
       expect(html).toContain('Groups');

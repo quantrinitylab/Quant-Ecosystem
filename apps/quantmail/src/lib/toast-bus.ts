@@ -117,7 +117,40 @@ export function showToast(msg: Omit<ToastMessage, 'id'>) {
     id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
   };
   if (msg.undoAction) pendingUndo = { toastId: toast.id, run: msg.undoAction };
+  if (toastSubscribers.length === 0) {
+    // No toast container is mounted (or module duplication split the bus).
+    // Never let feedback vanish silently — render a fallback DOM toast so
+    // the user always sees what happened (e.g. calendar Save/Close errors).
+    renderFallbackDomToast(toast);
+    return;
+  }
   toastSubscribers.forEach((fn) => fn(toast));
+}
+
+/**
+ * Last-resort visible toast when no subscriber is listening. Creates a
+ * fixed-position div, auto-removes after 4s. Keeps critical user feedback
+ * (validation errors, save failures) from disappearing silently.
+ */
+function renderFallbackDomToast(toast: ToastMessage) {
+  try {
+    if (typeof document === 'undefined') return;
+    const el = document.createElement('div');
+    el.setAttribute('role', 'alert');
+    el.textContent = toast.text;
+    const bg =
+      toast.type === 'error'
+        ? 'rgba(127, 29, 29, 0.96)'
+        : toast.type === 'success'
+          ? 'rgba(20, 83, 45, 0.96)'
+          : 'rgba(24, 24, 27, 0.96)';
+    el.style.cssText = `position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:999999;background:${bg};color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,0.4);max-width:90vw;text-align:center;`;
+    document.body.appendChild(el);
+    window.setTimeout(() => el.remove(), 4000);
+  } catch {
+    // If even DOM injection fails, do not throw — the caller must never crash
+    // because feedback could not be displayed.
+  }
 }
 
 /** Most toasts on screen at once. Older ones are dropped from the top. */

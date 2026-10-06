@@ -11,11 +11,43 @@ import type { CommandPaletteItem } from '@quant/shared-ui';
 import { AuthGuard } from '../components/AuthGuard';
 
 const commands: CommandPaletteItem[] = [
-  { id: 'new-campaign', label: 'New Campaign', shortcut: 'N', action: () => {} },
-  { id: 'analytics', label: 'Analytics', shortcut: 'A', action: () => {} },
-  { id: 'audiences', label: 'Audiences', action: () => {} },
-  { id: 'creatives', label: 'Creatives', action: () => {} },
-  { id: 'billing', label: 'Billing', action: () => {} },
+  {
+    id: 'new-campaign',
+    label: 'New Campaign',
+    shortcut: 'N',
+    action: () => {
+      window.location.href = '/create-campaign';
+    },
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    shortcut: 'A',
+    action: () => {
+      window.location.href = '/analytics';
+    },
+  },
+  {
+    id: 'audiences',
+    label: 'Audiences',
+    action: () => {
+      window.location.href = '/audiences';
+    },
+  },
+  {
+    id: 'creatives',
+    label: 'Creatives',
+    action: () => {
+      window.location.href = '/creatives';
+    },
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    action: () => {
+      window.location.href = '/billing';
+    },
+  },
 ];
 
 export function AppProviders({ children }: { children: React.ReactNode }) {

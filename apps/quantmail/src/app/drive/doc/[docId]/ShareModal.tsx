@@ -74,6 +74,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         setPublicShareToken(res.data.shareToken);
         setPublicShareUrl(fullPublicUrl);
         showToast({ text: 'Public share link generated!', type: 'success', subject: 'share-link' });
+      } else {
+        // Never fail silently: the API responded without a share token.
+        showToast({
+          text: 'Server did not return a share link. Please try again.',
+          type: 'error',
+          subject: 'share-link',
+        });
       }
     } catch (err: any) {
       showToast({

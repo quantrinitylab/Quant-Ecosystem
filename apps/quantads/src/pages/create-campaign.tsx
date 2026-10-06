@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
 
@@ -69,6 +70,20 @@ interface ValidationError {
 
 const STEPS = ['Objective', 'Audience', 'Placement', 'Budget', 'Creative', 'Review'] as const;
 
+// Maps wizard (lowercase) objective ids -> backend zod enum (uppercase).
+const OBJECTIVE_TO_API: Record<string, string> = {
+  awareness: 'AWARENESS',
+  traffic: 'TRAFFIC',
+  conversions: 'CONVERSIONS',
+  app_installs: 'APP_INSTALLS',
+  video_views: 'ENGAGEMENT',
+  lead_gen: 'LEADS',
+};
+
+const API_TO_OBJECTIVE: Record<string, string> = Object.fromEntries(
+  Object.entries(OBJECTIVE_TO_API).map(([k, v]) => [v, k]),
+);
+
 const OBJECTIVES: ObjectiveOption[] = [
   {
     id: 'awareness',
@@ -110,8 +125,12 @@ const OBJECTIVES: ObjectiveOption[] = [
 ];
 
 const CreateCampaignPage: React.FC = () => {
+  const router = useRouter();
+  const editId = typeof router.query.edit === 'string' ? router.query.edit : null;
+  const isEditMode = editId !== null;
+
   const [currentStep, setCurrentStep] = useState<number>(0);
-  const [loading, _setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [errors, setErrors] = useState<ValidationError[]>([]);
@@ -241,19 +260,30 @@ const CreateCampaignPage: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch('/api/campaigns', {
-        method: 'POST',
+      // Backend zod schema expects the uppercase objective enum.
+      const payload = {
+        ...formData,
+        objective: OBJECTIVE_TO_API[formData.objective] ?? formData.objective,
+      };
+      const url = isEditMode
+        ? `/api/campaigns/${encodeURIComponent(editId as string)}`
+        : '/api/campaigns';
+      const response = await fetch(url, {
+        method: isEditMode ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error('Failed to create campaign');
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.error?.message || 'Failed to save campaign');
+      }
       window.location.href = '/campaigns';
     } catch (err: any) {
-      setError(err.message || 'Failed to create campaign');
+      setError(err.message || 'Failed to save campaign');
     } finally {
       setSubmitting(false);
     }
-  }, [formData, currentStep, validateStep]);
+  }, [formData, currentStep, validateStep, isEditMode, editId]);
 
   const updateAudience = useCallback((field: keyof AudienceData, value: any) => {
     setFormData((prev) => ({ ...prev, audience: { ...prev.audience, [field]: value } }));
@@ -273,6 +303,49 @@ const CreateCampaignPage: React.FC = () => {
     return n.toString();
   };
 
+  // Edit mode: load the existing campaign and pre-fill the wizard.
+  useEffect(() => {
+    if (!router.isReady || !editId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`/api/campaigns/${encodeURIComponent(editId)}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load campaign');
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        const c = json?.data ?? json;
+        if (!c || typeof c !== 'object') throw new Error('Campaign not found');
+        setFormData((prev) => ({
+          ...prev,
+          name: typeof c.name === 'string' ? c.name : prev.name,
+          objective:
+            typeof c.objective === 'string'
+              ? (API_TO_OBJECTIVE[c.objective.toUpperCase()] ??
+                API_TO_OBJECTIVE[c.objective] ??
+                prev.objective)
+              : prev.objective,
+          budget: {
+            ...prev.budget,
+            amount:
+              typeof c?.budget?.amount === 'number' ? c.budget.amount : prev.budget.amount,
+            type: c?.budget?.type === 'lifetime' ? 'lifetime' : 'daily',
+          },
+        }));
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load campaign');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router.isReady, editId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -290,7 +363,9 @@ const CreateCampaignPage: React.FC = () => {
       transition={{ type: 'spring', ...spring.gentle }}
     >
       <header className="mb-8">
-        <h1 className="text-3xl font-bold text-[var(--quant-foreground)]">Create Campaign</h1>
+        <h1 className="text-3xl font-bold text-[var(--quant-foreground)]">
+          {isEditMode ? 'Edit Campaign' : 'Create Campaign'}
+        </h1>
         <div className="flex items-center mt-6 gap-2">
           {STEPS.map((step, idx) => (
             <div key={step} className="flex items-center">
@@ -826,7 +901,7 @@ const CreateCampaignPage: React.FC = () => {
             disabled={submitting}
             className="px-8 py-2 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 disabled:opacity-50"
           >
-            {submitting ? 'Creating...' : 'Launch Campaign'}
+            {submitting ? 'Saving...' : isEditMode ? 'Save Changes' : 'Launch Campaign'}
           </button>
         )}
       </div>

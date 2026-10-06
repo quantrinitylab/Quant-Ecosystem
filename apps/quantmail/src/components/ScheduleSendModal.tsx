@@ -519,13 +519,11 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
               <div className="text-xs text-[#A1A4AC] truncate pr-2">
                 <span>Send on: </span>
                 <strong className="text-[#FF8C42] font-semibold">
-                  {selectedDate.toLocaleDateString([], {
+                  {`${selectedDate.toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',
-                  })}{' '}
-                  at {hour.toString().padStart(2, '0')}:{minute.toString().padStart(2, '0')}{' '}
-                  {period}
+                  })} at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${period}`}
                 </strong>
               </div>
 

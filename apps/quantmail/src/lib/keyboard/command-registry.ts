@@ -102,7 +102,7 @@ export type InboxCommandId =
   | 'inbox.close'
   | 'inbox.archive'
   | 'inbox.trash'
-  | 'inbox.star'
+  | 'inbox.pin'
   | 'inbox.toggleRead'
   | 'inbox.reply'
   | 'inbox.forward'
@@ -135,7 +135,7 @@ export const INBOX_COMMAND_REFERENCE: Array<CommandReference & { id: InboxComman
     keys: 'e',
     description: 'Move out of the inbox — the cursor stays on the next thread',
   },
-  { id: 'inbox.star', label: 'Star conversation', group: 'Conversation', keys: 's' },
+  { id: 'inbox.pin', label: 'Pin conversation', group: 'Conversation', keys: 's' },
   { id: 'inbox.toggleRead', label: 'Mark as unread', group: 'Conversation', keys: 'u' },
   {
     id: 'inbox.trash',
