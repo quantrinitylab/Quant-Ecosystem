@@ -42,7 +42,7 @@ spec:
     spec:
       containers:
         - name: cdc-relay
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-cdc-relay:bootstrap
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-cdc-relay:be7d1caf8c48fe6e9b469f6f79bd88a09b8914f4
           ports:
             - containerPort: 3024
               name: health

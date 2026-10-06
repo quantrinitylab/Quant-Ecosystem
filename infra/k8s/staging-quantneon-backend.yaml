@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: quantneon-backend
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon-backend:bootstrap
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quantneon-backend:d7192416d2d12f5a2416735535cbf9811e1a8ac3
           ports:
             - containerPort: 3012
               name: http
