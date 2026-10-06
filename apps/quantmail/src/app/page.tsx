@@ -37,6 +37,7 @@ import { UnreadDot } from '../components/UnreadDot';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import { MOBILE_BREAKPOINT_PX } from '../hooks/useIsMobile';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
 import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
 import { DockedComposer } from '../components/DockedComposer';
@@ -2515,7 +2516,11 @@ export default function InboxPage() {
       if (
         targetId &&
         typeof window !== 'undefined' &&
-        !window.matchMedia('(min-width: 900px)').matches
+        // Single source of truth with shell.css's `@media (max-width: 899px)`
+        // single-pane rules: below the breakpoint the reading pane is hidden,
+        // so a tap must navigate to the full-screen thread route instead of
+        // selecting into an invisible pane.
+        !window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
       ) {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
