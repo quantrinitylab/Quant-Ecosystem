@@ -17,6 +17,7 @@ import { AlienAvatar } from '../../components/avatar/AlienAvatar';
 import { LevelProgress } from '../../components/profile/LevelProgress';
 import { AvatarGenerator } from '../../components/profile/AvatarGenerator';
 import { NotificationSettings } from '../../components/settings/NotificationSettings';
+import { apiClient } from '../../services/api-client';
 import { useMe } from '../../hooks/useMe';
 
 interface RouteTile {
@@ -59,7 +60,78 @@ const ROUTE_TILES: RouteTile[] = [
   },
 ];
 
-type Panel = 'avatar' | 'notifications' | null;
+type Panel = 'avatar' | 'notifications' | 'edit' | null;
+
+/** Inline profile editor (display name + bio). Previously the profile had no
+ *  way to edit name/bio at all. */
+function EditProfileForm({
+  initialDisplayName,
+  initialBio,
+  onSaved,
+}: {
+  initialDisplayName: string;
+  initialBio: string;
+  onSaved: () => void;
+}) {
+  const [displayName, setDisplayName] = useState(initialDisplayName);
+  const [bio, setBio] = useState(initialBio);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await apiClient.updateProfile({
+        displayName: displayName.trim() || undefined,
+        bio: bio.trim() || undefined,
+      });
+      if (!res.success) throw new Error(res.error?.message || 'Save failed');
+      setMessage('Saved ✓');
+      onSaved();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-semibold text-gray-300">Display name</span>
+        <input
+          type="text"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+          maxLength={80}
+          placeholder="Your display name"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-purple-500"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-semibold text-gray-300">Bio</span>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          maxLength={280}
+          rows={3}
+          placeholder="A line about you…"
+          className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-white outline-none focus:border-purple-500"
+        />
+      </label>
+      {message && <p className="text-xs text-gray-400">{message}</p>}
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+      >
+        {saving ? 'Saving…' : 'Save changes'}
+      </button>
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -89,6 +161,7 @@ export default function ProfilePage() {
               <p className="mb-2 text-xs text-gray-400">
                 {me.displayName || 'Your QuantChat profile'}
               </p>
+              {me.bio && <p className="mb-2 text-sm text-gray-300">{me.bio}</p>}
               <LevelProgress xp={me.xpPoints} level={me.level} />
             </div>
           </section>
@@ -122,6 +195,17 @@ export default function ProfilePage() {
               Customize
             </h3>
             <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPanel('edit')}
+                className="flex flex-col items-start gap-1 rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10 active:scale-95"
+              >
+                <span className="text-2xl" aria-hidden>
+                  ✏️
+                </span>
+                <span className="text-sm font-semibold">Edit profile</span>
+                <span className="text-xs text-gray-400">Name, bio and photo</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setPanel('avatar')}
@@ -169,7 +253,11 @@ export default function ProfilePage() {
             >
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold">
-                  {panel === 'avatar' ? 'Avatar generator' : 'Notification settings'}
+                  {panel === 'avatar'
+                    ? 'Avatar generator'
+                    : panel === 'edit'
+                      ? 'Edit profile'
+                      : 'Notification settings'}
                 </h2>
                 <button
                   type="button"
@@ -180,7 +268,17 @@ export default function ProfilePage() {
                   Close
                 </button>
               </div>
-              {panel === 'avatar' ? <AvatarGenerator userId={me.id} /> : <NotificationSettings />}
+              {panel === 'avatar' ? (
+                <AvatarGenerator userId={me.id} />
+              ) : panel === 'edit' ? (
+                <EditProfileForm
+                  initialDisplayName={me.displayName || ''}
+                  initialBio={me.bio || ''}
+                  onSaved={() => void refetch()}
+                />
+              ) : (
+                <NotificationSettings />
+              )}
             </motion.div>
           </motion.div>
         )}

@@ -23,6 +23,7 @@ import spotlightRoutes from './routes/spotlight';
 import storiesRoutes from './routes/stories';
 import notificationsRoutes from './routes/notifications';
 import usersRoutes from './routes/users';
+import settingsRoutes from './routes/settings';
 import themesRoutes from './routes/themes';
 import ephemeralRoutes from './routes/ephemeral';
 import gamesRoutes from './routes/games';
@@ -171,6 +172,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(mapRoutes, { prefix: '/map' });
   await app.register(notificationsRoutes, { prefix: '/notifications' });
   await app.register(usersRoutes, { prefix: '/users' });
+  await app.register(settingsRoutes, { prefix: '/settings' });
   await app.register(audioRoomsRoutes, { prefix: '/audio-rooms' });
   await app.register(audioRoomsRoutes, { prefix: '/api/audio-rooms' });
 

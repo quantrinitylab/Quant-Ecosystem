@@ -145,6 +145,8 @@ export class QuantChatApiClient {
   async updateProfile(data: {
     username?: string;
     displayName?: string;
+    bio?: string;
+    avatarUrl?: string;
   }): Promise<ApiResponse<unknown>> {
     return this.put('/auth/profile', data);
   }
