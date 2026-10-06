@@ -186,6 +186,136 @@ export function DockedComposer({
   const [isMinimized, setIsMinimized] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
+  // --------------------------------------------------------------------------
+  // Composer window gestures: drag-down-to-minimize + top-edge drag-to-resize
+  // --------------------------------------------------------------------------
+  const composerRef = useRef<HTMLDivElement>(null);
+  // User-resized height (null = natural height). Committed on pointer release.
+  const [customHeightPx, setCustomHeightPx] = useState<number | null>(null);
+
+  const MIN_COMPOSER_HEIGHT = 300;
+  const SWIPE_MINIMIZE_THRESHOLD = 80; // px of downward drag before minimizing
+
+  /**
+   * Header drag (touch swipe-down or mouse drag-down): the composer follows the
+   * pointer, and past the threshold it collapses to the minimized draft badge —
+   * the Gmail/Telegram sheet pattern. Ignored when expanded; header buttons
+   * are excluded so they stay clickable.
+   */
+  const handleHeaderDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isExpanded || isMinimized) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[data-resize-handle]')) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const el = composerRef.current;
+    let mode: 'swipe' | null = null;
+
+    document.body.style.userSelect = 'none';
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = '';
+    };
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      if (!mode) {
+        if (Math.abs(dy) < 10 && Math.abs(dx) < 10) return;
+        // Engage only for a dominant downward drag.
+        if (dy > 0 && dy >= Math.abs(dx)) {
+          mode = 'swipe';
+        } else {
+          cleanup();
+          return;
+        }
+      }
+      ev.preventDefault();
+      if (el) el.style.transform = `translateY(${Math.max(0, dy)}px)`;
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      const dy = ev.clientY - startY;
+      cleanup();
+      if (mode !== 'swipe' || !el) return;
+      if (dy >= SWIPE_MINIMIZE_THRESHOLD) {
+        el.style.transform = '';
+        setIsMinimized(true);
+      } else {
+        // Spring back to rest position.
+        el.style.transition = 'transform 180ms ease-out';
+        el.style.transform = '';
+        window.setTimeout(() => {
+          if (composerRef.current) composerRef.current.style.transition = '';
+        }, 200);
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  /**
+   * Top-edge drag handle: resize composer height (desktop mouse / touch).
+   * Height is clamped between a usable minimum and 85% of the viewport.
+   */
+  const handleResizeDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isExpanded || isMinimized) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const el = composerRef.current;
+    if (!el) return;
+
+    const startHeight = el.getBoundingClientRect().height;
+    const startY = e.clientY;
+    let latest = startHeight;
+
+    document.body.style.userSelect = 'none';
+
+    const onMove = (ev: PointerEvent) => {
+      ev.preventDefault();
+      const maxH = Math.floor(window.innerHeight * 0.85);
+      const next = Math.min(
+        Math.max(startHeight - (ev.clientY - startY), MIN_COMPOSER_HEIGHT),
+        maxH
+      );
+      latest = next;
+      el.style.height = `${Math.round(next)}px`;
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      document.body.style.userSelect = '';
+      setCustomHeightPx(Math.round(latest));
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
+  /** Keyboard access to the resize handle: arrows adjust height by 24px. */
+  const handleResizeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    const el = composerRef.current;
+    const base =
+      customHeightPx ?? (el ? Math.round(el.getBoundingClientRect().height) : 520);
+    const maxH = Math.floor(window.innerHeight * 0.85);
+    const next = Math.min(
+      Math.max(base + (e.key === 'ArrowUp' ? 24 : -24), MIN_COMPOSER_HEIGHT),
+      maxH
+    );
+    setCustomHeightPx(next);
+  };
+
   // Field states
   const [to, setTo] = useState(initialTo);
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -530,9 +660,33 @@ export function DockedComposer({
   return (
     <div
       data-testid="docked-composer"
+      ref={composerRef}
       onKeyDown={handleKeyDown}
       className={containerClasses}
+      style={!isExpanded && customHeightPx ? { height: customHeightPx } : undefined}
     >
+      {/* Drag-to-resize handle on the top edge (docked mode only) */}
+      {!isExpanded && (
+        <div
+          data-resize-handle
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize composer height"
+          aria-valuemin={MIN_COMPOSER_HEIGHT}
+          aria-valuemax={850}
+          aria-valuenow={customHeightPx ?? undefined}
+          title="Drag to resize"
+          tabIndex={0}
+          onPointerDown={handleResizeDragStart}
+          onKeyDown={handleResizeKeyDown}
+          className="absolute inset-x-[33%] top-0 z-20 flex h-4 cursor-ns-resize touch-none items-start justify-center pt-1.5 focus-visible:outline-2 focus-visible:outline-[#FF8C42]"
+        >
+          <span
+            aria-hidden="true"
+            className="h-1 w-14 rounded-full bg-[#4A5163] opacity-60 transition-opacity hover:opacity-100"
+          />
+        </div>
+      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -541,8 +695,12 @@ export function DockedComposer({
         onChange={handleFileChange}
       />
 
-      {/* HEADER BAR */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#121622] border-b border-[#232938] select-none shrink-0">
+      {/* HEADER BAR — drag down (touch or mouse) to minimize to the draft badge */}
+      <div
+        onPointerDown={handleHeaderDragStart}
+        title="Drag down to minimize"
+        className="relative flex items-center justify-between px-4 py-2.5 bg-[#121622] border-b border-[#232938] select-none shrink-0 touch-none cursor-grab active:cursor-grabbing"
+      >
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex size-6 items-center justify-center rounded-lg bg-[#FF8C42]/20 text-[#FF8C42]">
             <IconSend className="size-3.5" />
