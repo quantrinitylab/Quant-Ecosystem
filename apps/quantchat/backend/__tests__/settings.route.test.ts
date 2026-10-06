@@ -21,7 +21,7 @@ import type { AppConfig } from '@quant/server-core';
 const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 const requireServerCore = createRequire(path.join(repoRoot, 'packages', 'server-core', 'package.json'));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const jose = requireServerCore('jose') as typeof import('jose');
+const jose = requireServerCore('jose') as { SignJWT: new (payload: Record<string, unknown>) => { setProtectedHeader(header: { alg: string }): any; setIssuer(issuer: string): any; setAudience(audience: string): any; setExpirationTime(expiration: string): any; sign(key: Uint8Array): Promise<string> } };
 
 const JWT_SECRET = 'test-secret-key-that-is-long-enough-for-hs256';
 
