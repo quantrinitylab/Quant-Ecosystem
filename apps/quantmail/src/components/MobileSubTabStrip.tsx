@@ -4,24 +4,24 @@
 // QuantMail — Mobile Sub-Tab Strip (Gmail-style, single tab system per screen)
 // ============================================================================
 //
-// When the ContextBottomNavBar double bar was removed, three pillars lost
+// When the ContextBottomNavBar double bar was removed, two pillars lost
 // their ONLY mobile sub-tab switcher: calendar's CalendarContextSubTabs and
-// drive's DriveContextTabsHeader are both `hidden md:flex` (desktop-only),
-// and QuantGit's repos/prs/issues/actions/copilot sub-views had no other UI.
-// Mail and Contacts keep their own native mobile tab rows (inbox lens
-// tablist, contacts chips), so this strip renders ONLY for calendar, drive
-// and quantgit — one horizontal scrollable pill strip directly under the app
-// bar, Gmail-style. Never a second bottom bar.
+// drive's DriveContextTabsHeader are both `hidden md:flex` (desktop-only).
+// Mail, Contacts and QuantGit keep their own native mobile tab rows (inbox
+// lens tablist, contacts chips, quantgit's All Repos/Open PRs/Issues/CI Runs
+// pills), so this strip renders ONLY for calendar and drive — one horizontal
+// scrollable pill strip directly under the app bar, Gmail-style. Never a
+// second bottom bar.
 //
 // Wiring mirrors the pages' existing contract: `?tab=` query params plus the
-// `quant:subtab-change` custom event, which calendar/drive/quantgit pages
-// already listen for. No page changes needed.
+// `quant:subtab-change` custom event, which calendar/drive pages already
+// listen for. No page changes needed.
 // ============================================================================
 
 import React, { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
-export type SubTabPillar = 'calendar' | 'drive' | 'quantgit';
+export type SubTabPillar = 'calendar' | 'drive';
 
 export interface MobileSubTab {
   id: string;
@@ -58,24 +58,12 @@ export const MOBILE_SUB_TAB_CONFIGS: Record<SubTabPillar, SubTabPillarConfig> = 
       { id: 'vault', label: 'Vault', targetPath: '/drive', queryParam: { key: 'tab', value: 'vault' } },
     ],
   },
-  quantgit: {
-    name: 'QuantGit',
-    accentColor: '#A78BFA',
-    tabs: [
-      { id: 'repos', label: 'Repos', targetPath: '/quantgit', queryParam: { key: 'tab', value: 'repos' } },
-      { id: 'prs', label: 'PRs', targetPath: '/quantgit', queryParam: { key: 'tab', value: 'prs' } },
-      { id: 'issues', label: 'Issues', targetPath: '/quantgit', queryParam: { key: 'tab', value: 'issues' } },
-      { id: 'actions', label: 'Actions', targetPath: '/quantgit', queryParam: { key: 'tab', value: 'actions' } },
-      { id: 'copilot', label: 'Copilot', targetPath: '/quantgit', queryParam: { key: 'tab', value: 'copilot' } },
-    ],
-  },
 };
 
 /** Which pillar (if any) needs the mobile sub-tab strip. */
 export function subTabPillarForPath(pathname: string): SubTabPillar | null {
   if (pathname.startsWith('/calendar')) return 'calendar';
   if (pathname.startsWith('/drive')) return 'drive';
-  if (pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')) return 'quantgit';
   return null;
 }
 
@@ -106,12 +94,7 @@ export function resolveMobileSubTab(
     return 'home';
   }
 
-  // quantgit
-  if (tabParam === 'prs') return 'prs';
-  if (tabParam === 'issues') return 'issues';
-  if (tabParam === 'actions') return 'actions';
-  if (tabParam === 'copilot') return 'copilot';
-  return 'repos';
+  return 'feed';
 }
 
 /**
@@ -135,11 +118,6 @@ export function executeMobileSubTabClick(
       return;
     }
 
-    if (tab.id === 'copilot' && pillar === 'quantgit') {
-      window.dispatchEvent(new CustomEvent('quant:copilot:open'));
-      window.dispatchEvent(new CustomEvent('quant:agents:open'));
-    }
-
     window.dispatchEvent(
       new CustomEvent('quant:subtab-change', {
         detail: { pillar, tabId: tab.id, queryParam: tab.queryParam },
@@ -157,9 +135,9 @@ export function MobileSubTabStrip({ className = '' }: { className?: string }) {
   const searchParams = useSearchParams();
 
   const pillar = subTabPillarForPath(pathname);
-  // Mail and Contacts render their own native mobile tab rows; thread/compose
-  // are not suite routes. This strip is only the replacement for the removed
-  // bottom bar's navigation on calendar, drive and quantgit.
+  // Mail, Contacts and QuantGit render their own native mobile tab rows;
+  // thread/compose are not suite routes. This strip is only the replacement
+  // for the removed bottom bar's navigation on calendar and drive.
   if (!pillar) return null;
   if (pathname.startsWith('/thread') || pathname.startsWith('/compose')) return null;
 
