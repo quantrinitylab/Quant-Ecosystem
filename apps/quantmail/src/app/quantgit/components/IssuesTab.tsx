@@ -6,6 +6,14 @@
 
 import React, { useState } from 'react';
 import type { IssueItem } from '../types';
+import {
+  QuantGitIssueOpenIcon,
+  QuantGitIssueClosedIcon,
+  QuantGitCommentIcon,
+  QuantGitCheckIcon,
+  QuantGitLinkIcon,
+} from './QuantGitIcons';
+import { QuantGitRowSkeleton, QuantGitEmptyState } from './QuantGitSkeletons';
 
 export interface IssuesTabProps {
   issueSearchQuery: string;
@@ -16,6 +24,8 @@ export interface IssuesTabProps {
   setModalState: (modal: any) => void;
   openIssueDetail: (issue: IssueItem) => void;
   handleToggleIssue: (id: number) => void;
+  /** When true, renders skeleton rows instead of the issue list. */
+  isLoading?: boolean;
 }
 
 export function IssuesTab({
@@ -27,6 +37,7 @@ export function IssuesTab({
   setModalState,
   openIssueDetail,
   handleToggleIssue,
+  isLoading = false,
 }: IssuesTabProps) {
   const [selectedIssue, setSelectedIssue] = useState<IssueItem | null>(null);
   const [isCreatingIssue, setIsCreatingIssue] = useState(false);
@@ -77,11 +88,19 @@ export function IssuesTab({
             {/* Status Pill & Author metadata */}
             <div className="flex items-center gap-3 text-[11px] text-[#8D96A0]">
               <span
-                className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1 ${
+                className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1.5 ${
                   selectedIssue.state === 'open' ? 'bg-[#238636]' : 'bg-[#8957E5]'
                 }`}
               >
-                <span>{selectedIssue.state === 'open' ? '☉ Open' : '✓ Closed'}</span>
+                {selectedIssue.state === 'open' ? (
+                  <>
+                    <QuantGitIssueOpenIcon size={12} /> Open
+                  </>
+                ) : (
+                  <>
+                    <QuantGitIssueClosedIcon size={12} /> Closed
+                  </>
+                )}
               </span>
               <span>
                 <strong className="text-[#E6EDF3]">{selectedIssue.author}</strong> opened this issue{' '}
@@ -160,10 +179,10 @@ export function IssuesTab({
                     </button>
                     <button
                       onClick={() => insertMarkdown('[', '](url)')}
-                      className="p-1 hover:text-[#E6EDF3]"
+                      className="p-1 hover:text-[#E6EDF3] flex"
                       title="Link"
                     >
-                      🔗
+                      <QuantGitLinkIcon size={14} />
                     </button>
                     <button
                       onClick={() => insertMarkdown('@')}
@@ -389,7 +408,10 @@ export function IssuesTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#3FB950]">☉</span> {openIssuesCount} Open
+                  <span className="text-[#3FB950] flex">
+                    <QuantGitIssueOpenIcon size={14} />
+                  </span>{' '}
+                  {openIssuesCount} Open
                 </button>
                 <button
                   type="button"
@@ -400,51 +422,78 @@ export function IssuesTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#8957E5]">✓</span> {closedIssuesCount} Closed
+                  <span className="text-[#8957E5] flex">
+                    <QuantGitCheckIcon size={14} />
+                  </span>{' '}
+                  {closedIssuesCount} Closed
                 </button>
               </div>
             </div>
 
             <div className="divide-y divide-[#21262D]">
-              {filteredIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  onClick={() => setSelectedIssue(issue)}
-                  className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 cursor-pointer group"
-                >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`font-bold ${
-                          issue.state === 'open' ? 'text-[#3FB950]' : 'text-[#8957E5]'
-                        }`}
-                      >
-                        {issue.state === 'open' ? '☉' : '✓'}
-                      </span>
-                      <span className="font-semibold text-xs text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
-                        {issue.title}
-                      </span>
-                      {issue.labels.map((lbl) => (
+              {isLoading ? (
+                <QuantGitRowSkeleton rows={5} testId="issue-list-skeleton" />
+              ) : filteredIssues.length === 0 ? (
+                <QuantGitEmptyState
+                  icon="issue"
+                  title="No issues"
+                  hint={
+                    issueSearchQuery.includes('state:closed')
+                      ? 'There are no closed issues matching your search.'
+                      : 'There are no open issues. Create one to track work.'
+                  }
+                  actionLabel="New issue"
+                  onAction={() => setModalState('new-issue')}
+                  testId="issue-list-empty"
+                />
+              ) : (
+                filteredIssues.map((issue) => (
+                  <button
+                    key={issue.id}
+                    type="button"
+                    data-testid={`issue-row-${issue.id}`}
+                    onClick={() => setSelectedIssue(issue)}
+                    aria-label={`Open issue ${issue.title}`}
+                    className="w-full p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span
-                          key={lbl.name}
-                          className="px-2 py-0.2 rounded-full text-[10px] font-bold text-white"
-                          style={{ backgroundColor: lbl.color }}
+                          className={`flex ${
+                            issue.state === 'open' ? 'text-[#3FB950]' : 'text-[#8957E5]'
+                          }`}
                         >
-                          {lbl.name}
+                          {issue.state === 'open' ? (
+                            <QuantGitIssueOpenIcon size={16} />
+                          ) : (
+                            <QuantGitIssueClosedIcon size={16} />
+                          )}
                         </span>
-                      ))}
+                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                          {issue.title}
+                        </span>
+                        {issue.labels.map((lbl) => (
+                          <span
+                            key={lbl.name}
+                            className="px-2 py-0.2 rounded-full text-[10px] font-bold text-white"
+                            style={{ backgroundColor: lbl.color }}
+                          >
+                            {lbl.name}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="text-xs text-[#8D96A0]">
+                        #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
+                        {issue.assignee}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-[#8D96A0]">
-                      #{issue.id} opened {issue.createdAt} by {issue.author} · Assignee:{' '}
-                      {issue.assignee}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[#8D96A0]">
-                    <span>💬</span>
-                    <span>{issue.commentsCount}</span>
-                  </div>
-                </div>
-              ))}
+                    <div className="flex items-center gap-1.5 text-[#8D96A0] shrink-0">
+                      <QuantGitCommentIcon size={14} />
+                      <span className="text-xs">{issue.commentsCount}</span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>
