@@ -2093,32 +2093,13 @@ function QuantGitContent() {
                 showToast(`Opened repository: ${repoName}`);
               }
             }}
-            onMergePR={async (prId) => {
+            onMergePR={(prId) => {
               // Real merge via backend — never lie about success.
-              const repoTarget = selectedRepo?.id || selectedRepo?.name;
-              if (!repoTarget) {
-                showToast('Select a repository first to merge');
-                return;
-              }
-              try {
-                const res = await apiFetch(
-                  `/api/repos/${encodeURIComponent(repoTarget)}/pulls/${encodeURIComponent(prId)}/merge`,
-                  { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
-                );
-                const json = await res.json().catch(() => null);
-                if (res.ok && (json?.success !== false)) {
-                  setPulls((prev) =>
-                    prev.map((p) =>
-                      String(p.id) === String(prId) ? { ...p, state: 'merged' as const } : p,
-                    ),
-                  );
-                  showToast(`Pull request #${prId} merged successfully!`);
-                } else {
-                  showToast(json?.error?.message || `Could not merge pull request #${prId}`);
-                }
-              } catch {
-                showToast(`Could not merge pull request #${prId} — network error`);
-              }
+              // NOTE: this sub-view only renders when no repository is selected
+              // (guarded by `!selectedRepo` above), so there is no repo target
+              // to merge into — say so honestly instead of pretending.
+              void prId;
+              showToast('Select a repository first to merge');
             }}
             onOpenPR={(prId) => {
               showToast(`Opened PR details: ${prId}`);
