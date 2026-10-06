@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { headers } from 'next/headers';
 import './globals.css';
+// Off-canvas AppShell nav (`.quant-shell-*`) ships with the component in
+// @quant/shared-ui — every AppShell consumer must import it once, here.
+import '@quant/shared-ui/src/components/Layout/quant-shell.css';
 import { QueryProvider } from '../providers/query-provider';
 import { AppProviders } from '../providers/app-providers';
 import { QuantAIThemeProvider } from '../providers/theme-provider';

@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { getAuthToken, savePreservedChatState, loadPreservedChatState } from '../lib/auth';
+import { getGuestToken, clearGuestToken } from '../lib/guest';
 import type { ToolCall } from '../types/tool-calls';
 
 export interface ChatMessage {
@@ -84,11 +85,11 @@ interface ServerMessage {
   createdAt: string;
 }
 
-function authHeaders(json = false): Record<string, string> {
+function authHeaders(json = false, token?: string | null): Record<string, string> {
   const headers: Record<string, string> = {};
   if (json) headers['Content-Type'] = 'application/json';
-  const token = getAuthToken();
-  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const t = token ?? getAuthToken();
+  if (t) headers['Authorization'] = `Bearer ${t}`;
   return headers;
 }
 
@@ -117,6 +118,37 @@ function mapServerSession(s: ServerSession): ChatConversation {
   };
 }
 
+/**
+ * Extract the honest error message from a failed stream response. The stream
+ * route relays backend JSON errors as-is and returns its own JSON on 503 —
+ * surface that text instead of a bare "Server error: NNN". Never fabricate
+ * content here: when the body is unreadable, say so plainly.
+ */
+async function honestStreamError(res: Response): Promise<string> {
+  if (res.status === 401) {
+    return 'Authentication failed (401). Please sign in — or start a new guest session — and try again.';
+  }
+  try {
+    const text = await res.text();
+    if (text) {
+      const parsed = JSON.parse(text) as {
+        error?: string | { message?: string };
+        message?: string;
+      };
+      const err: unknown = parsed.error;
+      if (typeof err === 'string' && err.trim()) return err;
+      if (err && typeof err === 'object' && 'message' in err) {
+        const msg = (err as { message?: unknown }).message;
+        if (typeof msg === 'string' && msg.trim()) return msg;
+      }
+      if (typeof parsed.message === 'string' && parsed.message.trim()) return parsed.message;
+    }
+  } catch {
+    // fall through to the generic message below
+  }
+  return `Server error: ${res.status}`;
+}
+
 export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const { defaultModel = 'muse-spark-1.3' } = options;
 
@@ -126,8 +158,39 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [currentModel, setCurrentModel] = useState<string>(defaultModel);
+  /**
+   * Guest-scoped JWT (POST /api/guest/session) used when no user token
+   * exists. It is a REAL credential the backend auth gate accepts, so guest
+   * chat runs the real inference path instead of failing 401 on every
+   * message. Null while unminted/unavailable.
+   */
+  const [guestToken, setGuestToken] = useState<string | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Prefetch a guest token for signed-out visitors so the first message
+  // doesn't pay the mint latency. No-ops when a user token exists.
+  useEffect(() => {
+    if (getAuthToken()) return;
+    let cancelled = false;
+    void getGuestToken().then((token) => {
+      if (!cancelled && token) setGuestToken(token);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * Auth headers for API calls: the user's token when signed in, otherwise
+   * the guest token. When neither exists the request goes out unauthenticated
+   * and the backend answers 401 — surfaced honestly, never faked.
+   */
+  const headersWithAuth = useCallback(
+    (json = false, token?: string | null): Record<string, string> =>
+      authHeaders(json, token ?? getAuthToken() ?? guestToken),
+    [guestToken],
+  );
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.id === activeConversationId) ?? null,
@@ -147,7 +210,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     (async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/sessions?pageSize=50`, { headers: authHeaders() });
+        const res = await fetch(`${API_BASE}/sessions?pageSize=50`, { headers: headersWithAuth() });
         const preserved = loadPreservedChatState();
         if (!res.ok) {
           // Unauthenticated or backend offline: restore preserved conversations if available
@@ -227,7 +290,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     async (conversationId: string) => {
       try {
         const res = await fetch(`${API_BASE}/sessions/${conversationId}/messages?pageSize=200`, {
-          headers: authHeaders(),
+          headers: headersWithAuth(),
         });
         if (!res.ok) return;
         const json = (await res.json()) as { data?: { data?: ServerMessage[] } };
@@ -237,7 +300,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         // best-effort; leave existing messages in place
       }
     },
-    [patchConversation],
+    [patchConversation, headersWithAuth],
   );
 
   const selectConversation = useCallback(
@@ -253,10 +316,19 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   );
 
   const createConversation = useCallback(async (): Promise<string | null> => {
+    // Guests need a credential before the backend will create a session:
+    // mint one on demand (the prefetch effect usually beat us to it). With a
+    // guest token the backend creates a REAL session row, so guest chat runs
+    // the real inference path instead of failing 401 on every message.
+    let token: string | null = getAuthToken() ?? guestToken;
+    if (!token) {
+      token = await getGuestToken();
+      if (token) setGuestToken(token);
+    }
     try {
       const res = await fetch(`${API_BASE}/sessions`, {
         method: 'POST',
-        headers: authHeaders(true),
+        headers: headersWithAuth(true, token),
         body: JSON.stringify({ model: currentModel }),
       });
       if (!res.ok) throw new Error(`Failed to create conversation: ${res.status}`);
@@ -268,7 +340,9 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setError(null);
       return conv.id;
     } catch {
-      // Offline or guest mode fallback: create local conversation
+      // Offline, or guest sessions unavailable (no secret / rate limited):
+      // keep a local-only conversation. Sending from it will surface the
+      // honest backend error state — never a fabricated reply.
       const guestId = `guest-conv-${Date.now()}`;
       const localConv: ChatConversation = {
         id: guestId,
@@ -284,7 +358,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setError(null);
       return guestId;
     }
-  }, [currentModel]);
+  }, [currentModel, guestToken, headersWithAuth]);
 
   const deleteConversation = useCallback(
     async (id: string) => {
@@ -292,12 +366,12 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (activeConversationId === id) setActiveConversationId(null);
       try {
-        await fetch(`${API_BASE}/sessions/${id}`, { method: 'DELETE', headers: authHeaders() });
+        await fetch(`${API_BASE}/sessions/${id}`, { method: 'DELETE', headers: headersWithAuth() });
       } catch {
         // ignore — already removed locally
       }
     },
-    [activeConversationId],
+    [activeConversationId, headersWithAuth],
   );
 
   const appendMessage = useCallback(
@@ -358,12 +432,14 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         try {
           const res = await fetch(`${API_BASE}/sessions/${convId}/messages/stream`, {
             method: 'POST',
-            headers: authHeaders(true),
+            headers: headersWithAuth(true),
             body: JSON.stringify({ content: trimmed }),
             signal: controller.signal,
           });
 
-          if (!res.ok || !res.body) throw new Error(`Server error: ${res.status}`);
+          if (!res.ok || !res.body) {
+            throw new Error(await honestStreamError(res));
+          }
 
           // Consume the Server-Sent Events stream, accumulating tokens live.
           const reader = res.body.getReader();
@@ -424,7 +500,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
             patchConversation(convId, (c) => ({ ...c, title }));
             void fetch(`${API_BASE}/sessions/${convId}`, {
               method: 'PUT',
-              headers: authHeaders(true),
+              headers: headersWithAuth(true),
               body: JSON.stringify({ title }),
             }).catch(() => undefined);
           }
@@ -434,12 +510,24 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           await loadMessages(convId);
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') return;
-          setError(err instanceof Error ? err.message : 'Failed to get response');
+          const message = err instanceof Error ? err.message : 'Failed to get response';
+          // A 401 on a guest credential almost always means the short-lived
+          // guest token expired: drop it so the next send mints a fresh one
+          // instead of failing the same way forever.
+          if (!getAuthToken() && /401/.test(message)) {
+            clearGuestToken();
+            setGuestToken(null);
+          }
+          setError(message);
           patchConversation(convId, (c) => ({
             ...c,
             messages: c.messages.map((m) =>
               m.id === tempAssistantId
-                ? { ...m, content: 'Sorry, I encountered an error.', isStreaming: false }
+                ? {
+                    ...m,
+                    content: message || 'Sorry, I encountered an error.',
+                    isStreaming: false,
+                  }
                 : m,
             ),
           }));
@@ -458,6 +546,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       appendMessage,
       patchConversation,
       loadMessages,
+      headersWithAuth,
     ],
   );
 
@@ -479,7 +568,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       const next = previous === value ? null : value;
       void fetch(`${API_BASE}/sessions/${convId}/messages/${messageId}/feedback`, {
         method: 'POST',
-        headers: authHeaders(true),
+        headers: headersWithAuth(true),
         body: JSON.stringify({ feedback: next }),
       }).catch(() => {
         // Roll back on failure.
@@ -489,7 +578,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         }));
       });
     },
-    [activeConversationId, patchConversation],
+    [activeConversationId, patchConversation, headersWithAuth],
   );
 
   const switchModel = useCallback(
@@ -498,13 +587,13 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       if (activeConversationId) {
         void fetch(`${API_BASE}/sessions/${activeConversationId}`, {
           method: 'PUT',
-          headers: authHeaders(true),
+          headers: headersWithAuth(true),
           body: JSON.stringify({ model: modelId }),
         }).catch(() => undefined);
         patchConversation(activeConversationId, (c) => ({ ...c, model: modelId }));
       }
     },
-    [activeConversationId, patchConversation],
+    [activeConversationId, patchConversation, headersWithAuth],
   );
 
   const clearMessages = useCallback(() => {

@@ -45,6 +45,7 @@
     "@quant/scaling": "workspace:*",
     "fastify": "^5.3.3",
     "ioredis": "^5.6.1",
+    "jose": "^4.15.9",
     "next": "^15.5.16",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
