@@ -12,6 +12,8 @@ import 'package:quant_mail/screens/composer/undo_send_manager.dart';
 import 'package:quant_mail/screens/composer/undo_send_bar.dart';
 import 'package:quant_mail/screens/composer/email_composer_modal.dart';
 import 'package:quant_mail/screens/mail/mail_inbox_screen.dart';
+import 'package:quant_mail/screens/superapp/quantmail_superapp_bar.dart';
+import 'package:quant_mail/screens/superapp/superapp_home_screen.dart';
 import 'package:quant_mail/screens/contacts/contacts_pillar_view.dart';
 import 'package:quant_mail/screens/quantgit/quantgit_pillar_view.dart';
 
@@ -65,15 +67,61 @@ void main() {
       expect(MailCategoryLens.vips.accentColor, QuantColors.emeraldMatrix);
     });
 
-    test('MailThread: Validates sample dataset, copyWith, security telemetry, and AI summary', () {
+    test('MailThread: sampleThreads is honestly empty; copyWith and model behavior verified on a direct fixture', () {
+      // v2 honesty: no fabricated demo threads ship in the product.
       final sampleThreads = MailThread.sampleThreads();
-      expect(sampleThreads.isNotEmpty, isTrue);
-      expect(sampleThreads.length, 6);
+      expect(sampleThreads, isEmpty);
 
-      final thread1 = sampleThreads.first;
-      expect(thread1.id, 'th-001');
-      expect(thread1.sender, 'Alex Mercer');
-      expect(thread1.senderEmail, 'alex@trinity.lab');
+      // Direct fixture (clearly fictional) for model behavior tests.
+      final thread1 = MailThread(
+        id: 'th-test-001',
+        sender: 'Test User',
+        senderEmail: 'test.user@example.com',
+        senderInitials: 'TU',
+        avatarGradient: const [Color(0xFFFF8C42), Color(0xFFF59E0B)],
+        isVerifiedDomain: true,
+        subject: 'Test subject line',
+        snippet: 'Test snippet for unit verification.',
+        bodyHtml: '<p>Test body</p>',
+        timestamp: '2026-10-07T10:30:00',
+        dateFormatted: '10:30 AM',
+        category: MailCategoryLens.primary,
+        isUnread: true,
+        isStarred: true,
+        isPriorityTriage: true,
+        priorityShortcut: 'E',
+        security: const MailHeaderSecurity(
+          spf: 'PASS',
+          dkim: 'PASS',
+          dmarc: 'PASS',
+          e2ee: 'TLS 1.3',
+          deliveryLatencyMs: 12.0,
+        ),
+        aiSummary: MailAiSummary(
+          summaryTitle: 'Test Summary',
+          latencyMs: 3,
+          keyPoints: const ['Point one', 'Point two'],
+          actionItems: [
+            MailActionItem(id: 'a1', title: 'First action'),
+            MailActionItem(id: 'a2', title: 'Second action'),
+          ],
+        ),
+        attachments: [
+          const MailAttachment(
+            id: 'att-1',
+            name: 'spec.pdf',
+            fileType: 'PDF',
+            sizeBytes: 1024,
+            formattedSize: '1 KB',
+            sha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            icon: Icons.picture_as_pdf_rounded,
+          ),
+        ],
+      );
+
+      expect(thread1.id, 'th-test-001');
+      expect(thread1.sender, 'Test User');
+      expect(thread1.senderEmail, 'test.user@example.com');
       expect(thread1.category, MailCategoryLens.primary);
       expect(thread1.isUnread, isTrue);
       expect(thread1.isStarred, isTrue);
@@ -84,13 +132,12 @@ void main() {
       expect(thread1.security.spf, 'PASS');
       expect(thread1.security.dkim, 'PASS');
       expect(thread1.security.dmarc, 'PASS');
-      expect(thread1.security.e2ee.contains('Kyber-1024'), isTrue);
-      expect(thread1.security.deliveryLatencyMs, lessThan(5.0));
+      expect(thread1.security.e2ee, 'TLS 1.3');
 
       // AI Summary verification
-      expect(thread1.aiSummary.summaryTitle, 'Wave 76 Architecture Brief');
-      expect(thread1.aiSummary.keyPoints.length, 4);
-      expect(thread1.aiSummary.actionItems.length, 3);
+      expect(thread1.aiSummary.summaryTitle, 'Test Summary');
+      expect(thread1.aiSummary.keyPoints.length, 2);
+      expect(thread1.aiSummary.actionItems.length, 2);
       expect(thread1.aiSummary.actionItems.first.isCompleted, isFalse);
 
       // Action Item toggle mutation
@@ -98,8 +145,8 @@ void main() {
       expect(thread1.aiSummary.actionItems.first.isCompleted, isTrue);
 
       // Attachments verification
-      expect(thread1.attachments.length, 2);
-      expect(thread1.attachments.first.name, 'Wave-76-Architecture-Spec.pdf');
+      expect(thread1.attachments.length, 1);
+      expect(thread1.attachments.first.name, 'spec.pdf');
       expect(thread1.attachments.first.fileType, 'PDF');
       expect(thread1.attachments.first.sha256.length, 64);
 
@@ -119,12 +166,12 @@ void main() {
     test('EmailRecipient: Initials generation, displayLabel, case-insensitive equality, and JSON serialization', () {
       // 1. Multi-word name
       const recipient1 = EmailRecipient(
-        name: 'Sundar Pichai',
-        email: 'sundar@google.com',
+        name: 'Aarav Sharma',
+        email: 'aarav.sharma@example.com',
         isContact: true,
       );
-      expect(recipient1.initials, 'SP');
-      expect(recipient1.displayLabel, 'Sundar Pichai <sundar@google.com>');
+      expect(recipient1.initials, 'AS');
+      expect(recipient1.displayLabel, 'Aarav Sharma <aarav.sharma@example.com>');
 
       // 2. Single-word name
       const recipient2 = EmailRecipient(
@@ -143,20 +190,20 @@ void main() {
 
       // 4. Equality and HashCode by case-insensitive email
       const recipientCaseA = EmailRecipient(
-        name: 'Sundar',
-        email: 'SUNDAR@GOOGLE.COM',
+        name: 'Aarav',
+        email: 'AARAV.SHARMA@EXAMPLE.COM',
       );
       const recipientCaseB = EmailRecipient(
-        name: 'Sundar P.',
-        email: 'sundar@google.com',
+        name: 'Aarav S.',
+        email: 'aarav.sharma@example.com',
       );
       expect(recipientCaseA, equals(recipientCaseB));
       expect(recipientCaseA.hashCode, equals(recipientCaseB.hashCode));
 
       // 5. JSON serialization roundtrip
       final json = recipient1.toJson();
-      expect(json['name'], 'Sundar Pichai');
-      expect(json['email'], 'sundar@google.com');
+      expect(json['name'], 'Aarav Sharma');
+      expect(json['email'], 'aarav.sharma@example.com');
       expect(json['isContact'], isTrue);
 
       final deserialized = EmailRecipient.fromJson(json);
@@ -221,7 +268,7 @@ void main() {
       final validDraft = EmailDraft(
         id: 'draft-101',
         to: const [
-          EmailRecipient(name: 'Alex Mercer', email: 'alex@trinity.lab'),
+          EmailRecipient(name: 'Aarav Sharma', email: 'aarav.sharma@example.com'),
         ],
         subject: 'QuantMail Impeller Integration',
         body: 'Zero clipPath verified.',
@@ -276,7 +323,7 @@ void main() {
       final deserialized = EmailDraft.fromJson(json);
       expect(deserialized.id, validDraft.id);
       expect(deserialized.subject, validDraft.subject);
-      expect(deserialized.to.first.email, 'alex@trinity.lab');
+      expect(deserialized.to.first.email, 'aarav.sharma@example.com');
       expect(deserialized.attachments.length, 2);
 
       // DraftLocalStorage In-Memory singleton tests
@@ -362,26 +409,17 @@ void main() {
   // 2. WIDGET TESTS FOR QuantMailApp & MailInboxScreen
   // ===========================================================================
   group('QuantMailApp & MailInboxScreen Widget Tests', () {
-    testWidgets('QuantMailApp initializes cleanly with Obsidian Dark theme and home Inbox', (tester) async {
+    testWidgets('QuantMailApp initializes cleanly with Obsidian Dark theme and v2 SuperApp home', (tester) async {
       await tester.pumpWidget(const QuantMailApp());
       await tester.pump();
 
-      // Verify Application Title and branding
-      expect(find.text('Quant'), findsOneWidget);
-      expect(find.text('Mail'), findsOneWidget);
-
-      // Verify Superhuman Core AI Capsule (<5ms FTS5)
-      expect(find.text('Superhuman Core'), findsOneWidget);
-      expect(find.text('<5ms FTS5'), findsOneWidget);
-
-      // Verify Inbox Screen rendered
-      expect(find.byType(MailInboxScreen), findsOneWidget);
-
-      // Verify Search hint bar
-      expect(find.textContaining('<5ms local FTS5'), findsOneWidget);
+      // Verify v2 SuperApp home rendered (single bottom nav, no fake threads)
+      expect(find.byType(SuperAppHomeScreen), findsOneWidget);
+      expect(find.byType(QuantMailSuperAppBar), findsOneWidget);
+      expect(find.text('No mail in Primary yet'), findsOneWidget);
     });
 
-    testWidgets('MailInboxScreen: Category lenses switching across all 5 lenses', (tester) async {
+    testWidgets('MailInboxScreen: Category lenses render with honest empty states', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -397,47 +435,18 @@ void main() {
       expect(find.text('Forums'), findsOneWidget);
       expect(find.text('VIPs'), findsOneWidget);
 
-      // By default, Primary lens is active: shows Alex Mercer & Sundar Pichai
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsOneWidget);
-      expect(find.text('Sync regarding Sovereign Search & E2EE Standards'), findsOneWidget);
+      // v2 honesty: no fabricated threads — empty state shown
+      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
+      expect(find.text('Alex Mercer'), findsNothing);
+      expect(find.text('Aarav Sharma'), findsNothing);
 
-      // 1. Switch to 'Updates' Lens
+      // Switch to 'Updates' Lens — still honest empty
       await tester.tap(find.text('Updates'));
-      await tester.pumpAndSettle();
-
-      // Updates lens contains GitHub CI/CD Bot PR #349 thread
-      expect(find.text('Build Succeeded: PR #349 Monorepo Cleanse & Wave 76 Test Pass'), findsOneWidget);
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsNothing);
-
-      // 2. Switch to 'VIPs' Lens
-      await tester.tap(find.text('VIPs'));
-      await tester.pumpAndSettle();
-
-      // VIPs lens contains Dr. Elena Rostova QKD thread
-      expect(find.text('Quantum Key Distribution (QKD) Mesh Protocol Validation'), findsOneWidget);
-
-      // 3. Switch to 'Forums' Lens
-      await tester.tap(find.text('Forums'));
-      await tester.pumpAndSettle();
-
-      // Forums lens contains Flutter Impeller Team RFC
-      expect(find.text('RFC: 120Hz ProMotion Zero-Allocation Rendering Pipelines'), findsOneWidget);
-
-      // 4. Switch to 'Promotions' Lens
-      await tester.tap(find.text('Promotions'));
-      await tester.pumpAndSettle();
-
-      // Promotions lens contains AWS Cloud Advisory Summit thread
-      expect(find.text('Invitation: Sovereign Multi-Region Hybrid Cloud Summit 2026'), findsOneWidget);
-
-      // 5. Switch back to 'Primary' Lens
-      await tester.tap(find.text('Primary'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsOneWidget);
+      await tester.pump();
+      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
     });
 
-    testWidgets('MailInboxScreen: Search query filtering (<5ms index) and clear action', (tester) async {
+    testWidgets('MailInboxScreen: Search on empty inbox keeps honest empty state', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -445,40 +454,25 @@ void main() {
         ),
       );
       await tester.pump();
-
-      // Initially both Primary threads are present
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsOneWidget);
-      expect(find.text('Sync regarding Sovereign Search & E2EE Standards'), findsOneWidget);
 
       // Locate search TextField
       final searchField = find.byType(TextField).first;
       expect(searchField, findsOneWidget);
 
-      // Enter search query targeting 'Wave 76'
+      // Enter search query — no fabricated threads to filter
       await tester.enterText(searchField, 'Wave 76');
       await tester.pump();
 
-      // Matching thread remains, non-matching thread is filtered out
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsOneWidget);
-      expect(find.text('Sync regarding Sovereign Search & E2EE Standards'), findsNothing);
+      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
 
-      // Enter search query targeting 'Sundar'
-      await tester.enterText(searchField, 'Sundar');
-      await tester.pump();
-
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsNothing);
-      expect(find.text('Sync regarding Sovereign Search & E2EE Standards'), findsOneWidget);
-
-      // Clear search query
+      // Clear search query — empty state persists
       await tester.enterText(searchField, '');
       await tester.pump();
 
-      // Both threads restored
-      expect(find.text('Wave 76 Flutter Omni-Presence Architecture Released'), findsOneWidget);
-      expect(find.text('Sync regarding Sovereign Search & E2EE Standards'), findsOneWidget);
+      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
     });
 
-    testWidgets('MailInboxScreen: Long-press multi-select toggle, selection header, and actions', (tester) async {
+    testWidgets('MailInboxScreen: Empty inbox shows no selection header', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -487,36 +481,9 @@ void main() {
       );
       await tester.pump();
 
-      // Selection header not visible initially
+      // Selection header not visible with no threads
       expect(find.textContaining('selected'), findsNothing);
-
-      // Long press on first thread card to enter multi-select mode
-      final threadCard = find.text('Wave 76 Flutter Omni-Presence Architecture Released');
-      await tester.longPress(threadCard);
-      await tester.pump();
-
-      // Contextual SelectionHeader appears
-      expect(find.text('1 selected'), findsOneWidget);
-      expect(find.byIcon(Icons.select_all_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.archive_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.mark_email_read_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.delete_outline_rounded), findsOneWidget);
-
-      // Tap 'Select All'
-      await tester.tap(find.byIcon(Icons.select_all_rounded));
-      await tester.pump();
-
-      // Both threads selected
-      expect(find.text('2 selected'), findsOneWidget);
-
-      // Tap Close button on selection header to clear selection
-      await tester.tap(find.byIcon(Icons.close_rounded));
-      await tester.pump();
-
-      // Normal top header restored
-      expect(find.textContaining('selected'), findsNothing);
-      expect(find.text('Quant'), findsOneWidget);
-      expect(find.text('Mail'), findsOneWidget);
+      expect(find.text('Inbox Zero Achieved'), findsOneWidget);
     });
   });
 
@@ -539,7 +506,7 @@ void main() {
 
       final testDraft = EmailDraft(
         id: 'draft-undo-widget-1',
-        to: const [EmailRecipient(name: 'Alex Mercer', email: 'alex@trinity.lab')],
+        to: const [EmailRecipient(name: 'Aarav Sharma', email: 'aarav.sharma@example.com')],
         subject: 'Test Subject',
         lastSaved: DateTime.now(),
       );
@@ -574,7 +541,7 @@ void main() {
 
       // Verify UI displays active 10s countdown and recipient
       expect(find.text('Sending in 10s...'), findsOneWidget);
-      expect(find.text('To: Alex Mercer'), findsOneWidget);
+      expect(find.text('To: Aarav Sharma'), findsOneWidget);
       expect(find.text('Undo (Z)'), findsOneWidget);
       expect(find.text('Send Now'), findsOneWidget);
 
@@ -642,7 +609,7 @@ void main() {
       final initialDraft = EmailDraft(
         id: 'draft-comp-1',
         to: const [
-          EmailRecipient(name: 'Sundar Pichai', email: 'sundar@google.com', isContact: true),
+          EmailRecipient(name: 'Aarav Sharma', email: 'aarav.sharma@example.com', isContact: true),
         ],
         subject: 'Impeller Architecture Review',
         body: 'Here are the telemetry numbers.',
@@ -664,9 +631,9 @@ void main() {
       // Verify Modal Title
       expect(find.text('New Message'), findsOneWidget);
 
-      // Verify recipient chip rendered with initials 'SP' and name 'Sundar Pichai'
-      expect(find.text('Sundar Pichai'), findsOneWidget);
-      expect(find.text('SP'), findsOneWidget);
+      // Verify recipient chip rendered with initials 'AS' and name 'Aarav Sharma'
+      expect(find.text('Aarav Sharma'), findsOneWidget);
+      expect(find.text('AS'), findsOneWidget);
 
       // Verify Subject and Body pre-filled
       expect(find.text('Impeller Architecture Review'), findsOneWidget);
@@ -681,7 +648,7 @@ void main() {
       await tester.pump();
 
       // Recipient chip removed
-      expect(find.text('Sundar Pichai'), findsNothing);
+      expect(find.text('Aarav Sharma'), findsNothing);
     });
 
     testWidgets('EmailComposerModal: 25MB attachment limit validation triggers security banner', (tester) async {

@@ -95,18 +95,16 @@ class QuantMonogramLogo extends StatelessWidget {
   }
 }
 
-/// Sovereign QuantMail Super-App Multi-Tier Header Bar
+/// QuantMail Super-App Header Bar (v2)
 ///
-/// Features 3 distinct functional tiers:
-/// - Brand Identity: Canonical 'QuantMail' logo with official monogram.
-/// - Tier 1: Workspace selector pill ('Quant Trinity Lab [v]') + Global Voice & QR Search Bar.
-/// - Tier 2: 5-Pillar Horizontal Mini-App Rail (Mail, Calendar, Drive, Contacts, QuantGit)
-///   with live badge counts, jewel-tone accents, and smooth tab switching.
+/// Slim two-tier header after the v2 redesign:
+/// - Brand Identity: Canonical 'QuantMail' logo.
+/// - Tier 1: Workspace selector pill + Global Voice & QR Search Bar.
 ///
-/// Strictly ZERO raw Unicode emojis and ZERO Skia clipPath calls.
+/// Navigation lives in ONE place per viewport (bottom 5-pillar dock on
+/// mobile, left sidebar on desktop) — never duplicated here.
 class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidget {
   final QuantPillar activePillar;
-  final ValueChanged<QuantPillar> onPillarSelected;
   final String activeWorkspace;
   final VoidCallback? onWorkspaceTap;
   final TextEditingController? searchController;
@@ -114,13 +112,11 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
   final VoidCallback? onVoiceSearchTap;
   final VoidCallback? onQrScanTap;
   final VoidCallback? onProfileTap;
-  final Map<QuantPillar, int>? pillarBadges;
   final bool isListeningVoice;
 
   const QuantMailSuperAppBar({
     super.key,
     required this.activePillar,
-    required this.onPillarSelected,
     this.activeWorkspace = 'Quant Trinity Lab',
     this.onWorkspaceTap,
     this.searchController,
@@ -128,35 +124,11 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
     this.onVoiceSearchTap,
     this.onQrScanTap,
     this.onProfileTap,
-    this.pillarBadges,
     this.isListeningVoice = false,
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(176.0);
-
-  static const List<QuantPillar> _orderedPillars = [
-    QuantPillar.mail,
-    QuantPillar.calendar,
-    QuantPillar.drive,
-    QuantPillar.contacts,
-    QuantPillar.quantGit,
-  ];
-
-  static IconData _getPillarIcon(QuantPillar pillar) {
-    switch (pillar) {
-      case QuantPillar.mail:
-        return Icons.mail_rounded;
-      case QuantPillar.calendar:
-        return Icons.calendar_month_rounded;
-      case QuantPillar.drive:
-        return Icons.folder_rounded;
-      case QuantPillar.contacts:
-        return Icons.contacts_rounded;
-      case QuantPillar.quantGit:
-        return Icons.code_rounded;
-    }
-  }
+  Size get preferredSize => const Size.fromHeight(128.0);
 
   @override
   Widget build(BuildContext context) {
@@ -184,11 +156,6 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
 
               // Tier 1: Global Search Bar with Voice and QR Scanner
               _buildGlobalSearchBar(context),
-
-              const SizedBox(height: 10.0),
-
-              // Tier 2: 5-Pillar Horizontal Mini-App Rail
-              _build5PillarRail(context),
             ],
           ),
         ),
@@ -233,28 +200,6 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
         ),
 
         const SizedBox(width: 6.0),
-
-        // Sovereign Pill Tag
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-          decoration: BoxDecoration(
-            color: QuantColors.moltenAmber.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(4.0),
-            border: Border.all(
-              color: QuantColors.moltenAmber.withOpacity(0.4),
-              width: 0.8,
-            ),
-          ),
-          child: Text(
-            'SOVEREIGN',
-            style: QuantTypography.pillarLabel.copyWith(
-              color: QuantColors.moltenAmber,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
 
         const Spacer(),
 
@@ -435,119 +380,18 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
     );
   }
 
-  Widget _build5PillarRail(BuildContext context) {
-    return Row(
-      children: _orderedPillars.map((pillar) {
-        final isSelected = pillar == activePillar;
-        final badgeCount = pillarBadges?[pillar] ?? 0;
-        final accent = pillar.accentColor;
-        final icon = _getPillarIcon(pillar);
-
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2.5),
-            child: GestureDetector(
-              onTap: () => onPillarSelected(pillar),
-              behavior: HitTestBehavior.opaque,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                height: 48.0,
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? QuantColors.darkSlateCard
-                      : QuantColors.darkSlateCard.withOpacity(0.35),
-                  borderRadius: BorderRadius.circular(9.0),
-                  border: Border.all(
-                    color: isSelected
-                        ? accent.withOpacity(0.85)
-                        : QuantColors.hairlineBorder,
-                    width: isSelected ? 1.2 : 0.8,
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: accent.withOpacity(0.22),
-                            blurRadius: 6.0,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          icon,
-                          size: 17.0,
-                          color: isSelected ? accent : Colors.white60,
-                        ),
-                        if (badgeCount > 0)
-                          Positioned(
-                            top: -4.0,
-                            right: -9.0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 3.5,
-                                vertical: 1.0,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accent,
-                                borderRadius: BorderRadius.circular(5.0),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 13.0,
-                                minHeight: 12.0,
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                badgeCount > 99 ? '99+' : badgeCount.toString(),
-                                style: const TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 8.0,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1.0,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 3.0),
-                    Text(
-                      pillar.label,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : Colors.white60,
-                        fontSize: 10.0,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
   String _getPlaceholderForPillar(QuantPillar pillar) {
     switch (pillar) {
       case QuantPillar.mail:
-        return 'Search emails, threads, drafts... <5ms index';
+        return 'Search emails, threads, drafts...';
       case QuantPillar.calendar:
-        return 'Search events, slots, meetings... <5ms index';
+        return 'Search events, slots, meetings...';
       case QuantPillar.drive:
-        return 'Search files, vault, chunks... FastCDC <5ms';
+        return 'Search files and folders...';
       case QuantPillar.contacts:
-        return 'Search contacts, VIPs, circles... <5ms index';
+        return 'Search contacts...';
       case QuantPillar.quantGit:
-        return 'Search repos, commits, PRs, issues... <5ms';
+        return 'Search repos, commits, PRs...';
     }
   }
 }
