@@ -121,6 +121,13 @@ export interface EmailComposerProps {
   onClose?: () => void;
   onReopen?: () => void;
   className?: string;
+  /**
+   * Start a chat thread instead of a letter. Defaults to 'mail' so every
+   * existing caller keeps writing letters; pass 'chat' for the "New chat"
+   * entry point. The kind travels to the backend compose call, where it
+   * decides the thread's marks and bubble rendering.
+   */
+  initialMessageKind?: 'mail' | 'chat';
 }
 
 /**
@@ -256,6 +263,7 @@ export function EmailComposer({
   onClose,
   onReopen,
   className,
+  initialMessageKind = 'mail',
 }: EmailComposerProps) {
   const router = useRouter();
   const { queueSend } = useUndoSend();
@@ -759,17 +767,22 @@ export function EmailComposer({
             inReplyTo: draftSnapshot.replyToId,
           });
         } else {
+          // A chat message is a thread start, not a letter: the backend
+          // requires a non-empty subject, so fall back to the recipient line.
+          const sendSubject =
+            draftSnapshot.subject ||
+            (initialMessageKind === 'chat' ? `Chat with ${toList.map((t) => t.email).join(', ')}` : '');
           const composeRes = await apiClient.composeEmail({
             to: toList,
             cc: ccList,
             bcc: bccList,
-            subject: draftSnapshot.subject,
+            subject: sendSubject,
             bodyText: draftSnapshot.bodyText,
             bodyHtml: draftSnapshot.bodyHtml,
             attachments: draftSnapshot.attachments as any,
             inReplyTo: draftSnapshot.replyToId,
             scheduledAt: draftSnapshot.scheduledAt,
-            messageKind: 'mail',
+            messageKind: initialMessageKind,
           });
 
           if (!composeRes.success || !composeRes.data?.id) {
