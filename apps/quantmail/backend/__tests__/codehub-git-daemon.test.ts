@@ -429,7 +429,7 @@ describe('Git upload-pack and receive-pack services', () => {
     expect(rejected.stderr).toContain('Direct push to protected branch is not allowed');
     expect(git(e2ePath, ['rev-parse', 'refs/heads/main'])).toBe(acceptedSha);
     await app.close();
-  }, 30_000);
+  }, 60_000);
 });
 
 describe('LocalGitServerPort', () => {

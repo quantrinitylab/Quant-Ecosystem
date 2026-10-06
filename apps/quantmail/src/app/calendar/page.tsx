@@ -41,11 +41,12 @@ import {
   resolveMergedTab,
   type CalendarMergedTab,
 } from './components/CalendarContextSubTabs';
-import { CalendarAgendaView } from './components/CalendarAgendaView';
-import { CalendarMonthView } from './components/CalendarMonthView';
-import { CalendarBookingView } from './components/CalendarBookingView';
-import { CalendarQuantMeetView } from './components/CalendarQuantMeetView';
-import { CalendarRemindersView } from './components/CalendarRemindersView';
+import {
+  CalendarFeedSubView,
+  CalendarMonthSubView,
+  CalendarTrackersSubView,
+  CalendarScheduleSubView,
+} from '../../components/CalendarSubViews';
 
 const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
   title: '',
@@ -91,8 +92,11 @@ const createInitialFormState = (currentUserEmail: string = ''): FormState => ({
 
 const isValidContextTab = (t: string | null): t is CalendarContextTab => {
   return (
-    t === 'agenda' ||
+    t === 'feed' ||
     t === 'month' ||
+    t === 'events' ||
+    t === 'schedule' ||
+    t === 'agenda' ||
     t === 'booking' ||
     t === 'quantmeet' ||
     t === 'reminders'
@@ -112,7 +116,7 @@ function CalendarPageContent() {
       const p = new URLSearchParams(window.location.search).get('tab');
       if (isValidContextTab(p)) return p;
     }
-    return 'agenda';
+    return 'feed';
   });
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -127,7 +131,7 @@ function CalendarPageContent() {
       if (queryTab === 'month') {
         setIsMonthExpanded(true);
         setActiveView('month');
-      } else if (queryTab === 'agenda') {
+      } else if (queryTab === 'feed' || queryTab === 'agenda') {
         setActiveView('agenda');
       }
     }
@@ -142,7 +146,7 @@ function CalendarPageContent() {
         if (custom.detail.tabId === 'month') {
           setIsMonthExpanded(true);
           setActiveView('month');
-        } else if (custom.detail.tabId === 'agenda') {
+        } else if (custom.detail.tabId === 'feed' || custom.detail.tabId === 'agenda') {
           setActiveView('agenda');
         }
       }
@@ -157,7 +161,7 @@ function CalendarPageContent() {
       if (nextTab === 'month') {
         setIsMonthExpanded(true);
         setActiveView('month');
-      } else if (nextTab === 'agenda') {
+      } else if (nextTab === 'feed' || nextTab === 'agenda') {
         setActiveView('agenda');
       }
 
@@ -1027,9 +1031,9 @@ function CalendarPageContent() {
           onSelectTab={handleSelectMergedTab}
         />
 
-        {/* 5 Sovereign Contextual Sub-Views */}
-        {activeContextTab === 'agenda' && (
-          <CalendarAgendaView
+        {/* 4 Sovereign Contextual Sub-Views */}
+        {(activeContextTab === 'feed' || activeContextTab === 'agenda') && (
+          <CalendarFeedSubView
             events={events}
             holidaysByDay={holidaysByDay}
             selectedDate={selectedDate}
@@ -1041,7 +1045,7 @@ function CalendarPageContent() {
         )}
 
         {activeContextTab === 'month' && (
-          <CalendarMonthView
+          <CalendarMonthSubView
             events={events}
             holidaysByDay={holidaysByDay}
             selectedDate={selectedDate}
@@ -1051,19 +1055,23 @@ function CalendarPageContent() {
           />
         )}
 
-        {activeContextTab === 'booking' && (
-          <CalendarBookingView
-            userEmail={currentUserEmail}
-            bookingSlug={currentUserEmail ? currentUserEmail.split('@')[0] : 'sundar'}
+        {activeContextTab === 'events' && (
+          <CalendarTrackersSubView
+            events={events}
+            openDedicatedSheet={openDedicatedSheet}
           />
         )}
 
-        {activeContextTab === 'quantmeet' && (
-          <CalendarQuantMeetView />
-        )}
-
-        {activeContextTab === 'reminders' && (
-          <CalendarRemindersView />
+        {(activeContextTab === 'schedule' ||
+          activeContextTab === 'booking' ||
+          activeContextTab === 'quantmeet' ||
+          activeContextTab === 'reminders') && (
+          <CalendarScheduleSubView
+            events={events}
+            selectedDate={selectedDate}
+            openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
+          />
         )}
 
         <QuantFab

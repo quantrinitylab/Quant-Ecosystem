@@ -3,13 +3,20 @@
 import React from 'react';
 import {
   FolderIcon,
-  SharedUsersIcon,
   PadlockIcon,
-  StarFilledIcon,
-  CleanerSparkleIcon,
+  DriveFeedIcon,
+  AiMemoryBrainIcon,
 } from './DriveIcons';
 
-export type DriveSubTab = 'files' | 'shared' | 'vault' | 'starred' | 'cleaner';
+export type DriveSubTab =
+  | 'home'
+  | 'feed'
+  | 'aimemory'
+  | 'vault'
+  | 'files'
+  | 'shared'
+  | 'starred'
+  | 'cleaner';
 
 export interface DriveContextTabsHeaderProps {
   activeTab: DriveSubTab;
@@ -36,19 +43,26 @@ export function DriveContextTabsHeader({
 }: DriveContextTabsHeaderProps) {
   const tabs: TabDef[] = [
     {
-      id: 'files',
-      label: 'My Files',
-      shortLabel: 'Files',
+      id: 'home',
+      label: 'Home',
+      shortLabel: 'Home',
       icon: FolderIcon,
-      ariaLabel: 'My Files view with storage quota and FastCDC chunking',
+      ariaLabel: 'QuantDrive Home view with 8 category cards and single storage gauge',
     },
     {
-      id: 'shared',
-      label: 'Shared with me',
-      shortLabel: 'Shared',
-      icon: SharedUsersIcon,
-      badgeCount: sharedCount > 0 ? sharedCount : undefined,
-      ariaLabel: 'Shared files view with collaborator permissions',
+      id: 'feed',
+      label: 'Feed',
+      shortLabel: 'Feed',
+      icon: DriveFeedIcon,
+      ariaLabel: 'Chronological visual media feed of recent photos, videos, and media',
+    },
+    {
+      id: 'aimemory',
+      label: 'AI Memory',
+      shortLabel: 'AI Memory',
+      icon: AiMemoryBrainIcon,
+      badgeText: 'AI',
+      ariaLabel: 'Cross-App Relational AI Memory Vault',
     },
     {
       id: 'vault',
@@ -57,22 +71,6 @@ export function DriveContextTabsHeader({
       icon: PadlockIcon,
       badgeText: 'E2EE',
       ariaLabel: 'AES-256 E2EE Sovereign Cryptographic Vault',
-    },
-    {
-      id: 'starred',
-      label: 'Starred',
-      shortLabel: 'Starred',
-      icon: StarFilledIcon,
-      badgeCount: starredCount > 0 ? starredCount : undefined,
-      ariaLabel: 'Starred and pinned documents list',
-    },
-    {
-      id: 'cleaner',
-      label: 'FastCDC Cleaner',
-      shortLabel: 'Cleaner',
-      icon: CleanerSparkleIcon,
-      badgeText: '64KB CDC',
-      ariaLabel: 'FastCDC 64KB deduplication cleaner view',
     },
   ];
 
@@ -88,7 +86,7 @@ export function DriveContextTabsHeader({
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
-        const isActive = activeTab === tab.id;
+        const isActive = activeTab === tab.id || (tab.id === 'home' && activeTab === 'files');
 
         return (
           <button

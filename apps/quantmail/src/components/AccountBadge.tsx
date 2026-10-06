@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
-import { useAuth } from '../providers/auth-provider';
+import { useOptionalAuth } from '../providers/auth-provider';
 
 interface StoredAccount {
   id: string;
@@ -42,8 +42,10 @@ function initials(name: string): string {
 }
 
 /** Signed-in identity block for the active sidebar footer with Multi-Account switching. */
-export function AccountBadge() {
-  const { user, logout } = useAuth();
+export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
+  const auth = useOptionalAuth();
+  const user = auth?.user ?? null;
+  const logout = auth?.logout ?? (async () => {});
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
@@ -165,58 +167,60 @@ export function AccountBadge() {
   };
 
   return (
-    <div ref={ref} className="relative px-3 pb-3 pt-1">
+    <div ref={ref} className={compact ? 'relative' : 'relative px-3 pb-3 pt-1'}>
       <button
         type="button"
         ref={triggerRef}
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-haspopup="menu"
-        /*
-          Attached only while the menu is mounted. The menu below renders on
-          `open`, so a permanent `aria-controls` is an IDREF to nothing for as
-          long as the sidebar sits closed — which is nearly always.
-
-          `menu` is the right `aria-haspopup` value here, unlike the composer's
-          popovers: those hold checkboxes and colour swatches and are disclosures,
-          while every row of this panel runs a command and shuts it. The role's
-          contract — menuitem children, one tab stop, arrow-key traversal — is
-          honoured below, which it was not before.
-        */
+        aria-label={`Account menu: ${name}`}
         aria-controls={open ? 'account-badge-menu' : undefined}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]"
+        className={
+          compact
+            ? 'flex size-8 items-center justify-center rounded-full border border-[#282C35] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]'
+            : 'flex w-full items-center gap-2.5 rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--quant-muted)]'
+        }
       >
         <span
-          className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[13px] font-semibold text-white shadow-sm"
+          className={
+            compact
+              ? 'flex size-7 flex-none items-center justify-center rounded-full text-[11px] font-semibold text-white shadow-sm'
+              : 'flex h-9 w-9 flex-none items-center justify-center rounded-full text-[13px] font-semibold text-white shadow-sm'
+          }
           style={{ background: gradientFor(address) }}
           aria-hidden="true"
         >
           {initials(name)}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium text-[var(--quant-foreground)]">
-            {name}
-          </span>
-          <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">
-            {address}
-          </span>
-        </span>
-        <span
-          className="text-xs text-[var(--quant-muted-foreground)] flex items-center justify-center"
-          aria-hidden="true"
-        >
-          <svg
-            className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </span>
+        {!compact && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium text-[var(--quant-foreground)]">
+                {name}
+              </span>
+              <span className="block truncate text-xs text-[var(--quant-muted-foreground)]">
+                {address}
+              </span>
+            </span>
+            <span
+              className="text-xs text-[var(--quant-muted-foreground)] flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <svg
+                className={`size-3.5 transition-transform ${open ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </>
+        )}
       </button>
 
       {open && (
@@ -225,13 +229,16 @@ export function AccountBadge() {
           ref={menuRef}
           role="menu"
           aria-orientation="vertical"
-          /* AnchoredMenu makes `menuLabel` a required prop; an unnamed menu is off-pattern here. */
           aria-label="Account"
           onKeyDown={(event) => {
             // A menu is not a place to Tab through. Leave, and let focus land outside.
             if (event.key === 'Tab') setOpen(false);
           }}
-          className="absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in"
+          className={
+            compact
+              ? 'absolute top-full right-0 mt-2 z-50 w-64 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in'
+              : 'absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in'
+          }
         >
           {/*
             Multi-Account Switcher Section. `role="none"` on the padding wrapper:

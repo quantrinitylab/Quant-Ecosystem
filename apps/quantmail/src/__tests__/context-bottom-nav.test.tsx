@@ -72,53 +72,53 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       const pillars: ProductivityPillar[] = ['mail', 'calendar', 'drive', 'contacts', 'quantgit'];
       pillars.forEach((p) => {
         expect(PILLAR_SUB_CONFIGS[p]).toBeDefined();
-        expect(PILLAR_SUB_CONFIGS[p].tabs).toHaveLength(5);
+        expect(PILLAR_SUB_CONFIGS[p].tabs).toHaveLength(p === 'quantgit' || p === 'contacts' ? 5 : 4);
       });
     });
 
-    it('Mail pillar config has [Inbox] (12), [Priority] (3), [Teams] (5), [Sent], [Archive]', () => {
+    it('Mail pillar config has [Inbox] (12), [Teams] (3), [Agents] (AI), [Archive]', () => {
       const mailConfig = PILLAR_SUB_CONFIGS.mail;
       expect(mailConfig.accentColor).toBe('#FF8C42');
       const tabIds = mailConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['inbox', 'priority', 'teams', 'sent', 'archive']);
+      expect(tabIds).toEqual(['inbox', 'teams', 'agents', 'archive']);
 
       const inboxTab = mailConfig.tabs.find((t) => t.id === 'inbox');
       expect(inboxTab?.badgeCount).toBe(12);
 
-      const priorityTab = mailConfig.tabs.find((t) => t.id === 'priority');
-      expect(priorityTab?.badgeCount).toBe(3);
-
       const teamsTab = mailConfig.tabs.find((t) => t.id === 'teams');
-      expect(teamsTab?.badgeCount).toBe(5);
+      expect(teamsTab?.badgeCount).toBe(3);
+
+      const agentsTab = mailConfig.tabs.find((t) => t.id === 'agents');
+      expect(agentsTab?.badgeText).toBe('AI');
     });
 
-    it('Calendar pillar config has [Agenda], [Month], [Booking], [QuantMeet], [Reminders]', () => {
+    it('Calendar pillar config has [Feed], [Month], [Events], [Schedule]', () => {
       const calConfig = PILLAR_SUB_CONFIGS.calendar;
       expect(calConfig.accentColor).toBe('#F59E0B');
       const tabIds = calConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['agenda', 'month', 'booking', 'quantmeet', 'reminders']);
+      expect(tabIds).toEqual(['feed', 'month', 'events', 'schedule']);
     });
 
-    it('Drive pillar config has [My Files], [Shared], [Vault] (E2EE), [Starred], [Cleaner] (CDC)', () => {
+    it('Drive pillar config has [Home], [Feed], [AI Memory] (AI), [Vault] (E2EE)', () => {
       const driveConfig = PILLAR_SUB_CONFIGS.drive;
       expect(driveConfig.accentColor).toBe('#38BDF8');
       const tabIds = driveConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['files', 'shared', 'vault', 'starred', 'cleaner']);
+      expect(tabIds).toEqual(['home', 'feed', 'aimemory', 'vault']);
+
+      const aiMemoryTab = driveConfig.tabs.find((t) => t.id === 'aimemory');
+      expect(aiMemoryTab?.badgeText).toBe('AI');
 
       const vaultTab = driveConfig.tabs.find((t) => t.id === 'vault');
       expect(vaultTab?.badgeText).toBe('E2EE');
-
-      const cleanerTab = driveConfig.tabs.find((t) => t.id === 'cleaner');
-      expect(cleanerTab?.badgeText).toBe('CDC');
     });
 
-    it('Contacts pillar config has [Contacts] (8), [VIPs], [Companies], [AI Dedup], [Circles]', () => {
+    it('Contacts pillar config has [Home] (8), [Favorites], [Groups], [Companies], [AI Dedup]', () => {
       const contactsConfig = PILLAR_SUB_CONFIGS.contacts;
       expect(contactsConfig.accentColor).toBe('#10B981');
       const tabIds = contactsConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['contacts', 'vips', 'companies', 'dedup', 'circles']);
+      expect(tabIds).toEqual(['home', 'favorites', 'groups', 'companies', 'dedup']);
 
-      const contactsTab = contactsConfig.tabs.find((t) => t.id === 'contacts');
+      const contactsTab = contactsConfig.tabs.find((t) => t.id === 'home');
       expect(contactsTab?.badgeCount).toBe(8);
     });
 
@@ -144,62 +144,58 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
 
       expect(html).toContain('Mail contextual navigation');
       expect(html).toContain('Inbox');
-      expect(html).toContain('Priority');
       expect(html).toContain('Teams');
-      expect(html).toContain('Sent');
+      expect(html).toContain('Agents');
       expect(html).toContain('Archive');
 
       // Badges
       expect(html).toContain('12');
       expect(html).toContain('3');
-      expect(html).toContain('5');
+      expect(html).toContain('AI');
 
       // Surface classes
       expect(html).toContain('bg-[#090A0E]/95');
       expect(html).toContain('backdrop-blur-md');
-      expect(html).toContain('border-[#232938]');
+      expect(html).toContain('border-[#1F2430]');
       expect(html).toContain('aria-current="page"');
     });
 
     it('renders Calendar contextual tabs when pillar is calendar', () => {
       const html = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="agenda" />,
+        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="feed" />,
       );
 
       expect(html).toContain('Calendar contextual navigation');
-      expect(html).toContain('Agenda');
+      expect(html).toContain('Feed');
       expect(html).toContain('Month');
-      expect(html).toContain('Booking');
-      expect(html).toContain('QuantMeet');
-      expect(html).toContain('Reminders');
+      expect(html).toContain('Events');
+      expect(html).toContain('Schedule');
     });
 
-    it('renders Drive contextual tabs with E2EE and CDC text badges', () => {
+    it('renders Drive contextual tabs with Home, Feed, AI Memory, and Vault', () => {
       const html = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="drive" activeTabOverride="vault" />,
       );
 
       expect(html).toContain('Drive contextual navigation');
-      expect(html).toContain('My Files');
-      expect(html).toContain('Shared');
+      expect(html).toContain('Home');
+      expect(html).toContain('Feed');
+      expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
-      expect(html).toContain('Starred');
-      expect(html).toContain('Cleaner');
       expect(html).toContain('E2EE');
-      expect(html).toContain('CDC');
+      expect(html).toContain('AI');
     });
 
-    it('renders Contacts contextual tabs with VIPs, AI Dedup, and 8 contact badge', () => {
+    it('renders Contacts contextual tabs with Favorites, Groups, and 8 contact badge', () => {
       const html = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="vips" />,
+        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="home" />,
       );
 
       expect(html).toContain('Contacts contextual navigation');
-      expect(html).toContain('Contacts');
-      expect(html).toContain('VIPs');
+      expect(html).toContain('Home');
+      expect(html).toContain('Favorites');
+      expect(html).toContain('Groups');
       expect(html).toContain('Companies');
-      expect(html).toContain('AI Dedup');
-      expect(html).toContain('Circles');
       expect(html).toContain('8');
     });
 
@@ -224,17 +220,17 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       expect(htmlMail).toContain('background-color:#FF8C42');
 
       const htmlCalendar = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="agenda" />,
+        <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="feed" />,
       );
       expect(htmlCalendar).toContain('background-color:#F59E0B');
 
       const htmlDrive = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="drive" activeTabOverride="files" />,
+        <ContextBottomNavBar activePillarOverride="drive" activeTabOverride="home" />,
       );
       expect(htmlDrive).toContain('background-color:#38BDF8');
 
       const htmlContacts = renderToStaticMarkup(
-        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="contacts" />,
+        <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="home" />,
       );
       expect(htmlContacts).toContain('background-color:#10B981');
 
@@ -250,35 +246,34 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
   // ==========================================================================
   describe('Tab Resolution Engine (resolveActiveTab)', () => {
     it('resolves Mail tabs based on path and search params', () => {
-      expect(resolveActiveTab('mail', '/sent')).toBe('sent');
       expect(resolveActiveTab('mail', '/archive')).toBe('archive');
-      expect(resolveActiveTab('mail', '/', new URLSearchParams('lens=important'))).toBe('priority');
-      expect(resolveActiveTab('mail', '/', new URLSearchParams('lens=teams'))).toBe('teams');
-      expect(resolveActiveTab('mail', '/', new URLSearchParams('lens=all'))).toBe('inbox');
+      expect(resolveActiveTab('mail', '/', new URLSearchParams('tab=teams'))).toBe('teams');
+      expect(resolveActiveTab('mail', '/', new URLSearchParams('tab=agents'))).toBe('agents');
+      expect(resolveActiveTab('mail', '/', new URLSearchParams('tab=archive'))).toBe('archive');
+      expect(resolveActiveTab('mail', '/')).toBe('inbox');
     });
 
     it('resolves Calendar tabs based on search params', () => {
       expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=month'))).toBe('month');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=booking'))).toBe('booking');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=quantmeet'))).toBe('quantmeet');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=reminders'))).toBe('reminders');
-      expect(resolveActiveTab('calendar', '/calendar')).toBe('agenda');
+      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=events'))).toBe('events');
+      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=schedule'))).toBe('schedule');
+      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=feed'))).toBe('feed');
+      expect(resolveActiveTab('calendar', '/calendar')).toBe('feed');
     });
 
     it('resolves Drive tabs based on search params', () => {
-      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=shared'))).toBe('shared');
+      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=feed'))).toBe('feed');
+      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=aimemory'))).toBe('aimemory');
       expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=vault'))).toBe('vault');
-      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=starred'))).toBe('starred');
-      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=cleaner'))).toBe('cleaner');
-      expect(resolveActiveTab('drive', '/drive')).toBe('files');
+      expect(resolveActiveTab('drive', '/drive', new URLSearchParams('tab=home'))).toBe('home');
+      expect(resolveActiveTab('drive', '/drive')).toBe('home');
     });
 
     it('resolves Contacts tabs based on search params', () => {
-      expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=vips'))).toBe('vips');
+      expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=favorites'))).toBe('favorites');
+      expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=groups'))).toBe('groups');
       expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=companies'))).toBe('companies');
-      expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=dedup'))).toBe('dedup');
-      expect(resolveActiveTab('contacts', '/contacts', new URLSearchParams('tab=circles'))).toBe('circles');
-      expect(resolveActiveTab('contacts', '/contacts')).toBe('contacts');
+      expect(resolveActiveTab('contacts', '/contacts')).toBe('home');
     });
 
     it('resolves QuantGit tabs based on search params', () => {
@@ -298,27 +293,6 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       const onTabChange = vi.fn();
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
-      // Click "Priority" tab
-      const priorityTab = PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'priority')!;
-      executeContextTabClick(priorityTab, 'mail', {
-        pathname: '/',
-        router: { push: mockPush },
-        onTabChange,
-      });
-
-      expect(onTabChange).toHaveBeenCalledWith('priority', 'mail');
-      expect(mockPush).toHaveBeenCalledWith('/?lens=important');
-      expect(dispatchSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          type: 'quant:subtab-change',
-          detail: {
-            pillar: 'mail',
-            tabId: 'priority',
-            queryParam: { key: 'lens', value: 'important' },
-          },
-        }),
-      );
-
       // Click "Teams" tab
       const teamsTab = PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'teams')!;
       executeContextTabClick(teamsTab, 'mail', {
@@ -328,18 +302,28 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       });
 
       expect(onTabChange).toHaveBeenCalledWith('teams', 'mail');
-      expect(mockPush).toHaveBeenCalledWith('/?lens=teams');
+      expect(mockPush).toHaveBeenCalledWith('/?tab=teams');
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'quant:subtab-change',
+          detail: {
+            pillar: 'mail',
+            tabId: 'teams',
+            queryParam: { key: 'tab', value: 'teams' },
+          },
+        }),
+      );
 
-      // Click "Sent" tab
-      const sentTab = PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'sent')!;
-      executeContextTabClick(sentTab, 'mail', {
+      // Click "Agents" tab
+      const agentsTab = PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'agents')!;
+      executeContextTabClick(agentsTab, 'mail', {
         pathname: '/',
         router: { push: mockPush },
         onTabChange,
       });
 
-      expect(onTabChange).toHaveBeenCalledWith('sent', 'mail');
-      expect(mockPush).toHaveBeenCalledWith('/sent?tab=sent');
+      expect(onTabChange).toHaveBeenCalledWith('agents', 'mail');
+      expect(mockPush).toHaveBeenCalledWith('/?tab=agents');
 
       // Click "Archive" tab
       const archiveTab = PILLAR_SUB_CONFIGS.mail.tabs.find((t) => t.id === 'archive')!;
@@ -366,15 +350,15 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       expect(onTabChange).toHaveBeenCalledWith('month', 'calendar');
       expect(mockPush).toHaveBeenCalledWith('/calendar?tab=month');
 
-      const bookingTab = PILLAR_SUB_CONFIGS.calendar.tabs.find((t) => t.id === 'booking')!;
-      executeContextTabClick(bookingTab, 'calendar', {
+      const scheduleTab = PILLAR_SUB_CONFIGS.calendar.tabs.find((t) => t.id === 'schedule')!;
+      executeContextTabClick(scheduleTab, 'calendar', {
         pathname: '/calendar',
         router: { push: mockPush },
         onTabChange,
       });
 
-      expect(onTabChange).toHaveBeenCalledWith('booking', 'calendar');
-      expect(mockPush).toHaveBeenCalledWith('/calendar?tab=booking');
+      expect(onTabChange).toHaveBeenCalledWith('schedule', 'calendar');
+      expect(mockPush).toHaveBeenCalledWith('/calendar?tab=schedule');
     });
 
     it('clicking QuantGit Copilot tab dispatches quant:copilot:open event', () => {
