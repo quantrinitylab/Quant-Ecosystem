@@ -139,20 +139,19 @@ function formatMessageDate(value?: string | Date): string {
  * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
  * them, exactly like a messaging app.
  *
- * TODO(read-pipeline): the backend does not yet track delivery/read events, so
- * `readAt`/`deliveredAt` are absent from the Email type. Until the pipeline
- * exists this reads them off the message object (server may attach them later)
- * and falls back to 'sent' for anything outbound. Wire the real pipeline and
- * delete the `(message as any)` casts.
+ * Backed by the read-receipt pipeline: `deliveredAt` is stamped when the
+ * message reaches the recipient's mailbox (internal delivery) or the outbound
+ * transport accepts it (external), and `readAt` is stamped on your sent copy
+ * when a recipient opens the thread (POST /threads/:id/read). Single grey =
+ * sent, double grey = delivered, double green = read.
  */
 function receiptStatusOf(
   message: Email,
   isOutbound: boolean,
 ): { status: 'sent' | 'delivered' | 'read' | 'unknown'; readAt?: string; deliveredAt?: string } | null {
   if (!isOutbound) return null;
-  const anyMsg = message as any;
-  const readAt = anyMsg.readAt ?? undefined;
-  const deliveredAt = anyMsg.deliveredAt ?? undefined;
+  const readAt = message.readAt ? String(message.readAt) : undefined;
+  const deliveredAt = message.deliveredAt ? String(message.deliveredAt) : undefined;
   if (readAt) return { status: 'read', readAt, deliveredAt };
   if (deliveredAt) return { status: 'delivered', deliveredAt };
   return { status: 'sent' };
@@ -830,6 +829,14 @@ export function ConversationalThreadView({
       adoptedThreadIdRef.current = threadId;
       loadedThreadIdRef.current = threadId;
       setExpandedIndices(new Set(msgs.length <= 2 ? msgs.map((_, i) => i) : [msgs.length - 1]));
+
+      // Read-receipt pipeline: opening the thread marks the viewer's unread
+      // received messages as read and propagates `readAt` to the senders'
+      // sent copies, so their ticks flip to double-green. Fire-and-forget and
+      // silent — a failed mark must never break reading.
+      if (threadId) {
+        apiClient.markThreadRead(threadId).catch(() => {});
+      }
     }
   }, [resolvedConversation, threadId]);
 

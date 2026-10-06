@@ -552,6 +552,16 @@ model Email {
   // position in that timeline and cannot be shown next to the conversation it
   // belongs to. Nullable only because drafts have not entered any timeline yet.
   receivedAt     DateTime?
+  // Read-receipt pipeline (WhatsApp-style ticks). `deliveredAt` is stamped when
+  // the message reaches the recipient's mailbox (internal delivery is immediate;
+  // external delivery stamps it when SES accepts the message or the queued
+  // delivery pipeline completes). `readAt` is stamped on the *sender's* sent
+  // copy when a recipient opens the thread (ThreadService.markThreadRead
+  // propagates it via the shared messageId). Nullable: rows written before this
+  // pipeline existed have no events, and a queued-but-unsent message is neither
+  // delivered nor read.
+  deliveredAt     DateTime?
+  readAt          DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?

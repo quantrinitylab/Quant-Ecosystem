@@ -300,6 +300,7 @@ export default async function emailsRoutes(
             inReplyTo: d.inReplyTo,
             attachments: d.attachments,
             messageKind: toMessageKind(d.messageKind),
+            messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
           });
         } catch (err) {
           request.log.warn({ err, emailId: email.id, userId }, 'internal delivery failure');
@@ -470,6 +471,7 @@ export default async function emailsRoutes(
           inReplyTo: email.inReplyTo ?? undefined,
           attachments: (email.attachments as any[]) ?? [],
           messageKind: toMessageKind((email as any).messageKind),
+          messageId: (sent as { messageId?: string | null }).messageId ?? undefined,
         });
       } catch (error) {
         request.log.warn({ err: error, emailId: email.id }, 'internal mailbox delivery failed');

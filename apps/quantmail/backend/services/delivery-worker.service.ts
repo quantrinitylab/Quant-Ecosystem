@@ -572,6 +572,13 @@ export class DeliveryWorker {
       data['isDraft'] = false;
       data['sentAt'] = this.now();
     }
+    if (next === 'delivered') {
+      // Read-receipt pipeline: the outbound transport accepted the message, so
+      // the sender's ticks move from single grey to double grey. Only fills in
+      // blanks — a direct-SES send already stamped it in EmailService.send.
+      const deliveredAt = (email as unknown as { deliveredAt?: Date | null }).deliveredAt;
+      if (!deliveredAt) data['deliveredAt'] = this.now();
+    }
 
     await this.prisma.email.update({ where: { id: email.id }, data: data as never });
     return next;

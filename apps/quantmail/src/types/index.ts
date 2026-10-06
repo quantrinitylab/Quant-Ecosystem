@@ -78,6 +78,15 @@ export interface Email extends BaseEntity {
   scheduledAt?: Date;
   snoozedUntil?: Date;
   trashedAt?: Date;
+  /**
+   * Read-receipt pipeline (WhatsApp-style ticks on outbound messages).
+   * `deliveredAt` is stamped when the message reaches the recipient's mailbox
+   * or the outbound transport accepts it; `readAt` is stamped on the sender's
+   * sent copy when a recipient opens the thread. ISO strings on the wire.
+   * Absent on rows written before the pipeline existed.
+   */
+  deliveredAt?: string | Date;
+  readAt?: string | Date;
   aiSummary?: string;
   aiCategory?: EmailCategory;
   phishingScore?: number;

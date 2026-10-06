@@ -613,6 +613,15 @@ export class QuantMailApiClient {
     return this.get(`/threads/${threadId}`);
   }
 
+  /**
+   * Read-receipt pipeline: mark a thread as read. The server stamps `readAt`
+   * on the viewer's unread received messages and propagates it to the
+   * senders' sent copies so their ticks flip to double-green. Idempotent.
+   */
+  async markThreadRead(threadId: string): Promise<ApiResponse<{ marked: number; readAt: string }>> {
+    return this.post(`/threads/${threadId}/read`, {});
+  }
+
   // --------------------------------------------------------------------------
   // Repository API
   // --------------------------------------------------------------------------
