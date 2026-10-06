@@ -46,6 +46,7 @@ import askRoutes from './routes/ask';
 import mcpRoutes from './routes/mcp';
 import automationsRoutes from './routes/automations';
 import goalRoutes from './routes/goals';
+import quantyIdeasRoutes from './routes/quanty-ideas';
 import scheduledTasksRoutes from './routes/scheduled-tasks';
 import fileLibraryRoutes from './routes/file-library';
 import quantyArtifactsRoutes from './routes/quanty-artifacts';
@@ -201,6 +202,7 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(automationsRoutes, { prefix: '/automations' });
   await app.register(goalRoutes, { prefix: '/goals' });
+  await app.register(quantyIdeasRoutes, { prefix: '/quanty/ideas' });
   await app.register(mcpRoutes, { prefix: '/mcp' });
   await app.register(engineRoutes, { prefix: '/api/ai' });
   await app.register(extractorRoutes, { prefix: '/api/ai' });
