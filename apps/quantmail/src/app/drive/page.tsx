@@ -359,6 +359,15 @@ function DrivePageContent() {
     moveFiles,
   } = useDrive();
 
+  // Re-tap active app tab → refresh drive files (P1: app-switcher refresh)
+  useEffect(() => {
+    const handleRefresh = () => {
+      void fetchFiles();
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, [fetchFiles]);
+
   const { confirm, dialog } = useConfirm();
 
   const [searchQuery, setSearchQuery] = useState('');

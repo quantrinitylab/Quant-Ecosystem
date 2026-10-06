@@ -484,6 +484,15 @@ export function executePillarTileClick(
 
   if (options.pathname !== tile.path) {
     options.router.push(tile.path);
+  } else {
+    // Re-tap on the active pillar: refresh current app content.
+    // Previously this was a no-op (nothing happened on re-tap).
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('quant:refresh'));
+      window.dispatchEvent(
+        new CustomEvent('quant:pillar-retap', { detail: { pillar: tile.id } }),
+      );
+    }
   }
 }
 

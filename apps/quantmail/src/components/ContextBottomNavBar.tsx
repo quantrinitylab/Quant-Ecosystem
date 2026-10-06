@@ -988,6 +988,12 @@ export function executeContextTabClick(
 
   if (options.pathname !== targetBase || tab.queryParam) {
     options.router.push(targetUrl);
+  } else {
+    // Re-tap on the active sub-tab: refresh current view content.
+    // Previously this was a no-op (nothing happened on re-tap).
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('quant:refresh'));
+    }
   }
 }
 
@@ -1098,7 +1104,7 @@ export function ContextBottomNavBar({
   return (
     <nav
       className={`fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[68px] z-30 flex h-14 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
-        isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'
+        isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'}
       } ${className}`}
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
@@ -1166,17 +1172,29 @@ export function ContextBottomNavBar({
               {tab.label}
             </span>
 
-            {/* Active Pill Indicator Dot */}
+            {/* Active Pill Indicator — premium glowing bar (was a tiny dot) */}
             {isActive && (
               <span
-                className="absolute bottom-0.5 w-1 h-1 rounded-full"
-                style={{ backgroundColor: pillarConfig.accentColor }}
+                className="absolute bottom-1 h-1 rounded-full animate-[quantNavPillIn_0.3s_cubic-bezier(0.34,1.56,0.64,1)]"
+                style={{
+                  width: '40%',
+                  minWidth: 24,
+                  background: `linear-gradient(90deg, ${pillarConfig.accentColor}, ${pillarConfig.accentColor}CC)`,
+                  boxShadow: `0 0 10px ${pillarConfig.accentColor}88, 0 0 20px ${pillarConfig.accentColor}44`,
+                }}
                 aria-hidden="true"
               />
             )}
           </button>
         );
       })}
+      <style>{`
+        @keyframes quantNavPillIn {
+          0% { transform: scaleX(0.3); opacity: 0; }
+          60% { transform: scaleX(1.12); opacity: 1; }
+          100% { transform: scaleX(1); opacity: 1; }
+        }
+      `}</style>
     </nav>
   );
 }

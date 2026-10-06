@@ -277,6 +277,15 @@ function CalendarPageContent() {
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
 
+  // Re-tap active app tab → refresh calendar events (P1: app-switcher refresh)
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refetch();
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, [refetch]);
+
   // Normalization with structured metadata parser
   const events = useMemo(() => {
     return ((rawEvents ?? []) as any[]).map(parseCalendarEvent);
