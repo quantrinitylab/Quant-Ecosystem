@@ -218,6 +218,17 @@ spec:
     - host: quantchat.quantrinity.in
       http:
         paths:
+          # P0-1: the realtime WebSocket endpoint. The Fastify backend serves
+          # /ws/chat on port 3002; without this rule the frontend's same-origin
+          # wss://<host>/ws URL hit the Next.js frontend (404) and the old
+          # wss://quantws.quantrinity.in hostname had no backend at all.
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: quant-quantchat
+                port:
+                  number: 3002
           - path: /
             pathType: Prefix
             backend:

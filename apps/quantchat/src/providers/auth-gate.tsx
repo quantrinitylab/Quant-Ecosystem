@@ -17,7 +17,18 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, LoadingState } from '@quant/shared-ui';
 import { bootstrapSession } from '../lib/auth-session';
 
-const PUBLIC_PATHS = new Set(['/login']);
+const PUBLIC_PATHS = new Set(['/login', '/terms', '/privacy', '/support']);
+
+/**
+ * Whether a pathname is reachable without a session. The legal pages must
+ * stay public: the login footer links to /terms, /privacy and /support, and
+ * bouncing logged-out visitors back to /login from them was a dead loop
+ * (P0-2).
+ */
+export function isPublicPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return PUBLIC_PATHS.has(pathname);
+}
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -30,7 +41,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     bootstrapSession();
   }, []);
 
-  const isPublic = pathname ? PUBLIC_PATHS.has(pathname) : false;
+  const isPublic = isPublicPath(pathname);
 
   // Redirect unauthenticated visitors to sign-in (once identity resolution has
   // settled), except on public routes like /login itself.

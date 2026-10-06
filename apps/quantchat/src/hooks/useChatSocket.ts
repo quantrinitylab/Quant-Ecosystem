@@ -22,8 +22,12 @@ export type { ChatConnectionState, ClientEvent } from '../services/chat-socket';
  * @param onEvent Optional handler invoked for every inbound server event
  *   (`new_message`, `typing_indicator`, `presence:update`, `message:read`,
  *   `message:delivered`, ...). Registered for the lifetime of the component.
+ *   While the WebSocket is unreachable the shared socket degrades to HTTP
+ *   long-polling and `new_message` events still arrive via `GET
+ *   /api/messages/:id`.
  * @returns `{ send, subscribe, connectionState }` where `connectionState` is
- *   exactly one of `connecting` | `open` | `closed` (Requirement 13.4).
+ *   exactly one of `connecting` | `open` | `closed` | `degraded` (Requirement
+ *   13.4).
  */
 export function useChatSocket(onEvent?: ChatEventHandler): {
   send: (event: ClientEvent) => void;

@@ -14,7 +14,13 @@
 //     were active before a disconnect once the connection is re-established
 //     (Req 13.3).
 //   - Expose the connection state as exactly one of `connecting` | `open` |
-//     `closed` (Req 13.4).
+//     `closed` | `degraded` (Req 13.4; `degraded` = HTTP long-poll fallback).
+//   - Graceful degradation (P0-1): after 3 consecutive unexpected WS failures
+//     the manager polls `GET /api/messages/:id` per subscribed conversation and
+//     fans unseen messages as `new_message` events, while the socket keeps
+//     retrying in the background. The first successful open stops polling.
+//   - Auth travels as a negotiated WebSocket subprotocol (see
+//     `getWsProtocols`), never as a `?token=` query parameter.
 //
 // Wire protocol aligns with `backend/routes/websocket.ts`:
 //   client -> server: { type: 'join_conversation', conversationId }
@@ -26,10 +32,12 @@
 //                       'message:delivered', ... }
 // ============================================================================
 
-import { getChatSocketUrl } from '../lib/auth';
+import { getAuthHeaders, getChatSocketUrl, getWsProtocols } from '../lib/auth';
 
-/** Connection state surfaced to consumers (Requirement 13.4). */
-export type ChatConnectionState = 'connecting' | 'open' | 'closed';
+/** Connection state surfaced to consumers (Requirement 13.4).
+ * `degraded` means the WebSocket is unreachable and the HTTP long-poll
+ * fallback is serving inbound events (P0-1 graceful degradation). */
+export type ChatConnectionState = 'connecting' | 'open' | 'closed' | 'degraded';
 
 /** A client event sent over the shared socket. `type` selects the wire frame. */
 export interface ClientEvent {
@@ -50,6 +58,33 @@ const MAX_RECONNECT_DELAY_MS = 30_000;
 // tripping idle timeouts. Well under any typical proxy idle window.
 const HEARTBEAT_INTERVAL_MS = 25_000;
 
+// HTTP long-poll fallback (P0-1 graceful degradation). When the WebSocket
+// cannot be established — e.g. the production WS endpoint is unreachable —
+// the manager keeps retrying the socket in the background AND polls the
+// existing `GET /api/messages/:id` HTTP endpoint so inbound chat events still
+// arrive instead of the app hanging forever. Outbound realtime frames
+// (typing, receipts) are dropped while degraded; sends go through the normal
+// HTTP mutation hooks.
+const MAX_FAILED_ATTEMPTS_BEFORE_POLL = 3;
+const POLL_INTERVAL_MS = 5_000;
+const POLL_PAGE_LIMIT = 25;
+// Cap per-conversation id memory so a long degraded session cannot grow it
+// without bound.
+const MAX_KNOWN_MESSAGE_IDS = 1_000;
+
+/** Normalize the several envelope shapes `GET /api/messages/:id` can return. */
+function extractMessages(body: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(body)) return body as Array<Record<string, unknown>>;
+  if (body && typeof body === 'object') {
+    const b = body as Record<string, unknown>;
+    if (Array.isArray(b.messages)) return b.messages as Array<Record<string, unknown>>;
+    const data = b.data as Record<string, unknown> | undefined;
+    if (data && Array.isArray(data.messages))
+      return data.messages as Array<Record<string, unknown>>;
+  }
+  return [];
+}
+
 /**
  * Owns the single shared chat WebSocket. Exported as the `chatSocket` singleton
  * below; not intended to be instantiated more than once.
@@ -66,6 +101,13 @@ export class ChatSocketManager {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** Consecutive unexpected WS failures (reset on every successful open). */
+  private failedAttempts = 0;
+  /** HTTP long-poll fallback timer; non-null while degraded. */
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  /** Message ids already seen per conversation (drives new_message fan-out). */
+  private readonly knownMessageIds = new Map<string, Set<string>>();
 
   /** True only while a caller explicitly requested a close (no reconnect). */
   private intentionalClose = false;
@@ -127,6 +169,9 @@ export class ChatSocketManager {
     // If we are not yet open the join is deferred to the next `onopen`, which
     // replays every active conversation.
     this.rawSend({ type: 'join_conversation', conversationId });
+    // While the HTTP fallback is active, seed the new conversation immediately
+    // so its next poll tick only surfaces genuinely new messages.
+    if (this.pollTimer) void this.pollConversations(true);
   }
 
   /** Forget a conversation room so it is not re-joined on reconnect. */
@@ -159,10 +204,13 @@ export class ChatSocketManager {
 
     let socket: WebSocket;
     try {
-      socket = new WebSocket(getChatSocketUrl());
+      // Auth travels as a negotiated subprotocol (see getWsProtocols) — never
+      // in the URL.
+      socket = new WebSocket(getChatSocketUrl(), getWsProtocols());
     } catch {
       // Construction failed (e.g. bad URL) — treat as an unexpected close and
       // retry with backoff.
+      this.noteConnectFailure();
       this.scheduleReconnect();
       return;
     }
@@ -170,6 +218,8 @@ export class ChatSocketManager {
 
     socket.onopen = () => {
       this.reconnectAttempts = 0;
+      this.failedAttempts = 0;
+      this.stopPolling();
       this.setState('open');
       this.startHeartbeat();
       // Requirement 13.3 — replay every conversation that was active before the
@@ -186,13 +236,7 @@ export class ChatSocketManager {
       } catch {
         return; // ignore malformed frames
       }
-      for (const handler of this.messageHandlers) {
-        try {
-          handler(parsed);
-        } catch {
-          // A faulty consumer must not break fan-out to the others.
-        }
-      }
+      this.dispatchEvent(parsed);
     };
 
     socket.onerror = () => {
@@ -211,9 +255,104 @@ export class ChatSocketManager {
         this.setState('closed');
         return;
       }
-      // Unexpected close — reconnect with exponential backoff (Requirement 13.2).
+      // Unexpected close — engage the HTTP fallback after repeated failures,
+      // and keep reconnecting with exponential backoff (Requirement 13.2).
+      this.noteConnectFailure();
       this.scheduleReconnect();
     };
+  }
+
+  /**
+   * Record one failed WS establishment attempt. Once the threshold is hit the
+   * HTTP long-poll fallback engages so inbound events keep flowing while the
+   * socket keeps retrying in the background.
+   */
+  private noteConnectFailure(): void {
+    this.failedAttempts += 1;
+    if (this.failedAttempts >= MAX_FAILED_ATTEMPTS_BEFORE_POLL) {
+      this.startPolling();
+    }
+  }
+
+  /** Fan one inbound event (WS frame or poll tick) to every message handler. */
+  private dispatchEvent(parsed: unknown): void {
+    for (const handler of this.messageHandlers) {
+      try {
+        handler(parsed);
+      } catch {
+        // A faulty consumer must not break fan-out to the others.
+      }
+    }
+  }
+
+  /**
+   * Start the HTTP long-poll fallback: every POLL_INTERVAL_MS each subscribed
+   * conversation is fetched via the existing `GET /api/messages/:id` endpoint
+   * and unseen messages are fanned out as `new_message` events — the same
+   * shape the backend emits over the socket. State becomes `degraded` so the
+   * UI can say so. Idempotent: a second call while polling is a no-op.
+   */
+  private startPolling(): void {
+    if (this.pollTimer) return;
+    // Only poll while somebody is actually consuming the socket.
+    if (this.intentionalClose || this.refCount === 0) return;
+    this.setState('degraded');
+    // Seed the known-id sets immediately so the first tick does not replay
+    // history as "new" messages.
+    void this.pollConversations(true);
+    this.pollTimer = setInterval(() => {
+      void this.pollConversations(false);
+    }, POLL_INTERVAL_MS);
+  }
+
+  private stopPolling(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+  }
+
+  /**
+   * One poll tick. When `seedOnly` is true the known-id sets are populated but
+   * no events are dispatched (used on fallback start / new subscription).
+   */
+  private async pollConversations(seedOnly: boolean): Promise<void> {
+    if (typeof fetch === 'undefined') return;
+    const headers = getAuthHeaders();
+    for (const conversationId of this.activeConversations) {
+      let known = this.knownMessageIds.get(conversationId);
+      if (!known) {
+        known = new Set<string>();
+        this.knownMessageIds.set(conversationId, known);
+      }
+      try {
+        const res = await fetch(
+          `/api/messages/${encodeURIComponent(conversationId)}?limit=${POLL_PAGE_LIMIT}`,
+          { headers },
+        );
+        if (!res.ok) continue;
+        const body: unknown = await res.json();
+        for (const msg of extractMessages(body)) {
+          const id = msg.id;
+          if (typeof id !== 'string' || id.length === 0) continue;
+          if (known.has(id)) continue;
+          known.add(id);
+          // Bound memory: drop the oldest ids once over the cap (Sets iterate
+          // in insertion order).
+          while (known.size > MAX_KNOWN_MESSAGE_IDS) {
+            const oldest = known.values().next();
+            if (oldest.done) break;
+            known.delete(oldest.value);
+          }
+          if (!seedOnly) {
+            this.dispatchEvent({ type: 'new_message', data: msg });
+          }
+        }
+      } catch {
+        // Transient network failure — the next tick retries. Never throw out
+        // of the interval callback.
+      }
+    }
   }
 
   private scheduleReconnect(): void {
@@ -224,8 +363,10 @@ export class ChatSocketManager {
     }
     if (this.reconnectTimer) return; // a reconnect is already pending
 
-    // We are actively trying to restore the connection.
-    this.setState('connecting');
+    // We are actively trying to restore the connection. While the HTTP
+    // fallback is serving traffic we stay visibly `degraded` instead of
+    // flapping to `connecting` on every retry.
+    if (!this.pollTimer) this.setState('connecting');
     const delay = Math.min(
       BASE_RECONNECT_DELAY_MS * 2 ** this.reconnectAttempts,
       MAX_RECONNECT_DELAY_MS,
@@ -244,7 +385,9 @@ export class ChatSocketManager {
       this.reconnectTimer = null;
     }
     this.stopHeartbeat();
+    this.stopPolling();
     this.reconnectAttempts = 0;
+    this.failedAttempts = 0;
     const socket = this.ws;
     this.ws = null;
     if (socket) {

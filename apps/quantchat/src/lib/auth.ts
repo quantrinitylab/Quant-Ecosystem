@@ -57,19 +57,25 @@ export function getAuthHeadersWithContent(): Record<string, string> {
 
 /**
  * Resolves the base WebSocket URL for the QuantChat realtime endpoint.
- * Prefers `NEXT_PUBLIC_WS_URL`, then the current host on the backend's WS port,
- * and finally a loopback fallback for SSR/tests.
+ * Prefers `NEXT_PUBLIC_WS_URL`, then the SAME ORIGIN as the page
+ * (`wss://<host>` — the ingress routes `/ws` to the chat backend which serves
+ * `/ws/chat`), and finally a loopback fallback for SSR/tests.
+ *
+ * NOTE (P0-1, 2026-10-06): this previously hardcoded
+ * `wss://quantws.quantrinity.in/ws` for the production host, but that hostname
+ * was never deployed (no DNS record, no backend behind it) so the handshake
+ * timed out and realtime never worked in production. Same-origin keeps the WS
+ * endpoint glued to whatever host actually serves the app. (It also fixes a
+ * latent doubled path: the old base already ended in `/ws` while callers
+ * appended `/ws/chat` again.)
  */
 export function getWsBaseUrl(): string {
   const envWsUrl = process.env.NEXT_PUBLIC_WS_URL;
-  if (envWsUrl) return envWsUrl;
+  if (envWsUrl) return envWsUrl.replace(/\/$/, '');
   if (typeof window !== 'undefined') {
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-      if (window.location.hostname === 'quantchat.quantrinity.in') {
-        return 'wss://quantws.quantrinity.in/ws';
-      }
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${proto}//${window.location.host}/ws`;
+      return `${proto}//${window.location.host}`;
     }
     return `ws://${window.location.hostname}:3002`;
   }
@@ -77,11 +83,26 @@ export function getWsBaseUrl(): string {
 }
 
 /**
- * Builds a WebSocket URL with the auth token as a query parameter.
+ * Builds the subprotocol list for a WebSocket handshake.
+ *
+ * Browser WebSockets cannot set custom headers on the upgrade request, so the
+ * bearer token travels as a negotiated subprotocol instead of a `?token=`
+ * query parameter. The backend (`@quant/realtime` ConnectionAuth) already
+ * accepts the token from the `Sec-WebSocket-Protocol` handshake header — the
+ * JWT (base64url, unpadded) is a valid HTTP token. This keeps the credential
+ * out of URLs: no proxy/CDN access logs, no browser history, no Referer leaks.
+ */
+export function getWsProtocols(): string[] {
+  const token = getAuthToken();
+  return token ? [token] : [];
+}
+
+/**
+ * Builds the WebSocket URL for a conversation-scoped chat connection.
+ * Auth travels via {@link getWsProtocols} (subprotocol), never in the URL.
  */
 export function getWsAuthUrl(conversationId: string): string {
-  const token = getAuthToken() || '';
-  return `${getWsBaseUrl()}/ws/chat?conversationId=${conversationId}&token=${token}`;
+  return `${getWsBaseUrl()}/ws/chat?conversationId=${encodeURIComponent(conversationId)}`;
 }
 
 /**
@@ -90,9 +111,9 @@ export function getWsAuthUrl(conversationId: string): string {
  * Unlike {@link getWsAuthUrl} this is NOT bound to a single conversation — the
  * shared socket joins conversation rooms dynamically via `join_conversation`
  * frames (see `useChatSocket`). The backend `/ws/chat` route treats the
- * `conversationId` query param as optional, so it is omitted here.
+ * `conversationId` query param as optional, so it is omitted here. Auth
+ * travels via {@link getWsProtocols} (subprotocol), never in the URL.
  */
 export function getChatSocketUrl(): string {
-  const token = getAuthToken() || '';
-  return `${getWsBaseUrl()}/ws/chat?token=${encodeURIComponent(token)}`;
+  return `${getWsBaseUrl()}/ws/chat`;
 }
