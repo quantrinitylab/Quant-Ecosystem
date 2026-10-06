@@ -68,7 +68,10 @@ export default function AIPage() {
     setFeedback,
     retryLastMessage,
     stopStreaming,
-  } = useAIChat({ defaultModel: currentModel.id });
+  // Defensive: currentModel is guaranteed non-null by useModelSelector, but
+  // optional chaining here ensures a future regression can never again throw
+  // "Cannot read properties of undefined" during render (P0 Sept 2026 crash).
+  } = useAIChat({ defaultModel: currentModel?.id ?? 'gpt-4o' });
 
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState(false);
