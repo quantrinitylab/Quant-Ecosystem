@@ -18,6 +18,10 @@ import { LinkPreviewCard } from '../../../components/LinkPreviewCard';
 import { AIAgentPanel } from '../../../components/chat/AIAgentPanel';
 import { ReplySuggestions } from '../../../components/chat/ReplySuggestions';
 import { GameLauncher } from '../../../components/games/GameLauncher';
+import { DisappearingMessage } from '../../../components/chat/DisappearingMessage';
+import { DisappearingTimerPicker } from '../../../components/chat/DisappearingTimerPicker';
+import DisappearingTimer from '../../../components/DisappearingTimer';
+import { formatTimerLabel } from '../../../lib/disappearing-timers';
 
 type DeliveryStatus = 'sent' | 'delivered' | 'read';
 
@@ -127,6 +131,48 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   // Orphaned-feature wiring: AI auto-reply panel + in-chat games launcher.
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [showGames, setShowGames] = useState(false);
+
+  // Disappearing-messages wiring (Tasks 14.8/14.9): per-conversation timer,
+  // picker sheet visibility, and the set of locally-expired message ids.
+  const [disappearSeconds, setDisappearSeconds] = useState<number>(0);
+  const [showTimerPicker, setShowTimerPicker] = useState(false);
+  const [showCustomTimer, setShowCustomTimer] = useState(false);
+  const [isSavingTimer, setIsSavingTimer] = useState(false);
+  const [expiredMessageIds, setExpiredMessageIds] = useState<Record<string, true>>({});
+
+  // Load the per-conversation disappear timer. Client-side only (localStorage)
+  // until the backend persists it on the conversation record.
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`qc-disappear-timer:${id}`);
+      if (stored !== null) setDisappearSeconds(Number(stored) || 0);
+    } catch {
+      /* storage unavailable */
+    }
+  }, [id]);
+
+  const handleTimerChange = useCallback(
+    (seconds: number) => {
+      setDisappearSeconds(seconds);
+      setIsSavingTimer(true);
+      // TODO(disappear-pipeline): persist via PATCH /conversations/:id
+      // { disappearTimerSeconds: seconds } once the backend supports it.
+      try {
+        window.localStorage.setItem(`qc-disappear-timer:${id}`, String(seconds));
+      } catch {
+        /* storage unavailable */
+      }
+      window.setTimeout(() => setIsSavingTimer(false), 400);
+    },
+    [id],
+  );
+
+  const handleMessageExpire = useCallback((messageId: string) => {
+    // TODO(disappear-pipeline): DELETE /messages/:messageId once the backend
+    // supports disappear timers; for now expired messages are removed from the
+    // local view.
+    setExpiredMessageIds((prev) => ({ ...prev, [messageId]: true }));
+  }, []);
 
   // Snap Ephemeral state tracking
   const [snapStates, setSnapStates] = useState<
@@ -238,8 +284,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       }),
     ];
 
-    return allMsgs;
-  }, [data, incomingMessages, reactions, statusByMessageId]);
+    // Expired disappearing messages are removed from the local view.
+    return allMsgs.filter((m) => !expiredMessageIds[m.id]);
+  }, [data, incomingMessages, reactions, statusByMessageId, expiredMessageIds]);
 
   const handleReaction = useCallback((msgId: string, emoji: string) => {
     setReactions((prev) => ({
@@ -487,7 +534,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     <div className="flex flex-col h-screen">
       <TopBar
         title={chatDisplayName}
-        subtitle="🔥 5 Day Streak · Active now"
+        subtitle={
+          disappearSeconds > 0
+            ? `🔥 5 Day Streak · ⏱️ ${formatTimerLabel(disappearSeconds)} · Active now`
+            : '🔥 5 Day Streak · Active now'
+        }
         onBack={() => {
           window.location.href = '/';
         }}
@@ -538,6 +589,22 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
             title="Quant AI"
           >
             👽
+          </button>,
+          <button
+            key="disappear-timer"
+            type="button"
+            onClick={() => setShowTimerPicker(true)}
+            aria-label="Disappearing messages timer"
+            className={`min-w-touch min-h-touch flex items-center justify-center text-lg transition-opacity ${
+              disappearSeconds > 0 ? 'opacity-100' : 'opacity-70'
+            }`}
+            title={
+              disappearSeconds > 0
+                ? `Disappearing messages: ${formatTimerLabel(disappearSeconds)}`
+                : 'Disappearing messages: off'
+            }
+          >
+            ⏱️
           </button>,
           <div key="status" className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${getStatusColor()}`} />
@@ -722,15 +789,35 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                   </div>
                 )}
 
-                {/* Regular message bubble */}
-                {msg.type === 'text' && (
-                  <ChatBubble
-                    message={msg.content}
-                    sender={msg.sender === 'self' ? 'self' : 'other'}
-                    timestamp={msg.timestamp}
-                    status={msg.status}
-                  />
-                )}
+                {/* Regular message bubble — wrapped in a disappearing-message
+                    countdown overlay when the per-conversation timer is on */}
+                {msg.type === 'text' &&
+                  (disappearSeconds > 0 ? (
+                    <div
+                      className={`flex ${msg.sender === 'self' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <DisappearingMessage
+                        messageId={msg.id}
+                        durationSeconds={disappearSeconds}
+                        isViewed
+                        onExpire={handleMessageExpire}
+                      >
+                        <ChatBubble
+                          message={msg.content}
+                          sender={msg.sender === 'self' ? 'self' : 'other'}
+                          timestamp={msg.timestamp}
+                          status={msg.status}
+                        />
+                      </DisappearingMessage>
+                    </div>
+                  ) : (
+                    <ChatBubble
+                      message={msg.content}
+                      sender={msg.sender === 'self' ? 'self' : 'other'}
+                      timestamp={msg.timestamp}
+                      status={msg.status}
+                    />
+                  ))}
 
                 {/* Link preview */}
                 {msg.linkPreview && (
@@ -1207,6 +1294,65 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 onPostSystemMessage={handlePostSystemMessage}
                 onClose={() => setShowGames(false)}
               />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Disappearing messages timer picker (bottom sheet, chat settings) */}
+      <AnimatePresence>
+        {showTimerPicker && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setShowTimerPicker(false)}
+          >
+            <motion.div
+              className="w-full max-w-md rounded-t-2xl bg-[var(--quant-background)] p-4 pb-6"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', ...spring.stiff }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-end mb-1">
+                <button
+                  type="button"
+                  onClick={() => setShowTimerPicker(false)}
+                  className="w-8 h-8 rounded-full hover:bg-[var(--quant-muted)] flex items-center justify-center text-[var(--quant-muted-foreground)]"
+                  aria-label="Close disappearing messages timer"
+                >
+                  ✕
+                </button>
+              </div>
+              <DisappearingTimerPicker
+                conversationId={id}
+                currentSeconds={disappearSeconds}
+                onChange={handleTimerChange}
+                isSaving={isSavingTimer}
+              />
+              {/* Custom duration (any seconds value) via the standalone timer selector */}
+              <button
+                type="button"
+                onClick={() => setShowCustomTimer((v) => !v)}
+                aria-expanded={showCustomTimer}
+                className="mt-3 text-xs font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]"
+              >
+                {showCustomTimer ? '▾ Hide custom duration' : '▸ Custom duration…'}
+              </button>
+              {showCustomTimer && (
+                <div className="mt-2 rounded-xl border border-[var(--quant-border)] p-3">
+                  <DisappearingTimer
+                    currentDuration={disappearSeconds}
+                    onDurationChange={handleTimerChange}
+                    isActive={false}
+                    showCountdown={false}
+                    size="small"
+                  />
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}
