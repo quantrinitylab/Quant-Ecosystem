@@ -89,9 +89,11 @@ function LoginForm() {
       try {
         const targetUrl = new URL(dest);
         if (token) {
+          // Only the SSO ticket aliases travel in the URL. The legacy
+          // `refreshToken` param was a misnomer for the access token and is no
+          // longer sent (nothing ever consumed it).
           targetUrl.searchParams.set('token', token);
           targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('refreshToken', token);
           targetUrl.searchParams.set('__quant_sso_ticket', token);
         }
         window.location.href = targetUrl.toString();
