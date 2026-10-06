@@ -115,6 +115,15 @@ export default function ContactsPage() {
     }
   }, [pageCorrection]);
 
+  // Re-tap active app tab → refresh contacts list (P1: app-switcher refresh)
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refetch();
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, [refetch]);
+
   const handleTabChange = useCallback((tab: 'all' | 'favorites' | 'groups' | 'companies' | 'dedup') => {
     setActiveTab(tab);
     setPage(1);

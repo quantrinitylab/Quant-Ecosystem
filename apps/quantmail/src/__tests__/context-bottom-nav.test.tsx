@@ -215,31 +215,33 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       expect(html).toContain('1');
     });
 
-    it('renders active pill indicator dot matching pillar accent color', () => {
+    it('renders active pill indicator matching pillar accent color', () => {
+      // The active indicator is a glowing animated gradient pill (not the old
+      // dot): linear-gradient(90deg, <accent>, <accent>CC).
       const htmlMail = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="mail" activeTabOverride="inbox" />,
       );
-      expect(htmlMail).toContain('background-color:#FF8C42');
+      expect(htmlMail).toContain('linear-gradient(90deg, #FF8C42, #FF8C42CC)');
 
       const htmlCalendar = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="calendar" activeTabOverride="feed" />,
       );
-      expect(htmlCalendar).toContain('background-color:#F59E0B');
+      expect(htmlCalendar).toContain('linear-gradient(90deg, #F59E0B, #F59E0BCC)');
 
       const htmlDrive = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="drive" activeTabOverride="home" />,
       );
-      expect(htmlDrive).toContain('background-color:#38BDF8');
+      expect(htmlDrive).toContain('linear-gradient(90deg, #38BDF8, #38BDF8CC)');
 
       const htmlContacts = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="contacts" activeTabOverride="home" />,
       );
-      expect(htmlContacts).toContain('background-color:#10B981');
+      expect(htmlContacts).toContain('linear-gradient(90deg, #10B981, #10B981CC)');
 
       const htmlQuantGit = renderToStaticMarkup(
         <ContextBottomNavBar activePillarOverride="quantgit" activeTabOverride="repos" />,
       );
-      expect(htmlQuantGit).toContain('background-color:#A78BFA');
+      expect(htmlQuantGit).toContain('linear-gradient(90deg, #A78BFA, #A78BFACC)');
     });
   });
 

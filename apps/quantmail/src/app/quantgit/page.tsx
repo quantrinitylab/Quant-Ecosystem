@@ -98,6 +98,23 @@ function QuantGitContent() {
     }
   }, [tabParam]);
 
+  // Re-tap active app tab → refresh QuantGit view (P1: app-switcher refresh).
+  // QuantGit data is largely static/mock; re-tap resets to repos tab and
+  // scrolls to top as visible acknowledgment.
+  useEffect(() => {
+    const handleRefresh = () => {
+      setActiveContextSubTab('repos');
+      setSelectedRepo(null);
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, []);
+
   // Synchronize with custom events from ContextBottomNavBar (AppShell)
   useEffect(() => {
     const handleSubTabChange = (e: Event) => {

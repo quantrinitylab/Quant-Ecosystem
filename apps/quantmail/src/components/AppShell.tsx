@@ -38,6 +38,7 @@ import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { MobilePillarBottomNav } from './MobilePillarBottomNav';
 import { DesktopPillarRail } from './DesktopPillarRail';
 import { AccountBadge } from './AccountBadge';
+import { appThemeForPath } from '../lib/app-theme';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -561,14 +562,25 @@ export function AppShell({
 
   const semanticTheme = effectiveTheme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
+  // Per-app color theming: the whole UI's accent color animates smoothly
+  // when switching apps (Mail=orange, Calendar=blue, Drive=green,
+  // Contacts=teal, QuantGit=purple).
+  const appTheme = appThemeForPath(pathname ?? '/');
+  const appThemeStyle = {
+    '--app-accent': appTheme.accent,
+    '--app-glow': appTheme.glow,
+    '--app-ring': appTheme.ring,
+  } as React.CSSProperties;
+
   return (
     <UndoSendProvider>
       <section
-        className={`flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
+        className={`relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
         aria-label={ariaLabel}
         data-theme={effectiveTheme}
+        data-app-theme={appTheme.id}
         data-quant-theme={effectiveTheme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
-        style={semanticTheme}
+        style={{ ...semanticTheme, ...appThemeStyle }}
         /*
         No `role="application"`. It used to sit here, presumably talked into
         place by the default `aria-label` of 'Application shell', and it was the
@@ -581,6 +593,15 @@ export function AppShell({
         is what the label was for.
       */
       >
+        {/* Per-app theme wash: subtle accent gradient cross-fading on app switch */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            background: appTheme.bgWash,
+            transition: 'background 0.6s ease-in-out',
+          }}
+        />
         {/*
         Everything modal about the drawer hangs off `isDrawerPresented`, and the
         floating create button is modal-adjacent: it must not be hittable over a
@@ -680,7 +701,7 @@ export function AppShell({
           )}
 
           <div
-            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20'}`}
+            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20 md:pb-0'}`}
           >
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
