@@ -49,6 +49,7 @@ describe('SessionService', () => {
           title: 'New Session',
           model: 'gpt-4',
           systemPrompt: null,
+          topic: null,
         },
       });
     });
@@ -68,6 +69,7 @@ describe('SessionService', () => {
           title: 'My Chat',
           model: 'claude-3-opus',
           systemPrompt: 'You are a helpful assistant.',
+          topic: null,
         },
       });
     });
