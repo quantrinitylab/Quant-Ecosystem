@@ -9,6 +9,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/auth-provider';
+import { readSsoTokenFromSearch, scrubSsoParamsFromUrl } from '../../lib/sso-handoff';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -56,29 +57,8 @@ function LoginForm() {
     if (typeof window === 'undefined') return;
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams(window.location.search);
-      const ssoToken =
-        params.get('__quant_sso_ticket') ??
-        params.get('token') ??
-        params.get('accessToken') ??
-        params.get('access_token');
+      const ssoToken = readSsoTokenFromSearch(new URLSearchParams(window.location.search));
       if (!ssoToken) return;
-
-      const scrubTokenParams = () => {
-        try {
-          const url = new URL(window.location.href);
-          for (const key of ['__quant_sso_ticket', 'token', 'accessToken', 'access_token']) {
-            url.searchParams.delete(key);
-          }
-          window.history.replaceState(
-            {},
-            document.title,
-            url.pathname + (url.search ? `?${url.searchParams.toString()}` : '') + url.hash,
-          );
-        } catch {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      };
 
       setSsoCompleting(true);
       setError(null);
@@ -87,12 +67,12 @@ function LoginForm() {
         await loginWithSSO(ssoToken);
         // The provider flips to authenticated; its auto-redirect lands the
         // user. Scrub first so the token never lingers in the address bar.
-        scrubTokenParams();
+        scrubSsoParamsFromUrl();
         if (!cancelled) router.replace(destination());
       } catch (caught) {
         // loginWithSSO sets the provider error; mirror it into the local
         // banner and stay on /login so the user can retry.
-        scrubTokenParams();
+        scrubSsoParamsFromUrl();
         if (!cancelled) {
           setError(
             caught instanceof Error
