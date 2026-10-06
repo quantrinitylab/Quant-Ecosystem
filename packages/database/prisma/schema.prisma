@@ -516,6 +516,7 @@ model Email {
   snippet        String?
   isRead         Boolean       @default(false)
   isStarred      Boolean       @default(false)
+  isPinned       Boolean       @default(false)
   isImportant    Boolean       @default(false)
   isDraft        Boolean       @default(false)
   isSent         Boolean       @default(false)

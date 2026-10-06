@@ -13,6 +13,7 @@ import type {
 // ============================================================================
 
 import { browserAuthSession } from './browser-auth-session';
+import { browserApiRequest } from './browser-api-request';
 import { readAIIntent } from '../lib/ai-intent-preference';
 import type {
   Email,
@@ -39,6 +40,9 @@ import type {
   MeetingExtraction,
 } from '../types';
 
+// Re-export shared types used by settings and other surfaces.
+export type { EmailLabel } from '../types';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -58,6 +62,17 @@ interface RequestOptions {
   headers?: Record<string, string>;
   params?: Record<string, string | number | boolean | undefined>;
   signal?: AbortSignal;
+}
+
+/**
+ * Result of the bulk contact import endpoints
+ * (`POST /contacts/import/vcard`, `POST /contacts/import/csv`).
+ */
+export interface ContactImportResult {
+  imported: number;
+  duplicates: number;
+  errors: number;
+  total: number;
 }
 
 export interface EmailSignaturePreference {
@@ -446,6 +461,10 @@ export class QuantMailApiClient {
     return this.post(`/emails/${id}/star`, {});
   }
 
+  async togglePin(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post(`/emails/${id}/pin`, {});
+  }
+
   async markAsRead(id: string): Promise<ApiResponse<{ message: string }>> {
     return this.post(`/emails/${id}/read`, {});
   }
@@ -520,6 +539,10 @@ export class QuantMailApiClient {
     data: Partial<Pick<EmailSignaturePreference, 'name' | 'contentHtml' | 'isDefault'>>,
   ): Promise<ApiResponse<EmailSignaturePreference>> {
     return this.put(`/email-signatures/${id}`, data);
+  }
+
+  async deleteEmailSignature(id: string): Promise<ApiResponse<{ message: string }>> {
+    return this.delete(`/email-signatures/${id}`);
   }
 
   async getVacationResponder(): Promise<ApiResponse<VacationResponderPreference | null>> {
@@ -861,6 +884,34 @@ export class QuantMailApiClient {
 
   async deduplicateContacts(): Promise<ApiResponse<{ mergedCount: number }>> {
     return this.post('/contacts/deduplicate', {});
+  }
+
+  /**
+   * Full address book as vCard via `GET /contacts/export/vcard`.
+   * Unlike the old client-side export, this is NOT paginated — the backend
+   * exports every contact, not just the current 20-row page.
+   */
+  async exportContactsVCard(): Promise<Response> {
+    // Raw fetch (not JSON) — the backend streams the full address book as
+    // text/vcard. Uses the authenticated browser request helper so the
+    // session token is attached.
+    return browserApiRequest('/api/contacts/export/vcard');
+  }
+
+  /**
+   * Full address book as CSV via `GET /contacts/export/csv`.
+   * Raw Response — caller reads the blob for download.
+   */
+  async exportContactsCsv(): Promise<Response> {
+    return browserApiRequest('/api/contacts/export/csv');
+  }
+
+  async importContactsVCard(content: string): Promise<ApiResponse<ContactImportResult>> {
+    return this.post('/contacts/import/vcard', { content });
+  }
+
+  async importContactsCsv(content: string): Promise<ApiResponse<ContactImportResult>> {
+    return this.post('/contacts/import/csv', { content });
   }
 
   // --------------------------------------------------------------------------

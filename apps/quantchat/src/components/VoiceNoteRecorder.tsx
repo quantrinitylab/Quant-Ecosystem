@@ -5,39 +5,139 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { spring } from '@quant/brand';
 
 interface VoiceNoteRecorderProps {
+  /**
+   * Legacy callback — still fired with the recording duration for
+   * backward compatibility.
+   */
   onRecordingComplete: (durationMs: number) => void;
+  /**
+   * Fired with the REAL recorded audio blob when recording stops.
+   * Wire this to an upload flow to send genuine voice notes.
+   */
+  onAudioRecorded?: (audioBlob: Blob, durationMs: number) => void;
+  /** Fired when recording cannot start (mic denied, unsupported browser). */
+  onError?: (message: string) => void;
 }
 
-export function VoiceNoteRecorder({ onRecordingComplete }: VoiceNoteRecorderProps) {
+export function VoiceNoteRecorder({
+  onRecordingComplete,
+  onAudioRecorded,
+  onError,
+}: VoiceNoteRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbacksRef = useRef({ onRecordingComplete, onAudioRecorded, onError });
+  callbacksRef.current = { onRecordingComplete, onAudioRecorded, onError };
 
-  const startRecording = useCallback(() => {
-    setIsRecording(true);
-    setDuration(0);
-    startTimeRef.current = Date.now();
-    timerRef.current = setInterval(() => {
-      setDuration(Date.now() - startTimeRef.current);
-    }, 100);
+  const reportError = useCallback((message: string) => {
+    setError(message);
+    callbacksRef.current.onError?.(message);
+    if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+    errorTimeoutRef.current = setTimeout(() => setError(null), 3000);
   }, []);
 
+  const stopTracks = useCallback(() => {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+  }, []);
+
+  const finalizeRecording = useCallback(() => {
+    const elapsed = Date.now() - startTimeRef.current;
+    const recorder = mediaRecorderRef.current;
+    const type = recorder?.mimeType || 'audio/webm';
+    const blob = new Blob(audioChunksRef.current, { type });
+    audioChunksRef.current = [];
+    mediaRecorderRef.current = null;
+    stopTracks();
+    if (elapsed > 300) {
+      callbacksRef.current.onRecordingComplete(elapsed);
+      if (blob.size > 0) {
+        callbacksRef.current.onAudioRecorded?.(blob, elapsed);
+      }
+    }
+  }, [stopTracks]);
+
+  const startRecording = useCallback(async () => {
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      reportError('Voice recording not supported in this browser');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : undefined;
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = finalizeRecording;
+      recorder.onerror = () => {
+        reportError('Recording failed — please try again');
+        setIsRecording(false);
+        stopTracks();
+      };
+      setIsRecording(true);
+      setDuration(0);
+      startTimeRef.current = Date.now();
+      recorder.start(250);
+      timerRef.current = setInterval(() => {
+        setDuration(Date.now() - startTimeRef.current);
+      }, 100);
+    } catch {
+      reportError('Microphone access denied');
+    }
+  }, [finalizeRecording, reportError, stopTracks]);
+
   const stopRecording = useCallback(() => {
-    setIsRecording(false);
+    const recorder = mediaRecorderRef.current;
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    const elapsed = Date.now() - startTimeRef.current;
-    if (elapsed > 300) {
-      onRecordingComplete(elapsed);
+    setIsRecording(false);
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.stop(); // triggers onstop -> finalizeRecording
+    } else {
+      finalizeRecording();
     }
-  }, [onRecordingComplete]);
+  }, [finalizeRecording]);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try {
+          recorder.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
     };
   }, []);
 
@@ -87,6 +187,19 @@ export function VoiceNoteRecorder({ onRecordingComplete }: VoiceNoteRecorderProp
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            className="absolute right-12 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/30"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+          >
+            <span className="text-xs font-medium text-red-500">{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.button
         className={`min-w-touch min-h-touch flex items-center justify-center rounded-full transition-colors ${
           isRecording
@@ -95,10 +208,11 @@ export function VoiceNoteRecorder({ onRecordingComplete }: VoiceNoteRecorderProp
         }`}
         whileTap={{ scale: 0.9 }}
         transition={{ type: 'spring', ...spring.snappy }}
-        onPointerDown={startRecording}
+        onPointerDown={() => void startRecording()}
         onPointerUp={stopRecording}
         onPointerLeave={stopRecording}
-        aria-label={isRecording ? 'Recording voice note' : 'Hold to record voice note'}
+        aria-label={isRecording ? 'Recording voice note — release to stop' : 'Hold to record voice note'}
+        aria-pressed={isRecording}
       >
         <svg
           width="20"

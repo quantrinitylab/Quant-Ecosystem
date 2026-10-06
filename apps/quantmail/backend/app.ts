@@ -4,6 +4,7 @@ import emailsRoutes from './routes/emails';
 import emailsChangesRoutes from './routes/emails-changes';
 import labelsRoutes from './routes/labels';
 import threadsRoutes from './routes/threads';
+import quantyAgentRoutes from './routes/quanty-agent';
 import foldersRoutes from './routes/folders';
 import contactsRoutes from './routes/contacts';
 import contactGroupsRoutes from './routes/contact-groups';
@@ -47,6 +48,7 @@ import inboundWebhookRoutes from './routes/inbound-webhook';
 import { createMemoryService } from '@quant/ai';
 import { DeliverabilityAuthService } from './services/deliverability-auth.service';
 import { InboundIngestAdapter } from './services/inbound-ingest.service';
+import { MailFilterService } from './services/mail-filter.service';
 import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-category.service';
 import { SmartInboxService } from './services/smart-inbox.service';
 import websocketPlugin from '@fastify/websocket';
@@ -172,6 +174,10 @@ export async function buildApp(config?: AppConfig) {
   const inboundIngest = new InboundIngestAdapter(db, new DeliverabilityAuthService(db), {
     learnedCategory,
     smartInbox,
+    // P0 fix: filters were constructed but never wired into ingest, so
+    // user filters never auto-triggered on new mail ("Apply Now" worked
+    // because it calls the service directly).
+    filters: new MailFilterService(db as never),
   });
 
   app.removeContentTypeParser('application/json');
@@ -364,6 +370,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(emailsChangesRoutes, { prefix: '/emails' });
   await app.register(labelsRoutes, { prefix: '/labels' });
   await app.register(threadsRoutes, { prefix: '/threads' });
+  await app.register(quantyAgentRoutes);
   await app.register(foldersRoutes, { prefix: '/folders' });
   await app.register(contactsRoutes, { prefix: '/contacts' });
   await app.register(contactsRoutes, { prefix: '/api/contacts' });

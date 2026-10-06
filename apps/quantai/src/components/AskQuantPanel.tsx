@@ -44,9 +44,18 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
   const abortRef = useRef<AbortController | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  // Last non-dry-run request body, so the confirmation dialog can re-send
+  // it with explicit confirmation (Accept) or abort it (Reject).
+  const lastRequestRef = useRef<Record<string, unknown> | null>(null);
 
   const sendRequest = useCallback(
     async (requestBody: Record<string, unknown>) => {
+      // Remember the last real (non-dry-run) request so a confirmation
+      // dialog can re-send it with explicit user confirmation.
+      if (!requestBody.dryRun) {
+        lastRequestRef.current = requestBody;
+      }
+
       setStreamState({
         isStreaming: true,
         toolCalls: [],
@@ -136,7 +145,10 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
       error: undefined,
     }));
 
-    await sendRequest({ input: trimmed, dryRun: false });
+    // The user reviewed the dry-run plan and clicked Execute — this is the
+    // explicit confirmation. The server only runs confirmation-gated tools
+    // when it sees confirmed: true.
+    await sendRequest({ input: trimmed, dryRun: false, confirmed: true });
   }, [input, sendRequest]);
 
   const handleSSEEvent = (eventType: string, data: Record<string, unknown>) => {
@@ -313,13 +325,35 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
   }, [voiceActive, sendRequest]);
 
   const handleConfirmation = useCallback(
-    (_accepted: boolean) => {
-      // Clear the confirmation dialog
+    (accepted: boolean) => {
+      const pending = streamState.confirmationRequired;
+      // Always dismiss the dialog first.
       setStreamState((prev) => ({ ...prev, confirmationRequired: undefined }));
-      // In a full implementation, this would send a response back to the server
-      // For SSE-based flow, confirmation is auto-handled server-side
+      if (!pending) return;
+
+      if (accepted) {
+        // User accepted: re-send the original request with this step
+        // explicitly confirmed. The server will only run the gated tool
+        // when it sees the step ID in confirmedSteps.
+        const base = lastRequestRef.current ?? { input: input.trim(), dryRun: false };
+        const prevSteps = Array.isArray(base.confirmedSteps) ? base.confirmedSteps : [];
+        void sendRequest({
+          ...base,
+          dryRun: false,
+          confirmed: true,
+          confirmedSteps: [...prevSteps, pending.stepId],
+        });
+      } else {
+        // User rejected: abort the in-flight stream so nothing else runs.
+        abortRef.current?.abort();
+        setStreamState((prev) => ({
+          ...prev,
+          isStreaming: false,
+          error: `Step ${pending.stepId} was rejected by the user. Execution stopped.`,
+        }));
+      }
     },
-    [],
+    [streamState.confirmationRequired, input, sendRequest],
   );
 
   return (

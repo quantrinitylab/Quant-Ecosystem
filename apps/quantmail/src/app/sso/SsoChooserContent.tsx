@@ -240,15 +240,14 @@ export function SsoChooserContent({
       if (safeReturn.startsWith('http://') || safeReturn.startsWith('https://')) {
         try {
           const targetUrl = new URL(safeReturn);
+          // Only the SSO ticket aliases travel in the URL. PII (userId / email /
+          // displayName) is never appended — the receiving app resolves identity
+          // server-side from the ticket. The legacy `refreshToken` param was a
+          // misnomer for the access token and is no longer sent (nothing ever
+          // consumed it).
           targetUrl.searchParams.set('token', token);
           targetUrl.searchParams.set('accessToken', token);
-          targetUrl.searchParams.set('refreshToken', token);
           targetUrl.searchParams.set('__quant_sso_ticket', token);
-          if (user) {
-            targetUrl.searchParams.set('userId', user.id);
-            targetUrl.searchParams.set('email', user.email);
-            if (user.displayName) targetUrl.searchParams.set('displayName', user.displayName);
-          }
           window.location.href = targetUrl.toString();
           return;
         } catch {
@@ -257,7 +256,7 @@ export function SsoChooserContent({
       }
       router.push(safeReturn);
     },
-    [safeReturn, user, router],
+    [safeReturn, router],
   );
 
   // Hydrate known accounts from localStorage

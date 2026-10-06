@@ -74,6 +74,9 @@ function setTheme(next: 'dark' | 'light'): void {
   } catch {
     // Private browsing — the DOM change still applies for this session.
   }
+  // The AppShell owns its own theme state and only re-renders on this event.
+  // Without it, palette/shortcut theme changes silently do nothing.
+  window.dispatchEvent(new CustomEvent('quant:theme-changed', { detail: { theme: next } }));
 }
 
 export function KeyboardProvider({ children }: { children: ReactNode }) {

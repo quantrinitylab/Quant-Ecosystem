@@ -21,6 +21,7 @@ import { showToast } from './InboxToast';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
 import { MessageKindBadge } from './MessageKindBadge';
+import { AttachmentPreview } from './AttachmentPreview';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
 import { quantyReact, useQuantyMood } from '../lib/quanty/reactions';
@@ -246,6 +247,79 @@ export function ConversationalThreadView({
   // Accordion state: Set of message indices that are expanded
   const [expandedIndices, setExpandedIndices] = useState<Set<number>>(new Set());
   const [expandedDetailsIndices, setExpandedDetailsIndices] = useState<Set<number>>(new Set());
+
+  /*
+   * Double-tap ❤️ quick react (WhatsApp parity).
+   *
+   * There is no message-reaction endpoint on the mail backend yet, so reactions
+   * live in local state, persisted per thread in localStorage. They render on
+   * both the collapsed strip and the expanded card, and the double-tap fires a
+   * heart burst over the bubble like WhatsApp.
+   *
+   * TODO(reactions-pipeline): when the backend gains
+   * `POST /api/messages/:id/reactions`, replace the localStorage write with the
+   * API call and hydrate from the message payload instead.
+   */
+  const [messageReactions, setMessageReactions] = useState<Record<string, string[]>>({});
+  const lastTapAtRef = useRef<Record<string, number>>({});
+  const [heartBurst, setHeartBurst] = useState<{ msgKey: string; key: number } | null>(null);
+
+  useEffect(() => {
+    lastTapAtRef.current = {};
+    setHeartBurst(null);
+    try {
+      const raw = localStorage.getItem(`quantmail:reactions:${threadId}`);
+      setMessageReactions(raw ? (JSON.parse(raw) as Record<string, string[]>) : {});
+    } catch {
+      setMessageReactions({});
+    }
+  }, [threadId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `quantmail:reactions:${threadId}`,
+        JSON.stringify(messageReactions),
+      );
+    } catch {
+      // Storage full or unavailable — reactions simply won't survive a reload.
+    }
+  }, [messageReactions, threadId]);
+
+  const toggleHeartReact = useCallback((msgKey: string) => {
+    setMessageReactions((prev) => {
+      const current = prev[msgKey] ?? [];
+      const next = current.includes('❤️')
+        ? current.filter((r) => r !== '❤️')
+        : [...current, '❤️'];
+      return { ...prev, [msgKey]: next };
+    });
+  }, []);
+
+  /*
+   * Double-tap detector for message bubbles. Two taps within 300ms on the same
+   * bubble toggle the ❤️ react. Taps on interactive content (links, buttons,
+   * selectable letter HTML) are ignored so double-tap-to-select text and
+   * double-tap link zoom keep working. Single taps are untouched: the collapsed
+   * strip still expands on click, and the expanded header bar still collapses.
+   */
+  const handleBubbleTouchEnd = useCallback(
+    (msgKey: string) => (e: React.TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('a,button,input,textarea,select,[contenteditable="true"]')) return;
+      if (window.getSelection() && !window.getSelection()?.isCollapsed) return;
+      const now = Date.now();
+      const last = lastTapAtRef.current[msgKey] ?? 0;
+      if (now - last < 300) {
+        lastTapAtRef.current[msgKey] = 0;
+        toggleHeartReact(msgKey);
+        setHeartBurst({ msgKey, key: now });
+      } else {
+        lastTapAtRef.current[msgKey] = now;
+      }
+    },
+    [toggleHeartReact],
+  );
 
   // Quick reply & AI state
   const [quickReplyText, setQuickReplyText] = useState('');
@@ -1639,6 +1713,9 @@ export function ConversationalThreadView({
              * server records the kind now; `messageKindOf` just reads it back.
              */
             const messageKind = messageKindOf(message);
+            // Stable key for per-message local state (reactions, gestures).
+            const msgKey = message.id ?? `msg-${index}`;
+            const msgReactionList = messageReactions[msgKey] ?? [];
 
             /*
              * Read receipt: WhatsApp-style ticks on YOUR messages only.
@@ -1743,6 +1820,14 @@ export function ConversationalThreadView({
                     </span>
 
                     <span className="flex items-center gap-2 shrink-0">
+                      {msgReactionList.length > 0 && (
+                        <span
+                          className="rounded-full border border-[#282C35] bg-[#16181D]/95 px-1.5 py-0.5 text-xs leading-none"
+                          aria-label={`${msgReactionList.length} reaction${msgReactionList.length > 1 ? 's' : ''}`}
+                        >
+                          ❤️
+                        </span>
+                      )}
                       <span className="text-[11px] text-[#A1A4AC] font-mono">
                         {formatMessageDate(message.receivedAt)}
                       </span>
@@ -1768,12 +1853,29 @@ export function ConversationalThreadView({
                 ) : (
                   /* Expanded Rich Card */
                   <div
-                    className={`w-full max-w-[96%] overflow-hidden rounded-xl transition-all sm:max-w-[92%] sm:rounded-2xl ${
+                    onTouchEnd={handleBubbleTouchEnd(msgKey)}
+                    className={`relative w-full max-w-[96%] overflow-hidden rounded-xl transition-all sm:max-w-[92%] sm:rounded-2xl ${
                       isOutbound
                         ? 'bg-[#14100E] shadow-[inset_0_0_0_1px_#3A2416]'
                         : 'bg-[#111318] shadow-[inset_0_0_0_1px_#282C35]'
                     }`}
                   >
+                    {/* WhatsApp-style heart burst on double-tap react */}
+                    <AnimatePresence>
+                      {heartBurst?.msgKey === msgKey && (
+                        <motion.span
+                          key={heartBurst.key}
+                          aria-hidden="true"
+                          initial={{ scale: 0, opacity: 0 }}
+                          animate={{ scale: [0, 1.5, 1.1], opacity: [0, 1, 0] }}
+                          transition={{ duration: 0.7, ease: 'easeOut' }}
+                          onAnimationComplete={() => setHeartBurst(null)}
+                          className="pointer-events-none absolute inset-0 z-30 grid place-items-center text-7xl"
+                        >
+                          ❤️
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                     {/*
                       Header Bar — and the way back out.
 
@@ -1933,6 +2035,37 @@ export function ConversationalThreadView({
                     <div className="px-4 pb-4 sm:px-5 sm:pb-5">
                       <EmailLetterCard email={message} />
                     </div>
+                    {/*
+                      Attachments were tracked on the message but never rendered —
+                      the `AttachmentPreview` component existed with zero usages.
+                      Its lightbox now supports pinch-to-zoom.
+                    */}
+                    {hasAtt && (
+                      <div className="px-4 pb-4 sm:px-5 sm:pb-5">
+                        <AttachmentPreview
+                          attachments={(msgAttachments as any[]).map((a, i) => ({
+                            id: a.id ?? `att-${index}-${i}`,
+                            filename: a.filename ?? a.name ?? 'attachment',
+                            mimeType: a.mimeType ?? a.contentType ?? 'application/octet-stream',
+                            size: a.size ?? 0,
+                            url: a.url,
+                          }))}
+                        />
+                      </div>
+                    )}
+                    {/* Reaction badge: shows the ❤️ (and future reactions) on the bubble */}
+                    {msgReactionList.length > 0 && (
+                      <div
+                        className="absolute bottom-2 right-3 z-20 flex items-center gap-0.5 rounded-full border border-[#282C35] bg-[#16181D]/95 px-2 py-0.5 shadow-lg"
+                        aria-label={`${msgReactionList.length} reaction${msgReactionList.length > 1 ? 's' : ''}`}
+                      >
+                        {msgReactionList.map((r, i) => (
+                          <span key={i} className="text-sm leading-none">
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>

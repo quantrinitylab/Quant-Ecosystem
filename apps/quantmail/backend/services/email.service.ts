@@ -4,10 +4,48 @@ import type { OutboundDeliveryPipeline } from './outbound-delivery.service';
 import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
+import { MailFilterService } from './mail-filter.service';
 
 export interface PaginationOptions {
   page?: number;
   pageSize?: number;
+}
+
+/**
+ * Advanced search refinements for `EmailService.search`.
+ *
+ * These are the server-side half of the /search page's filter chips
+ * (From / To / Has attachment / Label / Since). The search route's zod schema
+ * used to silently strip every one of them, so the chips were cosmetic —
+ * applying `From:kundan` left the result count unchanged. They are ANDed with
+ * the free-text `q` match.
+ *
+ * `to` is exact-element-only on the server: `toAddresses` is a Postgres Json
+ * array and Prisma can only ask it for an exact element (`array_contains`).
+ * A full address (`someone@example.com`) matches server-side; a bare fragment
+ * (`kumar`) is matched client-side by the frontend hook on the returned set,
+ * which is the same split the free-text path already documents for recipient
+ * substrings.
+ */
+export interface EmailSearchFilters {
+  /** Substring of sender address or name (case-insensitive). */
+  from?: string;
+  /**
+   * Recipient filter. A full address containing `@` is matched exactly against
+   * `toAddresses`/`ccAddresses`/`bccAddresses` elements; a fragment without
+   * `@` is left for client-side substring matching.
+   */
+  to?: string;
+  /** When true, only emails with attachments. */
+  hasAttachment?: boolean;
+  /** Label *name* (as the UI chip collects it); resolved to the label id. */
+  label?: string;
+  /** ISO date (YYYY-MM-DD): only mail received on/after this day. */
+  dateFrom?: string;
+  /** ISO date (YYYY-MM-DD): only mail received on/before this day. */
+  dateTo?: string;
+  /** Substring of the subject line (case-insensitive). */
+  subject?: string;
 }
 
 export interface PaginatedResult<T> {
@@ -18,6 +56,20 @@ export interface PaginatedResult<T> {
   totalPages: number;
   hasNext: boolean;
   hasPrev: boolean;
+}
+
+/**
+ * Parses a `YYYY-MM-DD` search filter into a Date. Returns undefined for
+ * anything unparseable so a bad filter value can never 500 a search —
+ * the filter is simply not applied. `endOfDay` shifts a `dateTo` bound to the
+ * end of that day so "since 2026-10-01" style filters behave inclusively.
+ */
+function parseSearchDate(value: string | undefined, endOfDay = false): Date | undefined {
+  if (!value || typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return undefined;
+  const d = new Date(`${trimmed}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
+  return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
 export interface ComposeEmailInput {
@@ -307,7 +359,7 @@ export class EmailService {
         recipientThreadId = null;
       }
 
-      await this.prisma.email.create({
+      const created = await this.prisma.email.create({
         data: {
           userId: recipient.id,
           folderId: inboxFolder?.id ?? null,
@@ -338,9 +390,87 @@ export class EmailService {
           deliveredAt: new Date(),
         } as never,
       });
+      // P0 fix: run the recipient's filters on internally delivered mail.
+      // Previously filters only ran (when wired at all) on the external
+      // inbound path, so a QuantMail-to-QuantMail message — including a
+      // self-send — never got starred/labeled/moved automatically.
+      await this.applyRecipientFilters(recipient.id, created.id, {
+        fromAddress: senderEmail,
+        toAddresses: input.toAddresses,
+        subject: input.subject,
+        bodyPlain: input.bodyPlain ?? null,
+        bodyHtml: input.bodyHtml ?? null,
+        hasAttachments,
+      });
       delivered++;
     }
     return delivered;
+  }
+
+  /**
+   * Evaluate the recipient's enabled mail filters against a newly delivered
+   * internal message and apply the resolved actions. Best-effort: a filter
+   * failure must never break delivery of the (already persisted) message.
+   */
+  private async applyRecipientFilters(
+    recipientId: string,
+    emailId: string,
+    email: {
+      fromAddress: string;
+      toAddresses: string[];
+      subject: string;
+      bodyPlain?: string | null;
+      bodyHtml?: string | null;
+      hasAttachments: boolean;
+    },
+  ): Promise<void> {
+    try {
+      const filters = new MailFilterService(this.prisma);
+      const actions = await filters.computeActions(recipientId, email);
+      if (actions.matchedFilterIds.length === 0) return;
+
+      const data: Record<string, unknown> = {};
+      if (actions.markRead) data['isRead'] = true;
+      if (actions.star) data['isStarred'] = true;
+      if (actions.addLabelIds.length > 0) data['labels'] = actions.addLabelIds;
+
+      const folderDelegate = (
+        this.prisma as unknown as {
+          emailFolder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+          folder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+        }
+      ).emailFolder ?? (this.prisma as unknown as {
+        folder?: { findFirst(a: unknown): Promise<{ id: string } | null> };
+      }).folder;
+      const folderIdFor = async (type: string): Promise<string | null> => {
+        if (!folderDelegate) return null;
+        return (
+          (await folderDelegate.findFirst({ where: { userId: recipientId, type } }).catch(() => null))
+            ?.id ?? null
+        );
+      };
+
+      // Routing — highest-precedence destination wins (mirrors inbound ingest).
+      if (actions.delete) {
+        data['isTrash'] = true;
+        const trashId = await folderIdFor('TRASH');
+        if (trashId) data['folderId'] = trashId;
+      } else if (actions.markSpam) {
+        data['isSpam'] = true;
+        const spamId = await folderIdFor('SPAM');
+        if (spamId) data['folderId'] = spamId;
+      } else if (actions.archive) {
+        const archiveId = await folderIdFor('ARCHIVE');
+        if (archiveId) data['folderId'] = archiveId;
+      } else if (actions.moveToFolderId) {
+        data['folderId'] = actions.moveToFolderId;
+      }
+
+      if (Object.keys(data).length === 0) return;
+      await this.prisma.email.update({ where: { id: emailId }, data: data as never });
+    } catch {
+      // Swallow: filters are best-effort on top of completed delivery.
+    }
   }
 
   async send(
@@ -820,6 +950,27 @@ export class EmailService {
   }
 
   /**
+   * Toggle pin-to-top for an email. Pin is independent from star: starring
+   * marks importance, pinning holds the conversation at the top of the list.
+   */
+  async togglePin(emailId: string, userId: string): Promise<Email> {
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    return this.prisma.email.update({
+      where: { id: emailId },
+      data: { isPinned: !(email as { isPinned?: boolean }).isPinned },
+    });
+  }
+
+  /**
    * Reassign every owner-local row represented by one UI conversation. The
    * anchor must be present in the request and every requested row must belong to
    * the same caller; the transaction rejects the whole correction otherwise.
@@ -930,6 +1081,7 @@ export class EmailService {
     userId: string,
     query: string,
     options: PaginationOptions = {},
+    filters: EmailSearchFilters = {},
   ): Promise<PaginatedResult<Email>> {
     const page = options.page ?? 1;
     const pageSize = options.pageSize ?? 20;
@@ -945,7 +1097,7 @@ export class EmailService {
     // recipient — typing `kundan` to find the thread you wrote to
     // `kundansinghrajput…@gmail.com` — is matched client-side by
     // `filterThreadsByQuery`, which reads the recipients the loaded corpus already has.
-    const where = {
+    const where: Record<string, unknown> = {
       userId,
       deletedAt: null,
       isTrash: false,
@@ -960,14 +1112,78 @@ export class EmailService {
       ],
     };
 
+    // --- Advanced search filters (ANDed with the free-text match) ------------
+    // These are the server-side half of the /search page's filter chips
+    // (From / To / Has attachment / Label / Since). The search route used to
+    // strip every one of them, so the chips were cosmetic — applying
+    // `From:kundan` left the result count unchanged.
+    const andClauses: Record<string, unknown>[] = [];
+
+    const from = filters.from?.trim();
+    if (from) {
+      andClauses.push({
+        OR: [
+          { fromAddress: { contains: from, mode: 'insensitive' as const } },
+          { fromName: { contains: from, mode: 'insensitive' as const } },
+        ],
+      });
+    }
+
+    const to = filters.to?.trim();
+    if (to && to.includes('@')) {
+      // A full address: exact element match is all Postgres can do on the Json
+      // array, and it is exactly right here. A bare fragment (`kundan`) is
+      // deliberately NOT filtered server-side — exact matching would return
+      // zero rows — the frontend hook applies substring matching on the
+      // returned set instead.
+      andClauses.push({
+        OR: [
+          { toAddresses: { array_contains: to } },
+          { ccAddresses: { array_contains: to } },
+          { bccAddresses: { array_contains: to } },
+        ],
+      });
+    }
+
+    if (filters.hasAttachment === true) {
+      where.hasAttachments = true;
+    }
+
+    const subjectFilter = filters.subject?.trim();
+    if (subjectFilter) {
+      andClauses.push({
+        subject: { contains: subjectFilter, mode: 'insensitive' as const },
+      });
+    }
+
+    const dateFrom = parseSearchDate(filters.dateFrom);
+    const dateTo = parseSearchDate(filters.dateTo, true);
+    if (dateFrom || dateTo) {
+      where.receivedAt = {
+        ...(dateFrom ? { gte: dateFrom } : {}),
+        ...(dateTo ? { lte: dateTo } : {}),
+      };
+    }
+
+    if (filters.label?.trim()) {
+      const labelId = await this.resolveLabelId(userId, filters.label.trim());
+      // An unresolvable label name matches nothing: the sentinel can never be
+      // a real label id, so the filter correctly yields zero rows.
+      where.labels = { array_contains: labelId ?? ' ' };
+    }
+
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.email.findMany({
-        where,
+        where: where as never,
         skip,
         take: pageSize,
         orderBy: { receivedAt: 'desc' },
       }),
-      this.prisma.email.count({ where }),
+      this.prisma.email.count({ where: where as never }),
     ]);
 
     const totalPages = Math.ceil(total / pageSize);
@@ -1011,8 +1227,9 @@ export class EmailService {
     userId: string,
     query: string,
     options: PaginationOptions = {},
+    filters: EmailSearchFilters = {},
   ): Promise<PaginatedResult<Email>> {
-    return this.search(userId, query, options);
+    return this.search(userId, query, options, filters);
   }
 
   async getLabels(userId: string): Promise<Label[]> {
@@ -1022,6 +1239,21 @@ export class EmailService {
       where: { userId },
       orderBy: { name: 'asc' },
     });
+  }
+
+  /**
+   * Resolves a label *name* (what the search UI's Label chip collects) to its
+   * id, because emails store label ids in their `labels` Json array. Name
+   * matching is case-insensitive so "Work" finds the "work" label. Returns
+   * undefined when no label matches, and the search then matches zero rows
+   * rather than silently ignoring the filter.
+   */
+  private async resolveLabelId(userId: string, name: string): Promise<string | undefined> {
+    const labels = await this.getLabels(userId);
+    const match =
+      labels.find((l) => l.name === name) ??
+      labels.find((l) => l.name.toLowerCase() === name.toLowerCase());
+    return match?.id;
   }
 
   async applyLabel(emailId: string, labelId: string, userId: string): Promise<Email> {

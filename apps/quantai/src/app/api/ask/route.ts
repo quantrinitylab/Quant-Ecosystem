@@ -17,19 +17,22 @@ interface AskRequestBody {
   dryRun?: boolean;
   voice?: boolean;
   audio?: string;
+  /**
+   * Explicit user confirmation for tool execution.
+   * The client MUST set this after the user reviews the plan (dry-run)
+   * and clicks Execute, or after responding to a confirmation dialog.
+   * The server NEVER auto-confirms — tools requiring confirmation are
+   * blocked unless the user explicitly confirmed them.
+   */
+  confirmed?: boolean;
+  /** Specific step IDs the user confirmed (from a confirmation dialog). */
+  confirmedSteps?: string[];
 }
 
-function createMockSTT() {
-  // When OPENAI_API_KEY is not set, return a mock STT service
-  return {
-    transcribe: async (_audio: Buffer) => ({
-      text: '[voice input]',
-      language: 'en',
-      duration: 0,
-      segments: [],
-    }),
-  } as unknown as SpeechToTextService;
-}
+// NOTE: There is intentionally no mock/fallback STT service. A fabricated
+// transcription (e.g. "[voice input]") would be executed as a real user
+// command — misleading and unsafe. handleVoiceRequest returns 503 when no
+// STT provider is configured.
 
 export async function POST(request: NextRequest) {
   // Auth check: require Bearer token in Authorization header
@@ -100,21 +103,21 @@ export async function POST(request: NextRequest) {
       }, STREAM_TIMEOUT_MS);
 
       try {
-        // Pending confirmations map for confirmation callback flow
-        let pendingConfirmation: ((confirmed: boolean) => void) | null = null;
-
-        const confirmationCallback = async (_step: ToolPlanStep): Promise<boolean> => {
-          return new Promise<boolean>((resolve) => {
-            pendingConfirmation = resolve;
-            // The SSE event is emitted by WorkflowExecutor; client responds externally
-            // For now, auto-confirm since we cannot receive client responses in SSE
-            setTimeout(() => {
-              if (pendingConfirmation) {
-                pendingConfirmation(true);
-                pendingConfirmation = null;
-              }
-            }, 100);
-          });
+        // Confirmation callback: NEVER auto-confirms. A tool step that
+        // requires confirmation only proceeds when the user explicitly
+        // confirmed it — either for the whole request (body.confirmed,
+        // sent after the user reviews the dry-run plan and clicks Execute)
+        // or for the specific step (body.confirmedSteps, sent after the
+        // user accepts the in-flow confirmation dialog). Otherwise the
+        // step is denied and a confirmation_required event is emitted so
+        // the UI can prompt the user honestly.
+        const confirmationCallback = async (step: ToolPlanStep): Promise<boolean> => {
+          const stepId = step.stepId;
+          if (body.confirmedSteps?.includes(stepId) || body.confirmed === true) {
+            return true;
+          }
+          sendEvent('confirmation_required', { stepId, toolId: step.toolId });
+          return false;
         };
 
         const result = await orchestrator.processNaturalLanguage(body.input, {
@@ -157,6 +160,21 @@ function handleVoiceRequest(body: AskRequestBody) {
   const sessionId = body.sessionId ?? `session-${Date.now()}`;
   const audioBuffer = Buffer.from(body.audio!, 'base64');
 
+  // Voice transcription requires a real STT provider. Never fabricate a
+  // transcription — a fake "[voice input]" string would be executed as if
+  // the user said it, which is both misleading and unsafe.
+  const apiKey = process.env['OPENAI_API_KEY'];
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({
+        error:
+          'Voice transcription is not configured on this server. Please set OPENAI_API_KEY to enable voice input.',
+        code: 'VOICE_NOT_CONFIGURED',
+      }),
+      { status: 503, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
   const contextManager = new ContextManager({
     currentApp: body.context?.currentApp,
     currentItem: body.context?.currentItem,
@@ -164,11 +182,7 @@ function handleVoiceRequest(body: AskRequestBody) {
 
   const orchestrator = new CrossAppOrchestrator(allTools, contextManager);
 
-  // Create STT service - use real one if API key available, mock otherwise
-  const apiKey = process.env['OPENAI_API_KEY'];
-  const stt = apiKey
-    ? new SpeechToTextService({ apiKey })
-    : createMockSTT();
+  const stt = new SpeechToTextService({ apiKey });
 
   const bridge = new VoiceIntentBridge(stt, orchestrator);
 

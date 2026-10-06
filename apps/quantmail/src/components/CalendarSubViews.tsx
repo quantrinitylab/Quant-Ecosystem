@@ -6,6 +6,10 @@ import { MONTH_NAMES, FULL_WEEKDAYS } from '../app/calendar/types';
 import { dayKey, startOf, endOf, hhmm } from '../app/calendar/lib/calendar-geometry';
 import type { Holiday } from '../lib/holidays';
 import { showToast } from './InboxToast';
+import {
+  CalendarWeekView,
+  type WeekViewSheetOpts,
+} from '../app/calendar/components/CalendarWeekView';
 
 // ============================================================================
 // SVG Vector Icons — strictly ZERO raw Unicode emojis
@@ -926,6 +930,51 @@ export function CalendarMonthSubView({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// SUB-VIEW 2b: Week grid (CalendarWeekSubView)
+// Google Calendar-style 7-day time grid with drag-to-create, current-time
+// indicator and all-day row. Wraps CalendarWeekView with the shared
+// scroll/padding shell used by the other sub-views.
+// ============================================================================
+
+export interface CalendarWeekSubViewProps {
+  events: CalendarEventLike[];
+  holidaysByDay?: Record<string, Holiday[]>;
+  selectedDate: Date;
+  onSelectDate: (date: Date) => void;
+  openDedicatedSheet: (type: EntryType, date?: Date, opts?: WeekViewSheetOpts) => void;
+  onSelectEvent: (event: CalendarEventLike) => void;
+  className?: string;
+}
+
+export function CalendarWeekSubView({
+  events,
+  holidaysByDay = {},
+  selectedDate,
+  onSelectDate,
+  openDedicatedSheet,
+  onSelectEvent,
+  className = '',
+}: CalendarWeekSubViewProps) {
+  return (
+    <div
+      className={`flex-1 min-h-0 flex flex-col overflow-hidden pb-24 md:pb-20 ${className}`}
+      role="tabpanel"
+      id="subview-week"
+      aria-labelledby="tab-week"
+    >
+      <CalendarWeekView
+        events={events}
+        holidaysByDay={holidaysByDay}
+        selectedDate={selectedDate}
+        onSelectDate={onSelectDate}
+        openDedicatedSheet={openDedicatedSheet}
+        onSelectEvent={onSelectEvent}
+      />
     </div>
   );
 }

@@ -19,6 +19,13 @@ export interface ChatInputProps {
   onCancelReply?: () => void;
   className?: string;
   /**
+   * Called when a voice recording completes with real audio. When provided,
+   * the mic button records via MediaRecorder and delivers the audio blob.
+   * When omitted, tapping the mic shows a "coming soon" notice instead of
+   * doing nothing.
+   */
+  onVoiceMessage?: (audioBlob: Blob, durationMs: number) => void;
+  /**
    * `placeholder` is a fallback of last resort in the accessible-name algorithm
    * and it disappears as soon as there is text, so a reader that re-reads the
    * composer mid-message gets an unnamed textarea. Overridable because "Message"
@@ -39,12 +46,142 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   replyingTo,
   onCancelReply,
   className = '',
+  onVoiceMessage,
   'aria-label': ariaLabel = 'Message',
 }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // --- Voice recording state (real MediaRecorder, not a fake timer) ---
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordElapsedMs, setRecordElapsedMs] = useState(0);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordStartRef = useRef<number>(0);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const noticeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onVoiceMessageRef = useRef(onVoiceMessage);
+  onVoiceMessageRef.current = onVoiceMessage;
+
+  const showVoiceNotice = useCallback((text: string) => {
+    setVoiceNotice(text);
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    noticeTimeoutRef.current = setTimeout(() => setVoiceNotice(null), 2600);
+  }, []);
+
+  const stopTracks = useCallback(() => {
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === 'inactive') {
+      setIsRecording(false);
+      return;
+    }
+    recorder.stop(); // onstop handler finalizes the blob
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    // No handler wired: honest "coming soon" instead of a dead button.
+    if (!onVoiceMessageRef.current) {
+      showVoiceNotice('Voice messages coming soon');
+      return;
+    }
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      showVoiceNotice('Voice recording not supported in this browser');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : undefined;
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e: BlobEvent) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        if (recordTimerRef.current) {
+          clearInterval(recordTimerRef.current);
+          recordTimerRef.current = null;
+        }
+        const elapsed = Date.now() - recordStartRef.current;
+        setIsRecording(false);
+        setRecordElapsedMs(0);
+        stopTracks();
+        const type = recorder.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type });
+        audioChunksRef.current = [];
+        // Ignore accidental sub-second taps.
+        if (elapsed > 400 && blob.size > 0) {
+          onVoiceMessageRef.current?.(blob, elapsed);
+        }
+        mediaRecorderRef.current = null;
+      };
+      recorder.onerror = () => {
+        showVoiceNotice('Recording failed — please try again');
+        setIsRecording(false);
+        stopTracks();
+      };
+      recordStartRef.current = Date.now();
+      setRecordElapsedMs(0);
+      setIsRecording(true);
+      recorder.start(250);
+      recordTimerRef.current = setInterval(() => {
+        setRecordElapsedMs(Date.now() - recordStartRef.current);
+      }, 250);
+    } catch {
+      showVoiceNotice('Microphone access denied');
+    }
+  }, [showVoiceNotice, stopTracks]);
+
+  const handleVoiceButtonClick = useCallback(() => {
+    if (disabled) return;
+    if (isRecording) {
+      stopRecording();
+    } else {
+      void startRecording();
+    }
+  }, [disabled, isRecording, startRecording, stopRecording]);
+
+  // Release the mic if the component unmounts mid-recording.
+  React.useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        try {
+          recorder.stop();
+        } catch {
+          /* already stopped */
+        }
+      }
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -224,27 +361,65 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         ) : showVoiceButton ? (
           <button
             type="button"
-            className="p-2.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Voice message"
+            onClick={handleVoiceButtonClick}
+            disabled={disabled}
+            className={`p-2.5 rounded-full transition-colors disabled:opacity-50 ${
+              isRecording
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+            }`}
+            aria-label={isRecording ? 'Stop recording' : 'Voice message'}
+            aria-pressed={isRecording}
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-              />
-            </svg>
+            {isRecording ? (
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-2 h-2 rounded-full bg-white animate-pulse"
+                  aria-hidden="true"
+                />
+                <span className="text-xs font-medium tabular-nums">
+                  {Math.floor(recordElapsedMs / 60000)}:
+                  {String(Math.floor((recordElapsedMs % 60000) / 1000)).padStart(2, '0')}
+                </span>
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              </span>
+            ) : (
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                />
+              </svg>
+            )}
           </button>
         ) : null}
       </div>
+      {voiceNotice && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="px-4 pb-2 text-xs text-gray-500"
+        >
+          {voiceNotice}
+        </p>
+      )}
       {message.length > maxLength * 0.9 && (
         <p className="px-4 pb-1 text-xs text-orange-500">
           {message.length}/{maxLength}

@@ -6,6 +6,8 @@ import { spring } from '@quant/brand';
 import { ChatBubble, ChatInput, TypingIndicator, TopBar } from '@quant/shared-ui';
 import { LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useMessages } from '../../../hooks/useMessages';
+import { useConversations } from '../../../hooks/useConversations';
+import { useMe } from '../../../hooks/useMe';
 import { useSendMessage } from '../../../hooks/useSendMessage';
 import { useRealtimeChat } from '../../../hooks/useRealtimeChat';
 import { useChatSocket } from '../../../hooks/useChatSocket';
