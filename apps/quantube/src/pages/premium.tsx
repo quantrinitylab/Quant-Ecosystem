@@ -3,7 +3,7 @@
 // Ad-free experience, offline, exclusive content, pricing tiers
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState } from 'react';
 
 interface PricingPlan {
   id: string;
@@ -14,20 +14,6 @@ interface PricingPlan {
   savings?: string;
   features: string[];
   isPopular: boolean;
-}
-
-interface PaymentInfo {
-  cardNumber: string;
-  expiry: string;
-  cvc: string;
-  nameOnCard: string;
-}
-
-interface SubscriptionStatus {
-  isActive: boolean;
-  plan: string | null;
-  nextBilling: string | null;
-  startDate: string | null;
 }
 
 interface ExclusiveContent {
@@ -47,14 +33,6 @@ interface FeatureComparison {
 
 interface PremiumPageState {
   selectedPlan: string | null;
-  isSubscribed: boolean;
-  paymentInfo: PaymentInfo;
-  showPaymentForm: boolean;
-  loading: boolean;
-  error: string | null;
-  processing: boolean;
-  subscription: SubscriptionStatus;
-  showCancelConfirm: boolean;
 }
 
 const PRICING_PLANS: PricingPlan[] = [
@@ -120,104 +98,18 @@ const BENEFITS = [
 ];
 
 const PremiumPage: React.FC = () => {
+  // Premium checkout is not live: there is no payment backend wiring for the
+  // subscription purchase yet (no Stripe keys configured, no subscription
+  // activation). This page is therefore read-only marketing + an honest
+  // "coming soon" notice. It must NEVER collect card details or claim a
+  // purchase succeeded.
   const [state, setState] = useState<PremiumPageState>({
     selectedPlan: null,
-    isSubscribed: false,
-    paymentInfo: { cardNumber: '', expiry: '', cvc: '', nameOnCard: '' },
-    showPaymentForm: false,
-    loading: true,
-    error: null,
-    processing: false,
-    subscription: { isActive: false, plan: null, nextBilling: null, startDate: null },
-    showCancelConfirm: false,
   });
 
-  const paymentFormRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const loadSubscription = async () => {
-      try {
-        setState(prev => ({ ...prev, loading: true, error: null }));
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setState(prev => ({ ...prev, loading: false }));
-      } catch (err) {
-        setState(prev => ({ ...prev, error: 'Failed to load subscription info', loading: false }));
-      }
-    };
-    loadSubscription();
-  }, []);
-
-  const selectPlan = useCallback((planId: string) => {
-    setState(prev => ({ ...prev, selectedPlan: planId, showPaymentForm: true }));
-    setTimeout(() => {
-      paymentFormRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }, []);
-
-  const updatePaymentInfo = useCallback((field: keyof PaymentInfo, value: string) => {
-    setState(prev => ({
-      ...prev,
-      paymentInfo: { ...prev.paymentInfo, [field]: value },
-    }));
-  }, []);
-
-  const handleSubscribe = useCallback(async () => {
-    setState(prev => ({ ...prev, processing: true }));
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const plan = PRICING_PLANS.find(p => p.id === state.selectedPlan);
-    setState(prev => ({
-      ...prev,
-      processing: false,
-      isSubscribed: true,
-      showPaymentForm: false,
-      subscription: {
-        isActive: true,
-        plan: plan?.name || null,
-        nextBilling: '2024-02-15',
-        startDate: new Date().toISOString().split('T')[0],
-      },
-    }));
-  }, [state.selectedPlan]);
-
-  const handleCancel = useCallback(async () => {
-    setState(prev => ({ ...prev, processing: true }));
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setState(prev => ({
-      ...prev,
-      processing: false,
-      isSubscribed: false,
-      showCancelConfirm: false,
-      subscription: { isActive: false, plan: null, nextBilling: null, startDate: null },
-    }));
-  }, []);
-
-  if (state.loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-red-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-400 text-sm">Loading premium...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (state.error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-950">
-        <div className="text-center space-y-4">
-          <div className="text-red-500 text-4xl">⚠</div>
-          <p className="text-white text-lg">{state.error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const selectPlan = (planId: string) => {
+    setState(prev => ({ ...prev, selectedPlan: planId }));
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 text-white pb-20">
@@ -237,32 +129,6 @@ const PremiumPage: React.FC = () => {
           ))}
         </div>
       </section>
-
-      {/* Current Subscription Status */}
-      {state.isSubscribed && (
-        <section className="px-6 py-6">
-          <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-600/30 rounded-2xl p-6">
-            <div className="flex items-center space-x-3 mb-3">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-              <h2 className="text-lg font-semibold text-green-400">Active Subscription</h2>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <p className="text-xs text-gray-400">Plan</p>
-                <p className="text-sm font-medium">{state.subscription.plan}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Since</p>
-                <p className="text-sm font-medium">{state.subscription.startDate}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-400">Next Billing</p>
-                <p className="text-sm font-medium">{state.subscription.nextBilling}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Feature Comparison Table */}
       <section className="px-6 py-8">
@@ -334,135 +200,21 @@ const PremiumPage: React.FC = () => {
                 ))}
               </ul>
               <button
-                onClick={(e) => { e.stopPropagation(); selectPlan(plan.id); }}
-                className={`w-full mt-6 py-3 rounded-xl font-semibold transition-colors ${
-                  state.selectedPlan === plan.id
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-700 text-white hover:bg-gray-600'
-                }`}
+                disabled
+                title="Premium checkout is not available yet"
+                className="w-full mt-6 py-3 rounded-xl font-semibold bg-gray-700 text-gray-400 cursor-not-allowed"
               >
-                {state.isSubscribed ? 'Switch Plan' : 'Select Plan'}
+                Coming Soon
               </button>
             </div>
           ))}
         </div>
+        {/* Honest notice: checkout does not exist yet, so no card form is shown. */}
+        <p className="text-center text-sm text-gray-400 mt-8 max-w-xl mx-auto">
+          Premium subscriptions are not available yet — checkout is coming soon. No
+          payment is collected on this page.
+        </p>
       </section>
-
-      {/* Payment Form */}
-      {state.showPaymentForm && (
-        <section ref={paymentFormRef} className="px-6 py-8">
-          <div className="max-w-md mx-auto bg-gray-900 rounded-2xl p-6">
-            <h3 className="text-lg font-bold mb-4">Payment Details</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Name on Card</label>
-                <input
-                  type="text"
-                  value={state.paymentInfo.nameOnCard}
-                  onChange={(e) => updatePaymentInfo('nameOnCard', e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Card Number</label>
-                <input
-                  type="text"
-                  value={state.paymentInfo.cardNumber}
-                  onChange={(e) => updatePaymentInfo('cardNumber', e.target.value)}
-                  placeholder="4242 4242 4242 4242"
-                  maxLength={19}
-                  className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-500"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">Expiry</label>
-                  <input
-                    type="text"
-                    value={state.paymentInfo.expiry}
-                    onChange={(e) => updatePaymentInfo('expiry', e.target.value)}
-                    placeholder="MM/YY"
-                    maxLength={5}
-                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-400 mb-1">CVC</label>
-                  <input
-                    type="text"
-                    value={state.paymentInfo.cvc}
-                    onChange={(e) => updatePaymentInfo('cvc', e.target.value)}
-                    placeholder="123"
-                    maxLength={4}
-                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                </div>
-              </div>
-              <button
-                onClick={handleSubscribe}
-                disabled={state.processing}
-                className="w-full py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center justify-center space-x-2"
-              >
-                {state.processing ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Processing...</span>
-                  </>
-                ) : (
-                  <span>Subscribe Now</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Manage Subscription */}
-      {state.isSubscribed && (
-        <section className="px-6 py-6">
-          <h2 className="text-xl font-bold mb-4">Manage Subscription</h2>
-          <div className="bg-gray-900 rounded-2xl p-6 space-y-4">
-            <button className="w-full text-left px-4 py-3 bg-gray-800 rounded-xl text-sm text-gray-300 hover:bg-gray-700 transition-colors">
-              Change Plan
-            </button>
-            <button className="w-full text-left px-4 py-3 bg-gray-800 rounded-xl text-sm text-gray-300 hover:bg-gray-700 transition-colors">
-              Update Payment Method
-            </button>
-            <button className="w-full text-left px-4 py-3 bg-gray-800 rounded-xl text-sm text-gray-300 hover:bg-gray-700 transition-colors">
-              Billing History
-            </button>
-            <button
-              onClick={() => setState(prev => ({ ...prev, showCancelConfirm: true }))}
-              className="w-full text-left px-4 py-3 bg-red-900/20 border border-red-600/30 rounded-xl text-sm text-red-400 hover:bg-red-900/30 transition-colors"
-            >
-              Cancel Subscription
-            </button>
-          </div>
-          {state.showCancelConfirm && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-              <div className="bg-gray-900 rounded-2xl p-6 max-w-sm w-full space-y-4">
-                <h3 className="text-lg font-bold">Cancel Subscription?</h3>
-                <p className="text-gray-400 text-sm">You will lose access to Premium features at the end of your billing period.</p>
-                <div className="flex space-x-3">
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, showCancelConfirm: false }))}
-                    className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  >
-                    Keep Premium
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
 
       {/* Exclusive Content Preview */}
       <section className="px-6 py-8">
@@ -479,11 +231,9 @@ const PremiumPage: React.FC = () => {
                 <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-0.5 rounded">
                   {content.duration}
                 </div>
-                {!state.isSubscribed && (
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="text-white text-sm font-medium">🔒 Premium Only</span>
                   </div>
-                )}
               </div>
               <p className="text-sm font-medium truncate">{content.title}</p>
               <p className="text-xs text-gray-400">{content.creator}</p>
