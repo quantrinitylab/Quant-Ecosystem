@@ -1370,6 +1370,7 @@ model AISession {
   isArchived      Boolean   @default(false)
   isPinned        Boolean   @default(false)
   sourceApp       String?
+  topic           String?   // Side chats: nullable topic label for organizing conversations by topic
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
@@ -1379,6 +1380,7 @@ model AISession {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([userId, topic])
   @@map("ai_sessions")
 }
 

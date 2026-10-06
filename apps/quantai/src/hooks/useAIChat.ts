@@ -33,6 +33,8 @@ export interface ChatConversation {
   model: string;
   createdAt: string;
   updatedAt: string;
+  /** Side chats: nullable topic label. null/undefined = main chat (untagged). */
+  topic?: string | null;
   /** Whether full message history has been loaded for this conversation. */
   loaded?: boolean;
 }
@@ -56,6 +58,8 @@ interface UseAIChatReturn {
   createConversation: () => void;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
+  /** Side chats: move a conversation into/out of a topic. null = back to main chats. */
+  moveConversationToTopic: (id: string, topic: string | null) => Promise<boolean>;
   switchModel: (modelId: string) => void;
   clearMessages: () => void;
   retryLastMessage: () => void;
@@ -69,6 +73,7 @@ interface ServerSession {
   id: string;
   title: string | null;
   model: string;
+  topic?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +116,7 @@ function mapServerSession(s: ServerSession): ChatConversation {
     title: s.title || 'New Chat',
     messages: [],
     model: s.model,
+    topic: s.topic ?? null,
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
     loaded: false,
@@ -298,6 +304,31 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       }
     },
     [activeConversationId],
+  );
+
+  const moveConversationToTopic = useCallback(
+    async (id: string, topic: string | null): Promise<boolean> => {
+      const cleaned = topic === null ? null : topic.trim().replace(/\s+/g, ' ').slice(0, 100) || null;
+      const previous = conversations.find((c) => c.id === id)?.topic ?? null;
+      // Optimistic update.
+      patchConversation(id, (c) => ({ ...c, topic: cleaned, updatedAt: new Date().toISOString() }));
+      // Guest (local-only) conversations have no server row — keep it local.
+      if (id.startsWith('guest-conv-')) return true;
+      try {
+        const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(id)}/topic`, {
+          method: 'POST',
+          headers: authHeaders(true),
+          body: JSON.stringify({ topic: cleaned }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return true;
+      } catch {
+        // Roll back on failure — never leave the UI lying about the topic.
+        patchConversation(id, (c) => ({ ...c, topic: previous }));
+        return false;
+      }
+    },
+    [conversations, patchConversation],
   );
 
   const appendMessage = useCallback(
@@ -537,6 +568,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     createConversation: () => void createConversation(),
     selectConversation,
     deleteConversation,
+    moveConversationToTopic,
     switchModel,
     clearMessages,
     retryLastMessage,

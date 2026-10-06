@@ -10,6 +10,7 @@ import { AnimatedPage, AppShell, Sidebar } from '@quant/shared-ui';
 import { ErrorState } from '@quant/shared-ui';
 import type { SidebarItem } from '@quant/shared-ui';
 import { useBrandName } from '../components/BrandProvider';
+import { SideChatsSection } from '../components/chat/SideChatsSection';
 import { useTheme } from '../providers/theme-provider';
 import { useAIChat } from '../hooks/useAIChat';
 import { useModelSelector } from '../hooks/useModelSelector';
@@ -63,6 +64,7 @@ export default function AIPage() {
     activeConversation,
     createConversation,
     selectConversation,
+    moveConversationToTopic,
     switchModel: hookSwitchModel,
     setFeedback,
     retryLastMessage,
@@ -75,6 +77,9 @@ export default function AIPage() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceRecording, setVoiceRecording] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  // Side chats (Muse parity): toggle the sidebar between the date-grouped
+  // "Chats" list and the topic-grouped "Side chats" section.
+  const [sidebarView, setSidebarView] = useState<'chats' | 'side-chats'>('chats');
   const [pinnedConversations, setPinnedConversations] = useState<Set<string>>(new Set());
   const [activePersona, setActivePersona] = useState<Persona | null>(null);
   const [customPersonas, setCustomPersonas] = useState<Persona[]>([]);
@@ -265,6 +270,17 @@ export default function AIPage() {
     active: searchActive,
   } = useConversationSearch(sidebarSearch);
 
+  // Side chats: create a new conversation and tag it with the given topic.
+  const handleNewSideChat = useCallback(
+    async (topic: string) => {
+      const id = await createConversation();
+      if (id) {
+        await moveConversationToTopic(id, topic);
+      }
+    },
+    [createConversation, moveConversationToTopic],
+  );
+
   // Group conversations by date
   const groupedConversations = useMemo(() => {
     const now = new Date();
@@ -387,78 +403,134 @@ export default function AIPage() {
     );
   }
 
+  // ---- Sidebar (Chats / Side chats views) ---------------------------------
+  // Shared header/footer are extracted so both the date-grouped "Chats" list
+  // and the topic-grouped "Side chats" section reuse the same chrome.
+  const sidebarHeader = (
+    <div className="space-y-2">
+      <h2 className="text-lg font-semibold">{brandName}</h2>
+      <div className="relative">
+        <svg
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-secondary)]"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
+        <input
+          type="text"
+          value={sidebarSearch}
+          onChange={(e) => setSidebarSearch(e.target.value)}
+          placeholder="Search conversations..."
+          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--foreground)] placeholder-[var(--foreground-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-accent)]"
+        />
+      </div>
+      {/* Chats / Side chats view toggle (Muse parity) */}
+      <div
+        className="flex rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] p-0.5"
+        role="tablist"
+        aria-label="Conversation list view"
+      >
+        {(
+          [
+            { id: 'chats', label: 'Chats', icon: '💬' },
+            { id: 'side-chats', label: 'Side chats', icon: '🏷️' },
+          ] as const
+        ).map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={sidebarView === tab.id}
+            onClick={() => setSidebarView(tab.id)}
+            className={`flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium transition-colors ${
+              sidebarView === tab.id
+                ? 'bg-[var(--quant-accent)] text-white'
+                : 'text-[var(--foreground-secondary)] hover:text-[var(--foreground)]'
+            }`}
+          >
+            <span aria-hidden>{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const sidebarFooter = (
+    <div className="px-3 py-2 space-y-2 border-t border-[var(--quant-border)] text-xs">
+      <div className="text-[var(--foreground-secondary)] flex items-center justify-between">
+        <span>Model:</span>
+        <span className="font-medium text-[var(--foreground)] truncate ml-1">
+          {currentModel.icon} {currentModel.name}
+        </span>
+      </div>
+      {isAuthenticated ? (
+        <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+            <span className="truncate text-[11px] text-[var(--foreground)] font-medium">
+              {authUser?.email || 'Quant Member'}
+            </span>
+          </div>
+          <Link
+            href="/profile"
+            className="text-[10px] text-violet-400 hover:text-violet-300 font-semibold uppercase tracking-wider shrink-0"
+          >
+            Profile
+          </Link>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
+          <span className="text-[11px] text-zinc-400">Sign in to chat</span>
+          <button
+            type="button"
+            onClick={handleNavigateToLogin}
+            className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
+          >
+            Sign In →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  const sidebar =
+    sidebarView === 'side-chats' ? (
+      <nav
+        className="flex flex-col h-full w-64 bg-gray-50 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700"
+        aria-label="Side chats navigation"
+      >
+        <div className="flex-shrink-0 p-4 border-b border-gray-200 dark:border-gray-700">
+          {sidebarHeader}
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          <SideChatsSection
+            conversations={conversations}
+            activeConversationId={activeConversation?.id ?? null}
+            onSelect={selectConversation}
+            onMoveToTopic={moveConversationToTopic}
+            onNewSideChat={(topic) => void handleNewSideChat(topic)}
+          />
+        </div>
+        <div className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-700">
+          {sidebarFooter}
+        </div>
+      </nav>
+    ) : (
+      <Sidebar items={sidebarItems} header={sidebarHeader} footer={sidebarFooter} />
+    );
+
   return (
     <AppShell
         theme={resolvedTheme}
-      sidebar={
-        <Sidebar
-          items={sidebarItems}
-          header={
-            <div className="space-y-2">
-              <h2 className="text-lg font-semibold">{brandName}</h2>
-              <div className="relative">
-                <svg
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--foreground-secondary)]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  value={sidebarSearch}
-                  onChange={(e) => setSidebarSearch(e.target.value)}
-                  placeholder="Search conversations..."
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-[var(--quant-border)] bg-[var(--quant-surface)] text-[var(--foreground)] placeholder-[var(--foreground-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--quant-accent)]"
-                />
-              </div>
-            </div>
-          }
-          footer={
-            <div className="px-3 py-2 space-y-2 border-t border-[var(--quant-border)] text-xs">
-              <div className="text-[var(--foreground-secondary)] flex items-center justify-between">
-                <span>Model:</span>
-                <span className="font-medium text-[var(--foreground)] truncate ml-1">
-                  {currentModel.icon} {currentModel.name}
-                </span>
-              </div>
-              {isAuthenticated ? (
-                <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                    <span className="truncate text-[11px] text-[var(--foreground)] font-medium">
-                      {authUser?.email || 'Quant Member'}
-                    </span>
-                  </div>
-                  <Link
-                    href="/profile"
-                    className="text-[10px] text-violet-400 hover:text-violet-300 font-semibold uppercase tracking-wider shrink-0"
-                  >
-                    Profile
-                  </Link>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between pt-1 border-t border-[var(--quant-border)]/50">
-                  <span className="text-[11px] text-zinc-400">Sign in to chat</span>
-                  <button
-                    type="button"
-                    onClick={handleNavigateToLogin}
-                    className="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer"
-                  >
-                    Sign In →
-                  </button>
-                </div>
-              )}
-            </div>
-          }
-        />
-      }
+      sidebar={sidebar}
     >
       <AnimatedPage>
         <motion.div
