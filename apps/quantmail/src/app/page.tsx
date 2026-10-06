@@ -571,7 +571,7 @@ function EmailRow({
             </div>
             {!thread.isRead && <UnreadDot />}
             {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
-            <time dateTime={thread.receivedAt.toISOString()}>
+            <time dateTime={new Date(thread.receivedAt).toISOString()}>
               {formatReceivedAt(thread.receivedAt)}
             </time>
           </div>
@@ -3051,7 +3051,9 @@ export default function InboxPage() {
                                   {matchingThread && (
                                     <time
                                       className="shrink-0 text-[10px] text-[#A1A4AC]"
-                                      dateTime={matchingThread.receivedAt.toISOString()}
+                                      dateTime={new Date(
+                                        matchingThread.receivedAt,
+                                      ).toISOString()}
                                     >
                                       {formatReceivedAt(matchingThread.receivedAt)}
                                     </time>
