@@ -37,45 +37,39 @@ function getCallRecordService(fastify: FastifyInstance): CallRecordService | nul
   return prisma && prisma.call ? new CallRecordService(prisma) : null;
 }
 
+/**
+ * Returns the shared CallService, constructed lazily on first use so the plugin
+ * registers (and the backend boots) even when LiveKit is not configured.
+ *
+ * SECURITY (fail closed): LiveKit credentials are REQUIRED. When they are not
+ * configured this throws instead of minting unsigned `mock_token_*` values a
+ * client could forge. There is intentionally no 'devsecret' fallback — the API
+ * secret must come from the LIVEKIT_API_SECRET environment variable.
+ *
+ * The instance is shared across requests so the in-memory call registry
+ * (`CallService.calls`) stays consistent for join/token/leave lookups.
+ */
+let sharedCallService: CallService | null = null;
+
 function getCallService(): CallService {
-  return new CallService({
-    apiKey: process.env['LIVEKIT_API_KEY'] ?? 'devkey',
-    apiSecret: process.env['LIVEKIT_API_SECRET'] ?? 'devsecret',
-    wsUrl: process.env['LIVEKIT_WS_URL'] ?? 'ws://localhost:7880',
-  });
-}
-
-/**
- * Checks whether LiveKit connection details are configured.
- * If not, we return mock tokens so the route still works in dev.
- */
-function hasLiveKitConfig(): boolean {
-  return !!(
-    process.env['LIVEKIT_API_KEY'] &&
-    process.env['LIVEKIT_API_SECRET'] &&
-    process.env['LIVEKIT_URL']
-  );
-}
-
-/**
- * Generate a mock token for dev environments without LiveKit.
- */
-function generateMockToken(roomId: string, userId: string): string {
-  const payload = { roomId, userId, mock: true, exp: Date.now() + 3600_000 };
-  return `mock_token_${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
-}
-
-/**
- * Generate a cuid-like ID for room creation.
- */
-function generateRoomId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).slice(2, 10);
-  return `room_${timestamp}${random}`;
+  if (!sharedCallService) {
+    const apiKey = process.env['LIVEKIT_API_KEY'];
+    const apiSecret = process.env['LIVEKIT_API_SECRET'];
+    const wsUrl = process.env['LIVEKIT_WS_URL'] ?? process.env['LIVEKIT_URL'];
+    if (!apiKey || !apiSecret || !wsUrl) {
+      throw createAppError(
+        'Calls are unavailable: LiveKit is not configured. ' +
+          'Set LIVEKIT_API_KEY, LIVEKIT_API_SECRET and LIVEKIT_WS_URL (or LIVEKIT_URL) to enable calls.',
+        503,
+        'CALLS_UNAVAILABLE',
+      );
+    }
+    sharedCallService = new CallService({ apiKey, apiSecret, wsUrl });
+  }
+  return sharedCallService;
 }
 
 export default async function callsRoutes(fastify: FastifyInstance) {
-  const callService = getCallService();
   const callRecord = getCallRecordService(fastify);
 
   /**
@@ -137,22 +131,10 @@ export default async function callsRoutes(fastify: FastifyInstance) {
 
     const { conversationId, participantIds, maxParticipants } = parseResult.data;
     const allParticipants = [userId, ...participantIds.filter((id) => id !== userId)];
-    const roomId = generateRoomId();
 
-    // If LiveKit is not configured, return mock tokens (dev mode)
-    if (!hasLiveKitConfig()) {
-      const tokens: Record<string, string> = {};
-      for (const pid of allParticipants) {
-        tokens[pid] = generateMockToken(roomId, pid);
-      }
-      await persistStarted({
-        conversationId,
-        initiatorId: userId,
-        roomId,
-        participants: allParticipants,
-      });
-      return reply.status(201).send({ success: true, data: { roomId, tokens } });
-    }
+    // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
+    // Never mint unsigned mock tokens.
+    const callService = getCallService();
 
     // Create real LiveKit room and generate tokens
     try {
@@ -198,11 +180,9 @@ export default async function callsRoutes(fastify: FastifyInstance) {
 
     const { roomId } = parseResult.data;
 
-    // If LiveKit is not configured, just acknowledge (dev mode)
-    if (!hasLiveKitConfig()) {
-      await persistEnded(roomId);
-      return reply.send({ success: true, data: { message: 'Call ended (mock)' } });
-    }
+    // Fail closed: throws 503 CALLS_UNAVAILABLE when LiveKit is not configured.
+    // Never return a fake "Call ended" acknowledgement without a real teardown.
+    const callService = getCallService();
 
     try {
       await callService.endCall(roomId);
@@ -255,6 +235,9 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // POST /calls/initiate - Initiate a 1:1 call
+    // (also reaches getCallService → fail closed without LiveKit)
+    const callService = getCallService();
     const call = await callService.initiate1v1Call(userId, parseResult.data.calleeId);
     return reply.status(201).send({ success: true, data: call });
   });
@@ -271,6 +254,8 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // (also reaches getCallService → fail closed without LiveKit)
+    const callService = getCallService();
     const call = await callService.initiateGroupCall(userId, parseResult.data.participantIds);
     return reply.status(201).send({ success: true, data: call });
   });
@@ -282,6 +267,8 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
+    const callService = getCallService();
     const token = await callService.generateCallToken(request.params.id, userId);
     return reply.send({ success: true, data: { token } });
   });
@@ -293,6 +280,8 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // (also reaches getCallService → fail closed without LiveKit)
+    const callService = getCallService();
     const result = await callService.leaveCall(request.params.id, userId);
     return reply.send({
       success: true,
@@ -307,6 +296,8 @@ export default async function callsRoutes(fastify: FastifyInstance) {
       throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
     }
 
+    // Fail closed without LiveKit: token issuance requires LIVEKIT_API_SECRET.
+    const callService = getCallService();
     const token = await callService.generateCallToken(request.params.id, userId);
     return reply.send({ success: true, data: { token } });
   });

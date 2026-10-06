@@ -103,7 +103,9 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
 
     // Top status pill
     expect(html).toContain('data-testid="status-pill-e2ee"');
-    expect(html).toContain('Signal Protocol Double Ratchet · E2EE Verified');
+    expect(html).toContain('E2EE · X25519-ECIES + ratchet KDF (custom, not Signal protocol)');
+    expect(html).not.toContain('Signal Protocol');
+    expect(html).not.toContain('Double Ratchet');
 
     // E2EE shield/beacon vector marks present (no tacky raw letter Q box)
     expect(html).toContain('<svg');
