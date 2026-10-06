@@ -484,7 +484,7 @@ export function QuantGitReposSubView({
       data-testid="quantgit-repos-subview"
       className="flex-1 w-full min-h-0 overflow-y-auto bg-[#090A0E] text-[#E6EDF3] p-4 sm:p-6 lg:p-8"
     >
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
         {/* Top Header Banner */}
         <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
@@ -550,29 +550,33 @@ export function QuantGitReposSubView({
           </div>
         </div>
 
-        {/* Repository Cards Grid — genuine empty state, never fake repos */}
+        {/* Repository Cards Grid — genuine empty state, never fake repos.
+            The empty card is compact and vertically centered so the viewport
+            carries whitespace with purpose instead of a void below. */}
         {filtered.length === 0 ? (
-          <div
-            data-testid="quantgit-repos-empty"
-            className="rounded-2xl border border-dashed border-[#232938] bg-[#12151E] p-12 text-center"
-          >
-            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
-              <SvgRepoIcon className="size-6" />
+          <div className="flex flex-1 items-center justify-center py-8">
+            <div
+              data-testid="quantgit-repos-empty"
+              className="w-full max-w-md rounded-2xl border border-dashed border-[#232938] bg-[#12151E] p-8 text-center"
+            >
+              <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+                <SvgRepoIcon className="size-5" />
+              </div>
+              <h2 className="text-base font-bold text-white">No repositories yet</h2>
+              <p className="mt-2 text-xs text-[#8B949E] max-w-sm mx-auto">
+                Create a new repository or import one from GitHub to get started. Your real
+                repositories will appear here.
+              </p>
+              {onNewRepo && (
+                <button
+                  type="button"
+                  onClick={onNewRepo}
+                  className="mt-5 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
+                >
+                  + New Repository
+                </button>
+              )}
             </div>
-            <h2 className="text-base font-bold text-white">No repositories yet</h2>
-            <p className="mt-2 text-xs text-[#8B949E] max-w-sm mx-auto">
-              Create a new repository or import one from GitHub to get started. Your real
-              repositories will appear here.
-            </p>
-            {onNewRepo && (
-              <button
-                type="button"
-                onClick={onNewRepo}
-                className="mt-6 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
-              >
-                + New Repository
-              </button>
-            )}
           </div>
         ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
