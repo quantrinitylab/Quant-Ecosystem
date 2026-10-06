@@ -173,7 +173,7 @@ class QuantTheme {
         surface: QuantColors.darkSlateCard,
         error: QuantColors.statusError,
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: QuantColors.darkSlateCard,
         elevation: 0,
         shape: RoundedRectangleBorder(

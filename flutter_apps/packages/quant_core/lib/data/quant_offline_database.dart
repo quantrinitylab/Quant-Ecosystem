@@ -1,9 +1,6 @@
 // Sovereign Quant Ecosystem - Local-First Offline Data & SQLite FTS5 Search Engine
 // Strictly ZERO raw Unicode emojis throughout this file.
 
-import 'dart:async';
-import 'package:flutter/foundation.dart';
-
 /// SQL Schemas & Blueprint for SQLite FTS5 sub-5ms Instant Search.
 class QuantFtsSchemaBlueprint {
   /// Virtual table definition for thread full-text search.

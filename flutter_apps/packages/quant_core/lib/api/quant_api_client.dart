@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../auth/quant_auth_session.dart';
 import '../auth/quant_auth_service.dart';
 
 /// Strongly typed API exception for Quant Ecosystem network operations.
@@ -108,7 +107,7 @@ class QuantApiClient {
   static const Duration defaultTimeout = Duration(seconds: 15);
 
   final String baseUrl;
-  final QuantAuthSession? authSession;
+  QuantAuthSession? authSession;
   final QuantAuthService? authService;
   late final Dio dio;
   late final Dio _refreshDio;
@@ -164,7 +163,7 @@ class QuantApiClient {
     if (authService != null) {
       return await authService!.getActiveWorkspaceId();
     }
-    return authSession?.tenantId;
+    return authSession?.activeWorkspaceId;
   }
 
   /// Helper to resolve refresh token.
@@ -172,7 +171,7 @@ class QuantApiClient {
     if (authService != null) {
       return await authService!.getRefreshToken();
     }
-    return authSession?.state.refreshToken;
+    return authSession?.refreshToken;
   }
 
   /// Helper to update tokens on refresh.
@@ -185,10 +184,11 @@ class QuantApiClient {
       );
     }
     if (authSession != null) {
-      await authSession!.updateTokens(
-        newAccessToken: accessToken,
-        newRefreshToken: refreshToken,
-        expiresAt: expiresAt,
+      // Immutable session snapshot — replace with updated copy.
+      authSession = authSession!.copyWith(
+        accessToken: accessToken,
+        refreshToken: refreshToken ?? authSession!.refreshToken,
+        expiresAt: expiresAt ?? authSession!.expiresAt,
       );
     }
   }
@@ -199,7 +199,8 @@ class QuantApiClient {
       await authService!.logout();
     }
     if (authSession != null) {
-      await authSession!.logout();
+      // Immutable session snapshot — drop it on logout.
+      authSession = null;
     }
   }
 
@@ -304,7 +305,7 @@ class QuantApiClient {
 
           debugPrint('[QuantApiClient] [ERR] ${error.response?.statusCode ?? 'NETWORK_FAIL'} ${error.requestOptions.method} ${error.requestOptions.path} (${latency ?? 0}ms): $message');
 
-          error.extra['quant_exception'] = customException;
+          error.requestOptions.extra['quant_exception'] = customException;
           return handler.next(error);
         },
       ),
@@ -457,8 +458,8 @@ class QuantApiClient {
   }
 
   Exception _unwrapException(DioException e) {
-    if (e.extra.containsKey('quant_exception')) {
-      return e.extra['quant_exception'] as Exception;
+    if (e.requestOptions.extra.containsKey('quant_exception')) {
+      return e.requestOptions.extra['quant_exception'] as Exception;
     }
     return QuantApiException(
       message: e.message ?? 'Network error occurred',

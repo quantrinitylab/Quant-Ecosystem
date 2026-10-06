@@ -409,7 +409,7 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
                   children: [
                     Text(
                       '${filteredContacts.length} Contacts Displayed',
-                      style: QuantTypography.caption.copyWith(
+                      style: QuantTypography.bodySmall.copyWith(
                         color: QuantColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
@@ -424,7 +424,7 @@ class _ContactsPillarViewState extends State<ContactsPillarView> {
                         const SizedBox(width: 4),
                         Text(
                           'Sovereign Keyring Synced',
-                          style: QuantTypography.caption.copyWith(
+                          style: QuantTypography.bodySmall.copyWith(
                             color: QuantColors.emeraldMatrix,
                             fontSize: 11,
                           ),

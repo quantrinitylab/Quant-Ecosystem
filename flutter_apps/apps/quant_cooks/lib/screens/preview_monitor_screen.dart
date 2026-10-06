@@ -592,7 +592,7 @@ class _PreviewMonitorScreenState extends State<PreviewMonitorScreen> {
                 child: const Row(
                   children: [
                     Icon(
-                      Icons.magnet_rounded,
+                      Icons.anchor_rounded,
                       size: 13,
                       color: QuantColors.statusSuccess,
                     ),

@@ -247,7 +247,7 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
           ),
           child: Text(
             'SOVEREIGN',
-            style: QuantTypography.labelSmall.copyWith(
+            style: QuantTypography.pillarLabel.copyWith(
               color: QuantColors.moltenAmber,
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
@@ -286,7 +286,7 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
                   child: Text(
                     activeWorkspace,
                     overflow: TextOverflow.ellipsis,
-                    style: QuantTypography.labelSmall.copyWith(
+                    style: QuantTypography.pillarLabel.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w600,
                       fontSize: 11.5,
@@ -331,7 +331,7 @@ class QuantMailSuperAppBar extends StatelessWidget implements PreferredSizeWidge
                 alignment: Alignment.center,
                 child: Text(
                   'AM',
-                  style: QuantTypography.labelSmall.copyWith(
+                  style: QuantTypography.pillarLabel.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 11.0,

@@ -116,10 +116,10 @@ void main() {
       }
     });
 
-    test('Creator Balance Summary enforces $50 default threshold & 70% rev-share', () {
+    test('Creator Balance Summary enforces \$50 default threshold & 70% rev-share', () {
       final summary = AdsMockData.getCreatorBalanceSummary();
-      expect(summary.availableBalance, 8420.50);
-      expect(summary.pendingBalance, 2845.00);
+      expect(summary.availableBalance, equals(8420.50));
+      expect(summary.pendingBalance, equals(2845.00));
       expect(summary.minimumThreshold, 50.0);
       expect(summary.autoDisburseEnabled, isTrue);
       expect(summary.creatorShareRate, 0.70);
