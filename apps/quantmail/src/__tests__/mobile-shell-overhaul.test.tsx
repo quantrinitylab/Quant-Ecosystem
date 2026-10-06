@@ -8,7 +8,7 @@ import {
   executePillarTileClick,
   triggerHapticTap,
 } from '../components/QuantPillarTopBar';
-import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { QuantMailShortcutDock } from '../components/QuantMailShortcutDock';
 import {
   CalendarContextSubTabs,
   mergedTabTargets,
@@ -263,20 +263,20 @@ describe('Mobile Shell Overhaul — Worker A', () => {
   });
 
   // ==========================================================================
-  // 3. SuperhumanShortcutDock — hidden on mobile
+  // 3. QuantMailShortcutDock — hidden on mobile
   // ==========================================================================
-  describe('SuperhumanShortcutDock mobile visibility', () => {
+  describe('QuantMailShortcutDock mobile visibility', () => {
     it('hides the expanded dock below the md breakpoint', () => {
-      const html = renderToStaticMarkup(<SuperhumanShortcutDock disableListener />);
+      const html = renderToStaticMarkup(<QuantMailShortcutDock disableListener />);
       expect(html).toContain('hidden md:flex');
       expect(html).toContain('role="toolbar"');
     });
 
     it('hides the collapsed pill below the md breakpoint too', () => {
       const html = renderToStaticMarkup(
-        <SuperhumanShortcutDock disableListener initialCollapsed />,
+        <QuantMailShortcutDock disableListener initialCollapsed />,
       );
-      expect(html).toContain('data-testid="superhuman-dock-collapsed"');
+      expect(html).toContain('data-testid="quantmail-dock-collapsed"');
       expect(html).toContain('hidden md:flex');
     });
   });

@@ -39,7 +39,7 @@ import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import { MOBILE_BREAKPOINT_PX } from '../hooks/useIsMobile';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
-import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { QuantMailShortcutDock } from '../components/QuantMailShortcutDock';
 import { DockedComposer } from '../components/DockedComposer';
 import { useKeyboardSurfaces } from '../components/KeyboardProvider';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -3439,9 +3439,7 @@ export default function InboxPage() {
                                           latestMessage?.bodyText ||
                                           matchingThread.subject,
                                       )
-                                    : `${memberCount} ${
-                                        memberCount === 1 ? 'member' : 'members'
-                                      } · Start the conversation`}
+                                    : `${memberCount} ${memberCount === 1 ? 'member' : 'members'} · Start the conversation`}
                                 </span>
                               </span>
                             </button>
@@ -4016,8 +4014,8 @@ export default function InboxPage() {
         />
       )}
 
-      {/* Superhuman Shortcut Dock (Floating at bottom center, auto-collapsing to bottom-left rail when thread is open) */}
-      <SuperhumanShortcutDock
+      {/* QuantMail Shortcut Dock (Floating at bottom center, auto-collapsing to bottom-left rail when thread is open) */}
+      <QuantMailShortcutDock
         onCommandPalette={openPalette}
         onUndo={undoLastArchive}
         initialCollapsed

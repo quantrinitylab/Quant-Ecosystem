@@ -2,14 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import {
-  SuperhumanShortcutDock,
+  QuantMailShortcutDock,
   DOCK_SHORTCUTS,
   handleDockKeyDown,
   isInputTarget,
-  type SuperhumanShortcutDockProps,
-} from '../components/SuperhumanShortcutDock';
+  type QuantMailShortcutDockProps,
+} from '../components/QuantMailShortcutDock';
 
-describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
+describe('QuantMail Shortcut Dock (Wave 39 UI/UX Parity)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -23,7 +23,7 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
   // --------------------------------------------------------------------------
   describe('Dock Rendering & Shortcut Badges', () => {
     it('renders the floating frosted glass dock with the exact specified viewport positioning and classes', () => {
-      const html = renderToStaticMarkup(<SuperhumanShortcutDock disableListener />);
+      const html = renderToStaticMarkup(<QuantMailShortcutDock disableListener />);
 
       // Verify frosted glass dock container classes
       expect(html).toContain('fixed bottom-6 left-1/2 -translate-x-1/2 z-40');
@@ -41,7 +41,7 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
     });
 
     it('renders all required shortcut pills with tactile keys and action labels', () => {
-      const html = renderToStaticMarkup(<SuperhumanShortcutDock disableListener />);
+      const html = renderToStaticMarkup(<QuantMailShortcutDock disableListener />);
 
       // J / K -> Navigate
       expect(html).toContain('data-testid="dock-pill-navigate"');
@@ -77,17 +77,17 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
     });
 
     it('renders minimize toggle button in expanded dock', () => {
-      const html = renderToStaticMarkup(<SuperhumanShortcutDock disableListener />);
+      const html = renderToStaticMarkup(<QuantMailShortcutDock disableListener />);
       expect(html).toContain('data-testid="dock-minimize-button"');
       expect(html).toContain('aria-label="Minimize dock"');
     });
 
     it('renders compact floating trigger when collapsed is true', () => {
       const html = renderToStaticMarkup(
-        <SuperhumanShortcutDock initialCollapsed={true} disableListener />,
+        <QuantMailShortcutDock initialCollapsed={true} disableListener />,
       );
 
-      expect(html).toContain('data-testid="superhuman-dock-collapsed"');
+      expect(html).toContain('data-testid="quantmail-dock-collapsed"');
       expect(html).toContain('Shortcuts');
       expect(html).toContain('aria-label="Expand dock"');
       expect(html).toContain('fixed bottom-6 left-1/2 -translate-x-1/2 z-40');
@@ -99,20 +99,20 @@ describe('Superhuman Shortcut Dock (Wave 39 UI/UX Parity)', () => {
     it('renders glowing orange accent (#FF8C42) when activeKey is set to a specific key', () => {
       // Test highlighting for 'J'
       const htmlJ = renderToStaticMarkup(
-        <SuperhumanShortcutDock activeKeyOverride="J" disableListener />,
+        <QuantMailShortcutDock activeKeyOverride="J" disableListener />,
       );
       expect(htmlJ).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
       expect(htmlJ).toContain('shadow-[0_0_12px_rgba(255,140,66,0.6)]');
 
       // Test highlighting for 'E' (Done / Archive)
       const htmlE = renderToStaticMarkup(
-        <SuperhumanShortcutDock activeKeyOverride="E" disableListener />,
+        <QuantMailShortcutDock activeKeyOverride="E" disableListener />,
       );
       expect(htmlE).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
 
       // Test highlighting for 'CMD_K' (Command Palette)
       const htmlPalette = renderToStaticMarkup(
-        <SuperhumanShortcutDock activeKeyOverride="CMD_K" disableListener />,
+        <QuantMailShortcutDock activeKeyOverride="CMD_K" disableListener />,
       );
       expect(htmlPalette).toContain('border-[#FF8C42] bg-[#FF8C42]/20 text-[#FF8C42]');
     });
