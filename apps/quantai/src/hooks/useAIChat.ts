@@ -55,7 +55,7 @@ interface UseAIChatReturn {
   currentModel: string;
   tokenCount: number;
   sendMessage: (content: string, attachments?: string[]) => void;
-  createConversation: () => void;
+  createConversation: () => Promise<string | null>;
   selectConversation: (id: string) => void;
   deleteConversation: (id: string) => void;
   /** Side chats: move a conversation into/out of a topic. null = back to main chats. */
@@ -565,7 +565,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     currentModel,
     tokenCount,
     sendMessage,
-    createConversation: () => void createConversation(),
+    createConversation,
     selectConversation,
     deleteConversation,
     moveConversationToTopic,
