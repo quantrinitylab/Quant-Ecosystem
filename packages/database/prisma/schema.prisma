@@ -4732,3 +4732,4 @@ model QuantyGoalProposal {
   @@index([userId])
   @@index([userId, status])
   @@map("quanty_goal_proposals")
+}
