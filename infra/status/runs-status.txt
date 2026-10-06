@@ -1,0 +1,74 @@
+=== deploy-log 2026-10-06T18:52:46Z ===
+run_id=37506440912
+{
+  "conclusion": "failure",
+  "createdAt": "2026-10-06T17:48:53Z",
+  "status": "completed",
+  "updatedAt": "2026-10-06T17:49:39Z"
+}
+--- failed step logs (tail) ---
+ker ID: {7b03e20c-ab22-431e-8223-1524a8bd43d4}
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8902544Z Region: eastus2
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8903551Z Cloud: Azure
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8904426Z ##[endgroup]
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8907132Z ##[group]Operating System
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8908209Z Ubuntu
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8909287Z 24.04.5
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8910188Z LTS
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8911010Z ##[endgroup]
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8911863Z ##[group]Runner Image
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8912947Z Image: ubuntu-24.04
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8913858Z Version: 20261004.327.1
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8915951Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261004.327/images/ubuntu/Ubuntu2404-Readme.md
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8918879Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261004.327
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8920589Z ##[endgroup]
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8922546Z ##[group]GITHUB_TOKEN Permissions
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8925358Z Checks: read
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8926366Z Contents: read
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8927466Z Metadata: read
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8928397Z ##[endgroup]
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8932040Z Secret source: Actions
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8933498Z Cache mode: write
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.8934893Z Prepare workflow directory
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.9383370Z Prepare all required actions
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:36.9529521Z Complete job name: Validate immutable main release
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0599568Z ##[group]Run set -euo pipefail
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0600950Z ^[[36;1mset -euo pipefail^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0602257Z ^[[36;1m[[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] || {^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0603876Z ^[[36;1m  echo 'release_sha must be one lowercase 40-character commit SHA' >&2^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0605547Z ^[[36;1m  exit 1^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0606414Z ^[[36;1m}^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0607475Z ^[[36;1mtest "$EVENT_REF" = 'refs/heads/main' || {^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0609084Z ^[[36;1m  echo 'Dispatch must select the main branch' >&2^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0610391Z ^[[36;1m  exit 1^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0611278Z ^[[36;1m}^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0612199Z ^[[36;1mtest "$RELEASE_SHA" = "$EVENT_SHA" || {^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0613762Z ^[[36;1m  echo 'release_sha must equal the selected workflow commit' >&2^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0615154Z ^[[36;1m  exit 1^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0616193Z ^[[36;1m}^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0617500Z ^[[36;1mmain_sha="$(gh api "/repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0620321Z ^[[36;1mtest "$RELEASE_SHA" = "$main_sha" || {^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0621718Z ^[[36;1m  echo 'release_sha is not the current main commit' >&2^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0623058Z ^[[36;1m  exit 1^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0624008Z ^[[36;1m}^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.0624986Z ^[[36;1mecho "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"^[[0m
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1591512Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1593357Z env:
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1601530Z   GH_TOKEN: ***
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1602610Z   RELEASE_SHA: d07273767ad5871ad6b20be58ac63a6d30642b7a
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1603842Z   EVENT_REF: refs/heads/main
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1605053Z   EVENT_SHA: 4ced0b3bac337304d701325dde8019b4c1a62bf5
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1606282Z ##[endgroup]
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1892966Z release_sha must equal the selected workflow commit
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.1929666Z ##[error]Process completed with exit code 1.
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.2245952Z Evaluate and set job outputs
+Validate immutable main release	UNKNOWN STEP	2026-10-06T17:49:37.2257737Z Cleaning up orphan processes
+
+--- recent runs ---
+2026-10-06T18:52:25Z | Run Deploy | in_progress | 
+2026-10-06T18:52:25Z | Action pin policy | queued | 
+2026-10-06T18:52:25Z | CodeQL Advanced | queued | 
+2026-10-06T18:52:25Z | CI | pending | 
+2026-10-06T18:52:20Z | Action pin policy | completed | cancelled
+2026-10-06T18:52:20Z | CodeQL Advanced | in_progress | 
+=== done ===
