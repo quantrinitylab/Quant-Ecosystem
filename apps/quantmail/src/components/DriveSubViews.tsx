@@ -178,6 +178,24 @@ function TrashIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
+function PencilIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
 function HardDriveIcon({ className = 'size-4' }: { className?: string }) {
   return (
     <svg
@@ -976,15 +994,55 @@ export function DriveHomeSubView({
                 {folders.map((folder) => (
                   <div
                     key={folder.id}
-                    onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/5 cursor-pointer transition-all group"
+                    className="group relative flex items-center gap-1 p-2 rounded-xl border border-[#232938] bg-[#12151E] hover:border-[#FF8C42]/50 hover:bg-[#FF8C42]/5 transition-all"
                   >
-                    <div className="size-8 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42] shrink-0">
-                      <FolderIcon className="size-4" />
+                    {/*
+                     * A real <button>: keyboard-focusable, announced as a
+                     * button (not a plain text node), Enter/Space opens it.
+                     * The previous plain <div onClick> was invisible to
+                     * keyboard users and some automation hit-testing.
+                     */}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToFolder?.(folder.id, folder.name)}
+                      aria-label={`Open folder ${folder.name}`}
+                      title={`Open ${folder.name}`}
+                      className="flex flex-1 items-center gap-3 min-w-0 p-1 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                    >
+                      <div className="size-8 rounded-lg bg-[#FF8C42]/15 border border-[#FF8C42]/30 flex items-center justify-center text-[#FF8C42] shrink-0">
+                        <FolderIcon className="size-4" />
+                      </div>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#FF8C42] transition-colors">
+                          {folder.name}
+                        </span>
+                        <span className="block text-[10px] text-[#64748B]">Folder</span>
+                      </span>
+                    </button>
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+                      {onOpenRename && (
+                        <button
+                          type="button"
+                          aria-label={`Rename folder ${folder.name}`}
+                          title="Rename"
+                          onClick={(e) => onOpenRename(folder, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-[#F8FAFC] hover:bg-[#21262D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                        >
+                          <PencilIcon className="size-3.5" />
+                        </button>
+                      )}
+                      {onDeleteItem && (
+                        <button
+                          type="button"
+                          aria-label={`Delete folder ${folder.name}`}
+                          title="Delete"
+                          onClick={(e) => onDeleteItem(folder.id, folder.name, e)}
+                          className="size-7 rounded grid place-items-center text-[#64748B] hover:text-rose-300 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                        >
+                          <TrashIcon className="size-3.5" />
+                        </button>
+                      )}
                     </div>
-                    <span className="text-xs font-semibold text-[#F8FAFC] truncate flex-1 group-hover:text-[#FF8C42] transition-colors">
-                      {folder.name}
-                    </span>
                   </div>
                 ))}
               </div>
