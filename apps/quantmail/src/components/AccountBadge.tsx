@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useKeyboardScope, useShortcut } from '../lib/keyboard/hooks';
 import { useOptionalAuth } from '../providers/auth-provider';
@@ -22,6 +23,23 @@ const STORAGE_ACCOUNTS_KEY = 'quant_known_accounts';
  * too or the arrows skip straight past the accounts.
  */
 const MENU_ITEMS = '[role="menuitem"],[role="menuitemradio"]';
+
+/**
+ * Height budget used when clamping the portaled menu into the viewport.
+ * The menu is also `max-h-[min(70vh,480px)]` scrollable, so this only matters
+ * for the initial placement math.
+ */
+const MENU_HEIGHT_BUDGET = 480;
+
+/** Fixed-position coordinates for the portaled menu, measured off the trigger. */
+interface MenuCoords {
+  top: number;
+  /** Right offset for the header (compact) variant. */
+  right?: number;
+  /** Left offset + explicit width for the sidebar (non-compact) variant. */
+  left?: number;
+  width?: number;
+}
 
 /** Deterministic gradient from a string, so each identity has a stable color. */
 function gradientFor(seed: string): string {
@@ -49,6 +67,7 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [accounts, setAccounts] = useState<StoredAccount[]>([]);
+  const [menuCoords, setMenuCoords] = useState<MenuCoords | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -81,7 +100,10 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
   useEffect(() => {
     if (!open) return;
     function onDoc(event: MouseEvent) {
-      if (!ref.current || ref.current.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      // The menu is portaled to document.body (see below), so it is not inside
+      // the wrapper `ref` — both have to be treated as "inside the menu".
+      if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
       /*
         The open menu holds focus (see the effect below), so tearing it down
         without a destination leaves focus on `body` and the next Tab starts from
@@ -89,13 +111,78 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
         whatever was clicked, so handing focus back to the trigger here is safe:
         a focusable click target still wins it a moment later.
       */
-      const hadFocus = ref.current.contains(document.activeElement);
+      const hadFocus =
+        ref.current?.contains(document.activeElement) ||
+        menuRef.current?.contains(document.activeElement);
       setOpen(false);
       if (hadFocus) triggerRef.current?.focus();
     }
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
+
+  /**
+   * The menu is portaled to `document.body` with `position: fixed`, so it
+   * escapes every ancestor stacking context — notably the app header's
+   * `backdrop-blur`, which used to trap the absolutely-positioned menu *below*
+   * the reading pane (invisible to sighted mouse users, though keyboard focus
+   * still worked because the menu stayed in the accessibility tree).
+   *
+   * Same machinery as AnchoredMenu: measure the trigger, clamp into the
+   * viewport, re-measure on scroll/resize because a fixed menu does not follow
+   * its anchor.
+   */
+  const reposition = useCallback(() => {
+    const triggerRect = triggerRef.current?.getBoundingClientRect();
+    if (!triggerRect) return;
+    if (compact) {
+      // Header variant: hangs below the trigger, right-aligned to it.
+      const right = Math.max(16, window.innerWidth - triggerRect.right);
+      const top = Math.max(
+        8,
+        Math.min(window.innerHeight - MENU_HEIGHT_BUDGET, triggerRect.bottom + 8),
+      );
+      setMenuCoords((prev) =>
+        prev && prev.top === top && prev.right === right && prev.left === undefined
+          ? prev
+          : { top, right },
+      );
+    } else {
+      // Sidebar variant: opens upward, spanning the badge wrapper's padding box
+      // (the old `left-3 right-3` of the `px-3` wrapper).
+      const wrapperRect = ref.current?.getBoundingClientRect();
+      if (!wrapperRect) return;
+      const left = wrapperRect.left + 12;
+      const width = Math.max(200, wrapperRect.width - 24);
+      const top = Math.max(8, triggerRect.top - MENU_HEIGHT_BUDGET - 8);
+      setMenuCoords((prev) =>
+        prev && prev.top === top && prev.left === left && prev.width === width
+          ? prev
+          : { top, left, width },
+      );
+    }
+  }, [compact]);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuCoords(null);
+      return;
+    }
+    reposition();
+    window.addEventListener('resize', reposition);
+    // Capture phase: scrolls happen in nested containers and do not bubble.
+    document.addEventListener('scroll', reposition, true);
+    // Wait a frame for the portaled menu to mount at the measured coords
+    // before moving focus into it, so focus never lands on a stale position.
+    const frame = window.requestAnimationFrame(() => {
+      menuRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
+    });
+    return () => {
+      window.removeEventListener('resize', reposition);
+      document.removeEventListener('scroll', reposition, true);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [open, reposition]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -143,11 +230,6 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
     scope: 'account-menu',
     label: 'Previous option',
   });
-
-  useEffect(() => {
-    if (!open) return;
-    menuRef.current?.querySelector<HTMLButtonElement>(MENU_ITEMS)?.focus();
-  }, [open]);
 
   if (!user) return null;
 
@@ -223,23 +305,39 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
         )}
       </button>
 
-      {open && (
-        <div
-          id="account-badge-menu"
-          ref={menuRef}
-          role="menu"
-          aria-orientation="vertical"
-          aria-label="Account"
-          onKeyDown={(event) => {
-            // A menu is not a place to Tab through. Leave, and let focus land outside.
-            if (event.key === 'Tab') setOpen(false);
-          }}
-          className={
-            compact
-              ? 'absolute top-full right-0 mt-2 z-50 w-64 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in'
-              : 'absolute bottom-[calc(100%-0.25rem)] left-3 right-3 z-30 mb-1 overflow-hidden rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in'
-          }
-        >
+      {open &&
+        menuCoords &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            id="account-badge-menu"
+            ref={menuRef}
+            role="menu"
+            aria-orientation="vertical"
+            aria-label="Account"
+            onKeyDown={(event) => {
+              // A menu is not a place to Tab through. Leave, and let focus land outside.
+              if (event.key === 'Tab') setOpen(false);
+            }}
+            /*
+              Portaled to document.body with position:fixed + root-level z-index,
+              so the menu escapes every ancestor stacking context (the app
+              header's backdrop-blur used to trap it *below* the reading pane:
+              invisible to mouse users, though keyboard focus still worked).
+              Same approach as AnchoredMenu's popovers.
+            */
+            style={{
+              position: 'fixed',
+              top: menuCoords.top,
+              ...(menuCoords.right !== undefined
+                ? { right: menuCoords.right }
+                : { left: menuCoords.left, width: menuCoords.width }),
+              zIndex: 99999,
+            }}
+            className={`overflow-y-auto rounded-2xl border border-[#282C35] bg-[#16181D] shadow-2xl animate-scale-in max-h-[min(70vh,480px)] ${
+              compact ? 'w-64' : ''
+            }`}
+          >
           {/*
             Multi-Account Switcher Section. `role="none"` on the padding wrapper:
             a bare <div> is `role=generic`, and ARIA 1.2 does not let `menu` own one
@@ -407,8 +505,9 @@ export function AccountBadge({ compact = false }: { compact?: boolean } = {}) {
               <span>Sign out</span>
             </button>
           </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

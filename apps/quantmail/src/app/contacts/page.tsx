@@ -33,6 +33,7 @@ import {
 } from './components/ContactsSubViews';
 import type { Contact, ContactGroup } from '../../types';
 import { showToast } from '../../components/InboxToast';
+import { apiClient } from '../../services/api-client';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('');
 
@@ -132,15 +133,19 @@ export default function ContactsPage() {
 
   const handleSaveGroup = useCallback(
     async (data: { name: string; emails: string[]; color: string | null }) => {
-      if (editingGroup) {
-        await updateContactGroup.mutateAsync({ id: editingGroup.id, data });
-        showToast({ text: `Updated group "${data.name}"`, type: 'success' });
-      } else {
-        await createContactGroup.mutateAsync(data);
-        showToast({ text: `Created group "${data.name}"`, type: 'success' });
+      try {
+        if (editingGroup) {
+          await updateContactGroup.mutateAsync({ id: editingGroup.id, data });
+          showToast({ text: `Updated group "${data.name}"`, type: 'success' });
+        } else {
+          await createContactGroup.mutateAsync(data);
+          showToast({ text: `Created group "${data.name}"`, type: 'success' });
+        }
+        setShowGroupModal(false);
+        setEditingGroup(null);
+      } catch {
+        showToast({ text: 'Failed to save group', type: 'error' });
       }
-      setShowGroupModal(false);
-      setEditingGroup(null);
     },
     [editingGroup, updateContactGroup, createContactGroup],
   );
@@ -154,13 +159,17 @@ export default function ContactsPage() {
         variant: 'destructive',
       });
       if (ok) {
-        await deleteContactGroup.mutateAsync(groupId);
-        if (selectedGroupId === groupId) {
-          setSelectedGroupId(null);
+        try {
+          await deleteContactGroup.mutateAsync(groupId);
+          if (selectedGroupId === groupId) {
+            setSelectedGroupId(null);
+          }
+          setShowGroupModal(false);
+          setEditingGroup(null);
+          showToast({ text: 'Group deleted', type: 'info' });
+        } catch {
+          showToast({ text: 'Failed to delete group', type: 'error' });
         }
-        setShowGroupModal(false);
-        setEditingGroup(null);
-        showToast({ text: 'Group deleted', type: 'info' });
       }
     },
     [confirm, deleteContactGroup, selectedGroupId],
@@ -229,7 +238,10 @@ export default function ContactsPage() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!formData.name.trim() || !formData.email.trim()) return;
+    if (!formData.name.trim() || !formData.email.trim()) {
+      showToast({ text: 'Name and email are required', type: 'error' });
+      return;
+    }
     const data = {
       name: formData.name.trim(),
       email: formData.email.trim(),
@@ -346,61 +358,86 @@ export default function ContactsPage() {
   );
 
   // Export current page contacts as vCard
-  const handleExportVCard = () => {
-    const list = contacts ?? [];
-    if (list.length === 0) {
+  const downloadBlobResponse = useCallback(async (response: Response, filename: string, emptyText: string) => {
+    if (!response.ok) {
+      showToast({ text: emptyText, type: 'error' });
+      return;
+    }
+    const blob = await response.blob();
+    if (blob.size === 0) {
       showToast({ text: 'No contacts to export', type: 'info' });
       return;
     }
-    let vcf = '';
-    for (const c of list) {
-      vcf += 'BEGIN:VCARD\r\nVERSION:3.0\r\n';
-      vcf += `FN:${c.name || c.email}\r\n`;
-      vcf += `EMAIL:${c.email}\r\n`;
-      if (c.phone) vcf += `TEL:${c.phone}\r\n`;
-      if (c.company) vcf += `ORG:${c.company}\r\n`;
-      vcf += 'END:VCARD\r\n';
-    }
-    const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `QuantContacts_${new Date().toISOString().slice(0, 10)}_page-${page}.vcf`;
+    link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
-    showToast({
-      text: `Exported ${list.length} contacts to vCard`,
-      type: 'success',
-    });
-  };
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }, []);
 
-  const handleImportVCard = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExportVCard = useCallback(async () => {
+    try {
+      const response = await apiClient.exportContactsVCard();
+      const date = new Date().toISOString().slice(0, 10);
+      await downloadBlobResponse(response, `QuantContacts_${date}.vcf`, 'Export failed');
+      if (response.ok) {
+        showToast({ text: 'Exported all contacts to vCard', type: 'success' });
+      }
+    } catch {
+      showToast({ text: 'Export failed', type: 'error' });
+    }
+  }, [downloadBlobResponse]);
+
+  const handleExportCsv = useCallback(async () => {
+    try {
+      const response = await apiClient.exportContactsCsv();
+      const date = new Date().toISOString().slice(0, 10);
+      await downloadBlobResponse(response, `QuantContacts_${date}.csv`, 'Export failed');
+      if (response.ok) {
+        showToast({ text: 'Exported all contacts to CSV', type: 'success' });
+      }
+    } catch {
+      showToast({ text: 'Export failed', type: 'error' });
+    }
+  }, [downloadBlobResponse]);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const cards = text.split(/BEGIN:VCARD/i).slice(1);
-    let imported = 0;
-    for (const card of cards) {
-      const fnMatch = card.match(/FN:(.+)/i);
-      const emailMatch = card.match(/EMAIL[^:]*:(.+)/i);
-      const telMatch = card.match(/TEL[^:]*:(.+)/i);
-      const orgMatch = card.match(/ORG:(.+)/i);
-      if (emailMatch && emailMatch[1]) {
-        try {
-          await createContact.mutateAsync({
-            name: fnMatch ? fnMatch[1].trim() : emailMatch[1].trim(),
-            email: emailMatch[1].trim(),
-            phone: telMatch ? telMatch[1].trim() : undefined,
-            company: orgMatch ? orgMatch[1].trim() : undefined,
-          });
-          imported++;
-        } catch {
-          // ignore duplicate errors
-        }
+    const isCsv = /\.csv$/i.test(file.name);
+    try {
+      const text = await file.text();
+      if (!text.trim()) {
+        showToast({ text: 'No contacts found in file', type: 'warning' });
+        return;
       }
+      const result = isCsv
+        ? await apiClient.importContactsCsv(text)
+        : await apiClient.importContactsVCard(text);
+      if (!result.success || !result.data) {
+        showToast({ text: 'Import failed', type: 'error' });
+        return;
+      }
+      const { imported, duplicates, errors, total } = result.data;
+      if (imported > 0) {
+        const parts = [`Imported ${imported} contact${imported === 1 ? '' : 's'}`];
+        if (duplicates > 0) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} skipped`);
+        if (errors > 0) parts.push(`${errors} failed`);
+        showToast({ text: parts.join(' · '), type: 'success' });
+        refetch();
+      } else if (total === 0) {
+        showToast({ text: 'No contacts found in file', type: 'warning' });
+      } else {
+        showToast({ text: `No new contacts imported (${duplicates} duplicates)`, type: 'info' });
+      }
+    } catch {
+      showToast({ text: 'Import failed', type: 'error' });
+    } finally {
+      e.target.value = '';
     }
-    showToast({ text: `Imported ${imported} contacts`, type: 'success' });
-    e.target.value = '';
   };
 
   const streamRef = useRef<HTMLDivElement>(null);
@@ -549,9 +586,9 @@ export default function ContactsPage() {
         <input
           ref={vcardInputRef}
           type="file"
-          accept=".vcf,.vcard"
+          accept=".vcf,.vcard,.csv"
           className="hidden"
-          onChange={handleImportVCard}
+          onChange={handleImportFile}
         />
 
         {/* ================================================================== */}
@@ -736,18 +773,25 @@ export default function ContactsPage() {
                       type="button"
                       onClick={() => vcardInputRef.current?.click()}
                       className="px-2 py-1 rounded-lg border border-[#232938] bg-[#141822] text-[11px] text-[#A1A4AC] hover:text-white transition-colors"
-                      title="Import vCard"
+                      title="Import vCard or CSV"
                     >
                       Import
                     </button>
                     <button
                       type="button"
                       onClick={handleExportVCard}
-                      disabled={isLoading || !contacts?.length}
                       className="px-2 py-1 rounded-lg border border-[#232938] bg-[#141822] text-[11px] text-[#A1A4AC] hover:text-white transition-colors disabled:opacity-40"
-                      title="Export vCard"
+                      title="Export all contacts as vCard"
                     >
-                      Export
+                      Export vCard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportCsv}
+                      className="px-2 py-1 rounded-lg border border-[#232938] bg-[#141822] text-[11px] text-[#A1A4AC] hover:text-white transition-colors disabled:opacity-40"
+                      title="Export all contacts as CSV"
+                    >
+                      Export CSV
                     </button>
                     <button
                       type="button"

@@ -5,6 +5,7 @@ export * from './DriveSharedSubView';
 export * from './DriveVaultSubView';
 export * from './DriveStarredSubView';
 export * from './DriveCleanerSubView';
+export * from './FileShareModal';
 export {
   DriveHomeSubView,
   DriveFeedSubView,
