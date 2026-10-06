@@ -32,7 +32,7 @@ export interface DockKeyCallbacks {
   onHighlight?: (key: string) => void;
 }
 
-export interface SuperhumanShortcutDockProps {
+export interface QuantMailShortcutDockProps {
   disableListener?: boolean;
   initialCollapsed?: boolean;
   activeKeyOverride?: string;
@@ -128,7 +128,7 @@ export function handleDockKeyDown(
 // Component
 // ============================================================================
 
-export function SuperhumanShortcutDock({
+export function QuantMailShortcutDock({
   disableListener = false,
   initialCollapsed = false,
   activeKeyOverride,
@@ -144,7 +144,7 @@ export function SuperhumanShortcutDock({
   isThreadOpen,
   hideWhenThreadOpen = false,
   dockPosition,
-}: SuperhumanShortcutDockProps) {
+}: QuantMailShortcutDockProps) {
   const isThreadActive = Boolean(selectedThreadId || isThreadOpen);
   const [collapsed, setCollapsed] = useState(initialCollapsed || isThreadActive);
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -217,7 +217,7 @@ export function SuperhumanShortcutDock({
     return (
       <button
         type="button"
-        data-testid="superhuman-dock-collapsed"
+        data-testid="quantmail-dock-collapsed"
         aria-label="Expand dock"
         onClick={() => {
           if (!isThreadActive) {
@@ -242,7 +242,7 @@ export function SuperhumanShortcutDock({
   return (
     <div
       role="toolbar"
-      aria-label="Superhuman Keyboard Shortcuts Dock"
+      aria-label="QuantMail Keyboard Shortcuts Dock"
       // `hidden md:flex`: the dock is a desktop keyboard-shortcut bar. On a
       // phone it rendered as a stuck strip over the inbox's bottom nav (mobile
       // QA screenshot). The key listener below keeps working — this is purely

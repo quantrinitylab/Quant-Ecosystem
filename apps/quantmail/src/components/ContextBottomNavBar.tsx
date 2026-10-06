@@ -682,7 +682,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'archive',
         label: 'Archive',
         icon: ArchiveIcon,
-        targetPath: '/archive',
+        targetPath: '/',
         queryParam: { key: 'tab', value: 'archive' },
       },
     ],

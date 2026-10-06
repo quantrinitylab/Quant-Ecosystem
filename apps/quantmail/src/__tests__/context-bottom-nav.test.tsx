@@ -338,7 +338,9 @@ describe('Context-Specific Bottom Navigation Bar (ContextBottomNavBar)', () => {
       });
 
       expect(onTabChange).toHaveBeenCalledWith('archive', 'mail');
-      expect(mockPush).toHaveBeenCalledWith('/archive?tab=archive');
+      // Archive was repaired to route via the inbox page's tab param
+      // (targetPath '/' + ?tab=archive), not a bare /archive path.
+      expect(mockPush).toHaveBeenCalledWith('/?tab=archive');
     });
 
     it('clicking Calendar sub-tabs routes to calendar query parameters', () => {

@@ -16,6 +16,8 @@ import { BrandWordmark, appDisplayName } from './BrandWordmark';
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
 import { useInbox } from '../hooks/useInbox';
+import { useAuth } from '../providers/auth-provider';
+import { groupEmailsIntoThreads } from '../lib/threading';
 import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
@@ -153,7 +155,27 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
-  const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+  // Defensive: AppShell is normally inside AuthProvider (see app/layout.tsx),
+  // but tests and some hosts render it standalone — useAuth() throws there.
+  let currentEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentEmail = currentUser?.email || '';
+  } catch {
+    currentEmail = '';
+  }
+  /**
+   * Unread badge counts unread CONVERSATIONS (threads), not raw emails — the
+   * same definition the inbox page uses (`thread.isRead` = every message read
+   * or sent by me). Counting raw `!e.isRead` emails disagreed with the lens
+   * chips on the same screen (e.g. badge said "5 unread" while the All lens
+   * said "0 unread, 5 total") because sent-mail copies are stored unread.
+   */
+  const unreadCount = useMemo(() => {
+    if (!inboxEmails || inboxEmails.length === 0) return 0;
+    const threads = groupEmailsIntoThreads(inboxEmails, currentEmail);
+    return threads.filter((t) => !t.isRead).length;
+  }, [inboxEmails, currentEmail]);
 
   /**
    * Real per-lens counts for the mail pillar's lens strip, measured on the
