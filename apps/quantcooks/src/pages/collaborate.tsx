@@ -1,50 +1,61 @@
 // ============================================================================
 // QuantEdits - Collaboration Page
-// Shared projects, invite, permissions, real-time cursors, change history
+// Members and comments are loaded from the real /api/collaboration/[id]
+// endpoints; invites, permission changes, removals, new comments and
+// resolve-toggles all call the API. Shared projects, change history, replies
+// and share links have no backend, so they show honest "not available" states
+// instead of fabricated data.
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageTransition } from '../components/PageTransition';
 
-interface Collaborator {
+/** Backend roles from the collaboration service. */
+type ApiRole = 'owner' | 'editor' | 'viewer' | 'commenter';
+
+interface ApiCollaborator {
+  userId: string;
+  username: string;
+  role: ApiRole;
+  joinedAt: string;
+  isOnline: boolean;
+}
+
+interface ApiComment {
   id: string;
+  projectId: string;
+  userId: string;
+  username: string;
+  content: string;
+  timestamp: number;
+  layerId?: string;
+  position?: { x: number; y: number };
+  resolved: boolean;
+  replies: ApiComment[];
+  createdAt: string;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+}
+
+interface Collaborator {
+  userId: string;
   name: string;
-  email: string;
-  avatar: string;
   permission: 'view' | 'comment' | 'edit';
   isOnline: boolean;
   lastActive: string;
-  cursor?: { x: number; y: number; color: string };
-}
-
-interface SharedProject {
-  id: string;
-  title: string;
-  thumbnail: string;
-  owner: string;
-  collaborators: Collaborator[];
-  lastEdited: string;
-  status: 'active' | 'archived';
-}
-
-interface ChangeEntry {
-  id: string;
-  userId: string;
-  userName: string;
-  action: string;
-  description: string;
-  timestamp: string;
-  canRevert: boolean;
+  isOwner: boolean;
 }
 
 interface CommentThread {
   id: string;
   userId: string;
   userName: string;
-  avatar: string;
   content: string;
   timestamp: string;
-  timelinePosition: number;
   resolved: boolean;
   replies: { id: string; userName: string; content: string; timestamp: string }[];
 }
@@ -54,220 +65,240 @@ interface CollaboratePageProps {
   currentUserId: string;
 }
 
+function apiRoleToPermission(role: ApiRole): Collaborator['permission'] {
+  if (role === 'viewer') return 'view';
+  if (role === 'commenter') return 'comment';
+  return 'edit';
+}
+
+function permissionToApiRole(permission: 'view' | 'comment' | 'edit'): ApiRole {
+  if (permission === 'view') return 'viewer';
+  if (permission === 'comment') return 'commenter';
+  return 'editor';
+}
+
 const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUserId }) => {
-  const [sharedProjects, setSharedProjects] = useState<SharedProject[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
-  const [changeHistory, setChangeHistory] = useState<ChangeEntry[]>([]);
   const [comments, setComments] = useState<CommentThread[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteIdentifier, setInviteIdentifier] = useState('');
   const [invitePermission, setInvitePermission] = useState<'view' | 'comment' | 'edit'>('edit');
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [shareLink, setShareLink] = useState('');
-  const [linkPermission, setLinkPermission] = useState<'view' | 'comment' | 'edit'>('view');
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [activeTab, setActiveTab] = useState<'team' | 'history' | 'comments'>('team');
   const [newComment, setNewComment] = useState('');
-  const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyContent, setReplyContent] = useState('');
+  const [commentError, setCommentError] = useState<string | null>(null);
+  const [postingComment, setPostingComment] = useState(false);
+
+  const membersUrl = `/api/collaboration/${encodeURIComponent(projectId)}/members`;
+  const commentsUrl = `/api/collaboration/${encodeURIComponent(projectId)}/comments`;
+  const inviteUrl = `/api/collaboration/${encodeURIComponent(projectId)}/invite`;
+
+  const mapCollaborators = useCallback((rows: ApiCollaborator[]): Collaborator[] => {
+    return rows.map((c) => ({
+      userId: c.userId,
+      name: c.username || c.userId,
+      permission: apiRoleToPermission(c.role),
+      isOnline: c.isOnline,
+      lastActive: c.joinedAt,
+      isOwner: c.role === 'owner',
+    }));
+  }, []);
+
+  const mapComments = useCallback((rows: ApiComment[]): CommentThread[] => {
+    const mapOne = (c: ApiComment): CommentThread => ({
+      id: c.id,
+      userId: c.userId,
+      userName: c.username || c.userId,
+      content: c.content,
+      timestamp: new Date(c.timestamp).toISOString(),
+      resolved: c.resolved,
+      replies: (c.replies || []).map((r) => ({
+        id: r.id,
+        userName: r.username || r.userId,
+        content: r.content,
+        timestamp: new Date(r.timestamp).toISOString(),
+      })),
+    });
+    return rows.map(mapOne);
+  }, []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [membersRes, commentsRes] = await Promise.all([
+        fetch(membersUrl),
+        fetch(commentsUrl),
+      ]);
+      const membersPayload = (await membersRes.json().catch(() => null)) as ApiResponse<
+        ApiCollaborator[]
+      > | null;
+      const commentsPayload = (await commentsRes.json().catch(() => null)) as ApiResponse<
+        ApiComment[]
+      > | null;
+      if (!membersRes.ok || !membersPayload?.success) {
+        throw new Error(
+          membersPayload?.error?.message ||
+            `Failed to load collaborators (HTTP ${membersRes.status})`,
+        );
+      }
+      if (!commentsRes.ok || !commentsPayload?.success) {
+        throw new Error(
+          commentsPayload?.error?.message || `Failed to load comments (HTTP ${commentsRes.status})`,
+        );
+      }
+      setCollaborators(mapCollaborators(membersPayload.data ?? []));
+      setComments(mapComments(commentsPayload.data ?? []));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load collaboration data');
+    } finally {
+      setLoading(false);
+    }
+  }, [membersUrl, commentsUrl, mapCollaborators, mapComments]);
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        setCollaborators([
-          {
-            id: 'user-1',
-            name: 'You',
-            email: 'you@example.com',
-            avatar: '/avatars/you.jpg',
-            permission: 'edit',
-            isOnline: true,
-            lastActive: new Date().toISOString(),
-            cursor: { x: 450, y: 300, color: '#6366f1' },
-          },
-          {
-            id: 'user-2',
-            name: 'Alice Chen',
-            email: 'alice@example.com',
-            avatar: '/avatars/alice.jpg',
-            permission: 'edit',
-            isOnline: true,
-            lastActive: new Date().toISOString(),
-            cursor: { x: 200, y: 150, color: '#10b981' },
-          },
-          {
-            id: 'user-3',
-            name: 'Bob Smith',
-            email: 'bob@example.com',
-            avatar: '/avatars/bob.jpg',
-            permission: 'comment',
-            isOnline: false,
-            lastActive: new Date(Date.now() - 3600000).toISOString(),
-          },
-          {
-            id: 'user-4',
-            name: 'Carol Davis',
-            email: 'carol@example.com',
-            avatar: '/avatars/carol.jpg',
-            permission: 'view',
-            isOnline: true,
-            lastActive: new Date().toISOString(),
-          },
-        ]);
-        setSharedProjects(
-          Array.from({ length: 5 }, (_, i) => ({
-            id: `shared-${i}`,
-            title: `Shared Project ${i + 1}`,
-            thumbnail: `/thumbnails/shared-${i}.jpg`,
-            owner: i === 0 ? 'You' : ['Alice', 'Bob', 'Carol'][i % 3],
-            collaborators: [],
-            lastEdited: new Date(Date.now() - i * 86400000).toISOString(),
-            status: i > 3 ? 'archived' : ('active' as const),
-          })),
-        );
-        setChangeHistory(
-          Array.from({ length: 15 }, (_, i) => ({
-            id: `change-${i}`,
-            userId: `user-${(i % 3) + 1}`,
-            userName: ['You', 'Alice', 'Bob'][i % 3],
-            action: ['edit', 'add', 'delete', 'move', 'resize'][i % 5],
-            description: [
-              `Modified clip on Video Track`,
-              `Added text overlay`,
-              `Removed audio clip`,
-              `Moved element to position`,
-              `Resized image element`,
-            ][i % 5],
-            timestamp: new Date(Date.now() - i * 600000).toISOString(),
-            canRevert: i < 5,
-          })),
-        );
-        setComments([
-          {
-            id: 'cmt-1',
-            userId: 'user-2',
-            userName: 'Alice Chen',
-            avatar: '/avatars/alice.jpg',
-            content: 'Can we make the intro shorter?',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            timelinePosition: 5,
-            resolved: false,
-            replies: [
-              {
-                id: 'reply-1',
-                userName: 'You',
-                content: 'Sure, trimming to 3 seconds',
-                timestamp: new Date(Date.now() - 3600000).toISOString(),
-              },
-            ],
-          },
-          {
-            id: 'cmt-2',
-            userId: 'user-3',
-            userName: 'Bob Smith',
-            avatar: '/avatars/bob.jpg',
-            content: 'Love the color grading here!',
-            timestamp: new Date(Date.now() - 86400000).toISOString(),
-            timelinePosition: 25,
-            resolved: true,
-            replies: [],
-          },
-        ]);
-        setShareLink(`https://quantedits.app/share/${projectId}?token=abc123`);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load collaboration data');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadData();
-  }, [projectId]);
+    void loadData();
+  }, [loadData]);
 
-  const handleInvite = useCallback(() => {
-    if (!inviteEmail.trim()) return;
-    const newCollab: Collaborator = {
-      id: `user-${Date.now()}`,
-      name: inviteEmail.split('@')[0],
-      email: inviteEmail,
-      avatar: '',
-      permission: invitePermission,
-      isOnline: false,
-      lastActive: '',
-    };
-    setCollaborators((prev) => [...prev, newCollab]);
-    setInviteEmail('');
-    setShowInviteModal(false);
-  }, [inviteEmail, invitePermission]);
+  const refreshComments = useCallback(async () => {
+    try {
+      const res = await fetch(commentsUrl);
+      const payload = (await res.json().catch(() => null)) as ApiResponse<ApiComment[]> | null;
+      if (res.ok && payload?.success) {
+        setComments(mapComments(payload.data ?? []));
+      }
+    } catch {
+      /* keep existing comments on refresh failure */
+    }
+  }, [commentsUrl, mapComments]);
+
+  const refreshMembers = useCallback(async () => {
+    try {
+      const res = await fetch(membersUrl);
+      const payload = (await res.json().catch(() => null)) as ApiResponse<ApiCollaborator[]> | null;
+      if (res.ok && payload?.success) {
+        setCollaborators(mapCollaborators(payload.data ?? []));
+      }
+    } catch {
+      /* keep existing members on refresh failure */
+    }
+  }, [membersUrl, mapCollaborators]);
+
+  const handleInvite = useCallback(async () => {
+    const identifier = inviteIdentifier.trim();
+    if (!identifier || inviting) return;
+    setInviting(true);
+    setInviteError(null);
+    try {
+      const res = await fetch(inviteUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: identifier, role: permissionToApiRole(invitePermission) }),
+      });
+      const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error?.message || `Invite failed (HTTP ${res.status})`);
+      }
+      setInviteIdentifier('');
+      setShowInviteModal(false);
+      await refreshMembers();
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : 'Invite failed');
+    } finally {
+      setInviting(false);
+    }
+  }, [inviteIdentifier, invitePermission, inviting, inviteUrl, refreshMembers]);
 
   const handleChangePermission = useCallback(
-    (userId: string, permission: Collaborator['permission']) => {
-      setCollaborators((prev) => prev.map((c) => (c.id === userId ? { ...c, permission } : c)));
+    async (userId: string, permission: Collaborator['permission']) => {
+      // The backend invite endpoint upserts, so re-inviting with a new role
+      // is the real way to change a collaborator's role.
+      try {
+        const res = await fetch(inviteUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, role: permissionToApiRole(permission) }),
+        });
+        const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error?.message || `Role update failed (HTTP ${res.status})`);
+        }
+        await refreshMembers();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Role update failed');
+      }
     },
-    [],
+    [inviteUrl, refreshMembers],
   );
 
-  const handleRemoveCollaborator = useCallback((userId: string) => {
-    setCollaborators((prev) => prev.filter((c) => c.id !== userId));
-  }, []);
-
-  const handleRevertChange = useCallback((changeId: string) => {
-    setChangeHistory((prev) => prev.filter((c) => c.id !== changeId));
-  }, []);
-
-  const handleAddComment = useCallback(() => {
-    if (!newComment.trim()) return;
-    const comment: CommentThread = {
-      id: `cmt-${Date.now()}`,
-      userId: currentUserId,
-      userName: 'You',
-      avatar: '/avatars/you.jpg',
-      content: newComment,
-      timestamp: new Date().toISOString(),
-      timelinePosition: 0,
-      resolved: false,
-      replies: [],
-    };
-    setComments((prev) => [comment, ...prev]);
-    setNewComment('');
-  }, [newComment, currentUserId]);
-
-  const handleReply = useCallback(
-    (commentId: string) => {
-      if (!replyContent.trim()) return;
-      setComments((prev) =>
-        prev.map((c) =>
-          c.id === commentId
-            ? {
-                ...c,
-                replies: [
-                  ...c.replies,
-                  {
-                    id: `reply-${Date.now()}`,
-                    userName: 'You',
-                    content: replyContent,
-                    timestamp: new Date().toISOString(),
-                  },
-                ],
-              }
-            : c,
-        ),
-      );
-      setReplyContent('');
-      setReplyingTo(null);
+  const handleRemoveCollaborator = useCallback(
+    async (userId: string) => {
+      try {
+        const res = await fetch(
+          `/api/collaboration/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+          { method: 'DELETE' },
+        );
+        const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error?.message || `Remove failed (HTTP ${res.status})`);
+        }
+        await refreshMembers();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Remove failed');
+      }
     },
-    [replyContent],
+    [projectId, refreshMembers],
   );
 
-  const handleResolveComment = useCallback((commentId: string) => {
-    setComments((prev) =>
-      prev.map((c) => (c.id === commentId ? { ...c, resolved: !c.resolved } : c)),
-    );
-  }, []);
+  const handleAddComment = useCallback(async () => {
+    const content = newComment.trim();
+    if (!content || postingComment) return;
+    setPostingComment(true);
+    setCommentError(null);
+    try {
+      const res = await fetch(commentsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+      if (!res.ok || !payload?.success) {
+        throw new Error(payload?.error?.message || `Posting comment failed (HTTP ${res.status})`);
+      }
+      setNewComment('');
+      await refreshComments();
+    } catch (err) {
+      setCommentError(err instanceof Error ? err.message : 'Posting comment failed');
+    } finally {
+      setPostingComment(false);
+    }
+  }, [newComment, postingComment, commentsUrl, refreshComments]);
 
-  const handleCopyLink = useCallback(() => {
-    navigator.clipboard?.writeText(shareLink);
-  }, [shareLink]);
+  const handleResolveComment = useCallback(
+    async (commentId: string, currentlyResolved: boolean) => {
+      try {
+        const res = await fetch(
+          `/api/collaboration/${encodeURIComponent(projectId)}/comments/${encodeURIComponent(commentId)}/resolve`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resolved: !currentlyResolved }),
+          },
+        );
+        const payload = (await res.json().catch(() => null)) as ApiResponse<unknown> | null;
+        if (!res.ok || !payload?.success) {
+          throw new Error(payload?.error?.message || `Resolve failed (HTTP ${res.status})`);
+        }
+        await refreshComments();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Resolve failed');
+      }
+    },
+    [projectId, refreshComments],
+  );
 
   const onlineCount = useMemo(
     () => collaborators.filter((c) => c.isOnline).length,
@@ -288,7 +319,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
       <div className="collab-error">
         <h3>Error</h3>
         <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Retry</button>
+        <button onClick={() => void loadData()}>Retry</button>
       </div>
     );
   }
@@ -307,23 +338,6 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
           </button>
         </header>
 
-        <div className="collab-cursors-preview">
-          {collaborators
-            .filter((c) => c.isOnline && c.cursor && c.id !== currentUserId)
-            .map((c) => (
-              <div
-                key={c.id}
-                className="cursor-indicator"
-                style={{ left: c.cursor!.x, top: c.cursor!.y }}
-              >
-                <div className="cursor-arrow" style={{ borderColor: c.cursor!.color }} />
-                <span className="cursor-name" style={{ backgroundColor: c.cursor!.color }}>
-                  {c.name}
-                </span>
-              </div>
-            ))}
-        </div>
-
         <div className="collab-tabs">
           <button
             className={`tab ${activeTab === 'team' ? 'active' : ''}`}
@@ -335,7 +349,7 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
             className={`tab ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
-            History ({changeHistory.length})
+            History
           </button>
           <button
             className={`tab ${activeTab === 'comments' ? 'active' : ''}`}
@@ -350,76 +364,68 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
             <div className="team-panel">
               <div className="share-link-section">
                 <h4>Share Link</h4>
-                <div className="share-link-row">
-                  <input type="text" readOnly value={shareLink} className="share-link-input" />
-                  <button onClick={handleCopyLink}>Copy</button>
+                <p className="unavailable-note">
+                  Share links aren&apos;t available yet — invite collaborators directly instead.
+                </p>
+              </div>
+              {collaborators.length === 0 ? (
+                <div className="team-empty">
+                  <p>No collaborators yet. Invite someone to get started.</p>
                 </div>
-                <select
-                  value={linkPermission}
-                  onChange={(e) => setLinkPermission(e.target.value as typeof linkPermission)}
-                >
-                  <option value="view">Anyone with link can view</option>
-                  <option value="comment">Anyone with link can comment</option>
-                  <option value="edit">Anyone with link can edit</option>
-                </select>
-              </div>
-              <div className="team-list">
-                {collaborators.map((collab) => (
-                  <div key={collab.id} className="team-member">
-                    <div className="member-avatar">
-                      <img src={collab.avatar || '/default-avatar.jpg'} alt={collab.name} />
-                      <span className={`status-dot ${collab.isOnline ? 'online' : 'offline'}`} />
-                    </div>
-                    <div className="member-info">
-                      <span className="member-name">{collab.name}</span>
-                      <span className="member-email">{collab.email}</span>
-                    </div>
-                    <select
-                      value={collab.permission}
-                      onChange={(e) =>
-                        handleChangePermission(
-                          collab.id,
-                          e.target.value as Collaborator['permission'],
-                        )
-                      }
-                      disabled={collab.id === currentUserId}
-                    >
-                      <option value="view">Viewer</option>
-                      <option value="comment">Commenter</option>
-                      <option value="edit">Editor</option>
-                    </select>
-                    {collab.id !== currentUserId && (
-                      <button
-                        className="remove-btn"
-                        onClick={() => handleRemoveCollaborator(collab.id)}
+              ) : (
+                <div className="team-list">
+                  {collaborators.map((collab) => (
+                    <div key={collab.userId} className="team-member">
+                      <div className="member-avatar">
+                        <span className="avatar-initials">
+                          {collab.name.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className={`status-dot ${collab.isOnline ? 'online' : 'offline'}`} />
+                      </div>
+                      <div className="member-info">
+                        <span className="member-name">
+                          {collab.name}
+                          {collab.isOwner && <span className="owner-badge">Owner</span>}
+                        </span>
+                        <span className="member-email">{collab.userId}</span>
+                      </div>
+                      <select
+                        value={collab.permission}
+                        onChange={(e) =>
+                          void handleChangePermission(
+                            collab.userId,
+                            e.target.value as Collaborator['permission'],
+                          )
+                        }
+                        disabled={collab.userId === currentUserId || collab.isOwner}
+                        title={
+                          collab.isOwner ? 'Owner role cannot be changed' : 'Change permission'
+                        }
                       >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+                        <option value="view">Viewer</option>
+                        <option value="comment">Commenter</option>
+                        <option value="edit">Editor</option>
+                      </select>
+                      {collab.userId !== currentUserId && !collab.isOwner && (
+                        <button
+                          className="remove-btn"
+                          onClick={() => void handleRemoveCollaborator(collab.userId)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'history' && (
             <div className="history-panel">
-              {changeHistory.map((change) => (
-                <div key={change.id} className="history-entry">
-                  <div className="entry-info">
-                    <span className="entry-user">{change.userName}</span>
-                    <span className="entry-action">{change.description}</span>
-                    <span className="entry-time">
-                      {new Date(change.timestamp).toLocaleTimeString()}
-                    </span>
-                  </div>
-                  {change.canRevert && (
-                    <button className="revert-btn" onClick={() => handleRevertChange(change.id)}>
-                      Revert
-                    </button>
-                  )}
-                </div>
-              ))}
+              <div className="history-empty">
+                <p>Change history isn&apos;t available yet.</p>
+              </div>
             </div>
           )}
 
@@ -431,59 +437,64 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder="Add a comment..."
                 />
-                <button onClick={handleAddComment} disabled={!newComment.trim()}>
-                  Post
+                <button onClick={() => void handleAddComment()} disabled={!newComment.trim() || postingComment}>
+                  {postingComment ? 'Posting…' : 'Post'}
                 </button>
               </div>
-              <div className="comments-list">
-                {comments.map((comment) => (
-                  <div
-                    key={comment.id}
-                    className={`comment-thread ${comment.resolved ? 'resolved' : ''}`}
-                  >
-                    <div className="comment-main">
-                      <img src={comment.avatar} alt={comment.userName} className="comment-avatar" />
-                      <div className="comment-body">
-                        <div className="comment-header">
-                          <span className="comment-author">{comment.userName}</span>
-                          <span className="comment-time">
-                            {new Date(comment.timestamp).toLocaleString()}
+              {commentError && <p className="comment-error">{commentError}</p>}
+              {comments.length === 0 ? (
+                <div className="comments-empty">
+                  <p>No comments yet. Start the discussion.</p>
+                </div>
+              ) : (
+                <div className="comments-list">
+                  {comments.map((comment) => (
+                    <div
+                      key={comment.id}
+                      className={`comment-thread ${comment.resolved ? 'resolved' : ''}`}
+                    >
+                      <div className="comment-main">
+                        <div className="comment-avatar">
+                          <span className="avatar-initials">
+                            {comment.userName.slice(0, 2).toUpperCase()}
                           </span>
                         </div>
-                        <p className="comment-content">{comment.content}</p>
-                        <div className="comment-actions">
-                          <button onClick={() => setReplyingTo(comment.id)}>Reply</button>
-                          <button onClick={() => handleResolveComment(comment.id)}>
-                            {comment.resolved ? 'Unresolve' : 'Resolve'}
-                          </button>
+                        <div className="comment-body">
+                          <div className="comment-header">
+                            <span className="comment-author">{comment.userName}</span>
+                            <span className="comment-time">
+                              {new Date(comment.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <p className="comment-content">{comment.content}</p>
+                          <div className="comment-actions">
+                            <button
+                              onClick={() => void handleResolveComment(comment.id, comment.resolved)}
+                            >
+                              {comment.resolved ? 'Unresolve' : 'Resolve'}
+                            </button>
+                          </div>
                         </div>
                       </div>
+                      {comment.replies.map((reply) => (
+                        <div key={reply.id} className="comment-reply">
+                          <span className="reply-author">{reply.userName}</span>
+                          <p className="reply-content">{reply.content}</p>
+                          <span className="reply-time">
+                            {new Date(reply.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      ))}
+                      <p
+                        className="unavailable-note"
+                        title="The comments API has no reply endpoint"
+                      >
+                        Replies aren&apos;t supported yet.
+                      </p>
                     </div>
-                    {comment.replies.map((reply) => (
-                      <div key={reply.id} className="comment-reply">
-                        <span className="reply-author">{reply.userName}</span>
-                        <p className="reply-content">{reply.content}</p>
-                        <span className="reply-time">
-                          {new Date(reply.timestamp).toLocaleTimeString()}
-                        </span>
-                      </div>
-                    ))}
-                    {replyingTo === comment.id && (
-                      <div className="reply-input">
-                        <input
-                          type="text"
-                          value={replyContent}
-                          onChange={(e) => setReplyContent(e.target.value)}
-                          placeholder="Write a reply..."
-                          onKeyDown={(e) => e.key === 'Enter' && handleReply(comment.id)}
-                        />
-                        <button onClick={() => handleReply(comment.id)}>Reply</button>
-                        <button onClick={() => setReplyingTo(null)}>Cancel</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -494,10 +505,10 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
               <h2>Invite Collaborators</h2>
               <div className="invite-form">
                 <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Email address"
+                  type="text"
+                  value={inviteIdentifier}
+                  onChange={(e) => setInviteIdentifier(e.target.value)}
+                  placeholder="User ID or email"
                 />
                 <select
                   value={invitePermission}
@@ -507,10 +518,11 @@ const CollaboratePage: React.FC<CollaboratePageProps> = ({ projectId, currentUse
                   <option value="comment">Commenter</option>
                   <option value="edit">Editor</option>
                 </select>
-                <button onClick={handleInvite} disabled={!inviteEmail.trim()}>
-                  Send Invite
+                <button onClick={() => void handleInvite()} disabled={!inviteIdentifier.trim() || inviting}>
+                  {inviting ? 'Sending…' : 'Send Invite'}
                 </button>
               </div>
+              {inviteError && <p className="invite-error">{inviteError}</p>}
               <button className="close-modal" onClick={() => setShowInviteModal(false)}>
                 Cancel
               </button>

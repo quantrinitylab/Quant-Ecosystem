@@ -1,10 +1,16 @@
 // ============================================================================
 // QuantEdits - Export Page
-// Format selector, quality, resolution, platform presets, export queue
+// Format selector, quality, resolution, platform presets, export queue.
+// Exports are queued through the real POST /api/exports endpoint and job
+// status is polled from GET /api/exports/[id]/status — no fake progress,
+// no invented download URLs.
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageTransition } from '../components/PageTransition';
+
+/** Mirrors the backend ExportStatus — the only statuses a real job can have. */
+type ExportJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 interface ExportJob {
   id: string;
@@ -13,8 +19,7 @@ interface ExportJob {
   format: ExportFormat;
   quality: number;
   resolution: Resolution;
-  status: 'queued' | 'rendering' | 'encoding' | 'complete' | 'failed';
-  progress: number;
+  status: ExportJobStatus;
   startedAt: string;
   estimatedSize: number;
   outputUrl: string | null;
@@ -44,6 +49,22 @@ interface ExportPageProps {
   projectId: string;
   projectName: string;
   duration: number;
+}
+
+interface QueueExportApiResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    projectId: string;
+    format: string;
+    resolution: string;
+    quality: string;
+    status: ExportJobStatus;
+    outputUrl: string | null;
+    createdAt: string;
+    completedAt: string | null;
+  };
+  error?: { code: string; message: string };
 }
 
 const RESOLUTIONS: Resolution[] = [
@@ -117,6 +138,23 @@ const FORMAT_INFO: Record<ExportFormat, { label: string; icon: string; videoOnly
   svg: { label: 'SVG (Vector)', icon: '✏️', videoOnly: false },
 };
 
+/** Formats the export service actually accepts. */
+const BACKEND_FORMATS: ExportFormat[] = ['mp4', 'webm', 'mov', 'gif', 'png', 'jpg'];
+
+function mapResolutionToBackend(resolution: Resolution): '720p' | '1080p' | '4k' | 'original' {
+  if (resolution.height >= 2160) return '4k';
+  if (resolution.height >= 1080) return '1080p';
+  if (resolution.height >= 720) return '720p';
+  return 'original';
+}
+
+function mapQualityToBackend(quality: number): 'low' | 'medium' | 'high' | 'lossless' {
+  if (quality >= 95) return 'lossless';
+  if (quality >= 70) return 'high';
+  if (quality >= 40) return 'medium';
+  return 'low';
+}
+
 const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duration }) => {
   const [format, setFormat] = useState<ExportFormat>('mp4');
   const [quality, setQuality] = useState(85);
@@ -135,6 +173,15 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
   const [startTime, setStartTime] = useState(0);
   const [endTime, setEndTime] = useState(duration);
   const [exportRange, setExportRange] = useState<'full' | 'range'>('full');
+  const pollRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  useEffect(() => {
+    const refs = pollRefs.current;
+    return () => {
+      refs.forEach((interval) => clearInterval(interval));
+      refs.clear();
+    };
+  }, []);
 
   const estimatedSize = useMemo(() => {
     const res = useCustomRes ? { width: customWidth, height: customHeight } : resolution;
@@ -169,58 +216,147 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
     }
   }, []);
 
+  const stopPolling = useCallback((jobId: string) => {
+    const interval = pollRefs.current.get(jobId);
+    if (interval) {
+      clearInterval(interval);
+      pollRefs.current.delete(jobId);
+    }
+  }, []);
+
+  const pollJobStatus = useCallback(
+    (jobId: string) => {
+      stopPolling(jobId);
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/status`);
+          const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+          if (!res.ok || !payload?.success || !payload.data) {
+            throw new Error(payload?.error?.message || `Status check failed (HTTP ${res.status})`);
+          }
+          const data = payload.data;
+          setExportQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: data.status,
+                    outputUrl: data.outputUrl,
+                    error: data.status === 'FAILED' ? 'Export failed on the server' : null,
+                  }
+                : j,
+            ),
+          );
+          if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+            stopPolling(jobId);
+          }
+        } catch (err) {
+          stopPolling(jobId);
+          setExportQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: 'FAILED' as const,
+                    error: err instanceof Error ? err.message : 'Status check failed',
+                  }
+                : j,
+            ),
+          );
+        }
+      }, 2000);
+      pollRefs.current.set(jobId, interval);
+    },
+    [stopPolling],
+  );
+
   const handleStartExport = useCallback(() => {
-    const job: ExportJob = {
-      id: `export-${Date.now()}`,
-      projectId,
-      projectName,
-      format,
-      quality,
-      resolution: useCustomRes
-        ? { width: customWidth, height: customHeight, label: `${customWidth}x${customHeight}` }
-        : resolution,
-      status: 'queued',
-      progress: 0,
-      startedAt: new Date().toISOString(),
-      estimatedSize,
-      outputUrl: null,
-      error: null,
-    };
-    setExportQueue((prev) => [...prev, job]);
-
-    setTimeout(() => {
-      setExportQueue((prev) =>
-        prev.map((j) => (j.id === job.id ? { ...j, status: 'rendering' } : j)),
-      );
-    }, 500);
-
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15 + 5;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setExportQueue((prev) =>
-          prev.map((j) =>
-            j.id === job.id
-              ? {
-                  ...j,
-                  status: 'complete',
-                  progress: 100,
-                  outputUrl: `/exports/${job.id}.${format}`,
-                }
-              : j,
-          ),
-        );
-      } else {
-        const status = progress > 70 ? 'encoding' : 'rendering';
-        setExportQueue((prev) =>
-          prev.map((j) =>
-            j.id === job.id ? { ...j, progress: Math.min(99, progress), status } : j,
-          ),
-        );
+    if (loading) return;
+    if (!BACKEND_FORMATS.includes(format)) {
+      setExportQueue((prev) => [
+        ...prev,
+        {
+          id: `export-${Date.now()}`,
+          projectId,
+          projectName,
+          format,
+          quality,
+          resolution: useCustomRes
+            ? { width: customWidth, height: customHeight, label: `${customWidth}x${customHeight}` }
+            : resolution,
+          status: 'FAILED',
+          startedAt: new Date().toISOString(),
+          estimatedSize,
+          outputUrl: null,
+          error: `Format "${format}" is not supported by the export service`,
+        },
+      ]);
+      return;
+    }
+    setLoading(true);
+    const run = async () => {
+      try {
+        const res = await fetch('/api/exports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectId,
+            format,
+            resolution: mapResolutionToBackend(
+              useCustomRes
+                ? { width: customWidth, height: customHeight, label: `${customWidth}x${customHeight}` }
+                : resolution,
+            ),
+            quality: mapQualityToBackend(quality),
+          }),
+        });
+        const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+        if (!res.ok || !payload?.success || !payload.data) {
+          throw new Error(payload?.error?.message || `Export request failed (HTTP ${res.status})`);
+        }
+        const job: ExportJob = {
+          id: payload.data.id,
+          projectId,
+          projectName,
+          format,
+          quality,
+          resolution: useCustomRes
+            ? { width: customWidth, height: customHeight, label: `${customWidth}x${customHeight}` }
+            : resolution,
+          status: payload.data.status,
+          startedAt: payload.data.createdAt,
+          estimatedSize,
+          outputUrl: payload.data.outputUrl,
+          error: null,
+        };
+        setExportQueue((prev) => [...prev, job]);
+        pollJobStatus(job.id);
+      } catch (err) {
+        setExportQueue((prev) => [
+          ...prev,
+          {
+            id: `export-${Date.now()}`,
+            projectId,
+            projectName,
+            format,
+            quality,
+            resolution: useCustomRes
+              ? { width: customWidth, height: customHeight, label: `${customWidth}x${customHeight}` }
+              : resolution,
+            status: 'FAILED',
+            startedAt: new Date().toISOString(),
+            estimatedSize,
+            outputUrl: null,
+            error: err instanceof Error ? err.message : 'Export request failed',
+          },
+        ]);
+      } finally {
+        setLoading(false);
       }
-    }, 800);
+    };
+    void run();
   }, [
+    loading,
     projectId,
     projectName,
     format,
@@ -230,14 +366,45 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
     customWidth,
     customHeight,
     estimatedSize,
+    pollJobStatus,
   ]);
 
-  const handleCancelExport = useCallback((jobId: string) => {
-    setExportQueue((prev) => prev.filter((j) => j.id !== jobId));
-  }, []);
+  const handleCancelExport = useCallback(
+    (jobId: string) => {
+      const run = async () => {
+        stopPolling(jobId);
+        try {
+          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
+            method: 'POST',
+          });
+          const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+          if (!res.ok || !payload?.success || !payload.data) {
+            throw new Error(payload?.error?.message || `Cancel failed (HTTP ${res.status})`);
+          }
+          setExportQueue((prev) =>
+            prev.map((j) => (j.id === jobId ? { ...j, status: payload.data!.status } : j)),
+          );
+        } catch (err) {
+          setExportQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? { ...j, error: err instanceof Error ? err.message : 'Cancel failed' }
+                : j,
+            ),
+          );
+          pollJobStatus(jobId);
+        }
+      };
+      void run();
+    },
+    [stopPolling, pollJobStatus],
+  );
 
-  const handleDownload = useCallback((_job: ExportJob) => {
-    // Download would be triggered here in production
+  const handleDownload = useCallback((job: ExportJob) => {
+    // Only real server-issued output URLs are downloadable; nothing is invented.
+    if (job.outputUrl) {
+      window.open(job.outputUrl, '_blank', 'noopener');
+    }
   }, []);
 
   const formatSize = useCallback((bytes: number): string => {
@@ -294,9 +461,17 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
                       setFormat(fmt);
                       setSelectedPreset(null);
                     }}
+                    title={
+                      BACKEND_FORMATS.includes(fmt)
+                        ? info.label
+                        : `${info.label} — not supported by the export service`
+                    }
                   >
                     <span className="format-icon">{info.icon}</span>
                     <span className="format-label">{info.label}</span>
+                    {!BACKEND_FORMATS.includes(fmt) && (
+                      <span className="format-unsupported">Unsupported</span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -471,7 +646,7 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
             </div>
 
             <button className="export-btn" onClick={handleStartExport} disabled={loading}>
-              Export Now
+              {loading ? 'Queueing…' : 'Export Now'}
             </button>
           </div>
 
@@ -491,32 +666,22 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
                       </span>
                       <span className={`job-status ${job.status}`}>{job.status}</span>
                     </div>
-                    {(job.status === 'rendering' || job.status === 'encoding') && (
-                      <div className="job-progress">
-                        <div className="progress-bar">
-                          <div className="progress-fill" style={{ width: `${job.progress}%` }} />
-                        </div>
-                        <span className="progress-text">{Math.round(job.progress)}%</span>
-                      </div>
-                    )}
                     <div className="queue-item-meta">
                       <span>{job.resolution.label}</span>
                       <span>{formatSize(job.estimatedSize)}</span>
                     </div>
                     <div className="queue-item-actions">
-                      {job.status === 'complete' && (
+                      {job.status === 'COMPLETED' && job.outputUrl && (
                         <button className="download-btn" onClick={() => handleDownload(job)}>
                           Download
                         </button>
                       )}
-                      {(job.status === 'queued' ||
-                        job.status === 'rendering' ||
-                        job.status === 'encoding') && (
+                      {(job.status === 'QUEUED' || job.status === 'PROCESSING') && (
                         <button className="cancel-btn" onClick={() => handleCancelExport(job.id)}>
                           Cancel
                         </button>
                       )}
-                      {job.status === 'failed' && (
+                      {job.status === 'FAILED' && (
                         <span className="error-msg">{job.error || 'Export failed'}</span>
                       )}
                     </div>
