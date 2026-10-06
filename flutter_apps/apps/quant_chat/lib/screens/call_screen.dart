@@ -8,7 +8,6 @@ import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/chat_models.dart';
-import '../services/chat_mock_data.dart';
 
 class CallScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -38,7 +37,7 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   late List<CallParticipant> _participants;
-  late String _spotlightParticipantId;
+  String? _spotlightParticipantId;
 
   // Real-time WebRTC telemetry metrics
   final int _latencyMs = 18;
@@ -50,8 +49,8 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
     super.initState();
     _activeCallType = widget.callType;
     _isVideoEnabled = widget.callType == QuantCallType.video;
-    _participants = List.from(ChatMockData.getInitialCallParticipants());
-    _spotlightParticipantId = _participants.first.id;
+    _participants = <CallParticipant>[];
+    _spotlightParticipantId = null;
 
     _pulseController = AnimationController(
       vsync: this,
@@ -470,6 +469,15 @@ class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateM
 
   /// Spotlight View (Active participant in main canvas)
   Widget _buildSpotlightStage() {
+    // Honest empty state: no fabricated participants until a real call is live.
+    if (_participants.isEmpty) {
+      return const Center(
+        child: Text(
+          'No participants yet.',
+          style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+        ),
+      );
+    }
     final spotlight = _participants.firstWhere(
       (p) => p.id == _spotlightParticipantId,
       orElse: () => _participants.first,

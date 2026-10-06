@@ -4,24 +4,7 @@ import {
   AdDisclosureService,
 } from '@quant/privacy-ads';
 import type { CandidateAd, AdDisclosure, AggregateFeedback } from '@quant/privacy-ads';
-
-const CATEGORY_POOL = [
-  'technology',
-  'finance',
-  'health',
-  'sports',
-  'entertainment',
-  'travel',
-  'food',
-  'fashion',
-  'automotive',
-  'education',
-  'gaming',
-  'music',
-  'news',
-  'science',
-  'business',
-];
+import type { PrismaClient } from '../types';
 
 /**
  * PrivacyAdServingService - Serves ad candidates for on-device ranking.
@@ -29,6 +12,15 @@ const CATEGORY_POOL = [
  * CRITICAL: Response payloads NEVER include user profile data, interests,
  * browsing history, or any personally identifiable information.
  * Only contextual signals derived from the current page are used.
+ *
+ * HONESTY NOTE: candidates used to be synthesized by `generateCandidatePool`,
+ * which fabricated a synthetic ad marketplace (fake headlines "Ad Creative N",
+ * fake `advertiser-N.example.com` URLs, formula bid amounts) and fed it into
+ * the live `/candidates` serving path as if it were real inventory. The pool
+ * now comes from the real campaign/ad inventory (active ad -> active adSet ->
+ * active, non-deleted campaign, exactly like `AdServingService`), and the
+ * endpoint returns an empty list when there is no inventory or no database
+ * configured. No fake marketplace is ever generated.
  */
 export class PrivacyAdServingService {
   private contextualService: ContextualTargetingService;
@@ -36,23 +28,30 @@ export class PrivacyAdServingService {
   private disclosureService: AdDisclosureService;
   private feedbackStore: AggregateFeedback[] = [];
 
-  constructor() {
+  /**
+   * @param prisma Real Prisma client. When omitted (no database configured),
+   * the service fails closed and returns an empty candidate pool — it never
+   * fabricates ads.
+   */
+  constructor(private readonly prisma?: PrismaClient) {
     this.contextualService = new ContextualTargetingService();
     this.privacyEnforcer = new PrivacyEnforcerService();
     this.disclosureService = new AdDisclosureService();
+    this.feedbackStore = [];
   }
 
   /**
-   * Get ~50 candidate ads for on-device ranking.
+   * Get candidate ads for on-device ranking, drawn from real active inventory.
    * Response contains ONLY ad creative data and contextual categories.
    * NO user profile, NO interest model, NO browsing history.
+   * Returns [] when there is no inventory or no database configured.
    */
-  getCandidates(params: {
+  async getCandidates(params: {
     placement: string;
     pageContent?: string;
     targetingMode: 'contextual' | 'behavioral';
-  }): CandidateAd[] {
-    const candidates = this.generateCandidatePool(50);
+  }): Promise<CandidateAd[]> {
+    const candidates = await this.loadCandidatePool(50);
 
     // If page content is provided and mode is contextual, apply contextual matching
     if (params.pageContent && params.targetingMode === 'contextual') {
@@ -86,52 +85,170 @@ export class PrivacyAdServingService {
 
   /**
    * Get ad disclosure ("why this ad") for a specific ad.
-   * Always returns 1-2 signals explaining why the ad was shown.
+   * Uses the real ad + creative rows when a database is configured; falls back
+   * to a generic, clearly-labeled disclosure for unknown ids (never fabricated
+   * advertiser details).
    */
-  getDisclosure(adId: string): AdDisclosure {
-    const ad: CandidateAd = {
+  async getDisclosure(adId: string): Promise<AdDisclosure> {
+    const ad = await this.findCandidateAd(adId);
+    if (ad) {
+      return this.disclosureService.generateDisclosure(ad, 'contextual', ad.contextCategories);
+    }
+
+    const generic: CandidateAd = {
       id: adId,
-      campaignId: `campaign-${adId}`,
-      creativeUrl: `https://cdn.quantads.io/creatives/${adId}.webp`,
+      campaignId: 'unknown',
+      creativeUrl: '',
       headline: 'Sponsored Content',
       description: 'Privacy-first ad placement',
       callToAction: 'Learn More',
-      landingUrl: `https://advertiser.example.com/${adId}`,
-      contextCategories: ['technology', 'business'],
+      landingUrl: '',
+      contextCategories: [],
       brandSafetyCategories: ['safe'],
-      bidAmount: 1.5,
+      bidAmount: 0,
     };
-
-    return this.disclosureService.generateDisclosure(ad, 'contextual', ['technology', 'business']);
+    return this.disclosureService.generateDisclosure(generic, 'contextual', []);
   }
 
   /**
-   * Generate a pool of candidate ads (mock data for the ad marketplace).
+   * Load the candidate pool from real inventory: active ads whose ad set is
+   * ACTIVE and whose campaign is ACTIVE and not deleted. Fail closed to an
+   * empty pool when no database is configured or no inventory exists.
    */
-  private generateCandidatePool(count: number): CandidateAd[] {
-    const candidates: CandidateAd[] = [];
+  private async loadCandidatePool(count: number): Promise<CandidateAd[]> {
+    if (!this.prisma) {
+      return [];
+    }
 
-    for (let i = 0; i < count; i++) {
-      const categoryIndex = i % CATEGORY_POOL.length;
-      const secondaryIndex = (i + 3) % CATEGORY_POOL.length;
-      const primaryCategory = CATEGORY_POOL[categoryIndex] ?? 'general';
-      const secondaryCategory = CATEGORY_POOL[secondaryIndex] ?? 'general';
+    const ads = (await this.prisma.ad.findMany({
+      where: { status: 'ACTIVE' },
+      take: count,
+    })) as Array<{ id: string; adSetId: string; creativeId: string }>;
+    if (ads.length === 0) {
+      return [];
+    }
+
+    const adSetIds = [...new Set(ads.map((a) => a.adSetId))];
+    const adSets = (await this.prisma.adSet.findMany({
+      where: { id: { in: adSetIds } },
+    })) as Array<{ id: string; campaignId: string; status: string }>;
+    const adSetById = new Map(adSets.map((s) => [s.id, s]));
+
+    const campaignIds = [...new Set(adSets.map((s) => s.campaignId))];
+    const campaigns = (await this.prisma.campaign.findMany({
+      where: { id: { in: campaignIds }, status: 'ACTIVE', deletedAt: null },
+    })) as Array<{
+      id: string;
+      budget: Record<string, unknown> | null;
+      targeting: Record<string, unknown> | null;
+    }>;
+    const campaignById = new Map(campaigns.map((c) => [c.id, c]));
+
+    const candidates: CandidateAd[] = [];
+    const seenCampaigns = new Set<string>();
+
+    for (const ad of ads) {
+      const adSet = adSetById.get(ad.adSetId);
+      if (!adSet || adSet.status !== 'ACTIVE') continue;
+      const campaign = campaignById.get(adSet.campaignId);
+      if (!campaign || seenCampaigns.has(campaign.id)) continue;
+      seenCampaigns.add(campaign.id);
+
+      const creative = (await this.prisma.adCreative.findUnique({
+        where: { id: ad.creativeId },
+      })) as {
+        mediaUrl: string | null;
+        headline: string | null;
+        description: string | null;
+        callToAction: string | null;
+        landingUrl: string | null;
+      } | null;
+      if (!creative) continue;
+
+      const budget = (campaign.budget ?? {}) as Record<string, unknown>;
+      const bidCents = Math.round(Number(budget['bidCents'] ?? budget['bid'] ?? 0));
+      if (bidCents <= 0) continue;
+
+      const targeting = (campaign.targeting ?? {}) as Record<string, unknown>;
+      const interests = Array.isArray(targeting['interests'])
+        ? (targeting['interests'] as string[])
+        : [];
 
       candidates.push({
-        id: `ad-${i.toString().padStart(4, '0')}`,
-        campaignId: `campaign-${Math.floor(i / 5)}`,
-        creativeUrl: `https://cdn.quantads.io/creatives/ad-${i}.webp`,
-        headline: `Ad Creative ${i}`,
-        description: `Privacy-first ad for ${primaryCategory}`,
-        callToAction: 'Learn More',
-        landingUrl: `https://advertiser-${Math.floor(i / 5)}.example.com`,
-        contextCategories: [primaryCategory, secondaryCategory],
+        id: ad.id,
+        campaignId: campaign.id,
+        creativeUrl: creative.mediaUrl ?? '',
+        headline: creative.headline ?? '',
+        description: creative.description ?? '',
+        callToAction: creative.callToAction ?? 'Learn More',
+        landingUrl: creative.landingUrl ?? '',
+        contextCategories: interests,
         brandSafetyCategories: ['safe'],
-        bidAmount: 0.5 + (i % 10) * 0.25,
+        bidAmount: bidCents / 100,
       });
     }
 
     return candidates;
+  }
+
+  /** Find a single real candidate ad by id (for disclosures). */
+  private async findCandidateAd(adId: string): Promise<CandidateAd | null> {
+    if (!this.prisma) {
+      return null;
+    }
+
+    const ad = (await this.prisma.ad.findUnique({ where: { id: adId } })) as {
+      id: string;
+      adSetId: string;
+      creativeId: string;
+      status: string;
+    } | null;
+    if (!ad) {
+      return null;
+    }
+
+    const adSet = (await this.prisma.adSet.findUnique({ where: { id: ad.adSetId } })) as {
+      campaignId: string;
+    } | null;
+    if (!adSet) {
+      return null;
+    }
+
+    const creative = (await this.prisma.adCreative.findUnique({
+      where: { id: ad.creativeId },
+    })) as {
+      mediaUrl: string | null;
+      headline: string | null;
+      description: string | null;
+      callToAction: string | null;
+      landingUrl: string | null;
+    } | null;
+    if (!creative) {
+      return null;
+    }
+
+    const campaign = (await this.prisma.campaign.findUnique({
+      where: { id: adSet.campaignId },
+    })) as {
+      id: string;
+      budget: Record<string, unknown> | null;
+    } | null;
+
+    const budget = (campaign?.budget ?? {}) as Record<string, unknown>;
+    const bidCents = Math.round(Number(budget['bidCents'] ?? budget['bid'] ?? 0));
+
+    return {
+      id: ad.id,
+      campaignId: adSet.campaignId,
+      creativeUrl: creative.mediaUrl ?? '',
+      headline: creative.headline ?? '',
+      description: creative.description ?? '',
+      callToAction: creative.callToAction ?? 'Learn More',
+      landingUrl: creative.landingUrl ?? '',
+      contextCategories: [],
+      brandSafetyCategories: ['safe'],
+      bidAmount: bidCents / 100,
+    };
   }
 
   /**

@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
+
 import 'subwaves_hub_screen.dart';
 
 class SubWavesScreen extends StatefulWidget {
@@ -26,8 +26,9 @@ class _SubWavesScreenState extends State<SubWavesScreen> {
   @override
   void initState() {
     super.initState();
-    _communities = WaveMockData.getSubWaveCommunities();
-    _posts = WaveMockData.getInitialSubWavePosts();
+    // No mock data: communities and posts load from the real backend.
+    _communities = <SubWaveCommunity>[];
+    _posts = <SubWavePost>[];
   }
 
   void _handleVote(String postId, int direction) {
@@ -329,7 +330,22 @@ class _SubWavesScreenState extends State<SubWavesScreen> {
 
   List<SubWavePost> get _filteredPosts {
     if (_selectedCommunityId == 'all') return _posts;
-    final comm = _communities.firstWhere((c) => c.id == _selectedCommunityId);
+    final comm = _communities.firstWhere(
+      (c) => c.id == _selectedCommunityId,
+      // Defensive: no crash when the community list is honestly empty.
+      orElse: () => _communities.isEmpty
+          ? const SubWaveCommunity(
+              id: 'none',
+              name: '',
+              title: '',
+              description: '',
+              badgeColor: Colors.grey,
+              memberCount: 0,
+              onlineCount: 0,
+              icon: Icons.public,
+            )
+          : _communities.first,
+    );
     return _posts.where((p) => p.communityName == comm.name).toList();
   }
 

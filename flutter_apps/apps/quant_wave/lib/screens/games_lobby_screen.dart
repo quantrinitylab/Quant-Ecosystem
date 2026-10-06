@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
+
 
 class GamesLobbyScreen extends StatefulWidget {
   const GamesLobbyScreen({super.key});
@@ -28,8 +28,9 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
   @override
   void initState() {
     super.initState();
-    _games = WaveMockData.getLobbyGames();
-    _leaderboard = WaveMockData.getGameLeaderboard();
+    // No mock data: games and leaderboards load from the real backend.
+    _games = <LobbyGame>[];
+    _leaderboard = <GameLeaderboardEntry>[];
     _startTicker();
   }
 
@@ -377,7 +378,8 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                '12,500 QC',
+                // Honest default: no fabricated balance until the wallet seam is wired.
+                '0 QC',
                 style: TextStyle(
                   color: QuantColors.moltenAmber,
                   fontSize: 22,
@@ -386,7 +388,8 @@ class _GamesLobbyScreenState extends State<GamesLobbyScreen> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Rank: Sovereign Adept • Win Rate: 72%',
+                // Honest default: no fabricated rank/win-rate until the backend is wired.
+                'Rank: — • Win Rate: —',
                 style: TextStyle(color: QuantColors.textSecondary.withOpacity(0.8), fontSize: 11),
               ),
             ],

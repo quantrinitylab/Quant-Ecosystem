@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/chat_models.dart';
-import '../services/chat_mock_data.dart';
 import '../widgets/call_sheet.dart';
 import 'call_screen.dart';
 
@@ -23,7 +22,7 @@ class _CallsTabScreenState extends State<CallsTabScreen> {
   @override
   void initState() {
     super.initState();
-    _calls = ChatMockData.getInitialCallHistory();
+    _calls = <CallHistoryItem>[];
   }
 
   void _initiateCall(CallHistoryItem item) {

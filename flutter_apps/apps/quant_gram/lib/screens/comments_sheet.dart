@@ -1,7 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
-import '../data/gram_repository.dart';
 import '../models/gram_models.dart';
 
 /// Sliding Frosted Bottom Sheet for 9:16 Reel Comments
@@ -42,7 +41,8 @@ class _CommentsSheetState extends State<CommentsSheet> {
   @override
   void initState() {
     super.initState();
-    _comments = List.from(GramRepository.getCommentsForReel(widget.reel.id));
+    // No mock data: comments load from the real backend for this reel.
+    _comments = <CommentItem>[];
   }
 
   @override

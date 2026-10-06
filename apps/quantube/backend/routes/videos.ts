@@ -89,6 +89,23 @@ export default async function videosRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: result });
   });
 
+  fastify.get('/mine', async (request, reply) => {
+    const userId = (request as unknown as { auth: { userId: string } }).auth?.userId;
+    if (!userId) {
+      throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
+    }
+
+    const queryResult = paginationSchema.safeParse(request.query);
+    const query = queryResult.success ? queryResult.data : {};
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const service = new VideoService(prisma as never);
+    const result = await service.listByUser(userId, {
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+    return reply.send({ success: true, data: result });
+  });
+
   fastify.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new VideoService(prisma as never);

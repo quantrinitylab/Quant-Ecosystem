@@ -2,17 +2,60 @@
 // Unit Tests: Orange Proximity Radar & Swipe Matching Deck
 // ============================================================================
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   calculateHaversineDistance,
   ProximityRadarService,
+  type RadarPrisma,
 } from '../services/proximity-radar.service';
 
-describe('Orange Proximity Radar & Swipe Matching Suite', () => {
-  beforeEach(() => {
-    ProximityRadarService.clearMockData();
-  });
+// Real-shaped user rows from a stubbed "database" — the service under test
+// reads these like production rows; there is no mock-user injection path
+// anymore (registerMockUser/clearMockData were removed with the leak).
+function stubPrisma(rows: Array<Record<string, unknown>>): RadarPrisma {
+  return {
+    user: {
+      findUnique: async ({ where }: { where: Record<string, unknown> }) =>
+        rows.find((r) => r.id === (where as { id: string }).id) ?? null,
+      findMany: async () => rows,
+    },
+  };
+}
 
+const USER_ROWS = [
+  {
+    id: 'user_close',
+    name: 'Close User',
+    username: 'close_guy',
+    avatar: null,
+    bio: 'Nearby buddy',
+    interests: ['tech'],
+    lat: 28.65, // ~4 km from center
+    lon: 77.22,
+  },
+  {
+    id: 'user_far',
+    name: 'Far User',
+    username: 'far_guy',
+    avatar: null,
+    bio: 'Far away',
+    interests: ['travel'],
+    lat: 32.0, // ~400+ km away
+    lon: 75.0,
+  },
+  {
+    id: 'user_no_location',
+    name: 'No Location User',
+    username: 'no_loc',
+    avatar: null,
+    bio: 'No coords',
+    interests: ['tech'],
+    lat: null,
+    lon: null,
+  },
+];
+
+describe('Orange Proximity Radar & Swipe Matching Suite', () => {
   describe('Haversine Distance Calculation', () => {
     it('calculates accurate distance between New York and London', () => {
       // New York: 40.7128° N, 74.0060° W (-74.0060)
@@ -54,41 +97,7 @@ describe('Orange Proximity Radar & Swipe Matching Suite', () => {
 
   describe('Proximity Radar Find Nearby Users', () => {
     it('filters users within radius boundaries correctly', async () => {
-      // Register mock users relative to center (28.6139, 77.2090)
-      ProximityRadarService.registerMockUser({
-        id: 'user_center',
-        name: 'Center User',
-        username: 'center',
-        avatar: null,
-        bio: 'Me',
-        interests: ['tech', 'dating'],
-        lat: 28.6139,
-        lon: 77.209,
-      });
-
-      ProximityRadarService.registerMockUser({
-        id: 'user_close',
-        name: 'Close User',
-        username: 'close_guy',
-        avatar: null,
-        bio: 'Nearby buddy',
-        interests: ['tech'],
-        lat: 28.65, // ~4 km away
-        lon: 77.22,
-      });
-
-      ProximityRadarService.registerMockUser({
-        id: 'user_far',
-        name: 'Far User',
-        username: 'far_guy',
-        avatar: null,
-        bio: 'Far away',
-        interests: ['travel'],
-        lat: 32.0, // ~400+ km away
-        lon: 75.0,
-      });
-
-      const service = new ProximityRadarService();
+      const service = new ProximityRadarService(stubPrisma(USER_ROWS));
 
       // Search with default 25km radius
       const nearbyDefault = await service.findNearbyUsers(
@@ -109,11 +118,33 @@ describe('Orange Proximity Radar & Swipe Matching Suite', () => {
       expect(nearbyWide.length).toBe(2);
       expect(nearbyWide.map((u) => u.id)).toContain('user_far');
     });
+
+    it('excludes users without real coordinates instead of fabricating a location', async () => {
+      const service = new ProximityRadarService(stubPrisma(USER_ROWS));
+
+      const nearby = await service.findNearbyUsers(
+        'user_center',
+        { lat: 28.6139, lon: 77.209 },
+        { radiusKm: 500 },
+      );
+      expect(nearby.map((u) => u.id)).not.toContain('user_no_location');
+    });
+
+    it('returns an empty list — not fabricated users — when the DB is unconfigured', async () => {
+      const service = new ProximityRadarService();
+
+      const nearby = await service.findNearbyUsers(
+        'user_center',
+        { lat: 28.6139, lon: 77.209 },
+        { radiusKm: 500 },
+      );
+      expect(nearby).toEqual([]);
+    });
   });
 
   describe('Swipe Matching & Mutual Detection', () => {
     it('detects mutual match when both users swipe like', async () => {
-      const service = new ProximityRadarService();
+      const service = new ProximityRadarService(stubPrisma(USER_ROWS));
 
       // User A likes User B
       const swipe1 = await service.recordSwipe('user_a', 'user_b', 'like');
@@ -127,13 +158,27 @@ describe('Orange Proximity Radar & Swipe Matching Suite', () => {
     });
 
     it('does not match on pass or one-way like', async () => {
-      const service = new ProximityRadarService();
+      const service = new ProximityRadarService(stubPrisma(USER_ROWS));
 
       const swipe1 = await service.recordSwipe('user_c', 'user_d', 'like');
       expect(swipe1.matched).toBe(false);
 
       const swipe2 = await service.recordSwipe('user_d', 'user_c', 'pass');
       expect(swipe2.matched).toBe(false);
+    });
+
+    it('reflects mutual matches in nearby results', async () => {
+      const service = new ProximityRadarService(stubPrisma(USER_ROWS));
+
+      await service.recordSwipe('user_center', 'user_close', 'like');
+      await service.recordSwipe('user_close', 'user_center', 'like');
+
+      const nearby = await service.findNearbyUsers(
+        'user_center',
+        { lat: 28.6139, lon: 77.209 },
+        { radiusKm: 25 },
+      );
+      expect(nearby[0].mutualMatch).toBe(true);
     });
   });
 });

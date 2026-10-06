@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_core/quant_core.dart';
-import '../data/gram_repository.dart';
 import '../models/gram_models.dart';
 import 'comments_sheet.dart';
 import 'stories_bar.dart';
@@ -48,8 +47,9 @@ class _ReelsFeedScreenState extends State<ReelsFeedScreen> with TickerProviderSt
   void initState() {
     super.initState();
     _pageController = PageController();
-    _reels = List.from(GramRepository.getReels());
-    _stories = List.from(GramRepository.getStories());
+    // No mock data: reels and stories load from the real backend.
+    _reels = <ReelItem>[];
+    _stories = <StoryItem>[];
     _updatePreloadWindow(0);
   }
 

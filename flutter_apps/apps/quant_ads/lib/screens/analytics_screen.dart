@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/ads_models.dart';
-import '../services/ads_mock_data.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -46,11 +45,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    _ageDemographics = AdsMockData.getDemographicsAge();
-    _genderDemographics = AdsMockData.getDemographicsGender();
-    _geoMetrics = AdsMockData.getGeoMetrics();
-    _funnelStages = AdsMockData.getConversionFunnel();
-    _geoYieldBreakdowns = AdsMockData.getGeoYieldBreakdowns();
+    // No mock data: analytics load from the real backend. Until the data seam
+    // is wired, every chart is honestly empty.
+    _ageDemographics = <DemographicsGroup>[];
+    _genderDemographics = <DemographicsGroup>[];
+    _geoMetrics = <GeoMetric>[];
+    _funnelStages = <FunnelStage>[];
+    _geoYieldBreakdowns = <GeoYieldBreakdown>[];
   }
 
   @override

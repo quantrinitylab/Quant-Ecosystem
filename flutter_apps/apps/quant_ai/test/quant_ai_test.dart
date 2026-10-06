@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_ai/main.dart';
 import 'package:quant_ai/models/ai_models.dart';
-import 'package:quant_ai/services/ai_mock_data.dart';
 import 'package:quant_ai/services/quant_ai_service.dart';
 import 'package:quant_ai/screens/ai_chat_screen.dart';
 import 'package:quant_ai/screens/dual_canvas_screen.dart';
@@ -241,7 +240,7 @@ void main() {
       expect(find.text('History'), findsOneWidget);
     });
 
-    testWidgets('AiChatScreen renders prompt suggestions, thought accordion, and code block', (tester) async {
+    testWidgets('AiChatScreen renders prompt suggestions and starts with an empty chat', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -251,15 +250,12 @@ void main() {
         ),
       );
 
-      // Verify prompt suggestions ribbon
-      expect(find.text('Architect Swarm DAG'), findsOneWidget);
-      expect(find.text('Audit Rust Microservice'), findsOneWidget);
+      // Verify prompt suggestions ribbon (static UI affordances)
+      expect(find.text('Summarize this thread'), findsOneWidget);
+      expect(find.text('Draft a reply'), findsOneWidget);
 
-      // Verify thought process accordion is visible
-      expect(find.byIcon(Icons.psychology_outlined), findsOneWidget);
-
-      // Verify code block copy button
-      expect(find.text('Copy'), findsWidgets);
+      // No fabricated conversation history: no invented messages render
+      expect(find.textContaining('Executing sovereign synthesis'), findsNothing);
 
       // Verify message composer and toggles
       expect(find.text('Web Search'), findsOneWidget);
@@ -267,39 +263,21 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
 
-    testWidgets('DualCanvasScreen renders Split-Screen Dual Canvas: left AI chat and right code editor', (tester) async {
+    testWidgets('DualCanvasScreen shows honest empty state without fabricated documents', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
           home: const DualCanvasScreen(),
         ),
       );
-
-      // Document Switcher Tabs
-      expect(find.text('Sovereign Swarm Architecture Plan'), findsOneWidget);
-      expect(find.text('Impeller Fast Blur Shader'), findsOneWidget);
-
-      // Left Pane: AI Conversation
-      expect(find.text('AI CONVERSATION'), findsOneWidget);
-      expect(find.text('<18ms TTFT'), findsOneWidget);
-      expect(find.text('Add unit test'), findsOneWidget);
-      expect(find.text('Optimize memory cache'), findsOneWidget);
-
-      // Right Pane: Live Executable Code Editor & Controls
-      expect(find.text('Run Code'), findsOneWidget);
-      expect(find.text('Apply Diff'), findsOneWidget);
-      expect(find.byType(Slider), findsOneWidget);
-
-      // Live Execution Console Tray
-      expect(find.text('LIVE EXECUTION CONSOLE'), findsOneWidget);
-      expect(find.text('EXIT CODE 0'), findsOneWidget);
-
-      // Trigger Run Code execution
-      await tester.tap(find.text('Run Code'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 700));
 
-      expect(find.text('LIVE EXECUTION CONSOLE'), findsOneWidget);
+      expect(find.text('No canvas documents'), findsOneWidget);
+      expect(find.textContaining('once the canvas backend is connected'), findsOneWidget);
+
+      // No fabricated documents, conversation, or compiler output
+      expect(find.text('Sovereign Swarm Architecture Plan'), findsNothing);
+      expect(find.text('Impeller Fast Blur Shader'), findsNothing);
     });
 
     testWidgets('VoiceOrbScreen renders 3D Voice Orb with <120ms VAD and voice personas', (tester) async {
@@ -338,36 +316,34 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
     });
 
-    testWidgets('AgentSwarmScreen renders Tripartite Node Tree and Live Chat Ledger', (tester) async {
+    testWidgets('AgentSwarmScreen shows honest empty state without fabricated nodes', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
           home: const AgentSwarmScreen(),
         ),
       );
+      await tester.pump();
 
       // Header telemetry
       expect(find.text('AUTONOMOUS SWARM DAG'), findsOneWidget);
       expect(find.text('Dispatch Wave'), findsOneWidget);
 
-      // Interactive Node Tree
-      expect(find.text('INTERACTIVE TRIPARTITE SWARM DAG'), findsOneWidget);
-      expect(find.text('CEO Astra'), findsWidgets);
-      expect(find.text('Node A: IDE Orchestrator'), findsWidgets);
-      expect(find.text('Node B: IDE Peer Agent'), findsWidgets);
-      expect(find.text('Node C: CLI Dev-Worker'), findsWidgets);
+      // No fabricated swarm topology
+      expect(find.text('No agents live'), findsOneWidget);
+      expect(find.text('CEO Astra'), findsNothing);
+      expect(find.text('Node A: IDE Orchestrator'), findsNothing);
 
-      // Inter-Agent Live Chat Ledger
-      expect(find.text('TRIPARTITE LIVE INTER-AGENT DISPATCH LEDGER'), findsOneWidget);
+      // Empty dispatch ledger
+      expect(find.text('No dispatch events yet.'), findsOneWidget);
 
-      // Trigger Dispatch Wave
+      // Dispatch Wave says honestly that no backend is connected
       await tester.tap(find.text('Dispatch Wave'));
       await tester.pump();
-
-      expect(find.text('Wave 80 Dispatched'), findsWidgets);
+      expect(find.text('Swarm dispatch is not connected to a backend yet.'), findsOneWidget);
     });
 
-    testWidgets('HistoryScreen renders search header, filters and thread entries', (tester) async {
+    testWidgets('HistoryScreen renders search header, filters and honest empty state', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -380,9 +356,9 @@ void main() {
       expect(find.text('All'), findsOneWidget);
       expect(find.text('Starred'), findsOneWidget);
 
-      // Categories and threads
-      expect(find.text('TODAY'), findsOneWidget);
-      expect(find.text('Sub-18ms TTFT & Dual Canvas Diff'), findsOneWidget);
+      // No fabricated thread entries
+      expect(find.text('Sub-18ms TTFT & Dual Canvas Diff'), findsNothing);
+      expect(find.text('No matching conversation threads found.'), findsOneWidget);
     });
   });
 

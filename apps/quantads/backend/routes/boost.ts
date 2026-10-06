@@ -56,8 +56,7 @@ export default async function boostRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: { userId: string } }>('/active/:userId', async (request, reply) => {
     try {
-      const boost = boostEngine.getBoost(request.params.userId);
-      const boosts = boost ? [boost] : [];
+      const boosts = boostEngine.getActiveBoosts(request.params.userId);
       return reply.send({ success: true, data: boosts });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to get active boosts';

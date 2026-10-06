@@ -2,16 +2,43 @@
 // QuantNeon - Shopping Page
 // Shop with product grid, categories, wishlists, in-app checkout
 // ============================================================================
+//
+// HONESTY NOTE: this page used to render a hardcoded MOCK_PRODUCTS array
+// (invented products with invented prices) behind a fake 500ms loader, and
+// checkout was never wired to anything. The catalog now comes from the real
+// backend:
+//
+//   GET /api/shopping/products -> live product catalog (empty until products
+//                                are actually listed — never invented)
+//   GET /api/shopping/cart     -> the signed-in user's real cart
+//   POST /api/shopping/cart    -> add a catalog product
+//   DELETE /api/shopping/cart/:productId -> remove a line item
+//   POST /api/shopping/checkout -> 501 until a payment provider is wired;
+//                                the button says so honestly.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageTransition } from '@quant/shared-ui';
+import { useAuth } from '../providers/auth-provider';
+
+interface BackendProduct {
+  id: string;
+  storeId: string;
+  name: string;
+  description: string;
+  price: number;
+  currency: string;
+  images: string[];
+  category: string;
+  inStock: boolean;
+  rating: number;
+  reviewCount: number;
+}
 
 interface Product {
   id: string;
   name: string;
   brand: string;
   price: number;
-  salePrice: number | null;
   imageUrl: string;
   category: string;
   rating: number;
@@ -27,24 +54,24 @@ interface ShoppingCategory {
 }
 
 interface CartItem {
-  product: Product;
+  productId: string;
   quantity: number;
+  product: BackendProduct;
 }
 
 interface ShoppingPageState {
   products: Product[];
   categories: ShoppingCategory[];
   activeCategory: string;
-  wishlist: Product[];
   cart: CartItem[];
   loading: boolean;
   error: string | null;
   searchQuery: string;
   showCart: boolean;
-  sortBy: 'popular' | 'price_low' | 'price_high' | 'newest';
+  notice: string | null;
 }
 
-const MOCK_CATEGORIES: ShoppingCategory[] = [
+const CATEGORIES: ShoppingCategory[] = [
   { id: 'all', name: 'All', icon: '🛍' },
   { id: 'fashion', name: 'Fashion', icon: '👗' },
   { id: 'beauty', name: 'Beauty', icon: '💄' },
@@ -53,175 +80,164 @@ const MOCK_CATEGORIES: ShoppingCategory[] = [
   { id: 'fitness', name: 'Fitness', icon: '💪' },
 ];
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 'p1',
-    name: 'Minimalist Watch',
-    brand: 'NeonTime',
-    price: 149.99,
-    salePrice: 99.99,
-    imageUrl: '/products/watch.jpg',
-    category: 'fashion',
-    rating: 4.8,
-    reviewCount: 2340,
+function mapProduct(p: BackendProduct): Product {
+  return {
+    id: p.id,
+    name: p.name,
+    brand: p.storeId,
+    price: p.price,
+    imageUrl: p.images[0] ?? '',
+    category: p.category,
+    rating: p.rating,
+    reviewCount: p.reviewCount,
     isSaved: false,
-    inStock: true,
-  },
-  {
-    id: 'p2',
-    name: 'Wireless Earbuds Pro',
-    brand: 'SoundNeon',
-    price: 199.99,
-    salePrice: null,
-    imageUrl: '/products/earbuds.jpg',
-    category: 'tech',
-    rating: 4.6,
-    reviewCount: 5670,
-    isSaved: true,
-    inStock: true,
-  },
-  {
-    id: 'p3',
-    name: 'Vitamin C Serum',
-    brand: 'GlowUp',
-    price: 34.99,
-    salePrice: 24.99,
-    imageUrl: '/products/serum.jpg',
-    category: 'beauty',
-    rating: 4.9,
-    reviewCount: 12000,
-    isSaved: false,
-    inStock: true,
-  },
-  {
-    id: 'p4',
-    name: 'Yoga Mat Premium',
-    brand: 'FlexFit',
-    price: 79.99,
-    salePrice: null,
-    imageUrl: '/products/yogamat.jpg',
-    category: 'fitness',
-    rating: 4.7,
-    reviewCount: 890,
-    isSaved: false,
-    inStock: true,
-  },
-  {
-    id: 'p5',
-    name: 'LED Desk Lamp',
-    brand: 'HomeNeon',
-    price: 59.99,
-    salePrice: 44.99,
-    imageUrl: '/products/lamp.jpg',
-    category: 'home',
-    rating: 4.5,
-    reviewCount: 3400,
-    isSaved: true,
-    inStock: false,
-  },
-  {
-    id: 'p6',
-    name: 'Oversized Sunglasses',
-    brand: 'VisionX',
-    price: 89.99,
-    salePrice: null,
-    imageUrl: '/products/sunglasses.jpg',
-    category: 'fashion',
-    rating: 4.4,
-    reviewCount: 1200,
-    isSaved: false,
-    inStock: true,
-  },
-  {
-    id: 'p7',
-    name: 'Smart Water Bottle',
-    brand: 'HydroTrack',
-    price: 44.99,
-    salePrice: 34.99,
-    imageUrl: '/products/bottle.jpg',
-    category: 'fitness',
-    rating: 4.3,
-    reviewCount: 670,
-    isSaved: false,
-    inStock: true,
-  },
-  {
-    id: 'p8',
-    name: 'Face Roller Set',
-    brand: 'GlowUp',
-    price: 29.99,
-    salePrice: null,
-    imageUrl: '/products/roller.jpg',
-    category: 'beauty',
-    rating: 4.6,
-    reviewCount: 4500,
-    isSaved: false,
-    inStock: true,
-  },
-];
+    inStock: p.inStock,
+  };
+}
+
+async function readJson(res: Response): Promise<any> {
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || body?.success === false) {
+    const msg =
+      body?.error?.message ?? body?.error ?? `Request failed (${res.status})`;
+    const err = new Error(typeof msg === 'string' ? msg : 'Request failed');
+    (err as any).status = res.status;
+    throw err;
+  }
+  return body?.data ?? body;
+}
 
 const ShoppingPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
   const [state, setState] = useState<ShoppingPageState>({
     products: [],
-    categories: MOCK_CATEGORIES,
+    categories: CATEGORIES,
     activeCategory: 'all',
-    wishlist: [],
     cart: [],
     loading: true,
     error: null,
     searchQuery: '',
     showCart: false,
-    sortBy: 'popular',
+    notice: null,
   });
+
+  const loadCatalog = useCallback(async () => {
+    const data = await readJson(await fetch('/api/shopping/products'));
+    const products: BackendProduct[] = data?.products ?? [];
+    return products.map(mapProduct);
+  }, []);
+
+  const loadCart = useCallback(async (): Promise<CartItem[]> => {
+    if (!isAuthenticated) return [];
+    const data = await readJson(await fetch('/api/shopping/cart'));
+    return data?.lines ?? [];
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        setState((prev) => ({ ...prev, loading: true }));
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+        const [products, cart] = await Promise.all([loadCatalog(), loadCart()]);
+        setState((prev) => ({ ...prev, products, cart, loading: false }));
+      } catch (e) {
         setState((prev) => ({
           ...prev,
-          products: MOCK_PRODUCTS,
-          wishlist: MOCK_PRODUCTS.filter((p) => p.isSaved),
+          error: e instanceof Error ? e.message : 'Failed to load shop',
           loading: false,
         }));
-      } catch {
-        setState((prev) => ({ ...prev, error: 'Failed to load shop', loading: false }));
       }
     };
     load();
-  }, []);
+  }, [loadCatalog, loadCart]);
 
   const toggleSave = useCallback((productId: string) => {
-    setState((prev) => {
-      const updated = prev.products.map((p) =>
-        p.id === productId ? { ...p, isSaved: !p.isSaved } : p,
-      );
-      return { ...prev, products: updated, wishlist: updated.filter((p) => p.isSaved) };
-    });
-  }, []);
-
-  const addToCart = useCallback((product: Product) => {
-    setState((prev) => {
-      const existing = prev.cart.find((item) => item.product.id === product.id);
-      if (existing) {
-        return {
-          ...prev,
-          cart: prev.cart.map((item) =>
-            item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item,
-          ),
-        };
-      }
-      return { ...prev, cart: [...prev.cart, { product, quantity: 1 }] };
-    });
-  }, []);
-
-  const removeFromCart = useCallback((productId: string) => {
     setState((prev) => ({
       ...prev,
-      cart: prev.cart.filter((item) => item.product.id !== productId),
+      products: prev.products.map((p) =>
+        p.id === productId ? { ...p, isSaved: !p.isSaved } : p,
+      ),
     }));
   }, []);
+
+  const refreshCart = useCallback(async () => {
+    try {
+      const cart = await loadCart();
+      setState((prev) => ({ ...prev, cart }));
+    } catch {
+      /* keep existing cart on transient failure */
+    }
+  }, [loadCart]);
+
+  const addToCart = useCallback(
+    async (product: Product) => {
+      if (!isAuthenticated) {
+        setState((prev) => ({ ...prev, notice: 'Sign in to add items to your cart.' }));
+        return;
+      }
+      try {
+        const data = await readJson(
+          await fetch('/api/shopping/cart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productId: product.id, quantity: 1 }),
+          }),
+        );
+        setState((prev) => ({ ...prev, cart: data?.lines ?? prev.cart, notice: null }));
+      } catch (e) {
+        setState((prev) => ({
+          ...prev,
+          notice: e instanceof Error ? e.message : 'Could not add item to cart.',
+        }));
+      }
+    },
+    [isAuthenticated],
+  );
+
+  const removeFromCart = useCallback(
+    async (productId: string) => {
+      try {
+        const data = await readJson(
+          await fetch(`/api/shopping/cart/${encodeURIComponent(productId)}`, {
+            method: 'DELETE',
+          }),
+        );
+        setState((prev) => ({ ...prev, cart: data?.lines ?? prev.cart, notice: null }));
+      } catch (e) {
+        setState((prev) => ({
+          ...prev,
+          notice: e instanceof Error ? e.message : 'Could not remove item.',
+        }));
+      }
+    },
+    [],
+  );
+
+  const checkout = useCallback(async () => {
+    if (!isAuthenticated) {
+      setState((prev) => ({ ...prev, notice: 'Sign in to check out.' }));
+      return;
+    }
+    try {
+      await readJson(
+        await fetch('/api/shopping/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        }),
+      );
+      setState((prev) => ({ ...prev, notice: 'Order placed.' }));
+      await refreshCart();
+    } catch (e) {
+      // 501 until a payment provider is wired — surface that honestly.
+      setState((prev) => ({
+        ...prev,
+        notice:
+          e instanceof Error
+            ? e.message
+            : 'Checkout is not available yet — no payment provider is wired.',
+      }));
+    }
+  }, [isAuthenticated, refreshCart]);
 
   const setCategory = useCallback((categoryId: string) => {
     setState((prev) => ({ ...prev, activeCategory: categoryId }));
@@ -261,7 +277,7 @@ const ShoppingPage: React.FC = () => {
       : state.products.filter((p) => p.category === state.activeCategory);
 
   const cartTotal = state.cart.reduce(
-    (sum, item) => sum + (item.product.salePrice || item.product.price) * item.quantity,
+    (sum, item) => sum + item.product.price * item.quantity,
     0,
   );
 
@@ -297,6 +313,12 @@ const ShoppingPage: React.FC = () => {
         </header>
 
         <div className="max-w-2xl mx-auto px-4">
+          {state.notice && (
+            <div className="mt-3 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl">
+              <p className="text-sm text-gray-300">{state.notice}</p>
+            </div>
+          )}
+
           {/* Categories */}
           <div className="flex space-x-3 py-3 overflow-x-auto scrollbar-hide">
             {state.categories.map((cat) => (
@@ -323,11 +345,17 @@ const ShoppingPage: React.FC = () => {
                 className="bg-gray-900 dark:bg-gray-800 rounded-xl overflow-hidden group"
               >
                 <div className="relative aspect-square bg-gray-800 dark:bg-gray-700">
-                  <img
-                    src={product.imageUrl}
-                    alt={product.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-gray-600 text-3xl">
+                      🛍
+                    </div>
+                  )}
                   <button
                     onClick={() => toggleSave(product.id)}
                     className="absolute top-2 right-2 min-w-[44px] min-h-[44px] bg-black/50 rounded-full flex items-center justify-center"
@@ -336,11 +364,6 @@ const ShoppingPage: React.FC = () => {
                       {product.isSaved ? '♥' : '♡'}
                     </span>
                   </button>
-                  {product.salePrice && (
-                    <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                      SALE
-                    </span>
-                  )}
                   {!product.inStock && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                       <span className="text-white text-sm font-medium">Sold Out</span>
@@ -351,27 +374,14 @@ const ShoppingPage: React.FC = () => {
                   <p className="text-xs text-gray-400">{product.brand}</p>
                   <p className="text-sm font-medium truncate">{product.name}</p>
                   <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center space-x-2">
-                      {product.salePrice ? (
-                        <>
-                          <span className="text-sm font-bold text-pink-400">
-                            ${product.salePrice}
-                          </span>
-                          <span className="text-xs text-gray-500 line-through">
-                            ${product.price}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="text-sm font-bold">${product.price}</span>
-                      )}
-                    </div>
+                    <span className="text-sm font-bold">${product.price.toFixed(2)}</span>
                     <div className="flex items-center space-x-1">
                       <span className="text-yellow-400 text-xs">★</span>
                       <span className="text-xs text-gray-400">{product.rating}</span>
                     </div>
                   </div>
                   <button
-                    onClick={() => addToCart(product)}
+                    onClick={() => void addToCart(product)}
                     disabled={!product.inStock}
                     className="w-full min-h-[44px] mt-2 py-1.5 bg-pink-600 text-white rounded-lg text-xs font-medium hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -385,7 +395,10 @@ const ShoppingPage: React.FC = () => {
           {filteredProducts.length === 0 && (
             <div className="text-center py-16">
               <div className="text-4xl mb-3">🛍</div>
-              <p className="text-gray-400">No products found</p>
+              <p className="text-gray-400">No products listed yet</p>
+              <p className="text-gray-500 text-sm mt-1">
+                Products will appear here once sellers list them.
+              </p>
             </div>
           )}
         </div>
@@ -408,23 +421,28 @@ const ShoppingPage: React.FC = () => {
                   <p className="text-gray-500 text-center text-sm py-8">Your cart is empty</p>
                 ) : (
                   state.cart.map((item) => (
-                    <div key={item.product.id} className="flex items-center space-x-3">
+                    <div key={item.productId} className="flex items-center space-x-3">
                       <div className="w-14 h-14 rounded-lg bg-gray-800 overflow-hidden">
-                        <img
-                          src={item.product.imageUrl}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
+                        {item.product.images[0] ? (
+                          <img
+                            src={item.product.images[0]}
+                            alt=""
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-600">
+                            🛍
+                          </div>
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm truncate">{item.product.name}</p>
                         <p className="text-xs text-pink-400">
-                          ${(item.product.salePrice || item.product.price).toFixed(2)} x{' '}
-                          {item.quantity}
+                          ${item.product.price.toFixed(2)} x {item.quantity}
                         </p>
                       </div>
                       <button
-                        onClick={() => removeFromCart(item.product.id)}
+                        onClick={() => void removeFromCart(item.productId)}
                         className="text-gray-500 hover:text-red-400 text-xs"
                       >
                         ✕
@@ -439,7 +457,10 @@ const ShoppingPage: React.FC = () => {
                     <span className="text-sm text-gray-400">Total</span>
                     <span className="text-lg font-bold">${cartTotal.toFixed(2)}</span>
                   </div>
-                  <button className="w-full min-h-[44px] py-3 bg-pink-600 text-white rounded-xl font-semibold hover:bg-pink-700">
+                  <button
+                    onClick={() => void checkout()}
+                    className="w-full min-h-[44px] py-3 bg-pink-600 text-white rounded-xl font-semibold hover:bg-pink-700"
+                  >
                     Checkout
                   </button>
                 </div>

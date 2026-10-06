@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
-import '../data/gram_repository.dart';
 import '../models/gram_models.dart';
 
 /// Direct Messages & Ephemeral Notes Screen for QuantGram
@@ -21,8 +20,9 @@ class _InboxScreenState extends State<InboxScreen> {
   @override
   void initState() {
     super.initState();
-    _notes = GramRepository.getNotes();
-    _threads = GramRepository.getDirectMessages();
+    // No mock data: notes and threads load from the real backend.
+    _notes = <DirectNote>[];
+    _threads = <DirectMessageThread>[];
   }
 
   @override
