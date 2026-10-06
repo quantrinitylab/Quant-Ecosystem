@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Card, Button, Badge, Avatar, LoadingState, ErrorState } from '@quant/shared-ui';
@@ -27,10 +28,12 @@ function CampaignCard({
   campaign,
   onPause,
   onDelete,
+  onEdit,
 }: {
   campaign: Campaign;
   onPause: (id: string, status: string) => void;
   onDelete: (id: string) => void;
+  onEdit: (id: string) => void;
 }) {
   const statusVariant =
     campaign.status === 'active' ? 'success' : campaign.status === 'paused' ? 'warning' : 'default';
@@ -77,6 +80,7 @@ function CampaignCard({
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => onEdit(campaign.id)}
                 className="min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)]"
               >
                 Edit
@@ -98,6 +102,7 @@ function CampaignCard({
 }
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [mutationError, setMutationError] = useState<string | null>(null);
 
@@ -156,6 +161,14 @@ export default function CampaignsPage() {
     deleteMutation.mutate(id);
   };
 
+  const handleCreate = () => {
+    router.push('/create-campaign');
+  };
+
+  const handleEdit = (id: string) => {
+    router.push(`/create-campaign?edit=${encodeURIComponent(id)}`);
+  };
+
   return (
     <main className="max-w-4xl mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
@@ -163,6 +176,7 @@ export default function CampaignsPage() {
         <Button
           variant="primary"
           size="sm"
+          onClick={handleCreate}
           className="min-h-[44px] focus-visible:ring-2 focus-visible:ring-[var(--quant-ring)]"
         >
           Create Campaign
@@ -208,6 +222,7 @@ export default function CampaignsPage() {
               campaign={campaign}
               onPause={handlePause}
               onDelete={handleDelete}
+              onEdit={handleEdit}
             />
           ))}
         </motion.div>

@@ -35,60 +35,6 @@ interface EnhancedMessage {
   snapDurationSec?: number;
 }
 
-function DeliveryIndicator({ status }: { status: DeliveryStatus }) {
-  if (status === 'sent') {
-    return (
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    );
-  }
-  if (status === 'delivered') {
-    return (
-      <svg
-        width="16"
-        height="14"
-        viewBox="0 0 28 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="text-[var(--quant-muted-foreground)]"
-      >
-        <polyline points="20 6 9 17 4 12" />
-        <polyline points="24 6 13 17 10 14" />
-      </svg>
-    );
-  }
-  return (
-    <svg
-      width="16"
-      height="14"
-      viewBox="0 0 28 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-blue-500"
-    >
-      <polyline points="20 6 9 17 4 12" />
-      <polyline points="24 6 13 17 10 14" />
-    </svg>
-  );
-}
-
 function detectLink(text: string): { url: string; title: string; description?: string } | null {
   const urlRegex = /https?:\/\/[^\s]+/;
   const match = text.match(urlRegex);
@@ -770,13 +716,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                       description={msg.linkPreview.description}
                       imageUrl={msg.linkPreview.imageUrl}
                     />
-                  </div>
-                )}
-
-                {/* Delivery status */}
-                {msg.sender === 'self' && (
-                  <div className="flex justify-end mt-0.5 pr-1">
-                    <DeliveryIndicator status={msg.status} />
                   </div>
                 )}
 
