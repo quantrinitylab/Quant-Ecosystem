@@ -1,7 +1,12 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { authSession, clearAccessToken, isTwoFactorChallenge } from '../services/auth-session';
+import {
+  authSession,
+  clearAccessToken,
+  completeSSO,
+  isTwoFactorChallenge,
+} from '../services/auth-session';
 import { quantSyncAPI } from '../services/api-client';
 
 export type LoginOutcome =
@@ -15,6 +20,12 @@ interface AuthContextValue {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<LoginOutcome>;
+  /**
+   * Completes a "Continue with Quant SSO" handoff: exchanges the QuantMail
+   * token from the /login URL for a QuantWave session. Resolves when the
+   * session is established; the caller must scrub the token from the URL.
+   */
+  ssoLogin: (quantMailToken: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -110,6 +121,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearSession],
   );
 
+  const ssoLogin = useCallback(
+    async (quantMailToken: string): Promise<void> => {
+      setError(null);
+      setIsLoading(true);
+      try {
+        const session = await completeSSO(quantMailToken);
+        if (!session.success || !session.data?.accessToken) {
+          throw new Error(session.error?.message ?? 'Quant Account sign-in failed.');
+        }
+        setIsAuthenticated(true);
+      } catch (caught) {
+        clearSession();
+        const message = caught instanceof Error ? caught.message : 'Quant Account sign-in failed.';
+        setError(message);
+        throw caught;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [clearSession],
+  );
+
   const logout = useCallback(async () => {
     await authSession.logout();
     setIsAuthenticated(false);
@@ -117,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, error, login, ssoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

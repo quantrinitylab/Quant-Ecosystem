@@ -80,3 +80,55 @@ export const authSession = {
     clearAccessToken();
   },
 };
+
+// ============================================================================
+// SSO callback completion.
+// QuantMail hands the session back by redirecting to /login with the
+// QuantMail-issued JWT in the URL (`?token=…&accessToken=…&__quant_sso_ticket=…`).
+// That token is NOT valid for QuantWave's backend directly — it must be
+// exchanged server-side (POST /api/auth/sso/login → Fastify /auth/sso/login,
+// which validates it as a cross-app token). On success the resulting session
+// credential is stored in memory exactly like a password login; the caller
+// must scrub the token params from the URL (history.replaceState) so the
+// credential never lingers in the address bar or browser history.
+// ============================================================================
+export async function completeSSO(quantMailToken: string): Promise<SessionResult> {
+  const token = quantMailToken?.trim();
+  if (!token) {
+    return {
+      success: false,
+      error: {
+        code: 'SSO_MISSING_TOKEN',
+        message: 'The Quant Account sign-in did not include a token. Please try again.',
+      },
+    };
+  }
+  try {
+    const res = await quantSyncAPI.loginWithSSO(token);
+    const accessToken = res.success ? res.data?.accessToken : undefined;
+    if (!accessToken) {
+      return {
+        success: false,
+        error: {
+          code: res.error?.code ?? 'SSO_EXCHANGE_FAILED',
+          message: 'The Quant Account sign-in could not be completed. Please try again.',
+        },
+      };
+    }
+    setAccessToken(accessToken);
+    return { success: true, data: { accessToken } };
+  } catch (caught) {
+    // The exchange endpoint answers 401 for a rejected/invalid QuantMail
+    // token; anything else is the sign-in service being unreachable.
+    const rejected = caught instanceof Error && caught.name === 'AuthRequiredError';
+    return {
+      success: false,
+      error: {
+        code: rejected ? 'SSO_REJECTED' : 'SSO_EXCHANGE_FAILED',
+        message: rejected
+          ? 'The Quant Account sign-in was rejected. Please try again.'
+          : 'Could not reach the sign-in service.',
+      },
+    };
+  }
+}
