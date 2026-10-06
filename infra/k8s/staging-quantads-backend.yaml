@@ -2,6 +2,13 @@
 # The frontend (quantads.quantrinity.in) calls same-origin /api/*; this ingress
 # strips /api and routes to the backend, whose routes live at root. Mirrors
 # staging-quantube-backend.yaml, scoped to the quantads port (3010).
+#
+# IMPORTANT (P0 login fix): the backend registers NO /auth routes, so the
+# Next.js auth proxy routes (/api/auth/login, /api/auth/userinfo,
+# /api/auth/logout, /api/health) are exempted from this rule and routed to the
+# frontend (quant-quantads:3108) by the second Ingress below. Without the
+# exemption the blanket /api rule swallows those routes and login can never
+# work in production, no matter how fresh the deployed build is.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -82,10 +89,48 @@ spec:
     - host: quantads.quantrinity.in
       http:
         paths:
-          - path: /api(/|$)(.*)
+          # The negative lookahead excludes the frontend-owned auth/health
+          # paths (routed by the Ingress below), so this rule deterministically
+          # never matches them regardless of regex evaluation order. Capture
+          # groups stay aligned with rewrite-target: /$2 ($1 = '/' or '',
+          # $2 = the remainder, e.g. 'campaigns').
+          - path: /api(?!/(auth|health)(/|$))(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
                 name: quant-quantads-backend
                 port:
                   number: 3010
+---
+# Frontend-owned API routes (staging): /api/auth/* and /api/health live in the
+# Next.js app (apps/quantads/src/app/api/auth/*), NOT in the Fastify backend.
+# This Ingress carries no rewrite-target, so the original URI reaches Next.js
+# unchanged. The backend Ingress above explicitly excludes these paths, so
+# each request matches exactly one rule — no reliance on location ordering.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: quant-quantads-frontend-api-staging
+  namespace: quant-staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: quantads.quantrinity.in
+      http:
+        paths:
+          - path: /api/auth(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantads
+                port:
+                  number: 3108
+          - path: /api/health(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: quant-quantads
+                port:
+                  number: 3108
