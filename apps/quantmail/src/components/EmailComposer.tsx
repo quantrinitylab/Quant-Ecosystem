@@ -33,6 +33,7 @@ import {
   IconX,
 } from './icons';
 import { useContacts } from '../hooks/useContacts';
+import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
 
@@ -268,19 +269,6 @@ export function EmailComposer({
     authUser = null;
   }
 
-  // Back Navigation Helper (Back exactly 1 page in history)
-  const handleBack = () => {
-    if (onClose) {
-      onClose();
-    } else if (onDiscard) {
-      onDiscard();
-    } else if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push('/');
-    }
-  };
-
   const { data: contacts } = useContacts();
 
   // Core Fields
@@ -357,6 +345,43 @@ export function EmailComposer({
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Unsaved-changes guard for back/close/discard. The branded confirm dialog
+  // replaces the old silent discard: closing /compose with typed To/Subject/
+  // body used to vaporise the draft with no warning and nothing in Drafts.
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
+  const hasUnsavedContent =
+    toRecipients.length > 0 ||
+    ccRecipients.length > 0 ||
+    bccRecipients.length > 0 ||
+    subject.trim().length > 0 ||
+    body.trim().length > 0 ||
+    opening.trim().length > 0 ||
+    attachments.length > 0;
+
+  // Back Navigation Helper (Back exactly 1 page in history)
+  const handleBack = async () => {
+    if (hasUnsavedContent) {
+      const discard = await confirm({
+        title: 'Discard draft?',
+        message: 'You have unsaved changes. Discard this draft and go back?',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        variant: 'destructive',
+      });
+      if (!discard) return;
+    }
+    if (onClose) {
+      onClose();
+    } else if (onDiscard) {
+      onDiscard();
+    } else if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/');
+    }
+  };
 
   // Formatting state
   const [showFormattingBar, setShowFormattingBar] = useState(false);
@@ -2260,6 +2285,9 @@ export function EmailComposer({
               onApplyAction={handleApplyQuantyAction}
             />
           )}
+
+          {/* Unsaved-changes confirm dialog for back/close/discard */}
+          {confirmDialog}
         </motion.div>
       )}
     </AnimatePresence>
