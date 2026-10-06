@@ -11,7 +11,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
     return res;
   } catch (error) {
-    const video = PUBLIC_FEATURED_VIDEOS.find((v) => v.id === id) || PUBLIC_FEATURED_VIDEOS[0];
+    // P0-1: serve the matching sample record — never fabricate a success by
+    // returning PUBLIC_FEATURED_VIDEOS[0] for an unrelated unknown id.
+    const video = PUBLIC_FEATURED_VIDEOS.find((v) => v.id === id);
+    if (!video) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Video not found', code: 'VIDEO_NOT_FOUND' } },
+        { status: 404 },
+      );
+    }
     return NextResponse.json({
       success: true,
       data: {

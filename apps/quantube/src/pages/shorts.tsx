@@ -6,27 +6,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { SAMPLE_SHORTS, type SampleShort } from '../data/sample-shorts';
 
-interface ShortVideo {
-  id: string;
-  videoUrl: string;
-  thumbnailUrl: string;
-  title: string;
-  channelName: string;
-  channelAvatar: string;
-  channelId: string;
-  isSubscribed: boolean;
-  likeCount: number;
-  commentCount: number;
-  shareCount: number;
-  soundName: string;
-  soundArtist: string;
-  soundId: string;
-  description: string;
-  tags: string[];
-  createdAt: string;
-  duration: number;
-}
+// Local alias kept so the rest of the page reads unchanged.
+type ShortVideo = SampleShort;
 
 interface Comment {
   id: string;
@@ -53,109 +36,6 @@ interface ShortsPageState {
   shareMenuOpen: boolean;
   commentsLoading: boolean;
 }
-
-const MOCK_SHORTS: ShortVideo[] = [
-  {
-    id: 'sh1',
-    videoUrl: '/videos/short1.mp4',
-    thumbnailUrl: '/thumbs/short1.jpg',
-    title: '60-second coding tutorial #react',
-    channelName: 'CodeSnippets',
-    channelAvatar: '/avatars/code.jpg',
-    channelId: 'ch1',
-    isSubscribed: false,
-    likeCount: 45200,
-    commentCount: 892,
-    shareCount: 2340,
-    soundName: 'Lo-fi Coding Beats',
-    soundArtist: 'ChillHop',
-    soundId: 'snd1',
-    description: 'Learn React hooks in 60 seconds! #coding #react #tutorial',
-    tags: ['coding', 'react', 'tutorial'],
-    createdAt: '2024-01-14T10:00:00Z',
-    duration: 58,
-  },
-  {
-    id: 'sh2',
-    videoUrl: '/videos/short2.mp4',
-    thumbnailUrl: '/thumbs/short2.jpg',
-    title: 'Insane basketball trick shot',
-    channelName: 'TrickShots',
-    channelAvatar: '/avatars/tricks.jpg',
-    channelId: 'ch2',
-    isSubscribed: true,
-    likeCount: 128000,
-    commentCount: 3400,
-    shareCount: 15600,
-    soundName: 'Original Sound',
-    soundArtist: 'TrickShots',
-    soundId: 'snd2',
-    description: 'You wont believe this shot! #basketball #trickshot',
-    tags: ['basketball', 'trickshot', 'sports'],
-    createdAt: '2024-01-13T15:30:00Z',
-    duration: 32,
-  },
-  {
-    id: 'sh3',
-    videoUrl: '/videos/short3.mp4',
-    thumbnailUrl: '/thumbs/short3.jpg',
-    title: 'Making the perfect latte art',
-    channelName: 'CoffeeArtist',
-    channelAvatar: '/avatars/coffee.jpg',
-    channelId: 'ch3',
-    isSubscribed: false,
-    likeCount: 67300,
-    commentCount: 1200,
-    shareCount: 8900,
-    soundName: 'Morning Vibes',
-    soundArtist: 'LoFi Records',
-    soundId: 'snd3',
-    description: 'Satisfying latte art pour #coffee #art #satisfying',
-    tags: ['coffee', 'art', 'satisfying'],
-    createdAt: '2024-01-12T08:00:00Z',
-    duration: 45,
-  },
-  {
-    id: 'sh4',
-    videoUrl: '/videos/short4.mp4',
-    thumbnailUrl: '/thumbs/short4.jpg',
-    title: 'Drone footage of Iceland glaciers',
-    channelName: 'NatureViews',
-    channelAvatar: '/avatars/nature.jpg',
-    channelId: 'ch4',
-    isSubscribed: true,
-    likeCount: 234000,
-    commentCount: 5600,
-    shareCount: 42000,
-    soundName: 'Epic Cinematic',
-    soundArtist: 'SoundScapes',
-    soundId: 'snd4',
-    description: 'Iceland from above - breathtaking glaciers #travel #nature #iceland',
-    tags: ['travel', 'nature', 'iceland', 'drone'],
-    createdAt: '2024-01-11T12:00:00Z',
-    duration: 55,
-  },
-  {
-    id: 'sh5',
-    videoUrl: '/videos/short5.mp4',
-    thumbnailUrl: '/thumbs/short5.jpg',
-    title: 'Dog learns to open door',
-    channelName: 'PetLife',
-    channelAvatar: '/avatars/pets.jpg',
-    channelId: 'ch5',
-    isSubscribed: false,
-    likeCount: 890000,
-    commentCount: 12000,
-    shareCount: 67000,
-    soundName: 'Funny Moments',
-    soundArtist: 'Meme Sounds',
-    soundId: 'snd5',
-    description: 'My golden retriever figured out how to open the door! #dogs #funny #pets',
-    tags: ['dogs', 'funny', 'pets'],
-    createdAt: '2024-01-10T20:00:00Z',
-    duration: 28,
-  },
-];
 
 const MOCK_COMMENTS: Comment[] = [
   {
@@ -222,22 +102,42 @@ const ShortsPage: React.FC = () => {
     loading: true,
     error: null,
     animatingLike: null,
-    isMuted: false,
+    // P0-3: start muted so autoplay is not blocked by the browser; the user
+    // unmutes explicitly via the top-bar toggle.
+    isMuted: true,
     isPlaying: true,
     shareMenuOpen: false,
     commentsLoading: false,
   });
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoElRef = useRef<HTMLVideoElement>(null);
+  const [videoError, setVideoError] = useState(false);
   const touchStartY = useRef<number>(0);
   const touchEndY = useRef<number>(0);
+
+  // Keep the real <video> element in sync with play/pause + short changes.
+  useEffect(() => {
+    setVideoError(false);
+    const el = videoElRef.current;
+    if (!el) return;
+    if (state.isPlaying) {
+      el.play().catch(() => {
+        /* autoplay blocked — user taps to play */
+      });
+    } else {
+      el.pause();
+    }
+  }, [state.isPlaying, state.currentIndex]);
 
   useEffect(() => {
     const loadShorts = async () => {
       try {
         setState((prev) => ({ ...prev, loading: true, error: null }));
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setState((prev) => ({ ...prev, shorts: MOCK_SHORTS, loading: false }));
+        // P0-3: real sample shorts with playable video URLs (no more dead
+        // /videos/shortN.mp4 paths). Labeled SAMPLE in the UI — not real uploads.
+        setState((prev) => ({ ...prev, shorts: SAMPLE_SHORTS, loading: false }));
       } catch (err) {
         setState((prev) => ({ ...prev, error: 'Failed to load shorts', loading: false }));
       }
@@ -396,14 +296,39 @@ const ShortsPage: React.FC = () => {
       onKeyDown={handleKeyDown}
       tabIndex={0}
     >
-      {/* Video Background */}
+      {/* Video Background — P0-3: a REAL <video> element. The old build rendered
+          only a thumbnail <img> pointing at a 404, so shorts were a black screen. */}
       <div className="absolute inset-0 flex items-center justify-center" onClick={togglePlay}>
         <div className="relative w-full h-full bg-gradient-to-b from-gray-900 to-black flex items-center justify-center">
-          <img
-            src={currentShort.thumbnailUrl}
-            alt={currentShort.title}
-            className="w-full h-full object-cover opacity-90"
-          />
+          {!videoError ? (
+            <video
+              key={currentShort.id}
+              ref={videoElRef}
+              src={currentShort.videoUrl}
+              poster={currentShort.thumbnailUrl}
+              className="w-full h-full object-cover"
+              autoPlay
+              muted={state.isMuted}
+              loop
+              playsInline
+              preload="auto"
+              aria-label={currentShort.title}
+              onError={() => setVideoError(true)}
+            />
+          ) : (
+            <>
+              <img
+                src={currentShort.thumbnailUrl}
+                alt={currentShort.title}
+                className="w-full h-full object-cover opacity-90"
+              />
+              <div className="absolute inset-x-0 bottom-24 flex justify-center">
+                <span className="text-white/80 text-xs bg-black/60 px-3 py-1 rounded-full">
+                  Video failed to load — showing thumbnail
+                </span>
+              </div>
+            </>
+          )}
           {!state.isPlaying && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-20 h-20 bg-black/50 rounded-full flex items-center justify-center">
@@ -430,26 +355,30 @@ const ShortsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 flex flex-col space-y-2 z-10 pr-2">
+      {/* Navigation Buttons — P0-3: moved to the LEFT edge. They used to sit at
+          right-0 top-1/2, directly on top of the action rail on mobile. */}
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 flex flex-col space-y-2 z-10">
         <button
           onClick={() => navigateToShort('down')}
           disabled={state.currentIndex === 0}
-          className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-30 hover:bg-white/30 transition-colors"
+          aria-label="Previous short"
+          className="w-10 h-10 bg-black/40 backdrop-blur rounded-full flex items-center justify-center text-white disabled:opacity-30 hover:bg-black/60 transition-colors"
         >
           ▲
         </button>
         <button
           onClick={() => navigateToShort('up')}
           disabled={state.currentIndex === state.shorts.length - 1}
-          className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-30 hover:bg-white/30 transition-colors"
+          aria-label="Next short"
+          className="w-10 h-10 bg-black/40 backdrop-blur rounded-full flex items-center justify-center text-white disabled:opacity-30 hover:bg-black/60 transition-colors"
         >
           ▼
         </button>
       </div>
 
-      {/* Right Side Actions */}
-      <div className="absolute right-4 bottom-32 flex flex-col items-center space-y-6 z-10">
+      {/* Right Side Actions — P0-3: pinned right edge above the bottom info
+          panel; no longer colliding with the nav buttons. */}
+      <div className="absolute right-3 bottom-44 flex flex-col items-center space-y-5 z-10">
         {/* Like */}
         <button onClick={() => toggleLike(currentShort.id)} className="flex flex-col items-center">
           <motion.div
@@ -610,10 +539,12 @@ const ShortsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Short FAB */}
+      {/* Create Short FAB — P0-3: parked top-left under the header. It used to sit
+          at bottom-20 left-4, overlapping the channel avatar + caption. */}
       <motion.button
         onClick={startCreating}
-        className="absolute bottom-20 left-4 w-14 h-14 bg-[var(--brand-primary)] rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-[var(--brand-primary-hover)] transition-colors min-h-[44px] min-w-[44px]"
+        aria-label="Create short"
+        className="absolute left-4 top-24 w-14 h-14 bg-[var(--brand-primary)] rounded-full flex items-center justify-center shadow-lg z-10 hover:bg-[var(--brand-primary-hover)] transition-colors min-h-[44px] min-w-[44px]"
         whileHover={{ scale: 1.1, transition: { type: 'spring', ...spring.bouncy } }}
         whileTap={{ scale: 0.95 }}
       >
@@ -657,11 +588,16 @@ const ShortsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Short Counter */}
-      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10">
+      {/* Short Counter + Sample badge (P0-2 honesty: never pass samples off as real) */}
+      <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
         <span className="text-white/60 text-xs font-medium bg-black/40 px-3 py-1 rounded-full">
           {state.currentIndex + 1} / {state.shorts.length}
         </span>
+        {currentShort.isSample && (
+          <span className="text-[10px] font-bold bg-amber-500/90 text-black px-2 py-1 rounded-full">
+            SAMPLE
+          </span>
+        )}
       </div>
     </div>
   );

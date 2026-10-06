@@ -11,7 +11,8 @@
     "dev:backend": "node --loader ts-node/esm backend/app.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "seed:samples": "tsx backend/scripts/seed-sample-catalog.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

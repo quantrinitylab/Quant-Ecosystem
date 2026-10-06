@@ -69,6 +69,18 @@ const HomePage: React.FC = () => {
     return !isAuthenticated || data?.pages?.some((p) => p.isGuestFallback) || Boolean(error);
   }, [isAuthenticated, data, error]);
 
+  // P0-2: the backend catalog is empty, so these cards are built-in SAMPLES.
+  // Never present them as real user content — label them honestly.
+  const showingSamples = useMemo(() => {
+    return (
+      Boolean(data?.pages?.some((p) => p.isGuestFallback)) ||
+      (videos.length > 0 &&
+        videos.every((v: { isSample?: boolean; id?: string }) =>
+          String(v.id || '').startsWith('guest-vid-'),
+        ))
+    );
+  }, [data, videos]);
+
   const handleScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const target = e.target as HTMLDivElement;
@@ -168,6 +180,24 @@ const HomePage: React.FC = () => {
           ))}
         </nav>
 
+        {/* P0-2 honesty notice: samples are labeled, never passed off as real */}
+        {showingSamples && videos.length > 0 && (
+          <div
+            className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3"
+            role="note"
+            aria-label="Sample content notice"
+          >
+            <span className="text-lg" aria-hidden="true">
+              🎬
+            </span>
+            <p className="text-sm text-[var(--quant-foreground)]">
+              <span className="font-semibold">Sample videos.</span> The video catalog is
+              empty, so you&apos;re seeing built-in samples with real playback — not real
+              creator uploads.
+            </p>
+          </div>
+        )}
+
         {/* Video Grid */}
         <AnimatePresence mode="wait">
           {videos.length === 0 ? (
@@ -197,6 +227,7 @@ const HomePage: React.FC = () => {
                   duration?: number;
                   isLive?: boolean;
                   resolution?: string;
+                  isSample?: boolean;
                 }) => {
                   const thumbnailSrc =
                     video.thumbnail ||
@@ -245,6 +276,11 @@ const HomePage: React.FC = () => {
                         >
                           {video.resolution || '1080p Full HD'}
                         </span>
+                        {(showingSamples || video.isSample) && (
+                          <span className="absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/90 text-black">
+                            SAMPLE
+                          </span>
+                        )}
                       </div>
                       <div className="p-3 flex gap-3">
                         <img

@@ -256,11 +256,15 @@ const WatchPage: React.FC = () => {
     title?: string;
     description?: string;
     url?: string;
+    /** Backend /api/videos/:id returns `videoUrl`; older builds used `url`. */
+    videoUrl?: string;
     thumbnailUrl?: string;
+    thumbnail?: string;
     views?: number;
     likes?: number;
     dislikes?: number;
     publishedAt?: string;
+    uploadedAt?: string;
     channelName?: string;
     channelAvatar?: string;
     channelId?: string;
@@ -268,6 +272,10 @@ const WatchPage: React.FC = () => {
     chapters?: Chapter[];
     duration?: number;
   };
+
+  // P0-1 root cause: the page read only `v.url` while the backend returns
+  // `videoUrl`, so <video src> was empty (dead black player). Accept both.
+  const videoSrc = v.videoUrl || v.url || '';
 
   const chapters: Chapter[] = v.chapters && v.chapters.length > 0 ? v.chapters : FALLBACK_CHAPTERS;
   const rawComments = comments as any;
@@ -297,8 +305,8 @@ const WatchPage: React.FC = () => {
           >
             <video
               ref={videoRef}
-              src={v.url}
-              poster={v.thumbnailUrl}
+              src={videoSrc}
+              poster={v.thumbnailUrl || v.thumbnail}
               controls
               className="w-full h-full object-contain"
               aria-label={v.title}
@@ -366,7 +374,7 @@ const WatchPage: React.FC = () => {
             </h1>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 gap-3">
               <div className="text-sm text-[var(--quant-muted-foreground)]">
-                {formatViews(v.views || 0)} &middot; {v.publishedAt || 'Just now'}
+                {formatViews(v.views || 0)} &middot; {v.publishedAt || v.uploadedAt || 'Just now'}
               </div>
               <div className="flex items-center gap-2">
                 {/* Like/Dislike */}
