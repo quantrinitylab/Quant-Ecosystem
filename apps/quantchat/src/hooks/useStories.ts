@@ -71,7 +71,28 @@ export function useStories(): UseStoriesReturn {
       const response = await fetch('/api/stories/feed', {
         headers: { ...getAuthHeaders() },
       });
-      if (!response.ok) throw new Error('Failed to fetch stories');
+      if (!response.ok) {
+        // Surface the backend's own message when it sent one (the feed proxy
+        // forwards { error } payloads for 502/503), and give auth failures a
+        // human-readable hint instead of the generic fetch error.
+        if (response.status === 401) {
+          throw new Error('Your session expired. Please sign in again.');
+        }
+        let detail = '';
+        try {
+          const body = (await response.json()) as {
+            error?: string | { message?: string };
+            message?: string;
+          };
+          detail =
+            typeof body?.error === 'string'
+              ? body.error
+              : body?.error?.message || body?.message || '';
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(detail ? `Couldn't load stories: ${detail}` : 'Failed to fetch stories');
+      }
       const data = await response.json();
       setStoryGroups(data.groups || []);
     } catch (err) {

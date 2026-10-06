@@ -6,10 +6,35 @@
 /**
  * Reads the auth token from localStorage.
  * Returns null if no token is stored or localStorage is unavailable.
+ *
+ * QuantChat stores the session token under several keys depending on the
+ * sign-in path (`token`, `quant_access_token`, `quant_auth_token`,
+ * `quant_token`, `quantchat_access_token` — see lib/auth-session.ts). Read
+ * every known key so a session persisted under any of them still produces an
+ * Authorization header. Previously only `token` was read: an SSO session that
+ * stored the token under a different key sent NO Authorization header, the
+ * backend answered 401, and pages like /stories surfaced a generic
+ * "Failed to fetch stories" while apiClient-based screens kept working.
  */
+const TOKEN_KEYS = [
+  'token',
+  'quant_access_token',
+  'quant_auth_token',
+  'quant_token',
+  'quantchat_access_token',
+];
+
 export function getAuthToken(): string | null {
   if (typeof localStorage === 'undefined') return null;
-  return localStorage.getItem('token');
+  for (const key of TOKEN_KEYS) {
+    try {
+      const value = localStorage.getItem(key);
+      if (value) return value;
+    } catch {
+      /* storage unavailable - try next key */
+    }
+  }
+  return null;
 }
 
 /**
