@@ -1,29 +1,51 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   RuleBasedPlanner,
   LlmPlanner,
   createPlanner,
   materializeSteps,
 } from '../services/quanty-agent/planner';
-import { clearTools, registerBuiltinTools } from '../services/quanty-agent/tool-registry';
+import { clearTools, getTool, listToolNames, registerRealTools } from '../services/quanty-agent/tool-registry';
+import type { QuantyMailToolsDeps } from '../services/quanty-agent/tools/mail-tools';
+
+/** Minimal mock deps — real tools are registered, but no service is ever invoked. */
+function mockDeps(): QuantyMailToolsDeps {
+  return {
+    prisma: {
+      emailFolder: { findFirst: vi.fn(), create: vi.fn() },
+      email: { updateMany: vi.fn(), findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
+    } as any,
+    emailService: {
+      search: vi.fn(),
+      batchArchive: vi.fn(),
+      batchStar: vi.fn(),
+      batchMarkRead: vi.fn(),
+      batchDelete: vi.fn(),
+      sendEmail: vi.fn(),
+      compose: vi.fn(),
+    } as any,
+    threadService: {
+      getThread: vi.fn(),
+      snoozeThread: vi.fn(),
+    } as any,
+    summarizeService: null,
+  };
+}
 
 describe('quanty-agent planner', () => {
   beforeEach(() => {
     clearTools();
-    registerBuiltinTools();
+    registerRealTools(mockDeps());
   });
 
   const cases: Array<[string, string[]]> = [
     ['archive all my unread emails', ['mail.archiveUnread']],
     ['please mark everything as read', ['mail.markAllRead']],
     ['star the important ones', ['mail.starImportant']],
-    ['summarize this thread', ['mail.summarizeThread']],
+    ['summarize my latest email', ['mail.summarizeLatest']],
     ['clean up my inbox', ['mail.archiveUnread', 'mail.markAllRead']],
     ['delete all spam', ['mail.deleteSpam']],
-    ['create an event for tomorrow', ['calendar.createEvent']],
-    ["what's on my schedule today?", ['calendar.listToday']],
     ['list my repos', ['git.listRepos']],
-    ['find the contact for Priya', ['contacts.search']],
   ];
 
   it.each(cases)('plans "%s"', (command, expectedTools) => {
@@ -32,6 +54,10 @@ describe('quanty-agent planner', () => {
     expect(plan.unmatched).toBe(false);
     expect(plan.steps.map((s) => s.toolName)).toEqual(expectedTools);
     expect(plan.summary.length).toBeGreaterThan(0);
+    // Every planned tool must resolve to a REAL registered tool (never a stub).
+    for (const name of expectedTools) {
+      expect(getTool(name), `tool ${name} should be registered`).toBeDefined();
+    }
   });
 
   it('returns an unmatched plan for gibberish', () => {
@@ -46,6 +72,16 @@ describe('quanty-agent planner', () => {
     expect(plan.unmatched).toBe(true);
   });
 
+  it('honestly declines commands for tools that do not exist (calendar/contacts)', () => {
+    // Calendar/contacts tools are not wired yet — the planner must NOT plan
+    // them (that would be planning against a stub).
+    for (const command of ['create an event for tomorrow', "what's on my schedule today?", 'find the contact for Priya']) {
+      const plan = new RuleBasedPlanner().plan(command);
+      expect(plan.unmatched).toBe(true);
+    }
+    expect(listToolNames().some((n) => n.startsWith('calendar.') || n.startsWith('contacts.'))).toBe(false);
+  });
+
   it('LlmPlanner implements the same interface (delegates for now)', () => {
     const plan = new LlmPlanner().plan('archive unread');
     expect(plan.unmatched).toBe(false);
@@ -58,13 +94,15 @@ describe('quanty-agent planner', () => {
     expect(createPlanner()).toBeInstanceOf(RuleBasedPlanner);
   });
 
-  it('materializeSteps assigns ids and pending status', () => {
-    const plan = new RuleBasedPlanner().plan('clean up my inbox');
+  it('materializeSteps assigns ids, pending status and the destructive flag', () => {
+    const plan = new RuleBasedPlanner().plan('delete all spam');
     const steps = materializeSteps(plan);
-    expect(steps).toHaveLength(2);
+    expect(steps).toHaveLength(1);
     expect(steps[0].id).toBeTruthy();
-    expect(steps[0].id).not.toBe(steps[1].id);
-    expect(steps.every((s) => s.status === 'pending')).toBe(true);
+    expect(steps[0].status).toBe('pending');
+    // deleteSpam requires confirmation -> the consent UI reads this flag.
+    expect(steps[0].destructive).toBe(true);
+    expect(getTool('mail.deleteSpam')?.destructive).toBe(true);
   });
 
   it('materializeSteps throws on unknown tools', () => {

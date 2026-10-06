@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import { PageTransition, useFocusTrap } from '@quant/shared-ui';
 import { quantMailDarkSemanticTheme, quantMailDarkSemanticThemeName } from '../brand/theme';
@@ -20,6 +21,17 @@ import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { QuantyTrigger, QuantyDrawerHost } from './QuantyLauncher';
+import type { QuantyLiveAgentHandle } from './QuantyLiveAgent';
+
+/**
+ * The live agentic surface (avatar, mode chooser, 5-tab inspector popup).
+ * Loaded on demand like the drawer — framer-motion + the agent hooks stay out
+ * of the first chunk until Quanty is actually asked for.
+ */
+const QuantyLiveAgent = dynamic(
+  () => import('./QuantyLiveAgent').then((m) => m.QuantyLiveAgent),
+  { ssr: false },
+);
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
@@ -228,8 +240,16 @@ export function AppShell({
     },
     [onQuantyOpenChange],
   );
-  const openQuanty = useCallback(() => setQuantyOpen(true), [setQuantyOpen]);
+  /**
+   * The live agent surface. Tapping the Quanty button opens its mode
+   * chooser ([Chat] [Voice Live Agent]) instead of the old drawer directly —
+   * the drawer is now what "Chat" selects (see onChatSelect below).
+   */
+  const liveAgentRef = useRef<QuantyLiveAgentHandle>(null);
+  const openQuanty = useCallback(() => liveAgentRef.current?.open(), []);
   const closeQuanty = useCallback(() => setQuantyOpen(false), [setQuantyOpen]);
+  /** "Chat" in the mode chooser -> the existing Quanty copilot drawer. */
+  const handleLiveAgentChatSelect = useCallback(() => setQuantyOpen(true), [setQuantyOpen]);
 
   const currentApp: LogoAppType = pathname.startsWith('/calendar')
     ? 'calendar'
@@ -930,6 +950,12 @@ export function AppShell({
         swap and take the conversation with it.
       */}
           {!hasOwnQuanty && <QuantyDrawerHost isOpen={isQuantyOpen} onClose={closeQuanty} />}
+          {/* Live agentic surface: mounted once at shell top level (next to the
+              drawer, never inside the header) so a task survives route/header
+              swaps while Quanty works. */}
+          {!hasOwnQuanty && (
+            <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
+          )}
 
           {/* Context-Specific Bottom Navigation — anchored on mobile and desktop.
               On mobile it sits ABOVE the thumb-reachable pillar bottom nav

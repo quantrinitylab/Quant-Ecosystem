@@ -35,6 +35,12 @@ export interface QuantyStep {
   error?: string;
   startedAt?: string;
   endedAt?: string;
+  /** Copied from the tool at plan time — drives the consent UI without a registry lookup. */
+  destructive?: boolean;
+  /** Set after a successful run when the tool reported itself reversible. */
+  reversible?: boolean;
+  /** Opaque token the undo flow needs (e.g. archived thread ids). */
+  undoToken?: unknown;
 }
 
 /** A full agentic task: command → plan → executed steps. */

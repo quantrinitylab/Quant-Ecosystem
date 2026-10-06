@@ -6,15 +6,22 @@
  *   GET  /api/quanty/tasks/:id/stream   — SSE stream of live progress
  *   POST /api/quanty/tasks/:id/interrupt — cancel a running task
  *   POST /api/quanty/tasks/:id/confirm  — approve the pending destructive step
+ *   POST /api/quanty/tasks/:id/undo     — reverse a finished task's reversible steps
+ *   GET  /api/quanty/popup              — combined popup dashboard data
  *
  * Auth: request.auth.userId (same convention as the rest of the backend).
  * SSE framing follows the repo convention: `data: <JSON>\n\n`, terminator `data: [DONE]`.
  */
 
 import type { FastifyInstance } from 'fastify';
+import type { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
+import { EmailService } from '../services/email.service';
+import { ThreadService } from '../services/thread.service';
 import {
+  buildActivityFeed,
+  buildPopupData,
   createPlanner,
   createTask,
   getSchedule,
@@ -24,15 +31,16 @@ import {
   materializeSteps,
   QuantyExecutor,
   quantyAgentState,
-  registerBuiltinTools,
+  registerRealTools,
+  undoTaskSteps,
   type QuantyActivityFeed,
-  type QuantyActivityItem,
   type QuantyExecutorCallbacks,
   type QuantyLiveStatus,
   type QuantyProgressEvent,
   type QuantyTask,
   type QuantyTaskStore,
   type QuantyToolApp,
+  type QuantyToolContext,
 } from '../services/quanty-agent';
 
 // ---------------------------------------------------------------------------
@@ -46,9 +54,22 @@ let executor: QuantyExecutor;
 /** taskId → live SSE listeners. */
 const subscribers = new Map<string, Set<(event: QuantyProgressEvent) => void>>();
 
-function boot(): void {
+function toolAppOf(toolName: string): QuantyToolApp | undefined {
+  return getTool(toolName)?.app;
+}
+
+function boot(fastify: FastifyInstance): void {
   if (booted) return;
-  registerBuiltinTools();
+  const prisma = (fastify as unknown as { prisma: PrismaClient }).prisma;
+  // REAL tools: mail + git handlers backed by the scoped backend services.
+  // No stubs — registerRealTools throws on duplicate registration, so this
+  // runs exactly once per process.
+  registerRealTools({
+    prisma,
+    emailService: new EmailService(prisma),
+    threadService: new ThreadService(prisma),
+    summarizeService: null,
+  });
   store = new InMemoryTaskStore();
   executor = new QuantyExecutor({ store });
   booted = true;
@@ -105,7 +126,7 @@ const confirmSchema = z.object({
 });
 
 export default async function quantyAgentRoutes(fastify: FastifyInstance) {
-  boot();
+  boot(fastify);
 
   // POST /api/quanty/tasks — submit a command.
   fastify.post('/api/quanty/tasks', async (request, reply) => {
@@ -233,50 +254,38 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true, data: { confirmed: ok, approved: body.data.approved } });
   });
 
+  // POST /api/quanty/tasks/:id/undo — reverse a finished task's reversible steps.
+  // Only steps the tools themselves marked reversible (with an undoToken) are
+  // reversed, newest first. 409 when there is nothing reversible — an honest
+  // "nothing to undo", never a fabricated success.
+  fastify.post<{ Params: { id: string } }>('/api/quanty/tasks/:id/undo', async (request, reply) => {
+    const userId = reqUserId(request);
+    const task = await loadTaskOwnedBy(request.params.id, userId);
+    const prisma = (fastify as unknown as { prisma: unknown }).prisma;
+    const buildCtx = (): QuantyToolContext => ({
+      userId,
+      taskId: task.id,
+      prisma,
+      signal: new AbortController().signal,
+      audit: () => {},
+    });
+    const outcome = await undoTaskSteps(task, buildCtx);
+    if (outcome.undone === 0) {
+      throw createAppError('Nothing reversible to undo for this task', 409, 'NOT_REVERSIBLE');
+    }
+    await store.save(task);
+    return reply.send({ success: true, data: { undone: outcome.undone, details: outcome.details } });
+  });
+
   // -----------------------------------------------------------------------
   // Agentic popup surface (mirrors the Muse app's deep agentic interface)
   // -----------------------------------------------------------------------
-
-  const APP_ICONS: Record<QuantyToolApp, string> = {
-    mail: '📧',
-    git: '📦',
-    calendar: '📅',
-    drive: '💾',
-    contacts: '👥',
-    core: '🤖',
-  };
-
-  function taskIcon(task: QuantyTask): string {
-    const first = task.steps[0]?.toolName;
-    const tool = first ? getTool(first) : undefined;
-    return APP_ICONS[tool?.app ?? 'core'];
-  }
 
   // GET /api/quanty/activity — activity feed grouped Today / Yesterday / Older.
   fastify.get('/api/quanty/activity', async (request, reply) => {
     const userId = reqUserId(request);
     const tasks = await store.listByUser(userId, 100);
-
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-
-    const feed: QuantyActivityFeed = { today: [], yesterday: [], older: [] };
-    for (const task of tasks) {
-      if (task.status !== 'done' && task.status !== 'failed' && task.status !== 'interrupted') continue;
-      const item: QuantyActivityItem = {
-        id: task.id,
-        icon: taskIcon(task),
-        title: task.command,
-        description: task.outcome ?? task.planSummary,
-        timestamp: task.updatedAt,
-      };
-      const ts = new Date(task.updatedAt).getTime();
-      if (ts >= startOfToday.getTime()) feed.today.push(item);
-      else if (ts >= startOfYesterday.getTime()) feed.yesterday.push(item);
-      else feed.older.push(item);
-    }
+    const feed: QuantyActivityFeed = buildActivityFeed(tasks, toolAppOf);
     return reply.send({ success: true, data: feed });
   });
 
@@ -313,5 +322,16 @@ export default async function quantyAgentRoutes(fastify: FastifyInstance) {
     const status: QuantyLiveStatus =
       live.status === 'is working' ? live : browsing ? { status: 'browsing', detail: 'Browsing the web' } : live;
     return reply.send({ success: true, data: status });
+  });
+
+  // GET /api/quanty/popup — combined popup dashboard data in one call.
+  // Backed by the real agent-core stores (task history, approval log, the real
+  // cron registry, identity cards). Arrays are empty when there is no data —
+  // never fabricated. The Next.js layer maps this onto the frontend
+  // QuantyPopupData contract.
+  fastify.get('/api/quanty/popup', async (request, reply) => {
+    const userId = reqUserId(request);
+    const data = await buildPopupData({ userId, store, executor, toolAppOf });
+    return reply.send({ success: true, data });
   });
 }
