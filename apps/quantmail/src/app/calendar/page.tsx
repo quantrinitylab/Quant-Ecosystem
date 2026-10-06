@@ -44,6 +44,7 @@ import {
 import {
   CalendarFeedSubView,
   CalendarMonthSubView,
+  CalendarWeekSubView,
   CalendarTrackersSubView,
   CalendarScheduleSubView,
 } from '../../components/CalendarSubViews';
@@ -126,6 +127,12 @@ function CalendarPageContent() {
 
   // Synchronize with URL searchParams changes (?tab=...)
   useEffect(() => {
+    if (queryTab === 'week') {
+      // Merged Week tab: agenda context + week grid view.
+      setActiveContextTab('agenda');
+      setActiveView('week');
+      return;
+    }
     if (isValidContextTab(queryTab)) {
       setActiveContextTab(queryTab);
       if (queryTab === 'month') {
@@ -141,7 +148,14 @@ function CalendarPageContent() {
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const custom = e as CustomEvent<{ pillar: string; tabId: string }>;
-      if (custom.detail?.pillar === 'calendar' && isValidContextTab(custom.detail.tabId)) {
+      if (custom.detail?.pillar !== 'calendar') return;
+      if (custom.detail.tabId === 'week') {
+        // Merged Week tab from the bottom nav: agenda context + week grid view.
+        setActiveContextTab('agenda');
+        setActiveView('week');
+        return;
+      }
+      if (isValidContextTab(custom.detail.tabId)) {
         setActiveContextTab(custom.detail.tabId);
         if (custom.detail.tabId === 'month') {
           setIsMonthExpanded(true);
@@ -644,7 +658,7 @@ function CalendarPageContent() {
   }, [isInitialLoading, activeView, continuousAgendaDays, today]);
 
   const openDedicatedSheet = useCallback(
-    (type: EntryType, date?: Date) => {
+    (type: EntryType, date?: Date, opts?: { startTime?: string; endTime?: string }) => {
       const base = date ? new Date(date) : new Date(selectedDate);
       const dateStr = toDateInput(base);
 
@@ -652,8 +666,8 @@ function CalendarPageContent() {
         title: '',
         startDate: dateStr,
         endDate: dateStr,
-        startTime: '10:00',
-        endTime: '11:00',
+        startTime: opts?.startTime ?? '10:00',
+        endTime: opts?.endTime ?? '11:00',
         allDay: false,
         timezone: 'Asia/Kolkata',
         location: '',
@@ -1082,16 +1096,27 @@ function CalendarPageContent() {
         />
 
         {/* 4 Sovereign Contextual Sub-Views */}
-        {(activeContextTab === 'feed' || activeContextTab === 'agenda') && (
-          <CalendarFeedSubView
+        {(activeContextTab === 'feed' || activeContextTab === 'agenda') && activeView === 'week' ? (
+          <CalendarWeekSubView
             events={events}
             holidaysByDay={holidaysByDay}
             selectedDate={selectedDate}
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
             onSelectEvent={setSelectedEvent}
-            searchFilter={searchFilter}
           />
+        ) : (
+          (activeContextTab === 'feed' || activeContextTab === 'agenda') && (
+            <CalendarFeedSubView
+              events={events}
+              holidaysByDay={holidaysByDay}
+              selectedDate={selectedDate}
+              onSelectDate={selectDate}
+              openDedicatedSheet={openDedicatedSheet}
+              onSelectEvent={setSelectedEvent}
+              searchFilter={searchFilter}
+            />
+          )
         )}
 
         {activeContextTab === 'month' && (
