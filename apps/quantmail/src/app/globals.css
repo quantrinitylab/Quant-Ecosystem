@@ -2394,8 +2394,10 @@ body {
 .hover-action-btn {
   display: grid;
   place-items: center;
-  width: 1.9rem;
-  height: 1.9rem;
+  /* 36px minimum touch/click target (was 1.9rem/30px — below the 44px mobile
+     guideline and cramped for mouse users). */
+  width: 2.25rem;
+  height: 2.25rem;
   border: none;
   border-radius: 0.4rem;
   background: transparent;
