@@ -107,7 +107,8 @@ export type InboxCommandId =
   | 'inbox.reply'
   | 'inbox.forward'
   | 'inbox.toggleSelect'
-  | 'inbox.undo';
+  | 'inbox.undo'
+  | 'inbox.compose';
 
 /**
  * Every binding the thread list owns, in the order the sheet should read them.
@@ -154,6 +155,13 @@ export const INBOX_COMMAND_REFERENCE: Array<CommandReference & { id: InboxComman
     group: 'Conversation',
     keys: 'z',
     description: 'Undo the last conversation archive or done action',
+  },
+  {
+    id: 'inbox.compose',
+    label: 'Compose email',
+    group: 'Compose',
+    keys: 'c',
+    description: 'Open composer for new message',
   },
 ];
 

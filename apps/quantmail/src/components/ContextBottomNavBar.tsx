@@ -14,6 +14,7 @@ export interface ContextSubTab {
   targetPath?: string;
   queryParam?: { key: string; value: string };
   ariaLabel?: string;
+  description?: string;
 }
 
 export interface PillarContextConfig {
@@ -122,6 +123,32 @@ function ArchiveIcon({ className }: { className?: string; active?: boolean }) {
   );
 }
 
+function SwarmAgentIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <rect x="9" y="9" width="6" height="6" />
+      <line x1="9" y1="1" x2="9" y2="4" />
+      <line x1="15" y1="1" x2="15" y2="4" />
+      <line x1="9" y1="20" x2="9" y2="23" />
+      <line x1="15" y1="20" x2="15" y2="23" />
+      <line x1="20" y1="9" x2="23" y2="9" />
+      <line x1="20" y1="14" x2="23" y2="14" />
+      <line x1="1" y1="9" x2="4" y2="9" />
+      <line x1="1" y1="14" x2="4" y2="14" />
+    </svg>
+  );
+}
+
 // Calendar icons
 function AgendaTimelineIcon({ className }: { className?: string; active?: boolean }) {
   return (
@@ -220,6 +247,45 @@ function RemindersIcon({ className }: { className?: string; active?: boolean }) 
   );
 }
 
+function CalendarEventsTrackerIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4.5 12h3l2-5 4 10 2-5h4" />
+      <rect x="2" y="3" width="20" height="18" rx="2" />
+      <line x1="8" y1="2" x2="8" y2="4" />
+      <line x1="16" y1="2" x2="16" y2="4" />
+    </svg>
+  );
+}
+
+function ScheduleClockIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 6 12 12 16 14" />
+      <path d="M19 19l2 2" />
+    </svg>
+  );
+}
+
 // Drive icons
 function FolderFilesIcon({ className }: { className?: string; active?: boolean }) {
   return (
@@ -234,6 +300,46 @@ function FolderFilesIcon({ className }: { className?: string; active?: boolean }
       aria-hidden="true"
     >
       <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+    </svg>
+  );
+}
+
+function DriveFeedIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <path d="m21 15-5-5L5 21" />
+      <path d="m14 14 3-3 4 4" />
+    </svg>
+  );
+}
+
+function AiMemoryBrainIcon({ className }: { className?: string; active?: boolean }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 2a4.5 4.5 0 0 0-4.5 4.5c0 .77.2 1.5.54 2.14A5.5 5.5 0 0 0 4 14a5.5 5.5 0 0 0 4.5 5.41v1.59a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1v-1.59A5.5 5.5 0 0 0 20 14a5.5 5.5 0 0 0-4.04-5.36c.34-.64.54-1.37.54-2.14A4.5 4.5 0 0 0 12 2Z" />
+      <path d="M12 7v5" />
+      <path d="M9.5 12h5" />
+      <path d="M9 16h6" />
     </svg>
   );
 }
@@ -535,27 +641,22 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'lens', value: 'all' },
       },
       {
-        id: 'priority',
-        label: 'Priority',
-        icon: PriorityRadarIcon,
-        badgeCount: 3,
-        targetPath: '/',
-        queryParam: { key: 'lens', value: 'important' },
-      },
-      {
         id: 'teams',
         label: 'Teams',
         icon: TeamsIcon,
-        badgeCount: 5,
+        badgeCount: 3,
+        description: 'Workspaces & Teams collaboration',
         targetPath: '/',
-        queryParam: { key: 'lens', value: 'teams' },
+        queryParam: { key: 'tab', value: 'teams' },
       },
       {
-        id: 'sent',
-        label: 'Sent',
-        icon: SentIcon,
-        targetPath: '/sent',
-        queryParam: { key: 'tab', value: 'sent' },
+        id: 'agents',
+        label: 'Agents',
+        icon: CopilotQuantyIcon,
+        badgeText: 'AI',
+        description: 'QuantGit Swarm Agent Access Panel',
+        targetPath: '/',
+        queryParam: { key: 'tab', value: 'agents' },
       },
       {
         id: 'archive',
@@ -575,11 +676,12 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     badgeStyle: 'bg-[#F59E0B] text-black',
     tabs: [
       {
-        id: 'agenda',
-        label: 'Agenda',
+        id: 'feed',
+        label: 'Feed',
         icon: AgendaTimelineIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'agenda' },
+        queryParam: { key: 'tab', value: 'feed' },
+        description: 'Upcoming events, milestones & tracker dates',
       },
       {
         id: 'month',
@@ -587,27 +689,23 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         icon: MonthGridIcon,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'month' },
+        description: 'Continuous scroll month calendar',
       },
       {
-        id: 'booking',
-        label: 'Booking',
-        icon: BookingLinkIcon,
+        id: 'events',
+        label: 'Events',
+        icon: CalendarEventsTrackerIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'booking' },
+        queryParam: { key: 'tab', value: 'events' },
+        description: 'Trackers hub: Period, Health & Life trackers',
       },
       {
-        id: 'quantmeet',
-        label: 'QuantMeet',
-        icon: QuantMeetVideoIcon,
+        id: 'schedule',
+        label: 'Schedule',
+        icon: ScheduleClockIcon,
         targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'quantmeet' },
-      },
-      {
-        id: 'reminders',
-        label: 'Reminders',
-        icon: RemindersIcon,
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'reminders' },
+        queryParam: { key: 'tab', value: 'schedule' },
+        description: 'Meetings, Clock & Reminders',
       },
     ],
   },
@@ -620,18 +718,27 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     badgeStyle: 'bg-[#38BDF8] text-black',
     tabs: [
       {
-        id: 'files',
-        label: 'My Files',
+        id: 'home',
+        label: 'Home',
         icon: FolderFilesIcon,
         targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'files' },
+        queryParam: { key: 'tab', value: 'home' },
       },
       {
-        id: 'shared',
-        label: 'Shared',
-        icon: SharedFolderIcon,
+        id: 'feed',
+        label: 'Feed',
+        icon: DriveFeedIcon,
         targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'shared' },
+        queryParam: { key: 'tab', value: 'feed' },
+      },
+      {
+        id: 'aimemory',
+        label: 'AI Memory',
+        icon: AiMemoryBrainIcon,
+        badgeText: 'AI',
+        ariaLabel: 'AI Memory (Cross-App Relational Vault)',
+        targetPath: '/drive',
+        queryParam: { key: 'tab', value: 'aimemory' },
       },
       {
         id: 'vault',
@@ -641,22 +748,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         ariaLabel: 'Vault (AES-256 E2EE)',
         targetPath: '/drive',
         queryParam: { key: 'tab', value: 'vault' },
-      },
-      {
-        id: 'starred',
-        label: 'Starred',
-        icon: StarredIcon,
-        targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'starred' },
-      },
-      {
-        id: 'cleaner',
-        label: 'Cleaner',
-        icon: FastCdcCleanerIcon,
-        badgeText: 'CDC',
-        ariaLabel: 'Cleaner (FastCDC)',
-        targetPath: '/drive',
-        queryParam: { key: 'tab', value: 'cleaner' },
       },
     ],
   },
@@ -669,19 +760,29 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     badgeStyle: 'bg-[#10B981] text-black',
     tabs: [
       {
-        id: 'contacts',
-        label: 'Contacts',
+        id: 'home',
+        label: 'Home',
+        ariaLabel: 'Home (All Contacts)',
         icon: ContactsDirectoryIcon,
         badgeCount: 8,
         targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'contacts' },
+        queryParam: { key: 'tab', value: 'home' },
       },
       {
-        id: 'vips',
-        label: 'VIPs',
-        icon: VipCrownIcon,
+        id: 'favorites',
+        label: 'Favorites',
+        ariaLabel: 'Favorites (Starred Contacts)',
+        icon: StarredIcon,
         targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'vips' },
+        queryParam: { key: 'tab', value: 'favorites' },
+      },
+      {
+        id: 'groups',
+        label: 'Groups',
+        ariaLabel: 'Groups (Add Folder / Add Group)',
+        icon: CirclesNetworkIcon,
+        targetPath: '/contacts',
+        queryParam: { key: 'tab', value: 'groups' },
       },
       {
         id: 'companies',
@@ -696,13 +797,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         icon: DedupWandIcon,
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'dedup' },
-      },
-      {
-        id: 'circles',
-        label: 'Circles',
-        icon: CirclesNetworkIcon,
-        targetPath: '/contacts',
-        queryParam: { key: 'tab', value: 'circles' },
       },
     ],
   },
@@ -780,33 +874,40 @@ export function resolveActiveTab(
   if (pillar === 'mail') {
     if (pathname.startsWith('/sent') || tabParam === 'sent') return 'sent';
     if (pathname.startsWith('/archive') || tabParam === 'archive') return 'archive';
+    if (tabParam === 'agents' || lensParam === 'agents') return 'agents';
+    if (tabParam === 'teams' || lensParam === 'teams') return 'teams';
     if (lensParam === 'important' || tabParam === 'priority') return 'priority';
-    if (lensParam === 'teams' || tabParam === 'teams') return 'teams';
     return 'inbox';
   }
 
   if (pillar === 'calendar') {
     if (tabParam === 'month') return 'month';
-    if (tabParam === 'booking') return 'booking';
-    if (tabParam === 'quantmeet') return 'quantmeet';
-    if (tabParam === 'reminders') return 'reminders';
-    return 'agenda';
+    if (tabParam === 'events') return 'events';
+    if (
+      tabParam === 'schedule' ||
+      tabParam === 'reminders' ||
+      tabParam === 'booking' ||
+      tabParam === 'quantmeet'
+    ) {
+      return 'schedule';
+    }
+    return 'feed';
   }
 
   if (pillar === 'drive') {
-    if (tabParam === 'shared') return 'shared';
+    if (tabParam === 'feed') return 'feed';
+    if (tabParam === 'aimemory' || tabParam === 'memory') return 'aimemory';
     if (tabParam === 'vault') return 'vault';
-    if (tabParam === 'starred') return 'starred';
-    if (tabParam === 'cleaner') return 'cleaner';
-    return 'files';
+    if (tabParam === 'home' || tabParam === 'files') return 'home';
+    return 'home';
   }
 
   if (pillar === 'contacts') {
-    if (tabParam === 'vips') return 'vips';
-    if (tabParam === 'companies') return 'companies';
-    if (tabParam === 'dedup') return 'dedup';
-    if (tabParam === 'circles') return 'circles';
-    return 'contacts';
+    if (tabParam === 'favorites' || tabParam === 'vips' || activeTabOverride === 'favorites') return 'favorites';
+    if (tabParam === 'groups' || tabParam === 'circles' || activeTabOverride === 'groups') return 'groups';
+    if (tabParam === 'companies' || activeTabOverride === 'companies') return 'companies';
+    if (tabParam === 'dedup' || activeTabOverride === 'dedup') return 'dedup';
+    return 'home';
   }
 
   if (pillar === 'quantgit') {
@@ -829,9 +930,13 @@ export function executeContextTabClick(
     onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
   },
 ) {
-  if (tab.id === 'copilot' && pillar === 'quantgit') {
+  if (
+    (tab.id === 'copilot' && pillar === 'quantgit') ||
+    (tab.id === 'agents' && pillar === 'mail')
+  ) {
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       window.dispatchEvent(new CustomEvent('quant:copilot:open'));
+      window.dispatchEvent(new CustomEvent('quant:agents:open'));
     }
   }
 
@@ -963,8 +1068,8 @@ export function ContextBottomNavBar({
 
   return (
     <nav
-      className={`fixed bottom-0 inset-x-0 z-30 flex h-14 items-center justify-around border-t border-[#232938] bg-[#090A0E]/95 backdrop-blur-md px-1.5 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none md:hidden ${
-        isVisible ? 'translate-y-0' : 'translate-y-full'
+      className={`fixed bottom-0 left-0 right-0 md:left-[68px] z-30 flex h-14 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
+        isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'
       } ${className}`}
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
