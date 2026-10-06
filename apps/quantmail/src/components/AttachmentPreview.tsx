@@ -71,7 +71,7 @@ export function AttachmentPreview({ attachments }: AttachmentPreviewProps) {
     resetZoom();
   }, [previewUrl, resetZoom]);
 
-  const distance = (a: Touch, b: Touch) =>
+  const distance = (a: React.Touch, b: React.Touch) =>
     Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
