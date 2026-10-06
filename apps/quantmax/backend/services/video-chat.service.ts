@@ -47,6 +47,12 @@ export type JoinResult =
        * participant can impersonate the other.
        */
       selfToken?: string;
+      /**
+       * The other real participant's user id (null when unknown). The
+       * frontend needs this for report/block; it must never substitute a
+       * fabricated display name, country, or avatar for it.
+       */
+      partnerUserId: string | null;
     };
 
 /**
@@ -133,10 +139,15 @@ export class VideoChatService {
     const selfToken = this.tokenIssuer
       ? await this.tokenIssuer.issue(roomName, forUserId)
       : undefined;
+    // The other real participant in this session — the frontend needs this for
+    // the report/block actions; never show fabricated identities instead.
+    const partnerUserId =
+      session.participants.find((p) => p !== forUserId) ?? null;
     return {
       status: 'matched',
       session: this.toView(session),
       roomName,
+      partnerUserId,
       ...(selfToken ? { selfToken } : {}),
     };
   }
