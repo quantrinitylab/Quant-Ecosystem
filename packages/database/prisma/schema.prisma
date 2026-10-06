@@ -4681,7 +4681,10 @@ model QuantyGoalProposal {
   @@index([userId])
   @@index([userId, status])
   @@map("quanty_goal_proposals")
-// ==================== QUANTY MCP CONNECTIONS (Q2) =============/// External OAuth connections backing Quanty's MCP connectors (e.g. Gmail).
+}
+
+// ==================== QUANTY MCP CONNECTIONS (Q2) ====================
+/// External OAuth connections backing Quanty's MCP connectors (e.g. Gmail).
 /// Refresh tokens are encrypted at rest (AES-256-GCM); plaintext tokens
 /// NEVER touch this table — only the encrypted blob.
 model McpConnection {
