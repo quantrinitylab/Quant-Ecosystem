@@ -585,7 +585,7 @@ export function ConversationalThreadView({
     setNewArrivedCount(0);
     lastSeenCountRef.current = messages.length;
     initialLoadDoneRef.current = messages.length > 0;
-  }, [threadId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [threadId]);
 
   useEffect(() => {
     // Incoming growth while reading history — the 30s mailbox poll lands here.
