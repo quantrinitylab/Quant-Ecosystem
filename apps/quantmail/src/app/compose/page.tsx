@@ -11,6 +11,7 @@ import { showToast } from '../../components/InboxToast';
 import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
+import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
@@ -87,7 +88,7 @@ export default function ComposePage() {
   // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
   // instead of a letter; the kind travels to the backend compose call and to
   // the composer itself.
-  const composeKind = searchParams?.get('kind') === 'chat' ? 'chat' : 'mail';
+  const composeKind: MessageKind = searchParams?.get('kind') === 'chat' ? 'chat' : 'mail';
 
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
