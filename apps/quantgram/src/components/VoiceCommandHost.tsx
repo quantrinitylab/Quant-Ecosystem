@@ -1,3 +1,11 @@
+// ============================================================================
+// QuantGram — global voice-command host.
+//
+// The bar starts COLLAPSED as a small floating mic button and only expands on
+// explicit user action. It previously defaulted to open, covering ~35% of the
+// viewport on every page (mobile + desktop).
+// ============================================================================
+
 'use client';
 
 import { useState } from 'react';
@@ -9,7 +17,7 @@ export interface VoiceCommandHostProps {
 }
 
 export function VoiceCommandHost({ appId, userId = 'guest' }: VoiceCommandHostProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <>

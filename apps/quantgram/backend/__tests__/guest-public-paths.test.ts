@@ -56,9 +56,25 @@ describe('quantneon guest public paths (unauthenticated access)', () => {
       },
       user: {
         findMany: async () => [{ id: 'u1', username: 'creator', avatarUrl: null }],
+        findUnique: async ({ where }: any) => {
+          if (where.id === 'u1') {
+            return {
+              id: 'u1',
+              username: 'creator',
+              displayName: 'Creator',
+              bio: 'Public bio',
+              avatarUrl: null,
+              website: null,
+              emailVerified: false,
+              deletedAt: null,
+            };
+          }
+          return null;
+        },
       },
       userRelationship: {
         findMany: async () => [],
+        count: async () => 0,
       },
       like: {
         findMany: async () => [],
@@ -69,6 +85,8 @@ describe('quantneon guest public paths (unauthenticated access)', () => {
       closeFriend: {
         findMany: async () => [],
       },
+      // healthPlugin's /readyz probes the DB with SELECT 1; the mock answers.
+      $queryRawUnsafe: async () => [{ '?column?': 1 }],
     };
     await app.ready();
   });
@@ -115,5 +133,36 @@ describe('quantneon guest public paths (unauthenticated access)', () => {
       payload: { caption: 'Unauthorized Post' },
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  it('serves GET /health without auth (k8s probes + Docker HEALTHCHECK + /api/health ingress contract)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.status).toBe('ok');
+  });
+
+  it('serves GET /readyz without auth (k8s readinessProbe contract)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/readyz' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.status).toBe('ok');
+  });
+
+  it('allows guest to read a public profile at GET /profiles/:id', async () => {
+    const res = await app.inject({ method: 'GET', url: '/profiles/u1' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.profile.username).toBe('creator');
+    expect(body.data.profile.bio).toBe('Public bio');
+  });
+
+  it('returns an honest 404 (not 401, not a hang) for a missing profile as guest', async () => {
+    const res = await app.inject({ method: 'GET', url: '/profiles/does-not-exist' });
+    expect(res.statusCode).toBe(404);
+    const body = res.json();
+    expect(body.success).toBe(false);
+    expect(body.error.code).toBe('PROFILE_NOT_FOUND');
   });
 });

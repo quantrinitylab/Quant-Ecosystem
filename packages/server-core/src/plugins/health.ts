@@ -100,6 +100,22 @@ async function healthPlugin(fastify: FastifyInstance, opts: HealthPluginOptions)
     return { status: overall, components };
   }
 
+  // Simple liveness alias — always 200 while the process is serving. This is the
+  // endpoint k8s/Docker probes and the same-origin `/api/health` ingress target
+  // hit: the nginx ingress strips `/api` and forwards to the Fastify backend
+  // (`GET /api/health` → `GET /health`), so this route must exist. Note
+  // `createApp()` already lists `/health` in its public paths — it just was
+  // never registered here, which made the live endpoint 404.
+  fastify.get('/health', async (_request, reply) => {
+    const response: HealthCheckResponse = {
+      status: 'ok',
+      uptime: Math.floor((Date.now() - startTime) / 1000),
+      timestamp: new Date().toISOString(),
+      version: process.env['APP_VERSION'] || '1.0.0',
+    };
+    return reply.status(200).send(response);
+  });
+
   fastify.get('/healthz', async (_request, reply) => {
     const { status, components } = aggregate();
     const response: HealthCheckResponse = {
