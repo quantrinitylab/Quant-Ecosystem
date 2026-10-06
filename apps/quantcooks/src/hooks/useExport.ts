@@ -1,9 +1,11 @@
 // ============================================================================
 // QuantEdits - useExport Hook
-// Export state: render queue, format/quality/resolution, progress, batch export
+// Export state backed by the real POST /api/exports API: jobs are queued on
+// the backend and their status is polled from GET /api/exports/[id]/status.
+// No simulated progress and no invented download URLs.
 // ============================================================================
 
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 interface ExportSettings {
   format: 'mp4' | 'mov' | 'gif' | 'png' | 'jpg' | 'pdf' | 'svg';
@@ -19,20 +21,19 @@ interface ExportSettings {
   metadata: Record<string, string>;
 }
 
+/** Mirrors the backend ExportStatus — the only statuses a real job can have. */
+type ExportJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
 interface ExportJob {
   id: string;
   projectId: string;
   projectName: string;
   settings: ExportSettings;
-  status: 'queued' | 'preparing' | 'rendering' | 'encoding' | 'complete' | 'failed' | 'cancelled';
-  progress: number;
-  currentFrame: number;
-  totalFrames: number;
+  status: ExportJobStatus;
+  progress: number | null;
   startedAt: number;
   completedAt: number | null;
-  estimatedTimeRemaining: number;
   outputUrl: string | null;
-  outputSize: number;
   error: string | null;
 }
 
@@ -102,7 +103,7 @@ const DEFAULT_PRESETS: ExportPreset[] = [
   },
   {
     id: 'qtube-short',
-    name: 'QuantTube Short',
+    name: 'QuantTube Shorts',
     platform: 'QuantTube',
     settings: {
       format: 'mp4',
@@ -134,33 +135,65 @@ const DEFAULT_PRESETS: ExportPreset[] = [
       includeAudio: false,
     },
   },
-  {
-    id: 'print-pdf',
-    name: 'Print Quality',
-    platform: 'Print',
-    settings: {
-      format: 'pdf',
-      resolution: { width: 3508, height: 2480, label: 'A4 300dpi' },
-      quality: 100,
-    },
-  },
 ];
+
+interface QueueExportApiResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    projectId: string;
+    format: string;
+    resolution: string;
+    quality: string;
+    status: ExportJobStatus;
+    outputUrl: string | null;
+    createdAt: string;
+    completedAt: string | null;
+  };
+  error?: { code: string; message: string };
+}
+
+const BACKEND_FORMATS = ['mp4', 'webm', 'mov', 'gif', 'png', 'jpg'] as const;
+
+function mapFormat(format: ExportSettings['format']): string | null {
+  return (BACKEND_FORMATS as readonly string[]).includes(format) ? format : null;
+}
+
+function mapResolution(resolution: ExportSettings['resolution']): string {
+  const h = resolution.height;
+  if (h >= 2160) return '4k';
+  if (h >= 1080) return '1080p';
+  if (h >= 720) return '720p';
+  return 'original';
+}
+
+function mapQuality(quality: number): string {
+  if (quality >= 95) return 'lossless';
+  if (quality >= 70) return 'high';
+  if (quality >= 40) return 'medium';
+  return 'low';
+}
 
 export function useExport(): UseExportReturn {
   const [queue, setQueue] = useState<ExportJob[]>([]);
   const [settings, setSettings] = useState<ExportSettings>(DEFAULT_SETTINGS);
   const [presets, setPresets] = useState<ExportPreset[]>(DEFAULT_PRESETS);
-  const intervalRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const pollRefs = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+
+  useEffect(() => {
+    const refs = pollRefs.current;
+    return () => {
+      refs.forEach((interval) => clearInterval(interval));
+      refs.clear();
+    };
+  }, []);
 
   const activeJob = useMemo(
-    () =>
-      queue.find(
-        (j) => j.status === 'rendering' || j.status === 'encoding' || j.status === 'preparing',
-      ) || null,
+    () => queue.find((j) => j.status === 'QUEUED' || j.status === 'PROCESSING') || null,
     [queue],
   );
   const isExporting = useMemo(
-    () => queue.some((j) => ['queued', 'preparing', 'rendering', 'encoding'].includes(j.status)),
+    () => queue.some((j) => j.status === 'QUEUED' || j.status === 'PROCESSING'),
     [queue],
   );
 
@@ -206,143 +239,202 @@ export function useExport(): UseExportReturn {
     [settings],
   );
 
-  const simulateExport = useCallback(
-    (jobId: string) => {
-      let progress = 0;
-      const totalFrames =
-        settings.fps *
-        (settings.exportRange === 'full' ? 60 : settings.endTime - settings.startTime);
-      setQueue((prev) =>
-        prev.map((j) => (j.id === jobId ? { ...j, status: 'preparing' as const, totalFrames } : j)),
-      );
+  const stopPolling = useCallback((jobId: string) => {
+    const interval = pollRefs.current.get(jobId);
+    if (interval) {
+      clearInterval(interval);
+      pollRefs.current.delete(jobId);
+    }
+  }, []);
 
-      setTimeout(() => {
-        setQueue((prev) =>
-          prev.map((j) => (j.id === jobId ? { ...j, status: 'rendering' as const } : j)),
-        );
-        const interval = setInterval(() => {
-          progress += Math.random() * 8 + 2;
-          const currentFrame = Math.floor((progress / 100) * totalFrames);
-          if (progress >= 85) {
-            setQueue((prev) =>
-              prev.map((j) =>
-                j.id === jobId
-                  ? {
-                      ...j,
-                      status: 'encoding' as const,
-                      progress: Math.min(99, progress),
-                      currentFrame,
-                    }
-                  : j,
-              ),
-            );
-          } else {
-            setQueue((prev) =>
-              prev.map((j) =>
-                j.id === jobId
-                  ? {
-                      ...j,
-                      progress: Math.min(99, progress),
-                      currentFrame,
-                      estimatedTimeRemaining: Math.ceil((100 - progress) * 0.3),
-                    }
-                  : j,
-              ),
+  const pollJobStatus = useCallback(
+    (jobId: string) => {
+      stopPolling(jobId);
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/status`);
+          const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+          if (!res.ok || !payload?.success || !payload.data) {
+            throw new Error(
+              payload?.error?.message || `Status check failed (HTTP ${res.status})`,
             );
           }
-          if (progress >= 100) {
-            clearInterval(interval);
-            intervalRefs.current.delete(jobId);
-            setQueue((prev) =>
-              prev.map((j) =>
-                j.id === jobId
-                  ? {
-                      ...j,
-                      status: 'complete' as const,
-                      progress: 100,
-                      completedAt: Date.now(),
-                      outputUrl: `/exports/${jobId}.${settings.format}`,
-                      outputSize: estimatedSize,
-                      currentFrame: totalFrames,
-                      estimatedTimeRemaining: 0,
-                    }
-                  : j,
-              ),
-            );
+          const data = payload.data;
+          setQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: data.status,
+                    outputUrl: data.outputUrl,
+                    completedAt: data.completedAt ? Date.parse(data.completedAt) : null,
+                    error: data.status === 'FAILED' ? 'Export failed on the server' : null,
+                  }
+                : j,
+            ),
+          );
+          if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+            stopPolling(jobId);
           }
-        }, 500);
-        intervalRefs.current.set(jobId, interval);
-      }, 1000);
+        } catch (err) {
+          stopPolling(jobId);
+          setQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? {
+                    ...j,
+                    status: 'FAILED' as const,
+                    error: err instanceof Error ? err.message : 'Status check failed',
+                  }
+                : j,
+            ),
+          );
+        }
+      }, 2000);
+      pollRefs.current.set(jobId, interval);
     },
-    [settings, estimatedSize],
+    [stopPolling],
   );
 
   const startExport = useCallback(
     (projectId: string, projectName: string) => {
-      const job: ExportJob = {
-        id: `export-${Date.now()}`,
-        projectId,
-        projectName,
-        settings: { ...settings },
-        status: 'queued',
-        progress: 0,
-        currentFrame: 0,
-        totalFrames: 0,
-        startedAt: Date.now(),
-        completedAt: null,
-        estimatedTimeRemaining: estimatedTime,
-        outputUrl: null,
-        outputSize: 0,
-        error: null,
+      const format = mapFormat(settings.format);
+      if (!format) {
+        const failedJob: ExportJob = {
+          id: `export-${Date.now()}`,
+          projectId,
+          projectName,
+          settings: { ...settings },
+          status: 'FAILED',
+          progress: null,
+          startedAt: Date.now(),
+          completedAt: Date.now(),
+          outputUrl: null,
+          error: `Format "${settings.format}" is not supported by the export service`,
+        };
+        setQueue((prev) => [...prev, failedJob]);
+        return;
+      }
+      const run = async () => {
+        try {
+          const res = await fetch('/api/exports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId,
+              format,
+              resolution: mapResolution(settings.resolution),
+              quality: mapQuality(settings.quality),
+            }),
+          });
+          const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+          if (!res.ok || !payload?.success || !payload.data) {
+            throw new Error(
+              payload?.error?.message || `Export request failed (HTTP ${res.status})`,
+            );
+          }
+          const job: ExportJob = {
+            id: payload.data.id,
+            projectId,
+            projectName,
+            settings: { ...settings },
+            status: payload.data.status,
+            progress: null,
+            startedAt: Date.parse(payload.data.createdAt),
+            completedAt: null,
+            outputUrl: payload.data.outputUrl,
+            error: null,
+          };
+          setQueue((prev) => [...prev, job]);
+          pollJobStatus(job.id);
+        } catch (err) {
+          const failedJob: ExportJob = {
+            id: `export-${Date.now()}`,
+            projectId,
+            projectName,
+            settings: { ...settings },
+            status: 'FAILED',
+            progress: null,
+            startedAt: Date.now(),
+            completedAt: Date.now(),
+            outputUrl: null,
+            error: err instanceof Error ? err.message : 'Export request failed',
+          };
+          setQueue((prev) => [...prev, failedJob]);
+        }
       };
-      setQueue((prev) => [...prev, job]);
-      simulateExport(job.id);
+      void run();
     },
-    [settings, estimatedTime, simulateExport],
+    [settings, pollJobStatus],
   );
 
-  const cancelExport = useCallback((jobId: string) => {
-    const interval = intervalRefs.current.get(jobId);
-    if (interval) {
-      clearInterval(interval);
-      intervalRefs.current.delete(jobId);
-    }
-    setQueue((prev) =>
-      prev.map((j) => (j.id === jobId ? { ...j, status: 'cancelled' as const } : j)),
-    );
-  }, []);
+  const cancelExport = useCallback(
+    (jobId: string) => {
+      const run = async () => {
+        stopPolling(jobId);
+        try {
+          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
+            method: 'POST',
+          });
+          const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
+          if (!res.ok || !payload?.success || !payload.data) {
+            throw new Error(
+              payload?.error?.message || `Cancel request failed (HTTP ${res.status})`,
+            );
+          }
+          setQueue((prev) =>
+            prev.map((j) => (j.id === jobId ? { ...j, status: payload.data!.status } : j)),
+          );
+        } catch (err) {
+          setQueue((prev) =>
+            prev.map((j) =>
+              j.id === jobId
+                ? { ...j, error: err instanceof Error ? err.message : 'Cancel failed' }
+                : j,
+            ),
+          );
+        }
+      };
+      void run();
+    },
+    [stopPolling],
+  );
 
   const retryExport = useCallback(
     (jobId: string) => {
       const job = queue.find((j) => j.id === jobId);
-      if (job) {
-        setQueue((prev) =>
-          prev.map((j) =>
-            j.id === jobId ? { ...j, status: 'queued', progress: 0, error: null } : j,
-          ),
-        );
-        simulateExport(jobId);
-      }
+      if (job) startExport(job.projectId, job.projectName);
     },
-    [queue, simulateExport],
+    [queue, startExport],
   );
 
-  const removeFromQueue = useCallback((jobId: string) => {
-    const interval = intervalRefs.current.get(jobId);
-    if (interval) {
-      clearInterval(interval);
-      intervalRefs.current.delete(jobId);
-    }
-    setQueue((prev) => prev.filter((j) => j.id !== jobId));
-  }, []);
+  const removeFromQueue = useCallback(
+    (jobId: string) => {
+      stopPolling(jobId);
+      setQueue((prev) => prev.filter((j) => j.id !== jobId));
+    },
+    [stopPolling],
+  );
 
   const clearCompleted = useCallback(() => {
-    setQueue((prev) => prev.filter((j) => j.status !== 'complete' && j.status !== 'cancelled'));
-  }, []);
+    setQueue((prev) => {
+      prev
+        .filter((j) => j.status === 'COMPLETED' || j.status === 'FAILED')
+        .forEach((j) => stopPolling(j.id));
+      return prev.filter((j) => j.status !== 'COMPLETED' && j.status !== 'FAILED');
+    });
+  }, [stopPolling]);
 
-  const downloadOutput = useCallback((_jobId: string) => {
-    // Download would be triggered here in production
-  }, []);
+  const downloadOutput = useCallback(
+    (jobId: string) => {
+      const job = queue.find((j) => j.id === jobId);
+      // Only real server-issued output URLs are downloadable; nothing is invented.
+      if (job?.outputUrl) {
+        window.open(job.outputUrl, '_blank', 'noopener');
+      }
+    },
+    [queue],
+  );
 
   const batchExport = useCallback(
     (projects: { id: string; name: string }[]) => {

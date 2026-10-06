@@ -1,6 +1,8 @@
 // ============================================================================
 // QuantEdits - AI Tools Panel Component
-// Auto-caption, background remove, object remove, enhance, upscale, style transfer
+// Auto-caption is wired to the real POST /api/ai/captions endpoint. All other
+// tools are shown as unavailable: their backend endpoints do not exist, so the
+// panel no longer simulates fake processing or invents result URLs.
 // ============================================================================
 
 import React, { useState, useCallback } from 'react';
@@ -13,23 +15,18 @@ interface AITool {
   category: 'enhance' | 'remove' | 'generate' | 'transform';
   isPremium: boolean;
   credits: number;
+  /** True only when a real backend endpoint backs this tool. */
+  available: boolean;
 }
 
 interface AIToolResult {
   id: string;
   toolId: string;
   status: 'processing' | 'complete' | 'failed';
-  progress: number;
-  resultUrl: string | null;
+  /** Real text output from the API (captions), or null while processing. */
+  text: string | null;
   error: string | null;
   startedAt: number;
-}
-
-interface StyleTransferOption {
-  id: string;
-  name: string;
-  thumbnail: string;
-  category: string;
 }
 
 interface AIToolsPanelProps {
@@ -39,101 +36,100 @@ interface AIToolsPanelProps {
 }
 
 const AI_TOOLS: AITool[] = [
-  { id: 'auto-caption', name: 'Auto Caption', description: 'Generate captions from speech automatically', icon: '💬', category: 'generate', isPremium: false, credits: 1 },
-  { id: 'bg-remove', name: 'Background Remove', description: 'Remove background and make transparent', icon: '✂️', category: 'remove', isPremium: false, credits: 2 },
-  { id: 'object-remove', name: 'Object Remove', description: 'Paint over objects to remove them', icon: '🎯', category: 'remove', isPremium: true, credits: 3 },
-  { id: 'enhance', name: 'Enhance', description: 'Improve quality, fix lighting and colors', icon: '✨', category: 'enhance', isPremium: false, credits: 1 },
-  { id: 'upscale-2x', name: 'Upscale 2x', description: 'Double resolution with AI', icon: '🔍', category: 'enhance', isPremium: false, credits: 2 },
-  { id: 'upscale-4x', name: 'Upscale 4x', description: 'Quadruple resolution with AI', icon: '🔎', category: 'enhance', isPremium: true, credits: 5 },
-  { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic styles to video/image', icon: '🎨', category: 'transform', isPremium: true, credits: 4 },
-  { id: 'denoise', name: 'Denoise', description: 'Remove grain and noise', icon: '🌫️', category: 'enhance', isPremium: false, credits: 1 },
-  { id: 'stabilize', name: 'Stabilize', description: 'Smooth shaky video footage', icon: '📐', category: 'enhance', isPremium: false, credits: 2 },
-  { id: 'face-enhance', name: 'Face Enhance', description: 'Smooth skin, enhance facial features', icon: '👤', category: 'enhance', isPremium: true, credits: 3 },
-  { id: 'color-match', name: 'Color Match', description: 'Match colors between clips', icon: '🌈', category: 'transform', isPremium: false, credits: 1 },
-  { id: 'audio-enhance', name: 'Audio Enhance', description: 'Reduce noise, enhance voice clarity', icon: '🎙️', category: 'enhance', isPremium: false, credits: 1 },
+  { id: 'auto-caption', name: 'Auto Caption', description: 'Generate captions from a transcript', icon: '💬', category: 'generate', isPremium: false, credits: 1, available: true },
+  { id: 'bg-remove', name: 'Background Remove', description: 'Remove background and make transparent', icon: '✂️', category: 'remove', isPremium: false, credits: 2, available: false },
+  { id: 'object-remove', name: 'Object Remove', description: 'Paint over objects to remove them', icon: '🎯', category: 'remove', isPremium: true, credits: 3, available: false },
+  { id: 'enhance', name: 'Enhance', description: 'Improve quality, fix lighting and colors', icon: '✨', category: 'enhance', isPremium: false, credits: 1, available: false },
+  { id: 'upscale-2x', name: 'Upscale 2x', description: 'Double resolution with AI', icon: '🔍', category: 'enhance', isPremium: false, credits: 2, available: false },
+  { id: 'upscale-4x', name: 'Upscale 4x', description: 'Quadruple resolution with AI', icon: '🔎', category: 'enhance', isPremium: true, credits: 5, available: false },
+  { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic styles to video/image', icon: '🎨', category: 'transform', isPremium: true, credits: 4, available: false },
+  { id: 'denoise', name: 'Denoise', description: 'Remove grain and noise', icon: '🌫️', category: 'enhance', isPremium: false, credits: 1, available: false },
+  { id: 'stabilize', name: 'Stabilize', description: 'Smooth shaky video footage', icon: '📐', category: 'enhance', isPremium: false, credits: 2, available: false },
+  { id: 'face-enhance', name: 'Face Enhance', description: 'Smooth skin, enhance facial features', icon: '👤', category: 'enhance', isPremium: true, credits: 3, available: false },
+  { id: 'color-match', name: 'Color Match', description: 'Match colors between clips', icon: '🌈', category: 'transform', isPremium: false, credits: 1, available: false },
+  { id: 'audio-enhance', name: 'Audio Enhance', description: 'Reduce noise, enhance voice clarity', icon: '🎙️', category: 'enhance', isPremium: false, credits: 1, available: false },
 ];
 
-const STYLE_OPTIONS: StyleTransferOption[] = [
-  { id: 'st-oil', name: 'Oil Painting', thumbnail: '/styles/oil.jpg', category: 'Classic' },
-  { id: 'st-watercolor', name: 'Watercolor', thumbnail: '/styles/watercolor.jpg', category: 'Classic' },
-  { id: 'st-sketch', name: 'Pencil Sketch', thumbnail: '/styles/sketch.jpg', category: 'Classic' },
-  { id: 'st-anime', name: 'Anime', thumbnail: '/styles/anime.jpg', category: 'Modern' },
-  { id: 'st-pixel', name: 'Pixel Art', thumbnail: '/styles/pixel.jpg', category: 'Modern' },
-  { id: 'st-neon', name: 'Neon Glow', thumbnail: '/styles/neon.jpg', category: 'Modern' },
-  { id: 'st-pop-art', name: 'Pop Art', thumbnail: '/styles/pop-art.jpg', category: 'Artistic' },
-  { id: 'st-impressionist', name: 'Impressionist', thumbnail: '/styles/impressionist.jpg', category: 'Classic' },
-  { id: 'st-cyberpunk', name: 'Cyberpunk', thumbnail: '/styles/cyberpunk.jpg', category: 'Modern' },
-];
+interface CaptionsApiResponse {
+  success: boolean;
+  data?: { captions: string };
+  error?: { code: string; message: string };
+}
 
-const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, onApplyResult, creditsRemaining }) => {
+const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, creditsRemaining }) => {
   const [activeCategory, setActiveCategory] = useState<'all' | AITool['category']>('all');
   const [activeResults, setActiveResults] = useState<AIToolResult[]>([]);
-  const [showStylePicker, setShowStylePicker] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState<string | null>(null);
-  const [isObjectRemoveMode, setIsObjectRemoveMode] = useState(false);
-  const [brushSize, setBrushSize] = useState(20);
+  const [captionTranscript, setCaptionTranscript] = useState('');
+  const [captionStyle, setCaptionStyle] = useState<'concise' | 'detailed' | 'funny'>('concise');
+  const [showCaptionForm, setShowCaptionForm] = useState(false);
+  const [runningCaption, setRunningCaption] = useState(false);
 
-  const filteredTools = AI_TOOLS.filter(t => activeCategory === 'all' || t.category === activeCategory);
+  const filteredTools = AI_TOOLS.filter(
+    (t) => activeCategory === 'all' || t.category === activeCategory,
+  );
 
-  const handleRunTool = useCallback((tool: AITool) => {
-    if (!clipId) return;
-    if (tool.credits > creditsRemaining) return;
-    if (tool.id === 'style-transfer') { setShowStylePicker(true); return; }
-    if (tool.id === 'object-remove') { setIsObjectRemoveMode(true); return; }
-
-    const result: AIToolResult = { id: `result-${Date.now()}`, toolId: tool.id, status: 'processing', progress: 0, resultUrl: null, error: null, startedAt: Date.now() };
-    setActiveResults(prev => [...prev, result]);
-
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 20 + 5;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, status: 'complete', progress: 100, resultUrl: `/ai-results/${result.id}.png` } : r));
-        onApplyResult(tool.id, `/ai-results/${result.id}.png`);
-      } else {
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, progress: Math.min(99, progress) } : r));
+  const handleRunTool = useCallback(
+    (tool: AITool) => {
+      if (!clipId || !tool.available) return;
+      if (tool.credits > creditsRemaining) return;
+      if (tool.id === 'auto-caption') {
+        setShowCaptionForm(true);
+        return;
       }
-    }, 500);
-  }, [clipId, creditsRemaining, onApplyResult]);
+    },
+    [clipId, creditsRemaining],
+  );
 
-  const handleApplyStyle = useCallback((styleId: string) => {
-    setSelectedStyle(styleId);
-    setShowStylePicker(false);
-    const result: AIToolResult = { id: `result-${Date.now()}`, toolId: 'style-transfer', status: 'processing', progress: 0, resultUrl: null, error: null, startedAt: Date.now() };
-    setActiveResults(prev => [...prev, result]);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 10 + 3;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, status: 'complete', progress: 100, resultUrl: `/ai-results/${result.id}-styled.png` } : r));
-        onApplyResult('style-transfer', `/ai-results/${result.id}-styled.png`);
-      } else {
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, progress: Math.min(99, progress) } : r));
+  const handleRunAutoCaption = useCallback(async () => {
+    const transcript = captionTranscript.trim();
+    if (!transcript || runningCaption) return;
+    setRunningCaption(true);
+    const result: AIToolResult = {
+      id: `result-${Date.now()}`,
+      toolId: 'auto-caption',
+      status: 'processing',
+      text: null,
+      error: null,
+      startedAt: Date.now(),
+    };
+    setActiveResults((prev) => [...prev, result]);
+    setShowCaptionForm(false);
+    try {
+      const res = await fetch('/api/ai/captions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript, style: captionStyle }),
+      });
+      const payload = (await res.json().catch(() => null)) as CaptionsApiResponse | null;
+      if (!res.ok || !payload?.success || !payload.data?.captions) {
+        throw new Error(
+          payload?.error?.message || `Caption request failed (HTTP ${res.status})`,
+        );
       }
-    }, 700);
-  }, [onApplyResult]);
-
-  const handleObjectRemoveApply = useCallback(() => {
-    setIsObjectRemoveMode(false);
-    const result: AIToolResult = { id: `result-${Date.now()}`, toolId: 'object-remove', status: 'processing', progress: 0, resultUrl: null, error: null, startedAt: Date.now() };
-    setActiveResults(prev => [...prev, result]);
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 15 + 5;
-      if (progress >= 100) {
-        clearInterval(interval);
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, status: 'complete', progress: 100, resultUrl: `/ai-results/${result.id}-removed.png` } : r));
-        onApplyResult('object-remove', `/ai-results/${result.id}-removed.png`);
-      } else {
-        setActiveResults(prev => prev.map(r => r.id === result.id ? { ...r, progress: Math.min(99, progress) } : r));
-      }
-    }, 600);
-  }, [onApplyResult]);
+      setActiveResults((prev) =>
+        prev.map((r) =>
+          r.id === result.id ? { ...r, status: 'complete', text: payload.data!.captions } : r,
+        ),
+      );
+    } catch (err) {
+      setActiveResults((prev) =>
+        prev.map((r) =>
+          r.id === result.id
+            ? {
+                ...r,
+                status: 'failed',
+                error: err instanceof Error ? err.message : 'Caption request failed',
+              }
+            : r,
+        ),
+      );
+    } finally {
+      setRunningCaption(false);
+    }
+  }, [captionTranscript, captionStyle, runningCaption]);
 
   const handleCancelResult = useCallback((resultId: string) => {
-    setActiveResults(prev => prev.filter(r => r.id !== resultId));
+    setActiveResults((prev) => prev.filter((r) => r.id !== resultId));
   }, []);
 
   if (!clipId) {
@@ -141,29 +137,6 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, onApplyResult, cred
       <div className="ai-tools-panel empty">
         <div className="empty-icon">🤖</div>
         <p>Select a clip to use AI tools</p>
-      </div>
-    );
-  }
-
-  if (isObjectRemoveMode) {
-    return (
-      <div className="ai-tools-panel object-remove-mode">
-        <div className="remove-header">
-          <h3>Object Remove</h3>
-          <p>Paint over the object you want to remove</p>
-        </div>
-        <div className="remove-canvas">
-          <div className="canvas-placeholder">Paint area (brush tool active)</div>
-        </div>
-        <div className="brush-controls">
-          <label>Brush Size</label>
-          <input type="range" min={5} max={100} value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value))} />
-          <span>{brushSize}px</span>
-        </div>
-        <div className="remove-actions">
-          <button className="cancel-btn" onClick={() => setIsObjectRemoveMode(false)}>Cancel</button>
-          <button className="apply-btn" onClick={handleObjectRemoveApply}>Remove Object</button>
-        </div>
       </div>
     );
   }
@@ -187,54 +160,81 @@ const AIToolsPanel: React.FC<AIToolsPanelProps> = ({ clipId, onApplyResult, cred
       </div>
 
       <div className="ai-tools-grid">
-        {filteredTools.map(tool => (
-          <button key={tool.id} className={`ai-tool-card ${tool.isPremium ? 'premium' : ''}`} onClick={() => handleRunTool(tool)} disabled={tool.credits > creditsRemaining}>
+        {filteredTools.map((tool) => (
+          <button
+            key={tool.id}
+            className={`ai-tool-card ${tool.isPremium ? 'premium' : ''} ${tool.available ? '' : 'unavailable'}`}
+            onClick={() => handleRunTool(tool)}
+            disabled={!tool.available || tool.credits > creditsRemaining}
+            title={tool.available ? tool.description : 'Not available yet — no backend for this tool'}
+          >
             <span className="tool-icon">{tool.icon}</span>
             <span className="tool-name">{tool.name}</span>
-            <span className="tool-desc">{tool.description}</span>
+            <span className="tool-desc">
+              {tool.available ? tool.description : 'Not available yet'}
+            </span>
             <span className="tool-cost">{tool.credits} credits</span>
             {tool.isPremium && <span className="pro-badge">PRO</span>}
           </button>
         ))}
       </div>
 
+      {showCaptionForm && (
+        <div className="caption-form">
+          <h4>Auto Caption</h4>
+          <p>Paste the clip transcript — captions are generated by the AI service.</p>
+          <textarea
+            value={captionTranscript}
+            onChange={(e) => setCaptionTranscript(e.target.value)}
+            placeholder="Paste transcript here..."
+            rows={4}
+          />
+          <div className="caption-style-row">
+            <label>Style</label>
+            <select
+              value={captionStyle}
+              onChange={(e) => setCaptionStyle(e.target.value as typeof captionStyle)}
+            >
+              <option value="concise">Concise</option>
+              <option value="detailed">Detailed</option>
+              <option value="funny">Funny</option>
+            </select>
+          </div>
+          <div className="caption-form-actions">
+            <button onClick={() => setShowCaptionForm(false)}>Cancel</button>
+            <button onClick={handleRunAutoCaption} disabled={!captionTranscript.trim() || runningCaption}>
+              {runningCaption ? 'Generating…' : 'Generate Captions'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {activeResults.length > 0 && (
         <div className="ai-results">
-          <h4>Processing</h4>
-          {activeResults.map(result => (
+          <h4>Results</h4>
+          {activeResults.map((result) => (
             <div key={result.id} className={`result-item status-${result.status}`}>
               <div className="result-info">
-                <span className="result-tool">{AI_TOOLS.find(t => t.id === result.toolId)?.name}</span>
+                <span className="result-tool">
+                  {AI_TOOLS.find((t) => t.id === result.toolId)?.name}
+                </span>
                 <span className="result-status">{result.status}</span>
               </div>
               {result.status === 'processing' && (
                 <div className="result-progress">
-                  <div className="progress-bar"><div className="progress-fill" style={{ width: `${result.progress}%` }} /></div>
-                  <span>{Math.round(result.progress)}%</span>
+                  <div className="progress-bar indeterminate" />
+                  <span>Working…</span>
                 </div>
               )}
-              {result.status === 'complete' && <span className="result-done">Applied</span>}
+              {result.status === 'complete' && result.text && (
+                <p className="result-text">{result.text}</p>
+              )}
               {result.status === 'failed' && <span className="result-error">{result.error}</span>}
-              <button className="result-dismiss" onClick={() => handleCancelResult(result.id)}>x</button>
+              <button className="result-dismiss" onClick={() => handleCancelResult(result.id)}>
+                x
+              </button>
             </div>
           ))}
-        </div>
-      )}
-
-      {showStylePicker && (
-        <div className="style-picker-overlay">
-          <div className="style-picker">
-            <h3>Choose Style</h3>
-            <div className="style-grid">
-              {STYLE_OPTIONS.map(style => (
-                <button key={style.id} className={`style-option ${selectedStyle === style.id ? 'selected' : ''}`} onClick={() => handleApplyStyle(style.id)}>
-                  <img src={style.thumbnail} alt={style.name} />
-                  <span>{style.name}</span>
-                </button>
-              ))}
-            </div>
-            <button className="close-style-picker" onClick={() => setShowStylePicker(false)}>Cancel</button>
-          </div>
         </div>
       )}
     </div>
