@@ -23,6 +23,10 @@ import type {
 import { getTool } from './tool-registry';
 import { quantyAgentState } from './agent-state';
 
+// Re-exported so popup-data.ts (and other consumers) can import the store
+// contract from the executor module.
+export type { QuantyTaskStore } from './types';
+
 export const MAX_STEPS_PER_TASK = 25;
 export const STEP_TIMEOUT_MS = 120_000;
 
@@ -172,6 +176,8 @@ export class QuantyExecutor {
           }
           step.status = 'done';
           step.result = result.data;
+          step.reversible = result.reversible === true;
+          if (result.undoToken !== undefined) step.undoToken = result.undoToken;
           step.endedAt = now();
           runState.currentStepLabel = undefined;
           await persist();

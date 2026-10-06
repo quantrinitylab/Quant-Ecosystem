@@ -44,9 +44,9 @@ interface Rule {
 }
 
 /**
- * The 10 common commands the rule-based planner understands.
- * Each rule is deliberately narrow — unknown commands fall through to the
- * unmatched plan instead of guessing a destructive action.
+ * The commands the rule-based planner understands. Each rule is deliberately
+ * narrow — unknown commands fall through to the unmatched plan instead of
+ * guessing a destructive action.
  */
 const RULES: Rule[] = [
   {
@@ -65,13 +65,13 @@ const RULES: Rule[] = [
     steps: [{ toolName: 'mail.starImportant', label: 'Starring important emails', args: { limit: 10 } }],
   },
   {
-    match: ['summarize', 'thread'],
-    summary: 'Summarize a thread',
-    steps: [{ toolName: 'mail.summarizeThread', label: 'Summarizing thread', args: {} }],
+    match: ['summarize', 'latest'],
+    summary: 'Summarize the latest unread thread',
+    steps: [{ toolName: 'mail.summarizeLatest', label: 'Summarizing latest thread', args: {} }],
   },
   {
     match: ['clean', 'inbox'],
-    summary: 'Clean inbox: archive read mail, then mark the rest read',
+    summary: 'Clean inbox: archive unread mail, then mark the rest read',
     steps: [
       { toolName: 'mail.archiveUnread', label: 'Archiving unread emails', args: {} },
       { toolName: 'mail.markAllRead', label: 'Marking everything as read', args: {} },
@@ -83,28 +83,18 @@ const RULES: Rule[] = [
     steps: [{ toolName: 'mail.deleteSpam', label: 'Deleting spam', args: {} }],
   },
   {
-    match: ['create', 'event'],
-    summary: 'Create a calendar event',
-    steps: [{ toolName: 'calendar.createEvent', label: 'Creating calendar event', args: {} }],
-  },
-  {
-    match: ['today', 'schedule'],
-    summary: "Show today's schedule",
-    steps: [{ toolName: 'calendar.listToday', label: "Listing today's events", args: {} }],
-  },
-  {
     match: ['list', 'repos'],
     summary: 'List repositories',
     steps: [{ toolName: 'git.listRepos', label: 'Listing repositories', args: {} }],
   },
-  {
-    match: ['find', 'contact'],
-    summary: 'Find a contact',
-    steps: [{ toolName: 'contacts.search', label: 'Searching contacts', args: {} }],
-  },
 ];
 
-/** Rule-based planner: keyword matching over the 10 common commands. */
+/**
+ * Rule-based planner: keyword matching over the commands above. Every rule
+ * targets a REAL registered tool; calendar/contacts commands are deliberately
+ * absent — those tools don't exist yet, so the planner honestly says it
+ * couldn't understand rather than planning against a stub.
+ */
 export class RuleBasedPlanner implements QuantyPlanner {
   plan(command: string): QuantyPlan {
     const norm = ` ${normalize(command)} `;
@@ -115,7 +105,7 @@ export class RuleBasedPlanner implements QuantyPlanner {
       }
     }
     return {
-      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, clean inbox, delete spam, create event, today's schedule, list repos, find contact.`,
+      summary: `I couldn't understand "${command}". Try: archive unread, mark all read, star important, summarize latest, clean inbox, delete spam, list repos.`,
       steps: [],
       unmatched: true,
     };
@@ -146,9 +136,10 @@ export function createPlanner(kind: 'rule' | 'llm' = 'rule'): QuantyPlanner {
  */
 export function materializeSteps(plan: QuantyPlan, available?: QuantyTool[]): QuantyStep[] {
   const tools = available ?? listTools();
-  const known = new Set(tools.map((t) => t.name));
+  const byName = new Map(tools.map((t) => [t.name, t]));
   return plan.steps.map((s) => {
-    if (!known.has(s.toolName)) {
+    const tool = byName.get(s.toolName);
+    if (!tool) {
       throw new Error(`Planner produced unknown tool "${s.toolName}"`);
     }
     return {
@@ -157,6 +148,9 @@ export function materializeSteps(plan: QuantyPlan, available?: QuantyTool[]): Qu
       label: s.label,
       args: s.args,
       status: 'pending' as const,
+      // The frontend consent UI ("Haan, karo" / "Rehne do") reads this
+      // straight off the step — no extra registry round-trip needed.
+      destructive: tool.destructive === true,
     };
   });
 }

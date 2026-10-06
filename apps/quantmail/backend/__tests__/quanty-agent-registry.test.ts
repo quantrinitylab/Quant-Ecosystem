@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   registerTool,
   registerTools,
@@ -7,10 +7,10 @@ import {
   listToolsByApp,
   listToolNames,
   clearTools,
-  registerBuiltinTools,
-  builtinMailTools,
+  registerRealTools,
 } from '../services/quanty-agent/tool-registry';
 import type { QuantyTool } from '../services/quanty-agent/types';
+import type { QuantyMailToolsDeps } from '../services/quanty-agent/tools/mail-tools';
 
 function makeTool(name: string, app: QuantyTool['app'] = 'core'): QuantyTool {
   return {
@@ -21,6 +21,30 @@ function makeTool(name: string, app: QuantyTool['app'] = 'core'): QuantyTool {
     destructive: false,
     reversible: false,
     handler: async () => ({ ok: true, summary: 'done' }),
+  };
+}
+
+/** Minimal mock deps — real tools are registered, but no service is ever invoked. */
+function mockDeps(): QuantyMailToolsDeps {
+  return {
+    prisma: {
+      emailFolder: { findFirst: vi.fn(), create: vi.fn() },
+      email: { updateMany: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    } as any,
+    emailService: {
+      search: vi.fn(),
+      batchArchive: vi.fn(),
+      batchStar: vi.fn(),
+      batchMarkRead: vi.fn(),
+      batchDelete: vi.fn(),
+      sendEmail: vi.fn(),
+      compose: vi.fn(),
+    } as any,
+    threadService: {
+      getThread: vi.fn(),
+      snoozeThread: vi.fn(),
+    } as any,
+    summarizeService: null,
   };
 }
 
@@ -56,30 +80,60 @@ describe('quanty-agent tool-registry', () => {
     expect(listToolsByApp('git')).toHaveLength(1);
   });
 
-  it('registerBuiltinTools registers mail/git/calendar/drive/contacts tools', () => {
-    registerBuiltinTools();
+  it('registerRealTools registers the REAL mail + git tools (no stubs)', () => {
+    registerRealTools(mockDeps());
     const names = listToolNames();
-    expect(names).toContain('mail.archiveUnread');
-    expect(names).toContain('mail.deleteSpam');
-    expect(names).toContain('git.listRepos');
-    expect(names).toContain('calendar.createEvent');
-    expect(names).toContain('drive.listFiles');
-    expect(names).toContain('contacts.search');
 
-    const spam = getTool('mail.deleteSpam');
-    expect(spam?.destructive).toBe(true);
-    expect(spam?.reversible).toBe(false);
-    expect(getTool('mail.archiveUnread')?.destructive).toBe(false);
+    // Mail primitives (adapted from the real mail-tools).
+    for (const n of [
+      'mail.searchEmails', 'mail.archiveThread', 'mail.unarchiveThread', 'mail.starThread',
+      'mail.pinThread', 'mail.markRead', 'mail.deleteThread', 'mail.snoozeThread',
+      'mail.sendEmail', 'mail.createDraft', 'mail.summarizeThread', 'mail.listUnread',
+    ]) {
+      expect(names, `expected real tool ${n}`).toContain(n);
+    }
+    // Mail composites.
+    for (const n of [
+      'mail.archiveUnread', 'mail.markAllRead', 'mail.starImportant', 'mail.deleteSpam', 'mail.summarizeLatest',
+    ]) {
+      expect(names, `expected composite tool ${n}`).toContain(n);
+    }
+    // Git tools (adapted from the real git-tools).
+    for (const n of [
+      'git.listRepos', 'git.createRepo', 'git.listPrs', 'git.getPrDiff', 'git.mergePr',
+      'git.createIssue', 'git.listIssues', 'git.closeIssue', 'git.listActions',
+      'git.getRepoStats', 'git.summarizePr',
+    ]) {
+      expect(names, `expected real tool ${n}`).toContain(n);
+    }
+    // Nothing from the old stub era: calendar/drive/contacts have no tools yet.
+    expect(names.some((n) => n.startsWith('calendar.') || n.startsWith('drive.') || n.startsWith('contacts.'))).toBe(false);
+    expect(listTools()).toHaveLength(12 + 5 + 11);
   });
 
-  it('builtin mail tools validate required args', async () => {
-    clearTools();
-    registerTools(builtinMailTools());
-    const summarize = getTool('mail.summarizeThread')!;
-    const ctx = { userId: 'u', taskId: 't', prisma: null, signal: new AbortController().signal, audit: () => {} };
-    const bad = await summarize.handler({}, ctx);
-    expect(bad.ok).toBe(false);
-    const good = await summarize.handler({ threadId: 'th-1' }, ctx);
-    expect(good.ok).toBe(true);
+  it('marks confirmation-gated tools destructive (real consent, no auto-resolve)', () => {
+    registerRealTools(mockDeps());
+    // These require the user to tap "Haan, karo" before the executor runs them.
+    expect(getTool('mail.sendEmail')?.destructive).toBe(true);
+    expect(getTool('mail.deleteThread')?.destructive).toBe(true);
+    expect(getTool('mail.deleteSpam')?.destructive).toBe(true);
+    expect(getTool('git.mergePr')?.destructive).toBe(true);
+    // Read-only tools run without a prompt.
+    expect(getTool('mail.searchEmails')?.destructive).toBe(false);
+    expect(getTool('mail.listUnread')?.destructive).toBe(false);
+    expect(getTool('git.listRepos')?.destructive).toBe(false);
+  });
+
+  it('every registered tool has a real async handler', async () => {
+    registerRealTools(mockDeps());
+    for (const tool of listTools()) {
+      expect(typeof tool.handler, tool.name).toBe('function');
+      expect(tool.description.length, tool.name).toBeGreaterThan(0);
+    }
+  });
+
+  it('registerRealTools throws when registered twice (boot exactly once)', () => {
+    registerRealTools(mockDeps());
+    expect(() => registerRealTools(mockDeps())).toThrow(/already registered/);
   });
 });
