@@ -18,9 +18,6 @@ import type {
   Repo,
 } from '../types';
 import {
-  INITIAL_SECURITY_ALERTS,
-  INITIAL_SECRET_ALERTS,
-  INITIAL_CODEQL_ALERTS,
   INITIAL_BRANCH_SECURITY_RULES,
   DEFAULT_SECURITY_POLICY,
 } from '../constants';
@@ -45,26 +42,22 @@ export function SecurityTab({
   // Sub-Tab Navigation
   const [activeSubTab, setActiveSubTab] = useState<SecurityTabSubTab>(initialSubTab);
 
-  // 1. Dependabot Alerts State
+  // 1. Dependabot Alerts State — only real scan results, never fake alerts.
   const [dependabotAlerts, setDependabotAlerts] = useState<SecurityAlert[]>(() => {
     if (propAlerts && propAlerts.length > 0) {
-      // Merge with initial rich fields if propAlerts lack them
-      return propAlerts.map((pa) => {
-        const enriched = INITIAL_SECURITY_ALERTS.find((ia) => ia.id === pa.id || ia.cve === pa.cve);
-        return {
-          ...pa,
-          vulnerableRange: pa.vulnerableRange || enriched?.vulnerableRange || '< latest',
-          patchedVersion: pa.patchedVersion || enriched?.patchedVersion || 'latest',
-          cvss:
-            pa.cvss ??
-            enriched?.cvss ??
-            (pa.severity === 'critical' ? 9.5 : pa.severity === 'high' ? 7.8 : 5.0),
-          cweTitle: pa.cweTitle || enriched?.cweTitle || 'CWE-Unknown Security Advisory',
-          createdAt: pa.createdAt || enriched?.createdAt || 'Recently',
-        };
-      });
+      return propAlerts.map((pa) => ({
+        ...pa,
+        vulnerableRange: pa.vulnerableRange || '< latest',
+        patchedVersion: pa.patchedVersion || 'latest',
+        cvss:
+          pa.cvss ??
+          (pa.severity === 'critical' ? 9.5 : pa.severity === 'high' ? 7.8 : 5.0),
+        cweTitle: pa.cweTitle || 'CWE-Unknown Security Advisory',
+        createdAt: pa.createdAt || 'Recently',
+      }));
     }
-    return INITIAL_SECURITY_ALERTS;
+    // Genuine empty state — no scan results yet, no fabricated alerts.
+    return [];
   });
 
   const [selectedSeverity, setSelectedSeverity] = useState<SecuritySeverity | 'all'>('all');
@@ -75,13 +68,15 @@ export function SecurityTab({
   const [generatedFixPrs, setGeneratedFixPrs] = useState<Record<string, number>>({});
 
   // 2. Secret Scanning State
-  const [secretAlerts, setSecretAlerts] = useState<SecretScanningAlert[]>(INITIAL_SECRET_ALERTS);
+  // Genuine empty state — no fabricated secret alerts.
+  const [secretAlerts, setSecretAlerts] = useState<SecretScanningAlert[]>([]);
   const [secretSearch, setSecretSearch] = useState('');
   const [secretStatusFilter, setSecretStatusFilter] = useState<'all' | SecretAlertStatus>('all');
   const [isScanningSecrets, setIsScanningSecrets] = useState(false);
 
   // 3. CodeQL / SAST State
-  const [codeqlAlerts, setCodeqlAlerts] = useState<CodeQLAlert[]>(INITIAL_CODEQL_ALERTS);
+  // Genuine empty state — no fabricated CodeQL alerts.
+  const [codeqlAlerts, setCodeqlAlerts] = useState<CodeQLAlert[]>([]);
   const [codeqlSearch, setCodeqlSearch] = useState('');
   const [selectedCodeqlSeverity, setSelectedCodeqlSeverity] = useState<
     'all' | 'critical' | 'high' | 'medium' | 'low'

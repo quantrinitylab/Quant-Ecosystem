@@ -2,7 +2,6 @@
 
 import React, { useState, useMemo } from 'react';
 import type { Repo, CommitItem, CommitFileDiff } from '../types';
-import { INITIAL_COMMITS } from '../constants';
 
 export interface CommitsTabProps {
   repo: Repo;
@@ -25,7 +24,8 @@ export function CommitsTab({
   onBrowseCodeAtCommit,
   showToast = () => {},
 }: CommitsTabProps) {
-  const allCommits = initialCommits && initialCommits.length > 0 ? initialCommits : INITIAL_COMMITS;
+  // Genuine empty state — only real commits from the backend, never fabricated ones.
+  const allCommits = initialCommits && initialCommits.length > 0 ? initialCommits : [];
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBranch, setSelectedBranch] = useState(currentBranch);
   const [expandedCommitSha, setExpandedCommitSha] = useState<string | null>(

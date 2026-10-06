@@ -215,7 +215,10 @@ describe('QuantGit Context Sub-Views — Wave 75 ContextBottomNavBar Parity', ()
 
         if (tab === 'repos') {
           expect(html).toContain('data-testid="quantgit-repos-subview"');
-          expect(html).toContain('quant-ecosystem');
+          // Honest empty state — no fabricated repos when none provided
+          expect(html).toContain('data-testid="quantgit-repos-empty"');
+          expect(html).toContain('No repositories yet');
+          expect(html).not.toContain('quant-ecosystem');
         } else if (tab === 'prs') {
           expect(html).toContain('data-testid="quantgit-prs-subview"');
           expect(html).toContain('PR #347');
@@ -236,7 +239,19 @@ describe('QuantGit Context Sub-Views — Wave 75 ContextBottomNavBar Parity', ()
       const html = renderToStaticMarkup(<QuantGitSubViews />);
 
       expect(html).toContain('data-testid="quantgit-repos-subview"');
+      // Honest empty state — no fabricated repos
+      expect(html).toContain('data-testid="quantgit-repos-empty"');
+      expect(html).toContain('No repositories yet');
+    });
+
+    it('renders real repos when provided via props (no fakes needed)', () => {
+      const html = renderToStaticMarkup(
+        <QuantGitReposSubView repos={DEFAULT_SUBVIEW_REPOS} />,
+      );
+
+      expect(html).toContain('data-testid="quantgit-repos-subview"');
       expect(html).toContain('quant-ecosystem');
+      expect(html).not.toContain('data-testid="quantgit-repos-empty"');
     });
   });
 });

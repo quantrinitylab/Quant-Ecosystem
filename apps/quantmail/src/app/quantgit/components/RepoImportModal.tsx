@@ -10,33 +10,18 @@ export interface MigrationStepInfo {
   description: string;
 }
 
+// Honest import progress — the backend performs the real import; the UI shows
+// an indeterminate "importing" state rather than theatrical fake steps.
 export const MIGRATION_STEPS: MigrationStepInfo[] = [
   {
     step: 1,
-    title: 'Connecting to remote provider & verifying credentials',
-    description: 'Authenticating with remote VCS API and checking branch accessibility',
+    title: 'Importing repository…',
+    description: 'The server is importing the repository. This may take a moment.',
   },
   {
     step: 2,
-    title: 'Ingesting Git commit trees, branches, and tags',
-    description: 'Fast-forward cloning Git history, tree objects, and ref pointers',
-  },
-  {
-    step: 3,
-    title: 'Converting CI/CD pipelines to QuantGit Actions',
-    description: 'Translating .github/workflows and .gitlab-ci.yml into .quant/workflows/ci.yml',
-  },
-  {
-    step: 4,
-    title: 'Registering environment variables & security policies',
-    description:
-      'Extracting secret placeholders from .env.example and configuring runtime isolation',
-  },
-  {
-    step: 5,
-    title: 'Migration Complete!',
-    description:
-      'Repository is fully imported and ready for sovereign builds and agent orchestration',
+    title: 'Import complete!',
+    description: 'Repository is imported and ready.',
   },
 ];
 
@@ -130,82 +115,28 @@ export function RepoImportModal({
     };
 
     try {
-      // Step 1: Connecting to remote provider & verifying credentials
+      // Honest importing state — the backend does the real work; no theatrical
+      // fake progress steps. The UI shows an indeterminate "Importing..." state.
       setActiveStep(1);
-      await new Promise((res) => setTimeout(res, 350));
 
-      // Step 2: Ingesting Git commit trees, branches, and tags
+      const response = await fetch('/api/repos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json || json.success === false) {
+        // No fake fallback result — surface the real error honestly.
+        throw new Error(
+          json?.error?.message || `Import failed (HTTP ${response.status}). Please try again.`,
+        );
+      }
+
+      const resData = json.data || json;
       setActiveStep(2);
-      await new Promise((res) => setTimeout(res, 400));
-
-      // Trigger actual backend import
-      let resData: any = null;
-      try {
-        const response = await fetch('/api/repos/import', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          const json = await response.json();
-          resData = json.data || json;
-        }
-      } catch {
-        // Fallback mock-resilient result for offline/test environments
-      }
-
-      // Step 3: Converting CI/CD pipelines to QuantGit Actions
-      setActiveStep(3);
-      await new Promise((res) => setTimeout(res, 350));
-
-      // Step 4: Registering environment variables & security policies
-      setActiveStep(4);
-      await new Promise((res) => setTimeout(res, 300));
-
-      if (!resData) {
-        const generatedRepoId = `repo-migrated-${Date.now()}`;
-        resData = {
-          repo: {
-            id: generatedRepoId,
-            ownerId: currentUsername,
-            name: targetRepoName.trim().toLowerCase(),
-            fullName: `${currentUsername}/${targetRepoName.trim().toLowerCase()}`,
-            description: `Imported from ${provider.toUpperCase()}: ${sourceUrl.trim()}`,
-            visibility,
-            defaultBranch: 'main',
-            cloneUrl: `https://quantmail.in/git/${currentUsername}/${targetRepoName.trim().toLowerCase()}.git`,
-            sshUrl: `git@quantmail.in:${currentUsername}/${targetRepoName.trim().toLowerCase()}.git`,
-            branches: ['main', 'develop', 'release/v1.0'],
-            commitCount: 42,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          importedCommits: 42,
-          convertedPipelines: convertPipelines
-            ? [
-                {
-                  sourceType: provider === 'gitlab' ? 'gitlab-ci' : 'github-actions',
-                  sourceFile: provider === 'gitlab' ? '.gitlab-ci.yml' : '.github/workflows/ci.yml',
-                  targetFile: '.quant/workflows/ci.yml',
-                },
-              ]
-            : [],
-          importedEnvVars: extractEnv
-            ? [
-                { key: 'DATABASE_URL', isSecret: true, maskedValue: '••••••••••••' },
-                { key: 'API_KEY', isSecret: true, maskedValue: '••••••••••••' },
-                { key: 'PORT', isSecret: false, maskedValue: '3000' },
-                { key: 'JWT_SECRET', isSecret: true, maskedValue: '••••••••••••' },
-              ]
-            : [],
-        };
-      }
-
-      // Step 5: Migration Complete!
-      setActiveStep(5);
       setMigrationResult(resData);
-      showToast?.(`Repository ${targetRepoName} imported successfully!`);
+      showToast?.(`Repository ${targetRepoName.trim()} imported successfully!`);
     } catch (err: any) {
       setErrorMessage(err?.message || 'Failed to import repository.');
       setIsImporting(false);

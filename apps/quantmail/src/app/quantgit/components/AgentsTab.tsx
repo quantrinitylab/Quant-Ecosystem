@@ -19,8 +19,8 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
             Autonomous Swarm Fleet & GitHub Copilot Workspace
           </h3>
           <p className="text-[#7D8590]">
-            6 specialized developer agents autonomously reviewing PRs, managing migrations, and
-            testing code.
+            Workspace agents you configure here are local to this session. Connect a real agent
+            backend to enable autonomous reviews and migrations.
           </p>
         </div>
         <button
@@ -32,6 +32,18 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
         </button>
       </div>
 
+      {agents.length === 0 ? (
+        <div
+          data-testid="agents-empty"
+          className="rounded-md border border-dashed border-[#30363D] bg-[#0D1117] p-10 text-center"
+        >
+          <p className="text-sm font-semibold text-[#E6EDF3]">No workspace agents yet</p>
+          <p className="mt-1 text-xs text-[#7D8590]">
+            Deploy an agent to track local workspace tasks. No agents are running until you add
+            one.
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {agents.map((ag) => (
           <div
@@ -64,6 +76,7 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
