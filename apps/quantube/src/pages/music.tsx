@@ -1,308 +1,148 @@
 // ============================================================================
-// QuantTube - Music Streaming Page
-// Full music player with albums, artists, playlists, radio, charts, lyrics
+// QuantTube - Music Page
+// ----------------------------------------------------------------------------
+// Music catalog browser + player backed by the REAL music backend
+// (MusicService over Prisma: MusicAlbum + MusicTrack). All data flows through
+// the Layer-5 hooks in features/music/useMusic.ts over the same-origin proxy
+// paths — no mock artists, tracks, albums, or listener counts anywhere.
+//
+// Tabs without a backend endpoint (artists, playlists, radio, charts) are
+// intentionally absent: the page only shows what the API actually returns.
+// An empty catalog renders an honest empty state, never invented content.
 // ============================================================================
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import {
+  useMusicTracks,
+  useMusicAlbums,
+  getMusicAlbum,
+  getTrackStream,
+} from '../features/music/useMusic';
 
-interface Track {
+// --- Response contracts (single authoritative source; imported by the hooks) ---
+
+export interface ApiTrack {
   id: string;
   title: string;
-  artist: string;
-  artistId: string;
-  album: string;
-  albumId: string;
-  albumCover: string;
-  duration: number;
-  explicit: boolean;
+  artistName: string;
+  albumId: string | null;
+  audioUrl: string;
+  artworkUrl: string | null;
+  durationSec: number;
+  genre: string | null;
+  playCount: number;
+  createdAt: string;
 }
 
-interface Album {
+export interface ApiAlbum {
   id: string;
   title: string;
-  artist: string;
-  coverUrl: string;
-  year: number;
-  trackCount: number;
+  artistName: string;
+  artworkUrl: string | null;
+  releaseDate: string | null;
+  createdAt: string;
+  tracks?: ApiTrack[];
 }
 
-interface Artist {
-  id: string;
-  name: string;
-  imageUrl: string;
-  monthlyListeners: number;
-  verified: boolean;
+export interface MusicHomeResponse {
+  tracks: ApiTrack[];
+  albums: ApiAlbum[];
 }
 
-interface PlaylistItem {
-  id: string;
-  title: string;
-  coverUrl: string;
-  trackCount: number;
-  creator: string;
-  isOwn: boolean;
+export interface MusicTracksResponse {
+  tracks: ApiTrack[];
+  page: number;
+  pageSize: number;
 }
 
-type BrowseTab = 'albums' | 'artists' | 'playlists' | 'radio' | 'charts';
+export interface MusicAlbumsResponse {
+  albums: ApiAlbum[];
+  page: number;
+  pageSize: number;
+}
+
+export interface MusicAlbumDetailResponse {
+  album: ApiAlbum;
+}
+
+export interface TrackStreamResponse {
+  trackId: string;
+  streamUrl: string;
+  mimeType: string;
+  durationSec: number;
+}
+
+type BrowseTab = 'tracks' | 'albums';
 type RepeatMode = 'off' | 'all' | 'one';
-
-interface MusicPageState {
-  currentTrack: Track | null;
-  queue: Track[];
-  isPlaying: boolean;
-  volume: number;
-  progress: number;
-  shuffle: boolean;
-  repeat: RepeatMode;
-  browseTab: BrowseTab;
-  searchQuery: string;
-  searchResults: Track[];
-  queuePanelOpen: boolean;
-  lyricsPanelOpen: boolean;
-  recentlyPlayed: Track[];
-  albums: Album[];
-  artists: Artist[];
-  playlists: PlaylistItem[];
-  loading: boolean;
-  error: string | null;
-  libraryOpen: boolean;
-}
-
-const MOCK_TRACKS: Track[] = [
-  {
-    id: 't1',
-    title: 'Midnight City',
-    artist: 'M83',
-    artistId: 'a1',
-    album: "Hurry Up, We're Dreaming",
-    albumId: 'al1',
-    albumCover: '/covers/midnight.jpg',
-    duration: 243,
-    explicit: false,
-  },
-  {
-    id: 't2',
-    title: 'Blinding Lights',
-    artist: 'The Weeknd',
-    artistId: 'a2',
-    album: 'After Hours',
-    albumId: 'al2',
-    albumCover: '/covers/blinding.jpg',
-    duration: 200,
-    explicit: false,
-  },
-  {
-    id: 't3',
-    title: 'Levitating',
-    artist: 'Dua Lipa',
-    artistId: 'a3',
-    album: 'Future Nostalgia',
-    albumId: 'al3',
-    albumCover: '/covers/levitating.jpg',
-    duration: 203,
-    explicit: false,
-  },
-  {
-    id: 't4',
-    title: 'Save Your Tears',
-    artist: 'The Weeknd',
-    artistId: 'a2',
-    album: 'After Hours',
-    albumId: 'al2',
-    albumCover: '/covers/tears.jpg',
-    duration: 215,
-    explicit: false,
-  },
-  {
-    id: 't5',
-    title: 'Heat Waves',
-    artist: 'Glass Animals',
-    artistId: 'a4',
-    album: 'Dreamland',
-    albumId: 'al4',
-    albumCover: '/covers/heatwaves.jpg',
-    duration: 238,
-    explicit: false,
-  },
-];
-
-const MOCK_ALBUMS: Album[] = [
-  {
-    id: 'al1',
-    title: "Hurry Up, We're Dreaming",
-    artist: 'M83',
-    coverUrl: '/covers/hurryup.jpg',
-    year: 2011,
-    trackCount: 22,
-  },
-  {
-    id: 'al2',
-    title: 'After Hours',
-    artist: 'The Weeknd',
-    coverUrl: '/covers/afterhours.jpg',
-    year: 2020,
-    trackCount: 14,
-  },
-  {
-    id: 'al3',
-    title: 'Future Nostalgia',
-    artist: 'Dua Lipa',
-    coverUrl: '/covers/future.jpg',
-    year: 2020,
-    trackCount: 11,
-  },
-  {
-    id: 'al4',
-    title: 'Dreamland',
-    artist: 'Glass Animals',
-    coverUrl: '/covers/dreamland.jpg',
-    year: 2020,
-    trackCount: 16,
-  },
-];
-
-const MOCK_ARTISTS: Artist[] = [
-  {
-    id: 'a1',
-    name: 'M83',
-    imageUrl: '/artists/m83.jpg',
-    monthlyListeners: 8500000,
-    verified: true,
-  },
-  {
-    id: 'a2',
-    name: 'The Weeknd',
-    imageUrl: '/artists/weeknd.jpg',
-    monthlyListeners: 75000000,
-    verified: true,
-  },
-  {
-    id: 'a3',
-    name: 'Dua Lipa',
-    imageUrl: '/artists/dualipa.jpg',
-    monthlyListeners: 62000000,
-    verified: true,
-  },
-  {
-    id: 'a4',
-    name: 'Glass Animals',
-    imageUrl: '/artists/glass.jpg',
-    monthlyListeners: 25000000,
-    verified: true,
-  },
-];
-
-const MOCK_PLAYLISTS: PlaylistItem[] = [
-  {
-    id: 'p1',
-    title: 'Daily Mix 1',
-    coverUrl: '/playlists/mix1.jpg',
-    trackCount: 50,
-    creator: 'QuantTube',
-    isOwn: false,
-  },
-  {
-    id: 'p2',
-    title: 'Chill Vibes',
-    coverUrl: '/playlists/chill.jpg',
-    trackCount: 120,
-    creator: 'You',
-    isOwn: true,
-  },
-  {
-    id: 'p3',
-    title: 'Workout Energy',
-    coverUrl: '/playlists/workout.jpg',
-    trackCount: 75,
-    creator: 'You',
-    isOwn: true,
-  },
-  {
-    id: 'p4',
-    title: 'Discover Weekly',
-    coverUrl: '/playlists/discover.jpg',
-    trackCount: 30,
-    creator: 'QuantTube',
-    isOwn: false,
-  },
-];
+type StreamStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 const MusicPage: React.FC = () => {
-  const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
-  const [queue, setQueue] = useState<Track[]>([]);
+  const [browseTab, setBrowseTab] = useState<BrowseTab>('tracks');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentTrack, setCurrentTrack] = useState<ApiTrack | null>(null);
+  const [queue, setQueue] = useState<ApiTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(75);
   const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState<RepeatMode>('off');
-  const [browseTab, setBrowseTab] = useState<BrowseTab>('albums');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Track[]>([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState<ApiTrack[]>([]);
   const [queuePanelOpen, setQueuePanelOpen] = useState(false);
-  const [lyricsPanelOpen, setLyricsPanelOpen] = useState(false);
-  const [recentlyPlayed, setRecentlyPlayed] = useState<Track[]>([]);
-  const [albums, setAlbums] = useState<Album[]>([]);
-  const [artists, setArtists] = useState<Artist[]>([]);
-  const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [libraryOpen, setLibraryOpen] = useState(false);
-  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>('idle');
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [albumLoadingId, setAlbumLoadingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadMusicData = async () => {
-      try {
-        setLoading(true);
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        setAlbums(MOCK_ALBUMS);
-        setArtists(MOCK_ARTISTS);
-        setPlaylists(MOCK_PLAYLISTS);
-        setRecentlyPlayed(MOCK_TRACKS.slice(0, 3));
-        setQueue(MOCK_TRACKS);
-        setError(null);
-      } catch (err) {
-        setError('Failed to load music library');
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadMusicData();
-  }, []);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => {
-    if (isPlaying && currentTrack) {
-      progressRef.current = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= currentTrack.duration) {
-            handleNext();
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (progressRef.current) clearInterval(progressRef.current);
-    };
-  }, [isPlaying, currentTrack]);
+  // --- Real data: tracks + albums from the backend (react-query, cached) ---
+  const tracksQuery = useMusicTracks({ pageSize: 100 });
+  const albumsQuery = useMusicAlbums({ pageSize: 100 });
 
-  const handlePlayTrack = useCallback((track: Track) => {
+  const tracks = tracksQuery.data?.data.tracks ?? [];
+  const albums = albumsQuery.data?.data.albums ?? [];
+  const loading = tracksQuery.isLoading || albumsQuery.isLoading;
+  const loadError = tracksQuery.isError || albumsQuery.isError;
+
+  const searchResults =
+    searchQuery.trim().length > 0
+      ? tracks.filter(
+          (t) =>
+            t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            t.artistName.toLowerCase().includes(searchQuery.toLowerCase()),
+        )
+      : [];
+
+  // --- Playback (real <audio> element; stream URL comes from the backend) ---
+
+  const playTrack = useCallback(async (track: ApiTrack, contextList: ApiTrack[]) => {
     setCurrentTrack(track);
-    setIsPlaying(true);
+    setQueue(contextList);
     setProgress(0);
-    setRecentlyPlayed((prev) => [track, ...prev.filter((t) => t.id !== track.id)].slice(0, 10));
-  }, []);
-
-  const handleTogglePlay = useCallback(() => {
-    if (!currentTrack && queue.length > 0) {
-      handlePlayTrack(queue[0]);
-    } else {
-      setIsPlaying((prev) => !prev);
+    setStreamStatus('loading');
+    setStreamError(null);
+    try {
+      const res = await getTrackStream(track.id);
+      const streamUrl = res.success ? res.data?.streamUrl : undefined;
+      if (!streamUrl) {
+        throw new Error('empty stream url');
+      }
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.src = streamUrl;
+      setDuration(res.data?.durationSec ?? track.durationSec ?? 0);
+      await audio.play();
+      setStreamStatus('ready');
+      setRecentlyPlayed((prev) => [track, ...prev.filter((t) => t.id !== track.id)].slice(0, 10));
+    } catch {
+      setStreamStatus('error');
+      setStreamError('Could not load audio for this track.');
+      setIsPlaying(false);
     }
-  }, [currentTrack, queue, handlePlayTrack]);
+  }, []);
 
   const handleNext = useCallback(() => {
     if (queue.length === 0) return;
@@ -315,51 +155,86 @@ const MusicPage: React.FC = () => {
     } else {
       nextIndex = (currentIndex + 1) % queue.length;
     }
-    handlePlayTrack(queue[nextIndex]);
-  }, [queue, currentTrack, shuffle, repeat, handlePlayTrack]);
+    void playTrack(queue[nextIndex], queue);
+  }, [queue, currentTrack, shuffle, repeat, playTrack]);
 
   const handlePrev = useCallback(() => {
-    if (progress > 5) {
-      setProgress(0);
+    const audio = audioRef.current;
+    if (audio && audio.currentTime > 5) {
+      audio.currentTime = 0;
       return;
     }
+    if (queue.length === 0) return;
     const currentIndex = queue.findIndex((t) => t.id === currentTrack?.id);
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
-    handlePlayTrack(queue[prevIndex]);
-  }, [queue, currentTrack, progress, handlePlayTrack]);
+    void playTrack(queue[prevIndex], queue);
+  }, [queue, currentTrack, playTrack]);
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    if (query.trim()) {
-      const results = MOCK_TRACKS.filter(
-        (t) =>
-          t.title.toLowerCase().includes(query.toLowerCase()) ||
-          t.artist.toLowerCase().includes(query.toLowerCase()),
-      );
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
+  const handleTogglePlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!currentTrack) {
+      if (tracks.length > 0) void playTrack(tracks[0], tracks);
+      return;
     }
-  }, []);
+    if (streamStatus === 'loading') return;
+    if (audio.paused) {
+      void audio.play().catch(() => setStreamError('Could not play this track.'));
+    } else {
+      audio.pause();
+    }
+  }, [currentTrack, tracks, streamStatus, playTrack]);
 
-  const handleRemoveFromQueue = useCallback((trackId: string) => {
-    setQueue((prev) => prev.filter((t) => t.id !== trackId));
-  }, []);
+  const handleSeek = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const audio = audioRef.current;
+      if (!audio || !duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+      audio.currentTime = ratio * duration;
+      setProgress(audio.currentTime);
+    },
+    [duration],
+  );
 
   const handleRepeatToggle = useCallback(() => {
     setRepeat((prev) => (prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off'));
   }, []);
 
+  const handlePlayAlbum = useCallback(
+    async (album: ApiAlbum) => {
+      setAlbumLoadingId(album.id);
+      try {
+        const res = await getMusicAlbum(album.id);
+        const albumTracks = res.success ? (res.data?.album.tracks ?? []) : [];
+        if (albumTracks.length > 0) {
+          void playTrack(albumTracks[0], albumTracks);
+        } else {
+          setStreamError('This album has no playable tracks yet.');
+        }
+      } catch {
+        setStreamError('Could not load this album.');
+      } finally {
+        setAlbumLoadingId(null);
+      }
+    },
+    [playTrack],
+  );
+
+  const handleRetry = () => {
+    void tracksQuery.refetch();
+    void albumsQuery.refetch();
+  };
+
+  // Keep element volume in sync with the slider.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume / 100;
+  }, [volume]);
+
   const formatTime = (seconds: number): string => {
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
-  };
-
-  const formatListeners = (n: number): string => {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
-    return n.toString();
   };
 
   if (loading) {
@@ -375,14 +250,16 @@ const MusicPage: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (loadError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--quant-background)]">
         <div className="text-center">
-          <div className="text-[var(--quant-destructive)] text-5xl mb-4">!</div>
-          <p className="text-[var(--quant-destructive)] text-lg mb-4">{error}</p>
+          <p className="text-[var(--quant-foreground)] text-lg mb-2">Couldn&apos;t load the music catalog.</p>
+          <p className="text-[var(--quant-muted-foreground)] text-sm mb-4">
+            Check your connection and try again.
+          </p>
           <button
-            onClick={() => window.location.reload()}
+            onClick={handleRetry}
             className="px-6 py-2 bg-[var(--brand-primary)] text-white rounded-lg hover:bg-[var(--brand-primary-hover)] min-h-[44px] transition-colors"
           >
             Retry
@@ -392,8 +269,29 @@ const MusicPage: React.FC = () => {
     );
   }
 
+  const isSearching = searchQuery.trim().length > 0;
+
   return (
     <div className="min-h-screen bg-[var(--quant-background)] text-[var(--quant-foreground)] pb-24">
+      {/* Hidden real audio element */}
+      <audio
+        ref={audioRef}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onTimeUpdate={(e) => setProgress(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          if (e.currentTarget.duration && Number.isFinite(e.currentTarget.duration)) {
+            setDuration(e.currentTarget.duration);
+          }
+        }}
+        onEnded={handleNext}
+        onError={() => {
+          setStreamStatus('error');
+          setStreamError('Could not play this track.');
+          setIsPlaying(false);
+        }}
+      />
+
       {/* Header with Search */}
       <header className="sticky top-0 z-40 bg-[var(--quant-background)]/95 backdrop-blur border-b border-[var(--quant-border)] px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -402,273 +300,183 @@ const MusicPage: React.FC = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search songs, artists, albums..."
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search songs and artists..."
               className="w-full px-4 py-2 bg-[var(--surface-elevated)] border border-[var(--quant-border)] rounded-full text-[var(--quant-foreground)] placeholder-[var(--quant-muted-foreground)] focus:outline-none focus:border-[var(--brand-primary)]"
             />
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setLibraryOpen(!libraryOpen)}
-              className="px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[var(--quant-border)] rounded-lg min-h-[44px]"
-            >
-              Your Library
-            </button>
-            <button
-              onClick={() => setQueuePanelOpen(!queuePanelOpen)}
-              className="px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[var(--quant-border)] rounded-lg min-h-[44px]"
-            >
-              Queue ({queue.length})
-            </button>
-          </div>
+          <button
+            onClick={() => setQueuePanelOpen(!queuePanelOpen)}
+            className="px-4 py-2 text-sm font-medium text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)] border border-[var(--quant-border)] rounded-lg min-h-[44px]"
+          >
+            Queue ({queue.length})
+          </button>
         </div>
       </header>
 
-      {/* Search Results Overlay */}
-      {searchQuery && searchResults.length > 0 && (
-        <div className="absolute z-30 top-20 left-1/2 -translate-x-1/2 w-full max-w-md bg-gray-800 border border-gray-700 rounded-xl shadow-xl p-4">
-          {searchResults.map((track) => (
-            <div
-              key={track.id}
-              onClick={() => handlePlayTrack(track)}
-              className="flex items-center gap-3 p-2 hover:bg-gray-700 rounded-lg cursor-pointer"
-            >
-              <img src={track.albumCover} alt={track.album} className="w-10 h-10 rounded" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">{track.title}</p>
-                <p className="text-xs text-gray-400">{track.artist}</p>
-              </div>
-              <span className="text-xs text-gray-500">{formatTime(track.duration)}</span>
-            </div>
-          ))}
-        </div>
+      {/* Browse Tabs — only surfaces the backend actually serves */}
+      {!isSearching && (
+        <nav className="px-6 py-3 border-b border-[var(--quant-border)] max-w-7xl mx-auto">
+          <div className="flex gap-2">
+            {(['tracks', 'albums'] as BrowseTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setBrowseTab(tab)}
+                className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors min-h-[44px] ${browseTab === tab ? 'bg-[var(--brand-primary)] text-white' : 'bg-[var(--surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'}`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </nav>
       )}
 
-      {/* Browse Tabs */}
-      <nav className="px-6 py-3 border-b border-[var(--quant-border)] max-w-7xl mx-auto">
-        <div className="flex gap-2">
-          {(['albums', 'artists', 'playlists', 'radio', 'charts'] as BrowseTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setBrowseTab(tab)}
-              className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors min-h-[44px] ${browseTab === tab ? 'bg-[var(--brand-primary)] text-white' : 'bg-[var(--surface-elevated)] text-[var(--quant-muted-foreground)] hover:text-[var(--quant-foreground)]'}`}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-      </nav>
-
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6 flex gap-6">
-        <div className={`flex-1 ${queuePanelOpen || lyricsPanelOpen ? 'mr-80' : ''}`}>
-          {/* Recently Played */}
-          {recentlyPlayed.length > 0 && (
-            <section className="mb-8">
-              <h2 className="text-xl font-bold text-white mb-4">Recently Played</h2>
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                {recentlyPlayed.map((track) => (
-                  <div
-                    key={track.id}
-                    onClick={() => handlePlayTrack(track)}
-                    className="flex-shrink-0 w-40 cursor-pointer group"
-                  >
-                    <img
-                      src={track.albumCover}
-                      alt={track.album}
-                      className="w-40 h-40 rounded-lg object-cover group-hover:opacity-80 transition"
-                    />
-                    <p className="mt-2 text-sm font-medium text-white truncate">{track.title}</p>
-                    <p className="text-xs text-gray-400 truncate">{track.artist}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        {streamError && !currentTrack && (
+          <p className="mb-4 text-sm text-[var(--quant-destructive)]">{streamError}</p>
+        )}
 
-          {/* Browse Content */}
-          {browseTab === 'albums' && (
-            <section>
-              <h2 className="text-xl font-bold text-white mb-4">Albums</h2>
-              {albums.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <p className="text-4xl mb-2">No albums found</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                  {albums.map((album) => (
-                    <div key={album.id} className="group cursor-pointer">
-                      <img
-                        src={album.coverUrl}
-                        alt={album.title}
-                        className="w-full aspect-square rounded-lg object-cover group-hover:opacity-80 transition"
-                      />
-                      <h3 className="mt-2 font-medium text-white truncate">{album.title}</h3>
-                      <p className="text-sm text-gray-400">
-                        {album.artist} - {album.year}
-                      </p>
-                      <p className="text-xs text-gray-500">{album.trackCount} tracks</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-          {browseTab === 'artists' && (
-            <section>
-              <h2 className="text-xl font-bold text-white mb-4">Artists</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                {artists.map((artist) => (
-                  <div key={artist.id} className="text-center group cursor-pointer">
-                    <img
-                      src={artist.imageUrl}
-                      alt={artist.name}
-                      className="w-32 h-32 rounded-full mx-auto object-cover group-hover:opacity-80 transition"
-                    />
-                    <h3 className="mt-3 font-medium text-white">{artist.name}</h3>
-                    {artist.verified && <span className="text-xs text-blue-400">Verified</span>}
-                    <p className="text-sm text-gray-400">
-                      {formatListeners(artist.monthlyListeners)} listeners
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {browseTab === 'playlists' && (
-            <section>
-              <h2 className="text-xl font-bold text-white mb-4">Playlists</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {playlists.map((pl) => (
-                  <div key={pl.id} className="group cursor-pointer">
-                    <img
-                      src={pl.coverUrl}
-                      alt={pl.title}
-                      className="w-full aspect-square rounded-lg object-cover group-hover:opacity-80 transition"
-                    />
-                    <h3 className="mt-2 font-medium text-white truncate">{pl.title}</h3>
-                    <p className="text-sm text-gray-400">
-                      {pl.creator} - {pl.trackCount} tracks
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {browseTab === 'radio' && (
-            <section>
-              <h2 className="text-xl font-bold text-white mb-4">Radio Stations</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {[
-                  'Chill Beats',
-                  'Indie Rock Radio',
-                  'Pop Hits',
-                  'Electronic',
-                  'Jazz Lounge',
-                  'Classical Focus',
-                ].map((station) => (
-                  <div
-                    key={station}
-                    className="p-4 bg-gradient-to-br from-purple-900 to-gray-800 rounded-xl cursor-pointer hover:from-purple-800 transition"
-                  >
-                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center mb-3 text-lg">
-                      R
-                    </div>
-                    <h3 className="font-medium text-white">{station}</h3>
-                    <p className="text-sm text-gray-400">Curated by QuantTube</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {browseTab === 'charts' && (
-            <section>
-              <h2 className="text-xl font-bold text-white mb-4">Top Charts</h2>
-              <div className="space-y-2">
-                {MOCK_TRACKS.map((track, i) => (
-                  <div
-                    key={track.id}
-                    onClick={() => handlePlayTrack(track)}
-                    className="flex items-center gap-4 p-3 bg-gray-800 rounded-lg hover:bg-gray-750 cursor-pointer"
-                  >
-                    <span className="w-8 text-center font-bold text-gray-400">{i + 1}</span>
-                    <img src={track.albumCover} alt={track.album} className="w-12 h-12 rounded" />
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{track.title}</p>
-                      <p className="text-sm text-gray-400">{track.artist}</p>
-                    </div>
-                    <span className="text-sm text-gray-500">{formatTime(track.duration)}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* Queue Panel */}
-        {queuePanelOpen && (
-          <aside className="fixed right-0 top-20 bottom-24 w-80 bg-gray-850 border-l border-gray-800 p-4 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Queue</h3>
-              <button
-                onClick={() => setQueuePanelOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                X
-              </button>
-            </div>
-            {queue.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">Queue is empty</p>
+        {isSearching ? (
+          <section>
+            <h2 className="text-xl font-bold text-white mb-4">
+              Results ({searchResults.length})
+            </h2>
+            {searchResults.length === 0 ? (
+              <p className="text-center py-12 text-gray-500">
+                No tracks match &ldquo;{searchQuery.trim()}&rdquo;.
+              </p>
             ) : (
               <div className="space-y-2">
-                {queue.map((track, i) => (
-                  <div
-                    key={`${track.id}-${i}`}
-                    className={`flex items-center gap-3 p-2 rounded-lg ${currentTrack?.id === track.id ? 'bg-purple-900/50' : 'hover:bg-gray-800'}`}
-                  >
-                    <span className="text-xs text-gray-500 w-5">{i + 1}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">{track.title}</p>
-                      <p className="text-xs text-gray-400 truncate">{track.artist}</p>
-                    </div>
-                    <button
-                      onClick={() => handleRemoveFromQueue(track.id)}
-                      className="text-gray-500 hover:text-red-400 text-xs"
-                    >
-                      X
-                    </button>
-                  </div>
+                {searchResults.map((track) => (
+                  <TrackRow
+                    key={track.id}
+                    track={track}
+                    active={currentTrack?.id === track.id}
+                    onPlay={() => void playTrack(track, searchResults)}
+                    formatTime={formatTime}
+                  />
                 ))}
               </div>
             )}
-          </aside>
-        )}
+          </section>
+        ) : (
+          <>
+            {/* Recently Played — this session only */}
+            {recentlyPlayed.length > 0 && (
+              <section className="mb-8">
+                <h2 className="text-xl font-bold text-white mb-4">Recently Played</h2>
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {recentlyPlayed.map((track) => (
+                    <div
+                      key={track.id}
+                      onClick={() => void playTrack(track, recentlyPlayed)}
+                      className="flex-shrink-0 w-40 cursor-pointer group"
+                    >
+                      <Artwork
+                        src={track.artworkUrl}
+                        alt={track.title}
+                        className="w-40 h-40 rounded-lg"
+                      />
+                      <p className="mt-2 text-sm font-medium text-white truncate">{track.title}</p>
+                      <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
-        {/* Lyrics Panel */}
-        {lyricsPanelOpen && currentTrack && (
-          <aside className="fixed right-0 top-20 bottom-24 w-80 bg-gray-850 border-l border-gray-800 p-6 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Lyrics</h3>
-              <button
-                onClick={() => setLyricsPanelOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                X
-              </button>
-            </div>
-            <div className="space-y-4 text-gray-300 leading-relaxed">
-              <p>
-                Lyrics for "{currentTrack.title}" by {currentTrack.artist}
-              </p>
-              <p className="text-gray-500 italic">Lyrics sync coming soon...</p>
-            </div>
-          </aside>
+            {browseTab === 'tracks' && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">Tracks</h2>
+                {tracks.length === 0 ? (
+                  <p className="text-center py-12 text-gray-500">No tracks yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {tracks.map((track) => (
+                      <TrackRow
+                        key={track.id}
+                        track={track}
+                        active={currentTrack?.id === track.id}
+                        onPlay={() => void playTrack(track, tracks)}
+                        formatTime={formatTime}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {browseTab === 'albums' && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">Albums</h2>
+                {albums.length === 0 ? (
+                  <p className="text-center py-12 text-gray-500">No albums yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {albums.map((album) => (
+                      <div
+                        key={album.id}
+                        onClick={() => void handlePlayAlbum(album)}
+                        className="group cursor-pointer"
+                      >
+                        <div className="relative">
+                          <Artwork
+                            src={album.artworkUrl}
+                            alt={album.title}
+                            className="w-full aspect-square rounded-lg"
+                          />
+                          {albumLoadingId === album.id && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+                              <div className="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            </div>
+                          )}
+                        </div>
+                        <h3 className="mt-2 font-medium text-white truncate">{album.title}</h3>
+                        <p className="text-sm text-gray-400 truncate">{album.artistName}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+          </>
         )}
       </main>
+
+      {/* Queue Panel */}
+      {queuePanelOpen && (
+        <aside className="fixed right-0 top-20 bottom-24 w-80 bg-gray-850 border-l border-gray-800 p-4 overflow-y-auto z-40">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-white">Queue</h3>
+            <button
+              onClick={() => setQueuePanelOpen(false)}
+              className="text-gray-400 hover:text-white min-h-[44px] min-w-[44px]"
+            >
+              X
+            </button>
+          </div>
+          {queue.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">Queue is empty</p>
+          ) : (
+            <div className="space-y-2">
+              {queue.map((track, i) => (
+                <div
+                  key={`${track.id}-${i}`}
+                  onClick={() => void playTrack(track, queue)}
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer ${currentTrack?.id === track.id ? 'bg-purple-900/50' : 'hover:bg-gray-800'}`}
+                >
+                  <span className="text-xs text-gray-500 w-5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{track.title}</p>
+                    <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
+      )}
 
       {/* Now Playing Bar */}
       {currentTrack && (
@@ -681,9 +489,9 @@ const MusicPage: React.FC = () => {
           <div className="max-w-7xl mx-auto flex items-center gap-4">
             {/* Track Info */}
             <div className="flex items-center gap-3 w-64">
-              <img
-                src={currentTrack.albumCover}
-                alt={currentTrack.album}
+              <Artwork
+                src={currentTrack.artworkUrl}
+                alt={currentTrack.title}
                 className="w-14 h-14 rounded-lg"
               />
               <div className="min-w-0">
@@ -691,7 +499,7 @@ const MusicPage: React.FC = () => {
                   {currentTrack.title}
                 </p>
                 <p className="text-xs text-[var(--quant-muted-foreground)] truncate">
-                  {currentTrack.artist}
+                  {currentTrack.artistName}
                 </p>
               </div>
             </div>
@@ -701,31 +509,32 @@ const MusicPage: React.FC = () => {
               <div className="flex items-center gap-4 mb-1">
                 <button
                   onClick={() => setShuffle(!shuffle)}
-                  className={`text-sm ${shuffle ? 'text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'} hover:text-[var(--quant-foreground)]`}
+                  className={`text-sm min-h-[44px] ${shuffle ? 'text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'} hover:text-[var(--quant-foreground)]`}
                 >
                   Shuffle
                 </button>
                 <button
                   onClick={handlePrev}
-                  className="w-8 h-8 flex items-center justify-center text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]"
+                  className="w-8 h-8 flex items-center justify-center text-[var(--quant-foreground)] hover:text-[var(--brand-primary)] min-h-[44px]"
                 >
                   Prev
                 </button>
                 <button
                   onClick={handleTogglePlay}
-                  className="w-10 h-10 bg-[var(--brand-primary)] text-white rounded-full flex items-center justify-center font-bold hover:scale-105 transition min-h-[44px] min-w-[44px]"
+                  disabled={streamStatus === 'loading'}
+                  className="w-10 h-10 bg-[var(--brand-primary)] text-white rounded-full flex items-center justify-center font-bold hover:scale-105 transition min-h-[44px] min-w-[44px] disabled:opacity-50"
                 >
-                  {isPlaying ? '||' : '>'}
+                  {streamStatus === 'loading' ? '...' : isPlaying ? '||' : '>'}
                 </button>
                 <button
                   onClick={handleNext}
-                  className="w-8 h-8 flex items-center justify-center text-[var(--quant-foreground)] hover:text-[var(--brand-primary)]"
+                  className="w-8 h-8 flex items-center justify-center text-[var(--quant-foreground)] hover:text-[var(--brand-primary)] min-h-[44px]"
                 >
                   Next
                 </button>
                 <button
                   onClick={handleRepeatToggle}
-                  className={`text-sm ${repeat !== 'off' ? 'text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'} hover:text-[var(--quant-foreground)]`}
+                  className={`text-sm min-h-[44px] ${repeat !== 'off' ? 'text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'} hover:text-[var(--quant-foreground)]`}
                 >
                   {repeat === 'one' ? 'Rep1' : 'Rep'}
                 </button>
@@ -734,39 +543,37 @@ const MusicPage: React.FC = () => {
                 <span className="text-xs text-[var(--quant-muted-foreground)] w-10 text-right">
                   {formatTime(progress)}
                 </span>
-                <div className="flex-1 h-1 bg-[var(--quant-muted)] rounded-full overflow-hidden cursor-pointer">
+                <div
+                  className="flex-1 h-1 bg-[var(--quant-muted)] rounded-full overflow-hidden cursor-pointer"
+                  onClick={handleSeek}
+                >
                   <div
                     className="h-full bg-[var(--brand-primary)] rounded-full transition-all"
                     style={{
-                      width: `${currentTrack.duration > 0 ? (progress / currentTrack.duration) * 100 : 0}%`,
+                      width: `${duration > 0 ? (progress / duration) * 100 : 0}%`,
                     }}
                   />
                 </div>
                 <span className="text-xs text-[var(--quant-muted-foreground)] w-10">
-                  {formatTime(currentTrack.duration)}
+                  {formatTime(duration)}
                 </span>
               </div>
+              {streamStatus === 'error' && streamError && (
+                <p className="text-xs text-[var(--quant-destructive)] mt-1">{streamError}</p>
+              )}
             </div>
 
-            {/* Volume and Extras */}
+            {/* Volume */}
             <div className="flex items-center gap-3 w-48">
-              <button
-                onClick={() => setLyricsPanelOpen(!lyricsPanelOpen)}
-                className={`text-sm ${lyricsPanelOpen ? 'text-[var(--brand-primary)]' : 'text-[var(--quant-muted-foreground)]'} hover:text-[var(--quant-foreground)]`}
-              >
-                Lyrics
-              </button>
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-xs text-[var(--quant-muted-foreground)]">Vol</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={(e) => setVolume(Number(e.target.value))}
-                  className="w-full h-1 rounded-full appearance-none cursor-pointer accent-[var(--brand-primary)]"
-                />
-              </div>
+              <span className="text-xs text-[var(--quant-muted-foreground)]">Vol</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={(e) => setVolume(Number(e.target.value))}
+                className="w-full h-1 rounded-full appearance-none cursor-pointer accent-[var(--brand-primary)]"
+              />
             </div>
           </div>
         </motion.div>
@@ -774,5 +581,45 @@ const MusicPage: React.FC = () => {
     </div>
   );
 };
+
+// --- Small presentational pieces (real data only) ---
+
+const TrackRow: React.FC<{
+  track: ApiTrack;
+  active: boolean;
+  onPlay: () => void;
+  formatTime: (s: number) => string;
+}> = ({ track, active, onPlay, formatTime }) => (
+  <div
+    onClick={onPlay}
+    className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer ${
+      active ? 'bg-purple-900/50' : 'bg-gray-800 hover:bg-gray-750'
+    }`}
+  >
+    <Artwork src={track.artworkUrl} alt={track.title} className="w-12 h-12 rounded" />
+    <div className="flex-1 min-w-0">
+      <p className="font-medium text-white truncate">{track.title}</p>
+      <p className="text-sm text-gray-400 truncate">{track.artistName}</p>
+    </div>
+    <span className="text-sm text-gray-500">{formatTime(track.durationSec)}</span>
+  </div>
+);
+
+/** Artwork image with an honest placeholder when the catalog has no artwork. */
+const Artwork: React.FC<{ src: string | null; alt: string; className?: string }> = ({
+  src,
+  alt,
+  className,
+}) =>
+  src ? (
+    <img src={src} alt={alt} className={`${className ?? ''} object-cover`} />
+  ) : (
+    <div
+      className={`${className ?? ''} bg-gray-700 flex items-center justify-center text-gray-500 text-xs`}
+      aria-label={alt}
+    >
+      No artwork
+    </div>
+  );
 
 export default MusicPage;
