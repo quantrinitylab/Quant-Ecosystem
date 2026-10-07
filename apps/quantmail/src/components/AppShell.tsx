@@ -38,7 +38,9 @@ import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { MobileSubTabStrip } from './MobileSubTabStrip';
 import { MobilePillarBottomNav } from './MobilePillarBottomNav';
-import { DesktopPillarRail } from './DesktopPillarRail';
+import { DesktopAppRail } from './DesktopAppRail';
+import { DesktopContextSidebar } from './DesktopContextSidebar';
+import { pillarForApp } from './desktopContextTabs';
 import { AccountBadge } from './AccountBadge';
 import { appThemeForPath } from '../lib/app-theme';
 
@@ -635,22 +637,21 @@ export function AppShell({
         `{children}` as well as for the shell's own.
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
-          {/* Desktop Left Pillar Rail (68px sovereign vertical dock) */}
+          {/*
+            Desktop left context sidebar (Gmail-style): Compose button + the
+            current app's contextual tabs rendered vertically. The 5-app
+            switcher moved to the slim right rail (DesktopAppRail).
+          */}
           {isMainSuiteRoute && (
-            <DesktopPillarRail
-              currentPillar={
-                currentApp === 'calendar'
-                  ? 'calendar'
-                  : currentApp === 'drive'
-                    ? 'drive'
-                    : currentApp === 'contacts'
-                      ? 'contacts'
-                      : currentApp === 'code'
-                        ? 'quantgit'
-                        : 'mail'
+            <DesktopContextSidebar
+              pillar={pillarForApp(currentApp)}
+              composeAction={
+                fabActions[0]
+                  ? { label: fabActions[0].label, onSelect: fabActions[0].onSelect }
+                  : null
               }
-              unreadCounts={{ mail: unreadCount }}
-              onQuantyClick={openQuanty}
+              badgeCounts={{ inbox: unreadCount, teams: mailLensCounts.teams }}
+              onQuantyOpen={openQuanty}
             />
           )}
 
@@ -974,6 +975,27 @@ export function AppShell({
               {animated ? <PageTransition>{children}</PageTransition> : children}
             </main>
           </div>
+
+          {/*
+            Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
+            Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
+          */}
+          {isMainSuiteRoute && (
+            <DesktopAppRail
+              currentPillar={
+                currentApp === 'calendar'
+                  ? 'calendar'
+                  : currentApp === 'drive'
+                    ? 'drive'
+                    : currentApp === 'contacts'
+                      ? 'contacts'
+                      : currentApp === 'code'
+                        ? 'quantgit'
+                        : 'mail'
+              }
+              unreadCounts={{ mail: unreadCount }}
+            />
+          )}
 
           <QuantFab actions={fabActions} />
 
