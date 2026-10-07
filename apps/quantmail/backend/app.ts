@@ -53,6 +53,9 @@ import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-
 import { SmartInboxService } from './services/smart-inbox.service';
 import websocketPlugin from '@fastify/websocket';
 import { setupWSConnection } from './services/yjs-server';
+import { sloPlugin } from '@quant/server-core';
+import { createQuantMailDependencyRegistry } from './lib/dependency-health';
+import { QUANTMAIL_SLOS, QUANTMAIL_SLO_ROUTES } from './lib/slos';
 import { threadRealtimeRoutes } from './routes/thread-realtime';
 import documentRoutes from './routes/documents';
 import deliverabilityRoutes from './routes/deliverability';
@@ -197,25 +200,45 @@ export async function buildApp(config?: AppConfig) {
 
   await app.register(websocketPlugin);
 
+  // K12 reliability: SLO tracking. Records real request observations against
+  // the QuantMail SLO journeys (lib/slos.ts), evaluates burn rates in-process,
+  // and hooks burn-rate alerts into the pino logging + /metrics pipeline.
+  // Registered on the root instance so its onResponse hook sees every route.
+  await app.register(sloPlugin, { slos: QUANTMAIL_SLOS, routes: QUANTMAIL_SLO_ROUTES });
+
+  // K12 reliability: per-dependency health registry (spec M16). Declares the
+  // 12 spec'd dependencies with honest states — real probes where a cheap live
+  // probe exists, `not_configured` where a dependency isn't wired, `unknown`
+  // where it is configured but has no live probe. Each probe runs through its
+  // own circuit breaker whose state is surfaced below.
+  const dependencyRegistry = createQuantMailDependencyRegistry({
+    prisma: db as unknown as { $queryRawUnsafe: (query: string) => Promise<unknown> },
+    redisUrl: appConfig.redisUrl,
+  });
+
   const detailedHealthHandler = async () => {
     const memory = process.memoryUsage();
 
-    // Probe Postgres with a lightweight round-trip (mirrors the server-core
-    // readiness probe in plugins/health.ts). Each probe swallows its own failure
-    // so this endpoint reports a disconnected dependency rather than throwing a
-    // 500 — a down database should surface as a signal, not an opaque error.
-    let postgres: 'connected' | 'disconnected' = 'connected';
-    try {
-      const prismaProbe = db as unknown as { $queryRawUnsafe: (query: string) => Promise<unknown> };
-      await prismaProbe.$queryRawUnsafe('SELECT 1');
-    } catch {
-      postgres = 'disconnected';
+    // Probe every dependency in parallel. Each probe swallows its own failure
+    // (and is bounded by a timeout + circuit breaker) so this endpoint reports
+    // a disconnected dependency rather than throwing a 500 — a down database
+    // should surface as a signal, not an opaque error.
+    const dependencies = await dependencyRegistry.checkAll();
+
+    // SLO summary: latest error-budget evaluations for the critical journeys.
+    // `sloEvaluations` is decorated by the sloPlugin registered above.
+    const sloEvaluations = (
+      app as unknown as { sloEvaluations?: () => Array<{ sloId: string }> }
+    ).sloEvaluations?.() ?? [];
+    const slos: Record<string, unknown> = {};
+    for (const evaluation of sloEvaluations) {
+      slos[evaluation.sloId] = evaluation;
     }
 
-    // Redis is owned by @quant/server-core (the rate limiter + the BullMQ
-    // outbound transport) and is not decorated onto this instance, so there is no
-    // live client in scope to ping from here. Report what we can honestly
-    // determine — whether it is configured — instead of fabricating 'connected'.
+    // Back-compat `services` map: `api` is always reachable (it is serving this
+    // request); `postgres` is a real round-trip; `redis` reflects configuration
+    // (no live client is decorated onto this instance).
+    const postgresStatus = dependencies['postgres']?.status;
     const redis: 'configured' | 'not_configured' = appConfig.redisUrl
       ? 'configured'
       : 'not_configured';
@@ -232,9 +255,11 @@ export async function buildApp(config?: AppConfig) {
       },
       services: {
         api: 'ok',
-        postgres,
+        postgres: postgresStatus === 'ok' || postgresStatus === 'degraded' ? 'connected' : 'disconnected',
         redis,
       },
+      dependencies,
+      slos,
       version: '1.0.0',
     };
   };

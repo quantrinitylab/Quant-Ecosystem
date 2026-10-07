@@ -126,6 +126,16 @@ async function metricsPlugin(fastify: FastifyInstance) {
       );
     }
 
+    // SLO burn-rate alert counters, when the slo plugin is registered. The slo
+    // plugin decorates `sloPrometheusLines()`; appending here keeps a single
+    // /metrics endpoint while letting the SLO module own its exposition.
+    const sloLines = (
+      fastify as unknown as { sloPrometheusLines?: () => string[] }
+    ).sloPrometheusLines;
+    if (typeof sloLines === 'function') {
+      for (const line of sloLines()) lines.push(line);
+    }
+
     lines.push('');
     return reply.type('text/plain; charset=utf-8').send(lines.join('\n'));
   });
