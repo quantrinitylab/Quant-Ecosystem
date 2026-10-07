@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useVoiceCapture } from '../hooks/useVoiceCapture';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Language {
   code: string;
@@ -124,7 +125,7 @@ export default function TranslatePage(): JSX.Element {
   /** Real translation via the QuantAI chat pipeline. Errors surface honestly. */
   const translateText = useCallback(
     async (text: string): Promise<string> => {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await apiFetchRaw('/api/assistant/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -186,7 +187,7 @@ export default function TranslatePage(): JSX.Element {
       try {
         const form = new FormData();
         form.append('file', wav, 'audio.wav');
-        const res = await fetch('/api/voice/stt', { method: 'POST', body: form });
+        const res = await apiFetchRaw('/api/voice/stt', { method: 'POST', body: form });
         const data = (await res.json().catch(() => ({}))) as {
           text?: string;
           error?: string;
@@ -240,7 +241,7 @@ export default function TranslatePage(): JSX.Element {
     setConversationInput('');
     setConversationLoading(true);
     try {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await apiFetchRaw('/api/assistant/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

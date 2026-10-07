@@ -5,6 +5,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Persona {
   id: string;
@@ -172,7 +173,7 @@ export default function PersonasPage(): JSX.Element {
     setChatInput('');
     setChatLoading(true);
     try {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await apiFetchRaw('/api/assistant/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
