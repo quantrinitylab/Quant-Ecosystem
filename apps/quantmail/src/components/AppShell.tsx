@@ -747,7 +747,7 @@ export function AppShell({
               (customHeader ? (
                 customHeader
               ) : (
-                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 border-b border-[#232938] bg-[#090A0C]/90 backdrop-blur px-3 md:px-5">
+                <header className="hidden md:flex min-h-14 flex-none items-center justify-between gap-3 bg-black backdrop-blur px-3 md:px-5">
                   {/* Left: Active App Name / Section Breadcrumb */}
                   <div className="flex items-center gap-3 shrink-0">
                     <button
