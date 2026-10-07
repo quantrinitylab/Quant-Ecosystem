@@ -722,3 +722,54 @@ describe('GET /calendars', () => {
     expect(arg.data).toMatchObject({ userId: 'user-1', isPrimary: true });
   });
 });
+
+describe('GET /events — ?q text filter (K10 universal search)', () => {
+  it('adds a case-insensitive OR over title, description and location', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/events?q=Design' });
+
+    expect(res.statusCode).toBe(200);
+    const arg = prisma.event.findMany.mock.calls[0]![0] as {
+      where: { OR?: Array<Record<string, unknown>> };
+    };
+    expect(arg.where.OR).toEqual([
+      { title: { contains: 'Design', mode: 'insensitive' } },
+      { description: { contains: 'Design', mode: 'insensitive' } },
+      { location: { contains: 'Design', mode: 'insensitive' } },
+    ]);
+  });
+
+  it('sends no OR when ?q is absent, so existing callers are untouched', async () => {
+    const app = await buildApp();
+    const res = await app.inject({ method: 'GET', url: '/events' });
+
+    expect(res.statusCode).toBe(200);
+    const arg = prisma.event.findMany.mock.calls[0]![0] as {
+      where: { OR?: unknown };
+    };
+    expect(arg.where.OR).toBeUndefined();
+  });
+
+  it('trims whitespace-only ?q to the no-filter shape', async () => {
+    const app = await buildApp();
+    await app.inject({ method: 'GET', url: '/events?q=%20%20' });
+    const arg = prisma.event.findMany.mock.calls[0]![0] as {
+      where: { OR?: unknown };
+    };
+    expect(arg.where.OR).toBeUndefined();
+  });
+
+  it('filters the windowed (start/end) branch too', async () => {
+    const app = await buildApp();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/events?start=2026-09-01T00:00:00.000Z&end=2026-09-30T23:59:59.999Z&q=retro',
+    });
+
+    expect(res.statusCode).toBe(200);
+    const firstCall = prisma.event.findMany.mock.calls[0]![0] as {
+      where: { OR?: Array<Record<string, unknown>> };
+    };
+    expect(firstCall.where.OR).toHaveLength(3);
+  });
+});
