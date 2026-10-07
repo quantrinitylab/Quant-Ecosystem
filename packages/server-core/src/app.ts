@@ -20,6 +20,7 @@ import organizationsPlugin from './plugins/organizations';
 import notificationsPlugin from './plugins/notifications';
 import identityPermissionsPlugin from './plugins/identity-permissions';
 import teamsPlugin from './plugins/teams';
+import idempotencyPlugin from './plugins/idempotency';
 import rateLimitPlugin from '@fastify/rate-limit';
 
 export async function createApp(config: AppConfig) {
@@ -98,6 +99,14 @@ export async function createApp(config: AppConfig) {
 
   // Register request-id propagation
   await fastify.register(requestIdPlugin);
+
+  // Register idempotency-key handling (K4). Global hooks, but strictly opt-in:
+  // a route file calls `fastify.idempotency()` once to mark its mutating
+  // routes. Reuses the same Redis connection as the rate limiter above.
+  await fastify.register(idempotencyPlugin, {
+    redisClient,
+    ttlSeconds: 24 * 3600,
+  });
 
   // Register request logger (after error handler so errors are logged)
   await fastify.register(requestLoggerPlugin);

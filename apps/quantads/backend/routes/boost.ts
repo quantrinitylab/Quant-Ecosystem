@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { QuantAdsCreditsWallet } from '../services/credits-wallet.js';
 import { BoostLedgerService } from '../services/coin-services.js';
 
@@ -11,6 +11,9 @@ const activateBoostSchema = z.object({
 });
 
 export default async function boostRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on boost activation (credit spend).
+  enableIdempotency(fastify);
+
   const { packRegistry } = fastify.economy;
   const wallet = new QuantAdsCreditsWallet((fastify as unknown as { prisma: unknown }).prisma);
   const boostEngine = new BoostLedgerService(wallet, packRegistry);

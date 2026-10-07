@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { MediaService } from '../services/media.service';
 
 const uploadUrlSchema = z.object({
@@ -9,6 +9,9 @@ const uploadUrlSchema = z.object({
 });
 
 export default async function mediaRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on media uploads.
+  enableIdempotency(fastify);
+
   const service = new MediaService();
 
   // POST /media/upload-url - Generate presigned upload URL

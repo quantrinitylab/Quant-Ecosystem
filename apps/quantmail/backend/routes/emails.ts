@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import type { PrismaClient, Prisma } from '@quant/database';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { EmailService, toMessageKind, toPriority } from '../services/email.service';
 import type { EmailSearchFilters } from '../services/email.service';
@@ -208,6 +208,9 @@ export default async function emailsRoutes(
   fastify: FastifyInstance,
   options: EmailsRouteOptions = {},
 ) {
+  // K4: Idempotency-Key support on compose/send/reply (and other mutating routes).
+  enableIdempotency(fastify);
+
   const smartInbox = options.smartInbox ?? new SmartInboxService();
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
   const createSendService = (prisma: PrismaClient) => {

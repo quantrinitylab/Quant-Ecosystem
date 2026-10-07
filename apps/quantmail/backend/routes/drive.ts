@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import * as argon2 from 'argon2';
 import { AIEngine } from '@quant/ai';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import {
   DRIVE_MAX_BODY_BYTES,
   DRIVE_MAX_FILE_BYTES,
@@ -443,6 +443,9 @@ const abortMultipartSchema = z.object({
 });
 
 export default async function driveRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on Drive uploads (incl. chunked uploads).
+  enableIdempotency(fastify);
+
   const prisma = getPrisma(fastify);
   const quotaService = new StorageQuotaService(prisma);
   const chunkedUploadService = new ChunkedUploadService(prisma, quotaService);

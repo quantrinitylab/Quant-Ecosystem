@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { CreditWallet, PayoutService } from '@quant/credits';
 import { DurableCreatorListingService } from '../services/creator-listing.service.js';
 import {
@@ -44,6 +44,9 @@ const payoutSchema = z.object({
  * completed payout.
  */
 export default async function creatorEconomyRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on purchase / payout (money movement).
+  enableIdempotency(fastify);
+
   const prisma = (fastify as unknown as { prisma: unknown }).prisma;
   const listingService = new DurableCreatorListingService(prisma as never);
   const marketplace = new CreatorMarketplaceService(prisma);

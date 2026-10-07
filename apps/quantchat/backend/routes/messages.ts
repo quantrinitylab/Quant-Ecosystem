@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { MessageService } from '../services/message.service';
 
@@ -26,6 +26,9 @@ const paginationSchema = z.object({
 });
 
 export default async function messagesRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on message send (and other mutating routes).
+  enableIdempotency(fastify);
+
   // POST /conversations/:id/messages - Send a message
   fastify.post<{ Params: { id: string } }>('/:id/messages', async (request, reply) => {
     const parseResult = sendMessageSchema.safeParse(request.body);

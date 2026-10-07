@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { AttachmentService, sanitizeFilename } from '../services/attachment.service';
 import {
   DefaultAttachmentScanner,
@@ -102,6 +102,9 @@ export default async function attachmentRoutes(
   fastify: FastifyInstance,
   options?: AttachmentRoutesOptions,
 ) {
+  // K4: Idempotency-Key support on attachment uploads.
+  enableIdempotency(fastify);
+
   const service = options?.service ?? new AttachmentService({});
   const scanner = options?.scanner ?? new DefaultAttachmentScanner();
 

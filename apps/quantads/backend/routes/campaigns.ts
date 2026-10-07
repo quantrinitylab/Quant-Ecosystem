@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { createAppError } from '@quant/server-core';
+import { createAppError, enableIdempotency } from '@quant/server-core';
 import { CampaignService } from '../services/campaign.service';
 
 const createCampaignSchema = z.object({
@@ -41,6 +41,9 @@ function requireUserId(request: unknown): string {
 }
 
 export default async function campaignsRoutes(fastify: FastifyInstance) {
+  // K4: Idempotency-Key support on campaign create/update (spend commitment).
+  enableIdempotency(fastify);
+
   const prisma = (fastify as unknown as { prisma: unknown }).prisma;
   const service = new CampaignService(prisma as never);
 
