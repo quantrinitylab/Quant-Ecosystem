@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { MailAIService } from '@quant/ai';
+import type { MailAIService, ThreadContextMessage } from '@quant/ai';
 import { createAppError } from '@quant/server-core';
 
 export interface SummarizeResult {
@@ -140,6 +140,8 @@ export class AIEmailService {
       throw createAppError('Not authorized', 403, 'FORBIDDEN');
     }
 
+    const threadContext = await this.loadThreadContext(email, userId);
+
     const results = await this.mailAI.suggestReplies(
       {
         subject: email.subject,
@@ -147,11 +149,54 @@ export class AIEmailService {
         from: email.fromAddress,
       },
       userId,
+      threadContext,
     );
 
     return results.map((r) => ({
       content: r.content,
       confidence: r.confidence,
+    }));
+  }
+
+  /**
+   * Recent messages from the same thread, oldest first, excluding the message
+   * being replied to (the model already receives that one separately).
+   *
+   * Capped at six: enough for the model to pick up the topic, the tone, and
+   * any open questions, small enough that the suggestion round-trip stays
+   * fast. A message with no thread is not an error — a single mail still gets
+   * suggestions, just without conversation context.
+   */
+  private async loadThreadContext(
+    email: { id: string; threadId: string | null },
+    userId: string,
+  ): Promise<ThreadContextMessage[]> {
+    if (!email.threadId) {
+      return [];
+    }
+
+    const messages = await this.prisma.email.findMany({
+      where: {
+        userId,
+        threadId: email.threadId,
+        id: { not: email.id },
+        deletedAt: null,
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: 6,
+      select: {
+        fromName: true,
+        fromAddress: true,
+        bodyPlain: true,
+        bodyHtml: true,
+        isSent: true,
+      },
+    });
+
+    return messages.reverse().map((message) => ({
+      from: message.fromName || message.fromAddress,
+      body: message.bodyPlain || message.bodyHtml || '',
+      isMine: message.isSent,
     }));
   }
 }

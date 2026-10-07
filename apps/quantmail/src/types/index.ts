@@ -533,8 +533,30 @@ export interface ContactGroup extends BaseEntity {
   name: string;
   /** Trimmed and lowercased by the server, so one address is one member. */
   emails: string[];
+  /** Member addresses promoted to admin. Always a subset of `emails`. */
+  adminEmails: string[];
+  /** Active join-link token, or null/undefined while no link exists. */
+  inviteToken?: string | null;
   /** `#rrggbb`, or null while the group has no accent of its own. */
   color?: string | null;
+}
+
+/** A group's join link, as created by POST /contact-groups/:id/invite-link. */
+export interface GroupInviteLink {
+  token: string;
+  inviteUrl: string;
+  createdAt: string;
+}
+
+/**
+ * Public preview of a join link — the join page shows this before the visitor
+ * signs in. Deliberately carries no member addresses: group name, member
+ * count, and the owner's name only.
+ */
+export interface GroupInvitePreview {
+  groupName: string;
+  memberCount: number;
+  ownerName: string;
 }
 
 // ============================================================================

@@ -287,6 +287,7 @@ export type {
 // Services
 export { ChatAIService } from './services/chat-ai';
 export { MailAIService } from './services/mail-ai';
+export type { ThreadContextMessage } from './services/mail-ai';
 export { ContentAIService } from './services/content-ai';
 export { RecommendationAIService } from './services/recommendation-ai';
 export { DeviceControlAIService, HttpDeviceControlBackend } from './services/device-control-ai';

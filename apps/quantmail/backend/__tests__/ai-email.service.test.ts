@@ -5,6 +5,7 @@ function createMockPrisma() {
   return {
     email: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
     },
   };
@@ -220,6 +221,7 @@ describe('AIEmailService', () => {
       prisma.email.findUnique.mockResolvedValue({
         id: 'email-1',
         userId: 'user-1',
+        threadId: null,
         subject: 'Lunch tomorrow?',
         bodyPlain: 'Want to grab lunch tomorrow at noon?',
         bodyHtml: '',
@@ -252,7 +254,75 @@ describe('AIEmailService', () => {
           from: 'friend@test.com',
         },
         'user-1',
+        [],
       );
+    });
+
+    it('passes recent thread messages as context, oldest first', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-3',
+        userId: 'user-1',
+        threadId: 'thread-1',
+        subject: 'Re: Lunch tomorrow?',
+        bodyPlain: 'How about 12:30 instead?',
+        bodyHtml: '',
+        fromAddress: 'friend@test.com',
+      });
+      // Newest-first from the database, like the service requests.
+      prisma.email.findMany.mockResolvedValue([
+        {
+          fromName: null,
+          fromAddress: 'me@test.com',
+          bodyPlain: 'Noon works for me.',
+          bodyHtml: '',
+          isSent: true,
+        },
+        {
+          fromName: 'Friend',
+          fromAddress: 'friend@test.com',
+          bodyPlain: 'Want to grab lunch tomorrow at noon?',
+          bodyHtml: '',
+          isSent: false,
+        },
+      ]);
+      mailAI.suggestReplies.mockResolvedValue([]);
+
+      await service.suggestReplies('email-3', 'user-1');
+
+      expect(prisma.email.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId: 'user-1',
+            threadId: 'thread-1',
+            id: { not: 'email-3' },
+            deletedAt: null,
+          },
+          take: 6,
+        }),
+      );
+      const context = mailAI.suggestReplies.mock.calls[0][2];
+      expect(context).toEqual([
+        { from: 'Friend', body: 'Want to grab lunch tomorrow at noon?', isMine: false },
+        { from: 'me@test.com', body: 'Noon works for me.', isMine: true },
+      ]);
+    });
+
+    it('does not query for thread context when the email has no thread', async () => {
+      prisma.email.findUnique.mockResolvedValue({
+        id: 'email-1',
+        userId: 'user-1',
+        threadId: null,
+        subject: 'Hello',
+        bodyPlain: 'Hi there',
+        bodyHtml: '',
+        fromAddress: 'friend@test.com',
+      });
+      mailAI.suggestReplies.mockResolvedValue([]);
+
+      await service.suggestReplies('email-1', 'user-1');
+
+      expect(prisma.email.findMany).not.toHaveBeenCalled();
+      expect(mailAI.suggestReplies.mock.calls[0][2]).toEqual([]);
     });
   });
 });

@@ -9,12 +9,6 @@ interface SmartReplySuggestionsProps {
   onSelectReply: (text: string) => void;
 }
 
-const FALLBACK_REPLIES = [
-  'Thanks, got it!',
-  'Sounds good, let me take a look.',
-  "I'll get back to you on this shortly.",
-];
-
 export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySuggestionsProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +19,10 @@ export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySugg
     setLoading(true);
     setDismissed(false);
 
+    // No canned fallbacks: a placeholder chip ("Thanks, got it!") is a reply
+    // the model never wrote for this thread, and tapping one sends words the
+    // user did not mean. When the backend cannot generate, the chips simply
+    // do not render.
     apiClient
       .aiSuggestReplies(emailId)
       .then((response) => {
@@ -32,11 +30,11 @@ export function SmartReplySuggestions({ emailId, onSelectReply }: SmartReplySugg
         if (response.success && response.data?.suggestions?.length) {
           setSuggestions(response.data.suggestions.slice(0, 3));
         } else {
-          setSuggestions(FALLBACK_REPLIES);
+          setSuggestions([]);
         }
       })
       .catch(() => {
-        if (active) setSuggestions(FALLBACK_REPLIES);
+        if (active) setSuggestions([]);
       })
       .finally(() => {
         if (active) setLoading(false);
