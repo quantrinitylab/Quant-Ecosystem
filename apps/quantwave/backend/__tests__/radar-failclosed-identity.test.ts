@@ -19,7 +19,13 @@ let verifiedUserId: string | undefined;
 
 function buildTestApp(): FastifyInstance {
   const app = Fastify();
-  app.decorateRequest('auth', undefined as unknown);
+  // Declare the request decoration with the default value (undefined).
+  // NOTE: do NOT pass `undefined` as the value — fastify's typed
+  // decorateRequest overload requires a GetterSetter value for the augmented
+  // `auth` key, so `decorateRequest('auth', undefined as unknown)` fails
+  // typecheck (TS2345). The single-arg form is identical at runtime: fastify
+  // initialises request.auth to undefined either way.
+  app.decorateRequest('auth');
   app.addHook('onRequest', (request, _reply, done) => {
     if (verifiedUserId !== undefined) {
       (request as { auth?: { userId?: string } }).auth = { userId: verifiedUserId };
