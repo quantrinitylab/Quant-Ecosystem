@@ -15,6 +15,8 @@ import {
 import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'node:stream';
 import { StorageConfigSchema, type StorageConfig } from './storage-config.js';
+import type { Command as SmithyCommand, MetadataBearer } from '@smithy/types';
+import { withDependencyTimeout } from '@quant/server-core';
 
 export const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -66,6 +68,19 @@ export class StorageClient {
     this.client = new S3Client(clientConfig as never);
   }
 
+  /**
+   * K13: every object-storage remote call runs under the central timeout
+   * policy ('storage', default 15s, QUANT_TIMEOUT_STORAGE-overridable) so a
+   * hung store fails fast with a typed RemoteCallTimeoutError (label
+   * 'storage') instead of stalling the caller indefinitely. Output types are
+   * preserved from the Smithy command via generics.
+   */
+  private sendWithTimeout<InputType extends object, OutputType extends MetadataBearer>(
+    command: SmithyCommand<any, InputType, any, OutputType, any>,
+  ): Promise<OutputType> {
+    return withDependencyTimeout('storage', () => this.client.send(command));
+  }
+
   async upload(
     key: string,
     body: Buffer | Readable | string,
@@ -79,7 +94,7 @@ export class StorageClient {
       ContentType: contentType,
       Metadata: metadata,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return { key, etag: result.ETag ?? '' };
   }
 
@@ -90,7 +105,7 @@ export class StorageClient {
       Bucket: this.bucket,
       Key: key,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       body: result.Body as Readable,
       contentType: result.ContentType ?? 'application/octet-stream',
@@ -103,7 +118,7 @@ export class StorageClient {
       Bucket: this.bucket,
       Key: key,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   async deleteMany(keys: string[]): Promise<void> {
@@ -113,7 +128,7 @@ export class StorageClient {
         Objects: keys.map((k) => ({ Key: k })),
       },
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   async getSignedUrl(key: string, expiresIn = 3600): Promise<string> {
@@ -200,7 +215,7 @@ export class StorageClient {
       Prefix: prefix,
       MaxKeys: maxKeys,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return (result.Contents ?? []).map((item) => ({
       key: item.Key ?? '',
       size: item.Size ?? 0,
@@ -214,7 +229,7 @@ export class StorageClient {
       CopySource: `${this.bucket}/${sourceKey}`,
       Key: destKey,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   async headObject(key: string): Promise<{
@@ -227,7 +242,7 @@ export class StorageClient {
       Bucket: this.bucket,
       Key: key,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       contentType: result.ContentType ?? 'application/octet-stream',
       contentLength: result.ContentLength ?? 0,
@@ -250,7 +265,7 @@ export class StorageClient {
       ContentType: contentType,
       Metadata: metadata,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     if (!result.UploadId) {
       throw new Error('Failed to initiate multipart upload: missing UploadId');
     }
@@ -296,7 +311,7 @@ export class StorageClient {
         })),
       },
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       key: params.key,
       location: result.Location,
@@ -313,6 +328,6 @@ export class StorageClient {
       Key: params.key,
       UploadId: params.uploadId,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 }

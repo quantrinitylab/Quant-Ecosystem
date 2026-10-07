@@ -4,6 +4,7 @@
 
 import { MeiliSearch, type SearchResponse } from 'meilisearch';
 import { z } from 'zod';
+import { withDependencyTimeout } from '@quant/server-core';
 
 export const SearchOptionsSchema = z.object({
   filter: z.union([z.string(), z.array(z.string())]).optional(),
@@ -116,7 +117,10 @@ export class SearchClient {
   async search(indexName: string, query: string, options?: SearchOptions): Promise<SearchResponse> {
     const validated = options ? SearchOptionsSchema.parse(options) : undefined;
     const index = this.client.index(indexName);
-    return index.search(query, validated);
+    // K13: MeiliSearch queries are remote calls — bound by the central
+    // timeout policy ('search', default 5s, QUANT_TIMEOUT_SEARCH-overridable)
+    // so a hung index fails fast with a typed RemoteCallTimeoutError.
+    return withDependencyTimeout('search', () => index.search(query, validated));
   }
 
   async deleteDocument(indexName: string, documentId: string): Promise<void> {

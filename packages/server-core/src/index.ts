@@ -1,4 +1,19 @@
 export { createApp } from './app';
+// K13 — remote-call timeout policy (timeouts only; circuit breakers + health are K12's `resilience/`).
+export {
+  RemoteCallTimeoutError,
+  REMOTE_CALL_TIMEOUTS,
+  getTimeoutMs,
+  withTimeout,
+  withDependencyTimeout,
+  fetchWithTimeout,
+} from './timeouts';
+export type {
+  RemoteDependencyKey,
+  TimeoutLogger,
+  WithTimeoutOptions,
+  FetchWithTimeoutOptions,
+} from './timeouts';
 export {
   InsecureSecretError,
   INSECURE_DEV_JWT_SECRET,

@@ -35,6 +35,8 @@ import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Readable } from 'node:stream';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import type { Command as SmithyCommand, MetadataBearer } from '@smithy/types';
+import { withDependencyTimeout } from '@quant/server-core';
 
 export interface CloudflareR2Config {
   /** Cloudflare Account ID (used to auto-derive endpoint) */
@@ -214,6 +216,19 @@ export class CloudflareR2Client {
   }
 
   /**
+   * K13: every R2 remote call runs under the central timeout policy
+   * ('storage', default 15s, QUANT_TIMEOUT_STORAGE-overridable) so a hung
+   * object store fails fast with a typed RemoteCallTimeoutError (label
+   * 'storage') instead of stalling the caller indefinitely. Output types are
+   * preserved from the Smithy command via generics.
+   */
+  private sendWithTimeout<InputType extends object, OutputType extends MetadataBearer>(
+    command: SmithyCommand<any, InputType, any, OutputType, any>,
+  ): Promise<OutputType> {
+    return withDependencyTimeout('storage', () => this.client.send(command));
+  }
+
+  /**
    * Derive public CDN custom domain URL for an object key (e.g. https://media.quantube.in/${key})
    */
   public getPublicUrl(key: string): string {
@@ -313,7 +328,7 @@ export class CloudflareR2Client {
     };
 
     const command = new PutObjectCommand(input);
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
 
     return {
       key,
@@ -415,7 +430,7 @@ export class CloudflareR2Client {
       Bucket: this.bucket,
       Key: key,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       body: result.Body as Readable,
       contentType: result.ContentType ?? 'application/octet-stream',
@@ -436,7 +451,7 @@ export class CloudflareR2Client {
       Bucket: this.bucket,
       Key: key,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       contentType: result.ContentType ?? 'application/octet-stream',
       contentLength: result.ContentLength ?? 0,
@@ -466,7 +481,7 @@ export class CloudflareR2Client {
       Bucket: this.bucket,
       Key: key,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   /**
@@ -480,7 +495,7 @@ export class CloudflareR2Client {
         Objects: keys.map((k) => ({ Key: k })),
       },
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   /**
@@ -497,7 +512,7 @@ export class CloudflareR2Client {
         ContinuationToken: continuationToken,
       });
 
-      const response = await this.client.send(listCommand);
+      const response = await this.sendWithTimeout(listCommand);
       const objects = response.Contents ?? [];
       const keys = objects.map((obj) => obj.Key).filter((k): k is string => Boolean(k));
 
@@ -524,7 +539,7 @@ export class CloudflareR2Client {
       Prefix: prefix,
       MaxKeys: maxKeys,
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return (result.Contents ?? []).map((item) => ({
       key: item.Key ?? '',
       size: item.Size ?? 0,
@@ -541,7 +556,7 @@ export class CloudflareR2Client {
       CopySource: `${this.bucket}/${sourceKey}`,
       Key: destKey,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 
   /**
@@ -570,7 +585,7 @@ export class CloudflareR2Client {
       Metadata: metadata,
       CacheControl: getMediaCacheControl(key),
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     if (!result.UploadId) {
       throw new Error('Failed to initiate multipart upload: missing UploadId');
     }
@@ -616,7 +631,7 @@ export class CloudflareR2Client {
         })),
       },
     });
-    const result = await this.client.send(command);
+    const result = await this.sendWithTimeout(command);
     return {
       key: params.key,
       location: result.Location,
@@ -634,7 +649,7 @@ export class CloudflareR2Client {
       Key: params.key,
       UploadId: params.uploadId,
     });
-    await this.client.send(command);
+    await this.sendWithTimeout(command);
   }
 }
 

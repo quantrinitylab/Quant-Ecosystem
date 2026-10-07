@@ -16,7 +16,8 @@
     "zod": "^3.24.2",
     "pino": "^9.6.0",
     "@quant/common": "workspace:*",
-    "@quant/ai": "workspace:*"
+    "@quant/ai": "workspace:*",
+    "@quant/server-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
