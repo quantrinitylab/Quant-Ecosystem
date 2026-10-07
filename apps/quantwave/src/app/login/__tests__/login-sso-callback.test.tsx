@@ -3,25 +3,26 @@
 // QuantWave — /login SSO callback handler tests.
 // QuantMail redirects back here with ?token=…&accessToken=…&__quant_sso_ticket=…
 // after "Continue with Quant SSO". The page must exchange the token via
-// ssoLogin, scrub every token param from the URL, and continue to ?returnTo.
+// loginWithSSO (server-side exchange through the /api/auth/sso/login proxy),
+// scrub every token param from the URL, and continue to ?returnTo.
+// Token priority (apps/quantwave/src/lib/sso-handoff.ts):
+// token -> accessToken -> access_token -> __quant_sso_ticket.
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 
 const routerReplace = vi.fn();
-const ssoLogin = vi.fn();
-
-let searchQuery = '';
+const loginWithSSO = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: routerReplace, push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(searchQuery),
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
 vi.mock('../../../providers/auth-provider', () => ({
   useAuth: () => ({
     login: vi.fn(),
-    ssoLogin,
+    loginWithSSO,
     isLoading: false,
     isAuthenticated: false,
     error: null,
@@ -41,8 +42,7 @@ function goToLogin(query: string) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  ssoLogin.mockResolvedValue(undefined);
-  searchQuery = '';
+  loginWithSSO.mockResolvedValue(undefined);
   goToLogin('');
 });
 
@@ -52,12 +52,11 @@ afterEach(() => {
 
 describe('/login SSO callback', () => {
   it('exchanges the handoff token, scrubs it from the URL, and continues to returnTo', async () => {
-    searchQuery = TOKEN_QUERY;
     goToLogin(TOKEN_QUERY);
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(ssoLogin).toHaveBeenCalledWith('QM-JWT'));
+    await waitFor(() => expect(loginWithSSO).toHaveBeenCalledWith('QM-JWT'));
 
     // Every token param is stripped; returnTo survives the scrub.
     await waitFor(() => {
@@ -72,24 +71,22 @@ describe('/login SSO callback', () => {
     await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/trending'));
   });
 
-  it('prefers __quant_sso_ticket when several token params are present', async () => {
-    searchQuery = 'token=OLD&__quant_sso_ticket=NEW-TICKET';
-    goToLogin(searchQuery);
+  it('prefers ?token= when several token params are present', async () => {
+    goToLogin('__quant_sso_ticket=OLD-TICKET&token=NEW-TOKEN');
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(ssoLogin).toHaveBeenCalledWith('NEW-TICKET'));
+    await waitFor(() => expect(loginWithSSO).toHaveBeenCalledWith('NEW-TOKEN'));
   });
 
   it('shows an error and still scrubs the URL when the exchange fails', async () => {
-    ssoLogin.mockRejectedValue(new Error('Quant Account sign-in failed.'));
-    searchQuery = TOKEN_QUERY;
+    loginWithSSO.mockRejectedValue(new Error('Quant SSO sign-in failed.'));
     goToLogin(TOKEN_QUERY);
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(ssoLogin).toHaveBeenCalled());
-    expect(await screen.findByText(/Quant Account sign-in failed/)).toBeDefined();
+    await waitFor(() => expect(loginWithSSO).toHaveBeenCalled());
+    expect(await screen.findByText(/Quant SSO sign-in failed/)).toBeDefined();
 
     await waitFor(() => {
       const params = new URLSearchParams(window.location.search);
@@ -100,24 +97,22 @@ describe('/login SSO callback', () => {
   });
 
   it('does not touch SSO when no token is in the URL', async () => {
-    searchQuery = 'returnTo=%2Ftrending';
-    goToLogin(searchQuery);
+    goToLogin('returnTo=%2Ftrending');
 
     render(<LoginPage />);
 
     // Let effects settle.
     await waitFor(() => expect(screen.getByText('Sign in to QuantWave')).toBeDefined());
-    expect(ssoLogin).not.toHaveBeenCalled();
+    expect(loginWithSSO).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
   });
 
   it('rejects an unsafe returnTo and falls back to /', async () => {
-    searchQuery = 'returnTo=https%3A%2F%2Fevil.example%2F&token=QM-JWT';
-    goToLogin(searchQuery);
+    goToLogin('returnTo=https%3A%2F%2Fevil.example%2F&token=QM-JWT');
 
     render(<LoginPage />);
 
-    await waitFor(() => expect(ssoLogin).toHaveBeenCalledWith('QM-JWT'));
+    await waitFor(() => expect(loginWithSSO).toHaveBeenCalledWith('QM-JWT'));
     await waitFor(() => expect(routerReplace).toHaveBeenCalledWith('/'));
   });
 });
