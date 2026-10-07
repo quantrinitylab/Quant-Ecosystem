@@ -1,0 +1,2 @@
+export interface QuantyCapabilityManifest { product:string; version:string; capabilities:Array<{name:string;description:string;riskTier:0|1|2|3|4;resourceScopes:string[];toolIds:string[]}>; platformSupport:Array<'web'|'android'|'ios'|'tauri'|'desktop'>; updatedAt:string; }
+export const QUANTY_CORE_CAPABILITIES=['quanty.session','quanty.navigation','quanty.context'] as const;
