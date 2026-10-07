@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { createAppError } from '@quant/server-core';
-import { paymentEngine, PaymentValidationError } from '@quant/payment';
+import { paymentEngine, PaymentValidationError } from '@quant/payments';
 
 function escapeHtml(value: string): string {
   return value

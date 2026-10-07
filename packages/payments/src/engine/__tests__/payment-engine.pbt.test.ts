@@ -5,9 +5,9 @@ import {
   type PaymentProcessorBackend,
   type ProcessorChargeRequest,
   type ProcessorChargeResult,
-  type Transaction,
-} from './payment-engine';
-import { PaymentValidationError } from './errors';
+  type EngineTransaction,
+} from '../payment-engine';
+import { PaymentValidationError } from '../errors';
 
 /**
  * Property-based tests for the payment-amount-validation fix.
@@ -30,7 +30,7 @@ class SpyProcessor implements PaymentProcessorBackend {
   }
 }
 
-const typeArb: fc.Arbitrary<Transaction['type']> = fc.constantFrom(
+const typeArb: fc.Arbitrary<EngineTransaction['type']> = fc.constantFrom(
   'one_time',
   'subscription',
   'refund',

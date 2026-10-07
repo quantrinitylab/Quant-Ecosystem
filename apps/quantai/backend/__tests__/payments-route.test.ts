@@ -10,7 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * transaction.
  *
  * The engine is NOT mocked: invalid request bodies drive the real validation
- * guard in `@quant/payment` (resolved to source via the vitest alias), so this
+ * guard in `@quant/payments` (the consolidated payments package, resolved from
  * is a true seam test through route -> engine -> error mapping. Only
  * `@quant/server-core` is mocked (a faithful `createAppError`), mirroring the
  * existing route-test convention in this app and avoiding the heavy `createApp`

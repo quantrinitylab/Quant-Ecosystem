@@ -267,9 +267,9 @@ importers:
       '@quant/moderation':
         specifier: workspace:*
         version: link:../../packages/moderation
-      '@quant/payment':
+      '@quant/payments':
         specifier: workspace:*
-        version: link:../../packages/payment
+        version: link:../../packages/payments
       '@quant/quant-tools':
         specifier: workspace:*
         version: link:../../packages/quant-tools
@@ -279,9 +279,9 @@ importers:
       '@quant/realtime':
         specifier: workspace:*
         version: link:../../packages/realtime
-      '@quant/recommendation':
+      '@quant/recommendations':
         specifier: workspace:*
-        version: link:../../packages/recommendation
+        version: link:../../packages/recommendations
       '@quant/scaling':
         specifier: workspace:*
         version: link:../../packages/scaling
@@ -1350,6 +1350,9 @@ importers:
       '@quant/common':
         specifier: workspace:*
         version: link:../common
+      '@quant/database':
+        specifier: workspace:*
+        version: link:../database
       '@simplewebauthn/server':
         specifier: ^13.3.2
         version: 13.3.3
@@ -1996,21 +1999,6 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
 
-  packages/payment:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.19
-      fast-check:
-        specifier: ^3.23.2
-        version: 3.23.2
-      typescript:
-        specifier: ~5.5.0
-        version: 5.5.4
-      vitest:
-        specifier: 4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
-
   packages/payments:
     dependencies:
       '@quant/common':
@@ -2035,6 +2023,9 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.19.19
+      fast-check:
+        specifier: ^3.23.2
+        version: 3.23.2
       typescript:
         specifier: ~5.5.0
         version: 5.5.4
@@ -2196,18 +2187,6 @@ importers:
         version: 8.18.1
       typescript:
         specifier: ^5.5.0
-        version: 5.5.4
-      vitest:
-        specifier: 4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.9)(jsdom@29.1.1)(vite@8.0.16(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.3)(yaml@2.9.0))
-
-  packages/recommendation:
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.19
-      typescript:
-        specifier: ~5.5.0
         version: 5.5.4
       vitest:
         specifier: 4.1.11

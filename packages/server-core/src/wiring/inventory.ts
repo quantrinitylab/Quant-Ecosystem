@@ -27,9 +27,9 @@
  *     source-only folders; each now ships a real `package.json` manifest and is
  *     declared + wired by its consuming app, so none of them is an orphan. They
  *     are still excluded from this orphaned-engine inventory because they are
- *     not catalogued here as first-class engine rows. `@quant/payment` and
- *     `@quant/recommendation` also duplicate parts of the `@quant/payments` /
- *     `@quant/recommendations` surfaces and are candidates for consolidation.
+ *     not catalogued here as first-class engine rows. (K8: the former
+ *     `@quant/payment` / `@quant/recommendation` duplicates were consolidated
+ *     into `@quant/payments` / `@quant/recommendations`.)
  *   - Cross-cutting rows and per-app rows for engines named in the design's
  *     integration audit are authoritative. Remaining engines are classified by
  *     best-effort reconciliation; `lane`/`stage`/`dependsOn` may be refined as

@@ -108,3 +108,25 @@ export {
   AI_ACTION_COSTS,
 } from './services/compute-credits.service';
 export { TaxDocumentService, GenerateTaxDocSchema } from './services/tax-document.service';
+
+// ---------------------------------------------------------------------------
+// PaymentEngine facade (K8 consolidation: merged from @quant/payment)
+// ---------------------------------------------------------------------------
+// Named exports only: the engine's user-centric `EnginePaymentMethod` /
+// `EngineTransaction` records are deliberately distinct from this package's
+// canonical Stripe-shaped `PaymentMethod` / `Transaction` in `./types`.
+export {
+  PaymentEngine,
+  paymentEngine,
+  HttpPaymentProcessorBackend,
+} from './engine/payment-engine';
+export type {
+  PaymentProcessorBackend,
+  ProcessorChargeRequest,
+  ProcessorChargeResult,
+  EnginePaymentMethod,
+  EngineTransaction,
+} from './engine/payment-engine';
+export { PaymentValidationError } from './engine/errors';
+export type { PaymentValidationCode } from './engine/errors';
+export { isValidCurrency } from './engine/currency';
