@@ -1506,6 +1506,9 @@ importers:
       '@quant/common':
         specifier: workspace:*
         version: link:../common
+      '@quant/payments':
+        specifier: workspace:*
+        version: link:../payments
       pino:
         specifier: ^9.0.0
         version: 9.14.0

@@ -15,6 +15,14 @@ export { WalletService } from './services/wallet-service';
 export { InvoiceService } from './services/invoice-service';
 export { RevenueSharing } from './services/revenue-sharing-service';
 export { TaxService } from './services/tax-service';
+// K11 consolidation: moved here from @quant/creator-economy (tax metadata is a
+// money-movement concern). The old location keeps a deprecated re-export shim.
+export { TaxReportingService } from './services/tax-reporting.service';
+export type {
+  Tax1099,
+  WithholdingStatus,
+  TaxableEarningEvent,
+} from './services/tax-reporting.service';
 
 // Creator Economy Services
 export {
