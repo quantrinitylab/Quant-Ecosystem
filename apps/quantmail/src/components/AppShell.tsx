@@ -760,9 +760,10 @@ export function AppShell({
             </>
           )}
 
-          {/* The column's bottom padding is gone: <main> below already reserves
-              pb-16 (the single h-16 bottom bar) on suite routes, so a second
-              reservation here just stacked dead space. */}
+          {/* The column carries no bottom padding: <main> below reserves no room
+              either — the contextual bottom bar is an in-flow flex child whose
+              height collapses to 0 on scroll, so padding reservations here
+              would stack dead space (black-void fix). */}
           <div className="flex min-w-0 flex-1 flex-col">
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
