@@ -216,6 +216,7 @@ export default function CodePage(): JSX.Element {
   const [aiInput, setAiInput] = useState<string>('');
   const [generatePrompt, setGeneratePrompt] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [cursorLine, setCursorLine] = useState<number>(1);
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -279,79 +280,137 @@ export default function CodePage(): JSX.Element {
     setOutput('');
   }, []);
 
+  /** No code-execution backend is connected to this build: report that honestly. */
   const handleRun = useCallback(() => {
     setIsRunning(true);
-    setOutput('');
-    setTimeout(() => {
-      const outputs: Record<string, string> = {
-        javascript: '> Hello, World!\n> Program exited with code 0',
-        python: '>>> Hello, World!\n>>> Process finished with exit code 0',
-        typescript: '> Compiled successfully\n> Hello, World!',
-        go: '$ go run main.go\nHello, World!',
-        rust: '$ cargo run\n   Compiling hello v0.1.0\n    Finished dev target\n     Running `target/debug/hello`\nHello, World!',
-        java: '$ javac Main.java && java Main\nHello, World!',
-      };
-      setOutput(outputs[language] || '> Execution complete');
-      setIsRunning(false);
-    }, 1500);
-  }, [language]);
-
-  const handleGenerate = useCallback(() => {
-    if (!generatePrompt.trim()) return;
-    setIsGenerating(true);
-    setTimeout(() => {
-      const generated: Record<string, string> = {
-        javascript: `// Generated from: ${generatePrompt}\nfunction solution(input) {\n  // Process the input\n  const result = input\n    .split('')\n    .reverse()\n    .join('');\n  return result;\n}\n\nconsole.log(solution("hello")); // "olleh"`,
-        python: `# Generated from: ${generatePrompt}\ndef solution(input_str):\n    """Process and return result."""\n    result = input_str[::-1]\n    return result\n\nprint(solution("hello"))  # "olleh"`,
-        typescript: `// Generated from: ${generatePrompt}\nfunction solution(input: string): string {\n  const result: string = input\n    .split('')\n    .reverse()\n    .join('');\n  return result;\n}\n\nconsole.log(solution("hello")); // "olleh"`,
-      };
-      setCode(generated[language] || generated.javascript);
-      setIsGenerating(false);
-      setMode('edit');
-    }, 2000);
-  }, [generatePrompt, language]);
-
-  const handleExplain = useCallback(() => {
-    setMode('explain');
-    const explanation = `Here is an explanation of your code:\n\n1. The code defines a main function/entry point\n2. It initializes variables and processes data\n3. The output is printed/returned to the console\n\nKey concepts used:\n- Variable declarations\n- String manipulation\n- Function definitions\n- Control flow`;
-    setAiMessages((prev) => [
-      ...prev,
-      {
-        id: `m${Date.now()}`,
-        role: 'assistant',
-        content: explanation,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
+    setOutput('Code execution is not available in this build.');
+    setIsRunning(false);
   }, []);
 
-  const handleDebug = useCallback(() => {
-    setMode('debug');
-    const debugInfo = `Analyzing your code for potential issues...\n\nFound 0 errors and 2 suggestions:\n\n1. Consider adding error handling for edge cases\n2. The function could benefit from input validation\n\nNo runtime errors detected. Code appears syntactically correct for ${currentLanguage.name}.`;
-    setAiMessages((prev) => [
-      ...prev,
-      {
-        id: `m${Date.now()}`,
-        role: 'assistant',
-        content: debugInfo,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-  }, [currentLanguage]);
+  /** Real AI call: the QuantAI chat pipeline answers, errors surface honestly. */
+  const askAssistant = useCallback(
+    async (message: string, systemPrompt?: string): Promise<string> => {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message,
+          ...(systemPrompt ? { systemPrompt } : {}),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        response?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.response) {
+        throw new Error(data.error || 'AI request failed');
+      }
+      return data.response;
+    },
+    [],
+  );
 
-  const handleAiSend = useCallback(() => {
-    if (!aiInput.trim()) return;
+  const handleGenerate = useCallback(async () => {
+    if (!generatePrompt.trim() || isGenerating) return;
+    setIsGenerating(true);
+    setOutput('');
+    try {
+      const result = await askAssistant(
+        `Write ${currentLanguage.name} code for: ${generatePrompt}`,
+        `You are a code generator. Respond with ONLY ${currentLanguage.name} code, no explanations or markdown fences.`,
+      );
+      setCode(result);
+      setMode('edit');
+    } catch (err) {
+      setOutput(`Code generation failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [generatePrompt, isGenerating, askAssistant, currentLanguage]);
+
+  const handleExplain = useCallback(async () => {
+    setMode('explain');
+    setAiLoading(true);
+    try {
+      const explanation = await askAssistant(
+        `Explain this ${currentLanguage.name} code:\n\n${code}`,
+        'You are a code tutor. Explain the given code concisely.',
+      );
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: explanation,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: `Explanation failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [code, currentLanguage, askAssistant]);
+
+  const handleDebug = useCallback(async () => {
+    setMode('debug');
+    setAiLoading(true);
+    try {
+      const debugInfo = await askAssistant(
+        `Review this ${currentLanguage.name} code for bugs and suggest fixes:\n\n${code}`,
+        'You are a code reviewer. List real issues you find, or say the code looks correct.',
+      );
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: debugInfo,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: `Debug request failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [code, currentLanguage, askAssistant]);
+
+  const handleAiSend = useCallback(async () => {
+    if (!aiInput.trim() || aiLoading) return;
+    const userMessage = aiInput;
     setAiMessages((prev) => [
       ...prev,
       {
         id: `m${Date.now()}`,
         role: 'user',
-        content: aiInput,
+        content: userMessage,
         timestamp: new Date().toISOString(),
       },
     ]);
-    const response = `I can help with that. Based on your ${currentLanguage.name} code, here is my suggestion:\n\nYou could optimize the code by using built-in methods and reducing the number of iterations. Consider using a more functional approach for better readability.`;
-    setTimeout(() => {
+    setAiInput('');
+    setAiLoading(true);
+    try {
+      const response = await askAssistant(
+        `Context - the user is working on this ${currentLanguage.name} code:\n\n${code}\n\nQuestion: ${userMessage}`,
+        'You are a helpful programming assistant.',
+      );
       setAiMessages((prev) => [
         ...prev,
         {
@@ -361,9 +420,20 @@ export default function CodePage(): JSX.Element {
           timestamp: new Date().toISOString(),
         },
       ]);
-    }, 800);
-    setAiInput('');
-  }, [aiInput, currentLanguage]);
+    } catch (err) {
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `m${Date.now()}`,
+          role: 'assistant',
+          content: `Request failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [aiInput, aiLoading, code, currentLanguage, askAssistant]);
 
   const handleSuggestionClick = useCallback(
     (suggestion: CodeSuggestion) => {
@@ -514,7 +584,7 @@ export default function CodePage(): JSX.Element {
             <pre className="console-output">
               {isRunning
                 ? 'Running...\n'
-                : output || 'No output yet. Click Run to execute your code.'}
+                : output || 'Code execution is not available in this build.'}
             </pre>
           </div>
         </div>
@@ -548,8 +618,12 @@ export default function CodePage(): JSX.Element {
               placeholder="Ask about your code..."
               className="ai-text-input"
             />
-            <button className="btn-ai-send" onClick={handleAiSend} disabled={!aiInput.trim()}>
-              Send
+            <button
+              className="btn-ai-send"
+              onClick={handleAiSend}
+              disabled={!aiInput.trim() || aiLoading}
+            >
+              {aiLoading ? 'Sending...' : 'Send'}
             </button>
           </div>
         </aside>

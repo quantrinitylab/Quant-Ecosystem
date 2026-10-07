@@ -1,50 +1,74 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useVoiceCapture } from '../../hooks/useVoiceCapture';
 
 export default function VoicePage() {
-  const [isListening, setIsListening] = useState(false);
+  const {
+    state: captureState,
+    audioLevel,
+    error: captureError,
+    startCapture,
+    stopCapture,
+    cancelCapture,
+  } = useVoiceCapture();
   const [transcript, setTranscript] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [xpGained, setXpGained] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const toggleListening = () => {
-    if (!isListening) {
-      setIsListening(true);
+  const isListening = captureState === 'capturing';
+
+  const toggleListening = useCallback(async () => {
+    setError(null);
+    if (isListening) {
+      // Stop capture -> real STT -> real chat pipeline.
+      const wav = await stopCapture();
+      if (!wav) {
+        setIsProcessing(false);
+        return;
+      }
+      setIsProcessing(true);
+      try {
+        const form = new FormData();
+        form.append('file', wav, 'audio.wav');
+        const sttRes = await fetch('/api/voice/stt', { method: 'POST', body: form });
+        const sttData = (await sttRes.json().catch(() => ({}))) as {
+          text?: string;
+          error?: string;
+        };
+        if (!sttRes.ok || !sttData.text) {
+          throw new Error(sttData.error || 'Transcription failed');
+        }
+        const text = String(sttData.text).trim();
+        setTranscript(text);
+
+        const chatRes = await fetch('/api/assistant/chat', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const chatData = (await chatRes.json().catch(() => ({}))) as {
+          response?: string;
+          error?: string;
+        };
+        if (!chatRes.ok) {
+          throw new Error(chatData.error || 'Chat request failed');
+        }
+        setAiResponse(chatData.response ?? '');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Voice request failed');
+      } finally {
+        setIsProcessing(false);
+      }
+    } else {
+      cancelCapture();
       setTranscript('');
       setAiResponse('');
-
-      // Simulate voice input after 3 seconds
-      setTimeout(() => {
-        const sampleText = 'Create a marketing plan for our new AI product launch';
-        setTranscript(sampleText);
-        setIsListening(false);
-        processVoiceInput(sampleText);
-      }, 3000);
-    } else {
-      setIsListening(false);
+      await startCapture();
     }
-  };
-
-  const processVoiceInput = async (text: string) => {
-    setIsProcessing(true);
-
-    // Simulate AI processing
-    await new Promise((resolve) => setTimeout(resolve, 1800));
-
-    const response = `Here's a comprehensive marketing plan for your AI product launch:\n\n1. Target Audience Analysis\n2. Positioning Strategy\n3. Multi-channel Campaign\n4. Influencer Partnerships\n5. Performance Metrics`;
-
-    setAiResponse(response);
-    setIsProcessing(false);
-
-    // Addictive XP reward
-    const xp = Math.floor(Math.random() * 45) + 25;
-    setXpGained(xp);
-
-    setTimeout(() => setXpGained(0), 2500);
-  };
+  }, [isListening, startCapture, stopCapture, cancelCapture]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col items-center justify-center p-8">
@@ -58,7 +82,7 @@ export default function VoicePage() {
           <p className="text-xl text-white/50 mt-3">Your voice. Your agents. Instant execution.</p>
         </div>
 
-        {/* Voice Orb - Addictive Visual */}
+        {/* Voice Orb */}
         <div className="relative flex items-center justify-center mb-12">
           <motion.button
             onClick={toggleListening}
@@ -69,8 +93,9 @@ export default function VoicePage() {
                 ? 'bg-red-500/20 border-2 border-red-500'
                 : 'bg-white/5 border border-white/20 hover:bg-white/10'
             }`}
+            aria-label={isListening ? 'Stop listening' : 'Start speaking'}
           >
-            {/* Animated rings */}
+            {/* Animated rings driven by the real mic level */}
             {isListening && (
               <>
                 {[0, 1, 2].map((i) => (
@@ -78,7 +103,7 @@ export default function VoicePage() {
                     key={i}
                     className="absolute rounded-full border border-red-500/40"
                     animate={{
-                      scale: [1, 2.2],
+                      scale: [1, 1.4 + audioLevel],
                       opacity: [0.6, 0],
                     }}
                     transition={{
@@ -102,6 +127,12 @@ export default function VoicePage() {
         >
           {isListening ? 'Stop Listening' : 'Start Speaking'}
         </button>
+
+        {(captureError || error) && (
+          <div className="mt-6 max-w-lg mx-auto text-red-300/90 bg-red-500/10 border border-red-500/30 rounded-2xl px-6 py-4">
+            {captureError || error}
+          </div>
+        )}
 
         {/* Transcript */}
         <AnimatePresence>
@@ -136,21 +167,6 @@ export default function VoicePage() {
             >
               <div className="text-xs text-emerald-400 tracking-[2px] mb-3">QUANTAI RESPONSE</div>
               <div className="text-lg leading-relaxed whitespace-pre-line">{aiResponse}</div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* XP Reward Animation */}
-        <AnimatePresence>
-          {xpGained > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 40, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="fixed bottom-12 left-1/2 -translate-x-1/2 bg-emerald-500 text-black px-8 py-3 rounded-2xl font-mono text-xl font-bold flex items-center gap-3"
-            >
-              +{xpGained} XP
-              <span className="text-sm">🔥</span>
             </motion.div>
           )}
         </AnimatePresence>

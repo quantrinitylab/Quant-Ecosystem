@@ -48,45 +48,15 @@ const AVATAR_OPTIONS: AvatarOption[] = [
   { id: 'a16', emoji: '🧜', label: 'Mermaid' },
 ];
 
-const INITIAL_PERSONAS: Persona[] = [
-  {
-    id: 'p1', name: 'Code Mentor', avatar: '👩‍💻', description: 'Expert coding assistant that explains concepts with examples',
-    personality: 'Patient, thorough, explains complex topics simply. Loves teaching and uses analogies.',
-    knowledgeFiles: ['typescript-handbook.pdf', 'react-patterns.md'],
-    tone: { formality: 60, seriousness: 70, detail: 90 },
-    isShared: true, createdAt: '2024-01-10T10:00:00Z', messageCount: 245
-  },
-  {
-    id: 'p2', name: 'Creative Writer', avatar: '🎨', description: 'Imaginative storyteller and content creator',
-    personality: 'Creative, witty, playful. Uses vivid metaphors and colorful language.',
-    knowledgeFiles: ['writing-styles.pdf'],
-    tone: { formality: 20, seriousness: 30, detail: 80 },
-    isShared: false, createdAt: '2024-01-12T14:00:00Z', messageCount: 89
-  },
-  {
-    id: 'p3', name: 'Research Analyst', avatar: '🧑‍🔬', description: 'Data-driven analyst providing evidence-based insights',
-    personality: 'Precise, analytical, cites sources. Presents data clearly with structured arguments.',
-    knowledgeFiles: ['research-methods.pdf', 'statistics-guide.pdf', 'datasets.csv'],
-    tone: { formality: 90, seriousness: 85, detail: 95 },
-    isShared: true, createdAt: '2024-01-08T09:00:00Z', messageCount: 156
-  },
-  {
-    id: 'p4', name: 'Fitness Coach', avatar: '🧑‍🏫', description: 'Motivational fitness and nutrition advisor',
-    personality: 'Encouraging, energetic, goal-oriented. Keeps things simple and actionable.',
-    knowledgeFiles: ['nutrition-guide.pdf'],
-    tone: { formality: 30, seriousness: 50, detail: 60 },
-    isShared: true, createdAt: '2024-01-11T08:00:00Z', messageCount: 67
-  },
-];
-
 export default function PersonasPage(): JSX.Element {
-  const [personas, setPersonas] = useState<Persona[]>(INITIAL_PERSONAS);
+  const [personas, setPersonas] = useState<Persona[]>([]);
   const [selectedPersona, setSelectedPersona] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [chatWith, setChatWith] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [chatInput, setChatInput] = useState<string>('');
+  const [chatLoading, setChatLoading] = useState<boolean>(false);
 
   const [formName, setFormName] = useState<string>('');
   const [formAvatar, setFormAvatar] = useState<string>('🤖');
@@ -193,16 +163,43 @@ export default function PersonasPage(): JSX.Element {
     setChatInput('');
   }, []);
 
-  const handleSendChat = useCallback(() => {
-    if (!chatInput.trim() || !chatWith) return;
+  /** Real persona chat: the persona's personality becomes the system prompt. */
+  const handleSendChat = useCallback(async () => {
+    if (!chatInput.trim() || !chatWith || chatLoading) return;
     const persona = personas.find(p => p.id === chatWith);
-    setChatMessages(prev => [
-      ...prev,
-      { role: 'user', content: chatInput },
-      { role: 'assistant', content: `[${persona?.name}]: I understand your question. Let me help you with that based on my expertise.` },
-    ]);
+    const userMessage = chatInput;
+    setChatMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setChatInput('');
-  }, [chatInput, chatWith, personas]);
+    setChatLoading(true);
+    try {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: userMessage,
+          systemPrompt: `You are "${persona?.name}". ${persona?.description || ''} Personality: ${persona?.personality || ''}`,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        response?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.response) {
+        throw new Error(data.error || 'Chat request failed');
+      }
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.response as string }]);
+    } catch (err) {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Request failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  }, [chatInput, chatWith, chatLoading, personas]);
 
   const handleCancelForm = useCallback(() => {
     setIsCreating(false);
@@ -254,8 +251,8 @@ export default function PersonasPage(): JSX.Element {
             placeholder={`Message ${persona?.name}...`}
             className="chat-text-input"
           />
-          <button className="btn-send-chat" onClick={handleSendChat} disabled={!chatInput.trim()}>
-            Send
+          <button className="btn-send-chat" onClick={handleSendChat} disabled={!chatInput.trim() || chatLoading}>
+            {chatLoading ? 'Sending...' : 'Send'}
           </button>
         </div>
       </div>

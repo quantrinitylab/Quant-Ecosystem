@@ -6,6 +6,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useVoiceCapture } from '../hooks/useVoiceCapture';
 
 interface Language {
   code: string;
@@ -82,13 +83,18 @@ export default function TranslatePage(): JSX.Element {
   const [outputText, setOutputText] = useState<string>('');
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [mode, setMode] = useState<'text' | 'conversation' | 'camera'>('text');
-  const [history, setHistory] = useState<TranslationHistoryItem[]>([
-    { id: 'h1', source: 'Hello, how are you?', target: 'Hola, como estas?', sourceLang: 'en', targetLang: 'es', timestamp: '2024-01-15T14:00:00Z' },
-    { id: 'h2', source: 'Good morning', target: 'Bonjour', sourceLang: 'en', targetLang: 'fr', timestamp: '2024-01-15T13:30:00Z' },
-    { id: 'h3', source: 'Thank you very much', target: 'Vielen Dank', sourceLang: 'en', targetLang: 'de', timestamp: '2024-01-15T12:00:00Z' },
-  ]);
-  const [voiceActive, setVoiceActive] = useState<boolean>(false);
+  const [history, setHistory] = useState<TranslationHistoryItem[]>([]);
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
+  const [conversationLoading, setConversationLoading] = useState<boolean>(false);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  const {
+    state: voiceCaptureState,
+    error: voiceCaptureError,
+    startCapture,
+    stopCapture,
+    cancelCapture,
+  } = useVoiceCapture();
+  const voiceActive = voiceCaptureState === 'capturing';
   const [conversationInput, setConversationInput] = useState<string>('');
   const [currentSpeaker, setCurrentSpeaker] = useState<'A' | 'B'>('A');
   const [sourceLangSearch, setSourceLangSearch] = useState<string>('');
@@ -115,24 +121,53 @@ export default function TranslatePage(): JSX.Element {
   const sourceLanguage = useMemo(() => LANGUAGES.find(l => l.code === sourceLang) || LANGUAGES[0], [sourceLang]);
   const targetLanguage = useMemo(() => LANGUAGES.find(l => l.code === targetLang) || LANGUAGES[1], [targetLang]);
 
+  /** Real translation via the QuantAI chat pipeline. Errors surface honestly. */
+  const translateText = useCallback(
+    async (text: string): Promise<string> => {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          systemPrompt: `Translate the following text from ${sourceLanguage.name} to ${targetLanguage.name}. Return ONLY the translation, no explanations.`,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        response?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.response) {
+        throw new Error(data.error || 'Translation failed');
+      }
+      return data.response;
+    },
+    [sourceLanguage, targetLanguage],
+  );
+
   useEffect(() => {
     if (!inputText.trim()) {
       setOutputText('');
+      setTranslateError(null);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    debounceRef.current = setTimeout(async () => {
       setIsTranslating(true);
-      setTimeout(() => {
-        const fakeTranslation = `[${targetLanguage.name}] ${inputText}`;
-        setOutputText(fakeTranslation);
+      setTranslateError(null);
+      try {
+        const result = await translateText(inputText);
+        setOutputText(result);
+      } catch (err) {
+        setOutputText('');
+        setTranslateError(err instanceof Error ? err.message : 'Translation failed');
+      } finally {
         setIsTranslating(false);
-      }, 500);
-    }, 300);
+      }
+    }, 500);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [inputText, sourceLang, targetLang, targetLanguage]);
+  }, [inputText, sourceLang, targetLang, translateText]);
 
   const handleSwapLanguages = useCallback(() => {
     const temp = sourceLang;
@@ -142,15 +177,32 @@ export default function TranslatePage(): JSX.Element {
     setOutputText(inputText);
   }, [sourceLang, targetLang, inputText, outputText]);
 
-  const handleVoiceInput = useCallback(() => {
-    setVoiceActive(!voiceActive);
-    if (!voiceActive) {
-      setTimeout(() => {
-        setVoiceActive(false);
-        setInputText('Hello, how can I help you today?');
-      }, 3000);
+  /** Real voice input: mic capture -> STT -> input box. */
+  const handleVoiceInput = useCallback(async () => {
+    setTranslateError(null);
+    if (voiceActive) {
+      const wav = await stopCapture();
+      if (!wav) return;
+      try {
+        const form = new FormData();
+        form.append('file', wav, 'audio.wav');
+        const res = await fetch('/api/voice/stt', { method: 'POST', body: form });
+        const data = (await res.json().catch(() => ({}))) as {
+          text?: string;
+          error?: string;
+        };
+        if (!res.ok || !data.text) {
+          throw new Error(data.error || 'Transcription failed');
+        }
+        setInputText(String(data.text).trim());
+      } catch (err) {
+        setTranslateError(err instanceof Error ? err.message : 'Transcription failed');
+      }
+    } else {
+      cancelCapture();
+      await startCapture();
     }
-  }, [voiceActive]);
+  }, [voiceActive, startCapture, stopCapture, cancelCapture]);
 
   const handleCopyOutput = useCallback(() => {
     if (outputText) {
@@ -171,22 +223,54 @@ export default function TranslatePage(): JSX.Element {
     setHistory(prev => [item, ...prev]);
   }, [inputText, outputText, sourceLang, targetLang]);
 
-  const handleConversationSend = useCallback(() => {
-    if (!conversationInput.trim()) return;
+  const handleConversationSend = useCallback(async () => {
+    if (!conversationInput.trim() || conversationLoading) return;
     const original = conversationInput;
-    const translated = `[${currentSpeaker === 'A' ? targetLanguage.name : sourceLanguage.name}] ${original}`;
+    const from = currentSpeaker === 'A' ? sourceLanguage : targetLanguage;
+    const to = currentSpeaker === 'A' ? targetLanguage : sourceLanguage;
     const msg: ConversationMessage = {
       id: `cm${Date.now()}`,
       speaker: currentSpeaker,
       original,
-      translated,
+      translated: '',
       lang: currentSpeaker === 'A' ? sourceLang : targetLang,
       timestamp: new Date().toISOString(),
     };
     setConversationMessages(prev => [...prev, msg]);
     setConversationInput('');
-    setCurrentSpeaker(prev => prev === 'A' ? 'B' : 'A');
-  }, [conversationInput, currentSpeaker, sourceLang, targetLang, sourceLanguage, targetLanguage]);
+    setConversationLoading(true);
+    try {
+      const res = await fetch('/api/assistant/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          message: original,
+          systemPrompt: `Translate the following text from ${from.name} to ${to.name}. Return ONLY the translation, no explanations.`,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        response?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.response) {
+        throw new Error(data.error || 'Translation failed');
+      }
+      setConversationMessages(prev =>
+        prev.map(m => (m.id === msg.id ? { ...m, translated: data.response as string } : m)),
+      );
+    } catch (err) {
+      setConversationMessages(prev =>
+        prev.map(m =>
+          m.id === msg.id
+            ? { ...m, translated: `Translation failed: ${err instanceof Error ? err.message : 'unknown error'}` }
+            : m,
+        ),
+      );
+    } finally {
+      setConversationLoading(false);
+      setCurrentSpeaker(prev => prev === 'A' ? 'B' : 'A');
+    }
+  }, [conversationInput, conversationLoading, currentSpeaker, sourceLang, targetLang, sourceLanguage, targetLanguage]);
 
   const handleHistoryClick = useCallback((item: TranslationHistoryItem) => {
     setSourceLang(item.sourceLang);
@@ -321,6 +405,8 @@ export default function TranslatePage(): JSX.Element {
               <div className={`translate-output ${isTranslating ? 'translating' : ''}`}>
                 {isTranslating ? (
                   <span className="translating-indicator">Translating...</span>
+                ) : translateError || voiceCaptureError ? (
+                  <p className="translate-error">{translateError || voiceCaptureError}</p>
                 ) : outputText ? (
                   <p>{outputText}</p>
                 ) : (
@@ -368,8 +454,8 @@ export default function TranslatePage(): JSX.Element {
                   placeholder={`Type in ${currentSpeaker === 'A' ? sourceLanguage.name : targetLanguage.name}...`}
                   className="conv-text-input"
                 />
-                <button className="btn-conv-send" onClick={handleConversationSend} disabled={!conversationInput.trim()}>
-                  Send
+                <button className="btn-conv-send" onClick={handleConversationSend} disabled={!conversationInput.trim() || conversationLoading}>
+                  {conversationLoading ? 'Translating...' : 'Send'}
                 </button>
               </div>
             </div>
@@ -381,12 +467,8 @@ export default function TranslatePage(): JSX.Element {
             <div className="camera-preview">
               <div className="camera-placeholder">
                 <span className="camera-icon">📷</span>
-                <p>Point your camera at text to translate</p>
-                <button className="btn-capture">Capture & Translate</button>
+                <p>Camera OCR is not connected yet.</p>
               </div>
-            </div>
-            <div className="ocr-result">
-              <p className="placeholder">OCR results will appear here after capture</p>
             </div>
           </div>
         )}
