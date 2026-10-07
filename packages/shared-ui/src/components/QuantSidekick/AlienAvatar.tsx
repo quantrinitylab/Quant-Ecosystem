@@ -1,14 +1,14 @@
 'use client';
 // ============================================================================
-// @quant/shared-ui - AlienAvatar (now the Bubble Intelligence avatar)
+// @quant/shared-ui - AlienAvatar (now the Quanty ghost avatar)
 // ============================================================================
 //
 // Historical name kept deliberately: `AlienAvatar` is exported from the
 // package index and imported by QuantSidekick and app surfaces across the
 // ecosystem, so the identifier survives while the *character* changes. The
 // green alien (helmet, antennae, SVG) retired in favour of the liquid amber
-// bubble — one body, one satellite bead, thirty-five meaningful states —
-// painted on canvas in `BubbleAvatar.tsx`.
+// bubble, which has now retired in favour of the white Quanty ghost —
+// one character, thirty-five meaningful states — rendered in `BubbleAvatar.tsx`.
 //
 // This file is now the compatibility seam: same export name, same props, same
 // `data-testid` (via BubbleAvatar) and the same five-status union the

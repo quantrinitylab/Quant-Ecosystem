@@ -1,13 +1,13 @@
 'use client';
 // ============================================================================
-// Quanty — now Bubble Intelligence.
+// Quanty — now the white ghost mascot.
 // ============================================================================
 //
 // What this file was: a 1,600-line canvas painter of an obsidian LED-face
 // robot — competent, data-driven (35 faces in `lib/quanty/faces.ts`), and the
 // wrong character. The brief replaced it: the family mascot is the **liquid
-// amber bubble** — one glowing droplet, one satellite bead, thirty-five
-// meaningful states — painted once, in `@quant/shared-ui`, and mounted by
+// white ghost** — a white ghost with a purple neon outline, thirty-five
+// meaningful states — rendered once, in `@quant/shared-ui`, and mounted by
 // QuantSidekick in every app. QuantMail's mascot now *is* that character; two
 // painters for one mascot is how the faces drift apart.
 //

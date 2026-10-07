@@ -111,7 +111,7 @@ export type { AISuggestionProps } from './components/AI/AISuggestion';
 export { AIChat } from './components/AI/AIChat';
 export type { AIChatProps, AIChatMessage } from './components/AI/AIChat';
 
-// QuantAI universal presence — the Bubble Intelligence avatar rendered in every
+// QuantAI universal presence — the Quanty ghost avatar rendered in every
 // app via EcosystemShell, plus the provider/hook that lets any surface drive it.
 // `BubbleAvatar` is the full 35-state character; `AlienAvatar` is the historical
 // export name for the same component family (five QuantSidekick statuses).
