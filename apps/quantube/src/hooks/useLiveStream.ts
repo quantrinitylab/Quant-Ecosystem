@@ -148,10 +148,12 @@ export function useLiveStream(): [LiveStreamState, LiveStreamActions] {
   });
 
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const viewerSimRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (state.status === 'live') {
+      // Duration counts up from when this client went live — real local time,
+      // not a fabricated viewer/metric feed. Viewer counts and stream health
+      // are only shown when a real metrics source provides them.
       durationTimerRef.current = setInterval(() => {
         setState((prev) => ({
           ...prev,
@@ -159,33 +161,8 @@ export function useLiveStream(): [LiveStreamState, LiveStreamActions] {
         }));
       }, 1000);
 
-      viewerSimRef.current = setInterval(() => {
-        setState((prev) => {
-          const change = Math.floor(Math.random() * 20) - 8;
-          const newViewers = Math.max(0, prev.stats.viewerCount + change);
-          return {
-            ...prev,
-            stats: {
-              ...prev.stats,
-              viewerCount: newViewers,
-              peakViewers: Math.max(prev.stats.peakViewers, newViewers),
-              totalViews: prev.stats.totalViews + Math.max(0, change),
-            },
-            health: {
-              ...prev.health,
-              bitrate: 4500 + Math.floor(Math.random() * 1000),
-              fps: 59 + Math.floor(Math.random() * 2),
-              resolution: '1920x1080',
-              latency: 200 + Math.floor(Math.random() * 100),
-              status: Math.random() > 0.9 ? 'good' : 'excellent',
-            },
-          };
-        });
-      }, 3000);
-
       return () => {
         if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-        if (viewerSimRef.current) clearInterval(viewerSimRef.current);
       };
     }
   }, [state.status]);
@@ -193,20 +170,15 @@ export function useLiveStream(): [LiveStreamState, LiveStreamActions] {
   const goLive = useCallback(async () => {
     setState((prev) => ({ ...prev, status: 'connecting', loading: true, error: null }));
     await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Metrics stay at zero until a real metrics source provides values —
+    // viewer counts and stream health are never simulated.
     setState((prev) => ({
       ...prev,
       status: 'live',
       loading: false,
       startedAt: new Date().toISOString(),
-      stats: { ...INITIAL_STATS, viewerCount: 1 },
-      health: {
-        bitrate: 4500,
-        fps: 60,
-        resolution: '1920x1080',
-        dropFrames: 0,
-        latency: 230,
-        status: 'excellent',
-      },
+      stats: { ...INITIAL_STATS },
+      health: { ...INITIAL_HEALTH },
     }));
   }, []);
 
