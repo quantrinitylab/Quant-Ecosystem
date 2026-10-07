@@ -1,8 +1,9 @@
+"use client";
 // ============================================================================
 // Shared UI - Chat Bubble Component
 // ============================================================================
 
-import React from 'react';
+import React, { useState } from 'react';
 
 export interface ChatBubbleProps {
   message: string;
@@ -39,6 +40,10 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   onDelete,
 }) => {
   const isSelf = sender === 'self';
+  // P1 mobile fix: hover-only action buttons are unreachable on touch
+  // devices. A tap-to-reveal (⋯) toggle shows them on coarse pointers.
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const hasActions = Boolean(onReply || onReact || onDelete);
 
   const bubbleStyles = isSelf
     ? 'bg-blue-600 text-white ml-auto rounded-br-sm'
@@ -89,33 +94,69 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             </span>
           )}
         </div>
-        {/* Action buttons on hover */}
-        <div className="absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1">
-          {onReply && (
+        {/* Action buttons: hover-reveal on desktop, tap-to-reveal (⋯) on touch */}
+        {hasActions && (
+          <div className="absolute top-0 right-0 -mt-2 -mr-2 flex items-start gap-1">
             <button
-              onClick={onReply}
-              className="p-1 bg-white rounded-full shadow text-gray-500 hover:text-gray-700 text-xs"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActionsOpen((v) => !v);
+              }}
+              aria-label="Message actions"
+              aria-expanded={actionsOpen}
+              className="min-h-[44px] min-w-[44px] items-center justify-center bg-white rounded-full shadow text-gray-500 hover:text-gray-700 text-lg leading-none hidden [@media(pointer:fine)]:group-hover:flex [@media(pointer:coarse)]:flex"
             >
-              \u21A9
+              \u22EF
             </button>
-          )}
-          {onReact && (
-            <button
-              onClick={() => onReact('\u2764\uFE0F')}
-              className="p-1 bg-white rounded-full shadow text-gray-500 hover:text-gray-700 text-xs"
+            <div
+              className={`items-center gap-1 ${actionsOpen ? 'flex' : 'hidden'} [@media(pointer:fine)]:group-hover:flex`}
             >
-              +
-            </button>
-          )}
-          {onDelete && (
-            <button
-              onClick={onDelete}
-              className="p-1 bg-white rounded-full shadow text-gray-500 hover:text-red-600 text-xs"
-            >
-              \u2715
-            </button>
-          )}
-        </div>
+              {onReply && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionsOpen(false);
+                    onReply();
+                  }}
+                  aria-label="Reply to message"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center bg-white rounded-full shadow text-gray-500 hover:text-gray-700 text-xs"
+                >
+                  \u21A9
+                </button>
+              )}
+              {onReact && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionsOpen(false);
+                    onReact('\u2764\uFE0F');
+                  }}
+                  aria-label="React to message"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center bg-white rounded-full shadow text-gray-500 hover:text-gray-700 text-xs"
+                >
+                  +
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActionsOpen(false);
+                    onDelete();
+                  }}
+                  aria-label="Delete message"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center bg-white rounded-full shadow text-gray-500 hover:text-red-600 text-xs"
+                >
+                  \u2715
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       {reactions && reactions.length > 0 && (
         <div className="flex gap-1 mt-1">

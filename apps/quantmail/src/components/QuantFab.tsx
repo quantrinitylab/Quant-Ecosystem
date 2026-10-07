@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useShellChrome } from './ShellChromeContext';
+import { useChromeVisible } from './useScrollChrome';
 
 /**
  * The one mobile create button.
@@ -119,6 +120,18 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
     if (isDrawerPresented) setIsOpen(false);
   }, [isDrawerPresented]);
 
+  /*
+   * Scroll-hide, in lockstep with the bottom nav (same `useChromeVisible`
+   * store, so the two never drift). Slides down + shrinks + fades on
+   * scroll-down; springs back on scroll-up. `pointer-events: none` and
+   * `aria-hidden` while hidden so a phantom button can't eat taps. An open
+   * dial collapses the moment the chrome hides.
+   */
+  const chromeVisible = useChromeVisible();
+  useEffect(() => {
+    if (!chromeVisible) setIsOpen(false);
+  }, [chromeVisible]);
+
   // WAI-ARIA menu button: opening moves focus in, so Escape has somewhere to send it back from.
   useEffect(() => {
     if (isOpen) rowsRef.current[0]?.focus();
@@ -159,7 +172,24 @@ export function QuantFab({ actions, label = 'Create' }: QuantFabProps) {
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-20 right-4 z-40 flex flex-col items-end gap-2.5 md:hidden"
+      aria-hidden={!chromeVisible}
+      // Sits above the bottom bar when the chrome is visible; drops to the
+      // screen edge when the bar collapses (the bar is in-flow now, so the
+      // offset follows the same visibility bit — no gap, no overlap).
+      className={`fixed right-4 z-40 flex flex-col items-end gap-2.5 md:hidden ${
+        chromeVisible
+          ? 'bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]'
+          : 'bottom-[calc(env(safe-area-inset-bottom,0px)+0.75rem)]'
+      }`}
+      style={{
+        // Scroll-hide: slide down + shrink + fade, spring back on reveal.
+        // GPU-composited (transform/opacity only). pointer-events off while
+        // hidden so it can never swallow a tap meant for content.
+        transform: chromeVisible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.85)',
+        opacity: chromeVisible ? 1 : 0,
+        pointerEvents: chromeVisible ? 'auto' : 'none',
+        transition: 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease-out',
+      }}
     >
       <AnimatePresence>
         {isDial && isOpen && (

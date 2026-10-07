@@ -8,7 +8,7 @@ import {
   executePillarTileClick,
   triggerHapticTap,
 } from '../components/QuantPillarTopBar';
-import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { QuantMailShortcutDock } from '../components/QuantMailShortcutDock';
 import {
   CalendarContextSubTabs,
   mergedTabTargets,
@@ -183,19 +183,19 @@ describe('Mobile Shell Overhaul — Worker A', () => {
     it('orders the dock above the AI capsule on mobile, capsule first on desktop', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      // New DOM order (redesign): dock tablist → search bar → AI capsule.
-      // The dock still sits above the AI capsule.
+      // New DOM order: dock tablist -> search bar (fake AI capsule removed).
+      // The pill only renders with real aiLiveText; assert it is absent.
       expect(html).toContain('role="tablist"');
       expect(html).toContain('aria-label="Application Suites"');
       const dockIdx = html.indexOf('aria-label="Application Suites"');
-      const capsuleIdx = html.indexOf('Quant AI:');
+      
       expect(dockIdx).toBeGreaterThanOrEqual(0);
-      expect(capsuleIdx).toBeGreaterThanOrEqual(0);
-      expect(dockIdx).toBeLessThan(capsuleIdx);
-      // Search bar keeps its slot between dock and capsule.
+      expect(html).not.toContain('Quant AI:');
+      
+      // Search bar keeps its slot after the dock.
       const searchIdx = html.indexOf('aria-label="Voice Search"');
       expect(searchIdx).toBeGreaterThan(dockIdx);
-      expect(searchIdx).toBeLessThan(capsuleIdx);
+      
     });
 
     it('hides the duplicate lens strip where the page owns its filter row', () => {
@@ -263,20 +263,20 @@ describe('Mobile Shell Overhaul — Worker A', () => {
   });
 
   // ==========================================================================
-  // 3. SuperhumanShortcutDock — hidden on mobile
+  // 3. QuantMailShortcutDock — hidden on mobile
   // ==========================================================================
-  describe('SuperhumanShortcutDock mobile visibility', () => {
+  describe('QuantMailShortcutDock mobile visibility', () => {
     it('hides the expanded dock below the md breakpoint', () => {
-      const html = renderToStaticMarkup(<SuperhumanShortcutDock disableListener />);
+      const html = renderToStaticMarkup(<QuantMailShortcutDock disableListener />);
       expect(html).toContain('hidden md:flex');
       expect(html).toContain('role="toolbar"');
     });
 
     it('hides the collapsed pill below the md breakpoint too', () => {
       const html = renderToStaticMarkup(
-        <SuperhumanShortcutDock disableListener initialCollapsed />,
+        <QuantMailShortcutDock disableListener initialCollapsed />,
       );
-      expect(html).toContain('data-testid="superhuman-dock-collapsed"');
+      expect(html).toContain('data-testid="quantmail-dock-collapsed"');
       expect(html).toContain('hidden md:flex');
     });
   });

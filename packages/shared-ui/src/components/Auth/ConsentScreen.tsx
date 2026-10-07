@@ -32,7 +32,7 @@ export const ConsentScreen: React.FC<ConsentScreenProps> = ({
   const [remember, setRemember] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 dark:bg-gray-950">
+    <div className="min-h-dvh flex items-center justify-center px-4 bg-gray-50 dark:bg-gray-950">
       <div
         className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-[var(--quant-border,#e5e7eb)] p-8"
         role="dialog"

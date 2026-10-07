@@ -130,6 +130,28 @@
   --quant-info: #3B82F6;
 }
 
+/*
+ * Desktop Gmail-style whole dark theme (user decision 2026-10-07).
+ * Pure black backgrounds, no visible divider lines — spacing and subtle
+ * background shifts carry the hierarchy instead of borders, exactly like
+ * Gmail's dark mode. Scoped to desktop (min-width: 900px) so the mobile
+ * theme is untouched.
+ */
+@media (min-width: 900px) {
+  :root[data-theme='dark'] {
+    --quant-background: #000000;
+    --quant-surface: #000000;
+    --quant-surface-elevated: #0a0a0a;
+    --quant-surface-subtle: #000000;
+    --quant-card: #0a0a0a;
+    --quant-popover: #0a0a0a;
+    --quant-muted: #0a0a0a;
+    --quant-border: transparent;
+    --quant-border-subtle: transparent;
+    --quant-border-strong: rgba(255, 255, 255, 0.08);
+  }
+}
+
 :root[data-theme='light'] {
   --quant-background: #f5f4f8;
   --quant-foreground: #17151d;
@@ -948,15 +970,25 @@ body {
 .sidebar-india { display: grid; width: 1.2rem; overflow: hidden; border-radius: 0.16rem; }
 .sidebar-india i { height: 0.16rem; background: #ff9933; }.sidebar-india i:nth-child(2) { background: #f5f5ef; }.sidebar-india i:nth-child(3) { background: #138808; }
 
-/* Inbox */
-.inbox-workspace { display: flex; min-height: 100%; height: 100%; overflow: hidden; background: #090A0C; }
-.inbox-list-pane { display: flex; width: min(42vw, 32rem); min-width: 24rem; flex-direction: column; border-right: 1px solid var(--quant-border-subtle); background: #0C0E11; }
+/* Inbox — Gmail-style: whole dark theme, no divider lines (user decision 2026-10-07).
+   The list pane is full-width now that the split-view reading pane is gone. */
+.inbox-workspace { display: flex; min-height: 100%; height: 100%; overflow: hidden; background: #000000; }
+.inbox-list-pane { display: flex; width: 100%; min-width: 0; flex-direction: column; border-right: 0; background: #000000; }
+@media (max-width: 899px) {
+  .inbox-list-pane { background: #0C0E11; }
+}
 .inbox-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.25rem; padding: 1.65rem 1.35rem 1.1rem; }
 .inbox-kicker, .reading-eyebrow { display: flex; align-items: center; gap: 0.5rem; color: #a8784c; font-size: 0.625rem; font-weight: 750; letter-spacing: 0.18em; text-transform: uppercase; }
 .inbox-kicker span { width: 1.3rem; height: 1px; background: #FF8C42; }
 .inbox-hero h1 { margin-top: 0.35rem; font-size: clamp(1.8rem, 3vw, 2.7rem); font-weight: 720; line-height: 0.96; letter-spacing: -0.065em; }
 .inbox-hero > div > p:last-child { margin-top: 0.55rem; color: var(--quant-muted-foreground); font-size: 0.72rem; }
 .hero-compose, .signal-button { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; gap: 0.5rem; border: 1px solid rgba(255, 185, 116, 0.24); border-radius: 0.65rem; padding: 0 0.95rem; background: #FF8C42; color: #111111; font-size: 0.72rem; font-weight: 750; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6); white-space: nowrap; }
+/* "New chat" entry point next to Compose: outline style so it reads as the
+ * chat-kind sibling of the filled Compose button. Inherits .hero-compose
+ * sizing; the mobile icon-only rule at the bottom of this file covers it too. */
+.hero-compose-row { display: inline-flex; align-items: center; gap: 0.5rem; }
+.hero-compose-chat { background: transparent; color: #FFB974; border-color: rgba(255, 185, 116, 0.45); box-shadow: none; }
+.hero-compose-chat:hover { background: rgba(255, 140, 66, 0.12); }
 .inbox-search-wrap { padding: 0.25rem 1.25rem 0.8rem; }
 .inbox-search { display: flex; height: 2.8rem; align-items: center; gap: 0.65rem; border: 1px solid var(--quant-border); border-radius: 0.72rem; padding: 0 0.75rem; background: #111318; color: #A1A4AC; box-shadow: inset 0 1px rgba(255, 255, 255, 0.025); transition: border-color 150ms ease, box-shadow 150ms ease; }
 .inbox-search:focus-within { border-color: rgba(255, 140, 66, 0.48); box-shadow: 0 0 0 3px rgba(255, 140, 66, 0.08); }
@@ -986,6 +1018,12 @@ body {
    own nor any clipping. See `EmailRow` for what the gesture had to prove. */
 .mail-row-shell { position: relative; overflow: hidden; border-radius: 0.72rem; }
 .mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease; }
+/*
+ * Subtle divider between rows (P1-D chat feel): each row's own bottom edge
+ * doubles as the hairline — Gmail/WhatsApp read as one list, not floating
+ * cards. Hover/active keep their full borders, which override this.
+ */
+.mail-row { border-bottom-color: rgba(255,255,255,0.055); }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }
 /*
  * The pane the row slides off. It fills the shell rather than sizing itself to the
@@ -1002,17 +1040,17 @@ body {
 .mail-row-swipe-pane.is-leading { justify-content: flex-start; padding-left: 1rem; }
 .mail-row-swipe-pane.is-armed { background: rgba(255, 140, 66, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 140, 66, 0.32); }
 /*
- * The two swipe ends are named, not peers: right files away (Archive, green),
- * left throws out (Delete, red). The Gmail arrangement, so the muscle memory
- * transfers — and the destructive end wears the warning colour, so the finger
- * can tell which way it is going before it crosses the line.
+ * The two swipe ends are named, not peers: left files away (Archive, green),
+ * right opens the snooze picker (Snooze, info blue). The destructive end is not
+ * a swipe at all — Delete lives in the row's … menu and the thread view,
+ * always behind a confirmation dialog.
  */
-.mail-row-swipe-pane.is-archive { justify-content: flex-start; padding-left: 1rem; background: rgba(22, 163, 74, 0.14); }
+.mail-row-swipe-pane.is-archive { justify-content: flex-end; padding-right: 1rem; background: rgba(22, 163, 74, 0.14); }
 .mail-row-swipe-pane.is-archive.is-armed { background: rgba(22, 163, 74, 0.30); box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.55); }
 .mail-row-swipe-pane.is-archive .mail-row-swipe-label { color: #4ade80; }
-.mail-row-swipe-pane.is-delete { justify-content: flex-end; padding-right: 1rem; background: rgba(220, 38, 38, 0.14); }
-.mail-row-swipe-pane.is-delete.is-armed { background: rgba(220, 38, 38, 0.30); box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.55); }
-.mail-row-swipe-pane.is-delete .mail-row-swipe-label { color: #f87171; }
+.mail-row-swipe-pane.is-snooze { justify-content: flex-start; padding-left: 1rem; background: rgba(59, 130, 246, 0.14); }
+.mail-row-swipe-pane.is-snooze.is-armed { background: rgba(59, 130, 246, 0.30); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55); }
+.mail-row-swipe-pane.is-snooze .mail-row-swipe-label { color: #60a5fa; }
 .mail-row-swipe-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #A1A4AC; font-size: 0.688rem; font-weight: 600; white-space: nowrap; }
 .mail-row-swipe-pane.is-armed .mail-row-swipe-label { color: #FF8C42; }
 /* The release, and only the release. Absent while a finger is down, which is what
@@ -1090,7 +1128,10 @@ body {
 /* The count and the sync state, at 8.96px in #57575C, measured 2.69:1 — the least
    legible text on the page, and it is the line that tells you how much mail you
    are looking at. 11px in the palette's secondary tier measures 7.55:1. */
-.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 1px solid var(--quant-border-subtle); color: #A1A4AC; font-size: 0.6875rem; letter-spacing: 0.04em; }
+.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 0; background: #000000; color: #A1A4AC; font-size: 0.6875rem; letter-spacing: 0.04em; }
+@media (max-width: 899px) {
+  .inbox-list-footer { border-top: 1px solid var(--quant-border-subtle); background: transparent; }
+}
 
 /* Reading surface */
 .reading-pane { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; background: #090A0C; }
@@ -1136,6 +1177,13 @@ body {
 .auth-brand-content { margin: auto 0; padding: 2rem 0; }.auth-brand-eyebrow { display: flex; align-items: center; gap: .65rem; color: #d59455; font-size: .62rem; font-weight: 750; letter-spacing: .19em; text-transform: uppercase; }.auth-brand-eyebrow span { width: 2rem; height: 1px; background: #FF8C42; }
 .auth-brand-content > h2 { max-width: 44rem; margin-top: 1.25rem; font-size: clamp(3.15rem, 6.3vw, 6.6rem); font-weight: 590; line-height: .88; letter-spacing: -.08em; }.auth-brand-subtitle { max-width: 34rem; margin-top: 1.6rem; color: #99999e; font-size: clamp(.82rem, 1.3vw, 1rem); line-height: 1.7; }
 .auth-proof-card { max-width: 36rem; margin-top: 2.2rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1rem; background: rgba(18,18,20,.72); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(18px); }
+/* Honest feature highlights replacing the fabricated demo-inbox proof card. */
+.auth-feature-list { display: grid; gap: .8rem; max-width: 30rem; margin-top: 2.2rem; }
+.auth-feature-card { display: flex; align-items: flex-start; gap: .9rem; padding: 1rem 1.1rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1rem; background: rgba(18,18,20,.72); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(18px); }
+.auth-feature-icon { display: grid; width: 2.4rem; height: 2.4rem; flex: none; place-items: center; border-radius: .7rem; background: rgba(255,140,66,.12); border: 1px solid rgba(255,140,66,.25); color: #FF9D5C; }
+.auth-feature-icon svg { width: 1.15rem; height: 1.15rem; }
+.auth-feature-card strong { display: block; color: #F5F5F5; font-size: .85rem; font-weight: 650; letter-spacing: -.01em; }
+.auth-feature-card p { margin-top: .25rem; color: #A1A4AC; font-size: .78rem; line-height: 1.55; }
 /* The proof card and footer ran on #6B6E76 / #626268 / #5f5f64 at .54–.58rem:
    between 2.9:1 and 3.9:1 on the panel gradient, at 8.6–9.3px. It is the only
    text on the signed-out desktop screen besides the headline, so it is held to
@@ -1144,6 +1192,40 @@ body {
 .auth-preview-row { display: grid; grid-template-columns: 2rem minmax(0,1fr) auto; align-items: center; gap: .65rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(255,255,255,.055); }.auth-preview-row.is-active { background: linear-gradient(90deg, rgba(255, 140, 66,.07), transparent); }.auth-preview-avatar { display: grid; width: 1.8rem; height: 1.8rem; place-items: center; border: 1px solid rgba(255,255,255,.08); border-radius: .55rem; background: #222225; color: #bdbdc1; font-size: .65rem; font-weight: 700; }.auth-preview-row strong { color: #c7c7c9; font-size: .64rem; }.auth-preview-row p { margin-top: .18rem; color: #99999e; font-size: .64rem; }.auth-preview-row p span { color: #83838A; }.auth-preview-row time { color: #A1A4AC; font-size: .62rem; }
 .auth-proof-footer { display: flex; gap: .45rem; padding: .7rem 1rem; }.auth-proof-footer span { border-radius: 999px; padding: .22rem .5rem; background: rgba(255,255,255,.04); color: #A1A4AC; font-size: .62rem; }
 .auth-brand-desktop > footer { display: flex; justify-content: space-between; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.07); color: #A1A4AC; font-size: .63rem; letter-spacing: .1em; text-transform: uppercase; }
+
+/* ---- v2: honest feature cards (replaces the fabricated demo-inbox proof card) ---- */
+.auth-feature-cards { display: grid; gap: .8rem; max-width: 36rem; margin-top: 2.2rem; }
+.auth-feature-card { display: flex; align-items: flex-start; gap: .9rem; border: 1px solid rgba(255,255,255,.09); border-radius: 1rem; background: rgba(18,18,20,.72); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(18px); padding: 1rem 1.1rem; }
+.auth-feature-icon { display: grid; width: 2.6rem; height: 2.6rem; flex: none; place-items: center; border-radius: .7rem; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); color: #FF8C42; overflow: hidden; }
+.auth-feature-icon svg { width: 100%; height: 100%; display: block; }
+.auth-feature-card strong { display: block; color: #ececee; font-size: .78rem; font-weight: 700; letter-spacing: -.01em; }
+.auth-feature-card p { margin-top: .25rem; color: #A1A4AC; font-size: .74rem; line-height: 1.55; }
+
+/* ---- v2: designed QuantMail wordmark for the sign-in heading (Instagram-style script) ---- */
+.signin-wordmark { font-family: "Brush Script MT", "Segoe Script", "Apple Chancery", "Snell Roundhand", cursive; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
+.signin-wordmark .wm-quant { color: #fff; }
+.signin-wordmark .wm-mail { color: #FF8C42; }
+
+/* ---- v2: minimal legal footer under the sign-in form ---- */
+.auth-legal-footer { margin-top: 2rem; padding-top: 1.25rem; border-top: 1px solid rgba(255,255,255,.06); display: flex; align-items: center; justify-content: center; gap: 1.25rem; font-size: 11px; color: #6b6e76; }
+.auth-legal-footer a { color: #8b8e96; text-decoration: none; transition: color 150ms ease; }
+.auth-legal-footer a:hover { color: #c9c9ce; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---- Quant AI logo animations (transform/opacity only; reduced-motion safe) ---- */
+.qai-logo { display: inline-block; vertical-align: middle; animation: qai-float 5s ease-in-out infinite; }
+@keyframes qai-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+.qai-eyes { transform-box: fill-box; transform-origin: center; animation: qai-blink 4.6s ease-in-out infinite; }
+@keyframes qai-blink { 0%, 90.5%, 97.5%, 100% { transform: scaleY(1); } 93.5% { transform: scaleY(.07); } }
+.qai-ring { filter: drop-shadow(0 0 9px rgba(168,85,247,.55)); animation: qai-glow 3.2s ease-in-out infinite; }
+@keyframes qai-glow { 0%, 100% { filter: drop-shadow(0 0 7px rgba(168,85,247,.45)); } 50% { filter: drop-shadow(0 0 16px rgba(168,85,247,.85)); } }
+.qai-think-arc { opacity: 0; transform-origin: 100px 100px; }
+.qai-thinking .qai-think-arc { opacity: 1; animation: qai-spin 1.15s linear infinite; }
+.qai-thinking .qai-ring { animation-duration: 1.15s; }
+@keyframes qai-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .qai-logo, .qai-eyes, .qai-ring, .qai-thinking .qai-think-arc { animation: none !important; }
+  .qai-think-arc { opacity: 0 !important; }
+}
 
 /* Composer — floating, focused, and complete */
 .compose-page { height: 100%; overflow-y: auto; background: radial-gradient(circle at 50% -10%, rgba(255, 140, 66,.055), transparent 35rem), #090A0C; }
@@ -1157,7 +1239,11 @@ body {
 .local-attachments { margin: .8rem 1.25rem 0; border: 1px solid var(--quant-border); border-radius: .75rem; padding: .75rem; }.local-attachments-heading { display: flex; justify-content: space-between; color: #A1A4AC; font-size: .58rem; }.local-attachments-heading h2 { color: #aaa; font-weight: 700; }.local-attachments ul { display: grid; gap: .4rem; margin-top: .6rem; }.local-attachments li { display: flex; align-items: center; gap: .6rem; padding: .5rem; border-radius: .5rem; background: #16181D; }.local-attachments li svg { width: 1rem; height: 1rem; fill: none; stroke: #FF9B5A; }.local-attachments li > span { display: flex; min-width: 0; flex: 1; flex-direction: column; font-size: .65rem; }.local-attachments li small { margin-top: .15rem; color: #A1A4AC; }.local-attachments li button { color: #8b8b90; font-size: .6rem; }
 .composer-action-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem 1.25rem; border-bottom: 1px solid var(--quant-border-subtle); }.composer-tools { display: flex; align-items: center; gap: .65rem; }.visually-hidden-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }.tool-action { display: flex; align-items: center; gap: .4rem; min-height: 2rem; border-radius: .5rem; padding: 0 .55rem; color: #aaa; font-size: .64rem; }.tool-action:hover { background: var(--quant-muted); }.tool-action svg { width: .9rem; height: .9rem; fill: none; stroke: currentColor; }.attachment-caveat { color: #A1A4AC; font-size: .56rem; }.priority-control { display: flex; align-items: center; gap: .45rem; }.priority-control label { color: #A1A4AC; font-size: .58rem; }.priority-control select { height: 2rem; border: 1px solid var(--quant-border); border-radius: .5rem; padding: 0 .55rem; background: #16181D; color: #aaa; font-size: .62rem; }
 .email-composer .composer-footer { justify-content: space-between; border: 0; border-radius: 0 0 1.1rem 1.1rem; padding: 1rem 1.25rem; background: #111318; }.composer-send-group, .composer-secondary-actions { display: flex; align-items: center; gap: .5rem; }.email-composer .btn { height: 2.55rem; border-radius: .62rem; font-size: .7rem; }.email-composer .btn-primary { background: #FF8C42; color: #111111; box-shadow: 0 10px 24px rgba(180,72,0,.22); }.email-composer .btn-primary:hover { background: #FF9B5A; filter: none; }.btn-schedule, .btn-quiet { background: #16181D !important; color: #aaa !important; }.btn-schedule svg { width: .8rem; height: .8rem; fill: none; stroke: currentColor; }.schedule-control { position: relative; }.schedule-menu { position: absolute; z-index: 10; bottom: calc(100% + .5rem); left: 0; width: 15rem; border: 1px solid var(--quant-border); border-radius: .75rem; padding: .7rem; background: #16181D; box-shadow: var(--quant-shadow-xl); }.schedule-menu p { font-size: .68rem; font-weight: 700; }.schedule-menu small { display: block; margin: .2rem 0 .55rem; color: #A1A4AC; font-size: .56rem; }.schedule-menu button { width: 100%; min-height: 2rem; border-radius: .45rem; padding: 0 .5rem; color: #aaa; text-align: left; font-size: .64rem; }.schedule-menu button:hover { background: #252528; color: white; }.discard-action:hover { color: var(--quant-destructive) !important; }
-.undo-send-toast { position: fixed; z-index: 60; right: 1.25rem; bottom: 1.25rem; display: flex; align-items: center; gap: .8rem; border: 1px solid var(--quant-border); border-radius: .8rem; padding: .75rem .9rem; background: #1b1b1e; box-shadow: var(--quant-shadow-xl); font-size: .7rem; }.undo-countdown { display: grid; width: 1.7rem; height: 1.7rem; place-items: center; border-radius: 50%; background: rgba(255, 140, 66,.12); color: #FF9B5A; font-weight: 750; }.undo-send-toast button { color: #FF9B5A; font-weight: 700; }
+.undo-send-toast { position: fixed; z-index: 60; right: 1.25rem; bottom: 1.25rem; display: flex; align-items: center; gap: .8rem; border: 1px solid var(--quant-border); border-radius: .8rem; padding: .75rem .9rem; background: #1b1b1e; box-shadow: var(--quant-shadow-xl); font-size: .7rem; max-width: calc(100vw - 3rem); }.undo-countdown { display: grid; width: 1.7rem; height: 1.7rem; place-items: center; border-radius: 50%; background: rgba(255, 140, 66,.12); color: #FF9B5A; font-weight: 750; }.undo-send-toast button { color: #FF9B5A; font-weight: 700; min-height: 44px; min-width: 44px; }
+/* P1 mobile fix: the undo-send toast must clear the mobile bottom nav */
+@media (max-width: 767px) {
+  .undo-send-toast { bottom: 76px; left: 1rem; right: 1rem; }
+}
 
 @media (max-width: 1023px) {
   .auth-shell { display: block; }.auth-shell-brand { display: none; }.auth-shell-mobile-brand { display: block; height: 5rem; overflow: hidden; border-bottom: 1px solid rgba(255,255,255,.075); }.auth-shell-form { min-height: calc(100dvh - 5rem); padding: 2.5rem 1.25rem; }.auth-mobile-brand { position: relative; display: flex; height: 100%; align-items: center; justify-content: space-between; padding: 0 1.25rem; }.auth-brand-desktop { display: none; }
@@ -1178,7 +1264,7 @@ body {
   .mail-list { padding-bottom: 8.5rem; }
 }
 @media (max-width: 639px) {
-  .inbox-hero { padding: 1.3rem 1rem .85rem; }.inbox-hero h1 { font-size: 2rem; }.inbox-hero > div > p:last-child { display: none; }.hero-compose { width: 2.5rem; padding: 0; }.hero-compose svg { width: 1rem; }.hero-compose { font-size: 0; }.inbox-search-wrap { padding-inline: .9rem; }.inbox-categories { padding-inline: .8rem; }.mail-list { padding-inline: .35rem; }.mail-row { min-height: 4.6rem; }.mail-row > input { display: none; }.mail-star { opacity: 1; }.inbox-list-footer { display: none; }
+  .inbox-hero { padding: 1rem 1rem .7rem; }.inbox-hero h1 { font-size: 2rem; }.inbox-hero > div > p:last-child { display: none; }.hero-compose { width: 2.5rem; padding: 0; }.hero-compose svg { width: 1rem; }.hero-compose { font-size: 0; }.inbox-search-wrap { padding-inline: .9rem; }.inbox-categories { padding-inline: .8rem; }.mail-list { padding-inline: .35rem; }.mail-row { min-height: 4.6rem; }.mail-row > input { display: none; }.mail-star { opacity: 1; }.inbox-list-footer { display: none; }
   .email-composer { padding: 0; }.email-composer .composer-surface { min-height: 100dvh; border: 0; border-radius: 0; }.email-composer .composer-ai { align-items: flex-start; flex-direction: column; }.composer-ai-actions { justify-content: flex-start; }.email-composer .composer-writing-area { min-height: 18rem; margin-inline: .75rem; }.email-composer .composer-footer, .composer-action-bar { align-items: stretch; flex-direction: column; }.composer-secondary-actions { justify-content: space-between; }.attachment-caveat { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2160,6 +2246,7 @@ body {
   gap: 0.7rem;
   min-height: 4.5rem;
   border: 1px solid transparent;
+  border-bottom-color: rgba(255,255,255,0.055);
   border-radius: 0.72rem;
   padding: 0.6rem 0.7rem;
   cursor: pointer;
@@ -2447,6 +2534,11 @@ body {
   gap: 0.5rem;
   z-index: 9999;
   pointer-events: none;
+  max-width: calc(100vw - 3rem);
+}
+/* P1 mobile fix: toast stack must clear the mobile bottom nav */
+@media (max-width: 767px) {
+  .inbox-toast-container { bottom: 76px; }
 }
 .inbox-toast {
   display: flex;

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../../models/chat_models.dart';
-import '../../services/chat_mock_data.dart';
 
 class CreateGroupSheet extends StatefulWidget {
   final Function(ChatConversation)? onGroupCreated;
@@ -63,12 +62,8 @@ class _CreateGroupSheetState extends State<CreateGroupSheet> {
   @override
   void initState() {
     super.initState();
-    _availableContacts = ChatMockData.getInitialGroupMembers();
-    // Pre-select first 2 contacts as default invitees
-    if (_availableContacts.length >= 2) {
-      _selectedContactIds.add(_availableContacts[0].id);
-      _selectedContactIds.add(_availableContacts[1].id);
-    }
+    // No mock data: contacts come from the real backend. Nothing pre-selected.
+    _availableContacts = <ChatGroupMember>[];
   }
 
   @override

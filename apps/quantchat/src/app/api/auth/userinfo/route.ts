@@ -6,10 +6,23 @@ const BACKEND_URL =
   'http://localhost:3002';
 
 /**
- * Handle resilient fallback when upstream backend is offline/unreachable.
- * Returns 401 if auth header is missing or empty.
- * Returns decoded phone identity if token matches `qchat_sess_...`.
- * Returns fallback user identity for other bearer tokens (e.g. JWTs).
+ * FAIL-CLOSED response when the upstream auth backend is unavailable.
+ *
+ * P0-A fix (identity forgery class): the previous implementation *fabricated*
+ * user identities here — hex-decoding `qchat_sess_*` tokens, base64url-decoding
+ * UNVERIFIED JWT payloads (`Buffer.from(jwtParts[1], 'base64url')`), and
+ * returning `success:true` + `kycStatus:'verified'` + `phoneVerified:true` in
+ * HTTP 200 for attacker-controlled token content. Any client holding a token
+ * the backend never issued could mint an arbitrary identity without any
+ * server-side verification.
+ *
+ * New behavior — never invent an identity:
+ *   - missing/empty authorization header -> 401 UNAUTHORIZED
+ *   - backend down / unreachable / 502/503/504 -> 503 UPSTREAM_UNAVAILABLE
+ *   - upstream 401 with failed SSO exchange -> 401 UNAUTHORIZED (explicit)
+ *
+ * Clients must retry against a real backend instead of trusting a fabricated
+ * identity.
  */
 function handleFallback(authHeader: string | null): NextResponse {
   if (!authHeader) {
@@ -39,109 +52,27 @@ function handleFallback(authHeader: string | null): NextResponse {
     );
   }
 
-  if (token.startsWith('qchat_sess_')) {
-    const parts = token.split('_');
-    // Support both qchat_sess_<timestamp>_<phoneHex> and qchat_sess_<phoneHex>
-    const hexCandidate = parts.length > 3 && parts[3] ? parts[3] : parts[2];
-    let phone = '';
-    try {
-      if (hexCandidate) {
-        phone = Buffer.from(hexCandidate, 'hex').toString('utf-8');
-      }
-    } catch {}
-
-    if ((!phone || !phone.startsWith('+')) && parts[2]) {
-      try {
-        const decoded = Buffer.from(parts[2], 'hex').toString('utf-8');
-        if (decoded) phone = decoded;
-      } catch {}
-    }
-
-    const hexId = hexCandidate || parts[2];
-
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          id: 'user_' + (hexId ? hexId.slice(0, 12) : 'guest'),
-          phoneNumber: phone || '+919876543210',
-          username: phone ? `User ${phone.slice(-4)}` : 'QuantChat User',
-          displayName: phone ? `User ${phone.slice(-4)}` : 'QuantChat User',
-          email: `${(phone || 'user').replace('+', '')}@quantchat.local`,
-          role: 'USER',
-          phoneVerified: true,
-          kycStatus: 'verified',
-          isFallback: true,
-        },
-      },
-      { status: 200 },
-    );
-  }
-
-  const jwtParts = token.split('.');
-  if (jwtParts.length === 3) {
-    try {
-      const payload = JSON.parse(Buffer.from(jwtParts[1], 'base64url').toString('utf-8'));
-      if (payload && (payload.sub || payload.id || payload.email)) {
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              id: payload.sub || payload.id || 'user_sso',
-              email: payload.email || 'user@quantmail.in',
-              username:
-                payload.username || (payload.email ? payload.email.split('@')[0] : 'quant_user'),
-              displayName: payload.displayName || payload.name || 'Quant User',
-              role: payload.role || 'USER',
-              phoneNumber: payload.phoneNumber || '+919876543210',
-              phoneVerified: true,
-              kycStatus: 'verified',
-              isFallback: true,
-            },
-          },
-          { status: 200 },
-        );
-      }
-    } catch {}
-  } else if (token.startsWith('quant_') || token.startsWith('sso_')) {
-    return NextResponse.json(
-      {
-        success: true,
-        data: {
-          id: 'user_' + token.slice(0, 10),
-          email: 'user@quantmail.in',
-          username: 'QuantUser',
-          displayName: 'Quant User',
-          role: 'USER',
-          phoneNumber: '+919876543210',
-          phoneVerified: true,
-          kycStatus: 'verified',
-          isFallback: true,
-        },
-      },
-      { status: 200 },
-    );
-  }
-
-  // For any other bearer token (e.g. test tokens like 'x'), if backend is offline:
+  // Fail closed: the token content is NEVER decoded or trusted here.
+  // Fabricated identities were the P0-A flaw (see doc comment above).
   return NextResponse.json(
     {
       success: false,
       error: {
         code: 'UPSTREAM_UNAVAILABLE',
         message: 'Auth backend is unavailable',
-        statusCode: 502,
+        statusCode: 503,
       },
     },
-    { status: 502 },
+    { status: 503 },
   );
 }
 
 /**
- * OIDC-style userinfo proxy with resilient offline fallback.
+ * OIDC-style userinfo proxy with fail-closed offline behavior.
  * Forwards GET /api/auth/userinfo to upstream backend /auth/me.
- * If backend is offline or unreachable, returns graceful fallback identity
- * for authenticated sessions instead of failing with 502.
+ * If the backend is offline or unreachable, responds 503 UPSTREAM_UNAVAILABLE
+ * (no fabricated identity). A failed SSO token exchange after an upstream 401
+ * responds 401 UNAUTHORIZED.
  */
 export async function GET(request: NextRequest | Request) {
   const authHeader = request.headers.get('authorization');
@@ -208,14 +139,20 @@ export async function GET(request: NextRequest | Request) {
           if (exchangeData?.data?.user) {
             const nextResp = NextResponse.json({ success: true, data: exchangeData.data.user });
             if (exchangeData.data.accessToken) {
+              // P0-B fix: HttpOnly (+ Secure in production) so XSS cannot
+              // steal the session token via document.cookie.
               nextResp.cookies.set('quant_access_token', exchangeData.data.accessToken, {
                 path: '/',
-                httpOnly: false,
+                httpOnly: true,
+                // Secure only in production so http://localhost dev login keeps working;
+                // staging + prod are HTTPS, where the Secure flag is enforced.
+                secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
               });
               nextResp.cookies.set('token', exchangeData.data.accessToken, {
                 path: '/',
-                httpOnly: false,
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
               });
             }
@@ -223,9 +160,20 @@ export async function GET(request: NextRequest | Request) {
           }
         }
       } catch {
-        // Transparent exchange threw an error — proceed to claims fallback
+        // Transparent exchange threw an error — fail closed below (401).
       }
-      return handleFallback(authHeader);
+
+      // P0-A: failed exchange must NOT fall back to a fabricated identity.
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+          },
+        },
+        { status: 401 },
+      );
     }
 
     const errData = await res.json().catch(() => null);

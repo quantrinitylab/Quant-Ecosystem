@@ -44,8 +44,16 @@ const DEFAULTS: Required<PullToRefreshConfig> = {
 export class PullToRefreshMachine {
   private readonly cfg: Required<PullToRefreshConfig>;
   private phase: PtrPhase = 'idle';
+  private startX = 0;
   private startY = 0;
   private pullDistance = 0;
+  /**
+   * Horizontal intent won the touch: this gesture is a row swipe (or a
+   * horizontal scroll), never a pull. Latched for the whole touch lifetime so
+   * a horizontal swipe with a slight downward drift can never also fire a
+   * refresh — the exact bug where swiping a row to delete also refreshed.
+   */
+  private latchedOut = false;
 
   constructor(config: PullToRefreshConfig = {}) {
     this.cfg = { ...DEFAULTS, ...config };
@@ -61,32 +69,56 @@ export class PullToRefreshMachine {
 
   reset(): void {
     this.phase = 'idle';
+    this.startX = 0;
     this.startY = 0;
     this.pullDistance = 0;
+    this.latchedOut = false;
   }
 
   /**
    * Arms the gesture only when the list is scrolled all the way to the top.
    * Any other `scrollTop` means the touch is a scroll and is never claimed.
    */
-  touchstart(scrollTop: number, y: number): void {
+  touchstart(scrollTop: number, x: number, y: number): void {
     if (this.phase !== 'idle') return;
     if (scrollTop > 0) return;
+    this.startX = x;
     this.startY = y;
     this.pullDistance = 0;
     this.phase = 'pulling';
   }
 
-  touchmove(y: number, touchCount = 1): void {
-    if (this.phase !== 'pulling') return;
+  touchmove(x: number, y: number, touchCount = 1): void {
+    if (this.phase !== 'pulling' || this.latchedOut) return;
     // A second finger means a pinch, or the start of one. Fold the indicator
     // and hand the touch back rather than tracking half a gesture.
     if (touchCount !== 1) {
       this.reset();
       return;
     }
+    const dx = x - this.startX;
     const dy = y - this.startY;
-    this.pullDistance = dy > 0 ? Math.min(dy * this.cfg.resistance, this.cfg.maxPullPx) : 0;
+    const adx = Math.abs(dx);
+    const ady = Math.abs(dy);
+    // Horizontal intent wins the touch outright and keeps it: a row swipe that
+    // drifts slightly downward is still a row swipe. Latch out for the whole
+    // gesture so pull-to-refresh can never fire during/after a horizontal
+    // swipe. Mirrors the swipe machine's vertical latch-out in reverse.
+    if (adx >= 10 && adx > ady * 1.2) {
+      this.latchedOut = true;
+      this.pullDistance = 0;
+      this.phase = 'idle';
+      return;
+    }
+    // Only downward, vertically-dominant travel counts. Upward travel zeroes
+    // the pull distance rather than latching anything — the finger changed its
+    // mind, the indicator folds. Mostly-horizontal drift below the latch
+    // threshold accumulates nothing: intent is still undecided.
+    if (dy > 0 && ady >= adx) {
+      this.pullDistance = Math.min(dy * this.cfg.resistance, this.cfg.maxPullPx);
+    } else if (dy <= 0) {
+      this.pullDistance = 0;
+    }
   }
 
   /**

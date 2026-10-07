@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
-import '../../data/gram_repository.dart';
 import '../../models/gram_models.dart';
 
 /// Sovereign High-Density Direct Messages & Ephemeral Notes Screen for QuantGram
@@ -32,8 +31,9 @@ class _DmsInboxScreenState extends State<DmsInboxScreen> {
   @override
   void initState() {
     super.initState();
-    _notes = List.from(GramRepository.getNotes());
-    _threads = List.from(GramRepository.getDirectMessages());
+    // No mock data: notes and threads load from the real backend.
+    _notes = <DirectNote>[];
+    _threads = <DirectMessageThread>[];
     _searchController.addListener(_onSearchChanged);
   }
 

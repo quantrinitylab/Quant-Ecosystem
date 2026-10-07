@@ -49,7 +49,12 @@ describe('Integration: Email Flows', () => {
     prisma = createMockPrisma();
     const suppressionDb = createMockSuppressionDb();
     const suppression = new SuppressionService(suppressionDb as any);
-    emailService = new EmailService(prisma as never, undefined, suppression);
+    // The send path needs a working outbound pipeline; without one it fails
+    // honestly with 503 DELIVERY_QUEUE_UNAVAILABLE (CUST-P0-2). This flow test
+    // exercises compose -> send with a queue available, so inject a resolving
+    // pipeline mock.
+    const mockPipeline = { enqueueSend: vi.fn().mockResolvedValue('job-1') };
+    emailService = new EmailService(prisma as never, mockPipeline as never, suppression);
     folderService = new FolderService(prisma as never);
     attachmentService = new AttachmentService({
       storage: new FakeStorage() as never,

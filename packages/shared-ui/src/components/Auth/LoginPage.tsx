@@ -70,7 +70,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const displayError = validationError || error;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500">
+    <div className="min-h-dvh flex items-center justify-center px-4 bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500">
       <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-8">
         {/* Header */}
         <div className="text-center mb-8">

@@ -250,7 +250,7 @@ export function DriveFilesSubView({
           </div>
           <div className="text-xs font-semibold text-[#F8FAFC]">PDF Documents</div>
           <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.pdf.count} files · {formatBytes(typeStats.pdf.size || 14200000)}
+            {typeStats.pdf.count} files · {formatBytes(typeStats.pdf.size)}
           </div>
         </button>
 
@@ -274,7 +274,7 @@ export function DriveFilesSubView({
           </div>
           <div className="text-xs font-semibold text-[#F8FAFC]">Documents & Text</div>
           <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.doc.count} files · {formatBytes(typeStats.doc.size || 8600000)}
+            {typeStats.doc.count} files · {formatBytes(typeStats.doc.size)}
           </div>
         </button>
 
@@ -298,7 +298,7 @@ export function DriveFilesSubView({
           </div>
           <div className="text-xs font-semibold text-[#F8FAFC]">Code & Scripts</div>
           <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.code.count} files · {formatBytes(typeStats.code.size || 5200000)}
+            {typeStats.code.count} files · {formatBytes(typeStats.code.size)}
           </div>
         </button>
 
@@ -322,7 +322,7 @@ export function DriveFilesSubView({
           </div>
           <div className="text-xs font-semibold text-[#F8FAFC]">Archives & Data</div>
           <div className="text-[11px] text-[#94A3B8] mt-0.5">
-            {typeStats.zip.count} files · {formatBytes(typeStats.zip.size || 24000000)}
+            {typeStats.zip.count} files · {formatBytes(typeStats.zip.size)}
           </div>
         </button>
       </div>
@@ -500,7 +500,7 @@ export function DriveFilesSubView({
                         <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
                           {file.name}
                         </p>
-                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                        <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
                           FastCDC Deduped
                         </span>
                       </div>

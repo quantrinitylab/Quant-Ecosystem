@@ -1,14 +1,14 @@
 'use client';
 
 // ============================================================================
-// BubbleLab — the 35-state Bubble Intelligence sheet, live.
+// BubbleLab — the 35-state Quanty ghost sheet, live.
 // ============================================================================
 //
 // Mirrors the reference character sheet: header with hero avatar + tagline,
 // then all 35 states in sheet order with number, name and caption. Every tile
-// is a live canvas running its own rAF loop (they desync by design and pause
-// off-screen, so a grid of 35 stays cheap). Hover/press any tile to see it
-// up close in the hero, or use the play button to walk the sheet.
+// is a live CSS-animated ghost (GPU-composited transform/opacity only, so a
+// grid of 35 stays cheap). Hover/press any tile to see it up close in the
+// hero, or use the play button to walk the sheet.
 //
 // Uses the shared package directly (@quant/shared-ui) — this is the *same*
 // component QuantSidekick mounts in every app, so what is verified here is

@@ -416,7 +416,7 @@ export function FileVersionHistoryModal({
                       {delta && (
                         <span
                           data-testid={`version-delta-${version.versionNumber}`}
-                          className={`text-xs font-mono font-medium px-1.5 py-0.2 rounded border ${
+                          className={`text-xs font-mono font-medium px-1.5 py-px rounded border ${
                             delta.startsWith('+')
                               ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/40'
                               : delta.startsWith('-')

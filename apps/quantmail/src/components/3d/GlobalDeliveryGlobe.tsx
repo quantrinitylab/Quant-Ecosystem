@@ -845,7 +845,7 @@ export function GlobalDeliveryGlobe({
             <div>
               <div className="flex items-center space-x-2">
                 <span className="text-xs font-semibold text-slate-200">{activeNode.name}</span>
-                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-white/10 rounded text-slate-300">
+                <span className="text-[10px] font-mono px-1.5 py-px bg-white/10 rounded text-slate-300">
                   {activeNode.region}
                 </span>
               </div>

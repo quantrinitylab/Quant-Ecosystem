@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
+
 
 class WaveSpacesScreen extends StatefulWidget {
   const WaveSpacesScreen({super.key});
@@ -26,7 +26,8 @@ class _WaveSpacesScreenState extends State<WaveSpacesScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _rooms = WaveMockData.getLiveAudioSpaces();
+    // No mock data: live rooms come from the real backend. Honestly empty.
+    _rooms = <WaveSpaceRoom>[];
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),

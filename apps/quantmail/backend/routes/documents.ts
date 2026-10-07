@@ -59,6 +59,14 @@ const createShareLinkSchema = z.object({
   expiresAt: z.string().optional().nullable(),
 });
 
+// P0-4b: the doc share dialog's "Add Collaborators" form previously never called
+// any endpoint — the handler just showed a fake success toast. This schema backs
+// the real invite endpoint below.
+const addCollaboratorSchema = z.object({
+  email: z.string().trim().email('A valid email address is required'),
+  role: z.enum(['viewer', 'editor', 'admin']).default('viewer'),
+});
+
 export const documentShareLinks = new Map<
   string,
   {
@@ -913,6 +921,86 @@ export default async function documentRoutes(fastify: FastifyInstance) {
         role,
         expiresAt,
         shareUrl: `/documents/public/share/${token}`,
+      },
+    });
+  });
+
+  // POST /documents/:id/collaborators (P0-4b) — Invite a collaborator by email.
+  // The doc share dialog previously had no server action behind "Invite" at
+  // all: the button never even submitted its form (default type="button"), and
+  // the handler showed a fabricated success toast without any network call.
+  // This endpoint makes the invite real and returns honest, specific errors.
+  fastify.post<{ Params: { id: string } }>('/:id/collaborators', async (request, reply) => {
+    const userId = requireUserId(request);
+    const prisma = getPrisma(fastify);
+    const { id } = documentParamsSchema.parse({ id: request.params.id });
+
+    const parsed = addCollaboratorSchema.safeParse(request.body ?? {});
+    if (!parsed.success) {
+      throw createAppError(
+        parsed.error.errors[0]?.message || 'Invalid collaborator details',
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
+
+    const document = await prisma.document.findUnique({
+      where: { id },
+      include: {
+        collaborators: true,
+      },
+    });
+
+    if (!document || document.isDeleted) {
+      throw createAppError('Document not found', 404, 'DOCUMENT_NOT_FOUND');
+    }
+
+    const canInvite =
+      document.userId === userId ||
+      document.collaborators?.some(
+        (c: { userId: string; role?: string }) =>
+          c.userId === userId &&
+          (c.role === 'ADMIN' || c.role === 'OWNER' || c.role === 'admin'),
+      );
+    if (!canInvite) {
+      throw createAppError(
+        'Forbidden: not authorized to invite collaborators to this document',
+        403,
+        'FORBIDDEN',
+      );
+    }
+
+    const recipient = await prisma.user.findFirst({
+      where: { email: { equals: parsed.data.email, mode: 'insensitive' } },
+      select: { id: true, email: true },
+    });
+    if (!recipient) {
+      // The invitee must have a Quant account — say so plainly instead of
+      // pretending the invite went out.
+      throw createAppError(
+        `No Quant account found for ${parsed.data.email}. They need to sign up before they can be added as a collaborator.`,
+        404,
+        'USER_NOT_FOUND',
+      );
+    }
+    if (recipient.id === userId) {
+      throw createAppError('You already have access to this document', 400, 'INVALID_RECIPIENT');
+    }
+
+    // Re-inviting changes the role rather than failing on the unique key.
+    const collaborator = await prisma.documentCollaborator.upsert({
+      where: { docId_userId: { docId: document.id, userId: recipient.id } },
+      update: { role: parsed.data.role },
+      create: { docId: document.id, userId: recipient.id, role: parsed.data.role },
+    });
+
+    return reply.status(201).send({
+      success: true,
+      data: {
+        id: collaborator.id,
+        docId: collaborator.docId,
+        email: recipient.email,
+        role: collaborator.role,
       },
     });
   });

@@ -83,229 +83,6 @@ export interface CopilotMessage {
 }
 
 // ============================================================================
-// Default Datasets conforming to Wave 75 Spec
-// ============================================================================
-
-export const DEFAULT_SUBVIEW_REPOS: RepositoryItem[] = [
-  {
-    id: 'repo-1',
-    name: 'quant-ecosystem',
-    fullName: 'quantrinitylab/quant-ecosystem',
-    description: 'Sovereign monorepo, web client, android APK & distributed engine',
-    language: 'TypeScript',
-    languageColor: '#3178C6',
-    stars: 1420,
-    forks: 184,
-    branches: [
-      { name: 'main', isProtected: true },
-      { name: 'feat/sovereign', isProtected: false },
-    ],
-    defaultBranch: 'main',
-    isPrivate: false,
-    updatedAt: 'Just now',
-  },
-  {
-    id: 'repo-2',
-    name: 'quant-kernel',
-    fullName: 'quantrinitylab/quant-kernel',
-    description: 'High-performance native core engine, SQLite FTS5 & cryptographic primitives',
-    language: 'Rust',
-    languageColor: '#DEA584',
-    stars: 890,
-    forks: 92,
-    branches: [
-      { name: 'main', isProtected: true },
-      { name: 'feat/simd-v2', isProtected: false },
-    ],
-    defaultBranch: 'main',
-    isPrivate: false,
-    updatedAt: '3 hours ago',
-  },
-  {
-    id: 'repo-3',
-    name: 'quant-ai-engine',
-    fullName: 'quantrinitylab/quant-ai-engine',
-    description: 'Local ONNX inference runtime, dynamic memory graphs & agent orchestrator',
-    language: 'Python',
-    languageColor: '#3572A5',
-    stars: 2150,
-    forks: 340,
-    branches: [
-      { name: 'main', isProtected: true },
-      { name: 'feat/speculative-decoding', isProtected: false },
-    ],
-    defaultBranch: 'main',
-    isPrivate: false,
-    updatedAt: '12 mins ago',
-  },
-];
-
-export const DEFAULT_SUBVIEW_PRS: PullRequestItem[] = [
-  {
-    id: 'pr-347',
-    prNumber: 347,
-    title: 'Per-App Platform Presence & Super-App Navigation',
-    author: 'astra-lead',
-    sourceBranch: 'feat/super-app-nav',
-    targetBranch: 'main',
-    status: 'approved_ready',
-    statusText: 'Approved · Ready to Merge',
-    diffStats: {
-      additions: 420,
-      deletions: 85,
-      filesChanged: 12,
-    },
-    labels: ['ui', 'navigation', 'wave-74'],
-    createdAt: '1 hour ago',
-  },
-  {
-    id: 'pr-348',
-    prNumber: 348,
-    title: 'FastCDC Chunk Deduplication & Vault E2EE Encryption',
-    author: 'sarah-chen',
-    sourceBranch: 'feat/fastcdc-vault',
-    targetBranch: 'main',
-    status: 'review_in_progress',
-    statusText: 'Review in Progress',
-    diffStats: {
-      additions: 1240,
-      deletions: 110,
-      filesChanged: 8,
-    },
-    labels: ['storage', 'encryption'],
-    createdAt: '3 hours ago',
-  },
-  {
-    id: 'pr-349',
-    prNumber: 349,
-    title: 'Sub-5ms FTS5 SQLite Search & Triage Heuristics',
-    author: 'dev-sentinel',
-    sourceBranch: 'feat/fts5-triage',
-    targetBranch: 'main',
-    status: 'ci_passing',
-    statusText: 'Approved · CI Passing',
-    diffStats: {
-      additions: 315,
-      deletions: 42,
-      filesChanged: 5,
-    },
-    labels: ['search', 'sqlite', 'perf'],
-    createdAt: '5 hours ago',
-  },
-];
-
-export const DEFAULT_SUBVIEW_ISSUES: IssueTrackItem[] = [
-  {
-    id: 'issue-89',
-    issueNumber: 89,
-    title: 'CalDAV recurrence synchronization optimization',
-    priority: 'P1 High',
-    priorityColor: '#EF4444',
-    labels: ['backend', 'calendar'],
-    state: 'open',
-    author: 'linus-dev',
-    createdAt: '2 hours ago',
-    commentsCount: 6,
-  },
-  {
-    id: 'issue-90',
-    issueNumber: 90,
-    title: 'Memory leak in ONNX runtime session cleanup',
-    priority: 'P0 Critical',
-    priorityColor: '#DC2626',
-    labels: ['ai-engine', 'performance'],
-    state: 'open',
-    author: 'astra-lead',
-    createdAt: '4 hours ago',
-    commentsCount: 14,
-  },
-  {
-    id: 'issue-91',
-    issueNumber: 91,
-    title: 'FastCDC chunk boundaries alignment with 64KB target',
-    priority: 'P2 Medium',
-    priorityColor: '#F59E0B',
-    labels: ['drive', 'storage'],
-    state: 'open',
-    author: 'sarah-chen',
-    createdAt: 'yesterday',
-    commentsCount: 3,
-  },
-  {
-    id: 'issue-74',
-    issueNumber: 74,
-    title: 'Zero-clipPath Skia safety on Android Compose',
-    priority: 'P0 Critical',
-    priorityColor: '#DC2626',
-    labels: ['android', 'skia'],
-    state: 'closed',
-    author: 'dev-sentinel',
-    createdAt: '2 days ago',
-    commentsCount: 19,
-  },
-  {
-    id: 'issue-78',
-    issueNumber: 78,
-    title: 'Yjs CRDT real-time sync conflict resolution',
-    priority: 'P1 High',
-    priorityColor: '#EF4444',
-    labels: ['sync', 'crdt'],
-    state: 'closed',
-    author: 'astra-lead',
-    createdAt: '3 days ago',
-    commentsCount: 11,
-  },
-];
-
-export const DEFAULT_SUBVIEW_WORKFLOWS: WorkflowRun[] = [
-  {
-    id: 'wf-1',
-    name: 'Master CI Gate on main',
-    branch: 'main',
-    status: 'success',
-    duration: '12m 40s',
-    commitSha: 'd7192416',
-    author: 'dev-sentinel',
-    triggerEvent: 'push',
-    createdAt: '14 mins ago',
-    jobs: [
-      { id: 'job-1', name: 'lint: pass', status: 'pass', duration: '1m 15s' },
-      { id: 'job-2', name: 'typecheck: pass', status: 'pass', duration: '2m 45s' },
-      { id: 'job-3', name: 'vitest: 317/317 pass', status: 'pass', duration: '4m 20s' },
-      { id: 'job-4', name: 'build: pass', status: 'pass', duration: '4m 20s' },
-    ],
-  },
-  {
-    id: 'wf-2',
-    name: 'Android APK Native Build',
-    branch: 'main',
-    status: 'success',
-    duration: '4m 11s',
-    commitSha: 'e819b402',
-    author: 'astra-lead',
-    triggerEvent: 'push',
-    createdAt: '1 hour ago',
-    jobs: [
-      { id: 'job-21', name: 'assembleQuantmailDebug: pass', status: 'pass', duration: '4m 11s' },
-    ],
-  },
-  {
-    id: 'wf-3',
-    name: 'E2E Playwright Gate',
-    branch: 'main',
-    status: 'success',
-    duration: '8m 02s',
-    commitSha: 'd7192416',
-    author: 'dev-sentinel',
-    triggerEvent: 'pull_request',
-    createdAt: '2 hours ago',
-    jobs: [
-      { id: 'job-31', name: 'e2e: 48/48 pass', status: 'pass', duration: '8m 02s' },
-    ],
-  },
-];
-
-// ============================================================================
 // Pure SVG Vector Icons (Strictly ZERO Raw Unicode Emojis)
 // ============================================================================
 
@@ -484,16 +261,16 @@ export function QuantGitReposSubView({
       data-testid="quantgit-repos-subview"
       className="flex-1 w-full min-h-0 overflow-y-auto bg-[#090A0E] text-[#E6EDF3] p-4 sm:p-6 lg:p-8"
     >
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
         {/* Top Header Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgRepoIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
                   {filtered.length} ACTIVE
                 </span>
@@ -516,9 +293,11 @@ export function QuantGitReposSubView({
           )}
         </div>
 
-        {/* Filter Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[240px]">
+        {/* Filter Controls — one horizontally-scrollable row, never wrapped.
+            The search field and the selects share a single scroll lane so the
+            filter layer is always exactly one row tall on mobile. */}
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+          <div className="flex-1 min-w-[240px] shrink-0">
             <input
               type="text"
               value={searchQuery}
@@ -527,7 +306,7 @@ export function QuantGitReposSubView({
               className="w-full bg-[#12151E] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#A78BFA] transition-colors"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
@@ -550,29 +329,33 @@ export function QuantGitReposSubView({
           </div>
         </div>
 
-        {/* Repository Cards Grid — genuine empty state, never fake repos */}
+        {/* Repository Cards Grid — genuine empty state, never fake repos.
+            The empty card is compact and vertically centered so the viewport
+            carries whitespace with purpose instead of a void below. */}
         {filtered.length === 0 ? (
-          <div
-            data-testid="quantgit-repos-empty"
-            className="rounded-2xl border border-dashed border-[#232938] bg-[#12151E] p-12 text-center"
-          >
-            <div className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
-              <SvgRepoIcon className="size-6" />
+          <div className="flex flex-1 items-center justify-center py-8">
+            <div
+              data-testid="quantgit-repos-empty"
+              className="w-full max-w-md rounded-2xl border border-dashed border-[#232938] bg-[#12151E] p-8 text-center"
+            >
+              <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+                <SvgRepoIcon className="size-5" />
+              </div>
+              <h2 className="text-base font-bold text-white">No repositories yet</h2>
+              <p className="mt-2 text-xs text-[#8B949E] max-w-sm mx-auto">
+                Create a new repository or import one from GitHub to get started. Your real
+                repositories will appear here.
+              </p>
+              {onNewRepo && (
+                <button
+                  type="button"
+                  onClick={onNewRepo}
+                  className="mt-5 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
+                >
+                  + New Repository
+                </button>
+              )}
             </div>
-            <h2 className="text-base font-bold text-white">No repositories yet</h2>
-            <p className="mt-2 text-xs text-[#8B949E] max-w-sm mx-auto">
-              Create a new repository or import one from GitHub to get started. Your real
-              repositories will appear here.
-            </p>
-            {onNewRepo && (
-              <button
-                type="button"
-                onClick={onNewRepo}
-                className="mt-6 px-4 py-2 rounded-xl bg-[#A78BFA] hover:bg-[#906FFA] text-black font-bold text-xs shadow-lg shadow-[#A78BFA]/20 transition-all"
-              >
-                + New Repository
-              </button>
-            )}
           </div>
         ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -617,7 +400,7 @@ export function QuantGitReposSubView({
                         <span
                           title="Protected branch (enforces CI gates and signed PR reviews)"
                           data-testid="protected-branch-badge"
-                          className="ml-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-1 py-0.2 rounded border border-[#A78BFA]/30"
+                          className="ml-1 inline-flex items-center gap-0.5 text-[9px] font-bold text-[#A78BFA] bg-[#A78BFA]/10 px-1 py-px rounded border border-[#A78BFA]/30"
                         >
                           <SvgShieldIcon className="size-2.5" />
                           <span>Protected</span>
@@ -671,7 +454,7 @@ export interface QuantGitPrsSubViewProps {
 }
 
 export function QuantGitPrsSubView({
-  prs = DEFAULT_SUBVIEW_PRS,
+  prs = [],
   onMergePR,
   onOpenPR,
   showToast,
@@ -696,14 +479,14 @@ export function QuantGitPrsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgPullRequestIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Pull Requests Dashboard</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Pull Requests Dashboard</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
                   3-WAY MERGE READY
                 </span>
@@ -715,11 +498,11 @@ export function QuantGitPrsSubView({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-0.5">
             <button
               type="button"
               onClick={() => setFilterState('open')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'open'
                   ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -732,7 +515,7 @@ export function QuantGitPrsSubView({
             <button
               type="button"
               onClick={() => setFilterState('merged')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'merged'
                   ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -745,7 +528,7 @@ export function QuantGitPrsSubView({
             <button
               type="button"
               onClick={() => setFilterState('closed')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'closed'
                   ? 'bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -758,6 +541,15 @@ export function QuantGitPrsSubView({
 
         {/* PR List */}
         <div className="space-y-4">
+          {prs.length === 0 && (
+            <div
+              data-testid="quantgit-prs-empty"
+              className="py-16 text-center rounded-2xl border border-dashed border-[#232938] bg-[#0B0D13]/40"
+            >
+              <p className="text-sm font-semibold text-[#C9D1D9]">No pull requests yet</p>
+              <p className="text-xs text-[#6E7681] mt-1">Open a pull request from a repository to see it here.</p>
+            </div>
+          )}
           {prs.map((pr) => {
             const isMerged = mergedPrs[pr.id] || pr.status === 'merged';
 
@@ -876,7 +668,7 @@ export interface QuantGitIssuesSubViewProps {
 }
 
 export function QuantGitIssuesSubView({
-  issues = DEFAULT_SUBVIEW_ISSUES,
+  issues = [],
   onSelectIssue,
   onNewIssue,
 }: QuantGitIssuesSubViewProps) {
@@ -894,14 +686,14 @@ export function QuantGitIssuesSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgIssueIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Sovereign Issue Tracker</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Issue Tracker</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
                   PRIORITY RADAR
                 </span>
@@ -913,33 +705,33 @@ export function QuantGitIssuesSubView({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-0.5">
             <button
               type="button"
               onClick={() => setFilterState('open')}
               data-testid="filter-pill-open"
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'open'
                   ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
               }`}
             >
               <SvgIssueIcon className="size-3.5" />
-              <span>Open (14)</span>
+              <span>Open ({openIssues.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setFilterState('closed')}
               data-testid="filter-pill-closed"
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'closed'
                   ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
               }`}
             >
               <SvgCheckIcon className="size-3.5" />
-              <span>Closed (82)</span>
+              <span>Closed ({closedIssues.length})</span>
             </button>
 
             {onNewIssue && (
@@ -956,6 +748,15 @@ export function QuantGitIssuesSubView({
 
         {/* Issue Cards */}
         <div className="space-y-3.5">
+          {displayedIssues.length === 0 && (
+            <div
+              data-testid="quantgit-issues-empty"
+              className="py-16 text-center rounded-2xl border border-dashed border-[#232938] bg-[#0B0D13]/40"
+            >
+              <p className="text-sm font-semibold text-[#C9D1D9]">No issues yet</p>
+              <p className="text-xs text-[#6E7681] mt-1">Create an issue to start tracking work.</p>
+            </div>
+          )}
           {displayedIssues.map((issue) => (
             <div
               key={issue.id}
@@ -1026,7 +827,7 @@ export interface QuantGitActionsSubViewProps {
 }
 
 export function QuantGitActionsSubView({
-  workflows = DEFAULT_SUBVIEW_WORKFLOWS,
+  workflows = [],
   onTriggerWorkflow,
 }: QuantGitActionsSubViewProps) {
   const masterRun = workflows[0];
@@ -1039,17 +840,19 @@ export function QuantGitActionsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgActionsIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
-                  ALL GATES PASSING
-                </span>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
+                {workflows.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
+                    ALL GATES PASSING
+                  </span>
+                )}
               </div>
               <p className="text-xs text-[#8B949E] mt-0.5">
                 Real-time job execution telemetry, typecheck gates & vitest test runners
@@ -1070,6 +873,15 @@ export function QuantGitActionsSubView({
         </div>
 
         {/* Master CI Gate Card with Real-time Build Jobs Breakdown */}
+        {workflows.length === 0 && (
+          <div
+            data-testid="quantgit-actions-empty"
+            className="py-16 text-center rounded-2xl border border-dashed border-[#232938] bg-[#0B0D13]/40"
+          >
+            <p className="text-sm font-semibold text-[#C9D1D9]">No pipeline runs yet</p>
+            <p className="text-xs text-[#6E7681] mt-1">Trigger a pipeline or push a commit to see CI runs here.</p>
+          </div>
+        )}
         {masterRun && (
           <div
             data-testid="workflow-master-gate"
@@ -1190,7 +1002,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
       id: 'msg-initial',
       role: 'assistant',
       content:
-        'Quanty AI Copilot ready. I have indexed PR #347, repository AST trees, and CI pipeline telemetry. Select a prompt chip below or type an autonomous instruction.',
+        'Quanty AI Copilot ready. Select a prompt chip below or type an instruction.',
       timestamp: 'Just now',
     },
   ]);
@@ -1198,7 +1010,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
   const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
 
   const promptChips = [
-    { label: 'Explain PR #347', query: 'Explain PR #347: Per-App Platform Presence & Super-App Navigation' },
+    { label: 'Explain a PR', query: 'Explain the selected pull request' },
     { label: 'Security Audit', query: 'Run Security Audit on dependencies and cryptographic vault' },
     { label: 'Generate Test', query: 'Generate Vitest test suite for ContextBottomNavBar sub-tabs' },
   ];
@@ -1216,12 +1028,12 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
     };
 
     let reply = '';
-    if (label === 'Explain PR #347') {
+    if (label === 'Explain a PR') {
       reply =
-        'PR #347 introduces unified Per-App Platform Presence & Super-App Navigation across Web, Desktop, and Android Compose. Key architectural highlights:\n• QuantPillarTopBar with 5 squircle mode tiles & frosted Dynamic Island capsule.\n• ContextBottomNavBar with 5 contextual sub-views synchronized with `?tab=...`.\n• Zero-clipPath Skia safety physics and full Vitest regression coverage.';
+        'Select a pull request first — the copilot can explain its diffs once a PR is open.';
     } else if (label === 'Security Audit') {
       reply =
-        'Security Audit complete for monorepo:\n• SAIF compliance score: 100% PASS.\n• High/Critical CVEs: 0 detected.\n• E2EE Vault primitives: AES-256-GCM verified.\n• RBAC & OAuth token rotation: Verified.';
+        'Security audit requires a live scan — connect a repository to run one. No scan has run yet.';
     } else {
       reply =
         'Generated Vitest test suite preview:\n```tsx\ndescribe("QuantGit Sub-Views", () => {\n  it("synchronizes with ?tab=... and renders all 5 views", () => {\n    // 100% green coverage\n  });\n});\n```';
@@ -1268,14 +1080,14 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
     >
       <div className="max-w-4xl mx-auto w-full space-y-6 flex-1 flex flex-col">
         {/* Header Hero */}
-        <div className="flex items-center justify-between pb-5 border-b border-[#232938]">
+        <div className="flex items-center justify-between pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] shadow-lg shadow-[#A78BFA]/10">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] shadow-lg shadow-[#A78BFA]/10">
               <SvgCopilotIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/30">
                   NODE B AGENT OS
                 </span>
@@ -1287,16 +1099,16 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
           </div>
         </div>
 
-        {/* Prompt Chips Bar */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-xs font-semibold text-[#8B949E]">Prompt Chips:</span>
+        {/* Prompt Chips Bar — one horizontally-scrollable row, never wrapped. */}
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+          <span className="text-xs font-semibold text-[#8B949E] shrink-0">Prompt Chips:</span>
           {promptChips.map((chip) => (
             <button
               key={chip.label}
               type="button"
               data-testid={`prompt-chip-${chip.label.replace(/[^a-zA-Z0-9]/g, '-')}`}
               onClick={() => handleChipClick(chip.label, chip.query)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#12151E] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#A78BFA]/60 shadow-sm transition-all flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#12151E] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#A78BFA]/60 shadow-sm transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             >
               <SvgCopilotIcon className="size-3 text-[#A78BFA]" />
               <span>[{chip.label}]</span>
@@ -1359,7 +1171,7 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
               type="text"
               value={inputVal}
               onChange={(e) => setInputVal(e.target.value)}
-              placeholder="Ask Quanty about repositories, PR #347 diffs, or architecture..."
+              placeholder="Ask Quanty about repositories, PR diffs, or architecture..."
               className="flex-1 bg-transparent px-3 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none"
             />
             <button

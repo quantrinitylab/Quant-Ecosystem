@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { createAppError } from '@quant/server-core';
 
@@ -7,9 +8,36 @@ export interface ContactGroup {
   name: string;
   /** Trimmed, lowercased, de-duplicated. See {@link normalizeEmails}. */
   emails: string[];
+  /** Member addresses promoted to admin. Always a subset of {@link emails}. */
+  adminEmails: string[];
+  /** Active join-link token, or null while no link exists / after revocation. */
+  inviteToken?: string | null;
+  inviteTokenCreatedAt?: Date | null;
   color?: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type GroupMemberRole = 'admin' | 'member';
+
+export interface GroupInviteLink {
+  token: string;
+  inviteUrl: string;
+  createdAt: Date;
+}
+
+export interface GroupInvitePreview {
+  groupName: string;
+  memberCount: number;
+  ownerName: string;
+}
+
+/** Public base URL for invite links. Same keys as the workspace invites so one
+ * deployment config covers both (`workspace.service.ts` `appUrl`). */
+function appUrl(): string {
+  return (
+    process.env['WORKSPACE_APP_URL'] ?? process.env['NEXT_PUBLIC_APP_URL'] ?? 'https://quantmail.in'
+  ).replace(/\/$/, '');
 }
 
 export interface ContactGroupWritableFields {
@@ -62,6 +90,10 @@ export class ContactGroupService {
 
   private get model() {
     return (this.prisma as unknown as { contactGroup: ContactGroupModel }).contactGroup;
+  }
+
+  private get users() {
+    return (this.prisma as unknown as { user: UserModel }).user;
   }
 
   /**
@@ -146,7 +178,7 @@ export class ContactGroupService {
     userId: string,
     data: ContactGroupWritableFields,
   ): Promise<ContactGroup> {
-    await this.requireOwnedGroup(groupId, userId);
+    const group = await this.requireOwnedGroup(groupId, userId);
 
     if (Object.keys(data).length === 0) {
       throw createAppError('No updatable fields were supplied', 400, 'EMPTY_UPDATE');
@@ -161,7 +193,15 @@ export class ContactGroupService {
     }
 
     if (data.emails !== undefined) {
-      patch.emails = ContactGroupService.normalizeEmails(data.emails);
+      const emails = ContactGroupService.normalizeEmails(data.emails);
+      patch.emails = emails;
+      // Roles may not outlive membership: dropping a member who happened to
+      // be an admin must not leave their address in adminEmails, where the
+      // modal would render an "Admin" badge on someone who is not a member.
+      const keep = new Set(emails);
+      patch.adminEmails = ContactGroupService.normalizeEmails(group.adminEmails ?? []).filter(
+        (address) => keep.has(address),
+      );
     }
 
     if (data.color !== undefined) {
@@ -175,6 +215,156 @@ export class ContactGroupService {
     await this.requireOwnedGroup(groupId, userId);
     return this.model.delete({ where: { id: groupId } });
   }
+
+  /**
+   * Promote a member to admin or demote them back to a plain member.
+   *
+   * Owner-gated via {@link requireOwnedGroup}: the owner is the group's
+   * implicit admin, and only they hand the role out. The address must already
+   * be a member — promoting a stranger would invent a membership the editor
+   * never created.
+   */
+  async setMemberRole(
+    groupId: string,
+    userId: string,
+    email: string,
+    role: GroupMemberRole,
+  ): Promise<ContactGroup> {
+    const group = await this.requireOwnedGroup(groupId, userId);
+    const address = email.trim().toLowerCase();
+
+    if (!group.emails.includes(address)) {
+      throw createAppError('That address is not a member of this group', 400, 'NOT_A_MEMBER');
+    }
+
+    const admins = ContactGroupService.normalizeEmails(group.adminEmails ?? []);
+    const next =
+      role === 'admin'
+        ? admins.includes(address)
+          ? admins
+          : [...admins, address]
+        : admins.filter((candidate) => candidate !== address);
+
+    return this.model.update({ where: { id: groupId }, data: { adminEmails: next } });
+  }
+
+  /**
+   * Remove one member. Also strips their admin role if they had one, for the
+   * same reason {@link updateGroup} keeps the two arrays in step.
+   */
+  async removeMember(groupId: string, userId: string, email: string): Promise<ContactGroup> {
+    const group = await this.requireOwnedGroup(groupId, userId);
+    const address = email.trim().toLowerCase();
+
+    if (!group.emails.includes(address)) {
+      throw createAppError('That address is not a member of this group', 404, 'NOT_A_MEMBER');
+    }
+
+    return this.model.update({
+      where: { id: groupId },
+      data: {
+        emails: group.emails.filter((candidate) => candidate !== address),
+        adminEmails: ContactGroupService.normalizeEmails(group.adminEmails ?? []).filter(
+          (candidate) => candidate !== address,
+        ),
+      },
+    });
+  }
+
+  /**
+   * Create (or regenerate) the group's join link. Regenerating replaces the
+   * token, which invalidates every copy of the old link — the "I posted it in
+   * the wrong chat" escape hatch.
+   */
+  async createInviteLink(groupId: string, userId: string): Promise<GroupInviteLink> {
+    await this.requireOwnedGroup(groupId, userId);
+
+    const token = randomBytes(24).toString('base64url');
+    const createdAt = new Date();
+    await this.model.update({
+      where: { id: groupId },
+      data: { inviteToken: token, inviteTokenCreatedAt: createdAt },
+    });
+
+    return { token, inviteUrl: `${appUrl()}/groups/join/${token}`, createdAt };
+  }
+
+  /** The active join link, if any. Owner-gated: the token is a bearer. */
+  async getInviteLink(groupId: string, userId: string): Promise<GroupInviteLink | null> {
+    const group = await this.requireOwnedGroup(groupId, userId);
+
+    if (!group.inviteToken) {
+      return null;
+    }
+
+    return {
+      token: group.inviteToken,
+      inviteUrl: `${appUrl()}/groups/join/${group.inviteToken}`,
+      createdAt: group.inviteTokenCreatedAt ?? group.updatedAt,
+    };
+  }
+
+  /** Revoke the join link. The token is cleared, not merely expired. */
+  async revokeInviteLink(groupId: string, userId: string): Promise<ContactGroup> {
+    await this.requireOwnedGroup(groupId, userId);
+    return this.model.update({
+      where: { id: groupId },
+      data: { inviteToken: null, inviteTokenCreatedAt: null },
+    });
+  }
+
+  /**
+   * Public preview of a join link — what the join page shows before the
+   * visitor signs in. No membership or email addresses leak here: just the
+   * group name, the member count, and the owner's name.
+   */
+  async previewInvite(token: string): Promise<GroupInvitePreview> {
+    const group = await this.model.findFirst({ where: { inviteToken: token } });
+
+    if (!group) {
+      throw createAppError('This invite link is not valid', 404, 'INVITE_NOT_FOUND');
+    }
+
+    const owner = await this.users.findUnique({
+      where: { id: group.userId },
+      select: { displayName: true, email: true },
+    });
+
+    return {
+      groupName: group.name,
+      memberCount: group.emails.length,
+      ownerName: owner?.displayName || owner?.email || 'Someone',
+    };
+  }
+
+  /**
+   * Join a group via its invite link. The signed-in user's own address is
+   * added to the owner's group — idempotent, so opening the same link twice
+   * is a no-op rather than an error.
+   */
+  async joinByInvite(token: string, userId: string): Promise<ContactGroup> {
+    const group = await this.model.findFirst({ where: { inviteToken: token } });
+
+    if (!group) {
+      throw createAppError('This invite link is not valid', 404, 'INVITE_NOT_FOUND');
+    }
+
+    const me = await this.users.findUnique({ where: { id: userId }, select: { email: true } });
+    const address = me?.email?.trim().toLowerCase();
+
+    if (!address) {
+      throw createAppError('Your account has no email address to join with', 400, 'NO_EMAIL');
+    }
+
+    if (group.emails.includes(address)) {
+      return group;
+    }
+
+    return this.model.update({
+      where: { id: group.id },
+      data: { emails: [...group.emails, address] },
+    });
+  }
 }
 
 /** Type helper for Prisma contactGroup model operations. */
@@ -185,4 +375,9 @@ interface ContactGroupModel {
   create(args: unknown): Promise<ContactGroup>;
   update(args: unknown): Promise<ContactGroup>;
   delete(args: unknown): Promise<ContactGroup>;
+}
+
+/** Minimal user delegate: invites only need the owner's name and the joiner's address. */
+interface UserModel {
+  findUnique(args: unknown): Promise<{ displayName?: string | null; email?: string | null } | null>;
 }

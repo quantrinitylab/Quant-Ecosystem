@@ -6,7 +6,6 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/ai_models.dart';
-import '../services/ai_mock_data.dart';
 
 class HistoryScreen extends StatefulWidget {
   final Function(ChatThread)? onSelectThread;
@@ -25,7 +24,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   void initState() {
     super.initState();
-    _threads = List.from(AiMockData.getInitialChatHistory());
+    _threads = <ChatThread>[];
   }
 
   @override

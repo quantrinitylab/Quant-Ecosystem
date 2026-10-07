@@ -10,7 +10,6 @@ export type { ProxyOptions } from './proxy';
 export { HttpClient } from './core/http-client';
 export { TokenManager } from './core/token-manager';
 export type { TokenManagerConfig } from './core/token-manager';
-export { createApiClient } from './core/create-client';
 export type { CreateApiClientConfig, ApiClientInstance } from './core/create-client';
 export type {
   APIResponse,
@@ -22,9 +21,6 @@ export type {
 } from './core/types';
 
 // Hooks (factory pattern — bind to an HttpClient instance)
-export { createQueryHook } from './hooks/useQuery';
-export { createMutationHook } from './hooks/useMutation';
-export { createInfiniteQueryHook } from './hooks/useInfiniteQuery';
 export { useSubscription } from './hooks/useSubscription';
 export type { SubscriptionOptions, SubscriptionState } from './hooks/useSubscription';
 
@@ -35,15 +31,12 @@ export { useApiQuery } from './hooks/useApiQuery';
 export type { UseApiQueryOptions } from './hooks/useApiQuery';
 export { useApiMutation } from './hooks/useApiMutation';
 export type { UseApiMutationOptions } from './hooks/useApiMutation';
-export { apiFetch, buildPath } from './core/api-fetch';
+export { apiFetch } from './core/api-fetch';
 export type { ApiMethod, ApiFetchInit } from './core/api-fetch';
 
 // Endpoints
-export { createChatHooks } from './endpoints/chat';
 export type { Conversation, Message, SendMessageParams } from './endpoints/chat';
-export { createMailHooks } from './endpoints/mail';
 export type { Email, SendEmailParams, SearchEmailsParams } from './endpoints/mail';
-export { createAIHooks } from './endpoints/ai';
 export type {
   AIChatParams,
   AIChatResponse,

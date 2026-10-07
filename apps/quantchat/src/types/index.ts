@@ -90,6 +90,7 @@ export interface MeView {
   email: string;
   username: string;
   displayName: string;
+  bio?: string;
   avatarUrl?: string;
   role: string;
   xpPoints: number;

@@ -4,8 +4,6 @@ import {
   tokenizeLine,
   renderSyntaxHighlightedLine,
   computeLineDiff,
-  getMockBlame,
-  getMockFileHistory,
 } from '../components/CodeTab';
 
 describe('CodeEditorDeepParity Unit Tests', () => {
@@ -73,17 +71,5 @@ describe('CodeEditorDeepParity Unit Tests', () => {
     expect(diff.length).toBeGreaterThan(0);
     expect(diff.some((d) => d.type === 'added')).toBe(true);
     expect(diff.some((d) => d.type === 'unchanged')).toBe(true);
-  });
-
-  it('provides mock git blame and file commit history', () => {
-    const blame1 = getMockBlame(1, 'src/index.ts');
-    const blame2 = getMockBlame(2, 'src/index.ts');
-    expect(blame1.sha).toBeDefined();
-    expect(blame1.author).toBeDefined();
-    expect(blame2.sha).toBeDefined();
-
-    const history = getMockFileHistory('src/index.ts');
-    expect(history.length).toBe(4);
-    expect(history[0].message).toContain('sovereign in-browser IDE parity');
   });
 });

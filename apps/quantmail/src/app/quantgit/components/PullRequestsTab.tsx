@@ -13,6 +13,17 @@ import type {
   PRDiffComment,
   MergeMethod,
 } from '../types';
+import {
+  QuantGitPRIcon,
+  QuantGitCheckCircleIcon,
+  QuantGitXCircleIcon,
+  QuantGitPendingDotIcon,
+  QuantGitCommentIcon,
+  QuantGitCheckIcon,
+  QuantGitXIcon,
+  QuantGitWarningIcon,
+} from './QuantGitIcons';
+import { QuantGitRowSkeleton, QuantGitEmptyState } from './QuantGitSkeletons';
 
 export interface SecurityCheckItem {
   id: string;
@@ -37,6 +48,8 @@ export interface PullRequestsTabProps {
   checks?: SecurityCheckItem[];
   initialMergeMethod?: MergeMethod;
   initialIsMergeConfirmOpen?: boolean;
+  /** When true, renders skeleton rows instead of the PR list. */
+  isLoading?: boolean;
 }
 
 
@@ -57,6 +70,7 @@ export function PullRequestsTab({
   checks,
   initialMergeMethod = 'merge',
   initialIsMergeConfirmOpen = false,
+  isLoading = false,
 }: PullRequestsTabProps) {
   const [selectedPR, setSelectedPR] = useState<PRItem | null>(initialSelectedPR);
   const [diffViewMode, setDiffViewMode] = useState<'unified' | 'split'>('unified');
@@ -303,9 +317,10 @@ export function PullRequestsTab({
                         {isAuthor && (
                           <div
                             data-testid="author-approval-restriction"
-                            className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[#F85149] text-[11px] leading-tight"
+                            className="p-2 rounded bg-red-500/10 border border-red-500/20 text-[#F85149] text-[11px] leading-tight flex items-center gap-1.5"
                           >
-                            ⚠️ Authors cannot approve their own pull requests.
+                            <QuantGitWarningIcon size={14} />
+                            <span>Authors cannot approve their own pull requests.</span>
                           </div>
                         )}
 
@@ -405,7 +420,7 @@ export function PullRequestsTab({
             <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#8D96A0]">
               <span
                 data-testid={`pr-state-${selectedPR.state}`}
-                className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1 ${
+                className={`px-2.5 py-0.5 rounded-full text-white font-semibold flex items-center gap-1.5 ${
                   selectedPR.state === 'merged'
                     ? 'bg-[#8957E5]'
                     : selectedPR.state === 'open'
@@ -413,8 +428,8 @@ export function PullRequestsTab({
                       : 'bg-[#DA3633]'
                 }`}
               >
+                <QuantGitPRIcon size={12} />
                 <span>
-                  ⑂{' '}
                   {selectedPR.state === 'merged'
                     ? 'Merged'
                     : selectedPR.state === 'open'
@@ -428,11 +443,11 @@ export function PullRequestsTab({
                   Merged by{' '}
                   <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -440,11 +455,11 @@ export function PullRequestsTab({
                 <span>
                   <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -471,7 +486,7 @@ export function PullRequestsTab({
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-[#E6EDF3]">{rev.author}</span>
                       <span
-                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                        className={`px-1.5 py-0.2 rounded text-[10px] font-bold flex items-center gap-1 ${
                           rev.state === 'APPROVED'
                             ? 'bg-emerald-500/20 text-emerald-400'
                             : rev.state === 'CHANGES_REQUESTED'
@@ -479,11 +494,19 @@ export function PullRequestsTab({
                               : 'bg-blue-500/20 text-blue-400'
                         }`}
                       >
-                        {rev.state === 'APPROVED'
-                          ? '✓ Approved'
-                          : rev.state === 'CHANGES_REQUESTED'
-                            ? '✕ Changes requested'
-                            : '💬 Commented'}
+                        {rev.state === 'APPROVED' ? (
+                          <>
+                            <QuantGitCheckIcon size={10} /> Approved
+                          </>
+                        ) : rev.state === 'CHANGES_REQUESTED' ? (
+                          <>
+                            <QuantGitXIcon size={10} /> Changes requested
+                          </>
+                        ) : (
+                          <>
+                            <QuantGitCommentIcon size={10} /> Commented
+                          </>
+                        )}
                       </span>
                     </div>
                     <p className="text-[#8D96A0]">{rev.body}</p>
@@ -502,13 +525,15 @@ export function PullRequestsTab({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                    allChecksPassed
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-red-500/20 text-red-400'
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    allChecksPassed ? 'text-emerald-400' : 'text-red-400'
                   }`}
                 >
-                  {allChecksPassed ? '✓' : '✕'}
+                  {allChecksPassed ? (
+                    <QuantGitCheckCircleIcon size={20} />
+                  ) : (
+                    <QuantGitXCircleIcon size={20} />
+                  )}
                 </span>
                 <span className="font-semibold text-xs text-[#E6EDF3]">
                   {allChecksPassed
@@ -532,8 +557,22 @@ export function PullRequestsTab({
                   data-testid={`check-${check.id}`}
                 >
                   <span className="flex items-center gap-2">
-                    <span>
-                      {check.status === 'passed' ? '🟢' : check.status === 'failed' ? '🔴' : '🟡'}
+                    <span
+                      className={
+                        check.status === 'passed'
+                          ? 'text-[#3FB950]'
+                          : check.status === 'failed'
+                            ? 'text-[#F85149]'
+                            : 'text-[#D29922]'
+                      }
+                    >
+                      {check.status === 'passed' ? (
+                        <QuantGitCheckCircleIcon size={16} />
+                      ) : check.status === 'failed' ? (
+                        <QuantGitXCircleIcon size={16} />
+                      ) : (
+                        <QuantGitPendingDotIcon size={16} />
+                      )}
                     </span>
                     <span className="font-mono text-[#E6EDF3]">{check.name}</span>
                     <span>: {check.description}</span>
@@ -564,7 +603,9 @@ export function PullRequestsTab({
                   <div className="space-y-3" data-testid="merge-enabled-box">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-[#3FB950] font-bold text-sm">✓</span>
+                        <span className="text-[#3FB950]">
+                          <QuantGitCheckIcon size={14} />
+                        </span>
                         <span className="text-[11px] text-[#8D96A0]">
                           This branch has no conflicts with the base branch.
                         </span>
@@ -643,7 +684,7 @@ export function PullRequestsTab({
                             data-testid="confirm-merge-btn"
                             className="px-4 py-2 rounded-lg bg-[#238636] hover:bg-[#2EA043] disabled:opacity-50 text-white font-bold text-xs shadow-sm flex items-center gap-2 transition-colors cursor-pointer"
                           >
-                            <span>⑂</span>
+                            <QuantGitPRIcon size={14} />
                             <span>
                               {isMerging
                                 ? 'Merging...'
@@ -671,7 +712,7 @@ export function PullRequestsTab({
                     data-testid="merge-blocked-box"
                   >
                     <div className="flex items-center gap-2 text-red-400">
-                      <span>✕</span>
+                      <QuantGitXIcon size={14} />
                       <span className="font-semibold">
                         Merging is blocked. Required security & CI checks must pass before merging.
                       </span>
@@ -691,7 +732,7 @@ export function PullRequestsTab({
                   data-testid="merged-status-banner"
                   className="bg-[#8957E5]/10 border border-[#8957E5]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#A371F7]"
                 >
-                  <span className="font-bold text-base">✓</span>
+                  <QuantGitCheckIcon size={16} />
                   <span className="font-semibold text-xs">
                     Pull request #{(selectedPR as any).number || selectedPR.id} was successfully
                     merged and closed. Merged by {selectedPR.author || currentUsername} into{' '}
@@ -700,7 +741,7 @@ export function PullRequestsTab({
                 </div>
               ) : (
                 <div className="bg-[#DA3633]/10 border border-[#DA3633]/30 rounded-lg p-3.5 flex items-center gap-2.5 text-[#F85149]">
-                  <span className="font-bold text-base">✕</span>
+                  <QuantGitXIcon size={16} />
                   <span className="font-semibold text-xs">This pull request is closed.</span>
                 </div>
               )}
@@ -748,8 +789,7 @@ export function PullRequestsTab({
                 </p>
                 <p className="mt-1 text-[11px] text-[#6E7681]">
                   Browse the repository code tab to review the changes.
-                </p>
-              </div>
+                </p>              </div>
             ) : (
               <div
                 data-testid="diff-empty"
@@ -797,7 +837,10 @@ export function PullRequestsTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#3FB950]">⑂</span> {openPullsCount} Open
+                  <span className="text-[#3FB950] flex">
+                    <QuantGitPRIcon size={14} />
+                  </span>{' '}
+                  {openPullsCount} Open
                 </button>
                 <button
                   type="button"
@@ -809,59 +852,81 @@ export function PullRequestsTab({
                       : 'text-[#8D96A0]'
                   }`}
                 >
-                  <span className="text-[#8957E5]">✓</span> {closedPullsCount} Closed
+                  <span className="text-[#8957E5] flex">
+                    <QuantGitCheckIcon size={14} />
+                  </span>{' '}
+                  {closedPullsCount} Closed
                 </button>
               </div>
             </div>
 
             <div className="divide-y divide-[#21262D]">
-              {filteredPulls.map((pr) => (
-                <div
-                  key={pr.id}
-                  data-testid={`pr-row-${pr.id}`}
-                  onClick={() => {
-                    setSelectedPR(pr);
-                    openPullDetail?.(pr);
-                  }}
-                  className="p-3.5 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 cursor-pointer group"
-                >
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={
-                          pr.state === 'merged'
-                            ? 'text-[#8957E5]'
-                            : pr.state === 'open'
-                              ? 'text-[#3FB950]'
-                              : 'text-[#DA3633]'
-                        }
-                      >
-                        ⑂
-                      </span>
-                      <span className="font-semibold text-xs text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
-                        {pr.title}
-                      </span>
-                      <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
-                        {pr.branchSource}
-                      </span>
-                      <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold">
-                        ✓ 55/56 passed
-                      </span>
-                      <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
-                        Review required
-                      </span>
+              {isLoading ? (
+                <QuantGitRowSkeleton rows={5} testId="pr-list-skeleton" />
+              ) : filteredPulls.length === 0 ? (
+                <QuantGitEmptyState
+                  icon="pr"
+                  title="No pull requests"
+                  hint={
+                    pullSearchQuery.includes('state:closed')
+                      ? 'There are no closed pull requests matching your search.'
+                      : 'There are no open pull requests. Create one to start collaborating.'
+                  }
+                  actionLabel="New pull request"
+                  onAction={() => setModalState?.('new-pr')}
+                  testId="pr-list-empty"
+                />
+              ) : (
+                filteredPulls.map((pr) => (
+                  <button
+                    key={pr.id}
+                    type="button"
+                    data-testid={`pr-row-${pr.id}`}
+                    onClick={() => {
+                      setSelectedPR(pr);
+                      openPullDetail?.(pr);
+                    }}
+                    aria-label={`Open pull request ${pr.title}`}
+                    className="w-full p-4 hover:bg-[#161B22] transition-colors flex items-start justify-between gap-4 group text-left cursor-pointer"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={
+                            pr.state === 'merged'
+                              ? 'text-[#8957E5]'
+                              : pr.state === 'open'
+                                ? 'text-[#3FB950]'
+                                : 'text-[#DA3633]'
+                          }
+                        >
+                          <QuantGitPRIcon size={16} />
+                        </span>
+                        <span className="font-semibold text-sm text-[#E6EDF3] group-hover:text-[#58A6FF] transition-colors">
+                          {pr.title}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-[#1F242C] text-[#58A6FF] font-mono text-[10px]">
+                          {pr.branchSource}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded border border-[#238636] text-[#3FB950] text-[10px] font-semibold flex items-center gap-1">
+                          <QuantGitCheckIcon size={10} /> 55/56 passed
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#8D96A0] text-[10px]">
+                          Review required
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#8D96A0]">
+                        #{pr.id} by {pr.author} was {pr.state} {pr.createdAt} · +
+                        {pr.additions ?? 24} -{pr.deletions ?? 5}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-[#8D96A0]">
-                      #{pr.id} by {pr.author} was {pr.state} {pr.createdAt} · +{pr.additions ?? 24}{' '}
-                      -{pr.deletions ?? 5}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 text-[#8D96A0]">
-                    <span>💬</span>
-                    <span>{pr.commentsCount}</span>
-                  </div>
-                </div>
-              ))}
+                    <div className="flex items-center gap-1.5 text-[#8D96A0] shrink-0">
+                      <QuantGitCommentIcon size={14} />
+                      <span className="text-xs">{pr.commentsCount}</span>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>

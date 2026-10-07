@@ -1072,6 +1072,65 @@ describe('ConversationThread.kindMix', () => {
   });
 });
 
+describe('ConversationThread.unreadCount', () => {
+  it('counts the unread inbound messages — the green pill is a real number', () => {
+    const t = buildThread([
+      email({ subject: 'Sprint', threadId: 'u1', isRead: false }),
+      email({ subject: 'Sprint', threadId: 'u1', isRead: false }),
+      email({ subject: 'Sprint', threadId: 'u1', isRead: true }),
+    ]);
+
+    expect(t.isRead).toBe(false);
+    expect(t.unreadCount).toBe(2);
+  });
+
+  it('is zero exactly when the thread reads as read', () => {
+    const t = buildThread([email({ subject: 'Sprint', threadId: 'u2', isRead: true })]);
+
+    expect(t.isRead).toBe(true);
+    expect(t.unreadCount).toBe(0);
+  });
+
+  it('never counts your own sent copies, even when they arrived unread', () => {
+    // The sent copy carries the other party as a recipient, so the grouper
+    // puts both messages in one conversation — a bare send with no `to`
+    // would key into the 'self' thread instead.
+    const t = buildThread(
+      [
+        email({
+          subject: 'Sprint',
+          threadId: 'u3',
+          isRead: false,
+          from: { email: 'kundan@quantmail.in', name: 'Me' },
+          to: [{ email: 'sender@example.com', name: 'Sender' }],
+        }),
+        email({ subject: 'Sprint', threadId: 'u3', isRead: false }),
+      ],
+      ME,
+    );
+
+    expect(t.isRead).toBe(false);
+    expect(t.unreadCount).toBe(1);
+  });
+
+  it('does not collapse a fully-sent thread to unread', () => {
+    const t = buildThread(
+      [
+        email({
+          subject: 'Note to self',
+          threadId: 'u4',
+          isRead: false,
+          from: { email: 'kundan@quantmail.in', name: 'Me' },
+        }),
+      ],
+      ME,
+    );
+
+    expect(t.isRead).toBe(true);
+    expect(t.unreadCount).toBe(0);
+  });
+});
+
 /**
  * The route `/thread/<id>` has to answer the question the row asked, and the row is
  * no longer a server thread. Every one of these cases is a link that exists in the

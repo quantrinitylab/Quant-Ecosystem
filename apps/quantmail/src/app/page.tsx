@@ -20,6 +20,7 @@ import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
@@ -30,16 +31,14 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { SelectionHeader } from '../components/SelectionHeader';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
-import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModal';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
-import { UnreadDot } from '../components/UnreadDot';
+import { UnreadCountPill } from '../components/UnreadCountPill';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import { MOBILE_BREAKPOINT_PX } from '../hooks/useIsMobile';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
-import { SuperhumanShortcutDock } from '../components/SuperhumanShortcutDock';
+import { QuantMailShortcutDock } from '../components/QuantMailShortcutDock';
 import { DockedComposer } from '../components/DockedComposer';
 import { useKeyboardSurfaces } from '../components/KeyboardProvider';
 import { useScrollElement, useVirtualizer } from '../lib/virtual/useVirtualizer';
@@ -133,31 +132,16 @@ type InboxFilter = 'starred' | 'attachment';
 
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   /*
-   * Under the Inbox tab: All, Unread, Contacts, Spam lead as the primary filter lenses.
+   * User-agreed filter pills (2026-10-07): exactly All, Unread, Contacts,
+   * Spam. The category lenses (Primary/Updates/Social/Promotions/Forums/
+   * Groups/Snoozed) were removed from the chip row per explicit user feedback
+   * — they stay valid `InboxLens` keys (deep links, filter popover, URL params
+   * keep working) but no longer render as pills.
    */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
-  { key: 'primary', label: 'Primary', hint: 'Direct person-to-person human correspondence' },
-  {
-    key: 'updates',
-    label: 'Updates',
-    hint: 'Receipts, confirmations, billing, and GitHub notices',
-  },
-  {
-    key: 'social',
-    label: 'Social',
-    hint: 'Social networks, media platforms, and community notices',
-  },
-  { key: 'promotions', label: 'Promotions', hint: 'Newsletters, marketing, deals, and discounts' },
-  {
-    key: 'forums',
-    label: 'Forums',
-    hint: 'Mailing lists, group discussions, and community digests',
-  },
-  { key: 'groups', label: 'Groups', hint: 'Conversations with multiple people or saved groups' },
-  { key: 'snoozed', label: 'Snoozed', hint: 'Conversations waiting for their wake time' },
 ];
 
 /**
@@ -269,11 +253,13 @@ function SpamBanner({
  * and there is no velocity path at all, so committing means crossing a fixed
  * ~80px, which no flick can reach.
  *
- * Second, the two ends are named and unequal on purpose: right files the
- * conversation away (Archive, green pane) and left throws it out (Delete, red
- * pane) — the Gmail arrangement, so the muscle memory transfers. Both go
- * through the optimistic mutations and both come back from the toast's Undo,
- * which is what makes the destructive end defensible at a flick's distance.
+ * Second, the two ends are named and unequal on purpose: left files the
+ * conversation away (Archive, green pane) and right opens the snooze time
+ * picker (Snooze, blue pane). Archive goes through the optimistic mutation
+ * and comes back from the toast's Undo; snooze never fires without the user
+ * picking a time. Delete is not a swipe end at all — it lives in the row's …
+ * menu and the thread view, always behind a confirmation dialog, which is
+ * what makes the destructive action defensible.
  *
  * Third, the affordance was invisible. The revealed pane names the action from
  * the first few pixels, only reaches full strength past the commit line, and the
@@ -337,6 +323,8 @@ function EmailRow({
   const [isHovered, setIsHovered] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const [showRowMenu, setShowRowMenu] = useState(false);
+  /** Row-level delete always asks first — no silent deletes from the row. */
+  const [confirmDeleteRow, setConfirmDeleteRow] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -410,10 +398,10 @@ function EmailRow({
   }, [savedGroups, thread.messages, thread.subject]);
 
   /*
-   * Right files the conversation away (Archive), left throws it out (Delete) —
-   * the Gmail arrangement, so the muscle memory transfers. Both fire the row's
-   * existing optimistic callbacks in the same frame as the visual commit, and
-   * both come back from the toast's Undo.
+   * Left files the conversation away (Archive), right opens the snooze time
+   * picker. Delete is not a swipe action — it lives in the row's … menu and
+   * the thread view, always behind a confirmation dialog. Both fire the row's
+   * existing callbacks in the same frame as the visual commit.
    *
    * Off while the row is selected or its snooze menu is open: a selected row
    * belongs to the selection header's batch actions, and a row sliding out from
@@ -421,7 +409,7 @@ function EmailRow({
    */
   const swipe = useTouchSwipe({
     onArchive,
-    onDelete,
+    onSnooze: () => setShowSnoozeMenu(true),
     disabled: isChecked || showSnoozeMenu,
     reducedMotion,
   });
@@ -441,7 +429,7 @@ function EmailRow({
       {swipe.direction && (
         <div
           aria-hidden="true"
-          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-delete'} ${
+          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-snooze'} ${
             swipe.armed ? 'is-armed' : ''
           }`}
         >
@@ -476,11 +464,10 @@ function EmailRow({
                   strokeLinejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <circle cx="12" cy="13" r="8" />
+                  <path d="M12 9v4l2 2" />
                 </svg>
-                Delete
+                Snooze
               </>
             )}
           </span>
@@ -574,11 +561,18 @@ function EmailRow({
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
-              <strong className="truncate text-[#F5F5F5] font-semibold">
+              {/*
+                Gmail/WhatsApp contract: an unread conversation's sender is
+                bold, a read one's is not. Weight is the read state — no badge
+                needed to say it twice.
+              */}
+              <strong
+                className={`truncate text-[#F5F5F5] ${thread.isRead ? 'font-medium' : 'font-bold'}`}
+              >
                 {groupInfo?.name ?? thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
+                <span className="px-1.5 py-px rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
                   {thread.count}
                 </span>
               )}
@@ -588,8 +582,15 @@ function EmailRow({
                 </span>
               )}
             </div>
-            {!thread.isRead && <UnreadDot />}
-            {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
+            {/*
+              Green unread pill with the thread's REAL unread count (wired from
+              `ConversationThread.unreadCount` in `lib/threading` — never
+              hardcoded). Replaces the bare dot: WhatsApp's contract is a
+              number, not a decoration.
+            */}
+            {!thread.isRead && <UnreadCountPill count={thread.unreadCount} />}
+            {/* P2-3: badge renders for all three mixes (mail/chat/mixed). */}
+            {<ThreadKindBadge mix={thread.kindMix} />}
             <time dateTime={new Date(thread.receivedAt).toISOString()}>
               {formatReceivedAt(thread.receivedAt)}
             </time>
@@ -666,7 +667,7 @@ function EmailRow({
             className="flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             onClick={(event) => {
               event.stopPropagation();
-              void onDelete();
+              setConfirmDeleteRow(true);
             }}
             aria-label="Delete permanently"
             title="Delete permanently (#)"
@@ -834,7 +835,7 @@ function EmailRow({
                     onClick={(e) => {
                       e.stopPropagation();
                       close();
-                      void onDelete();
+                      setConfirmDeleteRow(true);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors text-left"
                   >
@@ -904,94 +905,25 @@ function EmailRow({
           </button>
         )}
       </article>
+      {/* Delete confirmation: no silent deletes from the row. Plain copy —
+        it moves to Trash, it is not gone forever. */}
+      <ConfirmDialog
+        isOpen={confirmDeleteRow}
+        title="Move conversation to Trash?"
+        message="The conversation will be moved to Trash."
+        confirmLabel="Move to Trash"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={() => {
+          setConfirmDeleteRow(false);
+          void onDelete();
+        }}
+        onCancel={() => setConfirmDeleteRow(false)}
+      />
     </div>
   );
 }
 
-function ReadingPane({
-  thread,
-  email,
-  onClose,
-  onArchive,
-  onDelete,
-  onToggleStar,
-  isSpam,
-  onNotSpam,
-}: {
-  thread?: ConversationThread | null;
-  email: Email | null;
-  onClose: () => void;
-  onArchive?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  onToggleStar?: (id: string) => void;
-  isSpam?: boolean;
-  onNotSpam?: (ids: string[]) => void;
-}) {
-  if (!email && !thread) {
-    return (
-      <section className="reading-pane reading-pane-empty" aria-label="Message preview">
-        <div className="reading-ambient" aria-hidden="true" />
-        <div className="reading-empty-content">
-          <QuantMailLogo interactive={false} />
-          <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
-          <h2>
-            Choose the signal.
-            <br />
-            We&apos;ll quiet the rest.
-          </h2>
-          <p>Select a message to preview it or use keyboard shortcuts (J/K) to navigate.</p>
-          <div className="reading-shortcuts" aria-label="Preview guidance">
-            <span>
-              <kbd>J</kbd> / <kbd>K</kbd> Navigate
-            </span>
-            <span>
-              <kbd>E</kbd> Archive
-            </span>
-            <span>
-              <kbd>S</kbd> Star
-            </span>
-            <span>
-              <kbd>C</kbd> Compose
-            </span>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const activeId = thread?.threadId || thread?.id || email?.threadId || email?.id || '';
-  const initialEmails = thread?.messages || (email ? [email] : []);
-
-  // Keyed on the selected conversation so that picking a different row always
-  // mounts a fresh thread view for it: selection unambiguously drives the
-  // preview, instead of relying on the view's internal adoption bookkeeping
-  // to notice the prop change.
-  return (
-    <motion.aside
-      key={activeId}
-      className="reading-pane overflow-hidden flex flex-col"
-      aria-label="Message preview"
-      initial={{ opacity: 0, x: 14 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10 }}
-      transition={{ duration: 0.2 }}
-    >
-      <ConversationalThreadView
-        threadId={activeId}
-        initialEmails={initialEmails}
-        subject={thread?.subject || email?.subject || '(No Subject)'}
-        isStarred={thread?.isStarred ?? email?.isStarred ?? false}
-        onClose={onClose}
-        onArchive={onArchive ? () => onArchive(activeId) : undefined}
-        onDelete={onDelete ? () => onDelete(activeId) : undefined}
-        onStarToggle={onToggleStar ? () => onToggleStar(activeId) : undefined}
-        variant="pane"
-        isSpam={isSpam}
-        onNotSpam={onNotSpam}
-      />
-    </motion.aside>
-  );
-}
 
 /**
  * The accents a group chip can carry.
@@ -1456,15 +1388,17 @@ export default function InboxPage() {
   const [dockedComposerInitialSubject, setDockedComposerInitialSubject] = useState('');
   const [dockedComposerInitialBody, setDockedComposerInitialBody] = useState('');
   const [dockedComposerReplyToId, setDockedComposerReplyToId] = useState<string | undefined>(undefined);
+  const [dockedComposerInitialKind, setDockedComposerInitialKind] = useState<'mail' | 'chat'>('mail');
 
   const handleOpenCompose = useCallback(
-    (options?: { to?: string; subject?: string; body?: string; replyToId?: string }) => {
+    (options?: { to?: string; subject?: string; body?: string; replyToId?: string; kind?: 'mail' | 'chat' }) => {
       const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
       if (isDesktop) {
         if (options?.to !== undefined) setDockedComposerInitialTo(options.to);
         if (options?.subject !== undefined) setDockedComposerInitialSubject(options.subject);
         if (options?.body !== undefined) setDockedComposerInitialBody(options.body);
         if (options?.replyToId !== undefined) setDockedComposerReplyToId(options.replyToId);
+        setDockedComposerInitialKind(options?.kind === 'chat' ? 'chat' : 'mail');
         setIsDockedComposerOpen(true);
       } else {
         let url = '/compose';
@@ -1472,6 +1406,7 @@ export default function InboxPage() {
         if (options?.to) params.set('to', options.to);
         if (options?.subject) params.set('subject', options.subject);
         if (options?.replyToId) params.set('replyTo', options.replyToId);
+        if (options?.kind === 'chat') params.set('kind', 'chat');
         const q = params.toString();
         if (q) url += `?${q}`;
         router.push(url);
@@ -2652,15 +2587,11 @@ export default function InboxPage() {
       }
       const targetId =
         resolvedEmail?.threadId || resolvedEmail?.id || thread?.threadId || thread?.id;
-      if (
-        targetId &&
-        typeof window !== 'undefined' &&
-        // Single source of truth with shell.css's `@media (max-width: 899px)`
-        // single-pane rules: below the breakpoint the reading pane is hidden,
-        // so a tap must navigate to the full-screen thread route instead of
-        // selecting into an invisible pane.
-        !window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
-      ) {
+      // Gmail-style navigation (user decision 2026-10-07): tapping an email
+      // ALWAYS opens the full thread view, on desktop and mobile alike.
+      // The old desktop split-view reading pane was removed — no more
+      // selecting into a side preview.
+      if (targetId && typeof window !== 'undefined') {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
       }
@@ -2828,15 +2759,28 @@ export default function InboxPage() {
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>
             </div>
-            <button
-              type="button"
-              className="hero-compose"
-              onClick={() =>
-                activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
-              }
-            >
-              <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
-            </button>
+            <div className="hero-compose-row">
+              <button
+                type="button"
+                className="hero-compose"
+                onClick={() =>
+                  activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
+                }
+              >
+                <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
+              </button>
+              {activeLens !== 'groups' && (
+                <button
+                  type="button"
+                  className="hero-compose hero-compose-chat"
+                  onClick={() => handleOpenCompose({ kind: 'chat' })}
+                  title="Start a new chat thread"
+                  aria-label="Start a new chat"
+                >
+                  <MailIcon name="chat" /> New chat
+                </button>
+              )}
+            </div>
           </header>
 
           {/*
@@ -3439,9 +3383,7 @@ export default function InboxPage() {
                                           latestMessage?.bodyText ||
                                           matchingThread.subject,
                                       )
-                                    : `${memberCount} ${
-                                        memberCount === 1 ? 'member' : 'members'
-                                      } · Start the conversation`}
+                                    : `${memberCount} ${memberCount === 1 ? 'member' : 'members'} · Start the conversation`}
                                 </span>
                               </span>
                             </button>
@@ -3804,34 +3746,11 @@ export default function InboxPage() {
             <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>
-
-        <ReadingPane
-          thread={selectedThread}
-          email={selectedEmail}
-          onClose={() => {
-            setSelectedEmail(null);
-            setSelectedThread(null);
-          }}
-          onArchive={(id) => void archiveEmail(id)}
-          onDelete={(id) => void deleteEmail(id)}
-          onToggleStar={(id) => void toggleStar(null, id)}
-          isSpam={
-            activeLens === 'spam' ||
-            selectedEmail?.isSpam ||
-            selectedEmail?.category === 'spam' ||
-            selectedEmail?.folderId === 'SPAM'
-          }
-          onNotSpam={async (messageIds) => {
-            const id = messageIds[0] || selectedEmail?.id || selectedThread?.id;
-            if (id) {
-              await apiClient.markNotSpam(id);
-              showToast({ text: 'Rescued from spam — moved back to inbox', type: 'success' });
-              setSelectedEmail(null);
-              setSelectedThread(null);
-              await Promise.all([refetch(), refetchSpam()]);
-            }
-          }}
-        />
+        {/*
+          Gmail-style navigation (user decision 2026-10-07): the desktop
+          split-view reading pane was removed. Tapping an email navigates to
+          the full /thread/[id] view instead of selecting into a side preview.
+        */}
       </div>
       )}
 
@@ -3995,6 +3914,7 @@ export default function InboxPage() {
         initialSubject={dockedComposerInitialSubject}
         initialBody={dockedComposerInitialBody}
         replyToId={dockedComposerReplyToId}
+        initialMessageKind={dockedComposerInitialKind}
         onSendSuccess={() => {
           refetch();
         }}
@@ -4003,6 +3923,7 @@ export default function InboxPage() {
           setDockedComposerInitialSubject('');
           setDockedComposerInitialBody('');
           setDockedComposerReplyToId(undefined);
+          setDockedComposerInitialKind('mail');
         }}
       />
 
@@ -4016,8 +3937,8 @@ export default function InboxPage() {
         />
       )}
 
-      {/* Superhuman Shortcut Dock (Floating at bottom center, auto-collapsing to bottom-left rail when thread is open) */}
-      <SuperhumanShortcutDock
+      {/* QuantMail Shortcut Dock (Floating at bottom center, auto-collapsing to bottom-left rail when thread is open) */}
+      <QuantMailShortcutDock
         onCommandPalette={openPalette}
         onUndo={undoLastArchive}
         initialCollapsed

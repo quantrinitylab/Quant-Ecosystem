@@ -1,7 +1,34 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Quanty } from './Quanty';
+import { triggerHapticTap } from './QuantPillarTopBar';
+import { useChromeVisible } from './useScrollChrome';
+
+// ============================================================================
+// QuantMail — Contextual Bottom Navigation (mobile)
+// ============================================================================
+//
+// REVERSED PR #531 per explicit user decision (2026-10-07): the mobile bottom
+// bar is the CONTEXTUAL per-app tab bar again (Inbox/Teams/Agents/Archive for
+// Mail, per-app sets for the other pillars). The 5-app switcher lives exactly
+// ONCE at the top (<QuantPillarTopBar />); the bottom duplicate
+// (<MobilePillarBottomNav />) was removed. The top strip (<MobileSubTabStrip />)
+// was removed as redundant.
+//
+// Tab sets below are the confirmed structure (user-approved 2026-10-07):
+//   Mail: Inbox, Teams, Agents, Archive
+//   Calendar: Feed, Month, Week, Trackers, Schedule
+//   Drive: Home, Feed, AI Memory, Vault
+//   Contacts: Home, Favorites, Groups, Companies, AI Dedup
+//   QuantGit (Gemini-approved): Quanty AI (logo-only) → Feed → Repos → PRs → Issues
+//
+// Badges: REAL counts only, wired via the `badgeOverrides` prop from AppShell.
+// Never hardcode badge numbers in this file.
+//
+// Strictly ZERO raw Unicode emojis. Strictly ZERO generic glyphs.
+// ============================================================================
 
 export type ProductivityPillar = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -9,6 +36,8 @@ export interface ContextSubTab {
   id: string;
   label: string;
   icon: (props: { className?: string; active?: boolean }) => React.ReactNode;
+  /** Logo-only tab (Quanty AI): renders the Quanty mark with no text label. */
+  logoOnly?: boolean;
   badgeCount?: number;
   badgeText?: string;
   targetPath?: string;
@@ -656,7 +685,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'inbox',
         label: 'Inbox',
         icon: InboxIcon,
-        badgeCount: 12,
         targetPath: '/',
         queryParam: { key: 'lens', value: 'all' },
       },
@@ -664,7 +692,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'teams',
         label: 'Teams',
         icon: TeamsIcon,
-        badgeCount: 3,
         description: 'Workspaces & Teams collaboration',
         targetPath: '/',
         queryParam: { key: 'tab', value: 'teams' },
@@ -682,7 +709,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'archive',
         label: 'Archive',
         icon: ArchiveIcon,
-        targetPath: '/archive',
+        targetPath: '/',
         queryParam: { key: 'tab', value: 'archive' },
       },
     ],
@@ -721,7 +748,7 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
       },
       {
         id: 'events',
-        label: 'Events',
+        label: 'Trackers',
         icon: CalendarEventsTrackerIcon,
         targetPath: '/calendar',
         queryParam: { key: 'tab', value: 'events' },
@@ -792,7 +819,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         label: 'Home',
         ariaLabel: 'Home (All Contacts)',
         icon: ContactsDirectoryIcon,
-        badgeCount: 8,
         targetPath: '/contacts',
         queryParam: { key: 'tab', value: 'home' },
       },
@@ -835,7 +861,27 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
     activeContainerStyle: 'bg-[#A78BFA]/15 border-[#A78BFA]/40',
     activeTextStyle: 'text-[#A78BFA]',
     badgeStyle: 'bg-[#A78BFA] text-black',
+    // Gemini-approved bottom-nav order (user-confirmed 2026-10-07):
+    // Quanty AI (logo-only, opens the cockpit) → Feed → Repos → PRs → Issues.
     tabs: [
+      {
+        id: 'quanty',
+        label: 'Quanty AI',
+        icon: CopilotQuantyIcon,
+        logoOnly: true,
+        ariaLabel: 'Quanty AI (autonomous developer cockpit)',
+        description: 'Quanty AI autonomous developer cockpit',
+        targetPath: '/quantgit',
+        queryParam: { key: 'tab', value: 'copilot' },
+      },
+      {
+        id: 'feed',
+        label: 'Feed',
+        icon: AgendaTimelineIcon,
+        description: 'Personalized feed: repo activity, commits, PR discussions',
+        targetPath: '/quantgit',
+        queryParam: { key: 'tab', value: 'feed' },
+      },
       {
         id: 'repos',
         label: 'Repos',
@@ -847,7 +893,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         id: 'prs',
         label: 'PRs',
         icon: PullRequestsIcon,
-        badgeCount: 1,
         targetPath: '/quantgit',
         queryParam: { key: 'tab', value: 'prs' },
       },
@@ -858,22 +903,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         targetPath: '/quantgit',
         queryParam: { key: 'tab', value: 'issues' },
       },
-      {
-        id: 'actions',
-        label: 'Actions',
-        icon: ActionsCiCdIcon,
-        badgeText: 'CI/CD',
-        ariaLabel: 'Actions (CI/CD)',
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'actions' },
-      },
-      {
-        id: 'copilot',
-        label: 'Copilot',
-        icon: CopilotQuantyIcon,
-        targetPath: '/quantgit',
-        queryParam: { key: 'tab', value: 'copilot' },
-      },
     ],
   },
 };
@@ -883,7 +912,8 @@ export interface ContextBottomNavBarProps {
   activePillarOverride?: ProductivityPillar;
   activeTabOverride?: string;
   onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
-  badgeOverrides?: Record<string, number>;
+  /** Real badge counts keyed by tab id. Missing/zero/undefined = no badge. */
+  badgeOverrides?: Record<string, number | undefined>;
 }
 
 export function resolveActiveTab(
@@ -942,8 +972,8 @@ export function resolveActiveTab(
   if (pillar === 'quantgit') {
     if (tabParam === 'prs') return 'prs';
     if (tabParam === 'issues') return 'issues';
-    if (tabParam === 'actions') return 'actions';
-    if (tabParam === 'copilot') return 'copilot';
+    if (tabParam === 'copilot') return 'quanty';
+    if (tabParam === 'feed') return 'feed';
     return 'repos';
   }
 
@@ -959,17 +989,28 @@ export function executeContextTabClick(
     onTabChange?: (tabId: string, pillar: ProductivityPillar) => void;
   },
 ) {
-  if (
-    (tab.id === 'copilot' && pillar === 'quantgit') ||
-    (tab.id === 'agents' && pillar === 'mail')
-  ) {
-    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+  const canWindow = typeof window !== 'undefined' && typeof window.dispatchEvent === 'function';
+
+  // Haptic on every tab tap (#541 behavior, preserved from the pillar nav).
+  triggerHapticTap(10);
+
+  // Quanty AI logo tab: open the autonomous developer cockpit. The quantgit
+  // page opens its copilot view on `quant:copilot:open`; navigating with
+  // ?tab=copilot covers the not-yet-on-quantgit case via initialSubTab.
+  if (tab.id === 'quanty' && pillar === 'quantgit') {
+    if (canWindow) {
       window.dispatchEvent(new CustomEvent('quant:copilot:open'));
+      window.dispatchEvent(new CustomEvent('quant:quanty:open'));
+    }
+  }
+
+  if (tab.id === 'agents' && pillar === 'mail') {
+    if (canWindow) {
       window.dispatchEvent(new CustomEvent('quant:agents:open'));
     }
   }
 
-  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+  if (canWindow) {
     window.dispatchEvent(
       new CustomEvent('quant:subtab-change', {
         detail: { pillar, tabId: tab.id, queryParam: tab.queryParam },
@@ -988,6 +1029,30 @@ export function executeContextTabClick(
 
   if (options.pathname !== targetBase || tab.queryParam) {
     options.router.push(targetUrl);
+  } else {
+    // Re-tap on the ACTIVE sub-tab (Instagram-style): smooth-scroll to top,
+    // haptic already fired above, then refresh current view content.
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {
+      /* older webviews — ignore */
+    }
+    try {
+      document.querySelectorAll<HTMLElement>('*').forEach((el) => {
+        if (el.scrollTop > 10 && el.scrollHeight > el.clientHeight + 40) {
+          try {
+            el.scrollTo({ top: 0, behavior: 'smooth' });
+          } catch {
+            el.scrollTop = 0;
+          }
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+    if (canWindow) {
+      window.dispatchEvent(new CustomEvent('quant:refresh'));
+    }
   }
 }
 
@@ -1020,39 +1085,11 @@ export function ContextBottomNavBar({
 
   const pillarConfig = PILLAR_SUB_CONFIGS[pillar];
 
-  // Auto-hide on scroll down, slide up on scroll up
-  const [isVisible, setIsVisible] = useState(true);
-  const lastScrollYRef = useRef(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleScroll = (e?: Event) => {
-      const target = e?.target as HTMLElement | Document | null;
-      let currentY = window.scrollY;
-      if (target && 'scrollTop' in target && typeof target.scrollTop === 'number') {
-        currentY = target.scrollTop;
-      }
-
-      // Do not hide when near top
-      if (currentY < 40) {
-        setIsVisible(true);
-        lastScrollYRef.current = currentY;
-        return;
-      }
-
-      const diff = currentY - lastScrollYRef.current;
-      if (diff > 12) {
-        setIsVisible(false);
-      } else if (diff < -12) {
-        setIsVisible(true);
-      }
-      lastScrollYRef.current = currentY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
-    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-  }, []);
+  // Shared chrome visibility: hides on deliberate scroll-down, reveals on
+  // scroll-up. The SAME store drives the FAB, so the two never drift apart.
+  // This bar is an in-flow flex child (NOT fixed): when it collapses to
+  // height 0 the <main> above expands to reclaim the space — no black void.
+  const isVisible = useChromeVisible();
 
   // Listen for external tab synchronization events
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
@@ -1096,23 +1133,33 @@ export function ContextBottomNavBar({
   };
 
   return (
+    <div
+      aria-hidden={!isVisible}
+      className={`md:hidden flex-none overflow-hidden motion-reduce:transition-none ${className}`}
+      style={{
+        // In-flow collapse: height animates 4rem+safe-area <-> 0, so <main>
+        // expands to fill the space. GPU-cheap (single height), no void.
+        height: isVisible ? 'calc(4rem + env(safe-area-inset-bottom, 0px))' : 0,
+        transition: 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+      }}
+    >
     <nav
-      className={`fixed bottom-16 md:bottom-0 left-0 right-0 md:left-[68px] z-30 flex h-14 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-2xl transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
-        isVisible ? 'translate-y-0' : 'translate-y-full md:translate-y-0'
-      } ${className}`}
+      className="flex h-16 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
       {pillarConfig.tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         const IconComponent = tab.icon;
-        const currentBadgeCount = badgeOverrides?.[tab.id] ?? tab.badgeCount;
+        // Badges are REAL counts only, wired via `badgeOverrides` from AppShell.
+        // No badge renders when the count is missing or zero.
+        const currentBadgeCount = badgeOverrides?.[tab.id];
 
         return (
           <button
             key={tab.id}
             type="button"
             onClick={() => handleTabClick(tab)}
-            className={`group relative flex flex-1 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all duration-200 select-none ${
+            className={`group relative flex min-h-touch flex-1 flex-col items-center justify-center gap-0.5 py-1 px-1 rounded-xl transition-all duration-200 select-none ${
               isActive
                 ? `${pillarConfig.activeContainerStyle} ${pillarConfig.activeTextStyle} font-bold border shadow-sm`
                 : 'text-[#94A3B8] hover:text-[#F1F5F9] border border-transparent hover:bg-[#161922]/50 font-medium'
@@ -1125,14 +1172,18 @@ export function ContextBottomNavBar({
               }`
             }
           >
-            {/* Tab Icon with badge indicator */}
+            {/* Tab Icon with badge indicator (logo-only tabs render the mark, no label) */}
             <div className="relative flex items-center justify-center">
-              <IconComponent
-                className={`size-4 transition-transform duration-200 ${
-                  isActive ? 'scale-110' : 'group-hover:scale-105'
-                }`}
-                active={isActive}
-              />
+              {tab.logoOnly ? (
+                <Quanty size={24} expression="idle" bob={false} />
+              ) : (
+                <IconComponent
+                  className={`size-4 transition-transform duration-200 ${
+                    isActive ? 'scale-110' : 'group-hover:scale-105'
+                  }`}
+                  active={isActive}
+                />
+              )}
 
               {/* Number Badge */}
               {currentBadgeCount !== undefined && currentBadgeCount > 0 && (
@@ -1161,23 +1212,38 @@ export function ContextBottomNavBar({
               )}
             </div>
 
-            {/* Tab Label */}
-            <span className="text-[10px] tracking-tight leading-tight truncate max-w-full">
-              {tab.label}
-            </span>
+            {/* Tab Label (logo-only tabs show the mark alone, no text) */}
+            {!tab.logoOnly && (
+              <span className="text-[10px] tracking-tight leading-tight truncate max-w-full">
+                {tab.label}
+              </span>
+            )}
 
-            {/* Active Pill Indicator Dot */}
+            {/* Active Pill Indicator — premium glowing bar (was a tiny dot) */}
             {isActive && (
               <span
-                className="absolute bottom-0.5 w-1 h-1 rounded-full"
-                style={{ backgroundColor: pillarConfig.accentColor }}
+                className="absolute bottom-1 h-1 rounded-full animate-[quantNavPillIn_0.3s_cubic-bezier(0.34,1.56,0.64,1)]"
+                style={{
+                  width: '40%',
+                  minWidth: 24,
+                  background: `linear-gradient(90deg, ${pillarConfig.accentColor}, ${pillarConfig.accentColor}CC)`,
+                  boxShadow: `0 0 10px ${pillarConfig.accentColor}88, 0 0 20px ${pillarConfig.accentColor}44`,
+                }}
                 aria-hidden="true"
               />
             )}
           </button>
         );
       })}
+      <style>{`
+        @keyframes quantNavPillIn {
+          0% { transform: scaleX(0.3); opacity: 0; }
+          60% { transform: scaleX(1.12); opacity: 1; }
+          100% { transform: scaleX(1); opacity: 1; }
+        }
+      `}</style>
     </nav>
+    </div>
   );
 }
 

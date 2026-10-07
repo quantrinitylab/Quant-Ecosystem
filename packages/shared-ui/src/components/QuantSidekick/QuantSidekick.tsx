@@ -5,7 +5,7 @@
 //
 // The universal QuantAI presence. EcosystemShell mounts <QuantSidekickProvider>
 // (so any surface can drive the assistant via useQuantSidekick) and a single
-// floating <QuantSidekick> widget (the Bubble Intelligence avatar + a small
+// floating <QuantSidekick> widget (the Quanty ghost avatar + a small
 // panel). This is how QuantAI appears consistently in EVERY Quant app.
 //
 // The provider holds only UI/presence state; the actual intelligence lives in
@@ -133,7 +133,7 @@ export interface QuantSidekickProps {
 }
 
 /**
- * The single floating QuantAI widget: the Bubble Intelligence avatar (a toggle
+ * The single floating QuantAI widget: the Quanty ghost avatar (a toggle
  * button) plus an expandable panel showing the current message and contextual
  * suggestions. Rendered once by EcosystemShell so it is present in every app.
  */

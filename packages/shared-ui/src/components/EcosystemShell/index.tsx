@@ -95,5 +95,4 @@ export function EcosystemShell({
 // Re-exports so consumers import the whole surface from one place.
 export { EcosystemProvider, useEcosystem } from './EcosystemProvider';
 export type { EcosystemContextValue, EcosystemProviderProps } from './EcosystemProvider';
-export { useBharatLocale, useWellbeingSummary, useRecordWellbeingUsage } from './hooks';
 export type { BharatLocaleBundle, WellbeingSummary, RecordUsageInput } from './hooks';

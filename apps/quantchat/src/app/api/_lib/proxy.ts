@@ -222,12 +222,18 @@ export async function proxyToBackend(
                 const nextResp = NextResponse.json(retryData, { status: retryRes.status });
                 nextResp.cookies.set('quant_access_token', newAccessToken, {
                   path: '/',
-                  httpOnly: false,
+                  httpOnly: true,
+                  // Secure only in production so http://localhost dev login keeps working;
+                  // staging + prod are HTTPS, where the Secure flag is enforced.
+                  secure: process.env.NODE_ENV === 'production',
                   sameSite: 'lax',
                 });
                 nextResp.cookies.set('token', newAccessToken, {
                   path: '/',
-                  httpOnly: false,
+                  httpOnly: true,
+                  // Secure only in production so http://localhost dev login keeps working;
+                  // staging + prod are HTTPS, where the Secure flag is enforced.
+                  secure: process.env.NODE_ENV === 'production',
                   sameSite: 'lax',
                 });
                 return nextResp;

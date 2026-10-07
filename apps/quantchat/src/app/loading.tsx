@@ -27,7 +27,7 @@ const itemVariants = {
 
 export default function Loading() {
   return (
-    <div className="flex flex-col h-screen bg-[var(--quant-background)]">
+    <div className="flex flex-col h-dvh bg-[var(--quant-background)]">
       <div className="p-4 border-b border-[var(--quant-border)]">
         <Skeleton variant="text" width="150px" height="24px" />
       </div>

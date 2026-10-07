@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { BubbleLab } from './BubbleLab';
 
 /**
- * The Bubble Intelligence lab: all 35 avatar states side by side, live.
+ * The Quanty ghost lab: all 35 avatar states side by side, live.
  *
  * Same policy as the mark lab next door — NOT A PRODUCT ROUTE. There is no
  * `middleware.ts` in this app and the root layout does not gate on auth, so an
@@ -14,7 +14,7 @@ import { BubbleLab } from './BubbleLab';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'Bubble Intelligence lab',
+  title: 'Quanty ghost lab',
   robots: { index: false, follow: false },
 };
 

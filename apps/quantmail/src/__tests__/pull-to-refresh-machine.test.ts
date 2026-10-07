@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { PullToRefreshMachine } from '../lib/pull-to-refresh-machine';
 
-/** Simulate a downward pull from y=100 to y=100+pull at scrollTop 0. */
+/** Simulate a downward pull from (50,100) to (50,100+pull) at scrollTop 0. */
 function pull(machine: PullToRefreshMachine, pull: number, scrollTop = 0): void {
-  machine.touchstart(scrollTop, 100);
-  machine.touchmove(100 + pull);
+  machine.touchstart(scrollTop, 50, 100);
+  machine.touchmove(50, 100 + pull);
 }
 
 describe('PullToRefreshMachine', () => {
   it('never arms when the list is not scrolled to the top', () => {
     const machine = new PullToRefreshMachine();
-    machine.touchstart(240, 100);
-    machine.touchmove(400);
+    machine.touchstart(240, 50, 100);
+    machine.touchmove(50, 400);
     const snap = machine.snapshot;
     expect(snap.phase).toBe('idle');
     expect(snap.pullDistance).toBe(0);
@@ -48,10 +48,10 @@ describe('PullToRefreshMachine', () => {
 
   it('folds the indicator when the finger moves back up', () => {
     const machine = new PullToRefreshMachine();
-    machine.touchstart(0, 100);
-    machine.touchmove(200);
+    machine.touchstart(0, 50, 100);
+    machine.touchmove(50, 200);
     expect(machine.snapshot.pullDistance).toBeGreaterThan(0);
-    machine.touchmove(90); // back above the start
+    machine.touchmove(50, 90); // back above the start
     expect(machine.snapshot.pullDistance).toBe(0);
     expect(machine.touchend()).toBe(false);
   });
@@ -76,9 +76,33 @@ describe('PullToRefreshMachine', () => {
 
   it('a second finger folds the indicator instead of tracking half a gesture', () => {
     const machine = new PullToRefreshMachine();
-    machine.touchstart(0, 100);
-    machine.touchmove(200, 2);
+    machine.touchstart(0, 50, 100);
+    machine.touchmove(50, 200, 2);
     expect(machine.snapshot.phase).toBe('idle');
     expect(machine.snapshot.pullDistance).toBe(0);
+  });
+
+  it('latches out when horizontal intent wins — a row swipe never refreshes', () => {
+    const machine = new PullToRefreshMachine();
+    machine.touchstart(0, 50, 100);
+    // A leftward row swipe with a slight downward drift: horizontal dominates.
+    machine.touchmove(20, 106); // dx=-30, dy=6 → 30 > 6*1.2 → latched out
+    const snap = machine.snapshot;
+    expect(snap.phase).toBe('idle');
+    expect(snap.pullDistance).toBe(0);
+    // Even if the finger then drags far down, the pull stays dead.
+    machine.touchmove(20, 400);
+    expect(machine.snapshot.pullDistance).toBe(0);
+    expect(machine.touchend()).toBe(false);
+  });
+
+  it('ignores mostly-horizontal drift below the latch threshold', () => {
+    const machine = new PullToRefreshMachine();
+    machine.touchstart(0, 50, 100);
+    // Small diagonal wobble: not enough horizontal travel to latch out, but
+    // also not vertically dominant — accumulates nothing.
+    machine.touchmove(56, 104); // dx=6, dy=4
+    expect(machine.snapshot.pullDistance).toBe(0);
+    expect(machine.snapshot.phase).toBe('pulling');
   });
 });

@@ -1177,6 +1177,7 @@ model Story {
   type         StoryType @default(IMAGE)
   mediaUrl     String?
   thumbnailUrl String?
+  textContent  String? // text-story body (StoryType.TEXT only); NULL for photo/video
   duration     Int       @default(15)
   viewCount    Int       @default(0)
   audience     String    @default("ALL") // ALL | CLOSE_FRIENDS
@@ -1879,6 +1880,21 @@ model ContactGroup {
   /// but not filled in yet is not an error, and emptying one by removing its
   /// last member must not delete it out from under the user.
   emails String[] @default([])
+
+  /// Member addresses the owner has promoted to admin. A subset of `emails`
+  /// (the service keeps it that way on every write): admins are the members
+  /// who may manage the group — promote/demote others and remove members.
+  /// The owner (`userId`) is always an admin implicitly and is never listed
+  /// here.
+  adminEmails String[] @default([])
+
+  /// Active invite token for the group's join link. Null while no link has
+  /// been created or after it was revoked; regenerating replaces it, which
+  /// invalidates every copy of the old link.
+  inviteToken String? @unique
+
+  /// When the current invite token was issued, for the UI's "created" label.
+  inviteTokenCreatedAt DateTime?
 
   /// Optional accent for the group's chip, `#rrggbb`. Null is not "unset" so
   /// much as a real choice the editor offers first: the chip then paints brand
@@ -4748,4 +4764,21 @@ model McpGrantAudit {
   @@index([userId, provider])
   @@index([createdAt])
   @@map("mcp_grant_audit")
+/// A proactive idea card proposed by Quanty (or created by the user).
+/// Ideas are proposals, never auto-created clutter: the agent suggests, the
+/// user saves or dismisses. Dismissed ideas remain queryable but are hidden
+/// from the default "new" feed.
+model QuantyIdea {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String   @default("")
+  emoji       String   @default("💡")
+  status      String   @default("new") // new | saved | dismissed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
+  @@map("quanty_ideas")
 }

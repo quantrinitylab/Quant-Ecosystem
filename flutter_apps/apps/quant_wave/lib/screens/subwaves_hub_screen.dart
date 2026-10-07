@@ -6,7 +6,6 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
 
 /// SubWaves Hub Community Directory & Explorer.
 /// Features:
@@ -57,123 +56,10 @@ class _SubWavesHubScreenState extends State<SubWavesHubScreen> {
   @override
   void initState() {
     super.initState();
-    _hubEntries = [
-      _CommunityHubEntry(
-        community: const SubWaveCommunity(
-          id: 'comm-tech',
-          name: 'w/tech',
-          title: 'Sovereign Technology & Impeller',
-          description:
-              'Hardware acceleration, 120Hz Impeller raster pipelines, zero-copy networking, and decentralized protocols.',
-          badgeColor: QuantColors.sovereignCyan,
-          memberCount: 142000,
-          onlineCount: 3840,
-          isJoined: true,
-          icon: Icons.memory_rounded,
-        ),
-        category: 'Systems',
-        flairs: ['BENCHMARK', '120HZ', 'COMPILERS', 'GPU RASTER'],
-        rules: [
-          'Strictly 120Hz Impeller verification on all UI claims.',
-          'Zero raw Unicode emojis in code, commits, or comments.',
-          'Provide reproducible benchmark metrics with p99 latency figures.',
-          'Respectful architectural debate without personal attacks.',
-        ],
-        bannerGradientStart: '#0F2027',
-        bannerGradientEnd: '#203A43',
-      ),
-      _CommunityHubEntry(
-        community: const SubWaveCommunity(
-          id: 'comm-devs',
-          name: 'w/devs',
-          title: 'Kernel & Systems Engineers',
-          description:
-              'Low-level systems programming, Linux eBPF, zero-loss mutations, and high-throughput sovereign databases.',
-          badgeColor: QuantColors.emeraldMatrix,
-          memberCount: 98000,
-          onlineCount: 2190,
-          isJoined: true,
-          icon: Icons.code_rounded,
-        ),
-        category: 'Systems',
-        flairs: ['ARCHITECTURE', 'RUST MESH', 'EBPF', 'SQLITE FTS5'],
-        rules: [
-          'All architectural proposals must include reproducible code snippets.',
-          'Zero-copy memory safety invariants must be respected.',
-          'No proprietary closed-source promotion without sovereign audit.',
-        ],
-        bannerGradientStart: '#0B2019',
-        bannerGradientEnd: '#134E39',
-      ),
-      _CommunityHubEntry(
-        community: const SubWaveCommunity(
-          id: 'comm-quantai',
-          name: 'w/quantai',
-          title: 'Quant AI & Autonomous Swarms',
-          description:
-              'Autonomous multi-agent swarms, local ONNX neural inference, sub-24ms voice translation, and prompt orchestration.',
-          badgeColor: QuantColors.obsidianPurple,
-          memberCount: 85000,
-          onlineCount: 2900,
-          isJoined: true,
-          icon: Icons.auto_awesome_rounded,
-        ),
-        category: 'AI & Agents',
-        flairs: ['AI SWARM', 'ONNX LOCAL', 'TRIPARTITE', 'VOICE ORB'],
-        rules: [
-          'Benchmark local ONNX mobile inference latency on physical silicon.',
-          'Swarm coordination logic must be open for peer validation.',
-          'No hallucinations: 50x self-critique invariant strictly enforced.',
-        ],
-        bannerGradientStart: '#200E3A',
-        bannerGradientEnd: '#3C1B6D',
-      ),
-      _CommunityHubEntry(
-        community: const SubWaveCommunity(
-          id: 'comm-crypto',
-          name: 'w/crypto',
-          title: 'Cryptographic Sovereignty',
-          description:
-              'Zero-knowledge proofs, post-quantum cryptography, sovereign keystores, and micro-settled Quant Credits.',
-          badgeColor: QuantColors.moltenAmber,
-          memberCount: 67000,
-          onlineCount: 1450,
-          isJoined: false,
-          icon: Icons.lock_clock_rounded,
-        ),
-        category: 'Cryptography',
-        flairs: ['ZK PROOFS', 'POST-QUANTUM', 'SELF CUSTODY', 'QC SETTLEMENT'],
-        rules: [
-          'Cryptographic claims require formal peer-reviewed proofs or verifiable math.',
-          'Zero speculative token promotions or pump schemes.',
-          'Enforce strict user privacy and self-custody principles.',
-        ],
-        bannerGradientStart: '#301A0B',
-        bannerGradientEnd: '#663614',
-      ),
-      _CommunityHubEntry(
-        community: const SubWaveCommunity(
-          id: 'comm-graphics',
-          name: 'w/graphics120hz',
-          title: '120Hz Displays & Shader Engineering',
-          description:
-              'Custom Fragment shaders, Vulkan & Metal backends, zero Skia clipPath tessellation, and high-DPI rasterization.',
-          badgeColor: QuantColors.crimsonRed,
-          memberCount: 54000,
-          onlineCount: 1120,
-          isJoined: false,
-          icon: Icons.speed_rounded,
-        ),
-        category: 'Graphics & 120Hz',
-        flairs: ['VULKAN', 'METAL', 'SHADERS', 'ZERO CLIPPATH'],
-        rules: [
-          'Never invoke Skia clipPath: use RoundedRectangleBorder or BoxDecoration.',
-          'Profiles must demonstrate sustained 120 FPS on variable refresh rate displays.',
-        ],
-        bannerGradientStart: '#3A0D12',
-        bannerGradientEnd: '#731622',
-      ),
-    ];
+    // No mock data: honestly empty until the real community backend is wired.
+    // (Previously this list was hardcoded with fabricated communities,
+    // member counts, flairs, and rules.)
+    _hubEntries = <_CommunityHubEntry>[];
   }
 
   @override
@@ -267,14 +153,26 @@ class _SubWavesHubScreenState extends State<SubWavesHubScreen> {
 
           // Community Cards List
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              physics: const BouncingScrollPhysics(),
-              itemCount: _filteredEntries.length,
-              itemBuilder: (context, index) {
-                return _buildCommunityCard(_filteredEntries[index], index);
-              },
-            ),
+            child: _filteredEntries.isEmpty
+                // Honest empty state: no fabricated communities.
+                ? const Center(
+                    child: Text(
+                      'No communities yet.',
+                      style: TextStyle(
+                        color: QuantColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _filteredEntries.length,
+                    itemBuilder: (context, index) {
+                      return _buildCommunityCard(_filteredEntries[index], index);
+                    },
+                  ),
           ),
         ],
       ),

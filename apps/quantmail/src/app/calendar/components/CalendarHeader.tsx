@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import type { EntryType } from '../types';
+import { IconCalendar, IconTarget, IconCake } from '../../../components/icons';
 
 export interface CalendarHeaderProps {
   activeMonthName: string;
@@ -103,6 +104,142 @@ function ChevronRightIcon({ className }: { className?: string }) {
   );
 }
 
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className || 'size-4'}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/*
+ * The rows the removed floating FAB carried (Event / Task / Birthday). Period
+ * Tracker keeps its "+ Add Tracker" entry in the trackers sub-view, so it is
+ * not duplicated here.
+ */
+const ENTRY_MENU_ITEMS: Array<{ id: EntryType; label: string; icon: React.ReactNode }> = [
+  {
+    id: 'event',
+    label: 'Event',
+    icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
+  },
+  {
+    id: 'task',
+    label: 'Task',
+    icon: <IconTarget className="size-4 text-[#FF8C42]" />,
+  },
+  {
+    id: 'birthday',
+    label: 'Birthday',
+    icon: <IconCake className="size-4 text-emerald-400" />,
+  },
+];
+
+/*
+ * Split-button: the primary half opens the most frequent sheet (Event) in one
+ * tap; the chevron half opens the FAB's old dial rows so Task and Birthday
+ * creation keep an entry point after the floating button's removal (P2-10).
+ * One instance is used on desktop and one on mobile.
+ */
+function NewEntrySplitButton({
+  openDedicatedSheet,
+  mainLabel,
+  compact,
+}: {
+  openDedicatedSheet: (type: EntryType) => void;
+  mainLabel: string;
+  compact?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
+
+  // Outside-press + Escape dismiss, mirroring the removed dial's behaviour.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setIsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isOpen]);
+
+  const baseActionClass =
+    'bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] text-[#111111] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]';
+
+  return (
+    <div
+      ref={rootRef}
+      className={`relative inline-flex items-stretch ${compact ? 'shrink-0' : ''}`}
+    >
+      <button
+        type="button"
+        onClick={() => openDedicatedSheet('event')}
+        className={`inline-flex items-center gap-1.5 rounded-l-lg rounded-r-none font-semibold text-xs ${baseActionClass} ${
+          compact ? 'px-3 py-1.5 gap-1' : 'px-3.5 py-1.5'
+        }`}
+      >
+        <HeaderPlusIcon className="size-3.5 text-[#111111]" />
+        <span>{mainLabel}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-controls={menuId}
+        aria-label="Choose entry type"
+        className={`inline-flex items-center justify-center rounded-l-none rounded-r-lg border-l border-[#111111]/25 ${baseActionClass} ${
+          compact ? 'px-1.5' : 'px-2'
+        }`}
+      >
+        <ChevronDownIcon className={compact ? 'size-3 text-[#111111]' : 'size-3.5 text-[#111111]'} />
+      </button>
+      {isOpen && (
+        <div
+          id={menuId}
+          role="menu"
+          aria-label="New entry type"
+          className="absolute right-0 top-full z-50 mt-1.5 min-w-44 overflow-hidden rounded-xl border border-[#282C35] bg-[#16181D] p-1 shadow-[0_8px_32px_rgba(0,0,0,0.6)]"
+        >
+          {ENTRY_MENU_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              data-entry-type={item.id}
+              onClick={() => {
+                setIsOpen(false);
+                openDedicatedSheet(item.id);
+              }}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-semibold text-[#F5F5F5] hover:bg-[#282C35]/60 focus-visible:bg-[#282C35]/60 focus-visible:outline-none"
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CalendarHeader({
   activeMonthName,
   activeYear,
@@ -144,6 +281,22 @@ export function CalendarHeader({
       }).format(now);
     } catch {
       return '--:--';
+    }
+  }, [now]);
+
+  // Pacific abbreviation is PDT in summer / PST in winter — never hardcode it.
+  const pacificCode = useMemo(() => {
+    try {
+      return (
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Los_Angeles',
+          timeZoneName: 'short',
+        })
+          .formatToParts(now)
+          .find((p) => p.type === 'timeZoneName')?.value ?? 'PT'
+      );
+    } catch {
+      return 'PT';
     }
   }, [now]);
 
@@ -193,7 +346,7 @@ export function CalendarHeader({
           {/* Single Clean IST / PST Pill (Removes duplicate dropdowns & banners) */}
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#111318] border border-[#282C35] text-xs font-mono text-[#F59E0B] shadow-inner select-none"
-            title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time (PST)"
+            title="Live Dual World Clocks: India Standard Time (IST) & Pacific Time"
           >
             <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
             <span className="font-semibold text-white">IST</span>
@@ -201,7 +354,7 @@ export function CalendarHeader({
             <span className="text-[#3A404D]" aria-hidden="true">
               /
             </span>
-            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
             <span className="text-[#A1A4AC]">{pstTime}</span>
           </div>
 
@@ -218,15 +371,9 @@ export function CalendarHeader({
             </button>
           )}
 
-          {/* Consolidated Single Sleek Top-Right Action Button */}
-          <button
-            type="button"
-            onClick={() => openDedicatedSheet('event')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-          >
-            <HeaderPlusIcon className="size-3.5 text-[#111111]" />
-            <span>New Event</span>
-          </button>
+          {/* Split primary action: New Event in one tap; chevron opens the
+              Event / Task / Birthday rows the floating FAB used to carry. */}
+          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="New Event" />
         </div>
       </div>
 
@@ -269,28 +416,22 @@ export function CalendarHeader({
             </div>
           </div>
 
-          {/* Consolidated Single Sleek Action Button on Mobile */}
-          <button
-            type="button"
-            onClick={() => openDedicatedSheet('event')}
-            className="inline-flex shrink-0 items-center gap-1 px-3 py-1.5 rounded-lg font-semibold text-xs text-[#111111] bg-[#FF8C42] hover:bg-[#FF9B5A] active:bg-[#E8752F] shadow-sm transition-all"
-          >
-            <HeaderPlusIcon className="size-3 text-[#111111]" />
-            <span>Event</span>
-          </button>
+          {/* Mobile primary action: Event in one tap; chevron carries the
+              Task / Birthday rows the floating FAB used to carry. */}
+          <NewEntrySplitButton openDedicatedSheet={openDedicatedSheet} mainLabel="Event" compact />
         </div>
 
         {/* Row 2: Single Clean IST/PST Pill + Booking Links */}
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <div
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111318] border border-[#282C35] text-[11px] font-mono text-[#F59E0B] shadow-inner select-none"
-            title="Live Dual World Clocks (IST & PST)"
+            title="Live Dual World Clocks (IST & Pacific)"
           >
             <HeaderGlobeIcon className="size-3 text-[#F59E0B]" />
             <span className="font-semibold text-white">IST</span>
             <span className="text-[#F5F5F5]">{istTime}</span>
             <span className="text-[#3A404D]">/</span>
-            <span className="font-semibold text-[#A1A4AC]">PST</span>
+            <span className="font-semibold text-[#A1A4AC]">{pacificCode}</span>
             <span className="text-[#A1A4AC]">{pstTime}</span>
           </div>
 

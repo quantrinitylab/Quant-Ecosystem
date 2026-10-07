@@ -6,8 +6,8 @@
  * lock, spring-back below the line, and the commit on release.
  *
  * Gesture contract (mobile inbox):
- * - Right swipe  → Archive (the filing end, non-destructive)
- * - Left swipe   → Delete  (the destructive end)
+ * - Left swipe   → Archive (the filing end, non-destructive)
+ * - Right swipe  → Snooze  (opens the snooze time picker)
  * - A fixed ~80px commit distance: distance commits, velocity never does.
  * - The vertical axis is never hijacked: the touch is claimed only when
  *   |dx| > |dy| × intentLockRatio; the moment vertical intent wins, the touch is
@@ -16,7 +16,7 @@
  * The machine is one-shot per touch: `touchstart` always resets it first.
  */
 
-export type SwipeCommitDirection = 'archive' | 'delete';
+export type SwipeCommitDirection = 'archive' | 'snooze';
 
 /** idle → tracking → settling. `settling` covers both spring-back and the commit hold. */
 export type SwipeMachinePhase = 'idle' | 'tracking' | 'settling';
@@ -148,7 +148,7 @@ export class TouchSwipeMachine {
       this.engaged = true;
     }
 
-    const heading: SwipeCommitDirection = dx >= 0 ? 'archive' : 'delete';
+    const heading: SwipeCommitDirection = dx >= 0 ? 'snooze' : 'archive';
     this.direction = heading;
 
     const travel = Math.min(adx, this.cfg.maxTravelPx);

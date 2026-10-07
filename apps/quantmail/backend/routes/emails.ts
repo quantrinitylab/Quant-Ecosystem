@@ -16,6 +16,7 @@ import {
 } from '../services/outbound-delivery.service';
 import { validateComposeEmail, sanitizeHtml } from '../middleware/validate-email';
 import { formatEmailRecord } from '../lib/format-email';
+import { threadRealtimeHub } from '../services/thread-realtime';
 import { MboxParserService } from '../services/mbox-parser.service';
 import { ImapImporterService } from '../services/imap-importer.service';
 import { retentionService } from './retention';
@@ -210,8 +211,24 @@ export default async function emailsRoutes(
   const smartInbox = options.smartInbox ?? new SmartInboxService();
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
   const createSendService = (prisma: PrismaClient) => {
-    outboundQueue ??= OutboundDeliveryPipeline.createQueue();
-    const pipeline = new OutboundDeliveryPipeline(prisma, outboundQueue);
+    // CUST-P0-2: queue construction must never 500 the send path. A bad
+    // REDIS_URL (or a down broker at startup) throws here, and that throw
+    // used to surface as the generic "An internal error occurred". Degrade
+    // to no-pipeline instead: sends then fall back to direct transport, or
+    // EmailService.send() fails with a real 503 and the draft stays a draft.
+    // Retry on every send until construction succeeds, then cache the queue —
+    // a transient broker blip must not permanently disable outbound delivery.
+    if (!outboundQueue) {
+      try {
+        outboundQueue = OutboundDeliveryPipeline.createQueue();
+      } catch (err) {
+        fastify.log.warn(
+          { err },
+          'outbound delivery queue unavailable; sends will degrade honestly',
+        );
+      }
+    }
+    const pipeline = outboundQueue ? new OutboundDeliveryPipeline(prisma, outboundQueue) : undefined;
     const suppression = (fastify as any).suppressionService ?? suppressionService;
     return new EmailService(prisma, pipeline, suppression);
   };
@@ -478,6 +495,40 @@ export default async function emailsRoutes(
       }
     }
 
+    // Realtime transport (email-chat P0): notify open thread views about the new
+    // message now instead of waiting for the next mailbox poll.
+    if (!delayMs && targetThreadId) {
+      try {
+        // Spread into a fresh object: the prisma stub types `sent` as an
+        // interface, which has no implicit index signature, while the
+        // spread result is an object-literal type that does — so the
+        // defensive bracket reads below stay type-safe with no casts.
+        const formatted: Record<string, unknown> = { ...formatEmailRecord(sent) };
+        threadRealtimeHub.broadcastMessage(targetThreadId, {
+          id: String(formatted['id'] ?? email.id),
+          threadId: targetThreadId,
+          messageKind: String(formatted['messageKind'] ?? toMessageKind((email as any).messageKind)),
+          from: {
+            name: 'You',
+            email: String(email.fromAddress ?? ''),
+          },
+          subject: (formatted['subject'] as string | null | undefined) ?? email.subject,
+          snippet: (formatted['snippet'] as string | null | undefined) ?? undefined,
+          bodyHtml: (formatted['bodyHtml'] as string | null | undefined) ?? undefined,
+          bodyText:
+            (formatted['bodyText'] as string | null | undefined) ??
+            (email.bodyPlain as string | null | undefined) ??
+            undefined,
+          receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
+          createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
+          // NOTE: /:id/send has no clientMessageId in its request body — the
+          // reply route echoes it instead (see below), so nothing is echoed here.
+        });
+      } catch (err) {
+        request.log.warn({ err, emailId: email.id }, 'thread realtime broadcast failed');
+      }
+    }
+
     return reply.status(202).send({
       success: true,
       data: {
@@ -572,6 +623,12 @@ export default async function emailsRoutes(
         // full composer posts `mail`. Defaulted rather than required so older
         // clients keep working — they only ever used the quick input.
         messageKind: messageKindSchema,
+        /**
+         * Optional client-generated id. Echoed back in the realtime
+         * `message.new` broadcast so the sender can swap its optimistic bubble
+         * for the persisted row instead of rendering a duplicate.
+         */
+        clientMessageId: z.string().max(128).optional(),
       })
       .safeParse(request.body);
     if (!parsed.success) throw parsed.error;
@@ -706,6 +763,36 @@ export default async function emailsRoutes(
       });
     } catch (error) {
       request.log.warn({ err: error, emailId: sent.id }, 'internal reply delivery failed');
+    }
+
+    // Realtime transport (email-chat P0): tell every open view of this thread
+    // about the new message NOW instead of waiting for the 30s mailbox poll.
+    try {
+      const formatted: Record<string, unknown> = formatEmailRecord(sent);
+      const broadcastThreadId =
+        targetThreadId ?? (typeof (sent as { threadId?: unknown }).threadId === 'string'
+          ? ((sent as { threadId: string }).threadId as string)
+          : null);
+      if (broadcastThreadId) {
+        threadRealtimeHub.broadcastMessage(broadcastThreadId, {
+          id: String(formatted['id'] ?? sent.id),
+          threadId: broadcastThreadId,
+          messageKind: String(formatted['messageKind'] ?? messageKind),
+          from: {
+            name: 'You',
+            email: myEmail,
+          },
+          subject: (formatted['subject'] as string | null | undefined) ?? subject,
+          snippet: (formatted['snippet'] as string | null | undefined) ?? undefined,
+          bodyHtml: (formatted['bodyHtml'] as string | null | undefined) ?? undefined,
+          bodyText: (formatted['bodyText'] as string | null | undefined) ?? parsed.data.body,
+          receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
+          createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
+          clientMessageId: parsed.data.clientMessageId,
+        });
+      }
+    } catch (err) {
+      request.log.warn({ err, emailId: sent.id }, 'thread realtime broadcast failed');
     }
 
     return reply.status(202).send({

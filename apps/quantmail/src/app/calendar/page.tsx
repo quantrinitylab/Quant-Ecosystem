@@ -14,9 +14,7 @@ import { useAuth } from '../../providers/auth-provider';
 import { useConfirm } from '../../hooks/useConfirm';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
-import { QuantFab } from '../../components/QuantFab';
 import { useSearchParams } from 'next/navigation';
-import { IconCalendar, IconTarget, IconFlower, IconCake } from '../../components/icons';
 import type { CalendarEventLike, FormState, CalendarView, EntryType, CalendarContextTab } from './types';
 import { FULL_WEEKDAYS, MONTHS_SHORT, MONTH_NAMES } from './types';
 import {
@@ -30,11 +28,13 @@ import {
   buildCurrentWeekDays,
   buildMonthWeeks,
 } from './lib/calendar-geometry';
+import { pointerStartsSheetDrag } from './lib/sheet-drag';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
 import { CalendarModals } from './components/CalendarModals';
 import { BookingLinksModal } from './components/BookingLinksModal';
+import type { WeekViewSheetOpts } from './components/CalendarWeekView';
 import {
   CalendarContextSubTabs,
   mergedTabTargets,
@@ -144,7 +144,7 @@ function CalendarPageContent() {
     }
   }, [queryTab]);
 
-  // Synchronize with quant:subtab-change custom event dispatched by ContextBottomNavBar
+  // Synchronize with quant:subtab-change custom event dispatched by the shell's MobileSubTabStrip
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const custom = e as CustomEvent<{ pillar: string; tabId: string }>;
@@ -276,6 +276,15 @@ function CalendarPageContent() {
   );
 
   const { data: rawEvents, isLoading, error, refetch } = useCalendarEvents({ start, end });
+
+  // Re-tap active app tab → refresh calendar events (P1: app-switcher refresh)
+  useEffect(() => {
+    const handleRefresh = () => {
+      void refetch();
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, [refetch]);
 
   // Normalization with structured metadata parser
   const events = useMemo(() => {
@@ -476,6 +485,14 @@ function CalendarPageContent() {
   // Bottom Sheet 1:1 Direct Finger Physics Handlers
   const handleSheetPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    // Never hijack a gesture that starts on an interactive control. The
+    // pointerdown from the Save/Close buttons (and the period sub-tabs)
+    // bubbles up into this header; capturing the pointer here would retarget
+    // the click to this div per the Pointer Events spec, so the button's
+    // onClick would never fire and Save would appear completely dead
+    // (P0-3: no handler, no request, no toast). Leave the gesture alone so
+    // the click reaches the control the user actually pressed.
+    if (!pointerStartsSheetDrag(e.target)) return;
     sheetPointerRef.current = {
       startY: e.clientY,
       time: Date.now(),
@@ -658,14 +675,19 @@ function CalendarPageContent() {
   }, [isInitialLoading, activeView, continuousAgendaDays, today]);
 
   const openDedicatedSheet = useCallback(
-    (type: EntryType, date?: Date, opts?: { startTime?: string; endTime?: string }) => {
+    // 3rd arg is a union: the month grid's drag-to-create passes the range
+    // end date, the week view passes time opts. Disambiguated at runtime.
+    (type: EntryType, date?: Date, rangeOrOpts?: Date | WeekViewSheetOpts) => {
       const base = date ? new Date(date) : new Date(selectedDate);
       const dateStr = toDateInput(base);
+      const endDate = rangeOrOpts instanceof Date ? rangeOrOpts : undefined;
+      const opts = rangeOrOpts instanceof Date ? undefined : rangeOrOpts;
+      const endDateStr = endDate ? toDateInput(endDate) : dateStr;
 
       setFormState({
         title: '',
         startDate: dateStr,
-        endDate: dateStr,
+        endDate: endDateStr,
         startTime: opts?.startTime ?? '10:00',
         endTime: opts?.endTime ?? '11:00',
         allDay: false,
@@ -1070,7 +1092,10 @@ function CalendarPageContent() {
       searchPlaceholder="Search events, meetings, tasks, birthdays…"
       onQuantyOpenChange={setIsQuantyDrawerOpen}
     >
-      <div className="flex flex-col h-full bg-[#08080a] text-white relative">
+      <div className="flex flex-col h-full bg-[#08080a] text-white relative -mb-20">
+        {/* -mb-20: extend the dark page background over the AppShell's pb-20
+            bottom-nav reserve so no light-theme gap strip shows between the
+            content and the fixed bottom nav. */}
         <CalendarHeader
           activeMonthName={activeMonthName}
           activeYear={activeYear}
@@ -1127,6 +1152,10 @@ function CalendarPageContent() {
             onSelectDate={selectDate}
             openDedicatedSheet={openDedicatedSheet}
             onSelectEvent={setSelectedEvent}
+            viewDate={currentDate}
+            onPrevMonth={() => goMonth(-1)}
+            onNextMonth={() => goMonth(1)}
+            onGoToday={goToday}
           />
         )}
 
@@ -1134,6 +1163,7 @@ function CalendarPageContent() {
           <CalendarTrackersSubView
             events={events}
             openDedicatedSheet={openDedicatedSheet}
+            onSelectEvent={setSelectedEvent}
           />
         )}
 
@@ -1148,38 +1178,6 @@ function CalendarPageContent() {
             onSelectEvent={setSelectedEvent}
           />
         )}
-
-        <QuantFab
-          label="New calendar entry"
-          actions={[
-            {
-              id: 'event',
-              label: 'Event',
-              icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
-              onSelect: () => openDedicatedSheet('event'),
-            },
-            {
-              id: 'task',
-              label: 'Task',
-              icon: <IconTarget className="size-4 text-[#FF8C42]" />,
-              onSelect: () => openDedicatedSheet('task'),
-            },
-            {
-              id: 'period',
-              label: 'Period Tracker',
-              tone: 'rose',
-              icon: <IconFlower className="size-4 text-rose-400" />,
-              onSelect: () => openDedicatedSheet('period'),
-            },
-            {
-              id: 'birthday',
-              label: 'Birthday',
-              tone: 'emerald',
-              icon: <IconCake className="size-4 text-emerald-400" />,
-              onSelect: () => openDedicatedSheet('birthday'),
-            },
-          ]}
-        />
 
         <CalendarEventForm
           activeSheetType={activeSheetType}

@@ -7,7 +7,6 @@ export { RBACEngine } from './core/rbac.js';
 export { PermissionEngine } from './core/permission-engine.js';
 export {
   ALL_RESOURCE_CONTRACTS,
-  getResourceContract,
   EMAIL_CONTRACT,
   MESSAGE_CONTRACT,
   POST_CONTRACT,

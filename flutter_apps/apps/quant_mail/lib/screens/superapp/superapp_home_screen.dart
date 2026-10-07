@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 
 import '../../models/mail_models.dart';
-import '../../models/composer_models.dart';
 import 'quantmail_superapp_bar.dart';
 import '../mail/thread_detail_screen.dart';
 import '../composer/email_composer_modal.dart';
@@ -52,22 +50,23 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   MailCategoryLens _activeMailLens = MailCategoryLens.primary;
   final Set<String> _starredThreadIds = {};
 
-  // Pillar live badge counters
+  // Pillar badge counters — honest: zero until backed by real data.
+  // Badges render only when count > 0, so the UI shows no invented numbers.
   final Map<QuantPillar, int> _pillarBadges = {
-    QuantPillar.mail: 4,
-    QuantPillar.calendar: 2,
+    QuantPillar.mail: 0,
+    QuantPillar.calendar: 0,
     QuantPillar.drive: 0,
-    QuantPillar.contacts: 12,
-    QuantPillar.quantGit: 3,
+    QuantPillar.contacts: 0,
+    QuantPillar.quantGit: 0,
   };
 
-  // Category unread counters for mail
+  // Category unread counters — honest: zero until backed by real data.
   final Map<MailCategoryLens, int> _categoryUnreadCounts = {
-    MailCategoryLens.primary: 4,
-    MailCategoryLens.updates: 12,
-    MailCategoryLens.promotions: 5,
-    MailCategoryLens.forums: 2,
-    MailCategoryLens.vips: 3,
+    MailCategoryLens.primary: 0,
+    MailCategoryLens.updates: 0,
+    MailCategoryLens.promotions: 0,
+    MailCategoryLens.forums: 0,
+    MailCategoryLens.vips: 0,
   };
 
   // Undo Send Manager
@@ -95,7 +94,15 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   }
 
   void _onPillarChanged(QuantPillar pillar) {
-    if (_activePillar == pillar) return;
+    // Active-tab retap = refresh: reset subview + filters, clear search.
+    if (_activePillar == pillar) {
+      setState(() {
+        _activeSubViewIndex = 0;
+        _activeMailLens = MailCategoryLens.primary;
+        _searchController.clear();
+      });
+      return;
+    }
     setState(() {
       _activePillar = pillar;
       _activeSubViewIndex = 0;
@@ -343,7 +350,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                 ),
                 const SizedBox(height: 6.0),
                 Text(
-                  'Sub-5ms local VAD speech recognition engine active',
+                  'Speak to search your mail',
                   style: QuantTypography.bodySmall.copyWith(
                     color: Colors.white54,
                   ),
@@ -354,10 +361,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   runSpacing: 8.0,
                   alignment: WrapAlignment.center,
                   children: [
-                    _buildVoiceChip(ctx, 'Priority emails from Alex Mercer'),
-                    _buildVoiceChip(ctx, 'Next meeting today'),
-                    _buildVoiceChip(ctx, 'PR #347 diff status'),
-                    _buildVoiceChip(ctx, 'FastCDC storage quota'),
+                    _buildVoiceChip(ctx, 'Unread mail'),
+                    _buildVoiceChip(ctx, 'Meetings today'),
+                    _buildVoiceChip(ctx, 'Starred threads'),
                   ],
                 ),
                 const SizedBox(height: 16.0),
@@ -526,7 +532,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
               SnackBar(
                 backgroundColor: QuantColors.darkSlateSurface,
                 content: Text(
-                  'Email dispatched via Kyber-1024 envelope to ${d.to.map((r) => r.email).join(', ')}',
+                  'Email sent to ${d.to.map((r) => r.email).join(', ')}',
                 ),
               ),
             );
@@ -538,16 +544,32 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   }
 
   // ===========================================================================
-  // BUILD METHOD
+  // BUILD METHOD — responsive: mobile gets the single bottom 5-pillar dock,
+  // desktop (>=900px) gets a real desktop layout: left sidebar + content.
   // ===========================================================================
+
+  static const List<QuantPillar> _orderedPillars = [
+    QuantPillar.mail,
+    QuantPillar.calendar,
+    QuantPillar.drive,
+    QuantPillar.contacts,
+    QuantPillar.quantGit,
+  ];
+
+  bool _isDesktop(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= 900;
 
   @override
   Widget build(BuildContext context) {
+    if (_isDesktop(context)) return _buildDesktopScaffold();
+    return _buildMobileScaffold();
+  }
+
+  Widget _buildMobileScaffold() {
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       appBar: QuantMailSuperAppBar(
         activePillar: _activePillar,
-        onPillarSelected: _onPillarChanged,
         activeWorkspace: _activeWorkspace,
         onWorkspaceTap: _showWorkspaceModal,
         searchController: _searchController,
@@ -555,7 +577,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
         onVoiceSearchTap: _showVoiceSearchModal,
         onQrScanTap: _showQrScanModal,
         onProfileTap: _showAccountProfileSheet,
-        pillarBadges: _pillarBadges,
         isListeningVoice: _isListeningVoice,
       ),
       body: Stack(
@@ -572,8 +593,300 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
           ),
         ],
       ),
-      bottomNavigationBar: _buildContextualBottomDock(),
+      bottomNavigationBar: _buildPillarBottomNav(),
       floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  Widget _buildDesktopScaffold() {
+    return Scaffold(
+      backgroundColor: QuantColors.voidObsidian,
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildDesktopSidebar(),
+          Expanded(
+            child: Column(
+              children: [
+                _buildDesktopTopBar(),
+                _buildSubviewChips(),
+                Expanded(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 960.0),
+                      child: _buildPillarBody(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Desktop left sidebar — Gmail-style: brand, compose, 5 pillars, profile.
+  Widget _buildDesktopSidebar() {
+    return Container(
+      width: 232.0,
+      decoration: const BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        border: Border(
+          right: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
+        ),
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const QuantMonogramLogo(size: 28.0),
+                  const SizedBox(width: 8.0),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Quant',
+                          style: QuantTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        TextSpan(
+                          text: 'Mail',
+                          style: QuantTypography.titleMedium.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: QuantColors.moltenAmber,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14.0),
+              // Gmail-style compose button
+              ElevatedButton.icon(
+                onPressed: _openEmailComposer,
+                icon: const Icon(Icons.edit_rounded, size: 18.0),
+                label: const Text('Compose'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: QuantColors.moltenAmber,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 12.0),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10.0),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12.0),
+              ..._orderedPillars.map((pillar) {
+                final isSelected = pillar == _activePillar;
+                final accent = pillar.accentColor;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 4.0),
+                  child: InkWell(
+                    onTap: () => _onPillarChanged(pillar),
+                    borderRadius: BorderRadius.circular(10.0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12.0, vertical: 10.0),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? accent.withOpacity(0.14)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10.0),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            pillar.icon,
+                            size: 20.0,
+                            color: isSelected ? accent : Colors.white60,
+                          ),
+                          const SizedBox(width: 12.0),
+                          Expanded(
+                            child: Text(
+                              pillar.label,
+                              style: TextStyle(
+                                color:
+                                    isSelected ? Colors.white : Colors.white70,
+                                fontSize: 13.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const Spacer(),
+              InkWell(
+                onTap: _showAccountProfileSheet,
+                borderRadius: BorderRadius.circular(10.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0, vertical: 10.0),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10.0),
+                    border: Border.all(
+                      color: QuantColors.hairlineBorder,
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 28.0,
+                        height: 28.0,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6366F1), Color(0xFFA855F7)],
+                          ),
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Text(
+                          'AM',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.0,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10.0),
+                      Expanded(
+                        child: Text(
+                          _activeWorkspace,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12.0,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Desktop slim top bar with full-width search.
+  Widget _buildDesktopTopBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20.0, 12.0, 20.0, 8.0),
+      decoration: const BoxDecoration(
+        color: QuantColors.voidObsidian,
+        border: Border(
+          bottom: BorderSide(color: QuantColors.hairlineBorder, width: 1.0),
+        ),
+      ),
+      child: Container(
+        height: 42.0,
+        decoration: BoxDecoration(
+          color: QuantColors.darkSlateCard,
+          borderRadius: BorderRadius.circular(10.0),
+          border: Border.all(
+            color: QuantColors.hairlineBorder,
+            width: 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12.0),
+            const Icon(
+              Icons.search_rounded,
+              size: 18.0,
+              color: QuantColors.moltenAmber,
+            ),
+            const SizedBox(width: 8.0),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                onChanged: (_) => _onSearchChanged(),
+                style: QuantTypography.bodyMedium.copyWith(
+                  color: Colors.white,
+                  fontSize: 13.0,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search ${_activePillar.label.toLowerCase()}...',
+                  hintStyle: QuantTypography.bodyMedium.copyWith(
+                    color: Colors.white38,
+                    fontSize: 12.5,
+                  ),
+                  border: InputBorder.none,
+                  isDense: true,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Secondary subview chips (desktop only, calendar/drive).
+  /// Mail uses its category lenses; contacts/quantgit render their own
+  /// internal subview tabs — no duplication.
+  Widget _buildSubviewChips() {
+    if (_activePillar != QuantPillar.calendar &&
+        _activePillar != QuantPillar.drive) {
+      return const SizedBox.shrink();
+    }
+    final subViews = _activePillar.subViews;
+    final accent = _activePillar.accentColor;
+    return Container(
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.fromLTRB(20.0, 10.0, 20.0, 2.0),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: List.generate(subViews.length, (index) {
+            final sub = subViews[index];
+            final selected = index == _activeSubViewIndex;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: ChoiceChip(
+                label: Text(sub.label),
+                selected: selected,
+                onSelected: (_) => _onSubViewChanged(index),
+                selectedColor: accent.withOpacity(0.18),
+                backgroundColor: QuantColors.darkSlateCard,
+                side: BorderSide(
+                  color: selected
+                      ? accent.withOpacity(0.8)
+                      : QuantColors.hairlineBorder,
+                  width: 1.0,
+                ),
+                labelStyle: TextStyle(
+                  color: selected ? Colors.white : Colors.white60,
+                  fontSize: 12.0,
+                  fontWeight:
+                      selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
     );
   }
 
@@ -597,7 +910,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 backgroundColor: QuantColors.darkSlateSurface,
-                content: Text('Create Sovereign Calendar Event (RFC 5545)'),
+                content: Text('Create event'),
               ),
             );
           },
@@ -615,7 +928,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 backgroundColor: QuantColors.darkSlateSurface,
-                content: Text('Upload File to Sovereign Drive (FastCDC)'),
+                content: Text('Upload file'),
               ),
             );
           },
@@ -636,10 +949,9 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   // TIER 4: CONTEXTUAL 56DP BOTTOM NAVIGATION DOCK
   // ===========================================================================
 
-  Widget _buildContextualBottomDock() {
-    final subViews = _activePillar.subViews;
-    final accent = _activePillar.accentColor;
-
+  /// THE single navigation system on mobile: 5-pillar bottom dock.
+  /// Tapping the active tab refreshes (resets subview + filters).
+  Widget _buildPillarBottomNav() {
     return Container(
       decoration: const BoxDecoration(
         color: QuantColors.darkSlateCard,
@@ -653,55 +965,84 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 56.0,
+          height: 62.0,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(subViews.length, (index) {
-              final subView = subViews[index];
-              final isSelected = index == _activeSubViewIndex;
-
+            children: _orderedPillars.map((pillar) {
+              final isSelected = pillar == _activePillar;
+              final accent = pillar.accentColor;
+              final badgeCount = _pillarBadges[pillar] ?? 0;
               return Expanded(
                 child: GestureDetector(
-                  onTap: () => _onSubViewChanged(index),
+                  onTap: () => _onPillarChanged(pillar),
                   behavior: HitTestBehavior.opaque,
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10.0,
-                          vertical: 2.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? accent.withOpacity(0.18)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12.0),
-                        ),
-                        child: Icon(
-                          subView.icon,
-                          size: 20.0,
-                          color: isSelected ? accent : Colors.white54,
-                        ),
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12.0, vertical: 3.0),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? accent.withOpacity(0.18)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10.0),
+                            ),
+                            child: Icon(
+                              pillar.icon,
+                              size: 22.0,
+                              color: isSelected ? accent : Colors.white54,
+                            ),
+                          ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              top: -4.0,
+                              right: 6.0,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5.0, vertical: 1.0),
+                                decoration: BoxDecoration(
+                                  color: accent,
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16.0,
+                                  minHeight: 14.0,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  badgeCount > 99 ? '99+' : '$badgeCount',
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 9.0,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 2.0),
                       Text(
-                        subView.label,
+                        pillar.label,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isSelected ? Colors.white : Colors.white54,
                           fontSize: 10.0,
-                          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                          letterSpacing: -0.2,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
                 ),
               );
-            }),
+            }).toList(),
           ),
         ),
       ),
@@ -741,17 +1082,12 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
     return ListView(
       padding: const EdgeInsets.fromLTRB(16.0, 12.0, 16.0, 80.0),
       children: [
-        // TIER 3: EXECUTIVE QUICK-GLANCE TILES
-        _buildTier3ExecutiveGlanceSection(),
-
-        const SizedBox(height: 16.0),
-
-        // Split Category Lenses Row
+        // Category lenses — content first, no stacked summary cards.
         _buildCategoryLensesRow(),
 
         const SizedBox(height: 12.0),
 
-        // Thread Count & Fast Index Status Row
+        // Thread count header (honest — real count only)
         _buildThreadStatusHeader(),
 
         const SizedBox(height: 8.0),
@@ -763,585 +1099,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
       ],
     );
   }
-
-  Widget _buildTier3ExecutiveGlanceSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Title
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.dashboard_customize_rounded,
-                  size: 15.0,
-                  color: QuantColors.moltenAmber,
-                ),
-                const SizedBox(width: 6.0),
-                Text(
-                  'EXECUTIVE SUITE AT A GLANCE',
-                  style: QuantTypography.pillarLabel.copyWith(
-                    color: Colors.white70,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.8,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-            const QuantBadge(
-              label: '<1.8ms Impeller Sync',
-              variant: QuantBadgeVariant.success,
-              leadingIcon: Icons.bolt_rounded,
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 10.0),
-
-        // Priority Mail Glance Tile
-        _buildPriorityMailTile(),
-
-        const SizedBox(height: 8.0),
-
-        // Row of Next Meeting & Drive Storage Tiles
-        Row(
-          children: [
-            Expanded(child: _buildNextMeetingTile()),
-            const SizedBox(width: 8.0),
-            Expanded(child: _buildDriveStorageTile()),
-          ],
-        ),
-
-        const SizedBox(height: 8.0),
-
-        // Quick Actions Rail
-        _buildQuickActionsRail(),
-      ],
-    );
-  }
-
-  Widget _buildPriorityMailTile() {
-    return Container(
-      padding: const EdgeInsets.all(12.0),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: QuantColors.moltenAmber.withOpacity(0.4),
-          width: 1.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.mark_email_unread_rounded,
-                size: 16.0,
-                color: QuantColors.moltenAmber,
-              ),
-              const SizedBox(width: 6.0),
-              Text(
-                'PRIORITY MAIL',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: QuantColors.moltenAmber,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: QuantColors.moltenAmber.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(4.0),
-                ),
-                child: Text(
-                  '3 Urgent',
-                  style: QuantTypography.pillarLabel.copyWith(
-                    color: QuantColors.moltenAmber,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 9.5,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          Row(
-            children: [
-              Container(
-                width: 26.0,
-                height: 26.0,
-                decoration: BoxDecoration(
-                  color: QuantColors.moltenAmber.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(6.0),
-                ),
-                alignment: Alignment.center,
-                child: const Text(
-                  'AM',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 10.0,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8.0),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Alex Mercer (CTO) · Wave 76 Architecture Brief',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: QuantTypography.bodyMedium.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 12.0,
-                      ),
-                    ),
-                    Text(
-                      'Kyber-1024 E2EE sealed · Sub-5ms FTS5 verified',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: QuantTypography.pillarLabel.copyWith(
-                        color: Colors.white54,
-                        fontSize: 10.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6.0),
-              Text(
-                '2m ago',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: Colors.white38,
-                  fontSize: 10.0,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              _buildGlanceActionButton(
-                icon: Icons.archive_rounded,
-                label: 'Archive (E)',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: QuantColors.darkSlateSurface,
-                      content: Text('Archived priority thread'),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 6.0),
-              _buildGlanceActionButton(
-                icon: Icons.snooze_rounded,
-                label: 'Snooze (S)',
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      backgroundColor: QuantColors.darkSlateSurface,
-                      content: Text('Snoozed thread until 9:00 AM'),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(width: 6.0),
-              _buildGlanceActionButton(
-                icon: Icons.reply_rounded,
-                label: 'Quick Reply',
-                accent: QuantColors.moltenAmber,
-                onTap: _openEmailComposer,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNextMeetingTile() {
-    return Container(
-      height: 124.0,
-      padding: const EdgeInsets.all(10.0),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: QuantColors.sunsetGold.withOpacity(0.35),
-          width: 1.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.videocam_rounded,
-                size: 15.0,
-                color: QuantColors.sunsetGold,
-              ),
-              const SizedBox(width: 5.0),
-              Text(
-                'NEXT MEETING',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: QuantColors.sunsetGold,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 9.5,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                'In 25m',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: Colors.white70,
-                  fontSize: 9.5,
-                ),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Core Architecture Sync',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: QuantTypography.bodyMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11.5,
-                ),
-              ),
-              const SizedBox(height: 2.0),
-              Text(
-                '14:30 - 15:15 IST · #alpha-room',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: Colors.white54,
-                  fontSize: 10.0,
-                ),
-              ),
-            ],
-          ),
-          InkWell(
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  backgroundColor: QuantColors.darkSlateSurface,
-                  content: Text('Connecting to WebRTC Stage #alpha-room'),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(6.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              decoration: BoxDecoration(
-                color: QuantColors.sunsetGold.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(6.0),
-                border: Border.all(
-                  color: QuantColors.sunsetGold.withOpacity(0.4),
-                  width: 0.8,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.sensors_rounded,
-                    size: 12.0,
-                    color: QuantColors.sunsetGold,
-                  ),
-                  const SizedBox(width: 4.0),
-                  Text(
-                    'Join Video Stage',
-                    style: QuantTypography.pillarLabel.copyWith(
-                      color: QuantColors.sunsetGold,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDriveStorageTile() {
-    return Container(
-      height: 124.0,
-      padding: const EdgeInsets.all(10.0),
-      decoration: BoxDecoration(
-        color: QuantColors.darkSlateCard,
-        borderRadius: BorderRadius.circular(12.0),
-        border: Border.all(
-          color: QuantColors.sovereignCyan.withOpacity(0.35),
-          width: 1.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.cloud_done_rounded,
-                size: 15.0,
-                color: QuantColors.sovereignCyan,
-              ),
-              const SizedBox(width: 5.0),
-              Text(
-                'FASTCDC STORAGE',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: QuantColors.sovereignCyan,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 9.5,
-                  letterSpacing: 0.4,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '3.4x Dedup',
-                style: QuantTypography.pillarLabel.copyWith(
-                  color: Colors.white70,
-                  fontSize: 9.5,
-                ),
-              ),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '18.4 GB used',
-                    style: QuantTypography.bodyMedium.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11.5,
-                    ),
-                  ),
-                  Text(
-                    '100 GB Quota',
-                    style: QuantTypography.pillarLabel.copyWith(
-                      color: Colors.white54,
-                      fontSize: 10.0,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4.0),
-              // Linear Progress Bar (No clipPath)
-              Container(
-                height: 5.0,
-                decoration: BoxDecoration(
-                  color: QuantColors.voidObsidian,
-                  borderRadius: BorderRadius.circular(3.0),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 184,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: QuantColors.sovereignCyan,
-                          borderRadius: BorderRadius.circular(3.0),
-                        ),
-                      ),
-                    ),
-                    const Expanded(
-                      flex: 816,
-                      child: SizedBox(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          InkWell(
-            onTap: () => _onPillarChanged(QuantPillar.drive),
-            borderRadius: BorderRadius.circular(6.0),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              decoration: BoxDecoration(
-                color: QuantColors.sovereignCyan.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(6.0),
-                border: Border.all(
-                  color: QuantColors.sovereignCyan.withOpacity(0.4),
-                  width: 0.8,
-                ),
-              ),
-              alignment: Alignment.center,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.lock_clock_rounded,
-                    size: 12.0,
-                    color: QuantColors.sovereignCyan,
-                  ),
-                  const SizedBox(width: 4.0),
-                  Text(
-                    'Open E2EE Vault',
-                    style: QuantTypography.pillarLabel.copyWith(
-                      color: QuantColors.sovereignCyan,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 10.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsRail() {
-    final actions = [
-      {
-        'label': 'Compose',
-        'icon': Icons.edit_note_rounded,
-        'color': QuantColors.moltenAmber,
-        'onTap': _openEmailComposer,
-      },
-      {
-        'label': 'New Event',
-        'icon': Icons.event_available_rounded,
-        'color': QuantColors.sunsetGold,
-        'onTap': () => _onPillarChanged(QuantPillar.calendar),
-      },
-      {
-        'label': 'Upload File',
-        'icon': Icons.upload_file_rounded,
-        'color': QuantColors.sovereignCyan,
-        'onTap': () => _onPillarChanged(QuantPillar.drive),
-      },
-      {
-        'label': 'Add Contact',
-        'icon': Icons.person_add_alt_1_rounded,
-        'color': QuantColors.emeraldMatrix,
-        'onTap': () => _onPillarChanged(QuantPillar.contacts),
-      },
-      {
-        'label': 'New Repo',
-        'icon': Icons.create_new_folder_rounded,
-        'color': QuantColors.obsidianPurple,
-        'onTap': () => _onPillarChanged(QuantPillar.quantGit),
-      },
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: actions.map((act) {
-          final color = act['color'] as Color;
-          final icon = act['icon'] as IconData;
-          final label = act['label'] as String;
-          final onTap = act['onTap'] as VoidCallback;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(8.0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
-                decoration: BoxDecoration(
-                  color: QuantColors.darkSlateCard,
-                  borderRadius: BorderRadius.circular(8.0),
-                  border: Border.all(
-                    color: QuantColors.hairlineBorder,
-                    width: 0.8,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(icon, size: 14.0, color: color),
-                    const SizedBox(width: 5.0),
-                    Text(
-                      label,
-                      style: QuantTypography.pillarLabel.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 10.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildGlanceActionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color? accent,
-  }) {
-    final c = accent ?? Colors.white70;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7.0, vertical: 3.5),
-        decoration: BoxDecoration(
-          color: QuantColors.voidObsidian,
-          borderRadius: BorderRadius.circular(6.0),
-          border: Border.all(
-            color: accent != null ? accent.withOpacity(0.4) : QuantColors.hairlineBorder,
-            width: 0.8,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 12.0, color: c),
-            const SizedBox(width: 4.0),
-            Text(
-              label,
-              style: QuantTypography.pillarLabel.copyWith(
-                color: c,
-                fontSize: 10.0,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // CATEGORY LENSES & THREAD CARDS
-  // ===========================================================================
 
   Widget _buildCategoryLensesRow() {
     return SingleChildScrollView(
@@ -1429,24 +1186,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             fontWeight: FontWeight.w600,
             fontSize: 11.0,
           ),
-        ),
-        Row(
-          children: [
-            const Icon(
-              Icons.bolt_rounded,
-              size: 12.0,
-              color: QuantColors.moltenAmber,
-            ),
-            const SizedBox(width: 3.0),
-            Text(
-              'Sub-5ms FTS5 Index',
-              style: QuantTypography.pillarLabel.copyWith(
-                color: QuantColors.moltenAmber,
-                fontSize: 10.0,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
         ),
       ],
     );
@@ -1584,6 +1323,14 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                       });
                     },
                   ),
+                  const SizedBox(width: 6.0),
+                  Text(
+                    '10:42 AM',
+                    style: QuantTypography.pillarLabel.copyWith(
+                      color: Colors.white38,
+                      fontSize: 10.0,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8.0),
@@ -1607,48 +1354,6 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
                   fontSize: 11.0,
                 ),
               ),
-              const SizedBox(height: 8.0),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 1.5),
-                    decoration: BoxDecoration(
-                      color: QuantColors.voidObsidian,
-                      borderRadius: BorderRadius.circular(4.0),
-                      border: Border.all(
-                        color: QuantColors.hairlineBorder,
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.lock_rounded,
-                          size: 10.0,
-                          color: QuantColors.emeraldMatrix,
-                        ),
-                        const SizedBox(width: 3.0),
-                        Text(
-                          'Kyber-1024 E2EE',
-                          style: QuantTypography.pillarLabel.copyWith(
-                            color: Colors.white70,
-                            fontSize: 9.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '10:42 AM',
-                    style: QuantTypography.pillarLabel.copyWith(
-                      color: Colors.white38,
-                      fontSize: 10.0,
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -1669,7 +1374,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             ),
             const SizedBox(height: 12.0),
             Text(
-              'Inbox Zero in ${_activeMailLens.label}',
+              'No mail in ${_activeMailLens.label} yet',
               style: QuantTypography.titleMedium.copyWith(
                 color: Colors.white70,
                 fontWeight: FontWeight.w600,
@@ -1677,7 +1382,7 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
             ),
             const SizedBox(height: 4.0),
             Text(
-              'All threads in this category have been triaged or archived.',
+              'New mail will appear here.',
               style: QuantTypography.bodySmall.copyWith(color: Colors.white38),
             ),
           ],
@@ -1691,319 +1396,81 @@ class _SuperAppHomeScreenState extends State<SuperAppHomeScreen>
   // ===========================================================================
 
   Widget _buildCalendarPillarView() {
-    final scheduleItems = [
-      {
-        'title': 'Sovereign Core Architecture Sync',
-        'time': '14:30 - 15:15 IST',
-        'location': 'WebRTC Stage #alpha-room',
-        'organizer': 'Alex Mercer',
-        'rfc5545': 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR',
-        'status': 'Confirmed',
-        'accent': QuantColors.sunsetGold,
-      },
-      {
-        'title': 'Kyber-1024 Post-Quantum Security Audit',
-        'time': '16:00 - 17:00 IST',
-        'location': 'Security Vault #vault-9',
-        'organizer': 'Demis Hassabis',
-        'rfc5545': 'RRULE:FREQ=DAILY;COUNT=5',
-        'status': 'Slot Locked',
-        'accent': QuantColors.emeraldMatrix,
-      },
-      {
-        'title': 'FastCDC 3.4x Storage Deduplication Review',
-        'time': '18:00 - 18:30 IST',
-        'location': 'Stage #storage-core',
-        'organizer': 'Ada Lovelace',
-        'rfc5545': 'RRULE:FREQ=MONTHLY',
-        'status': 'CalDAV Synced',
-        'accent': QuantColors.sovereignCyan,
-      },
-    ];
-
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 80.0),
       children: [
-        // Next Meeting Highlight Tile
-        _buildNextMeetingTile(),
-
-        const SizedBox(height: 14.0),
-
-        // Date and Timezone Row
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'TODAY · RFC 5545 AGENDA',
-              style: QuantTypography.pillarLabel.copyWith(
-                color: QuantColors.sunsetGold,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            Row(
-              children: [
-                const Icon(
-                  Icons.public_rounded,
-                  size: 13.0,
-                  color: Colors.white54,
-                ),
-                const SizedBox(width: 4.0),
-                Text(
-                  'Asia/Kolkata (IST)',
-                  style: QuantTypography.pillarLabel.copyWith(
-                    color: Colors.white54,
-                    fontSize: 10.5,
-                  ),
-                ),
-              ],
-            ),
-          ],
+        _buildHonestEmptyState(
+          icon: Icons.calendar_month_rounded,
+          accent: QuantColors.sunsetGold,
+          title: 'No meetings today',
+          subtitle: 'Your schedule is clear. New events will appear here.',
         ),
-
-        const SizedBox(height: 10.0),
-
-        ...scheduleItems.map((item) {
-          final accent = item['accent'] as Color;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10.0),
-            child: Container(
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: QuantColors.darkSlateCard,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(
-                  color: accent.withOpacity(0.35),
-                  width: 1.0,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6.0,
-                          vertical: 2.0,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(4.0),
-                        ),
-                        child: Text(
-                          item['status'] as String,
-                          style: TextStyle(
-                            color: accent,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        item['time'] as String,
-                        style: QuantTypography.pillarLabel.copyWith(
-                          color: Colors.white70,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6.0),
-                  Text(
-                    item['title'] as String,
-                    style: QuantTypography.bodyMedium.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13.0,
-                    ),
-                  ),
-                  const SizedBox(height: 4.0),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.videocam_outlined,
-                        size: 13.0,
-                        color: Colors.white54,
-                      ),
-                      const SizedBox(width: 4.0),
-                      Text(
-                        item['location'] as String,
-                        style: QuantTypography.pillarLabel.copyWith(
-                          color: Colors.white54,
-                          fontSize: 11.0,
-                        ),
-                      ),
-                      const SizedBox(width: 10.0),
-                      const Icon(
-                        Icons.person_outline_rounded,
-                        size: 13.0,
-                        color: Colors.white54,
-                      ),
-                      const SizedBox(width: 4.0),
-                      Text(
-                        item['organizer'] as String,
-                        style: QuantTypography.pillarLabel.copyWith(
-                          color: Colors.white54,
-                          fontSize: 11.0,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
       ],
     );
   }
-
-  // ===========================================================================
-  // DRIVE PILLAR VIEW
-  // ===========================================================================
 
   Widget _buildDrivePillarView() {
-    final driveFiles = [
-      {
-        'name': 'arch_diagram_v4.excalidraw',
-        'size': '1.2 MB',
-        'type': 'Diagram',
-        'chunks': '24 chunks',
-        'status': 'Kyber-1024 Sealed',
-        'icon': Icons.account_tree_rounded,
-      },
-      {
-        'name': 'wave76_quantum_envelope.pdf',
-        'size': '4.8 MB',
-        'type': 'PDF Document',
-        'chunks': '96 chunks',
-        'status': 'FastCDC 3.4x Dedup',
-        'icon': Icons.picture_as_pdf_rounded,
-      },
-      {
-        'name': 'security_audit_kyber.json',
-        'size': '256 KB',
-        'type': 'JSON Manifest',
-        'chunks': '6 chunks',
-        'status': 'SHA3-512 Hash Verified',
-        'icon': Icons.data_object_rounded,
-      },
-      {
-        'name': 'sovereign_keyring_backup.enc',
-        'size': '64 KB',
-        'type': 'Vault Keyring',
-        'chunks': '2 chunks',
-        'status': 'Hardware Key Backed',
-        'icon': Icons.vpn_key_rounded,
-      },
-    ];
-
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 80.0),
       children: [
-        // FastCDC Storage Overview Tile
-        _buildDriveStorageTile(),
-
-        const SizedBox(height: 14.0),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'RECENT ENCRYPTED OBJECTS',
-              style: QuantTypography.pillarLabel.copyWith(
-                color: QuantColors.sovereignCyan,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const QuantBadge(
-              label: 'FastCDC Active',
-              variant: QuantBadgeVariant.info,
-              leadingIcon: Icons.speed_rounded,
-            ),
-          ],
+        _buildHonestEmptyState(
+          icon: Icons.folder_rounded,
+          accent: QuantColors.sovereignCyan,
+          title: 'No files yet',
+          subtitle: 'Files you upload will appear here.',
         ),
-
-        const SizedBox(height: 10.0),
-
-        ...driveFiles.map((file) {
-          final icon = file['icon'] as IconData;
-
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8.0),
-            child: Container(
-              padding: const EdgeInsets.all(12.0),
-              decoration: BoxDecoration(
-                color: QuantColors.darkSlateCard,
-                borderRadius: BorderRadius.circular(12.0),
-                border: Border.all(
-                  color: QuantColors.hairlineBorder,
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 36.0,
-                    height: 36.0,
-                    decoration: BoxDecoration(
-                      color: QuantColors.sovereignCyan.withOpacity(0.14),
-                      borderRadius: BorderRadius.circular(8.0),
-                      border: Border.all(
-                        color: QuantColors.sovereignCyan.withOpacity(0.3),
-                        width: 0.8,
-                      ),
-                    ),
-                    child: Icon(
-                      icon,
-                      size: 18.0,
-                      color: QuantColors.sovereignCyan,
-                    ),
-                  ),
-                  const SizedBox(width: 12.0),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          file['name'] as String,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: QuantTypography.bodyMedium.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                        const SizedBox(height: 2.0),
-                        Text(
-                          '${file['size']} · ${file['chunks']} · ${file['status']}',
-                          style: QuantTypography.pillarLabel.copyWith(
-                            color: Colors.white54,
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.more_vert_rounded,
-                      size: 18.0,
-                      color: Colors.white54,
-                    ),
-                    onPressed: () {},
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
       ],
     );
   }
+
+  /// Shared honest empty-state tile (no invented data, no fake claims).
+  Widget _buildHonestEmptyState({
+    required IconData icon,
+    required Color accent,
+    required String title,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 56.0, horizontal: 24.0),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(
+          color: QuantColors.hairlineBorder,
+          width: 1.0,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64.0,
+            height: 64.0,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(18.0),
+            ),
+            child: Icon(icon, size: 30.0, color: accent),
+          ),
+          const SizedBox(height: 16.0),
+          Text(
+            title,
+            style: QuantTypography.titleMedium.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6.0),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: QuantTypography.bodySmall.copyWith(
+              color: Colors.white54,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 }

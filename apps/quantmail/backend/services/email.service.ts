@@ -681,14 +681,24 @@ export class EmailService {
           );
         }
       } else if (!enqueued) {
-        // Same enum contract as above: a failed transport must not take the
-        // Sent flip down with it. 'deferred' records "not yet delivered".
-        deliveryStatus = 'deferred';
-        deliveryError =
+        // CUST-P0-2: never fake a successful send. No queue job was created
+        // and no immediate SES fallback applies here (delayed sends must not
+        // fire SES directly, or the undo window becomes a lie), so nothing
+        // will ever deliver this message. Flipping it to Sent with a
+        // 'deferred' status was a silent failure: the UI announced
+        // "Message sent" while the mail sat undeliverable with no transport.
+        // Throw a real, retryable error instead — the draft stays a draft
+        // and the client surfaces the actual reason to the user.
+        const reason =
           deliveryError ?? 'No outbound transport configured (queue unavailable, SES env missing)';
         // eslint-disable-next-line no-console
         console.error(
-          `[EmailService.send: No outbound transport] emailId=${emailId} userId=${userId}: ${deliveryError}`,
+          `[EmailService.send: No outbound transport] emailId=${emailId} userId=${userId}: ${reason}`,
+        );
+        throw createAppError(
+          `Email could not be sent: ${reason}. It remains a draft — please try again.`,
+          503,
+          'DELIVERY_QUEUE_UNAVAILABLE',
         );
       }
     }

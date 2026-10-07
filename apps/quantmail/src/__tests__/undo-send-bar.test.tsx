@@ -57,7 +57,7 @@ describe('10-Second Undo-Send Countdown Bar Test Suite', () => {
       // Verify Floating container styling and accessibility
       expect(html).toContain('data-testid="undo-send-bar"');
       expect(html).toContain('role="status"');
-      expect(html).toContain('fixed bottom-6 right-6');
+      expect(html).toContain('fixed bottom-[76px] sm:bottom-6 left-4 right-4 sm:left-auto sm:right-6');
 
       // Verify exact message text pattern
       expect(html).toContain('Sending message to');

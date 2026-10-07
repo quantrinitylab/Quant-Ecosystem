@@ -197,7 +197,7 @@ export function QuantyCopilotView({
                       <div className="flex items-center gap-2">
                         <BubbleAvatar state="coding" size={28} />
                         <span className="font-bold text-white">Quanty AI</span>
-                        <span className="px-1.5 py-0.2 rounded bg-[#FF8C42]/20 text-[#FF8C42] text-[10px] font-mono font-bold">
+                        <span className="px-1.5 py-px rounded bg-[#FF8C42]/20 text-[#FF8C42] text-[10px] font-mono font-bold">
                           {msg.model || 'Opus 5'}
                         </span>
                       </div>
@@ -553,7 +553,7 @@ export function QuantyCopilotView({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-white">Create image or diagram</span>
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#58A6FF]/20 text-[#58A6FF]">
+                        <span className="text-[9px] font-bold px-1.5 py-px rounded bg-[#58A6FF]/20 text-[#58A6FF]">
                           New
                         </span>
                       </div>
@@ -808,7 +808,7 @@ export function QuantyCopilotView({
                             <div className="pr-2 min-w-0 flex-1">
                               <div className="flex items-center gap-1.5">
                                 <span
-                                  className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${sk.catColor}`}
+                                  className={`px-1.5 py-px rounded text-[9px] font-bold ${sk.catColor}`}
                                 >
                                   {sk.cat}
                                 </span>
@@ -872,7 +872,7 @@ export function QuantyCopilotView({
                     <div className="flex items-center gap-2">
                       <span>📚</span>
                       <span className="font-semibold text-white">My sources</span>
-                      <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#58A6FF] font-bold">
+                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#58A6FF] font-bold">
                         3
                       </span>
                     </div>
@@ -888,7 +888,7 @@ export function QuantyCopilotView({
                     <div className="flex items-center gap-2">
                       <span>🔌</span>
                       <span className="font-semibold text-white">MCP servers</span>
-                      <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#3FB950] font-bold">
+                      <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#3FB950] font-bold">
                         {mcpServers.length}
                       </span>
                     </div>

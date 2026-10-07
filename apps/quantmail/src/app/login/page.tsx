@@ -10,7 +10,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthBrandPanel } from '../../components/auth/AuthBrandPanel';
 import { AuthShell } from '../../components/auth/AuthShell';
-import { QuantMailLogo } from '../../components/QuantMailLogo';
 import { PageTransition } from '@quant/shared-ui';
 import { QUANT_MAIL_DOMAIN, toQuantAddress } from '../../config/identity';
 import { safeReturnPath } from '../../lib/safe-return-path';
@@ -143,7 +142,7 @@ function LoginForm() {
     setError(null);
 
     const errors: LoginFieldErrors = {};
-    if (!identifier.trim()) errors.identifier = 'Enter your address or handle.';
+    if (!identifier.trim()) errors.identifier = 'Enter your email address.';
     if (!password) errors.password = 'Enter your password.';
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -218,41 +217,23 @@ function LoginForm() {
         }
       >
         <div>
-          {/* Header Lockup with Precision Faceted Envelope Mark */}
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 flex items-center justify-center p-1 rounded-xl bg-white/[0.04] border border-white/[0.08] shadow-[0_4px_16px_-4px_rgba(0,0,0,0.8)]">
-                <QuantMailLogo size={36} showBadge={false} interactive={false} />
-              </div>
-              <div>
-                <span className="block text-xs font-mono font-medium tracking-wider uppercase text-zinc-300">
-                  QUANTMAIL <span className="text-zinc-600">/</span> <span className="text-[#FF8C42]">EXECUTIVE</span>
-                </span>
-                <span className="block text-[11px] text-zinc-500 font-mono">
-                  Zero-Trust Sovereign Identity
-                </span>
-              </div>
-            </div>
-            <Link
-              href="/sso"
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-[#FF8C42]/40 text-[11px] font-medium text-zinc-400 hover:text-white transition-all"
-            >
-              <span>SSO Chooser</span>
-              <span className="text-[#FF8C42]">→</span>
-            </Link>
-          </div>
-
           <div className="mb-7">
-            <div className="mb-2.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FF8C42]/10 border border-[#FF8C42]/20 text-[10px] font-mono font-semibold uppercase tracking-[0.2em] text-[#FF8C42]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FF8C42] animate-pulse" />
-              {stage === 'credentials' ? 'Sovereign Access' : 'Two-Factor Authentication'}
-            </div>
             <h1 className="text-2xl sm:text-[28px] font-semibold tracking-[-0.03em] text-white">
-              {stage === 'credentials' ? 'Sign in to QuantMail' : 'Confirm your identity'}
+              {stage === 'credentials' ? (
+                <>
+                  Sign in to{' '}
+                  <span className="signin-wordmark" aria-label="QuantMail">
+                    <span className="wm-quant">Quant</span>
+                    <span className="wm-mail">Mail</span>
+                  </span>
+                </>
+              ) : (
+                'Confirm your identity'
+              )}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
               {stage === 'credentials'
-                ? 'Use your sovereign QuantMail address or account handle.'
+                ? 'to continue to QuantMail'
                 : codeMode === 'totp'
                   ? 'Open your authenticator app and enter the current 6-digit code.'
                   : 'Enter one of the recovery codes saved during two-factor setup.'}
@@ -278,9 +259,17 @@ function LoginForm() {
           {stage === 'credentials' ? (
             <form onSubmit={handleSubmit} noValidate className="space-y-4">
               <div>
-                <label htmlFor="login-id" className="mb-2 block text-[13px] font-medium text-zinc-300">
-                  Address or handle
-                </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label htmlFor="login-id" className="text-[13px] font-medium text-zinc-300">
+                    Email address
+                  </label>
+                  <Link
+                    href="/forgot-email"
+                    className="-my-3.5 -mr-2 inline-flex items-center px-2 py-3.5 text-xs font-medium text-[#FF8C42] underline-offset-4 hover:underline focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+                  >
+                    Forgot email?
+                  </Link>
+                </div>
                 <input
                   id="login-id"
                   type="text"
@@ -292,7 +281,7 @@ function LoginForm() {
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   aria-invalid={Boolean(fieldErrors.identifier)}
-                  aria-describedby={fieldErrors.identifier ? 'login-id-error' : 'login-id-hint'}
+                  aria-describedby={fieldErrors.identifier ? 'login-id-error' : undefined}
                   className={`w-full rounded-xl border bg-[#111318]/90 backdrop-blur px-3.5 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)] focus:border-[#FF8C42] focus:ring-2 focus:ring-[#FF8C42]/20 motion-reduce:transition-none ${
                     fieldErrors.identifier ? 'border-red-500/50' : 'border-white/[0.08]'
                   }`}
@@ -301,14 +290,7 @@ function LoginForm() {
                   <p id="login-id-error" className="mt-1.5 text-xs text-red-400">
                     {fieldErrors.identifier}
                   </p>
-                ) : (
-                  <p
-                    id="login-id-hint"
-                    className="mt-1.5 text-xs text-zinc-500 font-mono"
-                  >
-                    A full address or the handle before @{QUANT_MAIL_DOMAIN}.
-                  </p>
-                )}
+                ) : null}
               </div>
 
               <div>
@@ -385,19 +367,6 @@ function LoginForm() {
               >
                 {isLoading ? 'Authenticating…' : 'Sign in'}
               </button>
-
-              <div className="pt-2">
-                <Link
-                  href="/sso"
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] hover:border-[#FF8C42]/40 transition-all text-xs group"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span className="text-zinc-300 font-medium">Switch or choose another account via SSO</span>
-                  </div>
-                  <span className="text-zinc-500 group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all">→</span>
-                </Link>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleCodeSubmit} noValidate className="space-y-4">
@@ -511,14 +480,12 @@ function LoginForm() {
             </p>
           ) : null}
 
-          {/* Clean Telemetry Bar */}
-          <div className="mt-8 pt-6 border-t border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-zinc-500">
-            <span>Sub-5ms FTS5 Search</span>
-            <span className="text-zinc-700">·</span>
-            <span>Zero-Knowledge Vault</span>
-            <span className="text-zinc-700">·</span>
-            <span>Sovereign Identity</span>
-          </div>
+          {/* Minimal legal footer — no marketing claims */}
+          <nav aria-label="Legal" className="auth-legal-footer">
+            <Link href="/help">Help</Link>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+          </nav>
         </div>
       </AuthShell>
     </PageTransition>
@@ -552,7 +519,7 @@ function LoginFallback() {
             Sign in to QuantMail
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-            Use your sovereign QuantMail address or account handle.
+            to continue to QuantMail
           </p>
         </div>
         <div aria-hidden="true" className="space-y-4">

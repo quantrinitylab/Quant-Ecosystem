@@ -18,7 +18,6 @@ import {
 import { Button, Skeleton, Modal, ErrorState } from '@quant/shared-ui';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { AIMemoryPanel } from '../../components/AIMemoryPanel';
 import { QuantDriveLogo } from '../../components/QuantDriveLogo';
 import { useConfirm } from '../../hooks/useConfirm';
 import { useDrive, type ReceivedShare } from '../../hooks/useDrive';
@@ -313,7 +312,7 @@ function DrivePageContent() {
     }
   }, [tabFromQuery, normalizeTab]);
 
-  // Sync with quant:subtab-change custom event from ContextBottomNavBar
+  // Sync with quant:subtab-change custom event from the shell's MobileSubTabStrip
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ pillar: string; tabId: string }>;
@@ -358,6 +357,15 @@ function DrivePageContent() {
     purgeFile,
     moveFiles,
   } = useDrive();
+
+  // Re-tap active app tab → refresh drive files (P1: app-switcher refresh)
+  useEffect(() => {
+    const handleRefresh = () => {
+      void fetchFiles();
+    };
+    window.addEventListener('quant:refresh', handleRefresh);
+    return () => window.removeEventListener('quant:refresh', handleRefresh);
+  }, [fetchFiles]);
 
   const { confirm, dialog } = useConfirm();
 
@@ -1241,11 +1249,10 @@ function DrivePageContent() {
           )}
 
           {/*
-            What the assistant has learned, alongside what the user has stored — the
-            two halves of "my things live here". Collapsed by default so the files
-            stay the point of the page.
+            AI Memory lives in its own dedicated bottom-tab (AI Memory), not as
+            a promo card on Home — removed per user feedback (2026-10-07) to
+            stop stuffing it into every surface. Its home is the aimemory tab.
           */}
-          <AIMemoryPanel query={searchQuery} />
 
           {/* Contextual Sub-Views */}
           {activeTab === 'shared' && (

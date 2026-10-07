@@ -281,7 +281,7 @@ export function CommitsTab({
                     <div className="flex items-center gap-2 font-mono">
                       <span className="text-[#7D8590] text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
                       <span className="text-white font-semibold">{file.filename}</span>
-                      <span className="text-[10px] uppercase font-bold px-1.5 py-0.2 rounded bg-[#21262D] text-[#7D8590] border border-[#30363D]">
+                      <span className="text-[10px] uppercase font-bold px-1.5 py-px rounded bg-[#21262D] text-[#7D8590] border border-[#30363D]">
                         {file.status}
                       </span>
                     </div>

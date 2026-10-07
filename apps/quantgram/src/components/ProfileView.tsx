@@ -618,7 +618,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
               {/* Inactive accounts unread badge */}
               {totalUnreadCount > 0 && (
                 <span
-                  className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.2 rounded-full ring-2 ring-white dark:ring-[#000000] ml-0.5"
+                  className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-px rounded-full ring-2 ring-white dark:ring-[#000000] ml-0.5"
                   title={`${totalUnreadCount} unread across other accounts`}
                   data-testid="header-unread-badge"
                 >

@@ -220,7 +220,7 @@ export function BranchesTab({
                   {defaultBranchItem.name}
                 </button>
 
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#58A6FF]/20 text-[#58A6FF] border border-[#58A6FF]/40">
+                <span className="px-1.5 py-px rounded-full text-[10px] font-bold bg-[#58A6FF]/20 text-[#58A6FF] border border-[#58A6FF]/40">
                   default
                 </span>
 
@@ -325,7 +325,7 @@ export function BranchesTab({
                       {branch.isProtected && (
                         <span
                           data-testid="protected-branch-badge"
-                          className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[#A371F7]/20 text-[#D2A8FF] border border-[#A371F7]/40 flex items-center gap-1"
+                          className="px-1.5 py-px rounded-full text-[10px] font-bold bg-[#A371F7]/20 text-[#D2A8FF] border border-[#A371F7]/40 flex items-center gap-1"
                         >
                           🛡️ Protected
                         </span>

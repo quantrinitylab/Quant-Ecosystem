@@ -12,7 +12,7 @@ export default function Error({
   reset: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center h-screen p-6 text-center bg-[var(--quant-background)]">
+    <div className="flex flex-col items-center justify-center h-dvh p-6 text-center bg-[var(--quant-background)]">
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}

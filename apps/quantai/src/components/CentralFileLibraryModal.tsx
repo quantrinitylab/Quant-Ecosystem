@@ -447,7 +447,7 @@ export function CentralFileLibraryModal({
                 <span>{tab.icon}</span>
                 <span>{tab.label}</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                  className={`px-1.5 py-px rounded-full text-[10px] ${
                     isSelected ? 'bg-emerald-500/30 text-emerald-200' : 'bg-zinc-800 text-zinc-500'
                   }`}
                 >

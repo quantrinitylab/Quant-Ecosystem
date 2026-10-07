@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 // ============================================================================
-// @quant/shared-ui - BubbleAvatar ("Bubble Intelligence") tests
+// @quant/shared-ui - BubbleAvatar ("Quanty Ghost") tests
 // ============================================================================
 //
-// The canvas painter is not unit-testable without a real 2D context, so these
-// pin the *contract* instead: the 35-state sheet is complete and derived
+// These pin the *contract*: the 35-state sheet is complete and derived
 // correctly, every QuantSidekick status maps onto a sheet state, and the
-// accessible surface (role="img", state-aware label, data-state) renders
-// before any canvas work happens.
+// accessible surface (role="img", state-aware label, data-state) renders.
+// The ghost is DOM + CSS (no canvas); the mascot img is aria-hidden inside
+// the labelled root.
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -83,10 +83,16 @@ describe('rendering', () => {
     expect(el.style.width).toBe('40px');
   });
 
-  it('renders the canvas a11y-hidden inside the labelled root', () => {
+  it('renders the mascot img a11y-hidden inside the labelled root', () => {
     render(<BubbleAvatar state="idle" />);
-    const canvas = document.querySelector('canvas');
-    expect(canvas).toBeTruthy();
-    expect(canvas?.getAttribute('aria-hidden')).toBe('true');
+    const img = document.querySelector('img.qghost-img');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute('aria-hidden')).toBe('true');
+    expect(img?.getAttribute('src')).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it('applies the visual mode class for the state', () => {
+    const { container } = render(<BubbleAvatar state="thinking" />);
+    expect(container.querySelector('.qghost-mode-thinking')).toBeTruthy();
   });
 });

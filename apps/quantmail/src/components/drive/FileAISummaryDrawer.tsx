@@ -681,7 +681,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Summary</span>
             {data?.keyPoints && data.keyPoints.length > 0 && (
-              <span className="rounded-full bg-[#282C35] px-1.5 py-0.2 text-[10px] font-mono text-slate-300">
+              <span className="rounded-full bg-[#282C35] px-1.5 py-px text-[10px] font-mono text-slate-300">
                 {data.keyPoints.length}
               </span>
             )}
@@ -707,7 +707,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Entities</span>
             {data?.entities && (
-              <span className="rounded-full bg-[#282C35] px-1.5 py-0.2 text-[10px] font-mono text-slate-300">
+              <span className="rounded-full bg-[#282C35] px-1.5 py-px text-[10px] font-mono text-slate-300">
                 {(data.entities.dates?.length || 0) +
                   (data.entities.amounts?.length || 0) +
                   (data.entities.vendors?.length || 0) +
@@ -736,7 +736,7 @@ export function FileAISummaryDrawer({
             </svg>
             <span>Actions</span>
             {data?.actionItems && data.actionItems.length > 0 && (
-              <span className="rounded-full bg-[#FF8C42]/20 px-1.5 py-0.2 text-[10px] font-mono text-[#FF8C42]">
+              <span className="rounded-full bg-[#FF8C42]/20 px-1.5 py-px text-[10px] font-mono text-[#FF8C42]">
                 {data.actionItems.length}
               </span>
             )}

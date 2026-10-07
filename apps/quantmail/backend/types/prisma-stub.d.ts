@@ -201,6 +201,9 @@ declare module '@prisma/client' {
     userId: string;
     name: string;
     emails: string[];
+    adminEmails: string[];
+    inviteToken: string | null;
+    inviteTokenCreatedAt: Date | null;
     color: string | null;
     createdAt: Date;
     updatedAt: Date;

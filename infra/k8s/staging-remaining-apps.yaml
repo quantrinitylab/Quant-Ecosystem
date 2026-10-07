@@ -35,9 +35,12 @@
 # still matches the live digest (or prefer `kubectl set env` for env-only edits).
 # After any deploy-staging rollout, update the digests here to match.
 #
-# quanttrinity is the one exception below: it still carries the old commit tag
-# because no image was ever successfully built and pushed for it, so there is no
-# digest to pin yet. Its pods stay pending/failing until deploy-staging builds one.
+# quanttrinity is the one exception below: it still carries a commit tag (no digest
+# pinned) because the `apps/quanttrinity` source dir was deleted and
+# deploy-staging no longer builds it, so no digest will ever be rolled. It pins
+# `:fd6e250826468aa32c563d9e36ebe227beb79791`, the newest tag actually present
+# in ECR (verified 2026-10-06) — the old `:652ac616…` tag was never pushed, so
+# any apply of this file used to spawn an ImagePullBackOff ReplicaSet.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -525,7 +528,7 @@ spec:
     spec:
       containers:
         - name: quant-quanttrinity
-          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quanttrinity:652ac6160095d2bd2a94ff2725d2f9f9ffa23191
+          image: 178313340246.dkr.ecr.us-east-1.amazonaws.com/quant-quanttrinity:fd6e250826468aa32c563d9e36ebe227beb79791
           ports:
             - containerPort: 3113
               name: http

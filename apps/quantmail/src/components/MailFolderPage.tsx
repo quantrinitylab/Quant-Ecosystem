@@ -8,7 +8,8 @@ import { AppShell } from './AppShell';
 import { AppSidebar } from './AppSidebar';
 import { IdentityAvatar } from './IdentityAvatar';
 import { showToast } from './InboxToast';
-import { UnreadDot } from './UnreadDot';
+import { UnreadCountPill } from './UnreadCountPill';
+import { ThreadKindBadge } from './MessageKindBadge';
 import { useInbox } from '../hooks/useInbox';
 import { useAuth } from '../providers/auth-provider';
 import { resolveThreadTarget } from '../lib/route-ids';
@@ -214,11 +215,22 @@ export function MailFolderPage({
                     <IdentityAvatar name={sender} size="sm" />
                     <div className="sent-row-content">
                       <div className="sent-row-meta">
-                        <span className="sent-row-recipients">{sender}</span>
+                        {/*
+                          Same read-state contract as the inbox row: unread
+                          senders are bold, and the green pill carries the
+                          thread's real unread count.
+                        */}
+                        <span
+                          className="sent-row-recipients"
+                          style={{ fontWeight: thread.isRead ? 540 : 700 }}
+                        >
+                          {sender}
+                        </span>
                         {thread.count > 1 && (
                           <span className="folder-row-count">{thread.count} messages</span>
                         )}
-                        {!thread.isRead && <UnreadDot />}
+                        {!thread.isRead && <UnreadCountPill count={thread.unreadCount} />}
+                        {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
                         <time className="sent-row-time">{formatRowDate(thread.receivedAt)}</time>
                       </div>
                       {/*

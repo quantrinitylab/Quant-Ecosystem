@@ -484,6 +484,15 @@ export function executePillarTileClick(
 
   if (options.pathname !== tile.path) {
     options.router.push(tile.path);
+  } else {
+    // Re-tap on the active pillar: refresh current app content.
+    // Previously this was a no-op (nothing happened on re-tap).
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('quant:refresh'));
+      window.dispatchEvent(
+        new CustomEvent('quant:pillar-retap', { detail: { pillar: tile.id } }),
+      );
+    }
   }
 }
 
@@ -804,6 +813,12 @@ export function QuantPillarTopBar({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   // Search bar shrink state: when scrolled, search compacts and Quant AI appears beside it
   const [searchCompact, setSearchCompact] = useState(false);
+  // Quant AI live capsule dismissal — remembered in local component state for
+  // the current live text. A new aiLiveText value resets it (new status, new look).
+  const [aiPillDismissed, setAiPillDismissed] = useState(false);
+  useEffect(() => {
+    setAiPillDismissed(false);
+  }, [aiLiveText]);
   // QuantGit User ID modal state
   const [quantGitIdModalOpen, setQuantGitIdModalOpen] = useState(false);
   const [quantGitUserId, setQuantGitUserId] = useState<string | null>(null);
@@ -854,16 +869,31 @@ export function QuantPillarTopBar({
     return () => ro.disconnect();
   }, [showLensStrip, currentPillar]);
 
-  // Hide-on-scroll: collapse when scrolling DOWN. Scrolling UP intentionally
-  // does NOT bring it back — the switcher reappears ONLY at the absolute top
-  // (scrollY === 0), so it never eats screen space mid-scroll.
-  // The SEARCH BAR is separate and NEVER hides — it stays pinned at top.
-  // Capture-phase document listener catches nested page scroll containers;
-  // every scroller is tracked independently via WeakMap.
+  // Hide-on-scroll: Swiggy-smooth, GPU-composited.
+  //
+  // The old implementation animated `height` (0 <-> measured), which forces a
+  // layout reflow on every frame — that is the jank the user saw. This version
+  // keeps the wrapper at a constant measured height and slides the header with
+  // `transform: translateY`, which the compositor handles without touching
+  // layout: 60fps, zero jank.
+  //
+  // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
+  // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
+  // absolute top. The search bar below is separate and never hides.
+  //
+  // Scroll events are coalesced through requestAnimationFrame: a fast fling
+  // fires dozens of events per frame, and running the WeakMap bookkeeping on
+  // every one was measurable in profiles.
   useEffect(() => {
     const positions = new WeakMap<object, number>();
-    const onScroll = (e: Event) => {
-      const target = e.target as EventTarget | null;
+    let rafId: number | null = null;
+    let pendingTarget: EventTarget | null = null;
+
+    const processScroll = () => {
+      rafId = null;
+      const target = pendingTarget;
+      pendingTarget = null;
+      if (!target) return;
       let key: object | null = null;
       let scrollTop = 0;
       if (target === document || target === document.documentElement) {
@@ -878,11 +908,9 @@ export function QuantPillarTopBar({
       const last = positions.get(key) ?? 0;
       const delta = scrollTop - last;
       positions.set(key, scrollTop);
-      // CRITICAL: only reappear at the ABSOLUTE top (scrollY === 0).
-      // Not "about to reach" — fully at top. User was explicit.
-      // AND: the scroller that fired must be at 0 while the DOCUMENT itself
-      // is also at 0. Otherwise a nested container hitting 0 mid-page would
-      // wrongly reveal the switcher while the page is still scrolled.
+      // The scroller that fired must be at 0 while the DOCUMENT itself is also
+      // at 0 — otherwise a nested container hitting 0 mid-page would wrongly
+      // reveal the switcher while the page is still scrolled.
       const docTop = window.scrollY || document.documentElement.scrollTop || 0;
       if (scrollTop === 0 && docTop === 0) {
         setHeaderHidden(false);
@@ -890,13 +918,26 @@ export function QuantPillarTopBar({
       } else if (delta > 8 && scrollTop > 120) {
         setHeaderHidden(true);
         setSearchCompact(true);
+      } else if (delta < -12) {
+        // Scroll-up reveals the switcher (it no longer waits for the top).
+        setHeaderHidden(false);
       } else if (scrollTop > 0 && scrollTop <= 120) {
         // Small scroll: keep switcher visible but compact the search
         setSearchCompact(true);
       }
     };
+
+    const onScroll = (e: Event) => {
+      pendingTarget = e.target;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processScroll);
+      }
+    };
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // New pillar = fresh content at the top → always reveal the switcher.
@@ -988,19 +1029,29 @@ export function QuantPillarTopBar({
   return (
     <>
     {/*
-      STRUCTURE (v3 deep redesign):
-      - Switcher pill: hides on scroll down, reappears ONLY at scrollY === 0
-      - Search bar: SEPARATE sticky element, NEVER hides, compacts on scroll
+      STRUCTURE (v3.1 — P1-F single sticky bar):
+      - ONE sticky header bar holds both the switcher and the search field.
+      - Switcher pill section: hides on scroll down, reappears ONLY at
+        scrollY === 0 (unchanged hide-on-scroll behavior).
+      - Search bar: same sticky bar, NEVER hides, compacts on scroll.
     */}
     <div
       className="sticky top-0 z-30 w-full"
       style={{
-        height: headerHidden ? 0 : (headerHeight ?? 'auto'),
-        opacity: headerHidden ? 0 : 1,
+        background: 'rgba(13,13,18,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+    <div
+      aria-hidden={headerHidden}
+      style={{
+        // Constant measured height — never animated. The header slides inside
+        // it with a GPU-composited transform (see below): no layout reflow,
+        // no jank. `overflow: hidden` clips the slide.
+        height: headerHeight ?? 'auto',
         overflow: 'hidden',
-        transition: headerHidden
-          ? 'height 0.25s ease-in, opacity 0.2s ease-in'
-          : 'height 0.25s ease-out, opacity 0.25s ease-out',
       }}
     >
     <header
@@ -1008,13 +1059,19 @@ export function QuantPillarTopBar({
       className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
       style={{
+        // Swiggy-grade slide: spring cubic-bezier, ~320ms, transform+opacity
+        // only (compositor thread). translateY(-105%) fully clears the
+        // wrapper; opacity avoids a ghost edge mid-slide.
+        transform: headerHidden ? 'translateY(-105%)' : 'translateY(0)',
+        opacity: headerHidden ? 0 : 1,
+        transition:
+          'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease-out',
+        willChange: 'transform, opacity',
         // PROFESSIONAL: subtle, minimal — no flashy gradients.
         // Clean enterprise feel like Gmail/Outlook, not a game.
-        background: 'rgba(13,13,18,0.96)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        // Background lives on the sticky bar above; this keeps the hairline
+        // separating the switcher from the search row.
         borderBottom: '1px solid rgba(255,255,255,0.06)',
-        transition: 'background 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
       }}
     >
       {/*
@@ -1065,7 +1122,7 @@ export function QuantPillarTopBar({
                 onPointerLeave={cancelLongPress}
                 onPointerCancel={cancelLongPress}
                 onContextMenu={(e) => e.preventDefault()}
-                className="relative flex flex-col items-center justify-center w-14 h-12 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
+                className="relative flex flex-col items-center justify-center w-12 h-12 min-[400px]:w-14 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF6B35] shrink-0 transition-transform duration-150 ease-out active:scale-110"
                 style={{
                   animation: `quantStaggerIn 0.4s cubic-bezier(0.22,1,0.36,1) ${idx * 0.05}s both`,
                   transition: 'transform 200ms ease-out',
@@ -1186,18 +1243,14 @@ export function QuantPillarTopBar({
     </div>
 
     {/*
-      SEARCH BAR — SEPARATE sticky element, NEVER hides on scroll.
+      SEARCH BAR — pinned to the SAME sticky bar above, NEVER hides on scroll.
       Compacts (48px → 40px) when scrolled; Quant AI icon appears beside it.
     */}
     <div
-      className="sticky top-0 z-20 w-full px-3"
+      className="w-full px-3"
       style={{
         paddingTop: 8,
         paddingBottom: 8,
-        background: 'rgba(13,13,18,0.96)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
         transition: 'padding 0.25s ease-out',
       }}
     >
@@ -1224,7 +1277,7 @@ export function QuantPillarTopBar({
             <button
               type="button"
               onClick={handleClearClick}
-              className="p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 rounded-md text-[#94A3B8] hover:text-white hover:bg-[#1F2430] transition-colors"
               title="Clear search"
               aria-label="Clear search"
             >
@@ -1235,7 +1288,7 @@ export function QuantPillarTopBar({
           <button
             type="button"
             onClick={handleMicClick}
-            className={`p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
+            className={`min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg transition-colors outline-none focus-visible:ring-1 focus-visible:ring-[#FF8C42] ${
               isListening
                 ? 'text-red-400 bg-red-950/40 border border-red-500/50 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
                 : 'text-[#94A3B8] hover:text-white hover:bg-[#1F2430]'
@@ -1269,9 +1322,14 @@ export function QuantPillarTopBar({
         </button>
       </div>
     </div>
+    {/* End of the single merged sticky bar (switcher + search). */}
+    </div>
 
-    {/* Quant AI live capsule — below search, collapsible */}
-    {!headerHidden && (
+    {/* Quant AI live capsule — below the sticky bar, collapsible, dismissible.
+        Only rendered when a real live status string is supplied; never
+        fabricate a status when none exists. Dismissal is remembered in local
+        state; a new aiLiveText value resets it (new status, new look). */}
+    {!headerHidden && !!aiLiveText && !aiPillDismissed && (
     <div className="w-full px-3 pt-1">
       <div className="flex items-center justify-between gap-2 w-full max-w-5xl mx-auto">
         <button
@@ -1289,18 +1347,22 @@ export function QuantPillarTopBar({
           <SparklesIcon className="size-3.5 text-[#FF8C42] group-hover:scale-110 transition-transform" />
 
           <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] group-hover:text-white truncate">
-            {aiLiveText ? (
-              <span>{aiLiveText}</span>
-            ) : (
-              <>
-                <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong> 3 urgent items prioritized
-                <span className="text-[#64748B] mx-1">·</span>
-                <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms E2EE</span>
-              </>
-            )}
+            <span>{aiLiveText}</span>
           </span>
 
           <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        {/* Dismiss the capsule — it must never push content down once the
+            reader has seen it. Remembered in local state (see above). */}
+        <button
+          type="button"
+          onClick={() => setAiPillDismissed(true)}
+          className="p-1.5 rounded-full text-[#64748B] hover:text-white hover:bg-[#1F2430] transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          title="Dismiss"
+          aria-label="Dismiss Quant AI status"
+        >
+          <ClearSearchIcon className="size-3.5" />
         </button>
 
         <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#12151E] border border-[#232938] text-[10px] font-mono text-emerald-400">
@@ -1354,7 +1416,7 @@ export function QuantPillarTopBar({
               <span>{lens.label}</span>
               {lensBadge !== undefined && (
                 <span
-                  className="px-1 py-0.2 rounded-full text-[9px] font-bold leading-none font-mono"
+                  className="px-1 py-px rounded-full text-[9px] font-bold leading-none font-mono"
                   style={
                     isSelected
                       ? {
@@ -1378,12 +1440,12 @@ export function QuantPillarTopBar({
       </div>
     )}
 
-    {/* "Refreshed just now" toast — fixed, above the bottom nav */}
+    {/* "Refreshed just now" toast — fixed, above the single bottom nav */}
     {toastMsg && (
       <div
         role="status"
         aria-live="polite"
-        className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-3.5 py-2 rounded-full text-xs font-medium text-white whitespace-nowrap animate-[quantToastIn_0.25s_ease-out]"
+        className="fixed left-1/2 -translate-x-1/2 z-[100] px-3.5 py-2 rounded-full text-xs font-medium text-white whitespace-nowrap animate-[quantToastIn_0.25s_ease-out] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
         style={{
           background: 'rgba(26,29,36,0.95)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -1396,12 +1458,15 @@ export function QuantPillarTopBar({
       </div>
     )}
 
-    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active */}
+    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active.
+        Sits ABOVE the single h-16 bottom bar with safe-area clearance (the old
+        bottom-20 overlapped the bar on notched phones), compact so it never
+        covers content or the nav. */}
     {currentPillar === 'quantgit' && (
       <button
         type="button"
         onClick={() => setQuantGitIdModalOpen(true)}
-        className="fixed bottom-20 right-4 z-[90] flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
+        className="fixed right-4 z-[90] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all hover:scale-105 active:scale-95 max-w-[calc(100vw-2rem)] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
         style={{
           background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
           boxShadow: '0 8px 24px rgba(168,85,247,0.4)',
@@ -1410,7 +1475,7 @@ export function QuantPillarTopBar({
         aria-label={quantGitUserId ? `QuantGit ID: @${quantGitUserId} — manage` : 'Create QuantGit User ID'}
         title={quantGitUserId ? `@${quantGitUserId}` : 'Create your QuantGit User ID'}
       >
-        <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <line x1="19" y1="8" x2="19" y2="14" />

@@ -328,8 +328,9 @@ export default function DocumentPage() {
             </div>
           )}
 
-          {/* Floating Auto-save / Sync Status Pill */}
-          <div className="fixed bottom-4 right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md">
+          {/* Floating Auto-save / Sync Status Pill — clears the single h-16
+              bottom bar + safe-area on mobile, sits bottom-4 on desktop */}
+          <div className="fixed right-6 z-30 flex items-center gap-2 rounded-full border border-[#30363D] bg-[#161B22]/90 px-3 py-1.5 text-xs text-[#8B949E] shadow-xl backdrop-blur-md bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)] md:bottom-4">
             {syncStatus === 'connected' && (
               <>
                 <span className="h-2 w-2 rounded-full bg-[#3FB950] animate-pulse" />

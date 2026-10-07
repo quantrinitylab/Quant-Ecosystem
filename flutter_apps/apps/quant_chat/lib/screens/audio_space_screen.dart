@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/chat_models.dart';
-import '../services/chat_mock_data.dart';
 
 class AudioSpaceScreen extends StatefulWidget {
   const AudioSpaceScreen({super.key});
@@ -16,7 +15,8 @@ class AudioSpaceScreen extends StatefulWidget {
 }
 
 class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerProviderStateMixin {
-  late AudioSpaceRoom _room;
+  // Honest default: no fabricated room until a real audio space is joined.
+  AudioSpaceRoom? _room;
   bool _isMyMicMuted = true;
   bool _isMyHandRaised = false;
   bool _isStageScreenSharing = false;
@@ -52,7 +52,8 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _room = ChatMockData.getInitialSpaceRoom();
+    // No mock data: the room loads when a real audio space is joined.
+    _room = null;
 
     _waveController = AnimationController(
       vsync: this,
@@ -121,6 +122,21 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final room = _room;
+    // Honest empty state: no fabricated room until a real space is joined.
+    if (room == null) {
+      return Scaffold(
+        backgroundColor: QuantColors.voidObsidian,
+        body: const SafeArea(
+          child: Center(
+            child: Text(
+              'No audio space live right now.',
+              style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       body: SafeArea(
@@ -145,7 +161,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
 
                   // Active Speakers Grid
                   _buildSectionTitle(
-                    'STAGE SPEAKERS (${_room.speakers.length + 1})',
+                    'STAGE SPEAKERS (${_room!.speakers.length + 1})',
                     Icons.record_voice_over_rounded,
                   ),
                   const SizedBox(height: 10),
@@ -154,7 +170,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
 
                   // Listeners Grid with Hand-Raising Beacons
                   _buildSectionTitle(
-                    'LISTENERS (${_room.listeners.length + _room.listenersCount})',
+                    'LISTENERS (${_room!.listeners.length + _room!.listenersCount})',
                     Icons.headphones_rounded,
                   ),
                   const SizedBox(height: 10),
@@ -232,7 +248,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
                         const Icon(Icons.people_alt_rounded, size: 12, color: QuantColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(
-                          '${_room.listenersCount + 5} listening',
+                          '${_room!.listenersCount} listening',
                           style: const TextStyle(
                             color: QuantColors.textSecondary,
                             fontSize: 11,
@@ -284,7 +300,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
           ),
           const SizedBox(height: 8),
           Text(
-            _room.title,
+            _room!.title,
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -293,7 +309,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
           ),
           const SizedBox(height: 2),
           Text(
-            _room.topic,
+            _room!.topic,
             style: const TextStyle(
               fontSize: 12,
               color: QuantColors.textSecondary,
@@ -305,7 +321,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
   }
 
   Widget _buildHostSection() {
-    final host = _room.host;
+    final host = _room!.host;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -457,7 +473,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
   }
 
   Widget _buildSpeakersGrid() {
-    final speakers = _room.speakers;
+    final speakers = _room!.speakers;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -564,7 +580,7 @@ class _AudioSpaceScreenState extends State<AudioSpaceScreen> with SingleTickerPr
   }
 
   Widget _buildListenersGrid() {
-    final listeners = _room.listeners;
+    final listeners = _room!.listeners;
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),

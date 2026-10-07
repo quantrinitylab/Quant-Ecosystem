@@ -36,6 +36,8 @@ import type {
   Calendar,
   Contact,
   ContactGroup,
+  GroupInviteLink,
+  GroupInvitePreview,
   AIComposeRequest,
   MeetingExtraction,
 } from '../types';
@@ -213,6 +215,15 @@ export class QuantMailApiClient {
 
   async requestPasswordReset(email: string): Promise<ApiResponse<{ message: string }>> {
     return this.post('/auth/password-reset', { email });
+  }
+
+  /**
+   * Find-my-email via the mobile number linked to the account.
+   * Backend: POST /auth/recover-email (not yet implemented — the UI treats
+   * every outcome as a neutral confirmation and never fabricates a result).
+   */
+  async requestEmailLookup(phone: string): Promise<ApiResponse<{ message: string }>> {
+    return this.post('/auth/recover-email', { phone });
   }
 
   async resetPassword(
@@ -414,8 +425,14 @@ export class QuantMailApiClient {
     body: string,
     replyAll?: boolean,
     messageKind?: MessageKind,
+    /**
+     * Optional client-generated id. The backend echoes it in the realtime
+     * `message.new` broadcast so the sender swaps its optimistic bubble for
+     * the persisted row instead of rendering a duplicate (email-chat P0-3).
+     */
+    clientMessageId?: string,
   ): Promise<ApiResponse<Email>> {
-    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind });
+    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind, clientMessageId });
   }
 
   async forwardEmail(
@@ -960,14 +977,30 @@ export class QuantMailApiClient {
     data?: { role?: 'view' | 'edit'; expiresAt?: string },
   ): Promise<
     ApiResponse<{
-      shareToken: string;
-      shareUrl: string;
+      id: string;
+      token: string;
       role: 'view' | 'edit';
       expiresAt: string | null;
-      createdAt: string;
+      shareUrl: string;
     }>
   > {
     return this.post(`/documents/${id}/share-link`, data ?? {});
+  }
+
+  // P0-4b: real collaborator invite for QuantDocs (POST /documents/:id/collaborators).
+  // The doc share dialog previously never called anything here.
+  async addDocumentCollaborator(
+    id: string,
+    data: { email: string; role?: 'viewer' | 'editor' | 'admin' },
+  ): Promise<
+    ApiResponse<{
+      id: string;
+      docId: string;
+      email: string;
+      role: string;
+    }>
+  > {
+    return this.post(`/documents/${id}/collaborators`, data);
   }
 
   async revokeDocumentShareLink(id: string): Promise<ApiResponse<{ revoked: boolean }>> {
@@ -1017,6 +1050,71 @@ export class QuantMailApiClient {
 
   async deleteContactGroup(id: string): Promise<ApiResponse<ContactGroup>> {
     return this.delete(`/contact-groups/${id}`);
+  }
+
+  // --------------------------------------------------------------------------
+  // Contact group admin roles and invite links
+  //
+  // The owner is the group's implicit admin; promoting/demoting/removing
+  // members is owner-gated server-side (404-before-403, like every other
+  // group route). Admins are member addresses the owner promoted — the
+  // "Admin" badge in the group info modal.
+  // --------------------------------------------------------------------------
+
+  /** Promote a member to admin. The address must already be a member. */
+  async promoteGroupAdmin(
+    id: string,
+    email: string,
+  ): Promise<ApiResponse<ContactGroup>> {
+    return this.post(`/contact-groups/${id}/admins`, { email });
+  }
+
+  /** Demote an admin back to a plain member. */
+  async demoteGroupAdmin(
+    id: string,
+    email: string,
+  ): Promise<ApiResponse<ContactGroup>> {
+    return this.delete(`/contact-groups/${id}/admins/${encodeURIComponent(email)}`);
+  }
+
+  /** Remove one member from the group (also strips their admin role). */
+  async removeGroupMember(
+    id: string,
+    email: string,
+  ): Promise<ApiResponse<ContactGroup>> {
+    return this.delete(`/contact-groups/${id}/members/${encodeURIComponent(email)}`);
+  }
+
+  /**
+   * Create or regenerate the group's join link. Regenerating invalidates the
+   * old link — the escape hatch for a link shared in the wrong place.
+   */
+  async createGroupInviteLink(id: string): Promise<ApiResponse<GroupInviteLink>> {
+    return this.post(`/contact-groups/${id}/invite-link`, {});
+  }
+
+  /** The active join link, or `data: null` when there isn't one. */
+  async getGroupInviteLink(id: string): Promise<ApiResponse<GroupInviteLink | null>> {
+    return this.get(`/contact-groups/${id}/invite-link`);
+  }
+
+  /** Revoke the join link. The token is cleared, not merely expired. */
+  async revokeGroupInviteLink(id: string): Promise<ApiResponse<ContactGroup>> {
+    return this.delete(`/contact-groups/${id}/invite-link`);
+  }
+
+  /**
+   * Public preview of a join link — what the join page shows before the
+   * visitor signs in. Carries no member addresses, only the group name, the
+   * member count, and the owner's name.
+   */
+  async getGroupInvitePreview(token: string): Promise<ApiResponse<GroupInvitePreview>> {
+    return this.get(`/contact-groups/invite/${encodeURIComponent(token)}`);
+  }
+
+  /** Join a group via its invite link. Adds the signed-in user's own address. */
+  async joinGroupByInvite(token: string): Promise<ApiResponse<ContactGroup>> {
+    return this.post('/contact-groups/join', { token });
   }
 
   // --------------------------------------------------------------------------

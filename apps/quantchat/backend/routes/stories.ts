@@ -25,6 +25,9 @@ const clientToPrismaType = { photo: 'IMAGE', video: 'VIDEO', text: 'TEXT' } as c
 const createStoryBodySchema = z.object({
   type: z.enum(['photo', 'video', 'text']).default('photo'),
   mediaUrl: z.string().min(1).max(4096).optional(),
+  // Text-story body. Only meaningful for type 'text'; silently dropped (never
+  // stored) for photo/video so a media story can never smuggle stray text.
+  text: z.string().min(1).max(500).optional(),
   duration: z.number().int().min(1).max(120).default(15),
   audience: z.enum(['ALL', 'CLOSE_FRIENDS']).default('ALL'),
 });
@@ -50,6 +53,7 @@ interface StoryWithAuthor {
   userId: string;
   type: 'IMAGE' | 'VIDEO' | 'TEXT';
   mediaUrl: string | null;
+  textContent: string | null;
   duration: number;
   viewCount: number;
   createdAt: Date;
@@ -65,6 +69,9 @@ function serializeStory(story: StoryWithAuthor, isViewed: boolean) {
     authorAvatar: story.user.avatarUrl ?? '',
     type: prismaToClientType[story.type],
     mediaUrl: story.mediaUrl ?? undefined,
+    // Client type for TEXT stories: the viewer renders `text`. Omit for
+    // photo/video so a media story never carries stale text.
+    text: story.type === 'TEXT' ? story.textContent ?? undefined : undefined,
     duration: story.duration,
     viewCount: story.viewCount,
     createdAt: story.createdAt.toISOString(),
@@ -137,12 +144,21 @@ export default async function storiesRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       throw createAppError('Invalid story payload', 400, 'BAD_REQUEST');
     }
+    // A text story with no text is a no-op the client would render as a blank
+    // card — reject honestly instead of persisting an empty story.
+    const textBody = parsed.data.text?.trim();
+    if (parsed.data.type === 'text' && !textBody) {
+      throw createAppError('Text content is required for text stories', 400, 'BAD_REQUEST');
+    }
 
     const story = await prisma.story.create({
       data: {
         userId,
         type: clientToPrismaType[parsed.data.type],
         mediaUrl: parsed.data.mediaUrl ?? null,
+        // Persist the text body only for TEXT stories; photo/video rows keep
+        // textContent NULL.
+        textContent: parsed.data.type === 'text' ? textBody ?? null : null,
         duration: parsed.data.duration,
         audience: parsed.data.audience,
         expiresAt: new Date(Date.now() + STORY_TTL_MS),

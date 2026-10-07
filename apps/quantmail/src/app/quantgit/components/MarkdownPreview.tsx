@@ -503,10 +503,10 @@ export function MarkdownPreview({
           )}
 
           <div className="hidden lg:flex items-center gap-2 pl-2 border-l border-[#30363D]">
-            <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#3FB950] font-semibold">
+            <span className="px-1.5 py-px rounded bg-[#21262D] text-[#3FB950] font-semibold">
               build: passing
             </span>
-            <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-semibold">
+            <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-semibold">
               license: MIT
             </span>
           </div>

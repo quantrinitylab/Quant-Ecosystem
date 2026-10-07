@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
-import '../data/gram_repository.dart';
 import '../models/gram_models.dart';
 
 /// Creator Profile Screen with 4-Tab Content Matrix
@@ -22,7 +21,8 @@ class ProfileMatrixScreen extends StatefulWidget {
 
 class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late CreatorProfile _profile;
+  // Honest default: no fabricated profile. Null until the real backend loads.
+  CreatorProfile? _profile;
   late List<ReelItem> _allReels;
 
   final List<Map<String, String>> _highlights = [
@@ -37,8 +37,9 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _profile = GramRepository.getProfile();
-    _allReels = GramRepository.getReels();
+    // No mock data: profile and reels load from the real backend.
+    _profile = null;
+    _allReels = <ReelItem>[];
   }
 
   @override
@@ -49,6 +50,18 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
 
   @override
   Widget build(BuildContext context) {
+    // Honest empty state: no fabricated profile.
+    if (_profile == null) {
+      return Scaffold(
+        backgroundColor: QuantColors.voidObsidian,
+        body: const Center(
+          child: Text(
+            'Profile is not available yet.',
+            style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       appBar: AppBar(
@@ -59,7 +72,7 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
             const Icon(Icons.lock_outline_rounded, size: 16, color: QuantColors.textSecondary),
             const SizedBox(width: 6),
             Text(
-              _profile.handle,
+              _profile!.handle,
               style: QuantTypography.titleLarge.copyWith(
                 color: QuantColors.textPrimary,
                 fontSize: 18,
@@ -126,7 +139,7 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
                               color: QuantColors.voidObsidian,
                               border: Border.all(color: QuantColors.voidObsidian, width: 2),
                               image: DecorationImage(
-                                image: NetworkImage(_profile.avatarUrl),
+                                image: NetworkImage(_profile!.avatarUrl),
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -139,9 +152,9 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildMetricItem('${_profile.postsCount}', 'Posts'),
-                              _buildMetricItem(_formatMetric(_profile.followersCount), 'Followers'),
-                              _buildMetricItem('${_profile.followingCount}', 'Following'),
+                              _buildMetricItem('${_profile!.postsCount}', 'Posts'),
+                              _buildMetricItem(_formatMetric(_profile!.followersCount), 'Followers'),
+                              _buildMetricItem('${_profile!.followingCount}', 'Following'),
                             ],
                           ),
                         ),
@@ -151,7 +164,7 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
 
                     // Display Name & Verified Title
                     Text(
-                      _profile.displayName,
+                      _profile!.displayName,
                       style: QuantTypography.titleMedium.copyWith(
                         color: QuantColors.textPrimary,
                         fontSize: 15,
@@ -162,7 +175,7 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
 
                     // Creator Bio Text
                     Text(
-                      _profile.bio,
+                      _profile!.bio,
                       style: QuantTypography.bodyMedium.copyWith(
                         color: QuantColors.textSecondary,
                         fontSize: 13,
@@ -177,7 +190,7 @@ class _ProfileMatrixScreenState extends State<ProfileMatrixScreen> with SingleTi
                         const Icon(Icons.link_rounded, size: 14, color: QuantColors.sovereignCyan),
                         const SizedBox(width: 4),
                         Text(
-                          _profile.websiteUrl,
+                          _profile!.websiteUrl,
                           style: QuantTypography.bodySmall.copyWith(
                             color: QuantColors.sovereignCyan,
                             fontSize: 12,

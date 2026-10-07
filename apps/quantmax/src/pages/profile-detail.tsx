@@ -191,7 +191,7 @@ const ProfileDetailPage: React.FC = () => {
             role="tabpanel"
             aria-label={`${activeTab} content`}
           >
-            {/* Placeholder grid - populated via API in production */}
+            {/* Empty content grid — fills with the profile's real content when loaded; never fake tiles */}
             {Array.from({ length: 9 }).map((_, i) => (
               <div
                 key={`${activeTab}-${i}`}

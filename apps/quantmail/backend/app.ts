@@ -54,6 +54,7 @@ import { MemoryBackedLearnedInboxCategoryStore } from './services/learned-inbox-
 import { SmartInboxService } from './services/smart-inbox.service';
 import websocketPlugin from '@fastify/websocket';
 import { setupWSConnection } from './services/yjs-server';
+import { threadRealtimeRoutes } from './routes/thread-realtime';
 import documentRoutes from './routes/documents';
 import deliverabilityRoutes from './routes/deliverability';
 import auditLogsRoutes from './routes/audit-logs';
@@ -415,6 +416,10 @@ export async function buildApp(config?: AppConfig) {
   app.decorate('federation', createFederationService());
   await app.register(federationRoutes, { prefix: '/federation' });
   await app.register(inboundWebhookRoutes, { inboundIngest });
+  // Thread realtime gateway (email-chat P0: realtime transport + typing).
+  // Paths are absolute (/ws/...) so the /api ingress rewrite lands on the
+  // backend root; keep no /api prefix registration (the rewrite strips it).
+  await app.register(threadRealtimeRoutes);
   await app.register(documentRoutes, { prefix: '/documents' });
   await app.register(documentRoutes, { prefix: '/api/documents' });
   await app.register(deliverabilityRoutes, { prefix: '/deliverability' });

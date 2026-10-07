@@ -3,7 +3,7 @@
 // ============================================================================
 
 // Motion config provider + animation primitives (from trunk / PRs #81/#82)
-export { MotionProvider, useMotionConfig } from './MotionConfig';
+export { MotionProvider } from './MotionConfig';
 export type { MotionProviderProps, MotionConfigContextValue } from './MotionConfig';
 
 export { FadeIn } from './FadeIn';
@@ -15,13 +15,10 @@ export type { StaggerListProps } from './StaggerList';
 export { PageTransition } from './PageTransition';
 export type { PageTransitionProps } from './PageTransition';
 
-export { AnimatedSkeleton } from './AnimatedSkeleton';
 export type { AnimatedSkeletonProps } from './AnimatedSkeleton';
 
-export { SlidePanel } from './SlidePanel';
 export type { SlidePanelProps } from './SlidePanel';
 
-export { ScaleOnHover } from './ScaleOnHover';
 export type { ScaleOnHoverProps } from './ScaleOnHover';
 
 // Shared springy button (single canonical implementation)

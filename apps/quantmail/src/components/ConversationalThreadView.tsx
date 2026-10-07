@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
+import { Fragment, useState, useCallback, useEffect, useId, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,9 +18,10 @@ import { AddMemberModal } from './AddMemberModal';
 import { AnchoredMenu } from './AnchoredMenu';
 import { ThreadBubbleShell } from './ThreadBubbleGestures';
 import { showToast } from './InboxToast';
+import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
-import { MessageKindBadge } from './MessageKindBadge';
+import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
@@ -41,6 +42,11 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import {
+  useThreadRealtime,
+  type ThreadRealtimeMessage,
+  type ThreadTypingPeer,
+} from '../hooks/useThreadRealtime';
 import { isCoarsePointer } from './SwipeableEmailRow';
 
 /**
@@ -49,6 +55,62 @@ import { isCoarsePointer } from './SwipeableEmailRow';
  * first opened; latched from then on so the conversation survives a close.
  */
 const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
+
+/**
+ * Email-chat P0-4: a `typing:true` with no matching `typing:false` after this
+ * long is a dead socket — the indicator clears itself client-side instead of
+ * sticking forever.
+ */
+const TYPING_EXPIRY_MS = 5_000;
+/** Our own `typing:false` goes out this long after the last keystroke. */
+const TYPING_IDLE_SEND_MS = 1_500;
+
+/**
+ * A realtime `message.new` carries the wire payload, not a full mailbox row —
+ * build the Email the thread stream renders, filling every field the wire
+ * never sends with the same defaults a fresh arrival gets. Returns a complete,
+ * correctly-typed Email (no casts): the payload's optional strings become the
+ * required ones via `?? ''`, and its date-ish fields become real Dates.
+ */
+function threadRealtimeMessageToEmail(payload: ThreadRealtimeMessage): Email {
+  const toDate = (value: string | Date | null | undefined): Date => {
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' && value) {
+      const parsedDate = new Date(value);
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+    }
+    return new Date();
+  };
+  return {
+    id: payload.id,
+    createdAt: toDate(payload.createdAt),
+    updatedAt: new Date(),
+    threadId: payload.threadId,
+    userId: '',
+    from: payload.from,
+    to: [],
+    cc: [],
+    bcc: [],
+    subject: payload.subject ?? '',
+    bodyText: payload.bodyText ?? '',
+    bodyHtml: payload.bodyHtml ?? '',
+    snippet: payload.snippet ?? '',
+    priority: 'normal',
+    category: 'primary',
+    status: 'delivered',
+    // Same default as `messageKindOf`: anything that isn't 'chat' reads as mail.
+    messageKind: payload.messageKind === 'chat' ? 'chat' : 'mail',
+    isRead: true,
+    isStarred: false,
+    isArchived: false,
+    isDraft: false,
+    labels: [],
+    attachments: [],
+    references: [],
+    headers: {},
+    receivedAt: toDate(payload.receivedAt),
+  };
+}
 
 function normalizedEmail(value?: string): string {
   return (value ?? '').trim().toLowerCase();
@@ -80,6 +142,29 @@ function messageParticipantAddresses(messages: Email[], currentEmail: string): S
   }
 
   return addresses;
+}
+
+/**
+ * Which messages start expanded when a thread loads.
+ *
+ * Chat-kind messages always start expanded — in chat you read the whole
+ * conversation, you don't open letters one at a time. Mail-kind keeps the
+ * old rule: short threads (≤2 messages) open everything, long threads open
+ * only the latest message.
+ *
+ * Exported for unit tests.
+ */
+export function autoExpandedIndices(msgs: Email[]): Set<number> {
+  const expanded = new Set<number>();
+  msgs.forEach((m, i) => {
+    if (messageKindOf(m) === 'chat') expanded.add(i);
+  });
+  if (msgs.length <= 2) {
+    msgs.forEach((_, i) => expanded.add(i));
+  } else {
+    expanded.add(msgs.length - 1);
+  }
+  return expanded;
 }
 
 function findActiveGroup(
@@ -134,6 +219,16 @@ function formatMessageDate(value?: string | Date): string {
 }
 
 /**
+ * Full timestamp for hover tooltips: the bubble shows the compact relative
+ * time ("2m ago") subtly at all times, and desktop hover reveals the exact
+ * date-time — WhatsApp/Telegram's contract.
+ */
+function formatFullDate(value?: string | Date): string {
+  if (!value) return '';
+  return new Date(value).toLocaleString();
+}
+
+/**
  * Read-receipt status for a message bubble, WhatsApp-style.
  *
  * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
@@ -155,6 +250,41 @@ function receiptStatusOf(
   if (readAt) return { status: 'read', readAt, deliveredAt };
   if (deliveredAt) return { status: 'delivered', deliveredAt };
   return { status: 'sent' };
+}
+
+/*
+ * Chat-bubble vision: the thread reads like WhatsApp, so the stream is broken
+ * into day groups with a centered pill — "Today", "Yesterday", the weekday for
+ * the last week, then the full date.
+ */
+function dayKey(value?: string | Date): number | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  return start.getTime();
+}
+
+function formatDayDivider(value?: string | Date): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const now = new Date();
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  const thatDay = new Date(date);
+  thatDay.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - thatDay.getTime()) / 86_400_000);
+
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString(undefined, { weekday: 'long' });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+  });
 }
 
 function cleanContactName(name: string | undefined, email: string): string {
@@ -385,6 +515,8 @@ export function ConversationalThreadView({
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [addingMembersGroup, setAddingMembersGroup] = useState<ContactGroup | null>(null);
   const [confirmTrash, setConfirmTrash] = useState(false);
+  /** Single message awaiting delete confirmation from the bubble menu. */
+  const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<Email | null>(null);
 
   const openReplyComposer = useCallback(() => {
     const recipient = primaryMessage?.from?.email || '';
@@ -438,6 +570,15 @@ export function ConversationalThreadView({
     },
     [router, threadSubject],
   );
+
+  /*
+   * Per-message delete from the bubble menu. Asks first — a long-press menu
+   * is one mis-tap away from data loss, and the thread header's whole-thread
+   * delete already set the confirm-before-trash precedent.
+   */
+  const deleteMessage = useCallback((message: Email) => {
+    setConfirmDeleteMessage(message);
+  }, []);
 
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
@@ -502,6 +643,14 @@ export function ConversationalThreadView({
    * thing distinguishing a letter from a line, so it stays and keeps its orange.
    */
   const showKindBadges = useMemo(() => threadKindMix(messages) === 'mixed', [messages]);
+
+  /**
+   * The thread-level kind mark for the header, shown for every thread —
+   * matching the inbox row, which now carries the badge for all three mixes.
+   * The per-message marks stay mixed-only (see above); the header mark is the
+   * single consistent place the kind is named at thread level.
+   */
+  const conversationKindMix = useMemo(() => threadKindMix(messages), [messages]);
 
   /**
    * What the header's Archive and Trash buttons act on: the conversation, all of it.
@@ -659,6 +808,142 @@ export function ConversationalThreadView({
       // banner — the stream keeps what it has.
     }
   }, [queryClient, threadId]);
+
+  /**
+   * Email-chat P0-3/P0-4: realtime transport + typing indicators.
+   *
+   * The 30s mailbox poll stays as the fallback (message.new is a delivery hint;
+   * the poll and `GET /threads/:id` remain the source of truth), but an open
+   * thread now updates the moment a message lands instead of up to 30s later.
+   */
+  /** clientMessageId → optimistic local id, until the broadcast reconciles it */
+  const optimisticIdsRef = useRef(new Map<string, string>());
+  const [typingPeers, setTypingPeers] = useState<
+    Record<string, { displayName: string; lastTs: number }>
+  >({});
+  const ownTypingRef = useRef(false);
+  const typingIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** A realtime `message.new` for this thread — merge or reconcile, never duplicate. */
+  const handleRealtimeMessage = useCallback(
+    (payload: ThreadRealtimeMessage) => {
+      const clientMessageId = payload.clientMessageId;
+      const pendingId = clientMessageId ? optimisticIdsRef.current.get(clientMessageId) : undefined;
+      setMessages((prev) => {
+        if (pendingId) {
+          const idx = prev.findIndex((m) => m.id === pendingId);
+          if (idx >= 0) {
+            // Our optimistic bubble is on screen — swap it for the persisted row.
+            const next = [...prev];
+            next[idx] = {
+              ...next[idx],
+              ...payload,
+              id: payload.id,
+              receivedAt: payload.receivedAt ?? next[idx].receivedAt,
+              createdAt: payload.createdAt ?? next[idx].createdAt,
+            } as Email;
+            optimisticIdsRef.current.delete(clientMessageId as string);
+            return next;
+          }
+          // The broadcast beat the HTTP response: the server row arrives first.
+          // Keep the mapping so the send handler below can skip the optimistic
+          // copy instead of adding it as a duplicate.
+        }
+        if (prev.some((m) => m.id === payload.id)) return prev;
+        const incoming = threadRealtimeMessageToEmail(payload);
+        const merged = [...prev, incoming];
+        merged.sort(
+          (a, b) =>
+            new Date(a.receivedAt || a.createdAt || 0).getTime() -
+            new Date(b.receivedAt || b.createdAt || 0).getTime(),
+        );
+        return merged;
+      });
+      // The inbox behind this pane lists the same thread — it has a new message.
+      invalidateMailLists(queryClient);
+    },
+    [queryClient],
+  );
+
+  /** A realtime `typing` event — track/clear the peer's indicator state. */
+  const handleRealtimeTyping = useCallback((peer: ThreadTypingPeer) => {
+    setTypingPeers((prev) => {
+      if (!peer.typing) {
+        if (!prev[peer.userId]) return prev;
+        const { [peer.userId]: _dropped, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [peer.userId]: { displayName: peer.displayName, lastTs: peer.ts } };
+    });
+  }, []);
+
+  const { sendTyping } = useThreadRealtime({
+    threadId,
+    enabled: Boolean(threadId),
+    onMessage: handleRealtimeMessage,
+    onTyping: handleRealtimeTyping,
+  });
+
+  // Typing peers expire without a `typing:false` — a dead socket's indicator
+  // must not stick forever. Runs cheaply every 1.5s only while this view lives.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTypingPeers((prev) => {
+        const cutoff = Date.now() - TYPING_EXPIRY_MS;
+        const next: Record<string, { displayName: string; lastTs: number }> = {};
+        let changed = false;
+        for (const [id, peer] of Object.entries(prev)) {
+          if (peer.lastTs > cutoff) next[id] = peer;
+          else changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 1_500);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Leaving the conversation drops peer indicators and any in-flight mappings.
+  useEffect(() => {
+    setTypingPeers({});
+    optimisticIdsRef.current.clear();
+    if (ownTypingRef.current) {
+      ownTypingRef.current = false;
+      sendTyping(false);
+    }
+    if (typingIdleRef.current) {
+      clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = null;
+    }
+  }, [threadId, sendTyping]);
+
+  const stopOwnTyping = useCallback(() => {
+    if (typingIdleRef.current) {
+      clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = null;
+    }
+    if (ownTypingRef.current) {
+      ownTypingRef.current = false;
+      sendTyping(false);
+    }
+  }, [sendTyping]);
+
+  /** Quick-reply input changes also drive our own typing broadcast (P0-4). */
+  const handleQuickReplyChange = useCallback(
+    (value: string) => {
+      setQuickReplyText(value);
+      if (value.trim().length === 0) {
+        stopOwnTyping();
+        return;
+      }
+      if (!ownTypingRef.current) {
+        ownTypingRef.current = true;
+        sendTyping(true);
+      }
+      if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = setTimeout(stopOwnTyping, TYPING_IDLE_SEND_MS);
+    },
+    [sendTyping, stopOwnTyping],
+  );
 
   const {
     listProps: pullListProps,
@@ -828,7 +1113,7 @@ export function ConversationalThreadView({
     if (adoptedThreadIdRef.current !== threadId) {
       adoptedThreadIdRef.current = threadId;
       loadedThreadIdRef.current = threadId;
-      setExpandedIndices(new Set(msgs.length <= 2 ? msgs.map((_, i) => i) : [msgs.length - 1]));
+      setExpandedIndices(autoExpandedIndices(msgs));
 
       // Read-receipt pipeline: opening the thread marks the viewer's unread
       // received messages as read and propagates `readAt` to the senders'
@@ -858,7 +1143,7 @@ export function ConversationalThreadView({
     if (initialEmails && initialEmails.length > 0) {
       if (!resolvedConversation) {
         setMessages(initialEmails);
-        setExpandedIndices(new Set([initialEmails.length - 1]));
+        setExpandedIndices(autoExpandedIndices(initialEmails));
       }
       setIsLoading(false);
       return;
@@ -897,11 +1182,7 @@ export function ConversationalThreadView({
             setMessages(msgs);
             setThreadSubject(threadRes.data.subject || msgs[0]?.subject || '(No Subject)');
             setStarred(threadRes.data.isStarred || false);
-            if (msgs.length <= 2) {
-              setExpandedIndices(new Set(msgs.map((_, i) => i)));
-            } else {
-              setExpandedIndices(new Set([msgs.length - 1]));
-            }
+            setExpandedIndices(autoExpandedIndices(msgs));
             setIsLoading(false);
             return;
           }
@@ -929,9 +1210,7 @@ export function ConversationalThreadView({
                     '(No Subject)',
                 );
                 setStarred(fullThreadRes.data.isStarred || email.isStarred || false);
-                setExpandedIndices(
-                  new Set(fullMsgs.length <= 2 ? fullMsgs.map((_, i) => i) : [fullMsgs.length - 1]),
-                );
+                setExpandedIndices(autoExpandedIndices(fullMsgs));
                 setIsLoading(false);
                 return;
               }
@@ -1053,12 +1332,22 @@ export function ConversationalThreadView({
     // latest message, as before.
     const replyTarget = quotedMessage?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
 
+    // Email-chat P0-3: a client-generated id so the realtime `message.new`
+    // broadcast reconciles this send instead of landing as a duplicate bubble.
+    const clientMessageId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticId = `reply-${Date.now()}`;
+    optimisticIdsRef.current.set(clientMessageId, optimisticId);
+
     try {
       // `'chat'` is the whole point of the bar: what is typed here is a line in the
       // conversation, and the server records that so the mark on it is a fact rather
       // than a guess about its length.
-      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat');
+      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
       if (!res.success) {
+        optimisticIdsRef.current.delete(clientMessageId);
         quantyReact('mail:sendFailed');
         setReplyError(res.error?.message || 'Failed to send reply');
         showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
@@ -1067,9 +1356,12 @@ export function ConversationalThreadView({
 
       const targetTo = messages[0]?.from ? [messages[0].from] : [];
 
-      // Optimistic update: inject the sent reply into the active conversation timeline
+      // Optimistic update: inject the sent reply into the active conversation timeline.
+      // If the realtime broadcast already delivered the persisted row (it can beat
+      // the HTTP response), this copy is skipped — no duplicate bubble.
+      const serverId = (res.data as { id?: string } | undefined)?.id;
       const newReplyMsg: Email = {
-        id: (res.data as any)?.id || `reply-${Date.now()}`,
+        id: serverId || optimisticId,
         threadId: res.data?.threadId || messages[messages.length - 1]?.threadId || threadId,
         userId: '',
         subject: res.data?.subject || threadSubject,
@@ -1116,12 +1408,17 @@ export function ConversationalThreadView({
       };
 
       setMessages((prev) => {
+        if (serverId && prev.some((m) => m.id === serverId)) return prev;
         const next = [...prev, newReplyMsg];
         setExpandedIndices(new Set([...Array.from(expandedIndices), next.length - 1]));
         return next;
       });
+      // The mapping served its purpose: with a server id the optimistic row is the
+      // server row. Without one it stays so the late broadcast can reconcile it.
+      if (serverId) optimisticIdsRef.current.delete(clientMessageId);
 
       setQuickReplyText('');
+      stopOwnTyping();
       setPendingAttachments([]);
       // A quoted reply is one-shot: the chip clears once the answer is away.
       setQuotedMessage(null);
@@ -1208,9 +1505,9 @@ export function ConversationalThreadView({
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
-    <div className={`flex flex-col h-full bg-[#090A0C] text-white select-text ${className}`}>
-      {/* Top Header Actions Bar */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
+    <div className={`flex flex-col h-full bg-[#090A0C] md:bg-black text-white select-text ${className}`}>
+      {/* Top Header Actions Bar — Gmail-style: no divider line on desktop */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 md:border-b-0 bg-[#090A0C]/95 md:bg-black backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {onClose && (
             <button
@@ -1259,8 +1556,11 @@ export function ConversationalThreadView({
               </span>
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-bold text-white sm:text-base">
-                  {activeGroup.name}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-bold text-white sm:text-base">
+                    {activeGroup.name}
+                  </span>
+                  <ThreadKindBadge mix={conversationKindMix} />
                 </span>
                 <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
                   {activeGroup.emails.length}{' '}
@@ -1291,8 +1591,11 @@ export function ConversationalThreadView({
               </span>
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-bold text-white sm:text-base">
-                  {otherParticipant.name || participantSummary}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-bold text-white sm:text-base">
+                    {otherParticipant.name || participantSummary}
+                  </span>
+                  <ThreadKindBadge mix={conversationKindMix} />
                 </span>
                 <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
                   {otherParticipant.email || threadSubject || 'Tap for details & media'}
@@ -1723,14 +2026,34 @@ export function ConversationalThreadView({
              */
             const receipt = receiptStatusOf(message, isOutbound);
 
+            // Day-group divider (chat-bubble vision): a centered pill whenever
+            // the day changes — "Today", "Yesterday", weekday, or full date.
+            const thisDay = dayKey(message.receivedAt);
+            const prevDay = index > 0 ? dayKey(messages[index - 1]?.receivedAt) : null;
+            const showDivider = thisDay !== null && thisDay !== prevDay;
+            const dividerLabel = showDivider ? formatDayDivider(message.receivedAt) : '';
+
             return (
+              <Fragment key={message.id || index}>
+                {showDivider && dividerLabel && (
+                  <div
+                    className="flex justify-center py-1"
+                    role="separator"
+                    aria-label={dividerLabel}
+                  >
+                    <span className="rounded-full bg-[#282C35] px-3 py-1 text-[11px] font-semibold text-[#A1A4AC] shadow-sm">
+                      {dividerLabel}
+                    </span>
+                  </div>
+                )}
               <ThreadBubbleShell
-                key={message.id || index}
                 message={message}
                 senderName={msgFromName}
                 isOutbound={isOutbound}
                 onQuoteReply={startQuoteReply}
                 onForwardMessage={forwardMessage}
+                // "Delete where allowed": only when the host wired `onDelete`.
+                onDeleteMessage={onDelete ? deleteMessage : undefined}
               >
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -1759,10 +2082,10 @@ export function ConversationalThreadView({
                     type="button"
                     onClick={() => toggleMessageExpand(index)}
                     aria-expanded={false}
-                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl md:rounded-none md:border-0 border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isOutbound
                         ? 'border-[#FF8C42]/25 bg-[#FF8C42]/[0.04] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-                        : 'border-white/[0.08] bg-[#111318] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+                        : 'border-white/[0.08] bg-[#111318] md:bg-black md:hover:bg-white/[0.02] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
@@ -1828,7 +2151,7 @@ export function ConversationalThreadView({
                           ❤️
                         </span>
                       )}
-                      <span className="text-[11px] text-[#A1A4AC] font-mono">
+                      <span className="text-[11px] text-[#A1A4AC] font-mono" title={formatFullDate(message.receivedAt)}>
                         {formatMessageDate(message.receivedAt)}
                       </span>
                       {receipt && (
@@ -1850,6 +2173,66 @@ export function ConversationalThreadView({
                       </svg>
                     </span>
                   </button>
+                ) : messageKind === 'chat' ? (
+                  /*
+                    Chat bubble: WhatsApp-style compact bubble. Side, colour and
+                    tail say who spoke — no avatar or header-card chrome, which
+                    is what made every chat line read as a Gmail letter. Mail
+                    keeps the rich card below.
+                  */
+                  <div
+                    className={`relative max-w-[85%] sm:max-w-[75%] rounded-2xl px-3.5 py-2.5 shadow-md ${
+                      isOutbound
+                        ? 'rounded-br-md bg-[#1E5AA8] text-white'
+                        : 'rounded-bl-md bg-[#1F232B] text-[#F5F5F5]'
+                    }`}
+                  >
+                    {/* Tail */}
+                    <span
+                      aria-hidden="true"
+                      className={`absolute top-0 h-0 w-0 border-y-[8px] border-y-transparent ${
+                        isOutbound
+                          ? '-right-[7px] border-l-[8px] border-l-[#1E5AA8]'
+                          : '-left-[7px] border-r-[8px] border-r-[#1F232B]'
+                      }`}
+                    />
+                    {!isOutbound && (
+                      <p className="mb-0.5 text-[11px] font-semibold text-[#FFB875]">
+                        {msgFromName}
+                      </p>
+                    )}
+                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {message.bodyText || message.snippet || '(No content)'}
+                    </div>
+                    {hasAtt && (
+                      <p
+                        className={`mt-1.5 text-[11px] ${
+                          isOutbound ? 'text-white/70' : 'text-[#A1A4AC]'
+                        }`}
+                      >
+                        <span aria-hidden="true">📎 </span>
+                        {msgAttachments.length}{' '}
+                        {msgAttachments.length === 1 ? 'attachment' : 'attachments'}
+                      </p>
+                    )}
+                    <div className="mt-1 flex items-center justify-end gap-1">
+                      <span
+                        className={`font-mono text-[10px] ${
+                          isOutbound ? 'text-white/70' : 'text-[#A1A4AC]'
+                        }`}
+                        title={formatFullDate(message.receivedAt)}
+                      >
+                        {formatMessageDate(message.receivedAt)}
+                      </span>
+                      {receipt && (
+                        <EmailReadReceipt
+                          status={receipt.status}
+                          readAt={receipt.readAt}
+                          deliveredAt={receipt.deliveredAt}
+                        />
+                      )}
+                    </div>
+                  </div>
                 ) : (
                   /* Expanded Rich Card */
                   <div
@@ -1913,7 +2296,7 @@ export function ConversationalThreadView({
                               {msgFromName}
                             </span>
                             {showKindBadges && <MessageKindBadge kind={messageKind} />}
-                            <span className="text-xs text-[#A1A4AC] font-mono">
+                            <span className="text-xs text-[#A1A4AC] font-mono" title={formatFullDate(message.receivedAt)}>
                               {formatMessageDate(message.receivedAt)}
                             </span>
                             {receipt && (
@@ -2070,6 +2453,7 @@ export function ConversationalThreadView({
                 )}
               </motion.div>
               </ThreadBubbleShell>
+              </Fragment>
             );
           })}
 
@@ -2097,11 +2481,72 @@ export function ConversationalThreadView({
           </div>
         )}
 
+        {/* Email-chat P0-4: realtime "X is typing…" bubble. Peers expire
+            client-side, so a dead socket can never stick the indicator. */}
+        {(() => {
+          const typingNames = Object.values(typingPeers)
+            .map((p) => p.displayName)
+            .filter(Boolean);
+          if (typingNames.length === 0) return null;
+          const typingLabel =
+            typingNames.length === 1
+              ? `${typingNames[0]} is typing`
+              : typingNames.length === 2
+                ? `${typingNames[0]} and ${typingNames[1]} are typing`
+                : `${typingNames[0]} and ${typingNames.length - 1} others are typing`;
+          return (
+            <AnimatePresence>
+              <motion.div
+                key="typing-indicator"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.15 }}
+                className="flex justify-start px-4 sm:px-5 py-1"
+                role="status"
+                aria-live="polite"
+                aria-label={typingLabel}
+              >
+                <div className="rounded-2xl rounded-bl-md border border-[#282C35]/60 bg-[#16181D] px-4 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex items-end gap-1" aria-hidden="true">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          className="size-1.5 rounded-full bg-[#A1A4AC] animate-bounce"
+                          style={{ animationDelay: `${i * 150}ms` }}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-xs text-[#A1A4AC] italic">{typingLabel}</span>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          );
+        })()}
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
-      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+      {/* Chatbot-Style Bottom Floating Quick Reply Bar — Gmail-style: no divider on desktop */}
+      <div className="p-3 sm:p-4 bg-[#08090d]/95 md:bg-black border-t border-[#282C35]/60 md:border-t-0 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+        {/*
+          AI quick-reply chips: suggestions for the latest message. One tap
+          fills the reply bar — previously imported but never rendered, so
+          users never saw any AI suggestions.
+        */}
+        {composeMode === 'chat' && messages.length > 0 && (
+          <SmartReplySuggestions
+            emailId={messages[messages.length - 1]?.id || threadId}
+            onSelectReply={(text) => {
+              setQuickReplyText(text);
+              setTimeout(() => {
+                document.getElementById('chatbot-reply-input')?.focus();
+              }, 50);
+            }}
+          />
+        )}
         {/*
           Quoted-reply chip: what a swipe-right or menu Reply targeted. One tap
           on the × (or Escape in the input) stands the bar back down to replying
@@ -2288,7 +2733,7 @@ export function ConversationalThreadView({
             ref={quickReplyInputRef}
             type="text"
             value={quickReplyText}
-            onChange={(e) => setQuickReplyText(e.target.value)}
+            onChange={(e) => handleQuickReplyChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -2436,6 +2881,45 @@ export function ConversationalThreadView({
                 className="min-h-[44px] rounded-xl bg-rose-500 px-4 text-xs font-bold text-white"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single-message delete, from the bubble's long-press/right-click menu. */}
+      {confirmDeleteMessage && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-title"
+            className="w-full max-w-sm rounded-2xl border border-[#3A404D] bg-[#111318] p-5"
+          >
+            <h2 id="delete-message-title" className="text-base font-bold text-white">
+              Delete this message?
+            </h2>
+            <p className="mt-2 text-xs text-[#A1A4AC]">
+              This message will be moved to Trash. The rest of the conversation stays.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteMessage(null)}
+                className="min-h-[44px] rounded-xl border border-[#282C35] px-4 text-xs font-semibold text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = confirmDeleteMessage.id;
+                  setConfirmDeleteMessage(null);
+                  if (id) onDelete?.([id]);
+                }}
+                className="min-h-[44px] rounded-xl bg-rose-500 px-4 text-xs font-bold text-white"
+              >
+                Delete
               </button>
             </div>
           </div>

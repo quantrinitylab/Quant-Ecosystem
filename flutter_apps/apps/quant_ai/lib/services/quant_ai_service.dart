@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:quant_core/quant_core.dart';
 import '../models/ai_models.dart';
-import 'ai_mock_data.dart';
 
 class QuantAiService {
   final QuantApiClient client;
@@ -51,20 +50,14 @@ class QuantAiService {
         );
       }
     } catch (e) {
-      debugPrint('[QuantAiService] Fastify mesh offline or unreachable: $e. Falling back to sovereign on-device NPU.');
+      debugPrint('[QuantAiService] Fastify mesh offline or unreachable: $e.');
+      rethrow;
     }
 
-    // Local NPU / Mock fallback
-    return AiChatMessage(
-      id: 'msg-local-${DateTime.now().millisecondsSinceEpoch}',
-      role: AiMessageRole.assistant,
-      text: 'Sovereign response synthesized via local NPU kernel for: "$text".',
-      timestamp: 'Now',
-      thought: 'Local ONNX inference completed with sub-18ms TTFT.',
-      thoughtDurationSec: 1.8,
-      tokensPerSec: 160.0,
-      latencyMs: 16,
-    );
+    // Honest failure: the backend is unreachable and no local inference
+    // exists. A fabricated "NPU synthesized" reply used to be returned here;
+    // the caller shows an honest error message instead.
+    throw Exception('QuantAI backend unreachable — no response generated.');
   }
 
   /// Fetch active autonomous subagents
@@ -77,7 +70,8 @@ class QuantAiService {
     } catch (e) {
       debugPrint('[QuantAiService] Failed to query cluster agent pods: $e');
     }
-    return AiMockData.getInitialAgentNodes();
+    // Honest empty: no fabricated agent nodes when the backend is down.
+    return <AgentNode>[];
   }
 
   /// Fetch canvas documents
@@ -90,6 +84,7 @@ class QuantAiService {
     } catch (e) {
       debugPrint('[QuantAiService] Failed to query canvas documents: $e');
     }
-    return AiMockData.getInitialCanvasDocs();
+    // Honest empty: no fabricated documents when the backend is down.
+    return <CanvasDocument>[];
   }
 }

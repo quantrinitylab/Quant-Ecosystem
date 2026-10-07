@@ -349,7 +349,7 @@ export function ScheduleSendModal({ isOpen, onClose, onSchedule }: ScheduleSendM
                         type="button"
                         disabled={item.isPast}
                         onClick={() => handleSelectDay(item.date, item.isPast)}
-                        className={`size-7 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
+                        className={`size-11 mx-auto rounded-lg flex items-center justify-center text-[11px] font-medium transition-all ${
                           isSelected
                             ? 'bg-[#FF8C42] text-black font-bold shadow-md scale-105'
                             : isToday

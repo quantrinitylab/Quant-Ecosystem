@@ -10,8 +10,6 @@ export { MultipartUploader } from './multipart-upload.js';
 export {
   CloudflareR2Client,
   createCloudflareR2Client,
-  getMediaContentType,
-  getMediaCacheControl,
   DEFAULT_R2_BUCKET,
   DEFAULT_PUBLIC_DOMAIN,
   type CloudflareR2Config,
@@ -38,7 +36,6 @@ export {
 export {
   buildFileManifest,
   reconstructFileFromChunks,
-  computeDeduplicationStats,
   type FileManifest,
   type ManifestChunkRef,
   type DeduplicationStats,

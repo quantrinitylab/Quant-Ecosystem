@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/ads_models.dart';
-import '../services/ads_mock_data.dart';
 
 class CampaignsScreen extends StatefulWidget {
   const CampaignsScreen({super.key});
@@ -26,7 +25,9 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
   @override
   void initState() {
     super.initState();
-    _campaigns = AdsMockData.getInitialCampaigns();
+    // No mock data: campaigns load from the real backend. Until the data seam
+    // is wired, the list is honestly empty and the screen shows its empty state.
+    _campaigns = <AdCampaign>[];
   }
 
   @override

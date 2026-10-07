@@ -3,6 +3,7 @@
 import React from 'react';
 import { BubbleAvatar } from '@quant/shared-ui';
 import type { DeployedAgent } from '../types';
+import { QuantGitEmptyState } from './QuantGitSkeletons';
 
 export interface AgentsTabProps {
   agents: DeployedAgent[];
@@ -33,19 +34,19 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
       </div>
 
       {agents.length === 0 ? (
-        <div
-          data-testid="agents-empty"
-          className="rounded-md border border-dashed border-[#30363D] bg-[#0D1117] p-10 text-center"
-        >
-          <p className="text-sm font-semibold text-[#E6EDF3]">No workspace agents yet</p>
-          <p className="mt-1 text-xs text-[#7D8590]">
-            Deploy an agent to track local workspace tasks. No agents are running until you add
-            one.
-          </p>
+        <div className="rounded-lg bg-[#161B22] border border-[#30363D]">
+          <QuantGitEmptyState
+            icon="agent"
+            title="No agents deployed"
+            hint="Deploy an autonomous agent to start reviewing PRs, running migrations, and testing code."
+            actionLabel="+ Deploy Agent"
+            onAction={() => setModalState('deploy-agent')}
+            testId="agents-empty"
+          />
         </div>
       ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.map((ag) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {agents.map((ag) => (
           <div
             key={ag.id}
             className="p-4 rounded-md bg-[#161B22] border border-[#30363D] space-y-3"
@@ -74,8 +75,8 @@ export function AgentsTab({ agents, setModalState }: AgentsTabProps) {
               <p className="text-[#7D8590] italic">{ag.thoughts}</p>
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
       )}
     </div>
   );

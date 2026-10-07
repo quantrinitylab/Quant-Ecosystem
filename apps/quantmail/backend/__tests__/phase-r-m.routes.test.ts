@@ -430,7 +430,7 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       expect(sesCallArg.cc).toEqual(['external-cc@example.com']);
     });
 
-    it('M-F12: send whose enqueue throws with SES unavailable is recorded deferred, never queued', async () => {
+    it('M-F12: send whose enqueue throws with SES unavailable fails honestly with 503 DELIVERY_QUEUE_UNAVAILABLE, never flips the draft to sent', async () => {
       vi.mocked(sesSender.isSesConfigured).mockReturnValue(false);
 
       const mockPipeline = {
@@ -452,21 +452,21 @@ describe('Dev 2 QA Sentinel — Phase R & Phase M Merge Gate Suite', () => {
       };
       prisma.email.findUnique.mockResolvedValue(mockEmail);
       prisma.user.findMany.mockResolvedValue([]);
-      // 'deferred', not 'failed': 'failed' is not a member of the Prisma
-      // EmailDeliveryStatus enum (draft | queued | sent | deferred | bounced |
-      // delivered), so persisting it throws and the draft is never flipped to
-      // Sent. 'deferred' is the design's transient-failure state.
-      prisma.email.update.mockResolvedValue({ id: 'email-err-1', deliveryStatus: 'deferred' });
 
-      await serviceWithFailingPipeline.send('user-1', 'email-err-1', 'sent-folder-id');
+      // CUST-P0-2: never fake a successful send. No queue job was created and
+      // no immediate SES fallback applies here (SES env missing), so nothing
+      // could ever deliver this message. The send fails honestly with a
+      // retryable 503 instead of silently flipping the draft to Sent with a
+      // 'deferred' status while the UI announces "Message sent".
+      const err = await serviceWithFailingPipeline
+        .send('user-1', 'email-err-1', 'sent-folder-id')
+        .catch((e: unknown) => e);
+      expect(err).toMatchObject({ statusCode: 503, code: 'DELIVERY_QUEUE_UNAVAILABLE' });
+      expect(String((err as Error).message)).toContain('Redis connection timeout');
+      expect(String((err as Error).message)).toContain('remains a draft');
 
-      expect(prisma.email.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            deliveryStatus: 'deferred',
-          }),
-        }),
-      );
+      // The draft was never flipped to sent and no delivery status was persisted.
+      expect(prisma.email.update).not.toHaveBeenCalled();
     });
 
     it('T4 / M-F15: DeliveryWorker SMTP path excludes BCC addresses from DKIM-signed headers', async () => {

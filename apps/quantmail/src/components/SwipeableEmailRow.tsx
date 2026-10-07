@@ -3,9 +3,11 @@
 /**
  * SwipeableEmailRow — real touch swipe actions for inbox rows.
  *
- * Right swipe → Archive (the filing end, green pane), left swipe → Delete (the
- * destructive end, red pane). The commit distance is a fixed ~80px: distance
- * commits, velocity never does, so no flick can fire an action by accident.
+ * Left swipe → Archive (the filing end, green pane), right swipe → Snooze (the
+ * clock end, blue pane, opens the snooze time picker). The commit distance is
+ * a fixed ~80px: distance commits, velocity never does, so no flick can fire an
+ * action by accident. Delete is deliberately NOT a swipe action: it lives in
+ * the row's … menu and the thread view, always behind a confirmation dialog.
  *
  * The gesture core lives in `../lib/touch-swipe-machine` (pure, unit-tested);
  * this file is the thin React binding: touch handlers, the 1:1 follow under the
@@ -19,10 +21,9 @@
  *
  * Competitor note (Gmail / Superhuman): the action fires the instant the finger
  * lifts past the line — the visual commit snaps in the same frame and the
- * existing optimistic mutations (`onArchive`/`onDelete`) remove the row in that
- * same frame with an undo window, so there is no server round-trip between the
- * gesture and the result. Gmail waits on its sync; Superhuman is the bar we
- * match here.
+ * existing optimistic mutations (`onArchive`) remove the row in that same frame
+ * with an undo window, so there is no server round-trip between the gesture
+ * and the result. Gmail waits on its sync; Superhuman is the bar we match here.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -51,7 +52,8 @@ function tick(ms: number): void {
 
 export interface UseTouchSwipeOptions {
   onArchive: () => void;
-  onDelete: () => void;
+  /** Right-swipe commit: opens the snooze time picker, never snoozes directly. */
+  onSnooze: () => void;
   /** Turn the gesture off without changing the call shape. */
   disabled?: boolean;
   /** px of horizontal travel that commits. Default 80. */
@@ -86,7 +88,7 @@ const CLICK_SUPPRESSION_MS = 400;
 const COMMIT_HOLD_MS = 240;
 
 export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeReturn {
-  const { onArchive, onDelete, disabled = false, thresholdPx = 80, reducedMotion = false } = options;
+  const { onArchive, onSnooze, disabled = false, thresholdPx = 80, reducedMotion = false } = options;
 
   const machineRef = useRef<TouchSwipeMachine | null>(null);
   if (!machineRef.current) machineRef.current = new TouchSwipeMachine({ thresholdPx });
@@ -102,9 +104,9 @@ export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeRetur
 
   // Latest callbacks, read at commit time rather than captured, so the handlers
   // stay referentially stable while a row's actions change underneath them.
-  const actionsRef = useRef({ onArchive, onDelete });
+  const actionsRef = useRef({ onArchive, onSnooze });
   useEffect(() => {
-    actionsRef.current = { onArchive, onDelete };
+    actionsRef.current = { onArchive, onSnooze };
   });
 
   useEffect(
@@ -193,11 +195,12 @@ export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeRetur
 
     // Past the line: instant visual commit — snap the reveal open in this frame
     // and fire the (optimistic) action in the same frame. No round-trip between
-    // the gesture and the result.
+    // the gesture and the result. Archive removes the row; snooze opens the
+    // time picker — the gesture never picks a time on the user's behalf.
     if (!reducedMotion) tick(18);
-    const reveal = commit === 'archive' ? thresholdPx + 56 : -(thresholdPx + 56);
+    const reveal = commit === 'archive' ? -(thresholdPx + 56) : thresholdPx + 56;
     setCommitSnap(reveal);
-    const action = commit === 'archive' ? actionsRef.current.onArchive : actionsRef.current.onDelete;
+    const action = commit === 'archive' ? actionsRef.current.onArchive : actionsRef.current.onSnooze;
     action();
     later(() => {
       machine.reset();
@@ -236,21 +239,21 @@ export function useTouchSwipe(options: UseTouchSwipeOptions): UseTouchSwipeRetur
  */
 export function SwipeableEmailRow({
   onArchive,
-  onDelete,
+  onSnooze,
   disabled,
   thresholdPx,
   reducedMotion,
   className = '',
   children,
 }: UseTouchSwipeOptions & { className?: string; children: React.ReactNode }) {
-  const swipe = useTouchSwipe({ onArchive, onDelete, disabled, thresholdPx, reducedMotion });
+  const swipe = useTouchSwipe({ onArchive, onSnooze, disabled, thresholdPx, reducedMotion });
 
   return (
     <div className={`relative overflow-hidden ${className}`}>
       {swipe.direction && (
         <div
           aria-hidden="true"
-          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-delete'} ${
+          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-snooze'} ${
             swipe.armed ? 'is-armed' : ''
           }`}
         >
@@ -270,11 +273,10 @@ export function SwipeableEmailRow({
             ) : (
               <>
                 <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <circle cx="12" cy="13" r="8" />
+                  <path d="M12 9v4l2 2" />
                 </svg>
-                Delete
+                Snooze
               </>
             )}
           </span>

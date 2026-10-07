@@ -212,7 +212,7 @@ export const SlashMenu: React.FC<SlashMenuProps> = ({ query, onSelect, onClose, 
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-medium text-[#F0F6FC] truncate">{cmd.title}</span>
                     {cmd.badge && (
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#0D1117] text-[#8B949E] border border-[#30363D]">
+                      <span className="text-[10px] font-mono px-1.5 py-px rounded bg-[#0D1117] text-[#8B949E] border border-[#30363D]">
                         {cmd.badge}
                       </span>
                     )}

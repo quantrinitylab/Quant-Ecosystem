@@ -364,7 +364,7 @@ export function CalendarRemindersView({ className = '' }: CalendarRemindersViewP
                       type="button"
                       aria-label="Delete reminder"
                       onClick={(e) => handleDeleteReminder(reminder.id, e)}
-                      className="p-1.5 rounded-lg text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-950/40 opacity-0 group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 rounded-lg text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-950/40 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-all focus-visible:opacity-100 focus-visible:outline-none"
                     >
                       <TrashIcon className="size-3.5" />
                     </button>

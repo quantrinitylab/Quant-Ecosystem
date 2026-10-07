@@ -133,7 +133,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           }`}
         >
           <span>{starred ? '★ Starred' : '☆ Star'}</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-[#30363D] text-[10px] text-[#8D96A0]">
+          <span className="px-1.5 py-px rounded-full bg-[#30363D] text-[10px] text-[#8D96A0]">
             {currentStars >= 1000 ? `${(currentStars / 1000).toFixed(1)}k` : currentStars}
           </span>
         </button>
@@ -174,7 +174,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
         <div className="flex items-center justify-between">
           <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
             <span>Releases</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
+            <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
               {releasesCount.toLocaleString()}
             </span>
           </h4>
@@ -183,7 +183,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
           <span className="text-emerald-400 font-mono text-[11px] font-semibold">
             {latestReleaseTag}
           </span>
-          <span className="px-1.5 py-0.2 rounded border border-emerald-500/40 text-emerald-400 text-[10px]">
+          <span className="px-1.5 py-px rounded border border-emerald-500/40 text-emerald-400 text-[10px]">
             Latest
           </span>
           <span className="text-[10px] text-[#8D96A0]">{latestReleaseTime}</span>
@@ -212,7 +212,7 @@ export const RepoSidebarMetadata: React.FC<RepoSidebarMetadataProps> = ({
       <div className="pt-4 border-t border-[#21262D] space-y-2">
         <h4 className="font-semibold text-xs text-[#E6EDF3] flex items-center gap-1.5">
           <span>Contributors</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
+          <span className="px-1.5 py-px rounded-full bg-[#21262D] text-[10px] text-[#8D96A0]">
             {contributorsCount}
           </span>
         </h4>

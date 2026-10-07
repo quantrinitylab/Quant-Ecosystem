@@ -145,6 +145,8 @@ export class QuantChatApiClient {
   async updateProfile(data: {
     username?: string;
     displayName?: string;
+    bio?: string;
+    avatarUrl?: string;
   }): Promise<ApiResponse<unknown>> {
     return this.put('/auth/profile', data);
   }
@@ -587,6 +589,21 @@ export class QuantChatApiClient {
         return {
           success: false,
           error: { code: 'AUTH_ERROR', message: 'Authentication failed', statusCode: 401 },
+        };
+      }
+
+      // A non-JSON body (e.g. an HTML error page from the edge/Next 404 when a
+      // proxy route is missing) must surface as the real HTTP failure, never as
+      // a misleading "Network request failed".
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/json')) {
+        return {
+          success: false,
+          error: {
+            code: response.ok ? 'INVALID_RESPONSE' : 'HTTP_ERROR',
+            message: `Request failed with status ${response.status}`,
+            statusCode: response.status,
+          },
         };
       }
 

@@ -23,7 +23,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({
   const isLastStep = currentStep === steps.length - 1;
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50" role="form" aria-label="Onboarding flow">
+    <div className="flex flex-col min-h-dvh bg-gray-50" role="form" aria-label="Onboarding flow">
       {/* Progress indicator */}
       <div className="w-full bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-2xl mx-auto">

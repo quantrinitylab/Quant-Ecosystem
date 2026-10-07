@@ -16,6 +16,36 @@ import { AIEngine } from '../core/engine';
  * - Priority detection
  * - Phishing detection
  */
+
+/**
+ * One earlier message from the same thread, supplied so reply suggestions can
+ * reflect the actual conversation — its topic, its tone, and any open
+ * questions — instead of guessing from the latest message alone.
+ */
+export interface ThreadContextMessage {
+  /** Sender display name or address. */
+  from: string;
+  /** Message text (already truncated by the caller). */
+  body: string;
+  /** True when the message was written by the user asking for suggestions. */
+  isMine?: boolean;
+}
+
+/** Max characters kept per context message. Keeps the prompt small so the
+ * suggestion round-trip stays fast; the latest message gets a larger slice. */
+const CONTEXT_MESSAGE_CHARS = 300;
+const LATEST_MESSAGE_CHARS = 800;
+const MAX_CONTEXT_MESSAGES = 6;
+
+/** Strip list numbering, bullets and wrapping quotes from a model-generated
+ * suggestion so a chip never renders "1. \"Sounds good!\"". */
+function cleanSuggestion(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^\s*(?:\d+[.)]|[-*•])\s+/, '')
+    .replace(/^["'“”]+|["'“”]+$/g, '')
+    .trim();
+}
 export class MailAIService {
   private engine: AIEngine;
 
@@ -115,15 +145,32 @@ export class MailAIService {
   }
 
   /**
-   * Generate reply suggestions for an email
+   * Generate thread-aware reply suggestions for an email.
+   *
+   * `threadContext` carries the recent messages before the one being replied
+   * to (oldest first); the prompt presents them as a transcript so the
+   * suggestions match the conversation's actual topic and tone and answer any
+   * open questions, instead of the generic acknowledge/decline trio the
+   * single-message prompt used to produce.
    */
   async suggestReplies(
     originalEmail: { subject: string; body: string; from: string },
-    userId: string
+    userId: string,
+    threadContext: ThreadContextMessage[] = []
   ): Promise<EmailAIResult[]> {
+    const transcript = threadContext
+      .slice(-MAX_CONTEXT_MESSAGES)
+      .map(
+        (message, index) =>
+          `${index + 1}. ${message.isMine ? 'Me' : message.from}: ${message.body.substring(0, CONTEXT_MESSAGE_CHARS)}`
+      )
+      .join('\n');
+    const contextBlock = transcript ? `Earlier in this thread:\n${transcript}\n\n` : '';
+
     const request: AIInferenceRequest = {
-      prompt: `Suggest 3 reply options for this email:\nFrom: ${originalEmail.from}\nSubject: ${originalEmail.subject}\n\n${originalEmail.body.substring(0, 500)}`,
-      systemPrompt: 'Generate 3 reply options: brief acknowledgment, detailed response, and a polite decline/delay. Keep each under 100 words.',
+      prompt: `${contextBlock}Latest message:\nFrom: ${originalEmail.from}\nSubject: ${originalEmail.subject}\n\n${originalEmail.body.substring(0, LATEST_MESSAGE_CHARS)}\n\nSuggest 3 short replies to the latest message, informed by the thread above.`,
+      systemPrompt:
+        'You suggest quick-reply chips for an email thread. Read the whole thread: match the tone of the latest message and address any open questions it raises. Return exactly 3 options, separated by blank lines. Each must be a complete, ready-to-send reply under 15 words — short enough for a chip. No numbering, no quotes, no placeholders, and no generic filler unless it genuinely fits the thread.',
       userId,
       app: 'quantmail',
       feature: 'reply_suggestions',
@@ -132,10 +179,13 @@ export class MailAIService {
     };
 
     const response = await this.engine.infer(request);
-    const replies = response.content.split('\n\n').filter((r) => r.trim());
+    const replies = response.content
+      .split('\n\n')
+      .map(cleanSuggestion)
+      .filter((r) => r.length > 0);
     return replies.slice(0, 3).map((reply) => ({
       type: 'reply_suggestion' as const,
-      content: reply.trim(),
+      content: reply,
       confidence: 0.8,
     }));
   }

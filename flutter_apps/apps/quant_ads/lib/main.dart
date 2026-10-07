@@ -39,7 +39,9 @@ class QuantAdsHomeScreen extends StatefulWidget {
 
 class _QuantAdsHomeScreenState extends State<QuantAdsHomeScreen> {
   int _activeTabIndex = 0;
-  double _advertiserCredits = 14250.00;
+  // Honest default: no fake starting balance. Recharge adds real (locally
+  // tracked) credits until the wallet backend seam is wired.
+  double _advertiserCredits = 0.0;
 
   static const Color adsAmber = Color(0xFFF59E0B);
   static const Color sovereignCyan = Color(0xFF38BDF8);
