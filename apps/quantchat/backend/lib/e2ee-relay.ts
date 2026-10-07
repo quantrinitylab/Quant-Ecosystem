@@ -2,7 +2,8 @@
 // quantchat — E2EE relay/registry (Layer 2 collaborator for the encryption seam)
 // ============================================================================
 //
-// SECURITY CONTRACT (Requirement 7.5 — E2EE, design "Security Considerations"):
+// SECURITY CONTRACT (Requirement 7.5 — E2EE, design "Security Considerations",
+// doc 16 §1 "Security thesis"):
 // the encryption seam transports **CIPHERTEXT ONLY**. This server-side store
 // holds *exclusively* material that is, by construction, safe for the backend to
 // see:
@@ -25,8 +26,21 @@
 // This relay only *registers public bundles* and *relays opaque ciphertext*
 // between authenticated users — it is a dumb, zero-knowledge mailbox.
 //
-// Persistence is in-memory (decorated once at boot in `buildApp()`): no new
-// persistent database schema is introduced (Requirement 9.5).
+// THREAT MODEL (doc 16 §29) — what this relay protects against and what it
+// does not:
+//   - PROTECTS: key-distribution availability across restarts/redeploys and
+//     across backend instances (multidevice bootstrap, §11); undrained
+//     ciphertext survives a crash instead of being silently dropped.
+//   - DOES NOT protect: a malicious server operator can still see *metadata*
+//     (who published bundles, who relayed to whom, when, how many bytes).
+//     Metadata privacy is a separate decision (doc 16 §21). A compromised
+//     database exposes the same public/ciphertext material — still no
+//     plaintext, still no private keys, because none is ever stored.
+//
+// PERSISTENCE: the production implementation is `PrismaE2EERelay`
+// (`services/prisma-e2ee-relay.ts`), selected by `createE2EERelay()`
+// (`services/e2ee-relay-factory.ts`). The in-memory implementation below is
+// retained for local dev (`E2EE_RELAY=memory`) and unit tests.
 
 import type { PreKeyBundle, EncryptedPayload } from '@quant/encryption';
 
@@ -80,29 +94,33 @@ export interface DrainInboxOptions {
 /**
  * The zero-knowledge E2EE relay surface decorated onto the Fastify instance.
  * Implementations store/relay ONLY public bundles + ciphertext (Req 7.5).
+ * All methods are async because the production implementation is database-backed.
  */
 export interface E2EERelay {
   /** Register/replace a user+device PUBLIC pre-key bundle for key distribution. */
-  publishBundle(userId: string, deviceId: string, bundle: PreKeyBundle): PublishedKeyBundle;
+  publishBundle(userId: string, deviceId: string, bundle: PreKeyBundle): Promise<PublishedKeyBundle>;
   /** Fetch a peer's published PUBLIC bundles so the caller can start a session. */
-  getBundles(userId: string): PublishedKeyBundle[];
+  getBundles(userId: string): Promise<PublishedKeyBundle[]>;
   /** Relay an opaque ciphertext envelope to a recipient's inbox. */
   relayEnvelope(input: {
     senderId: string;
     recipientId: string;
     payload: CiphertextEnvelope;
     sessionId?: string;
-  }): RelayedEnvelope;
+  }): Promise<RelayedEnvelope>;
   /** Drain (read + remove) the ciphertext envelopes addressed to a recipient. */
-  drainInbox(recipientId: string, options?: DrainInboxOptions): RelayedEnvelope[];
-  /** Release in-memory state (called from the Fastify `onClose` hook). */
-  shutdown(): void;
+  drainInbox(recipientId: string, options?: DrainInboxOptions): Promise<RelayedEnvelope[]>;
+  /** Release held resources (called from the Fastify `onClose` hook). */
+  shutdown(): Promise<void>;
 }
 
 /**
  * In-memory, zero-knowledge implementation of {@link E2EERelay}. Holds only
  * public bundles and opaque ciphertext envelopes — by construction it cannot
  * leak key material or plaintext because none is ever stored.
+ *
+ * VOLATILE: state is lost on restart. Retained for local dev and unit tests
+ * only (`E2EE_RELAY=memory`); production uses the persistent Prisma relay.
  */
 export class InMemoryE2EERelay implements E2EERelay {
   // userId -> (deviceId -> public bundle)
@@ -111,7 +129,7 @@ export class InMemoryE2EERelay implements E2EERelay {
   private readonly inboxes = new Map<string, RelayedEnvelope[]>();
   private counter = 0;
 
-  publishBundle(userId: string, deviceId: string, bundle: PreKeyBundle): PublishedKeyBundle {
+  async publishBundle(userId: string, deviceId: string, bundle: PreKeyBundle): Promise<PublishedKeyBundle> {
     const record: PublishedKeyBundle = {
       userId,
       deviceId,
@@ -127,17 +145,17 @@ export class InMemoryE2EERelay implements E2EERelay {
     return record;
   }
 
-  getBundles(userId: string): PublishedKeyBundle[] {
+  async getBundles(userId: string): Promise<PublishedKeyBundle[]> {
     const byDevice = this.bundles.get(userId);
     return byDevice ? Array.from(byDevice.values()) : [];
   }
 
-  relayEnvelope(input: {
+  async relayEnvelope(input: {
     senderId: string;
     recipientId: string;
     payload: CiphertextEnvelope;
     sessionId?: string;
-  }): RelayedEnvelope {
+  }): Promise<RelayedEnvelope> {
     const envelope: RelayedEnvelope = {
       id: `env-${Date.now()}-${++this.counter}`,
       senderId: input.senderId,
@@ -152,7 +170,7 @@ export class InMemoryE2EERelay implements E2EERelay {
     return envelope;
   }
 
-  drainInbox(recipientId: string, options?: DrainInboxOptions): RelayedEnvelope[] {
+  async drainInbox(recipientId: string, options?: DrainInboxOptions): Promise<RelayedEnvelope[]> {
     const inbox = this.inboxes.get(recipientId) ?? [];
     if (inbox.length === 0) return [];
 
@@ -167,7 +185,7 @@ export class InMemoryE2EERelay implements E2EERelay {
     return inbox;
   }
 
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     this.bundles.clear();
     this.inboxes.clear();
   }

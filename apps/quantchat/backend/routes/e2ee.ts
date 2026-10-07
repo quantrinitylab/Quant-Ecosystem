@@ -121,7 +121,7 @@ export default async function e2eeRoutes(fastify: FastifyInstance) {
 
       // The validated bundle is, by schema, the engine's public `PreKeyBundle`.
       const bundle: PreKeyBundle = parsed.data.bundle;
-      const record = fastify.e2ee.publishBundle(request.auth.userId, parsed.data.deviceId, bundle);
+      const record = await fastify.e2ee.publishBundle(request.auth.userId, parsed.data.deviceId, bundle);
 
       return reply.status(201).send({ success: true, data: { bundle: record } });
     },
@@ -140,7 +140,7 @@ export default async function e2eeRoutes(fastify: FastifyInstance) {
         throw parsed.error;
       }
 
-      const bundles = fastify.e2ee.getBundles(parsed.data.userId);
+      const bundles = await fastify.e2ee.getBundles(parsed.data.userId);
       return reply.send({ success: true, data: { userId: parsed.data.userId, bundles } });
     },
   );
@@ -161,7 +161,7 @@ export default async function e2eeRoutes(fastify: FastifyInstance) {
       }
 
       const payload: CiphertextEnvelope = parsed.data.payload;
-      const envelope = fastify.e2ee.relayEnvelope({
+      const envelope = await fastify.e2ee.relayEnvelope({
         senderId: request.auth.userId,
         recipientId: parsed.data.recipientId,
         payload,
@@ -183,7 +183,7 @@ export default async function e2eeRoutes(fastify: FastifyInstance) {
         throw parsed.error;
       }
 
-      const envelopes = fastify.e2ee.drainInbox(request.auth.userId, {
+      const envelopes = await fastify.e2ee.drainInbox(request.auth.userId, {
         limit: parsed.data.limit,
       });
       return reply.send({ success: true, data: { envelopes, count: envelopes.length } });

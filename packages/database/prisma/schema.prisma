@@ -3246,6 +3246,54 @@ model KeySession {
 }
 
 
+// ==================== QUANTCHAT E2EE RELAY PERSISTENCE (K27) ============
+// Zero-knowledge relay (doc 16 §1/§3/§7): the server is a mailbox, not a
+// plaintext vault. These tables store ONLY:
+//   1. PUBLIC key-distribution bundles (meant for publication so peers can
+//      start sessions), and
+//   2. OPAQUE ciphertext envelopes (the backend can route but never decrypt).
+// These tables MUST NEVER gain columns for private keys, ratchet/session
+// secrets, or plaintext. A migration adding such a column is a security bug.
+// Key distribution state survives restarts/redeploys (multidevice bootstrap,
+// §11) and is shared across backend instances.
+
+model E2EERelayBundle {
+  id                    String   @id @default(cuid())
+  userId                String
+  deviceId              String
+  identityKey           String // PUBLIC identity key (base64) — published by design
+  signedPreKey          String // PUBLIC signed prekey
+  signedPreKeySignature String
+  oneTimePreKey         String? // PUBLIC one-time prekey (optional)
+  registrationId        Int
+  publishedAt           DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+  @@map("e2ee_relay_bundles")
+}
+
+model E2EERelayEnvelope {
+  id                   String   @id @default(cuid())
+  senderId             String
+  recipientId          String
+  sessionId            String? // client-chosen correlator, not a secret
+  ciphertext           String // OPAQUE — the backend cannot read or decrypt this
+  nonce                String
+  tag                  String
+  algorithm            String // 'aes-256-gcm' | 'chacha20-poly1305' | 'xchacha20-poly1305'
+  senderFingerprint    String // public fingerprint
+  recipientFingerprint String // public fingerprint
+  payloadTimestamp     DateTime // engine timestamp (ISO string over the wire)
+  version              Int
+  relayedAt            DateTime @default(now())
+
+  @@index([recipientId, relayedAt])
+  @@map("e2ee_relay_envelopes")
+}
+
+
 // ==================== QUANTCHAT DELIVERY & OUTBOX (W3) =============// Reliable delivery: a transactional outbox guarantees an at-least-once delivery
 // intent is committed in the same transaction as a Message, and first-class
 // delivery/read receipts replace race-prone Message.metadata JSON.
