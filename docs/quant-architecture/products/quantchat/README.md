@@ -25,6 +25,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `10-screen-deep-dive-c11-notifications.md` — deep C11 Notifications: unified notification center, priority/grouping, mentions, meetings, ecosystem events, preferences, focus/quiet hours, routing, privacy, Quanty triage, delivery reliability, platform UX, tests and Muse execution.
 - `11-screen-deep-dive-c12-settings-privacy-devices.md` — deep C12 Settings: account/identity, devices, sessions, security, privacy, presence, calls/Meet, camera/location, communities, Quanty grants, memory, data lifecycle, integrations, accessibility and platform UX.
 - `12-screen-deep-dive-c13-admin-operations.md` — deep C13 Admin/Operations: organizations, users/devices, communities/channels, moderation, reports/appeals, Calls/QuantMeet ops, media/AR, bots, privacy requests, credits/entitlements, configuration, feature flags, audit, incidents, health, RBAC/capabilities and operator Quanty.
+- `13-c01-c13-implementation-contract.md` — implementation contract mapping C01–C13 to domains, entities, commands, queries, events, state machines, realtime, offline, security, cross-app handoffs, observability and Muse execution waves.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
