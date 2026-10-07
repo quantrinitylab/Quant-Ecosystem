@@ -5,14 +5,11 @@
 // One QuantID (the ecosystem account) signs you in across QuantWave. Password is
 // checked by the identity service via the /auth proxy; a second factor, if the
 // account has one, is completed on QuantMail and then this session is restored.
-// "Continue with Quant SSO" goes out to QuantMail's /sso and comes back here
-// with the session token in the URL — the callback effect below exchanges it
-// for a QuantWave session (completeSSO), strips the token from the address
-// bar, and continues to ?returnTo.
 // ============================================================================
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../providers/auth-provider';
+import { readSsoTokenFromSearch, scrubSsoParamsFromUrl } from '../../lib/sso-handoff';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo can't open-redirect. */
 function safeReturnPath(value: string | null): string | null {
@@ -21,63 +18,25 @@ function safeReturnPath(value: string | null): string | null {
   return value;
 }
 
-/**
- * URL params QuantMail's /sso handoff uses to deliver the session token.
- * Read in priority order — `__quant_sso_ticket` is the current handoff param,
- * `token`/`accessToken`/`access_token` are legacy aliases.
- */
-const SSO_TOKEN_PARAMS = ['__quant_sso_ticket', 'token', 'accessToken', 'access_token'] as const;
-
-function readSsoToken(searchParams: { get: (name: string) => string | null } | null): string | null {
-  if (!searchParams) return null;
-  for (const key of SSO_TOKEN_PARAMS) {
-    const value = searchParams.get(key);
-    if (value && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-/**
- * Scrub the handoff token out of the address bar so the credential never
- * lingers in the URL or browser history (history.replaceState keeps the
- * navigation entry intact without a reload).
- */
-function stripSsoTokenFromUrl(): void {
-  try {
-    const url = new URL(window.location.href);
-    let changed = false;
-    for (const key of SSO_TOKEN_PARAMS) {
-      if (url.searchParams.has(key)) {
-        url.searchParams.delete(key);
-        changed = true;
-      }
-    }
-    if (changed) {
-      const clean = url.pathname + (url.search ? `?${url.searchParams.toString()}` : '') + url.hash;
-      window.history.replaceState(null, '', clean);
-    }
-  } catch {
-    // Never break navigation because the URL could not be rewritten.
-  }
-}
-
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, ssoLogin, isLoading, isAuthenticated } = useAuth();
+  const { login, loginWithSSO, isLoading, isAuthenticated, error: authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [twoFactorNotice, setTwoFactorNotice] = useState(false);
-  const [ssoBusy, setSsoBusy] = useState(false);
-  // Dedupes the exchange across StrictMode double-mounts and re-renders.
-  const ssoConsumedRef = useRef<string | null>(null);
+  const [ssoCompleting, setSsoCompleting] = useState(false);
 
   const destination = useCallback(
     () => safeReturnPath(searchParams?.get('returnTo') ?? null) ?? '/',
     [searchParams],
   );
+
+  // Provider-level errors (e.g. a failed SSO exchange) surface through the
+  // same banner as form errors.
+  const visibleError = error ?? authError ?? null;
 
   // Auto-redirect if already authenticated
   useEffect(() => {
@@ -86,34 +45,50 @@ function LoginForm() {
     }
   }, [isAuthenticated, isLoading, router, destination]);
 
-  // SSO callback handler: QuantMail redirects back here after the user
-  // approves "Continue with Quant SSO", carrying the session token in the
-  // URL. Exchange it for a QuantWave session, strip it from the address bar,
-  // then continue to the destination.
+  // SSO RETURN HANDLER (P0-1 fix): QuantMail's /sso chooser redirects back to
+  // this page with the session token as ?token= (aliases: ?accessToken=,
+  // ?access_token=, ?__quant_sso_ticket=). This effect consumes it: exchange
+  // the token server-side for a QuantWave session, then SCRUB the token out of
+  // the URL (history.replaceState — never leaves ?token= in browser history),
+  // and land the user on the safe ?returnTo= destination. Previously this was
+  // a dead end: the button navigated out, but nothing on the return leg ever
+  // read the token, so login never completed.
   useEffect(() => {
-    const ssoToken = readSsoToken(searchParams);
-    if (!ssoToken || ssoConsumedRef.current === ssoToken) return;
-    ssoConsumedRef.current = ssoToken;
+    if (typeof window === 'undefined') return;
+    let cancelled = false;
     (async () => {
-      if (isAuthenticated && !isLoading) {
-        stripSsoTokenFromUrl();
-        router.replace(destination());
-        return;
-      }
-      setSsoBusy(true);
+      const ssoToken = readSsoTokenFromSearch(new URLSearchParams(window.location.search));
+      if (!ssoToken) return;
+
+      setSsoCompleting(true);
       setError(null);
+      setTwoFactorNotice(false);
       try {
-        await ssoLogin(ssoToken);
-        stripSsoTokenFromUrl();
-        router.replace(destination());
-      } catch {
-        stripSsoTokenFromUrl();
-        setError('Quant Account sign-in failed. Please try again or sign in with your password.');
+        await loginWithSSO(ssoToken);
+        // The provider flips to authenticated; its auto-redirect lands the
+        // user. Scrub first so the token never lingers in the address bar.
+        scrubSsoParamsFromUrl();
+        if (!cancelled) router.replace(destination());
+      } catch (caught) {
+        // loginWithSSO sets the provider error; mirror it into the local
+        // banner and stay on /login so the user can retry.
+        scrubSsoParamsFromUrl();
+        if (!cancelled) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : 'Quant SSO sign-in failed. Please try again.',
+          );
+        }
       } finally {
-        setSsoBusy(false);
+        if (!cancelled) setSsoCompleting(false);
       }
     })();
-  }, [searchParams, isAuthenticated, isLoading, ssoLogin, router, destination]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleQuantSSO = useCallback(() => {
     const target = destination();
@@ -222,12 +197,21 @@ function LoginForm() {
             </div>
           </div>
 
-          {error ? (
+          {visibleError ? (
             <div
               role="alert"
               className="rounded-xl border border-[var(--quant-destructive)]/30 bg-[var(--quant-destructive)]/10 px-4 py-3 text-sm text-[var(--quant-destructive)]"
             >
-              {error}
+              {visibleError}
+            </div>
+          ) : null}
+
+          {ssoCompleting ? (
+            <div
+              role="status"
+              className="rounded-xl border border-[var(--brand-primary)]/30 bg-[var(--brand-primary)]/10 px-4 py-3 text-sm text-[var(--quant-foreground)]"
+            >
+              Completing Quant SSO sign-in…
             </div>
           ) : null}
 
@@ -249,16 +233,11 @@ function LoginForm() {
           <button
             type="button"
             onClick={handleQuantSSO}
-            disabled={ssoBusy || isLoading}
+            disabled={ssoCompleting}
             className="w-full rounded-xl border border-[var(--quant-border)] bg-[var(--quant-surface)] px-4 py-3 text-sm font-medium text-[var(--quant-foreground)] transition hover:bg-[var(--quant-muted)]/20 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {ssoBusy ? 'Connecting your Quant Account…' : '⚡ Continue with Quant SSO'}
+            {ssoCompleting ? 'Completing Quant SSO sign-in…' : '⚡ Continue with Quant SSO'}
           </button>
-          {ssoBusy ? (
-            <p role="status" className="text-center text-xs text-[var(--quant-muted-foreground)]">
-              Finishing the sign-in from QuantMail…
-            </p>
-          ) : null}
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--quant-muted-foreground)]">
