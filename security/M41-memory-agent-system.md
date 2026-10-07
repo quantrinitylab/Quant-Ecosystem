@@ -1,0 +1,3 @@
+# M41 — Security Model
+
+Shared memory never becomes a shared permission boundary. Check authorization at source retrieval, memory policy, context assembly and product command execution. Sensitive relationship/behavior signals are purpose-bound. Source content is untrusted data and cannot issue agent instructions. Consequential actions are auditable; forgetting propagates to memories, graph edges, embeddings, caches and agent context artifacts.
