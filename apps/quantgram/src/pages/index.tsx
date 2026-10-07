@@ -74,38 +74,15 @@ function GuestHeroBanner() {
   );
 }
 
-function GuestStickyPrompt() {
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#121218]/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 p-3 sm:p-4 shadow-2xl">
-      <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs sm:text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-            Experience full QuantGram
-          </p>
-          <p className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
-            Sign in to follow creators, like, comment, and post reels
-          </p>
-        </div>
-        <Link
-          href="/login?returnTo=/"
-          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full font-semibold text-xs sm:text-sm bg-gradient-to-r from-pink-500 via-red-500 to-amber-500 text-white shadow-md active:scale-95 transition-all"
-        >
-          <span>⚡ Continue with Quant Account</span>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 function GuestEmptyLanding() {
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center text-center px-4 py-8">
+    <div className="min-h-screen flex flex-col items-center justify-center text-center px-4 py-8">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-tr from-pink-500 via-red-500 to-amber-500 shadow-xl shadow-pink-500/30">
         <span className="text-3xl font-black text-white">Q</span>
       </div>
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Welcome to QuantGram</h1>
       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 max-w-sm">
-        The creator social platform with high-octane reels, visual stories, and interactive games.
+        Watch reels, explore stories, and play games. Sign in to post, like, and follow creators.
       </p>
 
       <div className="mt-6 w-full max-w-xs space-y-3">
@@ -199,7 +176,6 @@ const FeedPage: React.FC = () => {
       <PageTransition>
         <div className="min-h-screen bg-white dark:bg-[#0F0F14]">
           <GuestEmptyLanding />
-          <GuestStickyPrompt />
         </div>
       </PageTransition>
     );
@@ -224,7 +200,7 @@ const FeedPage: React.FC = () => {
         className="min-h-screen bg-white dark:bg-[#0F0F14] text-gray-900 dark:text-gray-100"
         onScroll={handleScroll}
       >
-        <div className="max-w-lg mx-auto px-4 py-4 pb-20">
+        <div className="max-w-lg mx-auto px-4 py-4 pb-6">
           {/* Guest Hero Banner */}
           {isGuest && <GuestHeroBanner />}
 
@@ -357,7 +333,6 @@ const FeedPage: React.FC = () => {
           )}
         </div>
       </div>
-      {isGuest && <GuestStickyPrompt />}
 
       {/* Share Toast Banner */}
       <AnimatePresence>
