@@ -19,16 +19,17 @@ export default function PrivacyPage() {
           (QuantMail identity or user ID), device keys for encryption, and basic
           operational data (e.g. delivery state, crash diagnostics).{' '}
           <strong className="text-slate-100">
-            We never collect or store your message content.
+            We store your message content so we can deliver it to you and the
+            people you message.
           </strong>
         </p>
       </LegalSection>
 
-      <LegalSection title="2. End-to-end encryption">
+      <LegalSection title="2. Message security">
         <p>
-          Messages, calls, and media are end-to-end encrypted. Encryption keys
-          live on your devices; our servers relay only ciphertext and cannot
-          read your conversations.
+          End-to-end encryption is not enabled in QuantChat yet. Messages are
+          stored on our servers in readable form so we can deliver them to you
+          and the people you message.
         </p>
       </LegalSection>
 
@@ -60,7 +61,7 @@ export default function PrivacyPage() {
         <p>
           Account data is kept while your account is active. You can request
           deletion of your account and associated data at any time via Support —
-          encrypted message content on your own devices is yours to delete.
+          message content on your own devices is yours to delete.
         </p>
       </LegalSection>
 

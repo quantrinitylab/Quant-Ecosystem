@@ -8,6 +8,9 @@ import { motion } from 'framer-motion';
 // Renders colored circles (opacity proportional to activity count) at positions.
 // Data comes from backend endpoint /api/map/heatmap.
 // CSS gradient blobs rendering.
+//
+// Starts empty and is filled only with real backend data. When the API is
+// unavailable nothing is rendered — invented activity is never shown.
 // ============================================================================
 
 export interface HeatmapPoint {
@@ -23,16 +26,6 @@ export interface HeatmapPoint {
 interface HeatmapOverlayProps {
   visible: boolean;
 }
-
-/** Fallback data when API is unavailable */
-const FALLBACK_HEATMAP: HeatmapPoint[] = [
-  { id: 'h1', latitude: 40.72, longitude: -73.99, activityCount: 85, top: '30%', left: '40%' },
-  { id: 'h2', latitude: 40.71, longitude: -74.01, activityCount: 62, top: '55%', left: '50%' },
-  { id: 'h3', latitude: 40.73, longitude: -74.0, activityCount: 45, top: '40%', left: '20%' },
-  { id: 'h4', latitude: 40.7, longitude: -73.98, activityCount: 92, top: '65%', left: '65%' },
-  { id: 'h5', latitude: 40.74, longitude: -74.02, activityCount: 30, top: '20%', left: '30%' },
-  { id: 'h6', latitude: 40.715, longitude: -73.97, activityCount: 55, top: '50%', left: '75%' },
-];
 
 /** Map activity count (0-100) to a size class and opacity */
 function getHeatmapStyle(activityCount: number) {
@@ -53,7 +46,7 @@ function getHeatmapColor(activityCount: number): string {
 }
 
 export function HeatmapOverlay({ visible }: HeatmapOverlayProps) {
-  const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>(FALLBACK_HEATMAP);
+  const [heatmapData, setHeatmapData] = useState<HeatmapPoint[]>([]);
 
   // Fetch heatmap data from API
   useEffect(() => {
@@ -68,7 +61,7 @@ export function HeatmapOverlay({ visible }: HeatmapOverlayProps) {
         }
       })
       .catch(() => {
-        // Keep fallback data
+        // Leave the overlay empty — no invented activity.
       });
   }, [visible]);
 
