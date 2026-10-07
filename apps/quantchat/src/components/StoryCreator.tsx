@@ -239,9 +239,13 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
   const handlePost = useCallback(async () => {
     setPosting(true);
     try {
+      // Text mode posts a real text story (type 'text' + text body); the old
+      // code sent type 'photo' with mediaUrl 'text-mode', which the stories
+      // page rejected as a non-remote upload — text stories could never post.
+      const isTextMode = mode === 'text';
       const storyData: StoryData = {
-        type: mediaType,
-        mediaUrl: capturedMedia || undefined,
+        type: isTextMode ? 'text' : mediaType,
+        mediaUrl: isTextMode ? undefined : capturedMedia || undefined,
         filter: activeFilter,
         stickers,
         drawings,
@@ -257,6 +261,7 @@ export const StoryCreator: React.FC<StoryCreatorProps> = ({ onPost, onClose }) =
       setPosting(false);
     }
   }, [
+    mode,
     mediaType,
     capturedMedia,
     activeFilter,
