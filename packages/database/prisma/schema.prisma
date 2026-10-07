@@ -4764,6 +4764,7 @@ model McpGrantAudit {
   @@index([userId, provider])
   @@index([createdAt])
   @@map("mcp_grant_audit")
+}
 /// A proactive idea card proposed by Quanty (or created by the user).
 /// Ideas are proposals, never auto-created clutter: the agent suggests, the
 /// user saves or dismisses. Dismissed ideas remain queryable but are hidden
