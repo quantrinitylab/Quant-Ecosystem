@@ -24,9 +24,11 @@
 // affordance this audit is removing everywhere else.
 
 import { AnchoredMenu } from './AnchoredMenu';
+import { ConfirmDialog } from './ConfirmDialog';
 import { EmailSnooze } from './EmailSnooze';
 import { MailIcon } from './MailIcon';
 import type { EmailCategory } from '../types';
+import { useState } from 'react';
 
 type InboxCategory = Exclude<EmailCategory, 'spam'>;
 const INBOX_CATEGORY_COMMANDS: Array<{ value: InboxCategory; label: string }> = [
@@ -80,6 +82,8 @@ export function SelectionHeader({
   onDelete,
   onSnooze,
 }: SelectionHeaderProps) {
+  /** Batch delete asks first — no silent deletes, even in bulk. */
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
     <header className="sticky top-0 z-50 flex min-h-14 flex-none select-none items-center justify-between gap-3 border-b border-[#282C35] bg-[#121622] px-3 shadow-xl sm:px-5">
       <div className="flex min-w-0 items-center gap-2">
@@ -115,7 +119,7 @@ export function SelectionHeader({
         </button>
         <button
           type="button"
-          onClick={onDelete}
+          onClick={() => setConfirmDelete(true)}
           className={`${ACTION_BUTTON} hover:bg-[#282C35] hover:text-rose-400`}
           aria-label={`Delete ${count} selected`}
           title="Move to trash"
@@ -235,6 +239,19 @@ export function SelectionHeader({
           }}
         </AnchoredMenu>
       </div>
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title={`Move ${count} selected to Trash?`}
+        message="The selected conversations will be moved to Trash."
+        confirmLabel="Move to Trash"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={() => {
+          setConfirmDelete(false);
+          onDelete();
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </header>
   );
 }

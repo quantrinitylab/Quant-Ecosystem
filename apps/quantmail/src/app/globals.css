@@ -1014,17 +1014,17 @@ body {
 .mail-row-swipe-pane.is-leading { justify-content: flex-start; padding-left: 1rem; }
 .mail-row-swipe-pane.is-armed { background: rgba(255, 140, 66, 0.12); box-shadow: inset 0 0 0 1px rgba(255, 140, 66, 0.32); }
 /*
- * The two swipe ends are named, not peers: right files away (Archive, green),
- * left throws out (Delete, red). The Gmail arrangement, so the muscle memory
- * transfers — and the destructive end wears the warning colour, so the finger
- * can tell which way it is going before it crosses the line.
+ * The two swipe ends are named, not peers: left files away (Archive, green),
+ * right opens the snooze picker (Snooze, info blue). The destructive end is not
+ * a swipe at all — Delete lives in the row's … menu and the thread view,
+ * always behind a confirmation dialog.
  */
-.mail-row-swipe-pane.is-archive { justify-content: flex-start; padding-left: 1rem; background: rgba(22, 163, 74, 0.14); }
+.mail-row-swipe-pane.is-archive { justify-content: flex-end; padding-right: 1rem; background: rgba(22, 163, 74, 0.14); }
 .mail-row-swipe-pane.is-archive.is-armed { background: rgba(22, 163, 74, 0.30); box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.55); }
 .mail-row-swipe-pane.is-archive .mail-row-swipe-label { color: #4ade80; }
-.mail-row-swipe-pane.is-delete { justify-content: flex-end; padding-right: 1rem; background: rgba(220, 38, 38, 0.14); }
-.mail-row-swipe-pane.is-delete.is-armed { background: rgba(220, 38, 38, 0.30); box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.55); }
-.mail-row-swipe-pane.is-delete .mail-row-swipe-label { color: #f87171; }
+.mail-row-swipe-pane.is-snooze { justify-content: flex-start; padding-left: 1rem; background: rgba(59, 130, 246, 0.14); }
+.mail-row-swipe-pane.is-snooze.is-armed { background: rgba(59, 130, 246, 0.30); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55); }
+.mail-row-swipe-pane.is-snooze .mail-row-swipe-label { color: #60a5fa; }
 .mail-row-swipe-label { display: inline-flex; align-items: center; gap: 0.4rem; color: #A1A4AC; font-size: 0.688rem; font-weight: 600; white-space: nowrap; }
 .mail-row-swipe-pane.is-armed .mail-row-swipe-label { color: #FF8C42; }
 /* The release, and only the release. Absent while a finger is down, which is what

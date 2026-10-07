@@ -20,6 +20,7 @@ import { AppSidebar } from '../components/AppSidebar';
 import { EmailSafetyBanner } from '../components/EmailSafetyBanner';
 import { EmailSnooze } from '../components/EmailSnooze';
 import { AnchoredMenu } from '../components/AnchoredMenu';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { HoverActions } from '../components/HoverActions';
 import { IdentityAvatar } from '../components/IdentityAvatar';
 import { InboxZeroState } from '../components/InboxZeroState';
@@ -269,11 +270,13 @@ function SpamBanner({
  * and there is no velocity path at all, so committing means crossing a fixed
  * ~80px, which no flick can reach.
  *
- * Second, the two ends are named and unequal on purpose: right files the
- * conversation away (Archive, green pane) and left throws it out (Delete, red
- * pane) — the Gmail arrangement, so the muscle memory transfers. Both go
- * through the optimistic mutations and both come back from the toast's Undo,
- * which is what makes the destructive end defensible at a flick's distance.
+ * Second, the two ends are named and unequal on purpose: left files the
+ * conversation away (Archive, green pane) and right opens the snooze time
+ * picker (Snooze, blue pane). Archive goes through the optimistic mutation
+ * and comes back from the toast's Undo; snooze never fires without the user
+ * picking a time. Delete is not a swipe end at all — it lives in the row's …
+ * menu and the thread view, always behind a confirmation dialog, which is
+ * what makes the destructive action defensible.
  *
  * Third, the affordance was invisible. The revealed pane names the action from
  * the first few pixels, only reaches full strength past the commit line, and the
@@ -337,6 +340,8 @@ function EmailRow({
   const [isHovered, setIsHovered] = useState(false);
   const [showSnoozeMenu, setShowSnoozeMenu] = useState(false);
   const [showRowMenu, setShowRowMenu] = useState(false);
+  /** Row-level delete always asks first — no silent deletes from the row. */
+  const [confirmDeleteRow, setConfirmDeleteRow] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressRef = useRef(false);
 
@@ -410,10 +415,10 @@ function EmailRow({
   }, [savedGroups, thread.messages, thread.subject]);
 
   /*
-   * Right files the conversation away (Archive), left throws it out (Delete) —
-   * the Gmail arrangement, so the muscle memory transfers. Both fire the row's
-   * existing optimistic callbacks in the same frame as the visual commit, and
-   * both come back from the toast's Undo.
+   * Left files the conversation away (Archive), right opens the snooze time
+   * picker. Delete is not a swipe action — it lives in the row's … menu and
+   * the thread view, always behind a confirmation dialog. Both fire the row's
+   * existing callbacks in the same frame as the visual commit.
    *
    * Off while the row is selected or its snooze menu is open: a selected row
    * belongs to the selection header's batch actions, and a row sliding out from
@@ -421,7 +426,7 @@ function EmailRow({
    */
   const swipe = useTouchSwipe({
     onArchive,
-    onDelete,
+    onSnooze: () => setShowSnoozeMenu(true),
     disabled: isChecked || showSnoozeMenu,
     reducedMotion,
   });
@@ -441,7 +446,7 @@ function EmailRow({
       {swipe.direction && (
         <div
           aria-hidden="true"
-          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-delete'} ${
+          className={`mail-row-swipe-pane ${swipe.direction === 'archive' ? 'is-archive' : 'is-snooze'} ${
             swipe.armed ? 'is-armed' : ''
           }`}
         >
@@ -476,11 +481,10 @@ function EmailRow({
                   strokeLinejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  <circle cx="12" cy="13" r="8" />
+                  <path d="M12 9v4l2 2" />
                 </svg>
-                Delete
+                Snooze
               </>
             )}
           </span>
@@ -680,7 +684,7 @@ function EmailRow({
             className="flex items-center justify-center shrink-0 p-1.5 rounded-xl min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 text-[#A1A4AC] hover:text-rose-400 hover:bg-rose-500/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
             onClick={(event) => {
               event.stopPropagation();
-              void onDelete();
+              setConfirmDeleteRow(true);
             }}
             aria-label="Delete permanently"
             title="Delete permanently (#)"
@@ -848,7 +852,7 @@ function EmailRow({
                     onClick={(e) => {
                       e.stopPropagation();
                       close();
-                      void onDelete();
+                      setConfirmDeleteRow(true);
                     }}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors text-left"
                   >
@@ -918,6 +922,21 @@ function EmailRow({
           </button>
         )}
       </article>
+      {/* Delete confirmation: no silent deletes from the row. Plain copy —
+        it moves to Trash, it is not gone forever. */}
+      <ConfirmDialog
+        isOpen={confirmDeleteRow}
+        title="Move conversation to Trash?"
+        message="The conversation will be moved to Trash."
+        confirmLabel="Move to Trash"
+        cancelLabel="Cancel"
+        variant="destructive"
+        onConfirm={() => {
+          setConfirmDeleteRow(false);
+          void onDelete();
+        }}
+        onCancel={() => setConfirmDeleteRow(false)}
+      />
     </div>
   );
 }

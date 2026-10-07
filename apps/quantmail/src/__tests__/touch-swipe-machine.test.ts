@@ -10,23 +10,23 @@ function drag(machine: TouchSwipeMachine, x: number, steps = 5): void {
 }
 
 describe('TouchSwipeMachine', () => {
-  it('commits archive when a right swipe crosses the 80px line', () => {
+  it('commits snooze when a right swipe crosses the 80px line', () => {
     const machine = new TouchSwipeMachine();
     drag(machine, 120);
+    const snap = machine.snapshot;
+    expect(snap.direction).toBe('snooze');
+    expect(snap.armed).toBe(true);
+    expect(machine.touchend()).toBe('snooze');
+    expect(machine.consumeCommit()).toBe('snooze');
+  });
+
+  it('commits archive when a left swipe crosses the 80px line', () => {
+    const machine = new TouchSwipeMachine();
+    drag(machine, -120);
     const snap = machine.snapshot;
     expect(snap.direction).toBe('archive');
     expect(snap.armed).toBe(true);
     expect(machine.touchend()).toBe('archive');
-    expect(machine.consumeCommit()).toBe('archive');
-  });
-
-  it('commits delete when a left swipe crosses the 80px line', () => {
-    const machine = new TouchSwipeMachine();
-    drag(machine, -120);
-    const snap = machine.snapshot;
-    expect(snap.direction).toBe('delete');
-    expect(snap.armed).toBe(true);
-    expect(machine.touchend()).toBe('delete');
   });
 
   it('springs back below the threshold without firing any action', () => {
@@ -71,7 +71,7 @@ describe('TouchSwipeMachine', () => {
     machine.touchstart(0, 0);
     machine.touchmove(60, 30); // 60 > 30 * 1.2 → horizontal
     expect(machine.snapshot.engaged).toBe(true);
-    expect(machine.snapshot.direction).toBe('archive');
+    expect(machine.snapshot.direction).toBe('snooze'); // rightward → snooze
   });
 
   it('ignores a second finger mid-gesture and releases the row', () => {
