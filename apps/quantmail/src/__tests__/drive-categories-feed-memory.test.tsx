@@ -243,7 +243,7 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
       expect(html).toContain('AI Memory Vault');
       expect(html).toContain('L3 Cross-App Relational');
       expect(html).toContain('Waiting for memory data');
-      expect(html).toContain('No governed memory records are available yet');
+      expect(html).toContain('Memory records will appear here after an authorized source produces a governed memory projection.');
       expect(html).not.toContain('Production Deployment Architecture Discussion');
       expect(html).not.toContain('Deep Memory Synthesis');
       expect(html).not.toContain('Creator Studio');
