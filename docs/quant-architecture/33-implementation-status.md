@@ -466,6 +466,61 @@ being an extra) or **remove** (PR per product).
 
 ---
 
+## Architecture-branch intake — 2026-10-08 (branch `architecture/quant-company-system-v1`)
+
+The other agent's deep-architecture branch added 26 files to `docs/quant-architecture/` that
+main did not have. This PR wires them into main. Each new spec area was spot-audited against
+`origin/main` implementation (existence checks via `git grep`/`git ls-tree`, not a full re-audit).
+
+### New top-level ecosystem contracts
+
+| Doc | Specifies | Verdict | Evidence |
+|---|---|---|---|
+| 20 — Cross-app connection contract | 8-step typed handoff, ownership law (no product writes another's tables) | MISSING | No typed cross-app handoff in code; app switcher is visual links only |
+| 21 — App capability registry | Machine-readable, versioned capability registry w/ risk tiers, idempotency, approvals | MISSING | `git grep -i capabilityregistry` → zero hits in packages/apps/services |
+| 22 — Resource/context contract | `QuantResourceRef`, `QuantContextEnvelope`, context budget | MISSING | Zero hits for `QuantResourceRef`/`QuantContextEnvelope` |
+| 23 — Event spine runtime (EC-03) | Canonical event envelope, runtime laws, verification events | PARTIAL | Outbox + CDC relay + signal-projector exist (`packages/data-plane/src/outbox.ts`, `services/cdc-relay`, `services/signal-projector`); `apps/quantmail/backend` writes **zero** outbox rows; wire envelope lacks EC-02 context fields (doc's own §1 finding) |
+
+### New QuantChat deep specs (`products/quantchat/`, 20 files)
+
+| Doc | Specifies | Verdict | Evidence |
+|---|---|---|---|
+| 02 screen-by-screen C01–C13 | Target architecture per screen | — | Meta-doc; graded per screen below |
+| C01 Inbox / C02 1:1 (03) | Inbox + 1:1 deep arch | PARTIAL | `/chat`, `/new-chat` routes exist; typing indicators + realtime transport missing (gap audit) |
+| C03 Group / C04 Community / C05 Channel (04) | Community/channel deep arch | PARTIAL | `/channels` exists; community/channel depth partial per gap audit |
+| C06 Camera/Stories/Spotlight/AR (05) | Media capture + AR | PARTIAL | `/camera`, `/stories`, `/spotlight`, `/reels` routes exist; AR missing |
+| C07 Calls (06) | Calling deep arch | PARTIAL | Backend LiveKit token issuance real + fail-closed (`apps/quantchat/backend/routes/calls.ts`); device handoff/recording/captions unverified |
+| C08 QuantMeet (07) | Full meeting subsystem | PARTIAL | `backend/routes/meetings.ts` exists; **no** `/quantmeet` app route or meeting-studio UI |
+| C09 Search (08) | Unified search | MISSING | No `/search` route in `apps/quantchat/src/app/` |
+| C10 Quanty (09) | AI home + tool execution | MISSING | No `/quanty` route |
+| C11 Notifications (10) | Notification center | MISSING | No `/notifications` route |
+| C12 Settings/privacy/devices (11) | Full settings | PARTIAL | `/privacy` exists; account/devices/sessions/security surfaces missing |
+| C13 Admin/operations (12) | Admin console | MISSING | No `/admin` route |
+| 13 C01–C13 implementation contract | Domain/entity/command mapping | — | Meta-doc; not graded |
+| 14 DB domain schema contract | Postgres schema, E2EE storage boundary | PARTIAL | Chat Prisma schema exists; E2EE relay is **in-memory** (`lib/e2ee-relay.ts`: "no new persistent database schema") |
+| 15 API/event/websocket contract | Endpoint + WS contract | PARTIAL | REST routes exist; `services/ws-gateway` **not wired** into QuantChat (zero references) |
+| 16 E2EE multidevice crypto | Device identities, ratchet/group keys, recovery | PARTIAL | Client-side `@quant/encryption` engine + zero-knowledge relay (`lib/e2ee-relay.ts`); ratchet lifecycle + multi-device recovery unverified |
+| 17 WebRTC SFU media | STUN/TURN, simulcast, recording | PARTIAL | LiveKit credential wiring fail-closed (`LIVEKIT_API_KEY/SECRET`); SFU deployment in staging unverified |
+| 18 Offline-first sync | CRDT/sync engine, multidevice | PARTIAL | `apps/quantchat/src/mobile/offline-sync.ts` exists (mobile only); full multidevice sync missing |
+
+**Intake counts:** 4 top-level contracts (1 PARTIAL / 3 MISSING) + 16 graded QuantChat areas
+(0 BUILT / 9 PARTIAL / 7 MISSING / 0 BROKEN).
+
+### Khamiyan backlog additions (phase-mapped per 14-build-order.md)
+
+- **Phase 1 (platform spine):** K16 — implement EC-01 capability registry (doc 21); K17 — implement
+  `QuantResourceRef`/`QuantContextEnvelope` types + adoption (doc 22); K18 — wire EC-02 context into
+  the event envelope (doc 23 §1 contract gap).
+- **Phase 2 (product depth):** K19 — QuantChat C09 search surface; K20 — C10 Quanty surface;
+  K21 — C11 notification center; K22 — C13 admin/operations; K23 — C08 QuantMeet app route +
+  meeting-studio UI (backend `routes/meetings.ts` exists); K24 — C12 full settings
+  (account/devices/sessions/security); K25 — wire `services/ws-gateway` into QuantChat realtime
+  (doc 15); K26 — offline-first multidevice sync beyond mobile (doc 18).
+- **Phase 9/10 (reliability):** K27 — persistent E2EE relay storage (replace in-memory relay,
+  doc 16); K28 — verify LiveKit SFU deployment in staging (doc 17).
+
+---
+
 ## Honesty wins worth preserving (do not regress)
 
 Drive real stats; QuantGit honest empty states; CSAM fail-closed; userinfo fail-closed (#565);
