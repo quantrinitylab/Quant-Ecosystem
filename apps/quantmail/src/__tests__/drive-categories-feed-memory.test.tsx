@@ -236,45 +236,78 @@ describe('QuantDrive Categories, Feed & AI Memory Suite', () => {
   // ==========================================================================
   // 4. DriveAiMemorySubView (Cross-App Relational Memory Index)
   // ==========================================================================
-  describe('4. DriveAiMemorySubView (Cross-App Relational Memory Index)', () => {
-    it('renders AI Memory Vault header with L3 Cross-App Relational badge', () => {
+  describe('4. DriveAiMemorySubView (Governed Memory Index)', () => {
+    it('renders an honest empty state when no memory projection is supplied', () => {
       const html = renderToStaticMarkup(<DriveAiMemorySubView />);
 
       expect(html).toContain('AI Memory Vault');
       expect(html).toContain('L3 Cross-App Relational');
-      expect(html).toContain('Real-time L3 Sync Active');
+      expect(html).toContain('Waiting for memory data');
+      expect(html).toContain('No governed memory records are available yet');
+      expect(html).not.toContain('Production Deployment Architecture Discussion');
+      expect(html).not.toContain('Deep Memory Synthesis');
+      expect(html).not.toContain('Creator Studio');
     });
 
-    it('renders semantic search bar with prompt placeholder', () => {
-      const html = renderToStaticMarkup(<DriveAiMemorySubView />);
+    it('renders only supplied governed memory records and provenance metadata', () => {
+      const html = renderToStaticMarkup(
+        <DriveAiMemorySubView
+          memories={[
+            {
+              id: 'memory-1',
+              app: 'QuantGit',
+              title: 'Preferred repository workflow',
+              timestamp: '2026-10-07 10:00',
+              rawContext: 'Use protected branches for production changes.',
+              extractedFacts: ['Protected branches are preferred for production changes.'],
+              entityGraphLinks: ['repo:quant-ecosystem'],
+              confidenceScore: 94,
+              sensitivity: 'normal',
+              explicitness: 'confirmed',
+              policyVersion: 'memory-v2',
+              provenance: 'QuantGit repository settings',
+            },
+          ]}
+          onRecallInChat={() => undefined}
+          onForgetMemory={() => undefined}
+        />,
+      );
 
-      expect(html).toContain('placeholder="Search memories, facts, conversation context..."');
-    });
-
-    it('renders ecosystem app filter pills: All Apps, QuantChat, QuantAI, QuantGram, QuantMail, QuanTube', () => {
-      const html = renderToStaticMarkup(<DriveAiMemorySubView />);
-
-      expect(html).toContain('All Apps (5)');
-      expect(html).toContain('QuantChat');
-      expect(html).toContain('QuantAI');
-      expect(html).toContain('QuantGram');
-      expect(html).toContain('QuantMail');
-      expect(html).toContain('QuanTube');
-    });
-
-    it('renders memory cards with extracted key facts and entity graph links', () => {
-      const html = renderToStaticMarkup(<DriveAiMemorySubView />);
-
-      expect(html).toContain('Production Deployment Architecture Discussion');
-      expect(html).toContain('Deep Memory Synthesis &amp; Benchmark Preferences');
-      expect(html).toContain('Creator Studio &amp; 9:16 Video Monetization Preferences');
-      expect(html).toContain('Extracted Key Facts');
-      expect(html).toContain('User confirmed 20 pods running in quant-staging');
-      expect(html).toContain('Requirement: Sub-5ms FTS5 SQLite query search ceiling');
-      expect(html).toContain('@ElenaRostova');
-      expect(html).toContain('#EKS-Cluster');
-      expect(html).toContain('#FTS5-Engine');
+      expect(html).toContain('Preferred repository workflow');
+      expect(html).toContain('94% Confidence');
+      expect(html).toContain('Protected branches are preferred for production changes.');
+      expect(html).toContain('repo:quant-ecosystem');
+      expect(html).toContain('Sensitivity: normal');
+      expect(html).toContain('Explicitness: confirmed');
+      expect(html).toContain('Policy: memory-v2');
+      expect(html).toContain('Source: QuantGit repository settings');
       expect(html).toContain('Recall Context');
+      expect(html).toContain('Forget');
+      expect(html).not.toContain('Production Deployment Architecture Discussion');
+      expect(html).not.toContain('ElenaRostova');
+    });
+
+    it('does not invent confidence, facts, or graph links when metadata is absent', () => {
+      const html = renderToStaticMarkup(
+        <DriveAiMemorySubView
+          memories={[
+            {
+              id: 'memory-2',
+              app: 'Shared',
+              title: 'Observed context',
+              timestamp: '2026-10-07 11:00',
+              rawContext: 'Observed context without a scored confidence record.',
+              extractedFacts: [],
+              entityGraphLinks: [],
+            },
+          ]}
+        />,
+      );
+
+      expect(html).toContain('Confidence not scored');
+      expect(html).not.toContain('Extracted Key Facts');
+      expect(html).not.toContain('Sensitivity:');
+      expect(html).not.toContain('repo:');
     });
 
     it('contains strictly ZERO raw Unicode emojis in DriveAiMemorySubView', () => {
