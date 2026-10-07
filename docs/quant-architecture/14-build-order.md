@@ -10,7 +10,7 @@ Phase 2: QuantMail reference — shell, inbox, thread, compose, search, contacts
 
 Phase 3: Quanty core — model gateway, context manager, memory, tools, planner, executor, approvals, budgets, verification, audit and evaluation.
 
-Phase 4: cross-product backbone — events, knowledge graph, universal search, notifications, shared signals and trust/safety.
+Phase 4: cross-product backbone — events, knowledge graph, universal search, notifications, shared signals and trust/safety. Canonical contract: `20-ecosystem-cross-app-connection-contract.md`; this phase must establish typed resource references, cross-app context envelopes, Quanty command bridges, memory context, economy quote/reserve/commit/release, notification delivery, deep links, degraded modes and ecosystem contract tests before product-to-product expansion.
 
 Phase 5: QuantChat — realtime, delivery, calls, notifications and moderation.
 
