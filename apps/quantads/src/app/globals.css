@@ -3,52 +3,57 @@
 @tailwind utilities;
 
 :root {
+  /*
+   * Dark-first theming (QuantMail pattern): the app shell declares
+   * theme="dark" and shared primitives (Card, Button, inputs) are
+   * hardcoded dark, so :root carries the dark tokens. Light remains
+   * available via data-theme="light", which ThemeProvider sets on <html>
+   * when the light theme is resolved.
+   */
   /* Brand System */
-  --brand-primary: #4F46E5;
-  --brand-primary-hover: #4338CA;
+  --brand-primary: #6366F1;
+  --brand-primary-hover: #818CF8;
   --brand-accent: #F59E0B;
   --brand-accent-hover: #D97706;
-  --brand-app-color: #059669;
+  --brand-app-color: #10B981;
   --app-color: #059669;
 
   /* Existing (now powered by brand) */
   --quant-primary: var(--brand-primary);
   --quant-secondary: #8b5cf6;
-  --quant-background: #ffffff;
-  --quant-foreground: #0f172a;
-  --quant-muted: #f1f5f9;
-  --quant-muted-foreground: #64748b;
-  --quant-border: #e2e8f0;
-  --quant-ring: var(--brand-app-color);
-  --quant-radius: 0.5rem;
-  --quant-card: #ffffff;
-  --quant-card-foreground: #0f172a;
-  --quant-popover: #ffffff;
-  --quant-popover-foreground: #0f172a;
-  --quant-destructive: #ef4444;
-  --quant-destructive-foreground: #ffffff;
-  --quant-success: #22c55e;
-  --quant-warning: #f59e0b;
-}
-
-.dark {
-  --brand-primary: #6366F1;
-  --brand-primary-hover: #818CF8;
-  --brand-app-color: #10B981;
   --quant-background: #0F0F14;
   --quant-foreground: #f8fafc;
   --quant-muted: #16161D;
   --quant-muted-foreground: #94a3b8;
   --quant-border: #334155;
+  --quant-ring: var(--brand-app-color);
+  --quant-radius: 0.5rem;
   --quant-card: #1a1a24;
   --quant-card-foreground: #f8fafc;
   --quant-popover: #1a1a24;
   --quant-popover-foreground: #f8fafc;
-  --quant-ring: var(--brand-app-color);
   --quant-destructive: #dc2626;
   --quant-destructive-foreground: #ffffff;
   --quant-success: #16a34a;
   --quant-warning: #d97706;
+}
+
+:root[data-theme='light'] {
+  --brand-primary: #4F46E5;
+  --brand-primary-hover: #4338CA;
+  --brand-app-color: #059669;
+  --quant-background: #ffffff;
+  --quant-foreground: #0f172a;
+  --quant-muted: #f1f5f9;
+  --quant-muted-foreground: #64748b;
+  --quant-border: #e2e8f0;
+  --quant-card: #ffffff;
+  --quant-card-foreground: #0f172a;
+  --quant-popover: #ffffff;
+  --quant-popover-foreground: #0f172a;
+  --quant-destructive: #ef4444;
+  --quant-success: #22c55e;
+  --quant-warning: #f59e0b;
 }
 
 html {

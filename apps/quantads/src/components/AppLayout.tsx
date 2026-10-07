@@ -17,6 +17,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
+  // Auth routes render without the app chrome: a visitor who isn't signed in
+  // should see just the sign-in card — no sidebar, no hamburger.
+  if ((pathname ?? '').startsWith('/auth')) {
+    return <>{children}</>;
+  }
+
   const sidebarItems: SidebarItem[] = NAV_ITEMS.map((item) => ({
     id: item.id,
     label: item.label,
