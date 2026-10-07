@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Modal } from '@quant/shared-ui';
 import { showToast } from '../../../components/InboxToast';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface FileShareModalProps {
   isOpen: boolean;
@@ -69,7 +70,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
     }
     setIsSharing(true);
     try {
-      const res = await fetch(`/api/drive/files/${encodeURIComponent(fileId)}/share`, {
+      const res = await apiFetchRaw(`/api/drive/files/${encodeURIComponent(fileId)}/share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, permission: invitePermission }),
@@ -110,7 +111,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
       };
       if (expiresIn !== 'never') body.expiresInDays = parseInt(expiresIn, 10);
 
-      const res = await fetch('/api/drive/shares/link', {
+      const res = await apiFetchRaw('/api/drive/shares/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

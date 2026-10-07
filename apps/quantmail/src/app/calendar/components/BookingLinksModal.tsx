@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { showToast } from '../../../components/InboxToast';
 import { IconLink, IconX, IconCalendar, IconClock, IconClipboard, IconCheck } from '../../../components/icons';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface BookingLinkItem {
   id: string;
@@ -216,7 +217,7 @@ export const BookingLinksModal: React.FC<BookingLinksModalProps> = ({
 
     // Try posting to backend API if available
     try {
-      await fetch('/api/booking/links', {
+      await apiFetchRaw('/api/booking/links', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
