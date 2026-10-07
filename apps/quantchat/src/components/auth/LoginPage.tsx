@@ -302,7 +302,7 @@ export default function LoginPage(props: LoginPageProps) {
   );
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center bg-[#080B12] bg-[#090D16] relative overflow-hidden px-4 py-8 font-sans text-slate-200">
+    <main className="min-h-dvh flex flex-col items-center justify-center bg-[#080B12] relative overflow-hidden px-4 py-8 font-sans text-slate-200">
       {/* WebGL/Canvas Cryptographic Constellation Mesh */}
       <CryptographicMeshCanvas />
 

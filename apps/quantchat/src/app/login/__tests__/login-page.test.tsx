@@ -20,8 +20,7 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
   it('renders dark luxury container with emerald/violet ambient glows via Page', () => {
     const html = renderToString(<Page />);
 
-    // Edge-to-edge dark luxury design tokens
-    expect(html).toContain('bg-[#090D16]');
+    // Edge-to-edge dark luxury design tokens (single background token on main)
     expect(html).toContain('bg-[#080B12]');
     expect(html).toContain('bg-emerald-500/15');
     expect(html).toContain('bg-violet-600/15');
