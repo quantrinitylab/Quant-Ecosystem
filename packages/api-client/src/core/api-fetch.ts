@@ -41,7 +41,12 @@ export interface ApiFetchInit {
  * envelope normalization — the caller gets the real `Response`.
  */
 export interface ApiFetchRawInit {
-  method?: ApiMethod;
+  /**
+   * HTTP method. Typed as `string` (not the `ApiMethod` union) deliberately:
+   * the raw variant is the behavior-preserving migration path for inline
+   * `fetch(`, and must accept anything the native fetch accepts.
+   */
+  method?: string;
   /**
    * Request body. Plain objects/arrays are JSON-encoded (with a JSON content
    * type unless the caller set one); strings, FormData, URLSearchParams,
