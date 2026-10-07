@@ -109,7 +109,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <section
-      className={`relative flex h-screen w-full overflow-hidden ${themeStyles[theme]} ${className}`}
+      className={`relative flex h-dvh w-full overflow-hidden ${themeStyles[theme]} ${className}`}
       aria-label={ariaLabel}
       /*
         No `role="application"`. ARIA scopes that role to a single widget with

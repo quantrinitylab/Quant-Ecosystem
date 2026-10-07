@@ -873,7 +873,7 @@ export function QuantMailSuperAppHeader({
                   {/* Live Badge */}
                   {pillar.badge !== undefined && (
                     <span
-                      className={`ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                      className={`ml-1 px-1.5 py-px rounded-full text-[10px] font-bold ${
                         isActive
                           ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
                           : 'bg-[#1E222A] text-[#94A3B8] group-hover:text-slate-200'
@@ -922,7 +922,7 @@ export function QuantMailSuperAppHeader({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-semibold text-slate-200">Priority Mail</span>
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
+                    <span className="px-1.5 py-px rounded text-[10px] font-bold bg-amber-500/20 text-amber-300">
                       {priorityMailCount} Unread
                     </span>
                   </div>

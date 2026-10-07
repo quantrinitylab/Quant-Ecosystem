@@ -617,7 +617,7 @@ export const SoundSyncModal: React.FC<SoundSyncModalProps> = ({
                           </h4>
                           <p className="text-[11px] text-slate-400 truncate">{track.artist}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-slate-900/80 text-slate-400">
+                            <span className="text-[9px] font-mono px-1.5 py-px rounded bg-slate-900/80 text-slate-400">
                               {track.duration}
                             </span>
                             {track.bpm && (

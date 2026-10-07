@@ -61,7 +61,7 @@ export const AuthPending: React.FC<AuthPendingProps> = ({
 
   return (
     <div
-      className="flex min-h-screen w-full flex-col items-center justify-center gap-3 bg-[var(--quant-background)] p-8 text-center"
+      className="flex min-h-dvh w-full flex-col items-center justify-center gap-3 bg-[var(--quant-background)] p-8 text-center"
       role="status"
       aria-live="polite"
       // `aria-busy` only while we are actually waiting on the session check;

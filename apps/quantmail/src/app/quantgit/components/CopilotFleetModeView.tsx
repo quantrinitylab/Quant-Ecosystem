@@ -156,7 +156,7 @@ export const CopilotFleetModeView: React.FC<CopilotFleetModeViewProps> = ({
           <div>
             <h3 className="font-semibold text-sm text-[#E6EDF3] flex items-center gap-2">
               <span>GitHub Copilot Fleet Mode</span>
-              <span className="text-[10px] px-2 py-0.2 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              <span className="text-[10px] px-2 py-px rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 Cloud Agents
               </span>
             </h3>

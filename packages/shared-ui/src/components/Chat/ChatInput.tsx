@@ -252,7 +252,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           <button
             type="button"
             onClick={onCancelReply}
-            className="text-gray-400 hover:text-gray-600 ml-2"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 ml-2"
             aria-label="Cancel reply"
           >
             <svg
@@ -277,7 +277,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         {showAttachButton && (
           <button
             type="button"
-            className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100"
+            className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors rounded-full hover:bg-gray-100"
             aria-label="Attach file"
           >
             <svg
@@ -313,7 +313,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {showEmojiButton && (
             <button
               type="button"
-              className="absolute right-3 bottom-2.5 text-gray-400 hover:text-gray-600"
+              className="absolute right-1.5 bottom-1 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600"
               aria-label="Emoji"
             >
               <svg
@@ -339,7 +339,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             type="button"
             onClick={handleSend}
             disabled={disabled}
-            className="p-2.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
             aria-label="Send message"
           >
             <svg
@@ -363,7 +363,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             type="button"
             onClick={handleVoiceButtonClick}
             disabled={disabled}
-            className={`p-2.5 rounded-full transition-colors disabled:opacity-50 ${
+            className={`p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full transition-colors disabled:opacity-50 ${
               isRecording
                 ? 'bg-red-500 text-white hover:bg-red-600'
                 : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'

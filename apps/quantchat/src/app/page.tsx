@@ -63,9 +63,14 @@ function UserIndicator() {
 
   return (
     <div className="relative group cursor-pointer">
-      <div className="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold text-sm">
+      {/* Tap = go to /profile on touch devices; hover card kept for desktop */}
+      <a
+        href="/profile"
+        aria-label="Open profile"
+        className="block w-11 h-11 min-h-[44px] min-w-[44px] rounded-full bg-indigo-500 text-white flex items-center justify-center font-semibold text-sm"
+      >
         {user.displayName.substring(0, 2).toUpperCase()}
-      </div>
+      </a>
       <div className="absolute right-0 top-10 w-64 bg-white shadow-lg rounded-xl p-4 border border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity z-50 pointer-events-none group-hover:pointer-events-auto">
         <p className="font-bold text-[var(--quant-foreground)]">{user.displayName}</p>
         <p className="text-sm text-[var(--quant-muted-foreground)]">@{user.username}</p>
@@ -260,6 +265,7 @@ export default function ChatListPage() {
         topBar={
           <TopBar
             title="QuantChat"
+            profileHref="/profile"
             rightActions={[
               <NewChatButton key="new-chat" />,
               <UserIndicator key="user-indicator" />,
@@ -336,6 +342,7 @@ export default function ChatListPage() {
       topBar={
         <TopBar
           title="QuantChat"
+          profileHref="/profile"
           rightActions={[
             <NewChatButton key="new-chat" />,
             <UserIndicator key="user-indicator" />,

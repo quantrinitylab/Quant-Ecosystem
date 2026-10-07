@@ -755,7 +755,7 @@ export function MailSwarmAgentAccessPanel({
                     <span className="text-[#38BDF8] truncate max-w-[170px]">
                       {ag.activeTask}
                     </span>
-                    <span className="px-1.5 py-0.2 rounded bg-[#161820] text-[#A1A4AC] border border-[#282C35]">
+                    <span className="px-1.5 py-px rounded bg-[#161820] text-[#A1A4AC] border border-[#282C35]">
                       {ag.tag}
                     </span>
                   </div>

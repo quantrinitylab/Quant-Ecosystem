@@ -531,8 +531,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-dvh">
       <TopBar
+        profileHref="/profile"
         title={chatDisplayName}
         subtitle={
           disappearSeconds > 0

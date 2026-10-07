@@ -255,7 +255,7 @@ export function DriveCleanerSubView({ onReclaimComplete }: DriveCleanerSubViewPr
                       <span className="text-[#64748B]">·</span>
                       <span>{file.modified}</span>
                       {file.isOriginal && (
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                        <span className="px-1.5 py-px rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
                           Keeper
                         </span>
                       )}

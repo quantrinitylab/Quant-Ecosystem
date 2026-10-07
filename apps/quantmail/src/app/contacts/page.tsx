@@ -923,7 +923,7 @@ export default function ContactsPage() {
                                   </div>
 
                                   {threads > 0 && (
-                                    <span className="shrink-0 text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#181E2B] text-[#A1A4AC] border border-[#283144]">
+                                    <span className="shrink-0 text-[10px] font-mono px-1.5 py-px rounded bg-[#181E2B] text-[#A1A4AC] border border-[#283144]">
                                       {threads}
                                     </span>
                                   )}

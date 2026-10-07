@@ -23,7 +23,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
           type: 'spring',
           ...BRAND_SPRINGS.snappy,
         }}
-        className="min-h-screen"
+        className="min-h-dvh"
       >
         {children}
       </motion.div>

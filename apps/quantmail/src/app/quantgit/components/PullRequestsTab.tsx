@@ -443,11 +443,11 @@ export function PullRequestsTab({
                   Merged by{' '}
                   <strong className="text-[#E6EDF3]">{selectedPR.author || currentUsername}</strong>{' '}
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -455,11 +455,11 @@ export function PullRequestsTab({
                 <span>
                   <strong className="text-[#E6EDF3]">{selectedPR.author}</strong> wants to merge
                   into{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchTarget || 'main'}
                   </span>{' '}
                   from{' '}
-                  <span className="px-1.5 py-0.2 rounded bg-[#21262D] text-[#58A6FF] font-mono">
+                  <span className="px-1.5 py-px rounded bg-[#21262D] text-[#58A6FF] font-mono">
                     {selectedPR.branchSource}
                   </span>
                 </span>
@@ -789,8 +789,7 @@ export function PullRequestsTab({
                 </p>
                 <p className="mt-1 text-[11px] text-[#6E7681]">
                   Browse the repository code tab to review the changes.
-                </p>
-              </div>
+                </p>              </div>
             ) : (
               <div
                 data-testid="diff-empty"

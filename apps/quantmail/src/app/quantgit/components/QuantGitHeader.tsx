@@ -455,7 +455,7 @@ export function QuantGitHeader({
                                   <span className="truncate block max-w-[150px]">{s.title}</span>
                                   <span className="text-[10px] text-[#7D8590] block">{s.date}</span>
                                 </button>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -465,7 +465,7 @@ export function QuantGitHeader({
                                       );
                                       showToast('Chat unpinned');
                                     }}
-                                    className="p-1 rounded hover:bg-[#30363D] text-[#FF8C42] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#FF8C42] hover:text-white"
                                     title="Unpin chat"
                                     aria-label="Unpin chat"
                                   >
@@ -481,7 +481,7 @@ export function QuantGitHeader({
                                       setEditingSessionId(s.id);
                                       setEditingTitle(s.title);
                                     }}
-                                    className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                    className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                     title="Rename chat"
                                     aria-label="Rename chat"
                                   >
@@ -597,7 +597,7 @@ export function QuantGitHeader({
                                 <span className="truncate block max-w-[150px]">{s.title}</span>
                                 <span className="text-[10px] text-[#7D8590] block">{s.date}</span>
                               </button>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 transition-opacity">
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -605,7 +605,7 @@ export function QuantGitHeader({
                                     setPinnedSessionIds((prev) => [...prev, s.id]);
                                     showToast('Chat pinned');
                                   }}
-                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                   title="Pin chat"
                                   aria-label="Pin chat"
                                 >
@@ -621,7 +621,7 @@ export function QuantGitHeader({
                                     setEditingSessionId(s.id);
                                     setEditingTitle(s.title);
                                   }}
-                                  className="p-1 rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
+                                  className="p-1 min-h-[44px] min-w-[44px] flex items-center justify-center rounded hover:bg-[#30363D] text-[#7D8590] hover:text-white"
                                   title="Rename chat"
                                   aria-label="Rename chat"
                                 >

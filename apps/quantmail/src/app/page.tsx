@@ -585,7 +585,7 @@ function EmailRow({
                 {groupInfo?.name ?? thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
+                <span className="px-1.5 py-px rounded-full bg-[#282C35] text-[10px] font-mono text-[#A1A4AC] shrink-0">
                   {thread.count}
                 </span>
               )}

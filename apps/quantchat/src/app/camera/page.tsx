@@ -187,7 +187,7 @@ export default function CameraPage() {
   // Permission denied state
   if (permissionStatus === 'denied') {
     return (
-      <div className="relative h-screen w-full overflow-hidden bg-gray-900">
+      <div className="relative h-dvh w-full overflow-hidden bg-gray-900">
         <PermissionDenied />
         <div className="absolute bottom-0 left-0 right-0 z-10">
           <BottomNav
@@ -204,7 +204,7 @@ export default function CameraPage() {
   }
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black">
+    <div className="relative h-dvh w-full overflow-hidden bg-black">
       {/* Screen flash overlay for front camera */}
       {screenFlashActive && <div className="absolute inset-0 bg-white z-50 pointer-events-none" />}
 

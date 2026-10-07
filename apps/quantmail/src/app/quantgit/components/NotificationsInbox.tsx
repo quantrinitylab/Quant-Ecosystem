@@ -96,7 +96,7 @@ export const NotificationsInbox: React.FC = () => {
               <span>📥</span>
               <span>Inbox</span>
             </span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[#30363D] text-[#E6EDF3]">
+            <span className="text-[10px] px-1.5 py-px rounded-full bg-[#30363D] text-[#E6EDF3]">
               {notifications.filter((n) => n.unread).length}
             </span>
           </button>

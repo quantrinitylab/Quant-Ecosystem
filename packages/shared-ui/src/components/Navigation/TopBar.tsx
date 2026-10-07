@@ -19,6 +19,14 @@ export interface TopBarProps {
   className?: string;
   animated?: boolean;
   onBack?: () => void;
+  /**
+   * Profile entry point (P1 mobile fix): when provided, renders a tappable
+   * 44px profile avatar at the end of the right section so /profile is
+   * reachable from every mobile screen (the bottom nav has no Profile tab).
+   */
+  profileHref?: string;
+  /** Optional label for the profile avatar button (defaults to "Profile"). */
+  profileLabel?: string;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -32,6 +40,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   className = '',
   animated = true,
   onBack,
+  profileHref,
+  profileLabel = 'Profile',
 }) => {
   const prefersReducedMotion = useReducedMotion();
   const shouldAnimate = animated && !prefersReducedMotion;
@@ -46,7 +56,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {onBack && (
           <button
             onClick={onBack}
-            className="p-1 -ml-1 text-gray-700 hover:text-gray-900 rounded-full hover:bg-gray-100"
+            className="p-2.5 -ml-1 min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-700 hover:text-gray-900 rounded-full hover:bg-gray-100"
             aria-label="Go back"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,6 +88,30 @@ export const TopBar: React.FC<TopBarProps> = ({
         {rightActions?.map((action, i) => (
           <React.Fragment key={i}>{action}</React.Fragment>
         ))}
+        {profileHref && (
+          <a
+            href={profileHref}
+            aria-label={profileLabel}
+            title={profileLabel}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+          </a>
+        )}
       </div>
     </div>
   );

@@ -290,7 +290,7 @@ export const UniversalCommandPalette: React.FC<UniversalCommandPaletteProps> = (
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-semibold truncate">{res.title}</span>
                             <span
-                              className="text-[9px] px-1 py-0.2 rounded font-medium uppercase"
+                              className="text-[9px] px-1 py-px rounded font-medium uppercase"
                               style={{
                                 backgroundColor: `${appMeta.accentColor}15`,
                                 color: appMeta.accentColor,

@@ -500,7 +500,7 @@ export function DriveFilesSubView({
                         <p className="text-xs font-semibold text-[#F8FAFC] truncate group-hover:text-[#38BDF8] transition-colors">
                           {file.name}
                         </p>
-                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
+                        <span className="inline-flex items-center px-1.5 py-px rounded text-[9px] font-mono font-semibold bg-[#38BDF8]/15 text-[#38BDF8] border border-[#38BDF8]/30">
                           FastCDC Deduped
                         </span>
                       </div>

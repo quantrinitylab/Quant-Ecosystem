@@ -26,7 +26,7 @@ export const OnboardingGuard: React.FC<OnboardingGuardProps> = ({
   if (!isOnboarded) {
     return (
       <div
-        className="flex flex-col items-center justify-center min-h-screen p-8"
+        className="flex flex-col items-center justify-center min-h-dvh p-8"
         role="alert"
         aria-label="Onboarding required"
       >

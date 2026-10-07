@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* P1 mobile fix: safe-area helpers consumed by shared-ui BottomNav/TopBar.
+   Previously referenced but never defined, so iOS notch/home-indicator
+   insets were silently ignored. */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 :root {
   /* Brand System */
   --brand-primary: #4f46e5;

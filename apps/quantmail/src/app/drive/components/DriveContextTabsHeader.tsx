@@ -114,7 +114,7 @@ export function DriveContextTabsHeader({
 
             {tab.badgeText && (
               <span
-                className={`ml-0.5 px-1.5 py-0.2 rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
+                className={`ml-0.5 px-1.5 py-px rounded text-[10px] font-mono tracking-wider uppercase font-semibold ${
                   isActive
                     ? 'bg-[#38BDF8]/20 text-[#38BDF8] border border-[#38BDF8]/40'
                     : 'bg-[#1E293B] text-[#94A3B8] border border-[#334155]'
