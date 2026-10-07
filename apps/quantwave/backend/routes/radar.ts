@@ -20,11 +20,13 @@ const swipeBodySchema = z.object({
   action: z.enum(['like', 'pass', 'superlike']),
 });
 
+// Identity comes ONLY from the verified auth context installed by the global
+// auth hook (Authorization: Bearer <verified JWT>). There is deliberately no
+// fallback to a client-supplied identity header: accepting one lets any caller
+// impersonate any user on /radar/swipe and /radar/nearby. Fail closed.
 function requireUserId(request: unknown): string {
   const userId = (request as { auth?: { userId?: string } }).auth?.userId;
   if (!userId) {
-    const headerUserId = (request as { headers?: Record<string, string> }).headers?.['x-user-id'];
-    if (headerUserId) return headerUserId;
     throw createAppError('Authentication required', 401, 'UNAUTHORIZED');
   }
   return userId;

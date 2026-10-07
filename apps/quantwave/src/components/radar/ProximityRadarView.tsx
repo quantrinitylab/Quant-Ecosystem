@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { quantSyncAPI, AuthRequiredError } from '../../services/api-client';
 
 export interface RadarUser {
   id: string;
@@ -23,6 +24,11 @@ export function ProximityRadarView() {
   const [users, setUsers] = useState<RadarUser[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedUser, setSelectedUser] = useState<RadarUser | null>(null);
+  // Honest session states: when there is no valid session the radar shows a
+  // signed-out panel, never a fabricated identity. `error` is shown as plain
+  // text; fake fallback profiles were removed.
+  const [signedOut, setSignedOut] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [matchModal, setMatchModal] = useState<{
     open: boolean;
     matchId?: string;
@@ -39,66 +45,31 @@ export function ProximityRadarView() {
 
   async function fetchNearbyUsers(r: number) {
     setLoading(true);
+    setError(null);
     try {
+      // Identity is established by the session's Bearer token inside
+      // quantSyncAPI — never a client-supplied identity header.
       // Default coordinates (e.g., Delhi center or client GPS)
       const lat = 28.6139;
       const lon = 77.209;
-      const res = await fetch(`/api/radar/nearby?lat=${lat}&lon=${lon}&radiusKm=${r}`, {
-        headers: {
-          'x-user-id': 'user_current_session',
-        },
-      });
-      const json = await res.json();
-      if (json.success && json.data?.users) {
-        setUsers(json.data.users);
+      const res = await quantSyncAPI.getRadarNearby(lat, lon, r);
+      if (res.success && res.data) {
+        setUsers(res.data);
       } else {
-        // Fallback mock data if backend not running or unseeded
-        setUsers([
-          {
-            id: 'u_1',
-            name: 'Aanya Sharma',
-            username: 'aanya',
-            avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
-            distanceKm: 2.4,
-            bio: 'Coffee lover, tech enthusiast, and weekend hiker ☕⛰️',
-            interests: ['Coffee', 'Tech', 'Hiking'],
-            mutualMatch: false,
-          },
-          {
-            id: 'u_2',
-            name: 'Kabir Mehta',
-            username: 'kabir',
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400',
-            distanceKm: 8.1,
-            bio: 'Building AI agents and playing indie guitar riffs 🎸🤖',
-            interests: ['AI', 'Music', 'Coding'],
-            mutualMatch: false,
-          },
-          {
-            id: 'u_3',
-            name: 'Zara Khan',
-            username: 'zara',
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-            distanceKm: 19.5,
-            bio: 'UX designer & foodie exploring rooftop cafes 🍜✨',
-            interests: ['Design', 'Food', 'Art'],
-            mutualMatch: false,
-          },
-        ]);
+        // Backend could not answer: honest empty state, never fabricated users.
+        setUsers([]);
+        setError(res.error?.message ?? 'Could not load the radar. Please try again.');
       }
-    } catch {
-      setUsers([
-        {
-          id: 'u_1',
-          name: 'Aanya Sharma',
-          username: 'aanya',
-          avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400',
-          distanceKm: 2.4,
-          bio: 'Coffee lover, tech enthusiast, and weekend hiker ☕⛰️',
-          interests: ['Coffee', 'Tech', 'Hiking'],
-          mutualMatch: false,
-        },
-      ]);
+    } catch (e) {
+      if (e instanceof AuthRequiredError) {
+        // No valid session — the radar needs a signed-in identity, so show an
+        // honest signed-out state instead of inventing a user.
+        setSignedOut(true);
+        setUsers([]);
+      } else {
+        setUsers([]);
+        setError('Could not load the radar. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -106,32 +77,46 @@ export function ProximityRadarView() {
 
   async function handleSwipe(targetUserId: string, action: 'like' | 'pass' | 'superlike') {
     try {
-      const res = await fetch('/api/radar/swipe', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': 'user_current_session',
-        },
-        body: JSON.stringify({ targetUserId, action }),
-      });
-      const json = await res.json();
-      if (json.success && json.data?.matched) {
+      // Identity comes from the session's Bearer token inside quantSyncAPI —
+      // never a client-supplied identity header.
+      const res = await quantSyncAPI.radarSwipe(targetUserId, action);
+      if (res.success && res.data?.matched) {
         const matchedUser = users.find((u) => u.id === targetUserId);
-        setMatchModal({ open: true, matchId: json.data.matchId, user: matchedUser });
+        setMatchModal({ open: true, matchId: res.data.matchId, user: matchedUser });
       }
-    } catch {
-      // Fallback local match simulation if offline
-      if (action === 'like' || action === 'superlike') {
-        const matchedUser = users.find((u) => u.id === targetUserId);
-        if (Math.random() > 0.5) {
-          setMatchModal({ open: true, matchId: 'match_simulated_123', user: matchedUser });
-        }
+      // Advance to next user — the swipe was recorded by the backend.
+      setUsers((prev) => prev.filter((u) => u.id !== targetUserId));
+      setSelectedUser(null);
+    } catch (e) {
+      // The swipe was NOT recorded: never simulate a match that didn't happen,
+      // and keep the card in the deck. Auth loss shows the signed-out state.
+      if (e instanceof AuthRequiredError) {
+        setSignedOut(true);
+      } else {
+        setError('Could not send that swipe. Please try again.');
       }
     }
+  }
 
-    // Advance to next user
-    setUsers((prev) => prev.filter((u) => u.id !== targetUserId));
-    setSelectedUser(null);
+  // Honest signed-out state: no session means no identity, so there is no
+  // radar to show — and no identity is fabricated to fill the gap.
+  if (signedOut) {
+    return (
+      <div className="relative min-h-[700px] w-full rounded-2xl bg-gradient-to-b from-zinc-950 via-zinc-900 to-black p-6 text-white shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+        <div className="text-4xl mb-3">📡</div>
+        <h2 className="text-xl font-bold text-white">Sign in to use Proximity Radar</h2>
+        <p className="text-sm text-zinc-400 mt-2 max-w-xs text-center">
+          Radar matching needs a signed-in account so nearby profiles can be
+          shown to you.
+        </p>
+        <a
+          href="/login"
+          className="mt-6 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-2.5 text-sm font-bold text-black hover:opacity-90"
+        >
+          Sign in
+        </a>
+      </div>
+    );
   }
 
   return (
@@ -160,6 +145,13 @@ export function ProximityRadarView() {
           ))}
         </div>
       </div>
+
+      {/* Honest failure state: plain text, never fabricated profiles */}
+      {error && !loading && (
+        <p className="z-10 mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-xs text-red-300">
+          {error}
+        </p>
+      )}
 
       {/* Center Radar Scanner UI */}
       <div className="relative my-8 flex h-[360px] w-[360px] items-center justify-center rounded-full border border-orange-500/20 bg-orange-950/10">
