@@ -25,6 +25,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import {
   PROFILE_TABS,
   selectProfileTab,
@@ -35,6 +36,7 @@ import {
 } from '../features/profile/profile-matrix';
 import { useProfile } from '../hooks/useProfile';
 import { useUserPosts } from '../hooks/useUserPosts';
+import { apiClient } from '../services/api-client';
 import { AccountSwitcherBottomSheet } from './AccountSwitcherBottomSheet';
 import type { Profile } from '../types';
 
@@ -118,248 +120,6 @@ export interface ProfileViewProps {
 }
 
 // ============================================================================
-// Default / Fallback Demo Mock Data
-// ============================================================================
-
-const DEFAULT_ACCOUNTS: AccountProfileItem[] = [
-  {
-    id: 'acc-curr',
-    username: 'quant_creator',
-    displayName: 'Quant Creator',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&h=150&fit=crop',
-    isVerified: true,
-    isCurrent: true,
-    unreadCount: 0,
-  },
-  {
-    id: 'acc-personal',
-    username: 'alex_personal',
-    displayName: 'Alex Rivers',
-    avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&h=150&fit=crop',
-    isCurrent: false,
-    unreadCount: 4,
-  },
-  {
-    id: 'acc-studio',
-    username: 'quant_studio_official',
-    displayName: 'Quant Studio Org',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&h=150&fit=crop',
-    isVerified: true,
-    isCurrent: false,
-    unreadCount: 12,
-  },
-];
-
-const DEFAULT_HIGHLIGHTS: StoryHighlightItem[] = [
-  {
-    id: 'hl-1',
-    title: 'Neon ⚡',
-    coverUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=120&h=120&fit=crop',
-  },
-  {
-    id: 'hl-2',
-    title: 'Travel ✈️',
-    coverUrl: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=120&h=120&fit=crop',
-  },
-  {
-    id: 'hl-3',
-    title: 'CodeHub 💻',
-    coverUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=120&h=120&fit=crop',
-  },
-  {
-    id: 'hl-4',
-    title: 'Beats 🎧',
-    coverUrl: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&h=120&fit=crop',
-  },
-];
-
-const DEFAULT_POSTS: ProfilePostItem[] = [
-  {
-    id: 'p-1',
-    type: 'carousel',
-    mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=600&fit=crop',
-    caption: 'QuantGram sovereign UI design system drop ⚡ #quantgram #design #future',
-    likes: 3840,
-    comments: 142,
-    views: 18200,
-  },
-  {
-    id: 'p-2',
-    type: 'video',
-    mediaUrl: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=600&h=600&fit=crop',
-    caption: 'High-speed local neural inference on WebGPU @quantrinity #ai',
-    likes: 5120,
-    comments: 289,
-    views: 42100,
-  },
-  {
-    id: 'p-3',
-    type: 'photo',
-    mediaUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=600&fit=crop',
-    caption: 'Silicon architecture and hardware accelerators benchmarked.',
-    likes: 2190,
-    comments: 87,
-    views: 12400,
-  },
-  {
-    id: 'p-4',
-    type: 'photo',
-    mediaUrl: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&h=600&fit=crop',
-    caption: 'Midnight Tokyo cyberpunk aesthetic sessions.',
-    likes: 4310,
-    comments: 198,
-    views: 29500,
-  },
-  {
-    id: 'p-5',
-    type: 'carousel',
-    mediaUrl: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=600&fit=crop',
-    caption: 'QuantAI agent runtime internals walkthrough.',
-    likes: 6420,
-    comments: 312,
-    views: 58000,
-  },
-  {
-    id: 'p-6',
-    type: 'photo',
-    mediaUrl: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=600&h=600&fit=crop',
-    caption: 'Color gradients of the future. Clean aesthetic minimal spaces.',
-    likes: 1890,
-    comments: 65,
-    views: 9400,
-  },
-];
-
-const DEFAULT_REELS: ProfileReelItem[] = [
-  {
-    id: 'r-1',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=450&h=800&fit=crop',
-    caption: '159 Screens built in 1 day with the Swarm Orchestrator 🤖🔥',
-    plays: 184500,
-    likes: 14200,
-    comments: 840,
-    isPinned: true,
-    audioName: 'Original Audio • quant_creator',
-  },
-  {
-    id: 'r-2',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=450&h=800&fit=crop',
-    caption: 'Why one unified login beats Google + Meta combined',
-    plays: 92400,
-    likes: 8120,
-    comments: 420,
-    isPinned: true,
-    audioName: 'Cyber Ambient Synth #04',
-  },
-  {
-    id: 'r-3',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=450&h=800&fit=crop',
-    caption: 'Building the Instagram 4-Tab Matrix in pure TypeScript',
-    plays: 68100,
-    likes: 4950,
-    comments: 215,
-    audioName: 'Coding Lofi Beats #12',
-  },
-  {
-    id: 'r-4',
-    thumbnailUrl:
-      'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=450&h=800&fit=crop',
-    caption: 'Zero-latency WebRTC media pipelines in action',
-    plays: 43200,
-    likes: 3100,
-    comments: 180,
-    audioName: 'Quant Sound Lab Official',
-  },
-];
-
-const DEFAULT_SAVED_COLLECTIONS: ProfileSavedCollection[] = [
-  {
-    id: 'col-all',
-    name: 'All Posts',
-    count: 48,
-    coverUrls: [
-      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=200&h=200&fit=crop',
-    ],
-    isPrivate: true,
-  },
-  {
-    id: 'col-ui',
-    name: 'Design & Neon ⚡',
-    count: 24,
-    coverUrls: [
-      'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=200&h=200&fit=crop',
-    ],
-    isPrivate: true,
-  },
-  {
-    id: 'col-audio',
-    name: 'Audio & Loops 🎵',
-    count: 15,
-    coverUrls: [
-      'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&h=200&fit=crop',
-      'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200&h=200&fit=crop',
-    ],
-    isPrivate: true,
-  },
-];
-
-const DEFAULT_SAVED_ITEMS: ProfileSavedItem[] = [
-  {
-    id: 'sav-1',
-    type: 'post',
-    mediaUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=500&h=500&fit=crop',
-    title: 'Neon futuristic glass tokens',
-  },
-  {
-    id: 'sav-2',
-    type: 'reel',
-    mediaUrl: 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=500&h=500&fit=crop',
-    title: 'Swarm agent architecture',
-  },
-  {
-    id: 'sav-3',
-    type: 'post',
-    mediaUrl: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=500&h=500&fit=crop',
-    title: 'Silicon wafers and compute',
-  },
-];
-
-const DEFAULT_TAGGED_ITEMS: ProfileTaggedItem[] = [
-  {
-    id: 'tag-1',
-    mediaUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=500&h=500&fit=crop',
-    taggedBy: 'astra_ceo',
-    caption: 'Swarm leadership meeting at Trinity Lab 🚀',
-    likes: 1240,
-  },
-  {
-    id: 'tag-2',
-    mediaUrl: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=500&h=500&fit=crop',
-    taggedBy: 'quantrinity_hq',
-    caption: 'Sprint launch day with the entire dev crew @quant_creator',
-    likes: 2480,
-  },
-  {
-    id: 'tag-3',
-    mediaUrl: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=500&h=500&fit=crop',
-    taggedBy: 'dev2_sentinel',
-    caption: 'CI/CD pipeline test gates 100% green verified ✅',
-    likes: 980,
-  },
-];
-
-// ============================================================================
 // Helper Utilities
 // ============================================================================
 
@@ -432,7 +192,7 @@ export function renderBioWithLinks(bio: string): React.ReactNode[] {
 export const ProfileView: React.FC<ProfileViewProps> = ({
   userId = '',
   initialProfile,
-  initialAccounts = DEFAULT_ACCOUNTS,
+  initialAccounts = [],
   isOwnProfile = true,
   onEditProfile,
   onShareProfile,
@@ -455,9 +215,9 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   const [isAccountSwitcherOpen, setIsAccountSwitcherOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
 
-  // Active Account
+  // Active Account (no fabricated defaults — empty when the caller supplies none)
   const currentAccount = useMemo(() => {
-    return accounts.find((a) => a.isCurrent) || accounts[0] || DEFAULT_ACCOUNTS[0];
+    return accounts.find((a) => a.isCurrent) || accounts[0];
   }, [accounts]);
 
   // Total unread notifications across inactive accounts
@@ -465,50 +225,102 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     return getAccountTotalUnreadCount(accounts);
   }, [accounts]);
 
-  // Consolidated profile data
+  const effectiveUserId = useMemo(
+    () => remoteProfile?.id || userId || currentAccount?.id || '',
+    [remoteProfile, userId, currentAccount],
+  );
+
+  // Real reels authored by this user (no fabricated defaults)
+  const { data: remoteReels } = useQuery({
+    queryKey: ['neon-user-reels', effectiveUserId],
+    queryFn: async () => {
+      const response = await apiClient.getReelsFeed();
+      if (!response.success) return [];
+      return (response.data?.reels ?? []).filter((r) => r.userId === effectiveUserId);
+    },
+    enabled: !!effectiveUserId,
+  });
+
+  // Real saved posts (no fabricated defaults)
+  const { data: remoteSavedPosts } = useQuery({
+    queryKey: ['neon-saved-posts'],
+    queryFn: async () => {
+      const response = await apiClient.getSavedPosts();
+      if (!response.success) return [];
+      return response.data?.posts ?? [];
+    },
+    enabled: activeTab === 'saved' && isOwnProfile,
+  });
+
+  // Consolidated profile data (no fabricated fallbacks)
   const profileData = useMemo(() => {
     return {
-      id: remoteProfile?.id || userId || currentAccount.id,
-      username: remoteProfile?.username || initialProfile?.username || currentAccount.username,
+      id: effectiveUserId,
+      username: remoteProfile?.username || initialProfile?.username || currentAccount?.username || '',
       displayName:
-        remoteProfile?.displayName || initialProfile?.displayName || currentAccount.displayName,
-      avatarUrl: remoteProfile?.avatarUrl || initialProfile?.avatarUrl || currentAccount.avatar,
+        remoteProfile?.displayName ||
+        initialProfile?.displayName ||
+        currentAccount?.displayName ||
+        '',
+      avatarUrl: remoteProfile?.avatarUrl || initialProfile?.avatarUrl || currentAccount?.avatar || '',
       isVerified:
-        remoteProfile?.isVerified ??
-        initialProfile?.isVerified ??
-        currentAccount.isVerified ??
-        true,
-      bio:
-        remoteProfile?.bio ||
-        initialProfile?.bio ||
-        'Building the Quant Ecosystem ⚡ Autonomous AI Swarm Architecture.\nFounder @quantrinity • Coding on CodeHub.\nDaily drops: https://quantmail.in',
-      website: remoteProfile?.website || initialProfile?.website || 'https://quantmail.in',
-      pronouns: initialProfile?.pronouns || 'they/them',
-      category: initialProfile?.category || 'Digital Creator & Quant Architect',
-      postCount: remoteProfile?.postCount ?? initialProfile?.postCount ?? DEFAULT_POSTS.length,
-      followerCount: remoteProfile?.followerCount ?? initialProfile?.followerCount ?? 142800,
-      followingCount: remoteProfile?.followingCount ?? initialProfile?.followingCount ?? 342,
-      hasActiveStory: initialProfile?.hasActiveStory ?? true,
-      hasUnviewedStory: initialProfile?.hasUnviewedStory ?? true,
+        remoteProfile?.isVerified ?? initialProfile?.isVerified ?? currentAccount?.isVerified ?? false,
+      bio: remoteProfile?.bio || initialProfile?.bio || '',
+      website: remoteProfile?.website || initialProfile?.website || '',
+      pronouns: initialProfile?.pronouns || '',
+      category: initialProfile?.category || '',
+      postCount:
+        remoteProfile?.postCount ?? initialProfile?.postCount ?? remoteUserPosts?.length ?? 0,
+      followerCount: remoteProfile?.followerCount ?? initialProfile?.followerCount ?? 0,
+      followingCount: remoteProfile?.followingCount ?? initialProfile?.followingCount ?? 0,
+      hasActiveStory: initialProfile?.hasActiveStory ?? false,
+      hasUnviewedStory: initialProfile?.hasUnviewedStory ?? false,
       isCloseFriendStory: initialProfile?.isCloseFriendStory ?? false,
     };
-  }, [remoteProfile, initialProfile, currentAccount, userId]);
+  }, [remoteProfile, initialProfile, currentAccount, effectiveUserId, remoteUserPosts]);
 
-  // Posts data (combining fetched or defaults)
+  // Posts data — real posts only; posts without media are excluded (no fake media injected)
   const postsList: ProfilePostItem[] = useMemo(() => {
-    if (remoteUserPosts && remoteUserPosts.length > 0) {
-      return remoteUserPosts.map((p) => ({
+    if (!remoteUserPosts || remoteUserPosts.length === 0) return [];
+    return remoteUserPosts
+      .map((p) => ({
         id: p.id,
         type: p.type || 'photo',
-        mediaUrl: p.mediaUrls?.[0] || p.media?.[0]?.url || DEFAULT_POSTS[0].mediaUrl,
+        mediaUrl: p.mediaUrls?.[0] || p.media?.[0]?.url || '',
         caption: p.caption || '',
         likes: p.likeCount ?? p.likes ?? 0,
         comments: p.commentCount ?? p.comments?.length ?? 0,
-        views: (p.likeCount ?? 0) * 4 + 120,
-      }));
-    }
-    return DEFAULT_POSTS;
+      }))
+      .filter((p) => p.mediaUrl !== '');
   }, [remoteUserPosts]);
+
+  // Reels data — real reels only (no fabricated play counts)
+  const reelsList: ProfileReelItem[] = useMemo(() => {
+    if (!remoteReels || remoteReels.length === 0) return [];
+    return remoteReels.map((r) => ({
+      id: r.id,
+      thumbnailUrl: r.thumbnailUrl,
+      videoUrl: r.videoUrl,
+      caption: r.caption || '',
+      plays: r.plays ?? 0,
+      likes: r.likes ?? 0,
+      comments: r.comments ?? 0,
+      audioName: r.audioName || undefined,
+    }));
+  }, [remoteReels]);
+
+  // Saved data — real saved posts only
+  const savedList: ProfileSavedItem[] = useMemo(() => {
+    if (!remoteSavedPosts || remoteSavedPosts.length === 0) return [];
+    return remoteSavedPosts
+      .map((p) => ({
+        id: p.id,
+        type: 'post' as const,
+        mediaUrl: p.mediaUrls?.[0] || p.media?.[0]?.url || '',
+        title: p.caption || '',
+      }))
+      .filter((p) => p.mediaUrl !== '');
+  }, [remoteSavedPosts]);
 
   // Tab change handler using profile-matrix.ts state engine
   const handleTabChange = useCallback(
@@ -610,10 +422,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </span>
               )}
 
-              {/* Chevron Down */}
-              <span className="text-xs text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                ▼
-              </span>
+              {/* Chevron Down — only when there are accounts to switch between */}
+              {accounts.length > 0 && (
+                <span className="text-xs text-gray-500 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                  ▼
+                </span>
+              )}
 
               {/* Inactive accounts unread badge */}
               {totalUnreadCount > 0 && (
@@ -664,11 +478,20 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 data-testid="profile-avatar-story-ring"
               >
                 <div className="p-[2.5px] bg-white dark:bg-[#000000] rounded-full">
-                  <img
-                    src={profileData.avatarUrl}
-                    alt={profileData.username}
-                    className="w-20 h-20 md:w-22 md:h-22 rounded-full object-cover"
-                  />
+                  {profileData.avatarUrl ? (
+                    <img
+                      src={profileData.avatarUrl}
+                      alt={profileData.username}
+                      className="w-20 h-20 md:w-22 md:h-22 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-20 h-20 md:w-22 md:h-22 rounded-full bg-gray-200 dark:bg-[#262626] flex items-center justify-center text-2xl font-bold text-gray-500 dark:text-[#A8A8A8]"
+                      aria-label={profileData.username}
+                    >
+                      {(profileData.username || profileData.displayName || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )}
                 </div>
               </button>
 
@@ -727,14 +550,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
           {/* Display Name, Pronouns & Bio */}
           <div className="mt-3.5 space-y-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="font-bold text-sm tracking-tight">{profileData.displayName}</span>
-              {profileData.pronouns && (
-                <span className="text-xs text-gray-500 dark:text-[#8E8E8E] font-medium">
-                  {profileData.pronouns}
-                </span>
-              )}
-            </div>
+            {(profileData.displayName || profileData.pronouns) && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {profileData.displayName && (
+                  <span className="font-bold text-sm tracking-tight">{profileData.displayName}</span>
+                )}
+                {profileData.pronouns && (
+                  <span className="text-xs text-gray-500 dark:text-[#8E8E8E] font-medium">
+                    {profileData.pronouns}
+                  </span>
+                )}
+              </div>
+            )}
 
             {profileData.category && (
               <span className="text-xs text-gray-400 dark:text-[#737373] block font-medium">
@@ -743,12 +570,14 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
 
             {/* Clickable Bio */}
-            <div
-              className="text-sm text-gray-800 dark:text-[#F5F5F5] leading-snug whitespace-pre-line pt-0.5"
-              data-testid="profile-bio"
-            >
-              {renderBioWithLinks(profileData.bio)}
-            </div>
+            {profileData.bio && (
+              <div
+                className="text-sm text-gray-800 dark:text-[#F5F5F5] leading-snug whitespace-pre-line pt-0.5"
+                data-testid="profile-bio"
+              >
+                {renderBioWithLinks(profileData.bio)}
+              </div>
+            )}
 
             {/* Clickable External Website Link */}
             {profileData.website && (
@@ -813,7 +642,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
             )}
           </div>
 
-          {/* Story Highlights Bar */}
+          {/* Story Highlights Bar — real highlights only (none fabricated); 'New' starts creation */}
           <div className="mt-5 pb-2 overflow-x-auto scrollbar-none flex items-center gap-4">
             {/* New Highlight Button */}
             {isOwnProfile && (
@@ -830,27 +659,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </span>
               </button>
             )}
-
-            {/* Existing Highlights */}
-            {DEFAULT_HIGHLIGHTS.map((hl) => (
-              <button
-                key={hl.id}
-                type="button"
-                onClick={() => onStoryClick?.(profileData.id)}
-                className="flex flex-col items-center gap-1.5 shrink-0 group focus:outline-hidden"
-              >
-                <div className="p-[2px] rounded-full border border-gray-200 dark:border-[#2B2B2B]">
-                  <img
-                    src={hl.coverUrl}
-                    alt={hl.title}
-                    className="w-15 h-15 rounded-full object-cover group-hover:scale-105 transition-transform"
-                  />
-                </div>
-                <span className="text-xs text-gray-800 dark:text-[#F5F5F5] truncate max-w-[68px] font-medium">
-                  {hl.title}
-                </span>
-              </button>
-            ))}
           </div>
         </section>
 
@@ -945,7 +753,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                         </span>
                       )}
 
-                      {/* Hover Overlay with Likes, Comments & Views */}
+                      {/* Hover Overlay with Likes & Comments (real counts only) */}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 text-white text-xs md:text-sm font-bold">
                         <span className="flex items-center gap-1">
                           <span>♥</span> {formatStatCount(post.likes)}
@@ -976,52 +784,54 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 className="grid grid-cols-3 gap-1 md:gap-1.5 px-0.5"
                 data-testid="panel-reels"
               >
-                {DEFAULT_REELS.map((reel) => (
-                  <button
-                    key={reel.id}
-                    type="button"
-                    onClick={() => onReelClick?.(reel.id)}
-                    className="relative aspect-[9/16] overflow-hidden rounded-md bg-gray-900 group focus:outline-hidden"
-                    aria-label={`Reel, ${reel.plays} plays`}
-                  >
-                    <img
-                      src={reel.thumbnailUrl}
-                      alt={reel.caption}
-                      loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
+                {reelsList.length === 0 ? (
+                  <div className="col-span-3 py-16 text-center text-gray-500">
+                    <p className="text-3xl mb-2">🎬</p>
+                    <p className="font-semibold text-sm">No reels yet</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Create your first reel to see it here
+                    </p>
+                  </div>
+                ) : (
+                  reelsList.map((reel) => (
+                    <button
+                      key={reel.id}
+                      type="button"
+                      onClick={() => onReelClick?.(reel.id)}
+                      className="relative aspect-[9/16] overflow-hidden rounded-md bg-gray-900 group focus:outline-hidden"
+                      aria-label={`Reel, ${reel.plays} plays`}
+                    >
+                      <img
+                        src={reel.thumbnailUrl}
+                        alt={reel.caption}
+                        loading="lazy"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
 
-                    {/* Pinned Reel Badge */}
-                    {reel.isPinned && (
-                      <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                        <span>📌</span>
-                        <span className="hidden sm:inline">Pinned</span>
+                      {/* Bottom Gradient with Play Count */}
+                      <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex flex-col justify-end text-left">
+                        <div className="flex items-center gap-1 text-white text-xs font-bold drop-shadow-xs">
+                          <span>▶</span>
+                          <span>{formatStatCount(reel.plays)}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-200 line-clamp-1 mt-0.5 font-normal">
+                          {reel.caption}
+                        </p>
                       </div>
-                    )}
 
-                    {/* Bottom Gradient with Play Count */}
-                    <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/85 via-black/40 to-transparent flex flex-col justify-end text-left">
-                      <div className="flex items-center gap-1 text-white text-xs font-bold drop-shadow-xs">
-                        <span>▶</span>
-                        <span>{formatStatCount(reel.plays)}</span>
+                      {/* Hover Stats */}
+                      <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 text-white text-xs font-bold">
+                        <span>♥ {formatStatCount(reel.likes)}</span>
+                        <span>💬 {formatStatCount(reel.comments)}</span>
                       </div>
-                      <p className="text-[10px] text-gray-200 line-clamp-1 mt-0.5 font-normal">
-                        {reel.caption}
-                      </p>
-                    </div>
-
-                    {/* Hover Stats */}
-                    <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3 text-white text-xs font-bold">
-                      <span>♥ {formatStatCount(reel.likes)}</span>
-                      <span>💬 {formatStatCount(reel.comments)}</span>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                )}
               </motion.div>
             )}
 
             {/* ---------------------------------------------------------------- */}
-            {/* TAB 3: SAVED (Collection Folders & Bookmarked Reels) */}
+            {/* TAB 3: SAVED (Bookmarked Posts & Reels) */}
             {/* ---------------------------------------------------------------- */}
             {activeTab === 'saved' && (
               <motion.div
@@ -1042,48 +852,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                     <span>🔒</span>
                     <span>Only you can see what you've saved</span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onSavedClick?.(DEFAULT_SAVED_COLLECTIONS[0])}
-                    className="text-[#0095F6] font-semibold hover:underline"
-                  >
-                    + New collection
-                  </button>
                 </div>
 
-                {/* Collection Folders Matrix */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {DEFAULT_SAVED_COLLECTIONS.map((col) => (
-                    <button
-                      key={col.id}
-                      type="button"
-                      onClick={() => onSavedClick?.(col)}
-                      className="flex flex-col text-left group focus:outline-hidden"
-                      aria-label={`Collection ${col.name}, ${col.count} items`}
-                    >
-                      {/* Quadrant Mosaic Cover */}
-                      <div className="aspect-square rounded-xl overflow-hidden grid grid-cols-2 grid-rows-2 gap-0.5 border border-gray-200 dark:border-[#2B2B2B] bg-gray-100 dark:bg-[#1A1A1A] group-hover:opacity-90 transition-opacity">
-                        {col.coverUrls.map((url, i) => (
-                          <img key={i} src={url} alt="" className="w-full h-full object-cover" />
-                        ))}
-                      </div>
-                      <span className="font-semibold text-xs text-gray-900 dark:text-white mt-1.5 truncate">
-                        {col.name}
-                      </span>
-                      <span className="text-[11px] text-gray-500 dark:text-[#A8A8A8]">
-                        {col.count} saved items
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* All Saved Items Preview */}
-                <div className="pt-2">
-                  <h4 className="text-xs font-bold text-gray-400 dark:text-[#737373] uppercase tracking-wider mb-2">
-                    Recent Bookmarks
-                  </h4>
+                {savedList.length === 0 ? (
+                  <div className="py-16 text-center text-gray-500">
+                    <p className="text-3xl mb-2">🔖</p>
+                    <p className="font-semibold text-sm">No saved posts yet</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Tap the bookmark icon on any post to save it here
+                    </p>
+                  </div>
+                ) : (
                   <div className="grid grid-cols-3 gap-1">
-                    {DEFAULT_SAVED_ITEMS.map((item) => (
+                    {savedList.map((item) => (
                       <button
                         key={item.id}
                         type="button"
@@ -1101,7 +882,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                       </button>
                     ))}
                   </div>
-                </div>
+                )}
               </motion.div>
             )}
 
@@ -1121,32 +902,13 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 className="grid grid-cols-3 gap-0.5 md:gap-1"
                 data-testid="panel-tagged"
               >
-                {DEFAULT_TAGGED_ITEMS.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onTaggedClick?.(item)}
-                    className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-[#1A1A1A] group focus:outline-hidden"
-                    aria-label={`Tagged by @${item.taggedBy}`}
-                  >
-                    <img
-                      src={item.mediaUrl}
-                      alt={item.caption || 'Tagged post'}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-
-                    {/* Tag Silhouette Badge in Bottom Left */}
-                    <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <span>👤</span>
-                      <span>@{item.taggedBy}</span>
-                    </div>
-
-                    {/* Hover Stats */}
-                    <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
-                      <span>♥ {formatStatCount(item.likes)}</span>
-                    </div>
-                  </button>
-                ))}
+                <div className="col-span-3 py-16 text-center text-gray-500">
+                  <p className="text-3xl mb-2">🏷️</p>
+                  <p className="font-semibold text-sm">No tagged photos</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Photos people tag you in will appear here
+                  </p>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

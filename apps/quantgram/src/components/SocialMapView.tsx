@@ -18,94 +18,7 @@ import {
   type PrivacyShieldSettings,
   type LocationSharingScope,
 } from '../features/map/social-map';
-
-export const INITIAL_MAP_PINS: StoryLocationPin[] = [
-  {
-    id: 'pin-delhi-1',
-    storyId: 'story-101',
-    userId: 'user-alice',
-    username: 'alice_wanderlust',
-    displayName: 'Alice Miller',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
-    mediaThumbnail:
-      'https://images.unsplash.com/photo-1587474260584-136574528ed5?w=400&auto=format&fit=crop&q=80',
-    caption: 'Sunset over India Gate 🇮🇳 #DelhiDiaries',
-    lat: 28.6129,
-    lng: 77.2295,
-    cityName: 'New Delhi',
-    landmarkName: 'India Gate',
-    postedAt: Date.now() - 3600000,
-  },
-  {
-    id: 'pin-delhi-2',
-    storyId: 'story-102',
-    userId: 'user-bob',
-    username: 'bob_creator',
-    displayName: 'Bob Kumar',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-    mediaThumbnail:
-      'https://images.unsplash.com/photo-1524492412937-b28074a5d7da?w=400&auto=format&fit=crop&q=80',
-    caption: 'Best specialty coffee in CP! ☕',
-    lat: 28.6304,
-    lng: 77.2177,
-    cityName: 'New Delhi',
-    landmarkName: 'Connaught Place',
-    postedAt: Date.now() - 1800000,
-  },
-  {
-    id: 'pin-mumbai-1',
-    storyId: 'story-103',
-    userId: 'user-charlie',
-    username: 'charlie_vibes',
-    displayName: 'Charlie D.',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-    mediaThumbnail:
-      'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?w=400&auto=format&fit=crop&q=80',
-    caption: 'Evening sea breeze at Marine Drive 🌊',
-    lat: 18.944,
-    lng: 72.8238,
-    cityName: 'Mumbai',
-    landmarkName: 'Marine Drive',
-    postedAt: Date.now() - 7200000,
-  },
-  {
-    id: 'pin-mumbai-2',
-    storyId: 'story-104',
-    userId: 'user-dev',
-    username: 'dev_lens',
-    displayName: 'Dev Sharma',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
-    mediaThumbnail:
-      'https://images.unsplash.com/photo-1567157577867-05ccb1388e66?w=400&auto=format&fit=crop&q=80',
-    caption: 'Bandra Bandstand night vibes ✨',
-    lat: 19.0544,
-    lng: 72.8193,
-    cityName: 'Mumbai',
-    landmarkName: 'Bandra Bandstand',
-    postedAt: Date.now() - 900000,
-  },
-  {
-    id: 'pin-blr-1',
-    storyId: 'story-105',
-    userId: 'user-emma',
-    username: 'emma_tech',
-    displayName: 'Emma Watson',
-    avatarUrl:
-      'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&auto=format&fit=crop&q=80',
-    mediaThumbnail:
-      'https://images.unsplash.com/photo-1596176530529-78163a4f7af2?w=400&auto=format&fit=crop&q=80',
-    caption: 'Koramangala tech mixer & rooftop dinner 🍕',
-    lat: 12.9352,
-    lng: 77.6245,
-    cityName: 'Bengaluru',
-    landmarkName: 'Koramangala',
-    postedAt: Date.now() - 4000000,
-  },
-];
+import { useCloseFriends } from '../hooks/useCloseFriends';
 
 export interface SocialMapViewProps {
   currentUserId?: string;
@@ -114,8 +27,8 @@ export interface SocialMapViewProps {
 }
 
 export function SocialMapView({
-  currentUserId = 'user-current',
-  initialPins = INITIAL_MAP_PINS,
+  currentUserId = '',
+  initialPins = [],
   onOpenStory,
 }: SocialMapViewProps) {
   const [zoomLevel, setZoomLevel] = useState<number>(3);
@@ -127,6 +40,13 @@ export function SocialMapView({
   const [selectedPin, setSelectedPin] = useState<StoryLocationPin | null>(null);
   const [userCenterCity, setUserCenterCity] = useState<string>('All');
 
+  // Real close-friends list for the privacy-shield check (no fabricated users)
+  const { closeFriends } = useCloseFriends();
+  const closeFriendIds = useMemo(
+    () => new Set(closeFriends.map((f) => f.id)),
+    [closeFriends],
+  );
+
   const myPrivacy = privacySettings[currentUserId] ?? DEFAULT_PRIVACY_SHIELD;
 
   // Filter pins based on privacy shield rules
@@ -135,9 +55,9 @@ export function SocialMapView({
       initialPins,
       currentUserId,
       privacySettings,
-      (targetId) => targetId === 'user-alice' || targetId === 'user-bob',
+      (targetId) => closeFriendIds.has(targetId),
     );
-  }, [initialPins, currentUserId, privacySettings]);
+  }, [initialPins, currentUserId, privacySettings, closeFriendIds]);
 
   // Filter pins by search query
   const searchablePins = useMemo(() => {
@@ -241,11 +161,13 @@ export function SocialMapView({
           {clusters.length === 0 ? (
             <div className="text-center p-6 bg-[#161B22]/90 backdrop-blur-md rounded-2xl border border-[#30363D] max-w-sm">
               <span className="text-4xl mb-3 block">📍</span>
-              <h3 className="text-base font-semibold text-white">No Stories Found</h3>
+              <h3 className="text-base font-semibold text-white">No stories on the map</h3>
               <p className="text-xs text-gray-400 mt-1">
-                {myPrivacy.ghostModeEnabled
-                  ? 'Ghost Mode is on or no stories match your current search.'
-                  : 'Try zooming out or searching for another city.'}
+                {searchQuery.trim()
+                  ? 'No stories match your current search.'
+                  : myPrivacy.ghostModeEnabled
+                    ? 'Ghost Mode is on — your location stays hidden. Turn it off to appear on the map.'
+                    : 'No stories have shared a location yet.'}
               </p>
             </div>
           ) : (

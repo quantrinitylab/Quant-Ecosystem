@@ -354,6 +354,7 @@ const FeedPage: React.FC = () => {
         isOpen={commentsPostId !== null}
         onClose={() => setCommentsPostId(null)}
         reelId={commentsPostId ?? ''}
+        kind="post"
         initialCommentsCount={
           commentsPostId
             ? state.posts.find((p) => p.id === commentsPostId)?.commentCount ?? 0

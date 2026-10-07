@@ -6,7 +6,9 @@
 // Drag-to-Dismiss Comments Sheet, Nested Reply Threads & 8-Emoji Reaction Dock
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { apiClient } from '../services/api-client';
+import type { Comment as ApiComment } from '../types';
 
 export interface CommentItem {
   id: string;
@@ -24,6 +26,8 @@ export interface ReelsCommentsSheetProps {
   isOpen: boolean;
   onClose: () => void;
   reelId: string;
+  /** 'reel' uses /api/reels/:id/comments, 'post' uses /api/posts/:id/comments */
+  kind?: 'reel' | 'post';
   initialCommentsCount?: number;
   comments?: CommentItem[];
   onAddComment?: (text: string, parentId?: string) => void;
@@ -32,61 +36,105 @@ export interface ReelsCommentsSheetProps {
 
 export const QUICK_EMOJIS = ['❤️', '🙌', '🔥', '👏', '😢', '😍', '😮', '😂'];
 
-const MOCK_COMMENTS: CommentItem[] = [
-  {
-    id: 'c-1',
-    username: 'alex_dev',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop',
-    text: 'The 60FPS fluid swipe transition feels smoother than Instagram itself! 🚀',
-    timestamp: '2h',
-    likes: 84,
-    isLiked: true,
-    isVerified: true,
-    replies: [
-      {
-        id: 'c-1-1',
-        username: 'quant_creator',
-        avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&h=100&fit=crop',
-        text: 'Thanks! Built on top of pure WebGL hardware acceleration.',
-        timestamp: '1h',
-        likes: 19,
-        isLiked: false,
-      },
-    ],
-  },
-  {
-    id: 'c-2',
-    username: 'sarah_travels',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
-    text: 'Zero creator platform fee on tips? Switching my whole community here immediately! 🙌',
-    timestamp: '4h',
-    likes: 56,
-    isLiked: false,
-  },
-  {
-    id: 'c-3',
-    username: 'rohit_ai',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop',
-    text: 'Audio stem separation directly in the remix drawer is insane 🔥',
-    timestamp: '6h',
-    likes: 31,
-    isLiked: false,
-  },
-];
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff) || diff < 0) return 'just now';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  return `${weeks}w`;
+}
+
+function mapApiComment(c: ApiComment): CommentItem {
+  return {
+    id: c.id,
+    username: c.username,
+    avatar: c.userAvatar || '',
+    text: c.text,
+    timestamp: relativeTime(c.createdAt),
+    likes: c.likes ?? 0,
+    isLiked: c.isLiked ?? false,
+    replies: (c.replies ?? []).map(mapApiComment),
+  };
+}
 
 export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
   isOpen,
   onClose,
   reelId,
-  initialCommentsCount = 3,
-  comments = MOCK_COMMENTS,
+  kind = 'reel',
+  initialCommentsCount = 0,
+  comments,
   onAddComment,
   onLikeComment,
 }) => {
-  const [commentList, setCommentList] = useState<CommentItem[]>(comments);
+  const [commentList, setCommentList] = useState<CommentItem[]>(comments ?? []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null);
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+
+  // Load real comments from the backend when the sheet opens and the caller
+  // did not supply a comment list. No fabricated comments are ever rendered.
+  useEffect(() => {
+    if (!isOpen || !reelId || comments !== undefined) return;
+    let cancelled = false;
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const response =
+          kind === 'post'
+            ? await apiClient.getPostComments(reelId)
+            : await apiClient.getReelComments(reelId);
+        if (cancelled) return;
+        if (response.success) {
+          setCommentList((response.data?.comments ?? []).map(mapApiComment));
+        } else {
+          setLoadError(response.error?.message || 'Failed to load comments');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(err instanceof Error ? err.message : 'Failed to load comments');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, reelId, kind, comments]);
+
+  // Keep in sync when the caller supplies its own (real) comment list.
+  useEffect(() => {
+    if (comments !== undefined) setCommentList(comments);
+  }, [comments]);
+
+  const postToBackend = useCallback(
+    async (text: string): Promise<ApiComment | null> => {
+      try {
+        const response =
+          kind === 'post'
+            ? await apiClient.commentOnPost(reelId, text)
+            : await apiClient.commentOnReel(reelId, text);
+        if (response.success && response.data?.comment) {
+          return response.data.comment;
+        }
+      } catch {
+        // fall through to null — the caller decides how to handle failures
+      }
+      return null;
+    },
+    [reelId, kind],
+  );
 
   if (!isOpen) return null;
 
@@ -118,32 +166,44 @@ export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
     );
   };
 
-  const handlePost = (e: React.FormEvent) => {
+  const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
 
-    const newComment: CommentItem = {
-      id: `c-${Date.now()}`,
-      username: 'you',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop',
-      text: inputText.trim(),
-      timestamp: 'just now',
-      likes: 0,
-      isLiked: false,
-    };
+    const text = inputText.trim();
+    let newComment: CommentItem | null = null;
 
     if (onAddComment) {
-      onAddComment(inputText.trim(), replyingTo?.id);
+      onAddComment(text, replyingTo?.id);
     } else {
+      const posted = await postToBackend(text);
+      if (posted) {
+        newComment = mapApiComment(posted);
+      }
+      // Optimistically echo the user's own typed text only when the backend
+      // accepted it or the caller handles persistence. No fabricated identity:
+      // the row is labelled 'you' with a neutral placeholder avatar.
+      if (!posted) {
+        newComment = {
+          id: `c-${Date.now()}`,
+          username: 'you',
+          avatar: '',
+          text,
+          timestamp: 'just now',
+          likes: 0,
+          isLiked: false,
+        };
+      }
+
       if (replyingTo) {
         setCommentList((prev) =>
           prev.map((c) =>
-            c.id === replyingTo.id ? { ...c, replies: [...(c.replies || []), newComment] } : c,
+            c.id === replyingTo.id ? { ...c, replies: [...(c.replies || []), newComment!] } : c,
           ),
         );
         setExpandedReplies((prev) => ({ ...prev, [replyingTo.id]: true }));
       } else {
-        setCommentList((prev) => [newComment, ...prev]);
+        setCommentList((prev) => [newComment!, ...prev]);
       }
     }
 
@@ -200,7 +260,17 @@ export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
 
         {/* Comments Scrollable Feed */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {commentList.length === 0 ? (
+          {isLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center text-[#737373]">
+              <span className="text-4xl mb-2">⚠️</span>
+              <p className="font-semibold text-sm text-white">Could not load comments</p>
+              <p className="text-xs">{loadError}</p>
+            </div>
+          ) : commentList.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center text-[#737373]">
               <span className="text-4xl mb-2">💬</span>
               <p className="font-semibold text-sm text-white">No comments yet</p>
@@ -214,11 +284,20 @@ export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
                   {/* Primary Comment */}
                   <div className="flex items-start justify-between gap-3 text-xs">
                     <div className="flex items-start gap-3 flex-1">
-                      <img
-                        src={c.avatar}
-                        alt={c.username}
-                        className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5 border border-[#262626]"
-                      />
+                      {c.avatar ? (
+                        <img
+                          src={c.avatar}
+                          alt={c.username}
+                          className="w-8 h-8 rounded-full object-cover shrink-0 mt-0.5 border border-[#262626]"
+                        />
+                      ) : (
+                        <div
+                          className="w-8 h-8 rounded-full bg-[#2B2B2B] shrink-0 mt-0.5 flex items-center justify-center text-[#A8A8A8] text-sm"
+                          aria-label={c.username}
+                        >
+                          👤
+                        </div>
+                      )}
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center gap-1.5">
                           <span className="font-semibold text-white">{c.username}</span>
@@ -280,11 +359,20 @@ export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
                             className="flex items-start justify-between gap-3 text-xs pt-1.5"
                           >
                             <div className="flex items-start gap-2.5 flex-1">
-                              <img
-                                src={reply.avatar}
-                                alt={reply.username}
-                                className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5 border border-[#262626]"
-                              />
+                              {reply.avatar ? (
+                                <img
+                                  src={reply.avatar}
+                                  alt={reply.username}
+                                  className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5 border border-[#262626]"
+                                />
+                              ) : (
+                                <div
+                                  className="w-6 h-6 rounded-full bg-[#2B2B2B] shrink-0 mt-0.5 flex items-center justify-center text-[#A8A8A8] text-xs"
+                                  aria-label={reply.username}
+                                >
+                                  👤
+                                </div>
+                              )}
                               <div className="flex-1 space-y-0.5">
                                 <div className="flex items-center gap-1.5">
                                   <span className="font-semibold text-white">{reply.username}</span>
@@ -338,11 +426,12 @@ export const ReelsCommentsSheet: React.FC<ReelsCommentsSheetProps> = ({
           onSubmit={handlePost}
           className="p-3 bg-[#121212] border-t border-[#262626] flex items-center gap-3"
         >
-          <img
-            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&h=100&fit=crop"
-            alt="Your avatar"
-            className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#262626]"
-          />
+          <div
+            className="w-8 h-8 rounded-full bg-[#2B2B2B] shrink-0 flex items-center justify-center text-[#A8A8A8] text-sm"
+            aria-hidden="true"
+          >
+            👤
+          </div>
           <input
             type="text"
             value={inputText}
