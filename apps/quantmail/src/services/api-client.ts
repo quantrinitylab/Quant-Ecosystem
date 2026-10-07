@@ -423,8 +423,14 @@ export class QuantMailApiClient {
     body: string,
     replyAll?: boolean,
     messageKind?: MessageKind,
+    /**
+     * Optional client-generated id. The backend echoes it in the realtime
+     * `message.new` broadcast so the sender swaps its optimistic bubble for
+     * the persisted row instead of rendering a duplicate (email-chat P0-3).
+     */
+    clientMessageId?: string,
   ): Promise<ApiResponse<Email>> {
-    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind });
+    return this.post(`/emails/${id}/reply`, { body, replyAll, messageKind, clientMessageId });
   }
 
   async forwardEmail(

@@ -42,6 +42,11 @@ import { useAuth } from '../providers/auth-provider';
 import { useDeferredMount } from '../hooks/useDeferredMount';
 import { useInbox } from '../hooks/useInbox';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import {
+  useThreadRealtime,
+  type ThreadRealtimeMessage,
+  type ThreadTypingPeer,
+} from '../hooks/useThreadRealtime';
 import { isCoarsePointer } from './SwipeableEmailRow';
 
 /**
@@ -50,6 +55,62 @@ import { isCoarsePointer } from './SwipeableEmailRow';
  * first opened; latched from then on so the conversation survives a close.
  */
 const QuantyCopilotDrawer = dynamic(() => import('./QuantyCopilotDrawer'), { ssr: false });
+
+/**
+ * Email-chat P0-4: a `typing:true` with no matching `typing:false` after this
+ * long is a dead socket — the indicator clears itself client-side instead of
+ * sticking forever.
+ */
+const TYPING_EXPIRY_MS = 5_000;
+/** Our own `typing:false` goes out this long after the last keystroke. */
+const TYPING_IDLE_SEND_MS = 1_500;
+
+/**
+ * A realtime `message.new` carries the wire payload, not a full mailbox row —
+ * build the Email the thread stream renders, filling every field the wire
+ * never sends with the same defaults a fresh arrival gets. Returns a complete,
+ * correctly-typed Email (no casts): the payload's optional strings become the
+ * required ones via `?? ''`, and its date-ish fields become real Dates.
+ */
+function threadRealtimeMessageToEmail(payload: ThreadRealtimeMessage): Email {
+  const toDate = (value: string | Date | null | undefined): Date => {
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' && value) {
+      const parsedDate = new Date(value);
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+    }
+    return new Date();
+  };
+  return {
+    id: payload.id,
+    createdAt: toDate(payload.createdAt),
+    updatedAt: new Date(),
+    threadId: payload.threadId,
+    userId: '',
+    from: payload.from,
+    to: [],
+    cc: [],
+    bcc: [],
+    subject: payload.subject ?? '',
+    bodyText: payload.bodyText ?? '',
+    bodyHtml: payload.bodyHtml ?? '',
+    snippet: payload.snippet ?? '',
+    priority: 'normal',
+    category: 'primary',
+    status: 'delivered',
+    // Same default as `messageKindOf`: anything that isn't 'chat' reads as mail.
+    messageKind: payload.messageKind === 'chat' ? 'chat' : 'mail',
+    isRead: true,
+    isStarred: false,
+    isArchived: false,
+    isDraft: false,
+    labels: [],
+    attachments: [],
+    references: [],
+    headers: {},
+    receivedAt: toDate(payload.receivedAt),
+  };
+}
 
 function normalizedEmail(value?: string): string {
   return (value ?? '').trim().toLowerCase();
@@ -740,6 +801,142 @@ export function ConversationalThreadView({
     }
   }, [queryClient, threadId]);
 
+  /**
+   * Email-chat P0-3/P0-4: realtime transport + typing indicators.
+   *
+   * The 30s mailbox poll stays as the fallback (message.new is a delivery hint;
+   * the poll and `GET /threads/:id` remain the source of truth), but an open
+   * thread now updates the moment a message lands instead of up to 30s later.
+   */
+  /** clientMessageId → optimistic local id, until the broadcast reconciles it */
+  const optimisticIdsRef = useRef(new Map<string, string>());
+  const [typingPeers, setTypingPeers] = useState<
+    Record<string, { displayName: string; lastTs: number }>
+  >({});
+  const ownTypingRef = useRef(false);
+  const typingIdleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** A realtime `message.new` for this thread — merge or reconcile, never duplicate. */
+  const handleRealtimeMessage = useCallback(
+    (payload: ThreadRealtimeMessage) => {
+      const clientMessageId = payload.clientMessageId;
+      const pendingId = clientMessageId ? optimisticIdsRef.current.get(clientMessageId) : undefined;
+      setMessages((prev) => {
+        if (pendingId) {
+          const idx = prev.findIndex((m) => m.id === pendingId);
+          if (idx >= 0) {
+            // Our optimistic bubble is on screen — swap it for the persisted row.
+            const next = [...prev];
+            next[idx] = {
+              ...next[idx],
+              ...payload,
+              id: payload.id,
+              receivedAt: payload.receivedAt ?? next[idx].receivedAt,
+              createdAt: payload.createdAt ?? next[idx].createdAt,
+            } as Email;
+            optimisticIdsRef.current.delete(clientMessageId as string);
+            return next;
+          }
+          // The broadcast beat the HTTP response: the server row arrives first.
+          // Keep the mapping so the send handler below can skip the optimistic
+          // copy instead of adding it as a duplicate.
+        }
+        if (prev.some((m) => m.id === payload.id)) return prev;
+        const incoming = threadRealtimeMessageToEmail(payload);
+        const merged = [...prev, incoming];
+        merged.sort(
+          (a, b) =>
+            new Date(a.receivedAt || a.createdAt || 0).getTime() -
+            new Date(b.receivedAt || b.createdAt || 0).getTime(),
+        );
+        return merged;
+      });
+      // The inbox behind this pane lists the same thread — it has a new message.
+      invalidateMailLists(queryClient);
+    },
+    [queryClient],
+  );
+
+  /** A realtime `typing` event — track/clear the peer's indicator state. */
+  const handleRealtimeTyping = useCallback((peer: ThreadTypingPeer) => {
+    setTypingPeers((prev) => {
+      if (!peer.typing) {
+        if (!prev[peer.userId]) return prev;
+        const { [peer.userId]: _dropped, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [peer.userId]: { displayName: peer.displayName, lastTs: peer.ts } };
+    });
+  }, []);
+
+  const { sendTyping } = useThreadRealtime({
+    threadId,
+    enabled: Boolean(threadId),
+    onMessage: handleRealtimeMessage,
+    onTyping: handleRealtimeTyping,
+  });
+
+  // Typing peers expire without a `typing:false` — a dead socket's indicator
+  // must not stick forever. Runs cheaply every 1.5s only while this view lives.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTypingPeers((prev) => {
+        const cutoff = Date.now() - TYPING_EXPIRY_MS;
+        const next: Record<string, { displayName: string; lastTs: number }> = {};
+        let changed = false;
+        for (const [id, peer] of Object.entries(prev)) {
+          if (peer.lastTs > cutoff) next[id] = peer;
+          else changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }, 1_500);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Leaving the conversation drops peer indicators and any in-flight mappings.
+  useEffect(() => {
+    setTypingPeers({});
+    optimisticIdsRef.current.clear();
+    if (ownTypingRef.current) {
+      ownTypingRef.current = false;
+      sendTyping(false);
+    }
+    if (typingIdleRef.current) {
+      clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = null;
+    }
+  }, [threadId, sendTyping]);
+
+  const stopOwnTyping = useCallback(() => {
+    if (typingIdleRef.current) {
+      clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = null;
+    }
+    if (ownTypingRef.current) {
+      ownTypingRef.current = false;
+      sendTyping(false);
+    }
+  }, [sendTyping]);
+
+  /** Quick-reply input changes also drive our own typing broadcast (P0-4). */
+  const handleQuickReplyChange = useCallback(
+    (value: string) => {
+      setQuickReplyText(value);
+      if (value.trim().length === 0) {
+        stopOwnTyping();
+        return;
+      }
+      if (!ownTypingRef.current) {
+        ownTypingRef.current = true;
+        sendTyping(true);
+      }
+      if (typingIdleRef.current) clearTimeout(typingIdleRef.current);
+      typingIdleRef.current = setTimeout(stopOwnTyping, TYPING_IDLE_SEND_MS);
+    },
+    [sendTyping, stopOwnTyping],
+  );
+
   const {
     listProps: pullListProps,
     pullDistance,
@@ -1127,12 +1324,22 @@ export function ConversationalThreadView({
     // latest message, as before.
     const replyTarget = quotedMessage?.id || (messages.length > 0 ? messages[messages.length - 1].id : threadId);
 
+    // Email-chat P0-3: a client-generated id so the realtime `message.new`
+    // broadcast reconciles this send instead of landing as a duplicate bubble.
+    const clientMessageId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `c-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticId = `reply-${Date.now()}`;
+    optimisticIdsRef.current.set(clientMessageId, optimisticId);
+
     try {
       // `'chat'` is the whole point of the bar: what is typed here is a line in the
       // conversation, and the server records that so the mark on it is a fact rather
       // than a guess about its length.
-      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat');
+      const res = await apiClient.replyToEmail(replyTarget, replyContent, undefined, 'chat', clientMessageId);
       if (!res.success) {
+        optimisticIdsRef.current.delete(clientMessageId);
         quantyReact('mail:sendFailed');
         setReplyError(res.error?.message || 'Failed to send reply');
         showToast({ text: res.error?.message || 'Failed to send reply', type: 'error' });
@@ -1141,9 +1348,12 @@ export function ConversationalThreadView({
 
       const targetTo = messages[0]?.from ? [messages[0].from] : [];
 
-      // Optimistic update: inject the sent reply into the active conversation timeline
+      // Optimistic update: inject the sent reply into the active conversation timeline.
+      // If the realtime broadcast already delivered the persisted row (it can beat
+      // the HTTP response), this copy is skipped — no duplicate bubble.
+      const serverId = (res.data as { id?: string } | undefined)?.id;
       const newReplyMsg: Email = {
-        id: (res.data as any)?.id || `reply-${Date.now()}`,
+        id: serverId || optimisticId,
         threadId: res.data?.threadId || messages[messages.length - 1]?.threadId || threadId,
         userId: '',
         subject: res.data?.subject || threadSubject,
@@ -1190,12 +1400,17 @@ export function ConversationalThreadView({
       };
 
       setMessages((prev) => {
+        if (serverId && prev.some((m) => m.id === serverId)) return prev;
         const next = [...prev, newReplyMsg];
         setExpandedIndices(new Set([...Array.from(expandedIndices), next.length - 1]));
         return next;
       });
+      // The mapping served its purpose: with a server id the optimistic row is the
+      // server row. Without one it stays so the late broadcast can reconcile it.
+      if (serverId) optimisticIdsRef.current.delete(clientMessageId);
 
       setQuickReplyText('');
+      stopOwnTyping();
       setPendingAttachments([]);
       // A quoted reply is one-shot: the chip clears once the answer is away.
       setQuotedMessage(null);
@@ -2252,6 +2467,51 @@ export function ConversationalThreadView({
           </div>
         )}
 
+        {/* Email-chat P0-4: realtime "X is typing…" bubble. Peers expire
+            client-side, so a dead socket can never stick the indicator. */}
+        {(() => {
+          const typingNames = Object.values(typingPeers)
+            .map((p) => p.displayName)
+            .filter(Boolean);
+          if (typingNames.length === 0) return null;
+          const typingLabel =
+            typingNames.length === 1
+              ? `${typingNames[0]} is typing`
+              : typingNames.length === 2
+                ? `${typingNames[0]} and ${typingNames[1]} are typing`
+                : `${typingNames[0]} and ${typingNames.length - 1} others are typing`;
+          return (
+            <AnimatePresence>
+              <motion.div
+                key="typing-indicator"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 6 }}
+                transition={{ duration: 0.15 }}
+                className="flex justify-start px-4 sm:px-5 py-1"
+                role="status"
+                aria-live="polite"
+                aria-label={typingLabel}
+              >
+                <div className="rounded-2xl rounded-bl-md border border-[#282C35]/60 bg-[#16181D] px-4 py-2.5 shadow-sm">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex items-end gap-1" aria-hidden="true">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          className="size-1.5 rounded-full bg-[#A1A4AC] animate-bounce"
+                          style={{ animationDelay: `${i * 150}ms` }}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-xs text-[#A1A4AC] italic">{typingLabel}</span>
+                  </div>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          );
+        })()}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -2459,7 +2719,7 @@ export function ConversationalThreadView({
             ref={quickReplyInputRef}
             type="text"
             value={quickReplyText}
-            onChange={(e) => setQuickReplyText(e.target.value)}
+            onChange={(e) => handleQuickReplyChange(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
