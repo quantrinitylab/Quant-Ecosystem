@@ -1103,13 +1103,16 @@ export function CalendarTrackersSubView({
 
   const handleCreateTracker = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTrackerTitle.trim()) return;
+    if (!newTrackerTitle.trim() || !newTrackerDate) {
+      showToast({ text: 'Choose a target date for this tracker', type: 'error' });
+      return;
+    }
 
     const item: CustomLifeTracker = {
       id: `lt-${Date.now()}`,
       title: newTrackerTitle.trim(),
       category: newTrackerCategory,
-      targetDate: newTrackerDate || '2026-12-31',
+      targetDate: newTrackerDate,
       notes: newTrackerNotes.trim(),
       tone: newTrackerCategory === 'Recurring Cycle' ? 'emerald' : newTrackerCategory === 'Medical / Health' ? 'rose' : 'sky',
     };
@@ -1476,6 +1479,7 @@ export function CalendarTrackersSubView({
                     type="date"
                     required
                     value={newTrackerDate}
+                    required
                     onChange={(e) => setNewTrackerDate(e.target.value)}
                     className="w-full bg-[#0B0D13] border border-[#232938] rounded-xl px-3 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#F59E0B]"
                   >
