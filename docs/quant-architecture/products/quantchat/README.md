@@ -22,6 +22,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `07-screen-deep-dive-c08-quantmeet.md` — deep C08 QuantMeet: lobby, join gate, meeting studio, active meeting, stage, chat, sharing, breakouts, whiteboard, captions, recording, security, Quanty copilot, post-meeting, APIs, realtime, data ownership, platform UX, tests and Muse execution.
 - `08-screen-deep-dive-c09-search.md` — deep C09 Search: unified search UI, message/people/community/media/meeting scopes, ecosystem routing, authorization, indexing, semantic retrieval, Quanty search, privacy, realtime invalidation, platform UX, tests and Muse execution.
 - `09-screen-deep-dive-c10-quanty.md` — deep C10 Quanty: AI home, context, conversation/meeting/community modes, plans, approvals, tool execution, verification, evidence, memory, automation, model routing, safety, platform UX, tests and Muse execution.
+- `10-screen-deep-dive-c11-notifications.md` — deep C11 Notifications: unified notification center, priority/grouping, mentions, meetings, ecosystem events, preferences, focus/quiet hours, routing, privacy, Quanty triage, delivery reliability, platform UX, tests and Muse execution.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
