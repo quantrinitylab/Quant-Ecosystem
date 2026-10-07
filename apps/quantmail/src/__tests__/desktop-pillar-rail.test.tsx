@@ -151,15 +151,20 @@ describe('DesktopPillarRail Component', () => {
       </AppShell>,
     );
 
-    // DesktopPillarRail is mounted at the far left
-    expect(html).toContain('data-testid="desktop-pillar-rail"');
-    expect(html).toContain('data-testid="desktop-pillar-tile-drive"');
-    expect(html).toContain('data-testid="desktop-pillar-active-indicator-drive"');
+    // DesktopContextSidebar is mounted on the left with the Drive contextual tabs
+    expect(html).toContain('data-testid="desktop-context-sidebar"');
+    expect(html).toContain('data-testid="desktop-context-tab-home"');
+    expect(html).toContain('data-testid="desktop-context-tab-feed"');
+
+    // DesktopAppRail (slim 5-app switcher) is mounted on the right
+    expect(html).toContain('data-testid="desktop-app-rail"');
+    expect(html).toContain('data-testid="desktop-app-rail-tile-drive"');
+    expect(html).toContain('data-testid="desktop-app-rail-active-drive"');
 
     // Folder sidebar is rendered
     expect(html).toContain('id="sidebar-test"');
 
-    // QuantPillarTopBar is wrapped with md:hidden so desktop uses DesktopPillarRail instead of top switcher
+    // QuantPillarTopBar is wrapped with md:hidden so desktop uses the side rails instead
     expect(html).toContain('class="md:hidden"');
   });
 });
