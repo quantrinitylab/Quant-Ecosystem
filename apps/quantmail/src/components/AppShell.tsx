@@ -36,7 +36,7 @@ const QuantyLiveAgent = dynamic(
 );
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
-import { ContextBottomNavBar } from './ContextBottomNavBar';
+import { MobileSubTabStrip } from './MobileSubTabStrip';
 import { MobilePillarBottomNav } from './MobilePillarBottomNav';
 import { DesktopPillarRail } from './DesktopPillarRail';
 import { AccountBadge } from './AccountBadge';
@@ -89,7 +89,10 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation is powered by <ContextBottomNavBar /> (Context-Specific Bottom Navigation) */
+/* Mobile bottom navigation: exactly ONE bottom bar — <MobilePillarBottomNav />.
+   The old second bar (<ContextBottomNavBar />) was removed; its sub-tab
+   navigation lives on as a Gmail-style top strip (<MobileSubTabStrip />)
+   for the pillars whose pages have no native mobile tab row. */
 
 export function AppShell({
   children,
@@ -722,9 +725,10 @@ export function AppShell({
             </>
           )}
 
-          <div
-            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20 md:pb-0'}`}
-          >
+          {/* The column's bottom padding is gone: <main> below already reserves
+              pb-16 (the single h-16 bottom bar) on suite routes, so a second
+              reservation here just stacked dead space. */}
+          <div className="flex min-w-0 flex-1 flex-col">
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
 
@@ -942,6 +946,11 @@ export function AppShell({
                   unreadCounts={{ mail: unreadCount }}
                   lensCounts={{ mail: mailLensCounts }}
                 />
+                {/* Gmail-style sub-tab strip: the removed bottom bar's
+                    navigation, relocated to a single top strip for the pillars
+                    with no native mobile tab row (calendar/drive).
+                    Mail, Contacts and QuantGit render their own rows. */}
+                <MobileSubTabStrip />
               </div>
             ) : null}
 
@@ -982,15 +991,11 @@ export function AppShell({
             <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
           )}
 
-          {/* Context-Specific Bottom Navigation — anchored on mobile and desktop.
-              On mobile it sits ABOVE the thumb-reachable pillar bottom nav
-              (bottom-16), on desktop it keeps its bottom-0 rail-adjacent spot. */}
-          <ContextBottomNavBar badgeOverrides={{ inbox: unreadCount, teams: 3 }} />
-
-          {/* Mobile Pillar Bottom Navigation — thumb-reachable 5-pillar switcher
-              (Mail/Calendar/Drive/Contacts/QuantGit). Mobile only; desktop uses
-              the DesktopPillarRail. Hidden on /thread/* and /compose where the
-              bottom edge belongs to the conversation / compose toolbar. */}
+          {/* Mobile Pillar Bottom Navigation — the ONE bottom bar: thumb-reachable
+              5-pillar switcher (Mail/Calendar/Drive/Contacts/QuantGit).
+              Mobile only; desktop uses the DesktopPillarRail. Hidden on
+              /thread/* and /compose where the bottom edge belongs to the
+              conversation / compose toolbar. */}
           <MobilePillarBottomNav mailUnreadCount={unreadCount} />
 
           {/* Cinematic Quantum Ignition Startup Intro */}

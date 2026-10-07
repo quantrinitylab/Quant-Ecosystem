@@ -313,7 +313,7 @@ function DrivePageContent() {
     }
   }, [tabFromQuery, normalizeTab]);
 
-  // Sync with quant:subtab-change custom event from ContextBottomNavBar
+  // Sync with quant:subtab-change custom event from the shell's MobileSubTabStrip
   useEffect(() => {
     const handleSubtabChange = (e: Event) => {
       const customEvent = e as CustomEvent<{ pillar: string; tabId: string }>;

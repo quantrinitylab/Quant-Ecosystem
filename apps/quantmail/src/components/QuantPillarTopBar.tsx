@@ -1380,12 +1380,12 @@ export function QuantPillarTopBar({
       </div>
     )}
 
-    {/* "Refreshed just now" toast — fixed, above the bottom nav */}
+    {/* "Refreshed just now" toast — fixed, above the single bottom nav */}
     {toastMsg && (
       <div
         role="status"
         aria-live="polite"
-        className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-3.5 py-2 rounded-full text-xs font-medium text-white whitespace-nowrap animate-[quantToastIn_0.25s_ease-out]"
+        className="fixed left-1/2 -translate-x-1/2 z-[100] px-3.5 py-2 rounded-full text-xs font-medium text-white whitespace-nowrap animate-[quantToastIn_0.25s_ease-out] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
         style={{
           background: 'rgba(26,29,36,0.95)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -1398,12 +1398,15 @@ export function QuantPillarTopBar({
       </div>
     )}
 
-    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active */}
+    {/* QuantGit "Create User ID" button — appears when QuantGit pillar is active.
+        Sits ABOVE the single h-16 bottom bar with safe-area clearance (the old
+        bottom-20 overlapped the bar on notched phones), compact so it never
+        covers content or the nav. */}
     {currentPillar === 'quantgit' && (
       <button
         type="button"
         onClick={() => setQuantGitIdModalOpen(true)}
-        className="fixed bottom-20 right-4 z-[90] flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
+        className="fixed right-4 z-[90] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-white transition-all hover:scale-105 active:scale-95 max-w-[calc(100vw-2rem)] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.75rem)]"
         style={{
           background: 'linear-gradient(135deg, #A855F7, #7C3AED)',
           boxShadow: '0 8px 24px rgba(168,85,247,0.4)',
@@ -1412,7 +1415,7 @@ export function QuantPillarTopBar({
         aria-label={quantGitUserId ? `QuantGit ID: @${quantGitUserId} — manage` : 'Create QuantGit User ID'}
         title={quantGitUserId ? `@${quantGitUserId}` : 'Create your QuantGit User ID'}
       >
-        <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
           <line x1="19" y1="8" x2="19" y2="14" />

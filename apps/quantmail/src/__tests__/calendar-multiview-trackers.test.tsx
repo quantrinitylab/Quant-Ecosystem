@@ -2,11 +2,12 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-// Components & Config under test
+// Components & Config under test: the calendar's OWN merged tab engine
+// (the shell's old ContextBottomNavBar was removed — its helpers are gone).
 import {
-  PILLAR_SUB_CONFIGS,
-  resolveActiveTab,
-} from '../components/ContextBottomNavBar';
+  resolveMergedTab,
+  mergedTabTargets,
+} from '../app/calendar/components/CalendarContextSubTabs';
 import { CalendarHeader } from '../app/calendar/components/CalendarHeader';
 import {
   CalendarFeedSubView,
@@ -57,92 +58,50 @@ const RAW_EMOJI_REGEX = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\
 
 describe('QuantCalendar Multi-View & Trackers Suite', () => {
   // ==========================================================================
-  // 1. CALENDAR SUB-TABS CONFIGURATION (ContextBottomNavBar.tsx)
+  // 1. CALENDAR SUB-TABS CONFIGURATION (CalendarContextSubTabs.tsx)
+  //
+  // The shell's old ContextBottomNavBar config was removed; the calendar's
+  // sub-tabs are owned by its own merged tab engine now. These tests pin the
+  // engine's contract: (contextTab, view) <-> single merged tab.
   // ==========================================================================
   describe('1. Calendar Sub-Tabs Configuration', () => {
-    it('configures exactly the 5 required calendar sub-tabs', () => {
-      const calConfig = PILLAR_SUB_CONFIGS.calendar;
-      expect(calConfig).toBeDefined();
-      expect(calConfig.tabs).toHaveLength(5);
-
-      const tabIds = calConfig.tabs.map((t) => t.id);
-      expect(tabIds).toEqual(['feed', 'month', 'week', 'events', 'schedule']);
-
-      const tabLabels = calConfig.tabs.map((t) => t.label);
-      expect(tabLabels).toEqual(['Feed', 'Month', 'Week', 'Trackers', 'Schedule']);
+    it('resolveMergedTab collapses (contextTab, view) pairs to one merged tab', () => {
+      expect(resolveMergedTab('feed', 'agenda')).toBe('feed');
+      expect(resolveMergedTab('agenda', 'agenda')).toBe('agenda');
+      expect(resolveMergedTab('month', 'month')).toBe('month');
+      expect(resolveMergedTab('events', 'agenda')).toBe('events');
+      expect(resolveMergedTab('schedule', 'agenda')).toBe('schedule');
+      expect(resolveMergedTab('booking', 'agenda')).toBe('booking');
+      expect(resolveMergedTab('quantmeet', 'agenda')).toBe('quantmeet');
+      expect(resolveMergedTab('reminders', 'agenda')).toBe('reminders');
     });
 
-    it('matches exact specifications for Feed, Month, Week, Events, and Schedule tabs', () => {
-      const tabs = PILLAR_SUB_CONFIGS.calendar.tabs;
-
-      // 1. Feed
-      expect(tabs[0]).toMatchObject({
-        id: 'feed',
-        label: 'Feed',
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'feed' },
-        description: 'Upcoming events, milestones & tracker dates',
-      });
-
-      // 2. Month
-      expect(tabs[1]).toMatchObject({
-        id: 'month',
-        label: 'Month',
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'month' },
-        description: 'Continuous scroll month calendar',
-      });
-
-      // 3. Week
-      expect(tabs[2]).toMatchObject({
-        id: 'week',
-        label: 'Week',
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'week' },
-        description: '7-day time grid with drag-to-create',
-      });
-
-      // 4. Events
-      expect(tabs[3]).toMatchObject({
-        id: 'events',
-        label: 'Trackers',
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'events' },
-        description: 'Trackers hub: Period, Health & Life trackers',
-      });
-
-      // 5. Schedule
-      expect(tabs[4]).toMatchObject({
-        id: 'schedule',
-        label: 'Schedule',
-        targetPath: '/calendar',
-        queryParam: { key: 'tab', value: 'schedule' },
-        description: 'Meetings, Clock & Reminders',
-      });
+    it('resolveMergedTab merges the agenda context with the week/day grid views', () => {
+      expect(resolveMergedTab('agenda', 'week')).toBe('week');
+      expect(resolveMergedTab('agenda', 'day')).toBe('day');
+      expect(resolveMergedTab('feed', 'week')).toBe('week');
     });
 
-    it('resolveActiveTab resolves feed, month, events, schedule and legacy routes correctly', () => {
-      // feed or default -> feed
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=feed'))).toBe('feed');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams(''))).toBe('feed');
-      expect(resolveActiveTab('calendar', '/calendar', null)).toBe('feed');
+    it('mergedTabTargets maps every merged tab back to its (contextTab, view) pair', () => {
+      expect(mergedTabTargets('feed')).toEqual({ contextTab: 'feed', view: 'agenda' });
+      expect(mergedTabTargets('month')).toEqual({ contextTab: 'month', view: 'month' });
+      expect(mergedTabTargets('week')).toEqual({ contextTab: 'agenda', view: 'week' });
+      expect(mergedTabTargets('events')).toEqual({ contextTab: 'events', view: 'agenda' });
+      expect(mergedTabTargets('schedule')).toEqual({ contextTab: 'schedule', view: 'agenda' });
+      expect(mergedTabTargets('booking')).toEqual({ contextTab: 'booking', view: 'agenda' });
+      expect(mergedTabTargets('quantmeet')).toEqual({ contextTab: 'quantmeet', view: 'agenda' });
+      expect(mergedTabTargets('reminders')).toEqual({ contextTab: 'reminders', view: 'agenda' });
+    });
 
-      // month -> month
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=month'))).toBe('month');
-
-      // week -> week
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=week'))).toBe('week');
-
-      // events -> events
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=events'))).toBe('events');
-
-      // schedule or reminders or booking or quantmeet -> schedule
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=schedule'))).toBe('schedule');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=reminders'))).toBe('schedule');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=booking'))).toBe('schedule');
-      expect(resolveActiveTab('calendar', '/calendar', new URLSearchParams('tab=quantmeet'))).toBe('schedule');
+    it('mergedTabTargets round-trips through resolveMergedTab', () => {
+      const tabs = ['feed', 'month', 'week', 'events', 'schedule', 'agenda', 'day', 'booking', 'quantmeet', 'reminders'] as const;
+      for (const tab of tabs) {
+        const { contextTab, view } = mergedTabTargets(tab);
+        expect(resolveMergedTab(contextTab, view)).toBe(tab);
+      }
     });
   });
+
 
   // ==========================================================================
   // 2. HEADER & BUTTON CONSOLIDATION (CalendarHeader.tsx)

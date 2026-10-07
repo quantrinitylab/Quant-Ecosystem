@@ -13,7 +13,7 @@ const mockWindow = {
 vi.stubGlobal('window', mockWindow);
 
 import { executePillarTileClick, PILLAR_TILES } from '../QuantPillarTopBar';
-import { executeContextTabClick, PILLAR_SUB_CONFIGS } from '../ContextBottomNavBar';
+import { executeMobilePillarTap } from '../MobilePillarBottomNav';
 
 describe('app-switcher re-tap refresh', () => {
   beforeEach(() => {
@@ -45,27 +45,24 @@ describe('app-switcher re-tap refresh', () => {
     expect(dispatchedEvents).toContain('quant:pillar-retap');
   });
 
-  it('executeContextTabClick navigates when tapping a different sub-tab', () => {
+  it('executeMobilePillarTap navigates when tapping a different pillar', () => {
     const push = vi.fn();
-    const pillarConfig = PILLAR_SUB_CONFIGS['calendar'];
-    const tab = pillarConfig.tabs[1]; // not the first tab
-    executeContextTabClick(tab, 'calendar', { pathname: '/other', router: { push } });
-    expect(push).toHaveBeenCalled();
+    executeMobilePillarTap('calendar', '/calendar', { pathname: '/', router: { push } });
+    expect(push).toHaveBeenCalledWith('/calendar');
+    // Should NOT dispatch refresh when switching apps
     expect(dispatchedEvents).not.toContain('quant:refresh');
   });
 
-  it('executeContextTabClick dispatches quant:refresh on re-tap of active sub-tab', () => {
+  it('executeMobilePillarTap dispatches quant:refresh on re-tap of the active pillar', () => {
     const push = vi.fn();
-    const pillarConfig = PILLAR_SUB_CONFIGS['calendar'];
-    const tab = pillarConfig.tabs[0];
-    // Simulate being on the tab's target path already
-    const targetBase = tab.targetPath || '/calendar';
-    executeContextTabClick(tab, 'calendar', { pathname: targetBase, router: { push } });
-    // Should NOT navigate when already on the tab (no queryParam)
-    if (!tab.queryParam) {
-      expect(push).not.toHaveBeenCalled();
-      // Should dispatch refresh (P1 fix: was a no-op before)
-      expect(dispatchedEvents).toContain('quant:refresh');
-    }
+    executeMobilePillarTap('calendar', '/calendar', {
+      pathname: '/calendar?tab=month',
+      router: { push },
+    });
+    // Should NOT navigate when already on the pillar
+    expect(push).not.toHaveBeenCalled();
+    // Active-tab retap must refresh, never sit dead
+    expect(dispatchedEvents).toContain('quant:refresh');
+    expect(dispatchedEvents).toContain('quant:pillar-retap');
   });
 });

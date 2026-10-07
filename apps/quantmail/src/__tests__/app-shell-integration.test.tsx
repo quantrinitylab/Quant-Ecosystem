@@ -66,7 +66,7 @@ vi.mock('@quant/shared-ui', () => ({
   BubbleAvatar: () => <div className="bubble-avatar" />,
 }));
 
-describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Integration', () => {
+describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCurrentPathname = '/';
@@ -78,10 +78,16 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
   });
 
   // ==========================================================================
-  // 1. Suite Route Pillar TopBar & Context BottomNavBar Mounting
+  // 1. Suite Route Pillar TopBar, Single Bottom Nav & Mobile Sub-Tab Strip
+  //
+  // Gmail rule: ONE nav system per viewport. Mobile gets exactly one bottom
+  // bar (the 5-pillar switcher, aria-label "App pillars"); the removed
+  // ContextBottomNavBar ("contextual navigation") must not render anywhere.
+  // Calendar/Drive/QuantGit get one Gmail-style top sub-tab strip; Mail and
+  // Contacts render their own native tab rows.
   // ==========================================================================
   describe('Mounting on Main Suite Routes', () => {
-    it('mounts QuantPillarTopBar and ContextBottomNavBar on Mail suite route (/)', () => {
+    it('mounts QuantPillarTopBar and the single pillar bottom nav on Mail suite route (/)', () => {
       mockCurrentPathname = '/';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -98,15 +104,17 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Contacts');
       expect(html).toContain('QuantGit');
 
-      // ContextBottomNavBar is present for Mail
-      expect(html).toContain('Mail contextual navigation');
-      expect(html).toContain('Inbox');
-      expect(html).toContain('Teams');
-      expect(html).toContain('Agents');
-      expect(html).toContain('Archive');
+      // Exactly ONE bottom bar: the 5-pillar switcher
+      expect(html).toContain('App pillars');
+      // The removed context bar is gone
+      expect(html).not.toContain('contextual navigation');
+      // Mail keeps its own lens row: no shell sub-tab strip
+      expect(html).not.toContain('sub-navigation');
+      // <main> reserves room for the single h-16 bottom bar
+      expect(html).toContain('pb-16');
     });
 
-    it('mounts QuantPillarTopBar and ContextBottomNavBar on Calendar route (/calendar)', () => {
+    it('mounts the mobile sub-tab strip on Calendar route (/calendar)', () => {
       mockCurrentPathname = '/calendar';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -118,15 +126,19 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#F59E0B');
 
-      // ContextBottomNavBar renders Calendar sub-tabs
-      expect(html).toContain('Calendar contextual navigation');
+      // Gmail-style top strip replaces the removed bottom bar's navigation
+      expect(html).toContain('Calendar sub-navigation');
       expect(html).toContain('Feed');
       expect(html).toContain('Month');
       expect(html).toContain('Trackers');
       expect(html).toContain('Schedule');
+
+      // Single bottom bar only
+      expect(html).toContain('App pillars');
+      expect(html).not.toContain('contextual navigation');
     });
 
-    it('mounts QuantPillarTopBar and ContextBottomNavBar on Drive route (/drive)', () => {
+    it('mounts the mobile sub-tab strip on Drive route (/drive)', () => {
       mockCurrentPathname = '/drive';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -137,14 +149,17 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#38BDF8');
 
-      expect(html).toContain('Drive contextual navigation');
+      expect(html).toContain('Drive sub-navigation');
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
+
+      expect(html).toContain('App pillars');
+      expect(html).not.toContain('contextual navigation');
     });
 
-    it('mounts QuantPillarTopBar and ContextBottomNavBar on Contacts route (/contacts)', () => {
+    it('keeps Contacts on its own native tab row — no shell sub-tab strip', () => {
       mockCurrentPathname = '/contacts';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -155,15 +170,13 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#10B981');
 
-      expect(html).toContain('Contacts contextual navigation');
-      expect(html).toContain('Home');
-      expect(html).toContain('Favorites');
-      expect(html).toContain('Groups');
-      expect(html).toContain('Companies');
-      expect(html).toContain('AI Dedup');
+      // Contacts renders its own chips: the shell adds no strip and no bar
+      expect(html).not.toContain('sub-navigation');
+      expect(html).not.toContain('contextual navigation');
+      expect(html).toContain('App pillars');
     });
 
-    it('mounts QuantPillarTopBar and ContextBottomNavBar on QuantGit route (/quantgit)', () => {
+    it('does NOT mount the shell sub-tab strip on QuantGit route (/quantgit) — page has its own native tab row', () => {
       mockCurrentPathname = '/quantgit';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -174,17 +187,16 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#A78BFA');
 
-      expect(html).toContain('QuantGit contextual navigation');
-      expect(html).toContain('Repos');
-      expect(html).toContain('PRs');
-      expect(html).toContain('Issues');
-      expect(html).toContain('Actions');
-      expect(html).toContain('Copilot');
+      // QuantGit renders its own native mobile tab row (All Repos / Open PRs /
+      // Issues / CI Runs), so the shell must NOT add a second strip here.
+      expect(html).not.toContain('sub-navigation');
+      expect(html).not.toContain('QuantGit sub-navigation');
+
+      expect(html).toContain('App pillars');
+      expect(html).not.toContain('contextual navigation');
     });
   });
 
-  // ==========================================================================
-  // 2. Seamless Integration with customHeader
   // ==========================================================================
   describe('Seamless customHeader Integration', () => {
     it('renders customHeader and suppresses QuantPillarTopBar when customHeader is active', () => {
@@ -248,7 +260,8 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       );
 
       expect(html).not.toContain('Super-App 5-Pillar Navigation Bar');
-      // ContextBottomNavBar returns null for /thread
+      // No bottom nav at all on /thread (pillar bar returns null there)
+      expect(html).not.toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
     });
 
@@ -261,7 +274,8 @@ describe('AppShell — Super-App 5-Pillar Top Squircle & Context Bottom Nav Inte
       );
 
       expect(html).not.toContain('Super-App 5-Pillar Navigation Bar');
-      // ContextBottomNavBar returns null for /compose
+      // No bottom nav at all on /compose (pillar bar returns null there)
+      expect(html).not.toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
     });
   });
