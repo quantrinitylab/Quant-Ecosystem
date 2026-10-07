@@ -165,6 +165,7 @@ jobs:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
+          runs_migrations=false
           case "$TARGET" in
             quantmail)
               repository=quant-quantmail; dockerfile=apps/quantmail/Dockerfile
@@ -173,7 +174,7 @@ jobs:
             quantmail-backend)
               repository=quant-quantmail-backend; dockerfile=apps/quantmail/Dockerfile.backend
               deployment=quant-quantmail-backend; container=quantmail-backend
-              needs_cloudflare=true ;;
+              needs_cloudflare=true ; runs_migrations=true ;;
             quantchat)
               repository=quant-quantchat; dockerfile=apps/quantchat/Dockerfile
               deployment=quant-quantchat; container=quant-quantchat
@@ -261,6 +262,7 @@ jobs:
             echo "deployment=$deployment"
             echo "container=$container"
             echo "needs_cloudflare=$needs_cloudflare"
+            echo "runs_migrations=$runs_migrations"
             echo "registry=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
           } >> "$GITHUB_OUTPUT"
 
@@ -326,6 +328,33 @@ jobs:
           }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "uri=$REGISTRY/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Apply Prisma migrations
+        if: steps.target.outputs.runs_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # CUST-P0 (2026-10-06/07): inbox "Something went wrong loading your
+          # emails" and send "An internal error occurred" are both backend 500s
+          # on Email-model DB operations while auth (User-model) succeeds — the
+          # signature of staging schema drift. Prisma migrations were never
+          # re-run on the staging RDS instance, so any column added after the
+          # last manual migrate (messageKind, aiCategory, snoozedUntil, ...)
+          # makes every Email query throw. Applying pending migrations before
+          # the new image rolls out repairs the drift; a no-op when the DB is
+          # already at HEAD. The URL is masked and never leaves this step.
+          aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
+          db_url="$(kubectl get secret quant-staging-secrets -n "$K8S_NAMESPACE" \
+            -o 'jsonpath={.data.DATABASE_URL}' | base64 -d)"
+          test -n "$db_url" || {
+            echo 'DATABASE_URL not found in quant-staging-secrets' >&2
+            exit 1
+          }
+          echo "::add-mask::$db_url"
+          export DATABASE_URL="$db_url"
+          unset db_url
+          npx --yes prisma@6.19.3 migrate deploy \
+            --schema=packages/database/prisma/schema.prisma
 
       - name: Deploy digest with automatic rollback
         shell: bash
