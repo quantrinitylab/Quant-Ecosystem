@@ -969,14 +969,30 @@ export class QuantMailApiClient {
     data?: { role?: 'view' | 'edit'; expiresAt?: string },
   ): Promise<
     ApiResponse<{
-      shareToken: string;
-      shareUrl: string;
+      id: string;
+      token: string;
       role: 'view' | 'edit';
       expiresAt: string | null;
-      createdAt: string;
+      shareUrl: string;
     }>
   > {
     return this.post(`/documents/${id}/share-link`, data ?? {});
+  }
+
+  // P0-4b: real collaborator invite for QuantDocs (POST /documents/:id/collaborators).
+  // The doc share dialog previously never called anything here.
+  async addDocumentCollaborator(
+    id: string,
+    data: { email: string; role?: 'viewer' | 'editor' | 'admin' },
+  ): Promise<
+    ApiResponse<{
+      id: string;
+      docId: string;
+      email: string;
+      role: string;
+    }>
+  > {
+    return this.post(`/documents/${id}/collaborators`, data);
   }
 
   async revokeDocumentShareLink(id: string): Promise<ApiResponse<{ revoked: boolean }>> {
