@@ -173,7 +173,7 @@ export async function GET(request: NextRequest | Request) {
           message: 'Unauthorized',
         },
       },
-      { status: 401 },
+      { status: res.status },
     );
   } catch {
     return handleFallback(authHeader);
