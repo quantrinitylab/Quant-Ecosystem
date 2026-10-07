@@ -21,7 +21,7 @@ import { showToast } from './InboxToast';
 import { SmartReplySuggestions } from './SmartReplySuggestions';
 import { IdentityAvatar } from './IdentityAvatar';
 import { EmailLetterCard } from './EmailLetterCard';
-import { MessageKindBadge } from './MessageKindBadge';
+import { MessageKindBadge, ThreadKindBadge } from './MessageKindBadge';
 import { AttachmentPreview } from './AttachmentPreview';
 import { EmailReadReceipt } from './EmailReadReceipt';
 import { Quanty } from './Quanty';
@@ -643,6 +643,14 @@ export function ConversationalThreadView({
    * thing distinguishing a letter from a line, so it stays and keeps its orange.
    */
   const showKindBadges = useMemo(() => threadKindMix(messages) === 'mixed', [messages]);
+
+  /**
+   * The thread-level kind mark for the header, shown for every thread —
+   * matching the inbox row, which now carries the badge for all three mixes.
+   * The per-message marks stay mixed-only (see above); the header mark is the
+   * single consistent place the kind is named at thread level.
+   */
+  const conversationKindMix = useMemo(() => threadKindMix(messages), [messages]);
 
   /**
    * What the header's Archive and Trash buttons act on: the conversation, all of it.
@@ -1548,8 +1556,11 @@ export function ConversationalThreadView({
               </span>
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-bold text-white sm:text-base">
-                  {activeGroup.name}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-bold text-white sm:text-base">
+                    {activeGroup.name}
+                  </span>
+                  <ThreadKindBadge mix={conversationKindMix} />
                 </span>
                 <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
                   {activeGroup.emails.length}{' '}
@@ -1580,8 +1591,11 @@ export function ConversationalThreadView({
               </span>
 
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-bold text-white sm:text-base">
-                  {otherParticipant.name || participantSummary}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm font-bold text-white sm:text-base">
+                    {otherParticipant.name || participantSummary}
+                  </span>
+                  <ThreadKindBadge mix={conversationKindMix} />
                 </span>
                 <span className="truncate text-[11px] text-[#A1A4AC] transition-colors group-hover:text-[#FF9B5A]">
                   {otherParticipant.email || threadSubject || 'Tap for details & media'}
