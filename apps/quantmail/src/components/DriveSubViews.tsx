@@ -1890,7 +1890,8 @@ export type EcosystemApp =
   | 'QuantCalendar'
   | 'QuantDrive'
   | 'QuantContacts'
-  | 'QuantGit';
+  | 'QuantGit'
+  | 'Shared';
 
 export interface AiMemoryItem {
   id: string;
@@ -1900,12 +1901,18 @@ export interface AiMemoryItem {
   rawContext: string;
   extractedFacts: string[];
   entityGraphLinks: string[];
-  confidenceScore: number;
+  confidenceScore?: number;
+  sensitivity?: string;
+  explicitness?: string;
+  policyVersion?: string;
+  provenance?: string;
+  sourceObjectId?: string;
 }
 
 export interface DriveAiMemorySubViewProps {
   className?: string;
   onRecallInChat?: (memory: AiMemoryItem) => void;
+  onForgetMemory?: (memory: AiMemoryItem) => void;
   /** Canonical memory projections supplied by the memory API. No demo records are generated here. */
   memories?: AiMemoryItem[];
 }
@@ -1913,6 +1920,7 @@ export interface DriveAiMemorySubViewProps {
 export function DriveAiMemorySubView({
   className = '',
   onRecallInChat,
+  onForgetMemory,
   memories = [],
 }: DriveAiMemorySubViewProps) {
   const [selectedApp, setSelectedApp] = useState<EcosystemApp>('all');
@@ -1950,6 +1958,12 @@ export function DriveAiMemorySubView({
         color: '#A78BFA',
         icon: FolderIcon,
         borderStyle: 'border-[#A78BFA]/40 bg-[#A78BFA]/10 text-[#A78BFA]',
+      },
+      Shared: {
+        name: 'Shared context',
+        color: '#94A3B8',
+        icon: LayersIcon,
+        borderStyle: 'border-[#94A3B8]/40 bg-[#94A3B8]/10 text-[#CBD5E1]',
       },
     }),
     [],
@@ -2106,7 +2120,9 @@ export function DriveAiMemorySubView({
                   </div>
 
                   <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-[#38BDF8]/10 text-[#38BDF8] border border-[#38BDF8]/20">
-                    {mem.confidenceScore}% Confidence
+                    {mem.confidenceScore == null
+                      ? 'Confidence not scored'
+                      : `${mem.confidenceScore}% Confidence`}
                   </span>
                 </div>
 
@@ -2118,41 +2134,62 @@ export function DriveAiMemorySubView({
                   </p>
                 </div>
 
-                {/* Extracted Key Facts */}
-                <div className="space-y-1.5 bg-[#090A0E] p-3 rounded-xl border border-[#232938]/80">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
-                    Extracted Key Facts
-                  </span>
-                  <ul className="space-y-1 text-xs text-[#E2E8F0]">
-                    {mem.extractedFacts.map((fact, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="text-[#38BDF8] mt-1 text-[8px]">&bull;</span>
-                        <span className="flex-1">{fact}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {/* Facts are shown only when the governed projection actually contains them. */}
+                {mem.extractedFacts.length > 0 && (
+                  <div className="space-y-1.5 bg-[#090A0E] p-3 rounded-xl border border-[#232938]/80">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#64748B]">
+                      Extracted Key Facts
+                    </span>
+                    <ul className="space-y-1 text-xs text-[#E2E8F0]">
+                      {mem.extractedFacts.map((fact, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-[#38BDF8] mt-1 text-[8px]">&bull;</span>
+                          <span className="flex-1">{fact}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
-                {/* Entity Graph Links & Actions */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[#232938]/60">
-                  {/* Entity links */}
+                {/* Graph links are shown only when the governed projection provides them. */}
+                {mem.entityGraphLinks.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <NodeLinkIcon className="size-3.5 text-[#64748B]" />
                     {mem.entityGraphLinks.map((link, idx) => (
                       <span
                         key={idx}
-                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#1E293B]/70 text-[#94A3B8] border border-[#334155] hover:text-[#38BDF8] hover:border-[#38BDF8]/40 cursor-pointer transition-colors"
+                        className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-[#1E293B]/70 text-[#94A3B8] border border-[#334155]"
                       >
                         {link}
                       </span>
                     ))}
                   </div>
+                )}
 
-                  {/* Recall Action Button */}
+                {(mem.sensitivity || mem.explicitness || mem.policyVersion || mem.provenance) && (
+                  <div className="flex flex-wrap gap-2 text-[10px] font-mono text-[#94A3B8]">
+                    {mem.sensitivity && <span className="px-2 py-1 rounded-md border border-[#334155]">Sensitivity: {mem.sensitivity}</span>}
+                    {mem.explicitness && <span className="px-2 py-1 rounded-md border border-[#334155]">Explicitness: {mem.explicitness}</span>}
+                    {mem.policyVersion && <span className="px-2 py-1 rounded-md border border-[#334155]">Policy: {mem.policyVersion}</span>}
+                    {mem.provenance && <span className="px-2 py-1 rounded-md border border-[#334155]">Source: {mem.provenance}</span>}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#232938]/60">
+                  {onForgetMemory && (
+                    <button
+                      type="button"
+                      onClick={() => onForgetMemory(mem)}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-[#7F1D1D] text-xs font-semibold text-[#FCA5A5] hover:bg-[#7F1D1D]/20 transition-colors"
+                    >
+                      Forget
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onRecallInChat?.(mem)}
-                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors self-end sm:self-auto"
+                    disabled={!onRecallInChat}
+                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-[#38BDF8]/15 border border-[#38BDF8]/35 text-xs font-semibold text-[#38BDF8] hover:bg-[#38BDF8]/25 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span>Recall Context</span>
                     <svg
