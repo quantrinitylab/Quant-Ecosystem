@@ -34,46 +34,33 @@ export interface ApiFetchInit {
 /**
  * Per-call options for {@link apiFetchRaw}, the native-`Response` variant.
  *
- * Accepts the same shaping options as {@link ApiFetchInit} plus passthrough of
- * the native `RequestInit` fields a behavior-preserving migration needs
- * (`credentials`, `cache`, `mode`, `redirect`, ...). Unlike `apiFetch` the raw
- * variant preserves native fetch semantics: no default timeout and no
- * envelope normalization — the caller gets the real `Response`.
+ * Extends the native `RequestInit` so existing call shapes (including
+ * `{...init}` spreads of a full `RequestInit`) keep typechecking; the platform
+ * forwards the standard fields and adds `token`, `params` and `timeout`.
+ * Next.js-specific extensions (`next`, `priority`, `dispatcher`, `duplex`,
+ * `window`) are accepted by the type but not forwarded — they have no meaning
+ * for same-origin client-side calls. Unlike `apiFetch` the raw variant
+ * preserves native fetch semantics: no default timeout and no envelope
+ * normalization — the caller gets the real `Response`.
  */
-export interface ApiFetchRawInit {
-  /**
-   * HTTP method. Typed as `string` (not the `ApiMethod` union) deliberately:
-   * the raw variant is the behavior-preserving migration path for inline
-   * `fetch(`, and must accept anything the native fetch accepts.
-   */
-  method?: string;
+export interface ApiFetchRawInit extends Omit<RequestInit, 'body' | 'signal'> {
   /**
    * Request body. Plain objects/arrays are JSON-encoded (with a JSON content
    * type unless the caller set one); strings, FormData, URLSearchParams,
    * Blob/File, ArrayBuffer(view)s and streams pass through untouched.
    */
   body?: unknown;
-  /** Extra headers merged over the defaults (any HeadersInit form). */
-  headers?: HeadersInit;
+  /** AbortSignal for cancellation (`null` allowed, like the native init). */
+  signal?: AbortSignal | null;
   /** Bearer token to attach as `Authorization` (optional; cookies also work). */
   token?: string;
   /** Query string params appended to the path (GET-style). */
   params?: Record<string, string>;
-  /** AbortSignal for cancellation. */
-  signal?: AbortSignal;
   /**
    * Request timeout in ms. The raw variant keeps native fetch semantics:
    * no timeout unless explicitly set. Pass a positive number to enable.
    */
   timeout?: number;
-  credentials?: RequestCredentials;
-  cache?: RequestCache;
-  mode?: RequestMode;
-  redirect?: RequestRedirect;
-  referrer?: string;
-  referrerPolicy?: ReferrerPolicy;
-  integrity?: string;
-  keepalive?: boolean;
 }
 
 /** Validate that a request path is a safe same-origin path (no backend URLs). */
