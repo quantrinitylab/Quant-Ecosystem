@@ -20,6 +20,18 @@ import type {
 
 const API_BASE = '/api';
 
+/** Shape of a profile row returned by GET /radar/nearby (backend: ProximityRadarService). */
+export interface RadarProfile {
+  id: string;
+  name: string;
+  username: string;
+  avatar: string | null;
+  distanceKm: number;
+  bio: string | null;
+  interests: string[];
+  mutualMatch: boolean;
+}
+
 // ============================================================================
 // Auth dead-end guard.
 // The backend answers HTTP 401 when the session is missing or expired. Its raw
@@ -344,6 +356,26 @@ class QuantSyncAPI {
   }
   async updateNotificationPreferences(prefs: Partial<NotificationPreferences>) {
     return this.request<NotificationPreferences>('PUT', '/notifications/preferences', prefs);
+  }
+
+  // --- Proximity Radar ---
+  // Identity is established by the session's Bearer token (Authorization
+  // header), exactly like every other route — never a client-supplied
+  // identity header. The backend answers 401 when there is no valid session.
+  async getRadarNearby(lat: number, lon: number, radiusKm: number, maxResults?: number) {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lon),
+      radiusKm: String(radiusKm),
+    });
+    if (maxResults) params.set('maxResults', String(maxResults));
+    return this.request<RadarProfile[]>('GET', `/radar/nearby?${params}`);
+  }
+  async radarSwipe(targetUserId: string, action: 'like' | 'pass' | 'superlike') {
+    return this.request<{ matched: boolean; matchId?: string }>('POST', '/radar/swipe', {
+      targetUserId,
+      action,
+    });
   }
 }
 
