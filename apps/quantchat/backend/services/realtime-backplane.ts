@@ -21,6 +21,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
+import type { ChatEventEnvelope } from './chat-event-envelope';
 
 /**
  * The set of room event types fanned across the cluster. Mirrors the event
@@ -44,6 +45,12 @@ export interface RoomEvent {
   /** De-dupe: ignore events this instance published (set by {@link RealtimeBackplane.publish}). */
   originInstanceId: string;
   payload: unknown;
+  /**
+   * K25 — contract §18 envelope. New publishers set this; the websocket layer
+   * delivers the envelope to sockets. Kept optional so older in-flight events
+   * and test harnesses that only set `payload` keep working.
+   */
+  envelope?: ChatEventEnvelope;
 }
 
 /** Handler invoked with each inbound backplane event for a conversation. */
@@ -68,6 +75,13 @@ export interface RealtimeBackplane {
   /** Graceful shutdown — used by the existing onClose hook. */
   shutdown(): Promise<void>;
   /**
+   * K25 — monotonic per-channel sequence for the contract §18 envelope
+   * (`sequence`/`cursor`, gap detection). Redis-backed implementations use an
+   * atomic INCR so the sequence is cluster-correct; single-node fallbacks use
+   * an in-memory counter. Never throws — degrades to memory on Redis failure.
+   */
+  nextSequence(channel: string): Promise<number>;
+  /**
    * Whether cross-instance fan-out is fully operational. `false` means the
    * backplane is running in degraded single-node mode (no peer connectivity);
    * the health endpoint reports `degraded` in that state (Requirement 6.1/6.2).
@@ -75,16 +89,25 @@ export interface RealtimeBackplane {
   isHealthy(): boolean;
 }
 
-/** Prefix for the per-conversation pub/sub channel names. */
-const CHANNEL_PREFIX = 'quantchat:room:';
+/**
+ * Prefix for per-conversation pub/sub channel names.
+ * K25 — contract §19 canonical form: `conversation.{ref}`.
+ */
+const CHANNEL_PREFIX = 'conversation.';
 
-/** Build the pub/sub channel name for a conversation. */
+/** Dedicated presence channel (contract §19 ephemeral semantics). */
+export const BACKPLANE_PRESENCE_CHANNEL = 'presence';
+
+/** Build the pub/sub channel name for a conversation (contract §19). */
 function channelFor(conversationId: string): string {
+  // The presence channel is a literal, not a conversation room.
+  if (conversationId === BACKPLANE_PRESENCE_CHANNEL) return BACKPLANE_PRESENCE_CHANNEL;
   return `${CHANNEL_PREFIX}${conversationId}`;
 }
 
 /** Extract the conversation id from a pub/sub channel name. */
 function conversationFromChannel(channel: string): string | null {
+  if (channel === BACKPLANE_PRESENCE_CHANNEL) return BACKPLANE_PRESENCE_CHANNEL;
   if (!channel.startsWith(CHANNEL_PREFIX)) return null;
   return channel.slice(CHANNEL_PREFIX.length);
 }
@@ -132,6 +155,8 @@ export class RedisRealtimeBackplane implements RealtimeBackplane {
   /** Channels this instance is currently subscribed to (drives idempotency + resubscribe). */
   private readonly subscribed = new Set<string>();
   private handler: RoomEventHandler | null = null;
+  /** In-memory sequence fallback for nextSequence while Redis is unreachable. */
+  private readonly memorySequence = new Map<string, number>();
   private listening = false;
   /**
    * Whether the subscriber connection is currently established. Starts `false`
@@ -204,6 +229,25 @@ export class RedisRealtimeBackplane implements RealtimeBackplane {
    */
   isHealthy(): boolean {
     return this.connected;
+  }
+
+  /**
+   * K25 — cluster-correct per-channel sequence via atomic Redis INCR (§18).
+   * While disconnected (or on Redis failure) degrades to an in-memory counter
+   * rather than blocking event publication.
+   */
+  async nextSequence(channel: string): Promise<number> {
+    if (this.connected) {
+      try {
+        const n = await this.pub.incr(`quantchat:evtseq:${channel}`);
+        if (Number.isInteger(n) && n > 0) return n;
+      } catch {
+        // Degrade to memory below.
+      }
+    }
+    const next = (this.memorySequence.get(channel) ?? 0) + 1;
+    this.memorySequence.set(channel, next);
+    return next;
   }
 
   /** Register an observer notified when connection health flips (degraded/healthy). */
@@ -315,9 +359,17 @@ export class RedisRealtimeBackplane implements RealtimeBackplane {
 export class InProcessBackplane implements RealtimeBackplane {
   readonly instanceId: string;
   private handler: RoomEventHandler | null = null;
+  private readonly memorySequence = new Map<string, number>();
 
   constructor(instanceId: string = createInstanceId()) {
     this.instanceId = instanceId;
+  }
+
+  /** K25 — single-node monotonic per-channel sequence (§18). */
+  async nextSequence(channel: string): Promise<number> {
+    const next = (this.memorySequence.get(channel) ?? 0) + 1;
+    this.memorySequence.set(channel, next);
+    return next;
   }
 
   async subscribe(_conversationId: string): Promise<void> {

@@ -2,7 +2,17 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import websocketPlugin, { type WebSocket } from '@fastify/websocket';
 import { ConnectionAuth, AuthError } from '@quant/realtime';
 import type { PresenceManager } from '@quant/realtime/presence';
-import type { RealtimeBackplane, RoomEvent, RoomEventType } from '../services/realtime-backplane';
+import type { RealtimeBackplane, RoomEvent } from '../services/realtime-backplane';
+import { BACKPLANE_PRESENCE_CHANNEL } from '../services/realtime-backplane';
+import {
+  buildChatEvent,
+  conversationChannel,
+  isChatEventEnvelope,
+  isEphemeralEvent,
+  parseCursor,
+  type ChatEventEnvelope,
+  type ChatEventType,
+} from '../services/chat-event-envelope';
 import { DeliveryReceiptService } from '../services/delivery-receipt.service';
 
 function getJwtSecret(): string {
@@ -22,6 +32,17 @@ function getJwtSecret(): string {
   return secret;
 }
 
+/**
+ * K25 — resume ring buffer. Contract §20: on (re)join the client may send
+ * `last_event_cursor`; buffered events with a greater sequence are replayed so
+ * a brief disconnect loses nothing. Ephemeral events (typing/presence, §19)
+ * are never buffered — they are not durable facts. When the gap exceeds the
+ * buffer the server answers `snapshot_required` and the client recovers durable
+ * state through the REST query path (contract: "durable state remains
+ * recoverable through queries/cursors").
+ */
+const RESUME_BUFFER_SIZE = 100;
+
 export async function websocketRoutes(fastify: FastifyInstance) {
   await fastify.register(websocketPlugin);
 
@@ -33,6 +54,8 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
   const rooms = new Map<string, Set<WebSocket>>();
   const socketUsers = new Map<WebSocket, string>();
+  /** Per-channel recent envelopes for §20 resume. Keyed by canonical channel. */
+  const resumeBuffers = new Map<string, ChatEventEnvelope[]>();
 
   // W3 — First-class delivery and read receipts (Task 14, design Data Model 5 /
   // Sequence 2 / Requirement 10). Recipient sockets ack receipt and signal reads
@@ -105,10 +128,28 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   // Dedicated, cluster-wide channel carrying user presence transitions. Presence
   // is user-scoped rather than conversation-scoped, so it rides its own channel
   // (reusing the per-conversation backplane plumbing) instead of a room channel.
-  const PRESENCE_CHANNEL = '__presence__';
-  backplane.subscribe(PRESENCE_CHANNEL).catch((err: unknown) => {
+  backplane.subscribe(BACKPLANE_PRESENCE_CHANNEL).catch((err: unknown) => {
     fastify.log.error({ err }, 'backplane presence subscribe failed');
   });
+
+  /** Append an envelope to the per-channel resume buffer (bounded). */
+  function bufferForResume(channel: string, envelope: ChatEventEnvelope): void {
+    if (isEphemeralEvent(envelope.event_type)) return;
+    let buffer = resumeBuffers.get(channel);
+    if (!buffer) {
+      buffer = [];
+      resumeBuffers.set(channel, buffer);
+    }
+    buffer.push(envelope);
+    while (buffer.length > RESUME_BUFFER_SIZE) buffer.shift();
+  }
+
+  /** Latest cursor for a channel, or null when nothing was published yet. */
+  function latestCursor(channel: string): string | null {
+    const buffer = resumeBuffers.get(channel);
+    if (!buffer || buffer.length === 0) return null;
+    return buffer[buffer.length - 1]?.cursor ?? null;
+  }
 
   /**
    * Algorithm 4 — cross-instance fan-out. Inbound backplane events whose origin
@@ -117,20 +158,32 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * remote events are forwarded to every open local socket in the room
    * (Requirement 4.5), guaranteeing each member socket receives the event
    * exactly once across the cluster (Requirement 4.6).
+   *
+   * K25 — the wire frame is now the contract §18 envelope (`event.envelope`);
+   * legacy `payload`-only events are still forwarded for rolling-deploy
+   * compatibility.
    */
   backplane.onMessage((conversationId: string, event: RoomEvent) => {
     if (event.originInstanceId === backplane.instanceId) return;
+    const frame = event.envelope ?? event.payload;
+    // Buffer remote envelopes for §20 resume as well.
+    if (event.envelope && conversationId !== BACKPLANE_PRESENCE_CHANNEL) {
+      bufferForResume(conversationChannel(conversationId), event.envelope);
+    }
     // Presence transitions are user-scoped, not room-scoped: a remote instance
     // published it on the dedicated presence channel, so fan it out to every
     // open local socket (Requirement 5.3 — subscribed instances receive it; the
     // frontend re-renders affected indicators per Requirement 11.3).
-    if (event.type === 'presence:update') {
-      broadcastToAllSockets(event.payload);
+    if (
+      conversationId === BACKPLANE_PRESENCE_CHANNEL ||
+      (isChatEventEnvelope(frame) && frame.event_type === 'chat.presence.v1')
+    ) {
+      broadcastToAllSockets(frame);
       return;
     }
     const room = rooms.get(conversationId);
     if (!room) return;
-    const data = JSON.stringify(event.payload);
+    const data = JSON.stringify(frame);
     for (const client of room) {
       if (client.readyState === client.OPEN) {
         client.send(data);
@@ -153,18 +206,32 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * subscribed instance learns about it (Requirement 5.3), and deliver it to
    * this instance's own sockets immediately. Stamped with this instance's id so
    * the origin does not double-deliver when the event echoes back.
+   *
+   * K25 — carried as a `chat.presence.v1` §18 envelope (ephemeral, §19).
    */
-  function publishPresence(userId: string, status: 'online' | 'offline'): void {
-    const payload = { type: 'presence:update', userId, status, lastSeen: Date.now() };
-    broadcastToAllSockets(payload);
+  async function publishPresence(userId: string, status: 'online' | 'offline'): Promise<void> {
+    // Sender identity comes from the authenticated socket — never from client
+    // input (fail-closed, QuantWave radar P0 lesson).
+    const envelope = await buildChatEvent({
+      eventType: 'chat.presence.v1',
+      resourceRef: userId,
+      aggregateVersion: 1,
+      payload: { type: 'presence:update', userId, status, lastSeen: Date.now() },
+      channel: BACKPLANE_PRESENCE_CHANNEL,
+      sequencer: { next: (c: string) => backplane.nextSequence(c) },
+    });
+    broadcastToAllSockets(envelope);
     const event: RoomEvent = {
       type: 'presence:update',
       originInstanceId: backplane.instanceId,
-      payload,
+      payload: envelope,
+      envelope,
     };
-    backplane.publish(PRESENCE_CHANNEL, event).catch((err: unknown) => {
+    try {
+      await backplane.publish(BACKPLANE_PRESENCE_CHANNEL, event);
+    } catch (err: unknown) {
       fastify.log.error({ err, userId }, 'backplane presence publish failed');
-    });
+    }
   }
 
   /**
@@ -196,24 +263,83 @@ export async function websocketRoutes(fastify: FastifyInstance) {
   }
 
   /**
+   * K25 — §20 resume. Replays buffered envelopes newer than the client's
+   * `last_event_cursor` for the conversation channel. Answers:
+   *   { type: 'resumed', replayed, cursor } — all missed events replayed, or
+   *   { type: 'snapshot_required', cursor } — the gap exceeds the buffer; the
+   * client must recover durable state through the REST query path.
+   */
+  function resumeForJoin(
+    socket: WebSocket,
+    conversationId: string,
+    lastEventCursor: unknown,
+  ): void {
+    const channel = conversationChannel(conversationId);
+    const send = (frame: unknown): void => {
+      if (socket.readyState === socket.OPEN) {
+        socket.send(JSON.stringify(frame));
+      }
+    };
+    if (typeof lastEventCursor !== 'string' || lastEventCursor.length === 0) {
+      const cursor = latestCursor(channel);
+      send({ type: 'resumed', replayed: 0, cursor });
+      return;
+    }
+    const parsed = parseCursor(lastEventCursor);
+    if (!parsed || parsed.channel !== channel) {
+      // Fail-closed on malformed/foreign cursors: never replay the wrong room.
+      send({ type: 'snapshot_required', cursor: latestCursor(channel) });
+      return;
+    }
+    const buffer = resumeBuffers.get(channel) ?? [];
+    const missed = buffer.filter((e) => e.sequence > parsed.sequence);
+    const oldestBuffered = buffer.length > 0 ? buffer[0]?.sequence ?? null : null;
+    if (oldestBuffered !== null && parsed.sequence < oldestBuffered) {
+      send({ type: 'snapshot_required', cursor: latestCursor(channel) });
+      return;
+    }
+    for (const envelope of missed) send(envelope);
+    send({ type: 'resumed', replayed: missed.length, cursor: latestCursor(channel) });
+  }
+
+  /**
    * Deliver a room event to the local sockets AND publish it to the backplane so
    * peer instances can fan it out to their own sockets (Requirement 4.3). Local
    * delivery happens first so that — even if the backplane publish fails — the
    * sockets on this instance still receive the event (the publish-failure
    * retry/record path is completed in Task 8 / Requirement 4.7).
+   *
+   * K25 — every event is wrapped in the contract §18 envelope before delivery.
    */
-  function publishRoomEvent(
+  async function publishRoomEvent(
     conversationId: string,
-    type: RoomEventType,
-    payload: unknown,
-    exclude?: WebSocket,
-  ): void {
+    eventType: ChatEventType,
+    input: { resourceRef: string; aggregateVersion?: number; data: unknown },
+    opts?: { exclude?: WebSocket },
+  ): Promise<ChatEventEnvelope | null> {
+    const channel = conversationChannel(conversationId);
+    let envelope: ChatEventEnvelope;
+    try {
+      envelope = await buildChatEvent({
+        eventType,
+        resourceRef: input.resourceRef,
+        aggregateVersion: input.aggregateVersion,
+        payload: input.data,
+        channel,
+        sequencer: { next: (c: string) => backplane.nextSequence(c) },
+      });
+    } catch (err) {
+      fastify.log.error({ err, conversationId, eventType }, 'event envelope build failed');
+      return null;
+    }
+    bufferForResume(channel, envelope);
+
     // 1. Local delivery (origin instance delivers at publish time).
     const room = rooms.get(conversationId);
     if (room) {
-      const data = JSON.stringify(payload);
+      const data = JSON.stringify(envelope);
       for (const client of room) {
-        if (client !== exclude && client.readyState === client.OPEN) {
+        if (client !== opts?.exclude && client.readyState === client.OPEN) {
           client.send(data);
         }
       }
@@ -221,13 +347,17 @@ export async function websocketRoutes(fastify: FastifyInstance) {
 
     // 2. Cross-instance fan-out — stamped with this instance's id by publish().
     const event: RoomEvent = {
-      type,
+      type: 'new_message',
       originInstanceId: backplane.instanceId,
-      payload,
+      payload: envelope,
+      envelope,
     };
-    backplane.publish(conversationId, event).catch((err: unknown) => {
+    try {
+      await backplane.publish(conversationId, event);
+    } catch (err) {
       fastify.log.error({ err, conversationId }, 'backplane publish failed');
-    });
+    }
+    return envelope;
   }
 
   /**
@@ -237,18 +367,21 @@ export async function websocketRoutes(fastify: FastifyInstance) {
    * fan-out are independent: if Prisma is unavailable the receipt is skipped but
    * the realtime tick still propagates; if recording fails it is logged and the
    * tick is suppressed so peers are not told of a receipt that was not stored.
+   *
+   * K25 — the tick is a `chat.message.receipt_updated.v1` §18 envelope.
    */
   function recordAndFan(
     method: 'recordDelivered' | 'recordRead',
-    eventType: 'message:delivered' | 'message:read',
+    receipt: 'delivered' | 'read',
     messageId: string,
     conversationId: string,
     recipientId: string,
   ): void {
     const fan = (): void => {
-      publishRoomEvent(conversationId, eventType, {
-        type: eventType,
-        data: { messageId, conversationId, userId: recipientId },
+      void publishRoomEvent(conversationId, 'chat.message.receipt_updated.v1', {
+        resourceRef: messageId,
+        aggregateVersion: 1,
+        data: { messageId, conversationId, userId: recipientId, receipt },
       });
     };
 
@@ -261,7 +394,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
     deliveryReceipts[method](messageId, recipientId)
       .then(fan)
       .catch((err: unknown) => {
-        fastify.log.error({ err, messageId, recipientId, eventType }, 'receipt recording failed');
+        fastify.log.error({ err, messageId, recipientId, receipt }, 'receipt recording failed');
       });
   }
 
@@ -314,7 +447,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
       // first live device for the user, publish the online transition across
       // the cluster (Requirement 5.1, 5.3).
       if (presence.setOnline(userId, 'quantchat')) {
-        publishPresence(userId, 'online');
+        void publishPresence(userId, 'online');
       }
 
       const query = request.query as { conversationId?: string };
@@ -322,6 +455,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         if (joinRoom(query.conversationId, socket)) {
           ensureSubscribed(query.conversationId);
         }
+        resumeForJoin(socket, query.conversationId, undefined);
       }
 
       socket.on('message', (rawData: Buffer | string) => {
@@ -342,25 +476,33 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             if (joinRoom(message.conversationId, socket)) {
               ensureSubscribed(message.conversationId);
             }
+            // K25 §20 — resume from the client's last cursor when provided.
+            resumeForJoin(socket, message.conversationId, message.last_event_cursor);
           }
 
           if (message.type === 'chat_message' && typeof message.conversationId === 'string') {
-            publishRoomEvent(message.conversationId, 'new_message', {
-              type: 'new_message',
+            // Sender identity is stamped server-side from the authenticated
+            // session — never trusted from the client frame.
+            void publishRoomEvent(message.conversationId, 'chat.message.created.v1', {
+              resourceRef:
+                typeof message.client_message_id === 'string' && message.client_message_id
+                  ? message.client_message_id
+                  : `ws-${Date.now()}`,
+              aggregateVersion: 1,
               data: { ...message, senderId: userId },
             });
           }
 
           if (message.type === 'typing' && typeof message.conversationId === 'string') {
-            publishRoomEvent(
+            void publishRoomEvent(
               message.conversationId,
-              'typing_indicator',
+              'chat.typing.v1',
               {
-                type: 'typing_indicator',
-                userId,
-                isTyping: Boolean(message.isTyping),
+                resourceRef: userId,
+                aggregateVersion: 1,
+                data: { userId, isTyping: Boolean(message.isTyping) },
               },
-              socket,
+              { exclude: socket },
             );
           }
 
@@ -376,7 +518,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             typeof message.conversationId === 'string'
           ) {
             const { messageId, conversationId } = message;
-            recordAndFan('recordDelivered', 'message:delivered', messageId, conversationId, userId);
+            recordAndFan('recordDelivered', 'delivered', messageId, conversationId, userId);
           }
 
           // W3 — read receipt (Requirements 10.2, 10.4). A recipient reads a
@@ -389,7 +531,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
             typeof message.conversationId === 'string'
           ) {
             const { messageId, conversationId } = message;
-            recordAndFan('recordRead', 'message:read', messageId, conversationId, userId);
+            recordAndFan('recordRead', 'read', messageId, conversationId, userId);
           }
         } catch (err) {
           fastify.log.error({ err }, 'WebSocket message handling failed');
@@ -402,7 +544,7 @@ export async function websocketRoutes(fastify: FastifyInstance) {
         // When the last live device disconnects, publish the offline transition
         // across the cluster (Requirement 5.3).
         if (presence.setOffline(userId)) {
-          publishPresence(userId, 'offline');
+          void publishPresence(userId, 'offline');
         }
       });
     },

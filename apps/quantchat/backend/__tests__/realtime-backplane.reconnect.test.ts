@@ -15,14 +15,16 @@
 // fake-key-prisma / fake-realtime-bus approach — these tests drive a faithful
 // EventEmitter-based fake of the ioredis surface RedisRealtimeBackplane uses
 // (`duplicate`, `on`, `subscribe`, `unsubscribe`, `publish`, `disconnect`).
-// ============================================================================
 
+// ============================================================================
+// K25 — channel names follow the contract §19 canonical form (conversation.{ref}).
 import { describe, it, expect } from 'vitest';
 import { EventEmitter } from 'node:events';
 import {
   RedisRealtimeBackplane,
   InProcessBackplane,
   backplaneRetryStrategy,
+  BACKPLANE_PRESENCE_CHANNEL,
   type RoomEvent,
 } from '../services/realtime-backplane';
 
@@ -106,8 +108,9 @@ describe('RedisRealtimeBackplane degraded fallback + reconnect (Task 8)', () => 
 
   it('tracks subscriptions while degraded and applies them all on connect (Requirement 6.2)', async () => {
     const { backplane, sub } = makeBackplane();
-    // Subscribe to the presence channel + two conversations BEFORE connecting.
-    await backplane.subscribe('__presence__');
+    // Subscribe to the dedicated presence channel + two conversations BEFORE connecting
+    // (contract §19 canonical channel names: `presence`, `conversation.{ref}`).
+    await backplane.subscribe(BACKPLANE_PRESENCE_CHANNEL);
     await backplane.subscribe('conv-1');
     await backplane.subscribe('conv-2');
     // Nothing pushed to Redis yet — we are degraded/single-node.
@@ -118,14 +121,14 @@ describe('RedisRealtimeBackplane degraded fallback + reconnect (Task 8)', () => 
     // On connect, every tracked channel is (re)subscribed in one batch.
     expect(sub.subscribeCalls).toHaveLength(1);
     expect(new Set(sub.subscribeCalls[0])).toEqual(
-      new Set(['quantchat:room:__presence__', 'quantchat:room:conv-1', 'quantchat:room:conv-2']),
+      new Set(['presence', 'conversation.conv-1', 'conversation.conv-2']),
     );
   });
 
   it('re-subscribes all active channels after a disconnect/reconnect cycle (Requirement 6.2)', async () => {
     const { backplane, sub } = makeBackplane();
     sub.goReady();
-    await backplane.subscribe('__presence__');
+    await backplane.subscribe(BACKPLANE_PRESENCE_CHANNEL);
     await backplane.subscribe('conv-1');
     expect(backplane.isHealthy()).toBe(true);
 
@@ -139,7 +142,7 @@ describe('RedisRealtimeBackplane degraded fallback + reconnect (Task 8)', () => 
     expect(backplane.isHealthy()).toBe(true);
     expect(sub.subscribeCalls.length).toBe(callsBeforeReconnect + 1);
     expect(new Set(sub.subscribeCalls.at(-1))).toEqual(
-      new Set(['quantchat:room:__presence__', 'quantchat:room:conv-1']),
+      new Set(['presence', 'conversation.conv-1']),
     );
   });
 
@@ -155,7 +158,7 @@ describe('RedisRealtimeBackplane degraded fallback + reconnect (Task 8)', () => 
     sub.goReady();
     await backplane.publish('conv-1', event);
     expect(pub.publishCalls).toHaveLength(1);
-    expect(pub.publishCalls[0].channel).toBe('quantchat:room:conv-1');
+    expect(pub.publishCalls[0].channel).toBe('conversation.conv-1');
     expect(JSON.parse(pub.publishCalls[0].message).originInstanceId).toBe('inst-test');
   });
 

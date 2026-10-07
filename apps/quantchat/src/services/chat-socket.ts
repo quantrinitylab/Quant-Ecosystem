@@ -22,17 +22,78 @@
 //   - Auth travels as a negotiated WebSocket subprotocol (see
 //     `getWsProtocols`), never as a `?token=` query parameter.
 //
-// Wire protocol aligns with `backend/routes/websocket.ts`:
-//   client -> server: { type: 'join_conversation', conversationId }
+// Wire protocol aligns with `backend/routes/websocket.ts` (K25: contract §18):
+//   client -> server: { type: 'join_conversation', conversationId, last_event_cursor? }
 //                      { type: 'chat_message', conversationId, ... }
 //                      { type: 'typing', conversationId, isTyping }
 //                      { type: 'heartbeat' }
-//   server -> client: { type: 'new_message' | 'typing_indicator' |
-//                       'presence:update' | 'message:read' |
-//                       'message:delivered', ... }
+//   server -> client: §18 envelopes, e.g.
+//                      { event_id, event_type: 'chat.message.created.v1',
+//                        resource_ref, sequence, payload, cursor, ... }
+//                      plus control frames { type: 'resumed' | 'snapshot_required' }
+//   The manager normalizes envelopes to the legacy consumer shape
+//   { type: 'new_message' | 'typing_indicator' | 'presence:update' |
+//     'message:read' | 'message:delivered', data, envelope } so existing
+//   consumers keep working unchanged.
 // ============================================================================
 
 import { getAuthHeaders, getChatSocketUrl, getWsProtocols } from '../lib/auth';
+
+/**
+ * K25 — contract §18 envelope as received on the wire. Kept structural (not
+ * imported from the backend) so the frontend bundle stays decoupled.
+ */
+interface WireEnvelope {
+  event_id: string;
+  event_type: string;
+  cursor: string;
+  payload?: unknown;
+  [key: string]: unknown;
+}
+
+function isWireEnvelope(value: unknown): value is WireEnvelope {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.event_id === 'string' && typeof v.event_type === 'string' && typeof v.cursor === 'string'
+  );
+}
+
+/**
+ * Map a contract §28 event type to the legacy consumer event type.
+ * Returns null for control frames handled internally.
+ */
+function legacyTypeFor(eventType: string, payload: unknown): string | null {
+  switch (eventType) {
+    case 'chat.message.created.v1':
+    case 'chat.message.updated.v1':
+    case 'chat.message.deleted.v1':
+      // Consumers refetch on `new_message`; mutations are covered the same way.
+      return 'new_message';
+    case 'chat.typing.v1':
+      return 'typing_indicator';
+    case 'chat.presence.v1':
+      return 'presence:update';
+    case 'chat.message.receipt_updated.v1': {
+      const receipt = (payload as { receipt?: string } | null)?.receipt;
+      return receipt === 'read' ? 'message:read' : 'message:delivered';
+    }
+    default:
+      return null;
+  }
+}
+
+/** Extract the conversation id from a canonical `conversation.{ref}` channel. */
+function conversationIdFromChannel(channel: string): string | null {
+  return channel.startsWith('conversation.') ? channel.slice('conversation.'.length) : null;
+}
+
+/** Extract the conversation id from a `<channel>:<sequence>` cursor. */
+function conversationIdFromCursor(cursor: string): string | null {
+  const idx = cursor.lastIndexOf(':');
+  if (idx <= 0) return null;
+  return conversationIdFromChannel(cursor.slice(0, idx));
+}
 
 /** Connection state surfaced to consumers (Requirement 13.4).
  * `degraded` means the WebSocket is unreachable and the HTTP long-poll
@@ -109,6 +170,15 @@ export class ChatSocketManager {
   /** Message ids already seen per conversation (drives new_message fan-out). */
   private readonly knownMessageIds = new Map<string, Set<string>>();
 
+  /**
+   * K25 — contract §18 client state.
+   * `seenEventIds` dedupes redelivered envelopes (§18: "Client dedupes by
+   * event_id"); `cursors` tracks the latest cursor per conversation so
+   * (re)joins can resume from it (§20). Bounded to avoid unbounded growth.
+   */
+  private readonly seenEventIds = new Set<string>();
+  private readonly cursors = new Map<string, string>();
+
   /** True only while a caller explicitly requested a close (no reconnect). */
   private intentionalClose = false;
   /** Number of mounted consumers; the socket lives while this is > 0. */
@@ -162,13 +232,19 @@ export class ChatSocketManager {
   /**
    * Join a conversation room (`join_conversation`) and remember it so it is
    * re-joined automatically after a reconnect (Requirement 13.3).
+   * K25 §20 — includes the last known cursor so the server can replay missed
+   * events instead of forcing a full refetch.
    */
   subscribe(conversationId: string): void {
     if (!conversationId) return;
     this.activeConversations.add(conversationId);
     // If we are not yet open the join is deferred to the next `onopen`, which
     // replays every active conversation.
-    this.rawSend({ type: 'join_conversation', conversationId });
+    this.rawSend({
+      type: 'join_conversation',
+      conversationId,
+      last_event_cursor: this.cursors.get(conversationId),
+    });
     // While the HTTP fallback is active, seed the new conversation immediately
     // so its next poll tick only surfaces genuinely new messages.
     if (this.pollTimer) void this.pollConversations(true);
@@ -224,8 +300,13 @@ export class ChatSocketManager {
       this.startHeartbeat();
       // Requirement 13.3 — replay every conversation that was active before the
       // disconnect so the user keeps receiving that room's events.
+      // K25 §20 — each re-join carries the last cursor for resume.
       for (const conversationId of this.activeConversations) {
-        this.rawSend({ type: 'join_conversation', conversationId });
+        this.rawSend({
+          type: 'join_conversation',
+          conversationId,
+          last_event_cursor: this.cursors.get(conversationId),
+        });
       }
     };
 
@@ -274,11 +355,56 @@ export class ChatSocketManager {
     }
   }
 
-  /** Fan one inbound event (WS frame or poll tick) to every message handler. */
+  /**
+   * Fan one inbound event (WS frame or poll tick) to every message handler.
+   * K25 — contract §18 envelopes are normalized to the legacy consumer shape
+   * ({ type, data, envelope }) so existing consumers keep working unchanged:
+   *   - dedupe by event_id (§18),
+   *   - cursor tracked per conversation for §20 resume,
+   *   - `resumed` frames are no-ops (replayed events arrive as envelopes),
+   *   - `snapshot_required` fans a `new_message` hint so list consumers refetch
+   *     durable state through the REST query path.
+   * Legacy non-envelope frames pass through untouched (rolling-deploy compat).
+   */
   private dispatchEvent(parsed: unknown): void {
+    if (isWireEnvelope(parsed)) {
+      // Dedupe redeliveries (§18).
+      if (this.seenEventIds.has(parsed.event_id)) return;
+      this.seenEventIds.add(parsed.event_id);
+      // Bound the dedupe set (Sets iterate in insertion order).
+      while (this.seenEventIds.size > 2000) {
+        const oldest = this.seenEventIds.values().next();
+        if (oldest.done) break;
+        this.seenEventIds.delete(oldest.value);
+      }
+      // Track the cursor per conversation for §20 resume.
+      const conversationId = conversationIdFromCursor(parsed.cursor);
+      if (conversationId) this.cursors.set(conversationId, parsed.cursor);
+
+      const legacyType = legacyTypeFor(parsed.event_type, parsed.payload);
+      if (legacyType === null) return; // unknown event type — ignore
+      this.fanOut({ type: legacyType, data: parsed.payload, envelope: parsed });
+      return;
+    }
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      (parsed as { type?: string }).type === 'snapshot_required'
+    ) {
+      // The gap exceeded the server buffer (§20): nudge list consumers to
+      // refetch durable state via REST.
+      this.fanOut({ type: 'new_message', data: {} });
+      return;
+    }
+    // `resumed` and any legacy frame: pass through (resumed needs no action).
+    this.fanOut(parsed);
+  }
+
+  /** Deliver one normalized event to every registered handler. */
+  private fanOut(event: unknown): void {
     for (const handler of this.messageHandlers) {
       try {
-        handler(parsed);
+        handler(event);
       } catch {
         // A faulty consumer must not break fan-out to the others.
       }
