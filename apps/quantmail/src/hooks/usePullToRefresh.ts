@@ -10,6 +10,10 @@
  * - Arms only when the container is scrolled to the very top (`scrollTop <= 0`
  *   at touchstart) and the finger pulls downward. Anywhere else, the touch is a
  *   scroll and is never claimed.
+ * - Horizontal intent latches the gesture out for its whole lifetime: if the
+ *   finger's horizontal travel dominates, this is a row swipe (or horizontal
+ *   scroll), never a pull — so swiping an email row can never also trigger a
+ *   refresh, even with a slight downward drift.
  * - Release past the line fires the caller's `onRefresh` exactly once and the
  *   spinner holds until that promise settles (minimum 450ms so it never
  *   flickers on a fast cache hit).
@@ -127,7 +131,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions): UsePullToRef
       const target = event.currentTarget as HTMLElement | null;
       const touch = event.touches[0];
       if (!target || !touch) return;
-      machine.touchstart(target.scrollTop, touch.clientY);
+      machine.touchstart(target.scrollTop, touch.clientX, touch.clientY);
       sync();
     },
     [disabled, sync],
@@ -139,7 +143,7 @@ export function usePullToRefresh(options: UsePullToRefreshOptions): UsePullToRef
       if (!machine || disabled) return;
       const touch = event.touches[0];
       if (!touch) return;
-      machine.touchmove(touch.clientY, event.touches.length);
+      machine.touchmove(touch.clientX, touch.clientY, event.touches.length);
       sync();
     },
     [disabled, sync],

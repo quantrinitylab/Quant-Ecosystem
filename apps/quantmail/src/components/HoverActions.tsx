@@ -1,7 +1,8 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface HoverActionsProps {
   emailId: string;
@@ -41,7 +42,10 @@ export const HoverActions = memo(function HoverActions({
   isSpam,
   onRescueSpam,
 }: HoverActionsProps) {
+  /** Delete from the hover bar asks first — no silent deletes. */
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return (
+    <>
     <motion.div
       className="hover-actions"
       initial={{ opacity: 0, x: 8 }}
@@ -150,7 +154,7 @@ export const HoverActions = memo(function HoverActions({
       <button
         type="button"
         className="hover-action-btn"
-        onClick={onDelete}
+        onClick={() => setConfirmDelete(true)}
         aria-label="Delete"
         title="Delete (#)"
       >
@@ -246,5 +250,19 @@ export const HoverActions = memo(function HoverActions({
         </button>
       )}
     </motion.div>
+    <ConfirmDialog
+      isOpen={confirmDelete}
+      title="Move conversation to Trash?"
+      message="The conversation will be moved to Trash."
+      confirmLabel="Move to Trash"
+      cancelLabel="Cancel"
+      variant="destructive"
+      onConfirm={() => {
+        setConfirmDelete(false);
+        onDelete();
+      }}
+      onCancel={() => setConfirmDelete(false)}
+    />
+    </>
   );
 });
