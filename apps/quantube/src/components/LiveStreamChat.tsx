@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { apiClient } from '../services/api-client';
 
 interface ChatMessage {
   id: string;
@@ -37,44 +38,28 @@ interface ChatState {
   slowMode: boolean;
   slowModeDelay: number;
   emotePickerOpen: boolean;
-  donationMode: boolean;
-  donationAmount: string;
   isPaused: boolean;
   lastSendTime: number;
+  sendError: string | null;
 }
 
 const EMOTES = ['🎉', '🔥', '❤️', '😂', '👏', '💯', '🎮', '💀', '😍', '🤔', '👀', '💪'];
-
-const MOCK_MESSAGES: ChatMessage[] = [
-  { id: 'cm1', author: 'GameFan99', avatar: '/avatars/gf99.jpg', text: 'This stream is amazing!', timestamp: '2024-01-15T20:01:00Z', isModerator: false, isOwner: false, donation: null, badge: null },
-  { id: 'cm2', author: 'ModeratorJoe', avatar: '/avatars/modjoe.jpg', text: 'Welcome everyone! Remember to follow the rules.', timestamp: '2024-01-15T20:01:30Z', isModerator: true, isOwner: false, donation: null, badge: '🛡' },
-  { id: 'cm3', author: 'SuperFan', avatar: '/avatars/superfan.jpg', text: 'You deserve this! Keep up the great content!', timestamp: '2024-01-15T20:02:00Z', isModerator: false, isOwner: false, donation: { amount: 50, currency: 'USD' }, badge: '💎' },
-  { id: 'cm4', author: 'TechWatcher', avatar: '/avatars/tw.jpg', text: 'Can you explain that part again?', timestamp: '2024-01-15T20:02:30Z', isModerator: false, isOwner: false, donation: null, badge: null },
-  { id: 'cm5', author: 'StreamerHost', avatar: '/avatars/host.jpg', text: 'Thanks for the super chat! Really appreciate it!', timestamp: '2024-01-15T20:03:00Z', isModerator: false, isOwner: true, donation: null, badge: '⭐' },
-  { id: 'cm6', author: 'NewViewer', avatar: '/avatars/nv.jpg', text: 'First time here, this is cool!', timestamp: '2024-01-15T20:03:30Z', isModerator: false, isOwner: false, donation: null, badge: null },
-  { id: 'cm7', author: 'LongTimeSub', avatar: '/avatars/lts.jpg', text: '6 months subscribed! Love this channel', timestamp: '2024-01-15T20:04:00Z', isModerator: false, isOwner: false, donation: { amount: 10, currency: 'USD' }, badge: '🏆' },
-];
 
 const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, viewerCount }) => {
   const [state, setState] = useState<ChatState>({
     messages: [],
     inputText: '',
-    pinnedMessage: { id: 'pin1', author: 'ModeratorJoe', text: 'Stream rules: Be respectful, no spam, have fun!', pinnedAt: '2024-01-15T20:00:00Z' },
+    pinnedMessage: null,
     slowMode: false,
     slowModeDelay: 5,
     emotePickerOpen: false,
-    donationMode: false,
-    donationAmount: '',
     isPaused: false,
     lastSendTime: 0,
+    sendError: null,
   });
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setState(prev => ({ ...prev, messages: MOCK_MESSAGES }));
-  }, [streamId]);
 
   useEffect(() => {
     if (!state.isPaused && messagesEndRef.current) {
@@ -82,43 +67,38 @@ const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, view
     }
   }, [state.messages, state.isPaused]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!state.isPaused) {
-        const newMsg: ChatMessage = {
-          id: `cm-${Date.now()}`,
-          author: `Viewer${Math.floor(Math.random() * 1000)}`,
-          avatar: '/avatars/default.jpg',
-          text: ['Great stream!', 'LOL', 'Nice one!', 'PogChamp', 'Keep going!'][Math.floor(Math.random() * 5)],
-          timestamp: new Date().toISOString(),
-          isModerator: false,
-          isOwner: false,
-          donation: null,
-          badge: null,
-        };
-        setState(prev => ({
-          ...prev,
-          messages: [...prev.messages.slice(-100), newMsg],
-        }));
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [state.isPaused]);
-
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     if (!state.inputText.trim()) return;
     const now = Date.now();
     if (state.slowMode && now - state.lastSendTime < state.slowModeDelay * 1000) return;
+
+    const text = state.inputText.trim();
+    setState(prev => ({ ...prev, sendError: null }));
+
+    // POST the message to the real live-chat backend. The message is only
+    // shown locally after the backend accepts it — never simulated.
+    let accepted = false;
+    try {
+      const response = await apiClient.sendChat(streamId, text);
+      accepted = response.success === true;
+    } catch {
+      accepted = false;
+    }
+
+    if (!accepted) {
+      setState(prev => ({ ...prev, sendError: 'Message not sent. Please try again.' }));
+      return;
+    }
 
     const newMsg: ChatMessage = {
       id: `my-${now}`,
       author: 'You',
       avatar: '/avatars/me.jpg',
-      text: state.inputText,
+      text,
       timestamp: new Date().toISOString(),
       isModerator: false,
       isOwner,
-      donation: state.donationMode && state.donationAmount ? { amount: parseFloat(state.donationAmount), currency: 'USD' } : null,
+      donation: null,
       badge: isOwner ? '⭐' : null,
     };
 
@@ -126,11 +106,9 @@ const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, view
       ...prev,
       messages: [...prev.messages, newMsg],
       inputText: '',
-      donationMode: false,
-      donationAmount: '',
       lastSendTime: now,
     }));
-  }, [state.inputText, state.slowMode, state.slowModeDelay, state.lastSendTime, state.donationMode, state.donationAmount, isOwner]);
+  }, [streamId, state.inputText, state.slowMode, state.slowModeDelay, state.lastSendTime, isOwner]);
 
   const addEmote = useCallback((emote: string) => {
     setState(prev => ({ ...prev, inputText: prev.inputText + emote, emotePickerOpen: false }));
@@ -183,6 +161,11 @@ const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, view
 
       {/* Messages */}
       <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
+        {state.messages.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-500 text-sm">No live chat yet</p>
+          </div>
+        )}
         {state.messages.map(msg => (
           <div key={msg.id} className={`flex items-start space-x-2 ${msg.donation ? 'bg-yellow-900/20 rounded-lg p-2 border border-yellow-600/30' : ''}`}>
             <div className="w-6 h-6 rounded-full bg-gray-700 flex-shrink-0 overflow-hidden">
@@ -225,19 +208,10 @@ const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, view
         </div>
       )}
 
-      {/* Donation Amount */}
-      {state.donationMode && (
-        <div className="px-4 py-2 bg-yellow-900/20 border-t border-yellow-800/50 flex items-center space-x-2">
-          <span className="text-yellow-400 text-sm">$</span>
-          <input
-            type="number"
-            value={state.donationAmount}
-            onChange={(e) => setState(prev => ({ ...prev, donationAmount: e.target.value }))}
-            placeholder="Amount"
-            min="1"
-            className="flex-1 bg-gray-800 text-white rounded px-3 py-1.5 text-sm outline-none"
-          />
-          <button onClick={() => setState(prev => ({ ...prev, donationMode: false }))} className="text-gray-400 text-sm">Cancel</button>
+      {/* Send Error */}
+      {state.sendError && (
+        <div className="px-4 py-1 bg-red-900/30 text-center">
+          <span className="text-red-400 text-xs">{state.sendError}</span>
         </div>
       )}
 
@@ -257,12 +231,6 @@ const LiveStreamChat: React.FC<LiveStreamChatProps> = ({ streamId, isOwner, view
           placeholder={state.slowMode ? `Slow mode (${state.slowModeDelay}s)` : 'Say something...'}
           className="flex-1 bg-gray-800 text-white rounded-full px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <button
-          onClick={() => setState(prev => ({ ...prev, donationMode: !prev.donationMode }))}
-          className="text-yellow-400 hover:text-yellow-300 p-1"
-        >
-          💰
-        </button>
         <button onClick={sendMessage} disabled={!state.inputText.trim()} className="px-3 py-1.5 bg-blue-600 text-white rounded-full text-sm hover:bg-blue-700 disabled:opacity-50">
           Send
         </button>

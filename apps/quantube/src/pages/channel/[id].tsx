@@ -56,114 +56,6 @@ type ChannelTab = 'videos' | 'shorts' | 'live' | 'playlists' | 'community' | 'ab
 type NotificationLevel = 'all' | 'personalized' | 'none';
 type VideoSort = 'latest' | 'popular' | 'oldest';
 
-// Fallback data used only when API calls fail
-const FALLBACK_CHANNEL: ChannelData = {
-  id: 'ch-001',
-  name: 'TechVision Studios',
-  handle: '@techvisionstudios',
-  avatarUrl: '/avatars/techvision.jpg',
-  bannerUrl: '/banners/techvision-banner.jpg',
-  description:
-    'Building the future of technology, one video at a time. Weekly tutorials on React, TypeScript, System Design, and AI. Join 500K+ developers learning with us!',
-  subscriberCount: 524000,
-  videoCount: 385,
-  totalViews: 45000000,
-  joinedDate: '2019-03-15',
-  links: [
-    { label: 'Website', url: 'https://techvision.dev' },
-    { label: 'Twitter', url: 'https://twitter.com/techvision' },
-  ],
-  verified: true,
-  location: 'San Francisco, CA',
-};
-
-const FALLBACK_VIDEOS: ChannelVideo[] = [
-  {
-    id: 'cv1',
-    title: 'React Server Components Explained',
-    thumbnail: '/thumbs/rsc.jpg',
-    views: 245000,
-    publishedAt: '2024-01-12',
-    duration: 1800,
-    isLive: false,
-    isShort: false,
-  },
-  {
-    id: 'cv2',
-    title: 'TypeScript 5.4 New Features',
-    thumbnail: '/thumbs/ts54.jpg',
-    views: 189000,
-    publishedAt: '2024-01-10',
-    duration: 1200,
-    isLive: false,
-    isShort: false,
-  },
-  {
-    id: 'cv3',
-    title: 'System Design: Building YouTube',
-    thumbnail: '/thumbs/sysdesign.jpg',
-    views: 520000,
-    publishedAt: '2024-01-07',
-    duration: 3600,
-    isLive: false,
-    isShort: false,
-  },
-  {
-    id: 'cv4',
-    title: 'AI Code Review Tools Comparison',
-    thumbnail: '/thumbs/aireview.jpg',
-    views: 312000,
-    publishedAt: '2024-01-05',
-    duration: 2100,
-    isLive: false,
-    isShort: false,
-  },
-  {
-    id: 'cv5',
-    title: 'Docker in 10 Minutes',
-    thumbnail: '/thumbs/docker.jpg',
-    views: 890000,
-    publishedAt: '2024-01-02',
-    duration: 600,
-    isLive: false,
-    isShort: false,
-  },
-  {
-    id: 'cv6',
-    title: 'Quick Tip: CSS Grid',
-    thumbnail: '/thumbs/css.jpg',
-    views: 125000,
-    publishedAt: '2024-01-01',
-    duration: 58,
-    isLive: false,
-    isShort: true,
-  },
-];
-
-const FALLBACK_PLAYLISTS: ChannelPlaylist[] = [
-  {
-    id: 'pl1',
-    title: 'React Masterclass',
-    thumbnail: '/thumbs/react-series.jpg',
-    videoCount: 24,
-    updatedAt: '2024-01-12',
-  },
-  {
-    id: 'pl2',
-    title: 'System Design Interview Prep',
-    thumbnail: '/thumbs/sys-series.jpg',
-    videoCount: 18,
-    updatedAt: '2024-01-07',
-  },
-  {
-    id: 'pl3',
-    title: 'TypeScript Deep Dive',
-    thumbnail: '/thumbs/ts-series.jpg',
-    videoCount: 15,
-    updatedAt: '2024-01-10',
-  },
-];
-
 interface ChannelApiResponse {
   channel: ChannelData;
   videos?: ChannelVideo[];
@@ -195,10 +87,12 @@ const ChannelPage: React.FC = () => {
     retry: 1,
   });
 
-  // Derive data from query result, falling back to defaults on error or missing data
-  const channel: ChannelData | null = data?.channel ?? (error ? FALLBACK_CHANNEL : null);
-  const videos: ChannelVideo[] = data?.videos ?? FALLBACK_VIDEOS;
-  const playlists: ChannelPlaylist[] = data?.playlists ?? FALLBACK_PLAYLISTS;
+  // Channel content comes only from the API. On error or missing data the page
+  // renders the real error / "Channel not found" states below — never a
+  // fabricated fallback channel.
+  const channel: ChannelData | null = data?.channel ?? null;
+  const videos: ChannelVideo[] = data?.videos ?? [];
+  const playlists: ChannelPlaylist[] = data?.playlists ?? [];
   const communityPosts: CommunityPost[] = data?.communityPosts ?? [];
 
   const shorts = videos.filter((v) => v.isShort);
