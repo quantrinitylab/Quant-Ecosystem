@@ -36,8 +36,7 @@ const QuantyLiveAgent = dynamic(
 );
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
-import { MobileSubTabStrip } from './MobileSubTabStrip';
-import { MobilePillarBottomNav } from './MobilePillarBottomNav';
+import { ContextBottomNavBar } from './ContextBottomNavBar';
 import { DesktopAppRail } from './DesktopAppRail';
 import { DesktopContextSidebar } from './DesktopContextSidebar';
 import { pillarForApp } from './desktopContextTabs';
@@ -91,10 +90,11 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation: exactly ONE bottom bar — <MobilePillarBottomNav />.
-   The old second bar (<ContextBottomNavBar />) was removed; its sub-tab
-   navigation lives on as a Gmail-style top strip (<MobileSubTabStrip />)
-   for the pillars whose pages have no native mobile tab row. */
+/* Mobile bottom navigation: exactly ONE bottom bar — <ContextBottomNavBar />,
+   the contextual per-app tab bar (user decision 2026-10-07, reversing #531).
+   The 5-app switcher lives exactly once at the top (<QuantPillarTopBar />);
+   the bottom duplicate (<MobilePillarBottomNav />) and the top strip
+   (<MobileSubTabStrip />) were removed. */
 
 export function AppShell({
   children,
@@ -934,7 +934,7 @@ export function AppShell({
               </div>
             )}
 
-            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar (mobile only — desktop uses DesktopPillarRail) */}
+            {/* Super-App 5-Pillar Top Switcher or custom topBar (mobile only — desktop uses the left context sidebar + right app rail) */}
             {topBar !== undefined ? (
               topBar
             ) : isMainSuiteRoute && !customHeader ? (
@@ -947,11 +947,6 @@ export function AppShell({
                   unreadCounts={{ mail: unreadCount }}
                   lensCounts={{ mail: mailLensCounts }}
                 />
-                {/* Gmail-style sub-tab strip: the removed bottom bar's
-                    navigation, relocated to a single top strip for the pillars
-                    with no native mobile tab row (calendar/drive).
-                    Mail, Contacts and QuantGit render their own rows. */}
-                <MobileSubTabStrip />
               </div>
             ) : null}
 
@@ -967,7 +962,7 @@ export function AppShell({
               id="main-content"
               tabIndex={-1}
               className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-                /* Reserve room for the mobile pillar bottom nav (h-16) on main
+                /* Reserve room for the mobile contextual bottom nav (h-16) on main
                    suite routes. Desktop keeps its rail/context-bar layout. */
                 isMainSuiteRoute ? 'pb-16 md:pb-0' : ''
               }`}
@@ -1013,12 +1008,18 @@ export function AppShell({
             <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
           )}
 
-          {/* Mobile Pillar Bottom Navigation — the ONE bottom bar: thumb-reachable
-              5-pillar switcher (Mail/Calendar/Drive/Contacts/QuantGit).
-              Mobile only; desktop uses the DesktopPillarRail. Hidden on
-              /thread/* and /compose where the bottom edge belongs to the
-              conversation / compose toolbar. */}
-          <MobilePillarBottomNav mailUnreadCount={unreadCount} />
+          {/* Mobile Contextual Bottom Navigation — the ONE bottom bar:
+              per-app tabs (Inbox/Teams/Agents/Archive for Mail, per-app sets
+              for the other pillars). Mobile only; desktop layout unchanged.
+              Hidden on /thread/* and /compose where the bottom edge belongs
+              to the conversation / compose toolbar. Badges are real counts
+              only — never hardcoded. */}
+          <ContextBottomNavBar
+            badgeOverrides={{
+              inbox: unreadCount > 0 ? unreadCount : undefined,
+              teams: mailLensCounts.teams,
+            }}
+          />
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />
