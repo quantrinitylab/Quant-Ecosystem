@@ -2234,6 +2234,9 @@ importers:
       '@quant/ai':
         specifier: workspace:*
         version: link:../ai
+      '@quant/app-registry':
+        specifier: workspace:*
+        version: link:../app-registry
       '@quant/common':
         specifier: workspace:*
         version: link:../common
@@ -2511,6 +2514,9 @@ importers:
 
   packages/universal-timeline:
     dependencies:
+      '@quant/app-registry':
+        specifier: workspace:*
+        version: link:../app-registry
       '@quant/common':
         specifier: workspace:*
         version: link:../common
