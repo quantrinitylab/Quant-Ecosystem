@@ -424,6 +424,9 @@ importers:
       livekit-server-sdk:
         specifier: ^2.15.3
         version: 2.15.3
+      livekit-client:
+        specifier: ^2.9.1
+        version: 2.19.0(@types/dom-mediacapture-record@1.0.22)
       next:
         specifier: 15.5.25
         version: 15.5.25(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)

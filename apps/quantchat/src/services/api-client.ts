@@ -56,6 +56,59 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+// ---------------------------------------------------------------------------
+// QuantMeet (C08) meeting-room types — mirrors backend room.service shapes
+// ---------------------------------------------------------------------------
+
+export interface MeetingRoomSettings {
+  maxParticipants: number;
+  waitingRoom: boolean;
+  muteOnEntry: boolean;
+  allowScreenShare: boolean;
+  enableRecording: boolean;
+  enableTranscript: boolean;
+}
+
+export interface MeetingParticipant {
+  id: string;
+  userId: string;
+  displayName: string;
+  role: 'host' | 'co-host' | 'participant';
+  audioEnabled: boolean;
+  videoEnabled: boolean;
+  joinedAt: string;
+}
+
+export interface MeetingRoomSummary {
+  id: string;
+  name: string;
+  hostId: string;
+  status: 'active' | 'closed';
+  settings: MeetingRoomSettings;
+  participants: MeetingParticipant[];
+  createdAt: string;
+}
+
+export interface CreateMeetingRoomRequest {
+  name: string;
+  settings: MeetingRoomSettings;
+}
+
+export interface JoinMeetingRoomRequest {
+  displayName?: string;
+  role?: 'host' | 'co-host' | 'participant';
+  audioEnabled?: boolean;
+  videoEnabled?: boolean;
+}
+
+export interface JoinMeetingRoomResponse {
+  room: MeetingRoomSummary;
+  token: string;
+  participant: MeetingParticipant;
+  /** Public SFU websocket URL (media auth is the token, not this URL). */
+  serverUrl: string;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -379,6 +432,39 @@ export class QuantChatApiClient {
 
   async getICEServers(): Promise<ApiResponse<unknown>> {
     return this.get('/calls/ice-servers');
+  }
+
+  // --------------------------------------------------------------------------
+  // QuantMeet (C08) — meeting rooms
+  // --------------------------------------------------------------------------
+
+  async listMeetingRooms(): Promise<ApiResponse<MeetingRoomSummary[]>> {
+    return this.get('/meetings/rooms');
+  }
+
+  async createMeetingRoom(
+    request: CreateMeetingRoomRequest,
+  ): Promise<ApiResponse<MeetingRoomSummary>> {
+    return this.post('/meetings/rooms', request);
+  }
+
+  async getMeetingRoom(roomId: string): Promise<ApiResponse<MeetingRoomSummary>> {
+    return this.get(`/meetings/rooms/${encodeURIComponent(roomId)}`);
+  }
+
+  async joinMeetingRoom(
+    roomId: string,
+    request: JoinMeetingRoomRequest,
+  ): Promise<ApiResponse<JoinMeetingRoomResponse>> {
+    return this.post(`/meetings/rooms/${encodeURIComponent(roomId)}/join`, request);
+  }
+
+  async leaveMeetingRoom(roomId: string): Promise<ApiResponse<MeetingRoomSummary>> {
+    return this.post(`/meetings/rooms/${encodeURIComponent(roomId)}/leave`, {});
+  }
+
+  async closeMeetingRoom(roomId: string): Promise<ApiResponse<MeetingRoomSummary>> {
+    return this.post(`/meetings/rooms/${encodeURIComponent(roomId)}/close`, {});
   }
 
   // --------------------------------------------------------------------------

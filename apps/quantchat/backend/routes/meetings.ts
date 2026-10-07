@@ -138,6 +138,17 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
     return reply.status(201).send(room);
   });
 
+  // C08.1 Meet Lobby: the caller's own recent/active rooms. Real data only —
+  // the lobby must never render fabricated meetings.
+  fastify.get('/rooms', async (request, reply) => {
+    const userId = requireUserId(request);
+    try {
+      return reply.send(await roomService.listRooms(userId));
+    } catch (error) {
+      mapRoomError(error);
+    }
+  });
+
   fastify.get<{ Params: { id: string } }>('/rooms/:id', async (request, reply) => {
     requireUserId(request);
     try {
@@ -183,7 +194,13 @@ export default async function meetingsRoutes(fastify: FastifyInstance) {
         },
       );
 
-      return reply.send({ room, token, participant });
+      return reply.send({
+        room,
+        token,
+        participant,
+        // Public SFU connection URL (not a secret — media auth is the token).
+        serverUrl: livekitGateway.getServerUrl(),
+      });
     } catch (error) {
       if ((error as { statusCode?: number }).statusCode) throw error;
       mapRoomError(error);
