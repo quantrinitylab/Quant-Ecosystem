@@ -111,8 +111,12 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integr
       expect(html).not.toContain('App pillars');
       // The removed top sub-tab strip is gone
       expect(html).not.toContain('sub-navigation');
-      // <main> reserves room for the single h-16 bottom bar
-      expect(html).toContain('pb-16');
+      // In-flow bottom nav (this PR's black-void fix): the contextual bar is
+      // an in-flow flex child whose height collapses to 0 on scroll, so
+      // <main> must NOT reserve padding — the old fixed-bar pb-16 is gone.
+      expect(html).not.toContain('pb-16');
+      // The safe-area-aware chrome lives on the bar itself
+      expect(html).toContain('pb-[env(safe-area-inset-bottom,0px)]');
     });
 
     it('mounts the contextual bottom nav on Calendar route (/calendar)', () => {

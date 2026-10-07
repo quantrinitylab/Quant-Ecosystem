@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Quanty } from './Quanty';
 import { triggerHapticTap } from './QuantPillarTopBar';
+import { useChromeVisible } from './useScrollChrome';
 
 // ============================================================================
 // QuantMail — Contextual Bottom Navigation (mobile)
@@ -1084,39 +1085,11 @@ export function ContextBottomNavBar({
 
   const pillarConfig = PILLAR_SUB_CONFIGS[pillar];
 
-  // Auto-hide on scroll down, slide up on scroll up
-  const [isVisible, setIsVisible] = useState(true);
-  const lastScrollYRef = useRef(0);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleScroll = (e?: Event) => {
-      const target = e?.target as HTMLElement | Document | null;
-      let currentY = window.scrollY;
-      if (target && 'scrollTop' in target && typeof target.scrollTop === 'number') {
-        currentY = target.scrollTop;
-      }
-
-      // Do not hide when near top
-      if (currentY < 40) {
-        setIsVisible(true);
-        lastScrollYRef.current = currentY;
-        return;
-      }
-
-      const diff = currentY - lastScrollYRef.current;
-      if (diff > 12) {
-        setIsVisible(false);
-      } else if (diff < -12) {
-        setIsVisible(true);
-      }
-      lastScrollYRef.current = currentY;
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
-    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-  }, []);
+  // Shared chrome visibility: hides on deliberate scroll-down, reveals on
+  // scroll-up. The SAME store drives the FAB, so the two never drift apart.
+  // This bar is an in-flow flex child (NOT fixed): when it collapses to
+  // height 0 the <main> above expands to reclaim the space — no black void.
+  const isVisible = useChromeVisible();
 
   // Listen for external tab synchronization events
   const [activeTabState, setActiveTabState] = useState<string | null>(null);
@@ -1160,10 +1133,18 @@ export function ContextBottomNavBar({
   };
 
   return (
+    <div
+      aria-hidden={!isVisible}
+      className={`md:hidden flex-none overflow-hidden motion-reduce:transition-none ${className}`}
+      style={{
+        // In-flow collapse: height animates 4rem+safe-area <-> 0, so <main>
+        // expands to fill the space. GPU-cheap (single height), no void.
+        height: isVisible ? 'calc(4rem + env(safe-area-inset-bottom, 0px))' : 0,
+        transition: 'height 0.3s cubic-bezier(0.25, 1, 0.5, 1)',
+      }}
+    >
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-40 md:hidden flex h-16 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-in-out motion-reduce:transition-none ${
-        isVisible ? 'translate-y-0' : 'translate-y-full'}
-      } ${className}`}
+      className="flex h-16 items-center justify-around border-t border-[#1F2430] bg-[#090A0E]/95 backdrop-blur-md px-2 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-8px_24px_rgba(0,0,0,0.45)]"
       aria-label={`${pillarConfig.name} contextual navigation`}
     >
       {pillarConfig.tabs.map((tab) => {
@@ -1262,6 +1243,7 @@ export function ContextBottomNavBar({
         }
       `}</style>
     </nav>
+    </div>
   );
 }
 
