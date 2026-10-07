@@ -29,6 +29,8 @@ on:
           - quantube
           - quantedits
           - quantads
+          - quantgram
+          - quantcooks
       release_sha:
         description: Exact 40-character SHA of the current protected main commit
         required: true
@@ -209,6 +211,11 @@ jobs:
               repository=quant-quantneon; dockerfile=apps/quantgram/Dockerfile
               deployment=quant-quantneon; container=quant-quantneon
               needs_cloudflare=false ;;
+            quantgram)
+              # Alias for the QuantGram product (legacy target name: quantneon)
+              repository=quant-quantneon; dockerfile=apps/quantgram/Dockerfile
+              deployment=quant-quantneon; container=quant-quantneon
+              needs_cloudflare=false ;;
             quantube)
               repository=quant-quantube; dockerfile=apps/quantube/Dockerfile
               deployment=quant-quantube; container=quant-quantube
@@ -246,6 +253,11 @@ jobs:
               deployment=quant-signal-projector; container=signal-projector
               needs_cloudflare=false ;;
             quantedits)
+              repository=quant-quantedits; dockerfile=apps/quantcooks/Dockerfile
+              deployment=quant-quantedits; container=quant-quantedits
+              needs_cloudflare=false ;;
+            quantcooks)
+              # Alias for the QuantCooks product (legacy target name: quantedits)
               repository=quant-quantedits; dockerfile=apps/quantcooks/Dockerfile
               deployment=quant-quantedits; container=quant-quantedits
               needs_cloudflare=false ;;
