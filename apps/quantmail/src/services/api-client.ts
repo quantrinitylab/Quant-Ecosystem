@@ -909,7 +909,7 @@ export class QuantMailApiClient {
    * exports every contact, not just the current 20-row page.
    */
   async exportContactsVCard(): Promise<Response> {
-    // Raw fetch (not JSON) — the backend streams the full address book as
+    // Raw response (not JSON) — the backend streams the full address book as
     // text/vcard. Uses the authenticated browser request helper so the
     // session token is attached.
     return browserApiRequest('/api/contacts/export/vcard');
