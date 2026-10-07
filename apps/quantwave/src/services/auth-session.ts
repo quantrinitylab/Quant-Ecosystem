@@ -5,7 +5,7 @@
 // HttpOnly cookie the identity service manages. On every load the app tries to
 // restore a session with /auth/refresh, and rotates before the access token expires.
 // ============================================================================
-import { quantSyncAPI } from './api-client';
+import { quantSyncAPI, AuthRequiredError } from './api-client';
 
 export interface SessionData {
   accessToken?: string;
@@ -72,6 +72,46 @@ export const authSession = {
   login(email: string, password: string): Promise<SessionResult> {
     return postAuth('login', { email, password });
   },
+  /**
+   * Complete a "Continue with Quant SSO" round-trip.
+   * Exchanges the QuantMail-issued handoff token (carried in the ?token=
+   * query param the SSO chooser appends) for a QuantWave session via the
+   * backend's POST /auth/sso/login, which validates the token as a
+   * cross-app token server-side. The access token is stored memory-only,
+   * exactly like a password login.
+   */
+  async exchangeSso(quantMailToken: string): Promise<SessionResult> {
+    try {
+      const result = await quantSyncAPI.loginWithSSO(quantMailToken);
+      if (result.success && result.data?.accessToken) {
+        setAccessToken(result.data.accessToken);
+        return { success: true, data: { accessToken: result.data.accessToken } };
+      }
+      return {
+        success: false,
+        error: {
+          code: result.error?.code ?? 'SSO_FAILED',
+          message: 'The Quant SSO sign-in did not complete. Please try again.',
+        },
+      };
+    } catch (caught) {
+      // AuthRequiredError: the handoff token was rejected — already dropped
+      // from the API client by its 401 handler.
+      if (caught instanceof AuthRequiredError) {
+        return {
+          success: false,
+          error: {
+            code: 'SSO_INVALID',
+            message: 'The Quant SSO sign-in did not complete. Please try again.',
+          },
+        };
+      }
+      return {
+        success: false,
+        error: { code: 'NETWORK', message: 'Could not reach the sign-in service.' },
+      };
+    }
+  },
   refresh(): Promise<SessionResult> {
     return postAuth('refresh');
   },
@@ -79,56 +119,62 @@ export const authSession = {
     await postAuth('logout').catch(() => undefined);
     clearAccessToken();
   },
+  /**
+   * SSO login: exchange a QuantMail-issued SSO token (the `?token=` / `?accessToken=`
+   * / `?__quant_sso_ticket=` param QuantMail's /sso chooser appends to the returnTo
+   * URL) for a QuantWave session. The exchange runs server-side via the
+   * /api/auth/sso/login proxy, which validates the token back-channel (signature +
+   * expiry + cross-app scope) — the token is never trusted on its claims alone.
+   * On success the validated token becomes this tab's in-memory access token.
+   */
+  loginWithSSO(quantMailToken: string): Promise<SessionResult> {
+    return postSsoLogin(quantMailToken);
+  },
 };
 
-// ============================================================================
-// SSO callback completion.
-// QuantMail hands the session back by redirecting to /login with the
-// QuantMail-issued JWT in the URL (`?token=…&accessToken=…&__quant_sso_ticket=…`).
-// That token is NOT valid for QuantWave's backend directly — it must be
-// exchanged server-side (POST /api/auth/sso/login → Fastify /auth/sso/login,
-// which validates it as a cross-app token). On success the resulting session
-// credential is stored in memory exactly like a password login; the caller
-// must scrub the token params from the URL (history.replaceState) so the
-// credential never lingers in the address bar or browser history.
-// ============================================================================
-export async function completeSSO(quantMailToken: string): Promise<SessionResult> {
-  const token = quantMailToken?.trim();
-  if (!token) {
-    return {
-      success: false,
-      error: {
-        code: 'SSO_MISSING_TOKEN',
-        message: 'The Quant Account sign-in did not include a token. Please try again.',
-      },
-    };
-  }
+/**
+ * POST /api/auth/sso/login — the Next.js proxy forwards this to the QuantWave
+ * backend's POST /auth/sso/login, which validates the QuantMail token and
+ * returns { accessToken, user }. Plain fetch (not the api-client): a 401 here
+ * means the SSO token itself is invalid, not that an existing session died, so
+ * it must NOT trigger the api-client's session-death path.
+ */
+async function postSsoLogin(quantMailToken: string): Promise<SessionResult> {
   try {
-    const res = await quantSyncAPI.loginWithSSO(token);
-    const accessToken = res.success ? res.data?.accessToken : undefined;
-    if (!accessToken) {
+    const res = await fetch('/api/auth/sso/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ quantMailToken }),
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+    const json = (await res.json().catch(() => null)) as SessionResult | null;
+    if (!json) {
       return {
         success: false,
-        error: {
-          code: res.error?.code ?? 'SSO_EXCHANGE_FAILED',
-          message: 'The Quant Account sign-in could not be completed. Please try again.',
-        },
+        error: { code: 'INVALID_RESPONSE', message: 'Unexpected response.' },
       };
     }
-    setAccessToken(accessToken);
-    return { success: true, data: { accessToken } };
-  } catch (caught) {
-    // The exchange endpoint answers 401 for a rejected/invalid QuantMail
-    // token; anything else is the sign-in service being unreachable.
-    const rejected = caught instanceof Error && caught.name === 'AuthRequiredError';
+    if (json.success && json.data?.accessToken) setAccessToken(json.data.accessToken);
+    return json;
+  } catch {
     return {
       success: false,
-      error: {
-        code: rejected ? 'SSO_REJECTED' : 'SSO_EXCHANGE_FAILED',
-        message: rejected
-          ? 'The Quant Account sign-in was rejected. Please try again.'
-          : 'Could not reach the sign-in service.',
-      },
+      error: { code: 'NETWORK', message: 'Could not reach the sign-in service.' },
     };
   }
+}
+
+/** The HttpOnly refresh cookie name the identity service issues. */
+export const REFRESH_COOKIE_NAME = 'quantmail_refresh';
+
+/**
+ * True when the identity-issued refresh cookie exists. SSO-established sessions
+ * have no refresh cookie (the token simply lives its natural ~15-minute life),
+ * so token rotation must be skipped for them — a cookie-less /auth/refresh
+ * returns NO_SESSION and would otherwise nuke a perfectly good SSO session.
+ */
+export function hasRefreshCookie(): boolean {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split(';').some((part) => part.trim().startsWith(`${REFRESH_COOKIE_NAME}=`));
 }
