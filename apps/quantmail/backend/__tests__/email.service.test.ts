@@ -47,6 +47,20 @@ function createAllowAllSuppression() {
   };
 }
 
+/**
+ * A queue pipeline that always enqueues successfully — used by tests that
+ * exercise the Sent flip / timeline stamping (which require a real delivery
+ * path). CUST-P0-2: without a pipeline, EmailService.send() now fails
+ * honestly with 503 instead of faking a Sent flip, so these tests wire a
+ * working queue.
+ */
+function createWorkingPipeline() {
+  return {
+    enqueueSend: vi.fn().mockResolvedValue('job-1'),
+    cancelSend: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe('EmailService', () => {
   let service: EmailService;
   let prisma: ReturnType<typeof createMockPrisma>;
@@ -146,6 +160,7 @@ describe('EmailService', () => {
 
   describe('send', () => {
     it('moves email to sent folder and sets sentAt', async () => {
+      const svc = new EmailService(prisma as never, createWorkingPipeline() as never, suppression);
       const mockEmail = {
         id: 'email-1',
         userId: 'user-1',
@@ -170,7 +185,7 @@ describe('EmailService', () => {
       };
       prisma.email.update.mockResolvedValue(sentEmail);
 
-      const result = await service.send('user-1', 'email-1', 'sent-folder-id');
+      const result = await svc.send('user-1', 'email-1', 'sent-folder-id');
 
       expect(result.isSent).toBe(true);
       expect(result.isDraft).toBe(false);
@@ -217,9 +232,12 @@ describe('EmailService', () => {
       expect(data.deliveredAt).toEqual(data.sentAt);
     });
 
-    it('leaves deliveredAt empty when delivery is deferred', async () => {
-      // External recipient with no transport: 'deferred'. The delivery worker
-      // stamps deliveredAt when the queued send actually completes.
+    it('fails honestly (503) when no transport can deliver, instead of faking Sent', async () => {
+      // CUST-P0-2: external recipient, no queue pipeline, SES not configured.
+      // Nothing can deliver the message, so send() must throw a real,
+      // retryable error — and must NOT flip the draft to Sent (the old
+      // 'deferred'-flip made the UI announce "Message sent" while nothing
+      // was ever queued).
       prisma.email.findUnique.mockResolvedValue({
         id: 'email-1',
         userId: 'user-1',
@@ -231,11 +249,18 @@ describe('EmailService', () => {
       });
       prisma.email.update.mockResolvedValue({ id: 'email-1' });
 
-      await service.send('user-1', 'email-1', 'sent-folder-id');
-
-      const { data } = prisma.email.update.mock.calls[0][0];
-      expect(data.deliveryStatus).toBe('deferred');
-      expect(data.deliveredAt).toBeUndefined();
+      const err = await service
+        .send('user-1', 'email-1', 'sent-folder-id')
+        .then(
+          () => null,
+          (e: any) => e,
+        );
+      expect(err).not.toBeNull();
+      expect(err?.statusCode).toBe(503);
+      expect(err?.code).toBe('DELIVERY_QUEUE_UNAVAILABLE');
+      expect(String(err?.message)).toContain('remains a draft');
+      // The draft is never flipped: no Sent row is written.
+      expect(prisma.email.update).not.toHaveBeenCalled();
     });
 
     it('keeps an existing messageId instead of generating one', async () => {
@@ -257,6 +282,7 @@ describe('EmailService', () => {
     });
 
     it('gives the sent copy the same timeline position as its send time', async () => {
+      const svc = new EmailService(prisma as never, createWorkingPipeline() as never, suppression);
       prisma.email.findUnique.mockResolvedValue({
         id: 'email-1',
         userId: 'user-1',
@@ -266,13 +292,14 @@ describe('EmailService', () => {
       });
       prisma.email.update.mockResolvedValue({ id: 'email-1' });
 
-      await service.send('user-1', 'email-1', 'sent-folder-id');
+      await svc.send('user-1', 'email-1', 'sent-folder-id');
 
       const { data } = prisma.email.update.mock.calls[0][0];
       expect(data.receivedAt).toEqual(data.sentAt);
     });
 
     it('leaves an existing timeline position alone', async () => {
+      const svc = new EmailService(prisma as never, createWorkingPipeline() as never, suppression);
       // A scheduled or re-sent message already has a place in the timeline;
       // overwriting it would move the message to today.
       const original = new Date('2026-08-01T09:00:00Z');
@@ -286,7 +313,7 @@ describe('EmailService', () => {
       });
       prisma.email.update.mockResolvedValue({ id: 'email-1' });
 
-      await service.send('user-1', 'email-1', 'sent-folder-id');
+      await svc.send('user-1', 'email-1', 'sent-folder-id');
 
       const { data } = prisma.email.update.mock.calls[0][0];
       expect(data.receivedAt).toBe(original);
@@ -701,6 +728,7 @@ describe('EmailService', () => {
 
   describe('sendEmail', () => {
     it('composes and sends an email in one call', async () => {
+      const svc = new EmailService(prisma as never, createWorkingPipeline() as never, suppression);
       const draftEmail = {
         id: 'email-draft',
         userId: 'user-1',
@@ -719,7 +747,7 @@ describe('EmailService', () => {
       prisma.email.findUnique.mockResolvedValue(draftEmail);
       prisma.email.update.mockResolvedValue(sentEmail);
 
-      const result = await service.sendEmail(
+      const result = await svc.sendEmail(
         'user-1',
         { toAddresses: ['recipient@test.com'], subject: 'Quick Send' },
         'sent-folder',

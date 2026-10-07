@@ -31,9 +31,13 @@ vi.mock('../lib/ses-sender', () => ({
  *   - GET /emails (default inbox) requires `isDraft = false` -> missed it (bug 2)
  *   - GET /emails/search has no isDraft filter               -> found it
  *
- * The fix records a transport failure as 'deferred' (the design's
- * transient-failure state, the same value the delivery worker assigns for SES
- * errors) so the Sent flip always persists.
+ * The interim fix recorded a transport failure as 'deferred' and still
+ * flipped to Sent — but that was a silent lie (CUST-P0-2): the UI announced
+ * "Message sent" while no queue job existed and nothing could ever deliver
+ * the mail. The current contract is honest: when no transport can deliver
+ * (queue down and no direct fallback applies), send() throws a real 503
+ * DELIVERY_QUEUE_UNAVAILABLE and the draft stays a draft, so the user sees
+ * the actual reason and can retry.
  */
 
 // Mirrors Prisma's client-side enum validation (PrismaClientValidationError is
@@ -124,8 +128,8 @@ const allowAllSuppression = {
   filterAllowedRecipients: async (addrs: string[]) => ({ allowed: addrs, suppressed: [] }),
 };
 
-describe('EmailService.send persists the Sent copy when delivery transport fails', () => {
-  it('flips isDraft/isSent/folderId and records a valid deliveryStatus when the queue is down', async () => {
+describe('EmailService.send fails honestly when delivery transport is down', () => {
+  it('throws 503 and keeps the draft when the queue is down (no fake Sent flip)', async () => {
     const { prisma, updates } = makePrisma();
     // BullMQ/Redis unavailable: enqueueSend rejects, exactly as in the
     // deployment where the queue was not reachable.
@@ -136,18 +140,20 @@ describe('EmailService.send persists the Sent copy when delivery transport fails
 
     // The composer always sends with a 10s undo delay, which also disables the
     // direct-SES fallback — this is the exact QA path.
-    const sent = await service.send('u1', 'e1', 'sent-folder-id', { delayMs: 10_000 });
-
-    // The send must not throw: pre-fix it died here on the invalid 'failed'
-    // enum value and the draft was never flipped.
-    expect(updates).toHaveLength(1);
-    const data = updates[0]!.data;
-    expect(data.isDraft).toBe(false);
-    expect(data.isSent).toBe(true);
-    expect(data.folderId).toBe('sent-folder-id');
-    expect(VALID_DELIVERY_STATUSES.has(data.deliveryStatus as string)).toBe(true);
-    expect(sent.isDraft).toBe(false);
-    expect(sent.isSent).toBe(true);
+    // CUST-P0-2: the send must not fake success. Nothing can deliver the
+    // message, so send() throws a real, retryable 503 — and the draft is
+    // never flipped to Sent (the old deferred-flip made the UI announce
+    // "Message sent" while the mail sat undeliverable).
+    const err = await service
+      .send('u1', 'e1', 'sent-folder-id', { delayMs: 10_000 })
+      .then(
+        () => null,
+        (e: any) => e,
+      );
+    expect(err).not.toBeNull();
+    expect(err?.statusCode).toBe(503);
+    expect(err?.code).toBe('DELIVERY_QUEUE_UNAVAILABLE');
+    expect(updates).toHaveLength(0);
   });
 
   it('still records the Sent copy when direct SES transmission throws', async () => {
@@ -238,7 +244,9 @@ describe('GET /emails list filters match the row the send path writes', () => {
     await app.inject({ method: 'GET', url: '/emails' });
     const [sentWhere, inboxWhere] = findManyWheres as any[];
 
-    // What the fixed send() persists: flipped out of drafts, into Sent.
+    // A successfully sent row: flipped out of drafts, into Sent. (A send with
+    // no deliverable transport now throws 503 instead of writing a row, so
+    // 'deferred' here is just one valid enum member for the filter match.)
     const sentRow = {
       ...DRAFT_ROW,
       isDraft: false,

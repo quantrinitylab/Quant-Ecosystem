@@ -211,8 +211,24 @@ export default async function emailsRoutes(
   const smartInbox = options.smartInbox ?? new SmartInboxService();
   let outboundQueue: ReturnType<typeof OutboundDeliveryPipeline.createQueue> | undefined;
   const createSendService = (prisma: PrismaClient) => {
-    outboundQueue ??= OutboundDeliveryPipeline.createQueue();
-    const pipeline = new OutboundDeliveryPipeline(prisma, outboundQueue);
+    // CUST-P0-2: queue construction must never 500 the send path. A bad
+    // REDIS_URL (or a down broker at startup) throws here, and that throw
+    // used to surface as the generic "An internal error occurred". Degrade
+    // to no-pipeline instead: sends then fall back to direct transport, or
+    // EmailService.send() fails with a real 503 and the draft stays a draft.
+    // Retry on every send until construction succeeds, then cache the queue —
+    // a transient broker blip must not permanently disable outbound delivery.
+    if (!outboundQueue) {
+      try {
+        outboundQueue = OutboundDeliveryPipeline.createQueue();
+      } catch (err) {
+        fastify.log.warn(
+          { err },
+          'outbound delivery queue unavailable; sends will degrade honestly',
+        );
+      }
+    }
+    const pipeline = outboundQueue ? new OutboundDeliveryPipeline(prisma, outboundQueue) : undefined;
     const suppression = (fastify as any).suppressionService ?? suppressionService;
     return new EmailService(prisma, pipeline, suppression);
   };

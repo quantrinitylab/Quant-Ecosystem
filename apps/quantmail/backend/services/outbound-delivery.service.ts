@@ -27,6 +27,29 @@ export const OUTBOUND_DELIVERY_QUEUE = 'outbound-delivery';
 /** Job name used for outbound send jobs on the queue. */
 export const OUTBOUND_SEND_JOB = 'send-email';
 
+/**
+ * CUST-P0-2: fail fast when the broker is unreachable. Without a bound,
+ * `queue.add()` hangs on ioredis reconnect retries, so a send against a
+ * down-Redis broker hangs the request until the ingress kills it instead of
+ * failing honestly through EmailService.send()'s 503 path.
+ */
+export const ENQUEUE_TIMEOUT_MS = 10_000;
+
+async function addWithTimeout<T>(
+  add: () => Promise<T>,
+  ms: number = ENQUEUE_TIMEOUT_MS,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Outbound queue add timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([add(), timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 export interface EnqueueSendOptions {
   /** Folder the message should be filed under once sent (e.g. the Sent folder). */
   sentFolderId?: string;
@@ -196,14 +219,18 @@ export class OutboundDeliveryPipeline {
         // idempotent: re-enqueuing the same draft does not create duplicate jobs.
         // NOTE: BullMQ forbids ':' inside custom job ids (it is the Redis key
         // separator), so the queue name and email id are joined with '-'.
-        const jobId = await this.queue.add(OUTBOUND_SEND_JOB, payload, {
-          jobId: `${OUTBOUND_DELIVERY_QUEUE}-${email.id}`,
-          ...(options.delayMs !== undefined ? { delay: options.delayMs } : {}),
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: false,
-          removeOnFail: false,
-        });
+        // CUST-P0-2: bound the add so a dead broker fails fast (honest 503)
+        // instead of hanging the send request on reconnect retries.
+        const jobId = await addWithTimeout(() =>
+          this.queue.add(OUTBOUND_SEND_JOB, payload, {
+            jobId: `${OUTBOUND_DELIVERY_QUEUE}-${email.id}`,
+            ...(options.delayMs !== undefined ? { delay: options.delayMs } : {}),
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: false,
+            removeOnFail: false,
+          }),
+        );
 
         // Advance delivery state to `queued` (does not flip isDraft/isSent — the
         // worker records terminal state per recipient in task 6.2).
