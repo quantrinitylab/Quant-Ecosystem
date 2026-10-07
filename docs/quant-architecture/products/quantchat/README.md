@@ -126,3 +126,51 @@ Before every implementation slice:
 10. record remaining gaps
 
 Never use fake data to make a screen appear complete. Never claim production readiness without fresh evidence.
+
+---
+
+## Per-screen spec index (K14)
+
+App: `apps/quantchat`
+Routers: Next.js app router + pages router (legacy /settings, /calls, /discover, /bitmoji)
+
+Role: ecosystem real-time communication layer (WhatsApp + Telegram + Snapchat + Discord + QuantMeet in one product). Owns conversation/message state; consumes other product projections through typed contracts. Target-state architecture lives in the existing deep docs (see below); the per-screen specs here describe IMPLEMENTED REALITY against that target.
+
+Mobile: Flutter app at `flutter_apps/apps/quant_chat` plus responsive web.
+
+Desktop: no native desktop client in the repo; desktop is the responsive web build.
+
+## Existing deep docs
+
+- `01-unified-social-messaging-meeting-architecture.md` … `17-webrtc-sfu-quantmeet-media-architecture.md` — target-state deep architecture (already in this directory).
+- Where a screen below is MISSING, the corresponding deep-dive doc is the target spec, not a description of built code.
+
+## Screen inventory (from `docs/quant-architecture/12-screen-inventory.md`)
+
+| ID | Screen | Status | Route |
+|----|--------|--------|-------|
+| C01 | Inbox | IMPLEMENTED | `/` |
+| C02 | 1:1 Chat | IMPLEMENTED | `/chat/[id]` |
+| C03 | Group Chat | PARTIAL | `/chat/[id] (group threads)` |
+| C04 | Community | MISSING | `(none)` |
+| C05 | Channel | IMPLEMENTED | `/channels` |
+| C06 | Media | IMPLEMENTED | `/camera, /stories, /spotlight, /reels` |
+| C07 | Call | IMPLEMENTED | `/call, /calls (history)` |
+| C08 | Meeting | MISSING | `(none)` |
+| C09 | Search | MISSING | `(none)` |
+| C10 | Quanty | EMBEDDED | `(panels in /chat/[id])` |
+| C11 | Notifications | MISSING | `(none)` |
+| C12 | Settings | IMPLEMENTED | `/settings (pages router), panels in /profile` |
+| C13 | Admin | MISSING | `(none)` |
+
+Status meanings: IMPLEMENTED = real UI + real data path; PARTIAL = incomplete;
+EMBEDDED = panel inside another screen; MISSING = no UI in the repo.
+
+## Layout
+
+- `screens/` — per-screen spec: purpose, route, data contract, states, permissions, reality
+- `desktop/` — desktop adaptation notes (responsive web; no native client)
+- `mobile/` — mobile notes (Flutter app where it exists + responsive web)
+- `web/` — web route, shell, auth boundary
+- `security/` — per-screen security contract
+- `testing/` — per-screen test plan
