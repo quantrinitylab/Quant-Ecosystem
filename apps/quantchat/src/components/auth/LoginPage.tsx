@@ -144,7 +144,9 @@ export default function LoginPage(props: LoginPageProps) {
   void props;
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'sso' | 'password'>('sso');
+  // Single sign-in path: Quant Account (QuantMail SSO) is primary;
+  // password login is a subtle inline fallback, no tab switching.
+  const [showPassword, setShowPassword] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -300,7 +302,7 @@ export default function LoginPage(props: LoginPageProps) {
   );
 
   return (
-    <main className="min-h-dvh flex flex-col items-center justify-center bg-[#080B12] bg-[#090D16] relative overflow-hidden px-4 py-8 font-sans text-slate-200">
+    <main className="min-h-dvh flex flex-col items-center justify-center bg-[#080B12] relative overflow-hidden px-4 py-8 font-sans text-slate-200">
       {/* WebGL/Canvas Cryptographic Constellation Mesh */}
       <CryptographicMeshCanvas />
 
@@ -331,48 +333,6 @@ export default function LoginPage(props: LoginPageProps) {
           </div>
         </div>
 
-        {/* Dual Login Tabs: Segmented Switch */}
-        <div
-          className="flex p-1 mb-6 rounded-xl bg-white/[0.04] border border-white/10"
-          role="tablist"
-          aria-label="Sign-in methods"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'sso'}
-            aria-controls="panel-sso"
-            id="tab-instant-sso"
-            data-testid="tab-sso-view"
-            onClick={() => setActiveTab('sso')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              activeTab === 'sso'
-                ? 'bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-white border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LightningIcon className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Instant Quant SSO</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'password'}
-            aria-controls="panel-password"
-            id="tab-direct-password"
-            data-testid="tab-password-view"
-            onClick={() => setActiveTab('password')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-              activeTab === 'password'
-                ? 'bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 text-white border border-cyan-500/30 shadow-[0_0_12px_rgba(6,182,212,0.15)]'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <KeyIcon className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Direct Password / Email</span>
-          </button>
-        </div>
-
         {error && (
           <div
             role="alert"
@@ -387,55 +347,43 @@ export default function LoginPage(props: LoginPageProps) {
           </div>
         )}
 
-        {/* TAB PANEL 1: Instant Quant SSO */}
-        <div
-          id="panel-sso"
-          role="tabpanel"
-          aria-labelledby="tab-instant-sso"
-          className={activeTab === 'sso' ? 'block' : 'hidden'}
-        >
-          {/* PRIMARY HERO: Continue with Quant Account (QuantMail SSO) with Molten Glow */}
-          <div className="relative group mb-5">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300 group-hover:duration-200 animate-pulse pointer-events-none" />
-            <button
-              type="button"
-              data-testid="quant-sso-primary-btn"
-              onClick={handleQuantSSO}
-              disabled={busy}
-              className="relative w-full flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 py-3.5 px-4 font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.99] disabled:opacity-50 shadow-lg shadow-emerald-500/25 cursor-pointer overflow-hidden"
-            >
-              <span className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-out" />
-              <LightningIcon className="w-4 h-4 text-emerald-200" />
-              <span className="tracking-wide">Continue with Quant Account</span>
-              <ArrowRightIcon className="w-4 h-4 text-emerald-200 ml-1 transition-transform group-hover:translate-x-0.5" />
-            </button>
-          </div>
-
-          {/* Clean Segmented Divider */}
-          <div
-            className="flex items-center gap-3 mb-2"
-            role="separator"
-            aria-label="or sign in with email and password"
+        {/* PRIMARY: Continue with Quant Account (QuantMail SSO) with Molten Glow */}
+        <div className="relative group mb-5">
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300 group-hover:duration-200 animate-pulse pointer-events-none" />
+          <button
+            type="button"
+            data-testid="quant-sso-primary-btn"
+            onClick={handleQuantSSO}
+            disabled={busy}
+            className="relative w-full flex items-center justify-center gap-2.5 rounded-xl bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 py-3.5 px-4 font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.99] disabled:opacity-50 shadow-lg shadow-emerald-500/25 cursor-pointer overflow-hidden"
           >
-            <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
-            <button
-              type="button"
-              onClick={() => setActiveTab('password')}
-              className="text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
-            >
-              or sign in with email &amp; password
-            </button>
-            <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
-          </div>
+            <span className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] -translate-x-full group-hover:translate-x-[300%] transition-transform duration-1000 ease-out" />
+            <LightningIcon className="w-4 h-4 text-emerald-200" />
+            <span className="tracking-wide">Continue with Quant Account</span>
+            <ArrowRightIcon className="w-4 h-4 text-emerald-200 ml-1 transition-transform group-hover:translate-x-0.5" />
+          </button>
         </div>
 
-        {/* TAB PANEL 2: Direct Password / Email */}
+        {/* Subtle secondary fallback: password login, expanded inline */}
         <div
-          id="panel-password"
-          role="tabpanel"
-          aria-labelledby="tab-direct-password"
-          className={activeTab === 'password' ? 'block' : 'hidden'}
+          className="flex items-center gap-3 mb-2"
+          role="separator"
+          aria-label="or sign in with email and password"
         >
+          <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-expanded={showPassword}
+            className="text-xs text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
+          >
+            or sign in with email &amp; password
+          </button>
+          <div className="flex-1 h-px bg-white/10" aria-hidden="true" />
+        </div>
+
+        {/* Password fallback form: rendered inline, toggled by the link above */}
+        <div className={showPassword ? 'block' : 'hidden'}>
           <form className="space-y-4" onSubmit={handlePasswordLogin}>
             <div className="space-y-1.5">
               <label htmlFor="identifier" className="block text-xs font-medium text-slate-400">
@@ -480,11 +428,11 @@ export default function LoginPage(props: LoginPageProps) {
           <div className="mt-4 text-center">
             <button
               type="button"
-              onClick={() => setActiveTab('sso')}
+              onClick={() => setShowPassword(false)}
               className="text-xs text-slate-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-1 cursor-pointer"
             >
               <LightningIcon className="w-3 h-3 text-emerald-400" />
-              <span>Prefer passwordless? Switch to Instant Quant SSO</span>
+              <span>Back to Quant Account</span>
             </button>
           </div>
         </div>

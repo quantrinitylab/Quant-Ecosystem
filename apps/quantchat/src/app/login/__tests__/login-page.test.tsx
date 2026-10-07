@@ -20,8 +20,7 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
   it('renders dark luxury container with emerald/violet ambient glows via Page', () => {
     const html = renderToString(<Page />);
 
-    // Edge-to-edge dark luxury design tokens
-    expect(html).toContain('bg-[#090D16]');
+    // Edge-to-edge dark luxury design tokens (single background token on main)
     expect(html).toContain('bg-[#080B12]');
     expect(html).toContain('bg-emerald-500/15');
     expect(html).toContain('bg-violet-600/15');
@@ -114,13 +113,25 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(html).not.toContain('>Q</span>');
   });
 
-  it('renders dual login segmented tabs for Instant Quant SSO and Direct Password / Email', () => {
+  it('consolidates sign-in to one primary Quant Account path with a subtle password fallback', () => {
     const html = renderToString(<LoginPage />);
 
-    expect(html).toContain('data-testid="tab-sso-view"');
-    expect(html).toContain('data-testid="tab-password-view"');
-    expect(html).toContain('Instant Quant SSO');
-    expect(html).toContain('Direct Password / Email');
+    // Duplicate tab navigation must be gone
+    expect(html).not.toContain('data-testid="tab-sso-view"');
+    expect(html).not.toContain('data-testid="tab-password-view"');
+    expect(html).not.toContain('Instant Quant SSO');
+    expect(html).not.toContain('Direct Password / Email');
+
+    // One primary path only
+    expect(html).toContain('data-testid="quant-sso-primary-btn"');
+    expect(html).toContain('Continue with Quant Account');
+
+    // Password login remains as a subtle inline fallback (still in DOM, toggled)
+    expect(html).toContain('data-testid="identifier-input"');
+    expect(html).toContain('data-testid="password-input"');
+    expect(html).toContain('data-testid="submit-password-btn"');
+    expect(html).toContain('or sign in with email &amp; password');
+    expect(html).toContain('Back to Quant Account');
   });
 
   it('does not render the removed security-metrics banner', () => {
