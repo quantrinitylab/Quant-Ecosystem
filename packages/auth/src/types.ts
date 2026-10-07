@@ -30,6 +30,14 @@ export interface TokenPayload {
   iss: string;
   aud: string;
   jti: string;
+  /**
+   * Epoch seconds of the last *strong* authentication: a password login or a
+   * completed MFA verification. Silent refresh rotation never updates it.
+   * Consumed by step-up guards (`requireStepUp`) to decide whether a
+   * sensitive action needs the holder to re-authenticate. Absent on tokens
+   * minted before step-up support — guards treat that as stale (fail closed).
+   */
+  lastStrongAuthAt?: number;
 }
 
 /** Refresh token payload */
@@ -39,6 +47,11 @@ export interface RefreshTokenPayload {
   family: string;
   iat: number;
   exp: number;
+  /**
+   * Carried forward unchanged on every rotation so the access tokens minted
+   * from a refresh keep the session's original strong-auth timestamp.
+   */
+  lastStrongAuthAt?: number;
 }
 
 /** Token pair */
@@ -168,6 +181,12 @@ export interface AuthContext {
   sessionId: string;
   app: QuantApp;
   tokenId: string;
+  /**
+   * Epoch seconds of the last strong authentication (password login or MFA
+   * verification), mirrored from the access token's `lastStrongAuthAt` claim.
+   * Undefined when the token predates step-up support — treat as stale.
+   */
+  lastStrongAuthAt?: number;
 }
 
 /** Password reset request */

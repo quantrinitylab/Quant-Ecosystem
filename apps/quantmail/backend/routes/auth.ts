@@ -239,8 +239,15 @@ export async function authRoutes(fastify: FastifyInstance) {
    * `email` and `username` are deliberately not accepted. Both are identity —
    * mail is addressed to them and other rows reference them — so changing
    * either is a migration, not a preference.
+   *
+   * Step-up guarded (K6): a settings update requires recent strong
+   * authentication — password login or MFA verification within the policy
+   * window — not just a live session.
    */
-  fastify.patch('/auth/profile', async (request, reply) => {
+  fastify.patch(
+    '/auth/profile',
+    { preHandler: fastify.requireStepUp() },
+    async (request, reply) => {
     const userId = (request as unknown as { auth?: { userId?: string } }).auth?.userId;
     if (!userId) {
       return fail(reply, 401, 'UNAUTHORIZED', 'Authentication required.');

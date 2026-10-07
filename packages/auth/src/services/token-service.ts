@@ -98,11 +98,23 @@ export class TokenService {
     scopes: PermissionScope[],
     app: QuantApp,
     familyId?: string,
+    /**
+     * Epoch seconds of the last strong authentication. Login, registration
+     * and completed MFA verification pass nothing and get "now"; refresh
+     * rotation passes the carried value so silent refreshes never freshen it.
+     */
+    lastStrongAuthAt?: number,
   ): Promise<TokenPair> {
     const tokenId = generateId('tok');
     const refreshTokenId = generateId('tok');
     const activeFamilyId = familyId ?? generateId('fam');
     const now = Math.floor(Date.now() / 1000);
+
+    // `undefined` means "a fresh strong authentication just happened" (login,
+    // registration, completed MFA) and stamps now. A defined value — including
+    // 0 from a pre-step-up refresh token — is carried as-is so silent refreshes
+    // never freshen the timestamp and legacy sessions stay visibly stale.
+    const strongAuthAt = lastStrongAuthAt ?? now;
 
     // Resolve the active signing keys from the KMS at sign time (Requirement
     // 2.1) and stamp each token with the key's `kid` so it can be verified under
@@ -116,6 +128,7 @@ export class TokenService {
       role: userInfo.role,
       scopes,
       app,
+      lastStrongAuthAt: strongAuthAt,
     })
       .setProtectedHeader({ alg: 'HS256', kid: accessKey.kid })
       .setIssuedAt()
@@ -132,6 +145,8 @@ export class TokenService {
       family: activeFamilyId,
       iat: now,
       exp: now + this.config.refreshTokenExpiresIn,
+      // Carried forward on rotation: a refresh is not a re-authentication.
+      lastStrongAuthAt: strongAuthAt,
     };
 
     const refreshToken = await new jose.SignJWT(refreshPayload as any)
@@ -239,6 +254,13 @@ export class TokenService {
       'email',
     ];
 
+    // Carry the strong-auth timestamp forward unchanged: rotating a refresh
+    // token is not a re-authentication. Tokens minted before step-up support
+    // carry no claim — fail closed with 0 (stale) so step-up guards challenge
+    // them on sensitive routes instead of trusting an unknown session age.
+    const carried = payload['lastStrongAuthAt'];
+    const lastStrongAuthAt = typeof carried === 'number' && carried > 0 ? carried : 0;
+
     return this.generateTokenPair(
       payload.sub,
       {
@@ -249,6 +271,7 @@ export class TokenService {
       scopes,
       (payload['app'] || 'quantmail') as QuantApp,
       existingToken.family,
+      lastStrongAuthAt,
     );
   }
 

@@ -8,7 +8,12 @@ export type { AssertSecretOptions } from './secrets';
 export { default as errorHandlerPlugin, createAppError, isAppError } from './plugins/error-handler';
 export type { AppError } from './plugins/error-handler';
 export { default as authPlugin } from './plugins/auth';
-export type { RequireAuthOptions } from './plugins/auth';
+export type { RequireAuthOptions, RequireStepUpOptions } from './plugins/auth';
+export {
+  DEFAULT_STEP_UP_WINDOW_SECONDS,
+  DEFAULT_STEP_UP_METHODS,
+  resolveStepUpWindowSeconds,
+} from './plugins/auth';
 export { default as prismaPlugin } from './plugins/prisma';
 export { default as healthPlugin } from './plugins/health';
 export type { HealthStatus, HealthComponentResult, HealthContributor } from './plugins/health';
