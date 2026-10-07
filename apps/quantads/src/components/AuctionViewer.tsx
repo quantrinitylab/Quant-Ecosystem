@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Bidder {
   id: string;
@@ -72,7 +73,7 @@ const AuctionViewer: React.FC<AuctionViewerProps> = ({
       const params = new URLSearchParams({ limit: String(maxRounds) });
       if (campaignId) params.set('campaignId', campaignId);
       if (adGroupId) params.set('adGroupId', adGroupId);
-      const response = await fetch(`/api/bidding/auctions?${params.toString()}`);
+      const response = await apiFetchRaw(`/api/bidding/auctions?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to load auction data');
       const data = await response.json();
       setRounds(data.auctions || []);

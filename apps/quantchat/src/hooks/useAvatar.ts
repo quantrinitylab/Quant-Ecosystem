@@ -21,6 +21,7 @@ import type {
   AvatarVariant,
   UserAvatar,
 } from '../types/avatar';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Stable query key for a user's avatar — shared by every surface. */
 export function avatarQueryKey(userId: string): [string, string] {
@@ -40,7 +41,7 @@ interface ApiEnvelope<T> {
 }
 
 async function fetchAvatar(userId: string): Promise<UserAvatar | null> {
-  const res = await fetch(`/api/avatar/${encodeURIComponent(userId)}`);
+  const res = await apiFetchRaw(`/api/avatar/${encodeURIComponent(userId)}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`Failed to load avatar: ${res.statusText}`);
   const json: ApiEnvelope<UserAvatar> = await res.json();
@@ -88,7 +89,7 @@ export class AvatarGenerationError extends Error {
 }
 
 async function postGenerate(image: string): Promise<AvatarGenerationResponse> {
-  const res = await fetch('/api/avatar/generate', {
+  const res = await apiFetchRaw('/api/avatar/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ image }),
@@ -112,7 +113,7 @@ export function useGenerateAvatar() {
 }
 
 async function postSelect(variant: AvatarVariant): Promise<UserAvatar> {
-  const res = await fetch('/api/avatar/select', {
+  const res = await apiFetchRaw('/api/avatar/select', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(variant),

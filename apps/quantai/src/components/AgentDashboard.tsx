@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Agent {
   id: string;
@@ -39,7 +40,7 @@ export const AgentDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/agentic/agents/run', {
+      const response = await apiFetchRaw('/api/agentic/agents/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

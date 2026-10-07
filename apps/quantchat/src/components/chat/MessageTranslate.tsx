@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 12.6 (Requirement 11.6): "Translate" option on a message.
@@ -40,7 +41,7 @@ async function defaultTranslate(args: {
   text: string;
   targetLanguage: string;
 }): Promise<TranslateResponse['data'] | null> {
-  const res = await fetch('/api/ai/translate', {
+  const res = await apiFetchRaw('/api/ai/translate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(args),

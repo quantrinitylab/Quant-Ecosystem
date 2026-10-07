@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface SearchResult {
   posts: {
@@ -81,7 +82,7 @@ const SearchPage: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(q)}`);
+      const res = await apiFetchRaw(`/api/search/suggest?q=${encodeURIComponent(q)}`);
       if (res.ok) {
         const data = await res.json();
         setSuggestions(data.suggestions || []);
@@ -114,7 +115,7 @@ const SearchPage: React.FC = () => {
         if (filters.fromUser) params.set('user', filters.fromUser);
         if (filters.hasMedia) params.set('media', 'true');
         if (filters.minLikes > 0) params.set('minLikes', String(filters.minLikes));
-        const res = await fetch(`/api/search?${params.toString()}`);
+        const res = await apiFetchRaw(`/api/search?${params.toString()}`);
         if (!res.ok) throw new Error('Search failed');
         const data = await res.json();
         setResults(data);
@@ -147,7 +148,7 @@ const SearchPage: React.FC = () => {
       ...prev,
       people: prev.people.map((p) => (p.id === userId ? { ...p, isFollowing: !p.isFollowing } : p)),
     }));
-    await fetch(`/api/users/${userId}/follow`, { method: 'POST' });
+    await apiFetchRaw(`/api/users/${userId}/follow`, { method: 'POST' });
   }, []);
 
   const hasResults =

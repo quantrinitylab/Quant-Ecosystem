@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface PromptTemplate {
   id: string;
@@ -66,7 +67,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(API_BASE, { headers: authHeaders() });
+      const res = await apiFetchRaw(API_BASE, { headers: authHeaders() });
       if (!res.ok) {
         if (res.status === 401) {
           setPrompts([]);
@@ -91,7 +92,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
   const createPrompt = useCallback(
     async (input: CreatePromptInput): Promise<PromptTemplate | null> => {
       try {
-        const res = await fetch(API_BASE, {
+        const res = await apiFetchRaw(API_BASE, {
           method: 'POST',
           headers: authHeaders(true),
           body: JSON.stringify(input),
@@ -112,7 +113,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
   const updatePrompt = useCallback(
     async (id: string, input: UpdatePromptInput): Promise<PromptTemplate | null> => {
       try {
-        const res = await fetch(`${API_BASE}/${id}`, {
+        const res = await apiFetchRaw(`${API_BASE}/${id}`, {
           method: 'PUT',
           headers: authHeaders(true),
           body: JSON.stringify(input),
@@ -138,7 +139,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
       return prev.filter((p) => p.id !== id);
     });
     try {
-      const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE', headers: authHeaders() });
+      const res = await apiFetchRaw(`${API_BASE}/${id}`, { method: 'DELETE', headers: authHeaders() });
       if (!res.ok) throw new Error(`Failed to delete prompt: ${res.status}`);
       return true;
     } catch (err) {
@@ -152,7 +153,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
     // Optimistic toggle.
     setPrompts((prev) => prev.map((p) => (p.id === id ? { ...p, isFavorite: !p.isFavorite } : p)));
     try {
-      const res = await fetch(`${API_BASE}/${id}/favorite`, {
+      const res = await apiFetchRaw(`${API_BASE}/${id}/favorite`, {
         method: 'POST',
         headers: authHeaders(true),
       });
@@ -174,7 +175,7 @@ export function usePromptLibrary(): UsePromptLibraryReturn {
       prev.map((p) => (p.id === id ? { ...p, usageCount: p.usageCount + 1 } : p)),
     );
     try {
-      await fetch(`${API_BASE}/${id}/use`, { method: 'POST', headers: authHeaders(true) });
+      await apiFetchRaw(`${API_BASE}/${id}/use`, { method: 'POST', headers: authHeaders(true) });
     } catch {
       // best-effort; the optimistic increment is acceptable if the call fails
     }

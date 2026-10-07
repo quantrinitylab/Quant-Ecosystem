@@ -38,6 +38,7 @@ import type {
   ChannelMessageView,
   MeView,
 } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Types
@@ -653,7 +654,7 @@ export class QuantChatApiClient {
     }
 
     try {
-      const response = await fetch(url, {
+      const response = await apiFetchRaw(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
@@ -664,7 +665,7 @@ export class QuantChatApiClient {
         const refreshed = await this.refreshTokens();
         if (refreshed) {
           headers['Authorization'] = `Bearer ${this.accessToken}`;
-          const retryResponse = await fetch(url, {
+          const retryResponse = await apiFetchRaw(url, {
             method,
             headers,
             body: body ? JSON.stringify(body) : undefined,
@@ -705,7 +706,7 @@ export class QuantChatApiClient {
 
   private async refreshTokens(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+      const response = await apiFetchRaw(`${this.baseUrl}/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken, deviceId: this.deviceId }),

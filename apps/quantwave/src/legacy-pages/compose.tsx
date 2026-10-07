@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface MediaItem {
   id: string;
@@ -122,7 +123,7 @@ const ComposePage: React.FC = () => {
   const fetchMentionSuggestions = async (query: string) => {
     if (query.length < 1) return;
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&limit=5`);
+      const res = await apiFetchRaw(`/api/users/search?q=${encodeURIComponent(query)}&limit=5`);
       const data = await res.json();
       setMentionSuggestions(data.users || []);
     } catch {
@@ -132,7 +133,7 @@ const ComposePage: React.FC = () => {
 
   const fetchHashtagSuggestions = async (query: string) => {
     try {
-      const res = await fetch(`/api/hashtags/suggest?q=${encodeURIComponent(query)}&limit=5`);
+      const res = await apiFetchRaw(`/api/hashtags/suggest?q=${encodeURIComponent(query)}&limit=5`);
       const data = await res.json();
       setHashtagSuggestions(data.hashtags || []);
     } catch {
@@ -224,7 +225,7 @@ const ComposePage: React.FC = () => {
       if (showSchedule && schedule.date) {
         payload.scheduledAt = `${schedule.date}T${schedule.time}:00Z`;
       }
-      const res = await fetch('/api/posts', {
+      const res = await apiFetchRaw('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

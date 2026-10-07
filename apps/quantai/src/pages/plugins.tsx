@@ -6,6 +6,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Plugin {
   id: string;
@@ -42,7 +43,7 @@ export default function PluginsPage(): JSX.Element {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/plugins');
+        const res = await apiFetchRaw('/api/plugins');
         const data = (await res.json().catch(() => ({}))) as {
           plugins?: Plugin[];
           error?: string;
@@ -93,7 +94,7 @@ export default function PluginsPage(): JSX.Element {
       setActionLoading(pluginId);
       setActionError(null);
       try {
-        const res = await fetch(`/api/plugins/${encodeURIComponent(pluginId)}/${verb}`, {
+        const res = await apiFetchRaw(`/api/plugins/${encodeURIComponent(pluginId)}/${verb}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({}),

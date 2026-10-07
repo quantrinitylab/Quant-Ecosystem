@@ -37,6 +37,7 @@ import { useContacts } from '../hooks/useContacts';
 import { useConfirm } from '../hooks/useConfirm';
 import { useUndoSend } from './UndoSendCountdownBar';
 import { apiClient } from '../services/api-client';
+import { apiFetchRaw } from '@quant/api-client';
 
 /**
  * The composer's three heavy overlays, split out of its chunk.
@@ -904,7 +905,7 @@ export function EmailComposer({
           inReplyTo: inReplyTo || initialReplyToId,
         });
       } else {
-        await fetch('/api/emails/drafts', {
+        await apiFetchRaw('/api/emails/drafts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

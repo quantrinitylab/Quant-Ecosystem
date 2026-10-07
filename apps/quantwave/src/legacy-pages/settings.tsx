@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AccountSettings {
   email: string;
@@ -97,7 +98,7 @@ const SettingsPage: React.FC = () => {
   const fetchSettings = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/settings');
+      const res = await apiFetchRaw('/api/settings');
       if (!res.ok) throw new Error('Failed to load settings');
       const data = await res.json();
       if (data.account) setAccount(data.account);
@@ -121,7 +122,7 @@ const SettingsPage: React.FC = () => {
   const saveSettings = useCallback(async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/settings', {
+      const res = await apiFetchRaw('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account, privacy, notifications: notifs, content, mutedWords }),
@@ -149,7 +150,7 @@ const SettingsPage: React.FC = () => {
 
   const unblockUser = useCallback(async (userId: string) => {
     setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
-    await fetch(`/api/users/${userId}/unblock`, { method: 'POST' });
+    await apiFetchRaw(`/api/users/${userId}/unblock`, { method: 'POST' });
   }, []);
 
   if (loading) {

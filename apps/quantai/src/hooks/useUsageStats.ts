@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface UsageStats {
   totalConversations: number;
@@ -38,7 +39,7 @@ export function useUsageStats(): UseUsageStatsReturn {
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`${API_BASE}/usage/stats`, { headers, signal });
+      const res = await apiFetchRaw(`${API_BASE}/usage/stats`, { headers, signal });
       if (!res.ok) {
         throw new Error(`Failed to load stats: ${res.status}`);
       }

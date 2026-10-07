@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 export const WorkflowDashboard: React.FC = () => {
   const [workflows, setWorkflows] = useState<any[]>([]);
@@ -10,7 +11,7 @@ export const WorkflowDashboard: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/agentic/workflows', {
+      const response = await apiFetchRaw('/api/agentic/workflows', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWorkflow),

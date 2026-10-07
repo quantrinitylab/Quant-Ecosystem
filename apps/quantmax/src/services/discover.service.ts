@@ -1,3 +1,4 @@
+import { apiFetchRaw } from '@quant/api-client';
 // ============================================================================
 // QuantMax - Discover Data Service
 // ============================================================================
@@ -182,7 +183,7 @@ interface DiscoverApiResponse {
 
 async function fetchJson(path: string): Promise<DiscoverApiResponse | null> {
   try {
-    const res = await fetch(path, { headers: { Accept: 'application/json' } });
+    const res = await apiFetchRaw(path, { headers: { Accept: 'application/json' } });
     if (!res.ok) return null; // 401/404/5xx → no real data; page shows empty states
     const body = (await res.json()) as DiscoverApiResponse;
     if (!body || body.success === false) return null;

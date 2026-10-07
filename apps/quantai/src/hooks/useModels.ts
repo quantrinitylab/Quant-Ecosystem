@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { AVAILABLE_MODELS } from '../types/models';
 import type { AIModel } from '../types/models';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface UseModelsReturn {
   models: AIModel[];
@@ -28,7 +29,7 @@ export function useModels(): UseModelsReturn {
       const token = getAuthToken();
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const response = await fetch('/api/models', { headers });
+      const response = await apiFetchRaw('/api/models', { headers });
       if (!response.ok) {
         throw new Error(`Failed to fetch models: ${response.status}`);
       }

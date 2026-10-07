@@ -17,7 +17,7 @@ interface PhoneState {
 
 /**
  * The session lives in an `authorization` header, not in a cookie, so a bare
- * `fetch(..., { credentials: 'include' })` sent nothing the API recognised: the
+ * A bare `fetch` call with `{ credentials: 'include' }` sent nothing the API recognised: the
  * live site answered 401 to `GET /api/auth/phone` on every settings visit, the
  * `catch` below blanked the state, and the card rendered as if no phone had ever
  * been added. `browserApiRequest` is the app's own authenticated fetch — it

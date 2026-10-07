@@ -24,6 +24,7 @@ import {
   QuantGitWarningIcon,
 } from './QuantGitIcons';
 import { QuantGitRowSkeleton, QuantGitEmptyState } from './QuantGitSkeletons';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SecurityCheckItem {
   id: string;
@@ -219,7 +220,7 @@ export function PullRequestsTab({
         await onMergePR(prNumber, selectedMergeMethod);
         merged = true;
       } else {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/repos/${encodeURIComponent(repoId)}/pulls/${prNumber}/merge`,
           {
             method: 'POST',

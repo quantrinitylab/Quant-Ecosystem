@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AnonymousPost {
   id: string;
@@ -48,7 +49,7 @@ const AnonymousPage: React.FC = () => {
         if (reset) setLoading(true);
         const params = new URLSearchParams({ sort: sortBy, limit: '20' });
         if (cursor && !reset) params.set('cursor', cursor);
-        const res = await fetch(`/api/anonymous/posts?${params.toString()}`);
+        const res = await apiFetchRaw(`/api/anonymous/posts?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to load posts');
         const data = await res.json();
         if (reset) {
@@ -70,7 +71,7 @@ const AnonymousPage: React.FC = () => {
 
   const fetchTrustProfile = useCallback(async () => {
     try {
-      const res = await fetch('/api/anonymous/trust-profile');
+      const res = await apiFetchRaw('/api/anonymous/trust-profile');
       if (res.ok) {
         const data = await res.json();
         setTrustProfile(data);
@@ -103,7 +104,7 @@ const AnonymousPage: React.FC = () => {
         return { ...p, upvotes: newUp, downvotes: newDown, userVote: newVote };
       }),
     );
-    await fetch(`/api/anonymous/posts/${postId}/vote`, {
+    await apiFetchRaw(`/api/anonymous/posts/${postId}/vote`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ direction }),
@@ -112,7 +113,7 @@ const AnonymousPage: React.FC = () => {
 
   const handleReveal = useCallback(async (postId: string) => {
     try {
-      const res = await fetch(`/api/anonymous/posts/${postId}/reveal`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/anonymous/posts/${postId}/reveal`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setPosts((prev) =>
@@ -128,7 +129,7 @@ const AnonymousPage: React.FC = () => {
     if (!newPostContent.trim()) return;
     setPosting(true);
     try {
-      const res = await fetch('/api/anonymous/posts', {
+      const res = await apiFetchRaw('/api/anonymous/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: newPostContent, anonymous: isAnonymousMode }),

@@ -21,6 +21,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { uploadWithRetry, type UploadWithRetryOptions } from '../../../lib/upload-retry';
 import { validateReelFile } from '../../../lib/reel-validation';
 import type { ReelEditData, TextOverlay } from './ReelEditor';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -113,7 +114,7 @@ interface CreateReelPayload {
 }
 
 async function defaultCreateReel(payload: CreateReelPayload): Promise<{ id: string }> {
-  const res = await fetch('/api/reels', {
+  const res = await apiFetchRaw('/api/reels', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

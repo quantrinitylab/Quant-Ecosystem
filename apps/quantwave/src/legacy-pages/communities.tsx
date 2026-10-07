@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Community {
   id: string;
@@ -76,7 +77,7 @@ const CommunitiesPage: React.FC = () => {
       const params = new URLSearchParams();
       if (selectedCategory !== 'All') params.set('category', selectedCategory);
       if (searchQuery) params.set('q', searchQuery);
-      const res = await fetch(`/api/communities?${params.toString()}`);
+      const res = await apiFetchRaw(`/api/communities?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load communities');
       const data = await res.json();
       setCommunities(data.communities || []);
@@ -91,7 +92,7 @@ const CommunitiesPage: React.FC = () => {
 
   const fetchJoined = useCallback(async () => {
     try {
-      const res = await fetch('/api/communities/joined');
+      const res = await apiFetchRaw('/api/communities/joined');
       if (res.ok) {
         const data = await res.json();
         setJoinedCommunities(data.communities || []);
@@ -112,7 +113,7 @@ const CommunitiesPage: React.FC = () => {
         ),
       );
       try {
-        await fetch(`/api/communities/${communityId}/join`, { method: 'POST' });
+        await apiFetchRaw(`/api/communities/${communityId}/join`, { method: 'POST' });
         fetchJoined();
       } catch {
         setCommunities((prev) =>
@@ -133,7 +134,7 @@ const CommunitiesPage: React.FC = () => {
         ),
       );
       try {
-        await fetch(`/api/communities/${communityId}/leave`, { method: 'POST' });
+        await apiFetchRaw(`/api/communities/${communityId}/leave`, { method: 'POST' });
         fetchJoined();
       } catch {
         setCommunities((prev) =>
@@ -154,7 +155,7 @@ const CommunitiesPage: React.FC = () => {
     setCreating(true);
     setCreateError(null);
     try {
-      const res = await fetch('/api/communities', {
+      const res = await apiFetchRaw('/api/communities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(createForm),

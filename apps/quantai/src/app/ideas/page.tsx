@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { getAuthToken } from '../../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 type IdeaStatus = 'new' | 'saved' | 'dismissed';
 
@@ -39,7 +40,7 @@ const EMPTY_COPY: Record<IdeaStatus, { title: string; body: string }> = {
 
 async function api(path: string, init?: RequestInit): Promise<{ ok: boolean; data?: unknown; error?: string }> {
   const token = getAuthToken();
-  const res = await fetch(path, {
+  const res = await apiFetchRaw(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

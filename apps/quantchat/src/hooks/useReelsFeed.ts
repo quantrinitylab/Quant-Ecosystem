@@ -7,6 +7,7 @@
 
 import { useCallback, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface Reel {
   id: string;
@@ -57,7 +58,7 @@ async function fetchReelsFeed(cursor?: string): Promise<ReelsFeedPage> {
   const params = new URLSearchParams({ limit: String(FEED_LIMIT) });
   if (cursor) params.set('cursor', cursor);
 
-  const response = await fetch(`/api/reels/feed?${params.toString()}`);
+  const response = await apiFetchRaw(`/api/reels/feed?${params.toString()}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch reels feed: ${response.statusText}`);
   }
@@ -89,7 +90,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Optimistic like mutation
   const likeMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await fetch(`/api/reels/${reelId}/like`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST' });
       if (!res.ok) throw new Error('Like failed');
       return res.json();
     },
@@ -124,7 +125,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Unlike (optimistic rollback)
   const unlikeMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await fetch(`/api/reels/${reelId}/like`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/like`, { method: 'POST' });
       if (!res.ok) throw new Error('Unlike failed');
       return res.json();
     },
@@ -159,7 +160,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Share mutation
   const shareMutation = useMutation({
     mutationFn: async (reelId: string) => {
-      const res = await fetch(`/api/reels/${reelId}/share`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/reels/${reelId}/share`, { method: 'POST' });
       if (!res.ok) throw new Error('Share failed');
       return res.json();
     },
@@ -182,7 +183,7 @@ export function useReelsFeed(): UseReelsFeedReturn {
   // Comment mutation
   const commentMutation = useMutation({
     mutationFn: async ({ reelId, text }: { reelId: string; text: string }) => {
-      const res = await fetch(`/api/reels/${reelId}/comment`, {
+      const res = await apiFetchRaw(`/api/reels/${reelId}/comment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),

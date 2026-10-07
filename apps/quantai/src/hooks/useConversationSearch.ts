@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SearchResultConversation {
   id: string;
@@ -60,7 +61,7 @@ export function useConversationSearch(query: string): UseConversationSearchRetur
         const headers: Record<string, string> = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`/api/sessions/search?q=${encodeURIComponent(trimmed)}`, {
+        const res = await apiFetchRaw(`/api/sessions/search?q=${encodeURIComponent(trimmed)}`, {
           headers,
           signal: controller.signal,
         });

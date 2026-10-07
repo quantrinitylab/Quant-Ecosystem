@@ -20,6 +20,7 @@ import {
   IconBan,
   IconCheck,
 } from '../../../../components/icons';
+import { apiFetchRaw } from '@quant/api-client';
 
 // Helper to format Date to YYYY-MM-DD
 function formatDateToYmd(d: Date): string {
@@ -149,7 +150,7 @@ export default function PublicBookingPage(props: PageProps) {
     let isMounted = true;
     async function fetchLink() {
       try {
-        const res = await fetch(`/api/calendar/booking/${resolvedSlug}`);
+        const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data && isMounted) {
@@ -244,7 +245,7 @@ export default function PublicBookingPage(props: PageProps) {
     async function loadSlots() {
       const dateStr = formatDateToYmd(selectedDate);
       try {
-        const res = await fetch(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
+        const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/slots?date=${dateStr}`);
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.data) && json.data.length > 0 && isMounted) {
@@ -383,7 +384,7 @@ export default function PublicBookingPage(props: PageProps) {
     let icsResult: string | undefined;
 
     try {
-      const res = await fetch(`/api/calendar/booking/${resolvedSlug}/book`, {
+      const res = await apiFetchRaw(`/api/calendar/booking/${resolvedSlug}/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingPayload),

@@ -14,12 +14,13 @@ import {
   SheetDangerButton,
 } from '../SettingsSheet';
 import { getAuthToken } from '../../../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 const SUPPORT_EMAIL = 'support@quantmail.in';
 
 async function authedFetch(path: string, init: RequestInit) {
   const token = getAuthToken();
-  const res = await fetch(path, {
+  const res = await apiFetchRaw(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

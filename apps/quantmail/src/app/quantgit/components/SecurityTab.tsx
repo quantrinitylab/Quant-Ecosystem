@@ -21,6 +21,7 @@ import {
   INITIAL_BRANCH_SECURITY_RULES,
   DEFAULT_SECURITY_POLICY,
 } from '../constants';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface SecurityTabProps {
   securityAlerts?: SecurityAlert[];
@@ -198,7 +199,7 @@ export function SecurityTab({
     setIsScanningSecrets(true);
     showToast('Running on-demand repository secret scanning…');
     try {
-      const res = await fetch(`/api/repos/${encodeURIComponent(target)}/security/scan`, {
+      const res = await apiFetchRaw(`/api/repos/${encodeURIComponent(target)}/security/scan`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scanType: 'secrets' }),

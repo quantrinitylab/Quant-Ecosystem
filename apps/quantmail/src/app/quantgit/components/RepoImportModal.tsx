@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 export type ImportProvider = 'github' | 'gitlab' | 'git';
 
@@ -119,7 +120,7 @@ export function RepoImportModal({
       // fake progress steps. The UI shows an indeterminate "Importing..." state.
       setActiveStep(1);
 
-      const response = await fetch('/api/repos/import', {
+      const response = await apiFetchRaw('/api/repos/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

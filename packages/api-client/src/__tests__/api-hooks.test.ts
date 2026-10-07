@@ -51,6 +51,7 @@ describe('apiFetch', () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: { ok: 1 } }),
+      text: async () => JSON.stringify({ success: true, data: { ok: 1 } }),
     });
 
     const result = await apiFetch<{ ok: number }>('/api/ping');
@@ -64,6 +65,7 @@ describe('apiFetch', () => {
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ success: true, data: { id: 'a' } }),
+      text: async () => JSON.stringify({ success: true, data: { id: 'a' } }),
     });
 
     await apiFetch('/api/notifications/send', {
@@ -86,6 +88,7 @@ describe('apiFetch', () => {
       status: 401,
       statusText: 'Unauthorized',
       json: async () => ({ code: 'UNAUTHORIZED', message: 'no token' }),
+      text: async () => JSON.stringify({ code: 'UNAUTHORIZED', message: 'no token' }),
     });
 
     const result = await apiFetch('/api/secure');
@@ -132,7 +135,7 @@ describe('useApiMutation', () => {
     useMutationMock.mockClear();
     mockFetch = vi
       .fn()
-      .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }) });
+      .mockResolvedValue({ ok: true, json: async () => ({ success: true, data: {} }), text: async () => JSON.stringify({ success: true, data: {} }) });
     global.fetch = mockFetch as typeof global.fetch;
   });
 

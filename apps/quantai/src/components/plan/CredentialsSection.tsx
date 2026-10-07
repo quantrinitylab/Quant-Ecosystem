@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { getAuthHeaders } from '../../lib/auth';
 import type { CredentialGrantData } from './types';
+import { apiFetchRaw } from '@quant/api-client';
 
 export default function CredentialsSection() {
   const [grants, setGrants] = useState<CredentialGrantData[] | null>(null);
@@ -18,7 +19,7 @@ export default function CredentialsSection() {
   const [revoking, setRevoking] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    fetch('/api/quanty/credentials', { headers: getAuthHeaders() })
+    apiFetchRaw('/api/quanty/credentials', { headers: getAuthHeaders() })
       .then(async (r) => {
         const j = await r.json();
         if (j.success) {
@@ -39,7 +40,7 @@ export default function CredentialsSection() {
     if (!window.confirm(`Revoke the ${provider} connection? Quanty will lose access until you reconnect.`)) return;
     setRevoking(id);
     try {
-      const r = await fetch(`/api/quanty/credentials/${id}`, {
+      const r = await apiFetchRaw(`/api/quanty/credentials/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });

@@ -7,6 +7,7 @@ import { WorkflowProgressCard } from './WorkflowProgressCard';
 import { VoiceToggle } from './VoiceToggle';
 import type { ToolCall } from '../types/tool-calls';
 import type { WorkflowStep } from './WorkflowProgressCard';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AskQuantPanelProps {
   className?: string;
@@ -68,7 +69,7 @@ export function AskQuantPanel({ className = '' }: AskQuantPanelProps) {
       abortRef.current = controller;
 
       try {
-        const response = await fetch('/api/ask', {
+        const response = await apiFetchRaw('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),

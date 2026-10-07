@@ -14,6 +14,7 @@ import type {
   LiveEvent,
   VideoComment,
 } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const API_BASE = '/api';
 
@@ -32,7 +33,7 @@ class QuantMaxApiClient {
   private async request<T>(method: string, path: string, body?: unknown): Promise<ApiResponse<T>> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await apiFetchRaw(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,

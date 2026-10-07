@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Notification {
   id: string;
@@ -45,7 +46,7 @@ const NotificationsPage: React.FC = () => {
       const params = new URLSearchParams();
       if (activeTab !== 'all') params.set('type', activeTab);
       if (filterType) params.set('filter', filterType);
-      const res = await fetch(`/api/notifications?${params.toString()}`);
+      const res = await apiFetchRaw(`/api/notifications?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load notifications');
       const data = await res.json();
       setNotifications(data.notifications || []);
@@ -65,13 +66,13 @@ const NotificationsPage: React.FC = () => {
   const markAllRead = useCallback(async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setUnreadCount(0);
-    await fetch('/api/notifications/read-all', { method: 'POST' });
+    await apiFetchRaw('/api/notifications/read-all', { method: 'POST' });
   }, []);
 
   const markAsRead = useCallback(async (notifId: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === notifId ? { ...n, isRead: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
-    await fetch(`/api/notifications/${notifId}/read`, { method: 'POST' });
+    await apiFetchRaw(`/api/notifications/${notifId}/read`, { method: 'POST' });
   }, []);
 
   const getTimeAgo = (dateStr: string): string => {

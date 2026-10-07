@@ -6,6 +6,7 @@ import { useQuantSidekick } from '@quant/shared-ui';
 import { quantAiBrandLockup } from '../brand/identity';
 import { Quanty, type QuantyExpression } from './Quanty';
 import { browserAuthSession } from '../services/browser-auth-session';
+import { apiFetchRaw } from '@quant/api-client';
 
 const STATUS_COPY = {
   idle: 'Ready',
@@ -201,7 +202,7 @@ async function requestChat(
 async function checkChatHealth(): Promise<ServiceHealth> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 'offline';
   try {
-    const response = await fetch('/api/ai/chat/health', {
+    const response = await apiFetchRaw('/api/ai/chat/health', {
       credentials: 'include',
       cache: 'no-store',
     });

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 export const MemoryDashboard: React.FC = () => {
   const [memories, setMemories] = useState<any[]>([]);
@@ -7,7 +8,7 @@ export const MemoryDashboard: React.FC = () => {
   const loadMemory = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/personal-agent/context');
+      const response = await apiFetchRaw('/api/personal-agent/context');
       const data = await response.json();
       setMemories(data.context || []);
     } catch {

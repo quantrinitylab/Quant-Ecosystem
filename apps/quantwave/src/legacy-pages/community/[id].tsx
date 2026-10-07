@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface CommunityDetail {
   id: string;
@@ -66,8 +67,8 @@ const CommunityPage: React.FC<{ id?: string }> = ({ id }) => {
     try {
       setLoading(true);
       const [communityRes, postsRes] = await Promise.all([
-        fetch(`/api/communities/${communityId}`),
-        fetch(
+        apiFetchRaw(`/api/communities/${communityId}`),
+        apiFetchRaw(
           `/api/communities/${communityId}/posts?sort=${sortBy}${selectedFlair ? `&flair=${selectedFlair}` : ''}`,
         ),
       ]);
@@ -101,7 +102,7 @@ const CommunityPage: React.FC<{ id?: string }> = ({ id }) => {
         : null,
     );
     try {
-      await fetch(`/api/communities/${communityId}/${action}`, { method: 'POST' });
+      await apiFetchRaw(`/api/communities/${communityId}/${action}`, { method: 'POST' });
     } catch {
       setCommunity((prev) =>
         prev
@@ -123,14 +124,14 @@ const CommunityPage: React.FC<{ id?: string }> = ({ id }) => {
           : p,
       ),
     );
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/like`, { method: 'POST' });
   }, []);
 
   const handleRemovePost = useCallback(
     async (postId: string) => {
       setActionLoading(true);
       try {
-        await fetch(`/api/communities/${communityId}/posts/${postId}`, {
+        await apiFetchRaw(`/api/communities/${communityId}/posts/${postId}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reason: modReason }),
@@ -150,7 +151,7 @@ const CommunityPage: React.FC<{ id?: string }> = ({ id }) => {
     async (userId: string) => {
       setActionLoading(true);
       try {
-        await fetch(`/api/communities/${communityId}/ban`, {
+        await apiFetchRaw(`/api/communities/${communityId}/ban`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, reason: modReason }),

@@ -6,6 +6,7 @@ import { UniversalSSOTokenBridge, useAuth } from '@quant/shared-ui';
 import { apiClient } from '../../services/api-client';
 import { persistSession } from '../../lib/auth-session';
 import { CryptographicMeshCanvas } from './CryptographicMeshCanvas';
+import { apiFetchRaw } from '@quant/api-client';
 
 // QuantMail SSO base URL (overridable per environment)
 const SSO_BASE_URL = process.env.NEXT_PUBLIC_QUANTMAIL_SSO_URL || 'https://quantmail.in';
@@ -190,7 +191,7 @@ export default function LoginPage(props: LoginPageProps) {
 
         setBusy(true);
         setError(null);
-        const res = await fetch('/api/auth/sso/exchange', {
+        const res = await apiFetchRaw('/api/auth/sso/exchange', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ssoToken }),

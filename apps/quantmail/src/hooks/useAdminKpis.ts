@@ -28,7 +28,7 @@ export interface AdminKpis {
   sessions: KpiCell;
   storage: KpiCell;
   delivery: KpiCell;
-  /** Re-run every fetch (e.g. a manual refresh control). */
+  /** Re-run every request (e.g. a manual refresh control). */
   refresh: () => void;
 }
 

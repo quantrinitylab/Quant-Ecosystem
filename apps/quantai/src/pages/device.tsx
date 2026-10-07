@@ -6,6 +6,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface SmartDevice {
   id: string;
@@ -50,7 +51,7 @@ export default function DevicePage(): JSX.Element {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch('/api/devices');
+        const res = await apiFetchRaw('/api/devices');
         const data = (await res.json().catch(() => ({}))) as {
           devices?: SmartDevice[];
           error?: string;
@@ -90,7 +91,7 @@ export default function DevicePage(): JSX.Element {
     async (deviceId: string, command: Record<string, unknown>): Promise<boolean> => {
       setActionError(null);
       try {
-        const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/command`, {
+        const res = await apiFetchRaw(`/api/devices/${encodeURIComponent(deviceId)}/command`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(command),

@@ -38,6 +38,7 @@ import { FileVersionHistoryModal } from '../../components/drive/FileVersionHisto
 import { FileAISummaryDrawer } from '../../components/drive/FileAISummaryDrawer';
 import { AIDuplicateCleanerModal } from '../../components/drive/AIDuplicateCleanerModal';
 import { StorageQuotaBar } from '../../components/drive/StorageQuotaBar';
+import { apiFetchRaw } from '@quant/api-client';
 
 type DriveItem = {
   id: string;
@@ -456,7 +457,7 @@ function DrivePageContent() {
     setCopiedTextPreview(false);
 
     const url = getDownloadUrl(previewItem.id);
-    fetch(url, { signal: controller.signal })
+    apiFetchRaw(url, { signal: controller.signal })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`Failed to load file preview (${res.status})`);

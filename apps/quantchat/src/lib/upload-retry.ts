@@ -74,8 +74,8 @@ function defaultIsRetriableError(error: unknown): boolean {
 }
 
 /**
- * XHR-based upload transport that reports real upload progress (0-100). fetch()
- * does not expose upload progress, so XMLHttpRequest is used here. Any transport
+ * XHR-based upload transport that reports real upload progress (0-100). The
+ * Fetch API does not expose upload progress, so XMLHttpRequest is used here. Any transport
  * / connection error is normalized into an {@link UploadNetworkError} so it is
  * treated as retriable; HTTP error status codes are treated as terminal.
  */

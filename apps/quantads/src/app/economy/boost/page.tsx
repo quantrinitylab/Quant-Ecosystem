@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Card, Button, LoadingState, ErrorState, EmptyState, useAuth } from '@quant/shared-ui';
 import { spring } from '@quant/brand';
 import type { BoostPack, BoostAnalytics, BoostRequest } from '@quant/quant-economy';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // QuantAds - Self-Boost (real backend endpoints, no mock data)
@@ -44,7 +45,7 @@ interface BoostWithAnalytics {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await apiFetchRaw(url);
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.success === false) {
     throw new Error(body?.error?.message ?? `Request failed (${res.status})`);
@@ -105,7 +106,7 @@ export default function BoostPage() {
     setActivating(true);
     setNotice(null);
     try {
-      const res = await fetch('/api/boost/activate', {
+      const res = await apiFetchRaw('/api/boost/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, postId: postId.trim(), packId: selectedPackId }),

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Conversation {
   id: string;
@@ -46,7 +47,7 @@ const MessagesPage: React.FC = () => {
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/messages/conversations');
+      const res = await apiFetchRaw('/api/messages/conversations');
       if (!res.ok) throw new Error('Failed to load messages');
       const data = await res.json();
       setConversations(data.conversations || []);
@@ -60,7 +61,7 @@ const MessagesPage: React.FC = () => {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const res = await fetch('/api/messages/requests');
+      const res = await apiFetchRaw('/api/messages/requests');
       if (res.ok) {
         const data = await res.json();
         setRequests(data.requests || []);
@@ -77,7 +78,7 @@ const MessagesPage: React.FC = () => {
     if (!newMessageTo.trim() || !newMessageContent.trim()) return;
     setSending(true);
     try {
-      const res = await fetch('/api/messages/send', {
+      const res = await apiFetchRaw('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to: newMessageTo, content: newMessageContent }),
@@ -97,7 +98,7 @@ const MessagesPage: React.FC = () => {
   const handleCreateGroup = useCallback(async () => {
     if (!groupName.trim() || groupMembers.length < 2) return;
     try {
-      const res = await fetch('/api/messages/groups', {
+      const res = await apiFetchRaw('/api/messages/groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: groupName, members: groupMembers }),
@@ -114,7 +115,7 @@ const MessagesPage: React.FC = () => {
 
   const handleAcceptRequest = useCallback(
     async (requestId: string) => {
-      await fetch(`/api/messages/requests/${requestId}/accept`, { method: 'POST' });
+      await apiFetchRaw(`/api/messages/requests/${requestId}/accept`, { method: 'POST' });
       setRequests((prev) => prev.filter((r) => r.id !== requestId));
       fetchConversations();
     },
@@ -122,7 +123,7 @@ const MessagesPage: React.FC = () => {
   );
 
   const handleDeclineRequest = useCallback(async (requestId: string) => {
-    await fetch(`/api/messages/requests/${requestId}/decline`, { method: 'POST' });
+    await apiFetchRaw(`/api/messages/requests/${requestId}/decline`, { method: 'POST' });
     setRequests((prev) => prev.filter((r) => r.id !== requestId));
   }, []);
 
@@ -132,7 +133,7 @@ const MessagesPage: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`/api/users/search?q=${encodeURIComponent(q)}&limit=5`);
+      const res = await apiFetchRaw(`/api/users/search?q=${encodeURIComponent(q)}&limit=5`);
       if (res.ok) {
         const data = await res.json();
         setMemberResults(data.users || []);

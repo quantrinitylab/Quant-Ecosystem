@@ -15,6 +15,7 @@ import {
 import { VoiceOrb } from './VoiceOrb';
 import { VoiceFloatingChip } from './VoiceFloatingChip';
 import { useVoiceCapture } from '../../hooks/useVoiceCapture';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface VoiceModeModalProps {
   isOpen: boolean;
@@ -164,7 +165,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
 
       let played = false;
       try {
-        const res = await fetch('/api/voice/tts', {
+        const res = await apiFetchRaw('/api/voice/tts', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ text, voiceId: config.persona }),
@@ -239,7 +240,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
     try {
       const form = new FormData();
       form.append('file', wav, 'audio.wav');
-      const res = await fetch('/api/voice/stt', { method: 'POST', body: form });
+      const res = await apiFetchRaw('/api/voice/stt', { method: 'POST', body: form });
       const data = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
       if (!res.ok || !data.text) {
         throw new Error(data.error || 'Transcription failed');

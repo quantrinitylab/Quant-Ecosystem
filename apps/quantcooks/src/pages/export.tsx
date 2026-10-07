@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { PageTransition } from '../components/PageTransition';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Mirrors the backend ExportStatus — the only statuses a real job can have. */
 type ExportJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -229,7 +230,7 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
       stopPolling(jobId);
       const interval = setInterval(async () => {
         try {
-          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/status`);
+          const res = await apiFetchRaw(`/api/exports/${encodeURIComponent(jobId)}/status`);
           const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;
           if (!res.ok || !payload?.success || !payload.data) {
             throw new Error(payload?.error?.message || `Status check failed (HTTP ${res.status})`);
@@ -296,7 +297,7 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
     setLoading(true);
     const run = async () => {
       try {
-        const res = await fetch('/api/exports', {
+        const res = await apiFetchRaw('/api/exports', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -374,7 +375,7 @@ const ExportPage: React.FC<ExportPageProps> = ({ projectId, projectName, duratio
       const run = async () => {
         stopPolling(jobId);
         try {
-          const res = await fetch(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
+          const res = await apiFetchRaw(`/api/exports/${encodeURIComponent(jobId)}/cancel`, {
             method: 'POST',
           });
           const payload = (await res.json().catch(() => null)) as QueueExportApiResponse | null;

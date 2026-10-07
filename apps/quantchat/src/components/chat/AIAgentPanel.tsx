@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 12.1 / 12.9 (Requirement 11.1, 11.9): AI Agent Panel.
@@ -37,7 +38,7 @@ async function defaultToggleAutoReply(args: {
   conversationId: string;
   enabled: boolean;
 }): Promise<{ enabled: boolean; cancelledCount: number }> {
-  const res = await fetch('/api/ai/auto-reply/toggle', {
+  const res = await apiFetchRaw('/api/ai/auto-reply/toggle', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(args),

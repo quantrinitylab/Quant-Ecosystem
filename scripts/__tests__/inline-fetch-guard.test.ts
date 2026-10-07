@@ -22,6 +22,11 @@ describe('isExempt', () => {
     expect(isExempt('apps/quantads/src/pages/api/track.ts')).toBe(true);
   });
 
+  it('exempts non-api Next.js route handlers (server-side proxies)', () => {
+    expect(isExempt('apps/quantwave/src/app/auth/[action]/route.ts')).toBe(true);
+    expect(isExempt('apps/quantmail/src/app/auth/2fa/verify/route.ts')).toBe(true);
+  });
+
   it('exempts test and declaration files', () => {
     expect(isExempt('apps/quantai/src/services/foo.test.ts')).toBe(true);
     expect(isExempt('apps/quantai/src/__tests__/foo.ts')).toBe(true);
