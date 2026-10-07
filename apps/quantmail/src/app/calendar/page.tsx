@@ -30,6 +30,7 @@ import {
   buildCurrentWeekDays,
   buildMonthWeeks,
 } from './lib/calendar-geometry';
+import { pointerStartsSheetDrag } from './lib/sheet-drag';
 import { CalendarHeader } from './components/CalendarHeader';
 import { CalendarViews } from './components/CalendarViews';
 import { CalendarEventForm } from './components/CalendarEventForm';
@@ -486,6 +487,14 @@ function CalendarPageContent() {
   // Bottom Sheet 1:1 Direct Finger Physics Handlers
   const handleSheetPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
+    // Never hijack a gesture that starts on an interactive control. The
+    // pointerdown from the Save/Close buttons (and the period sub-tabs)
+    // bubbles up into this header; capturing the pointer here would retarget
+    // the click to this div per the Pointer Events spec, so the button's
+    // onClick would never fire and Save would appear completely dead
+    // (P0-3: no handler, no request, no toast). Leave the gesture alone so
+    // the click reaches the control the user actually pressed.
+    if (!pointerStartsSheetDrag(e.target)) return;
     sheetPointerRef.current = {
       startY: e.clientY,
       time: Date.now(),
