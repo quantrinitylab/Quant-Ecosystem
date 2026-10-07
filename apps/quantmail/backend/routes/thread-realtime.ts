@@ -121,11 +121,13 @@ export async function threadRealtimeRoutes(fastify: FastifyInstance): Promise<vo
         }
 
         // Fail closed: only the thread owner may hold a realtime subscription.
+        // The backend compiles against the dev-time prisma stub
+        // (backend/types/prisma-stub.d.ts), whose findUnique takes no
+        // `select` — fetch the row and compare its owner field directly.
         try {
           const prisma = getPrisma(fastify);
           const thread = await prisma.emailThread.findUnique({
             where: { id: threadId },
-            select: { userId: true },
           });
           if (!thread || thread.userId !== session.userId) {
             return reply.code(403).send({

@@ -483,7 +483,11 @@ export default async function emailsRoutes(
     // message now instead of waiting for the next mailbox poll.
     if (!delayMs && targetThreadId) {
       try {
-        const formatted: Record<string, unknown> = formatEmailRecord(sent);
+        // Spread into a fresh object: the prisma stub types `sent` as an
+        // interface, which has no implicit index signature, while the
+        // spread result is an object-literal type that does — so the
+        // defensive bracket reads below stay type-safe with no casts.
+        const formatted: Record<string, unknown> = { ...formatEmailRecord(sent) };
         threadRealtimeHub.broadcastMessage(targetThreadId, {
           id: String(formatted['id'] ?? email.id),
           threadId: targetThreadId,
@@ -501,9 +505,8 @@ export default async function emailsRoutes(
             undefined,
           receivedAt: (formatted['receivedAt'] as string | undefined) ?? undefined,
           createdAt: (formatted['createdAt'] as string | undefined) ?? undefined,
-          // Echoed so the sender swaps its optimistic bubble for the persisted
-          // row instead of rendering a duplicate (email-chat P0-3).
-          clientMessageId: parsed.data.clientMessageId,
+          // NOTE: /:id/send has no clientMessageId in its request body — the
+          // reply route echoes it instead (see below), so nothing is echoed here.
         });
       } catch (err) {
         request.log.warn({ err, emailId: email.id }, 'thread realtime broadcast failed');

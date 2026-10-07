@@ -65,6 +65,53 @@ const TYPING_EXPIRY_MS = 5_000;
 /** Our own `typing:false` goes out this long after the last keystroke. */
 const TYPING_IDLE_SEND_MS = 1_500;
 
+/**
+ * A realtime `message.new` carries the wire payload, not a full mailbox row —
+ * build the Email the thread stream renders, filling every field the wire
+ * never sends with the same defaults a fresh arrival gets. Returns a complete,
+ * correctly-typed Email (no casts): the payload's optional strings become the
+ * required ones via `?? ''`, and its date-ish fields become real Dates.
+ */
+function threadRealtimeMessageToEmail(payload: ThreadRealtimeMessage): Email {
+  const toDate = (value: string | Date | null | undefined): Date => {
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' && value) {
+      const parsedDate = new Date(value);
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate;
+    }
+    return new Date();
+  };
+  return {
+    id: payload.id,
+    createdAt: toDate(payload.createdAt),
+    updatedAt: new Date(),
+    threadId: payload.threadId,
+    userId: '',
+    from: payload.from,
+    to: [],
+    cc: [],
+    bcc: [],
+    subject: payload.subject ?? '',
+    bodyText: payload.bodyText ?? '',
+    bodyHtml: payload.bodyHtml ?? '',
+    snippet: payload.snippet ?? '',
+    priority: 'normal',
+    category: 'primary',
+    status: 'delivered',
+    // Same default as `messageKindOf`: anything that isn't 'chat' reads as mail.
+    messageKind: payload.messageKind === 'chat' ? 'chat' : 'mail',
+    isRead: true,
+    isStarred: false,
+    isArchived: false,
+    isDraft: false,
+    labels: [],
+    attachments: [],
+    references: [],
+    headers: {},
+    receivedAt: toDate(payload.receivedAt),
+  };
+}
+
 function normalizedEmail(value?: string): string {
   return (value ?? '').trim().toLowerCase();
 }
@@ -774,23 +821,7 @@ export function ConversationalThreadView({
           // copy instead of adding it as a duplicate.
         }
         if (prev.some((m) => m.id === payload.id)) return prev;
-        const incoming = {
-          ...payload,
-          userId: '',
-          to: [],
-          cc: [],
-          bcc: [],
-          priority: 'normal',
-          category: 'primary',
-          status: 'delivered',
-          isRead: true,
-          isStarred: false,
-          isArchived: false,
-          isDraft: false,
-          labels: [],
-          references: [],
-          headers: {},
-        } as Email;
+        const incoming = threadRealtimeMessageToEmail(payload);
         const merged = [...prev, incoming];
         merged.sort(
           (a, b) =>
