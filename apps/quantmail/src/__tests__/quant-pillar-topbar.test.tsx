@@ -321,6 +321,37 @@ describe('QuantPillarTopBar — Super-App 5-Pillar Squircle Mode Switcher', () =
       expect(html).toContain('Quant AI: All 12 drafts analyzed and synced');
     });
 
+    it('renders a dismiss control for the live capsule when aiLiveText is supplied', () => {
+      const html = renderToStaticMarkup(
+        <QuantPillarTopBar aiLiveText="Quant AI: 3 urgent items prioritized" />,
+      );
+
+      // Dismiss button is present and labelled for assistive tech.
+      expect(html).toContain('aria-label="Dismiss Quant AI status"');
+    });
+
+    it('renders no dismiss control when aiLiveText is not supplied (no fake status)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar />);
+
+      expect(html).not.toContain('aria-label="Dismiss Quant AI status"');
+    });
+
+    it('mounts the switcher and search in ONE shared sticky bar (P1-F, no stacked stickies)', () => {
+      const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
+
+      // Exactly one sticky top bar — the switcher section and the search row
+      // share it; the old separate `sticky top-0 z-20` search element is gone.
+      const stickyBars = html.split('class="sticky top-0 z-30 w-full"').length - 1;
+      expect(stickyBars).toBe(1);
+      expect(html).not.toContain('sticky top-0 z-20');
+
+      // DOM order inside the bar: dock tablist first, search field after it.
+      const dockIdx = html.indexOf('aria-label="Application Suites"');
+      const searchIdx = html.indexOf('aria-label="Voice Search"');
+      expect(dockIdx).toBeGreaterThanOrEqual(0);
+      expect(searchIdx).toBeGreaterThan(dockIdx);
+    });
+
     it('clicking live capsule invokes onQuantyClick, onOpenCopilot, and dispatches window events', () => {
       const onQuantyClick = vi.fn();
       const onOpenCopilot = vi.fn();

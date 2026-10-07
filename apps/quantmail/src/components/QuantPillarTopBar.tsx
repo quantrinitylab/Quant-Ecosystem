@@ -813,6 +813,12 @@ export function QuantPillarTopBar({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   // Search bar shrink state: when scrolled, search compacts and Quant AI appears beside it
   const [searchCompact, setSearchCompact] = useState(false);
+  // Quant AI live capsule dismissal — remembered in local component state for
+  // the current live text. A new aiLiveText value resets it (new status, new look).
+  const [aiPillDismissed, setAiPillDismissed] = useState(false);
+  useEffect(() => {
+    setAiPillDismissed(false);
+  }, [aiLiveText]);
   // QuantGit User ID modal state
   const [quantGitIdModalOpen, setQuantGitIdModalOpen] = useState(false);
   const [quantGitUserId, setQuantGitUserId] = useState<string | null>(null);
@@ -997,12 +1003,23 @@ export function QuantPillarTopBar({
   return (
     <>
     {/*
-      STRUCTURE (v3 deep redesign):
-      - Switcher pill: hides on scroll down, reappears ONLY at scrollY === 0
-      - Search bar: SEPARATE sticky element, NEVER hides, compacts on scroll
+      STRUCTURE (v3.1 — P1-F single sticky bar):
+      - ONE sticky header bar holds both the switcher and the search field.
+      - Switcher pill section: hides on scroll down, reappears ONLY at
+        scrollY === 0 (unchanged hide-on-scroll behavior).
+      - Search bar: same sticky bar, NEVER hides, compacts on scroll.
     */}
     <div
       className="sticky top-0 z-30 w-full"
+      style={{
+        background: 'rgba(13,13,18,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+    <div
+      aria-hidden={headerHidden}
       style={{
         height: headerHidden ? 0 : (headerHeight ?? 'auto'),
         opacity: headerHidden ? 0 : 1,
@@ -1019,11 +1036,9 @@ export function QuantPillarTopBar({
       style={{
         // PROFESSIONAL: subtle, minimal — no flashy gradients.
         // Clean enterprise feel like Gmail/Outlook, not a game.
-        background: 'rgba(13,13,18,0.96)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        // Background lives on the sticky bar above; this keeps the hairline
+        // separating the switcher from the search row.
         borderBottom: '1px solid rgba(255,255,255,0.06)',
-        transition: 'background 0.5s cubic-bezier(0.22, 1, 0.36, 1)',
       }}
     >
       {/*
@@ -1195,18 +1210,14 @@ export function QuantPillarTopBar({
     </div>
 
     {/*
-      SEARCH BAR — SEPARATE sticky element, NEVER hides on scroll.
+      SEARCH BAR — pinned to the SAME sticky bar above, NEVER hides on scroll.
       Compacts (48px → 40px) when scrolled; Quant AI icon appears beside it.
     */}
     <div
-      className="sticky top-0 z-20 w-full px-3"
+      className="w-full px-3"
       style={{
         paddingTop: 8,
         paddingBottom: 8,
-        background: 'rgba(13,13,18,0.96)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
         transition: 'padding 0.25s ease-out',
       }}
     >
@@ -1278,10 +1289,14 @@ export function QuantPillarTopBar({
         </button>
       </div>
     </div>
+    {/* End of the single merged sticky bar (switcher + search). */}
+    </div>
 
-    {/* Quant AI live capsule — below search, collapsible. Only rendered when a real
-        live status string is supplied; never fabricate a status when none exists. */}
-    {!headerHidden && !!aiLiveText && (
+    {/* Quant AI live capsule — below the sticky bar, collapsible, dismissible.
+        Only rendered when a real live status string is supplied; never
+        fabricate a status when none exists. Dismissal is remembered in local
+        state; a new aiLiveText value resets it (new status, new look). */}
+    {!headerHidden && !!aiLiveText && !aiPillDismissed && (
     <div className="w-full px-3 pt-1">
       <div className="flex items-center justify-between gap-2 w-full max-w-5xl mx-auto">
         <button
@@ -1303,6 +1318,18 @@ export function QuantPillarTopBar({
           </span>
 
           <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />
+        </button>
+
+        {/* Dismiss the capsule — it must never push content down once the
+            reader has seen it. Remembered in local state (see above). */}
+        <button
+          type="button"
+          onClick={() => setAiPillDismissed(true)}
+          className="p-1.5 rounded-full text-[#64748B] hover:text-white hover:bg-[#1F2430] transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
+          title="Dismiss"
+          aria-label="Dismiss Quant AI status"
+        >
+          <ClearSearchIcon className="size-3.5" />
         </button>
 
         <div className="hidden sm:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#12151E] border border-[#232938] text-[10px] font-mono text-emerald-400">

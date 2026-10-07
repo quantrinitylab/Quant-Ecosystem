@@ -263,14 +263,14 @@ export function QuantGitReposSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6 min-h-full flex flex-col">
         {/* Top Header Banner */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgRepoIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Repositories</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
                   {filtered.length} ACTIVE
                 </span>
@@ -293,9 +293,11 @@ export function QuantGitReposSubView({
           )}
         </div>
 
-        {/* Filter Controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex-1 min-w-[240px]">
+        {/* Filter Controls — one horizontally-scrollable row, never wrapped.
+            The search field and the selects share a single scroll lane so the
+            filter layer is always exactly one row tall on mobile. */}
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+          <div className="flex-1 min-w-[240px] shrink-0">
             <input
               type="text"
               value={searchQuery}
@@ -304,7 +306,7 @@ export function QuantGitReposSubView({
               className="w-full bg-[#12151E] border border-[#232938] rounded-xl px-3.5 py-2 text-xs text-[#E6EDF3] placeholder-[#6E7681] focus:outline-none focus:border-[#A78BFA] transition-colors"
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <select
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value as any)}
@@ -477,14 +479,14 @@ export function QuantGitPrsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgPullRequestIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Pull Requests Dashboard</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Pull Requests Dashboard</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
                   3-WAY MERGE READY
                 </span>
@@ -496,11 +498,11 @@ export function QuantGitPrsSubView({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-0.5">
             <button
               type="button"
               onClick={() => setFilterState('open')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'open'
                   ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -513,7 +515,7 @@ export function QuantGitPrsSubView({
             <button
               type="button"
               onClick={() => setFilterState('merged')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'merged'
                   ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -526,7 +528,7 @@ export function QuantGitPrsSubView({
             <button
               type="button"
               onClick={() => setFilterState('closed')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'closed'
                   ? 'bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -684,14 +686,14 @@ export function QuantGitIssuesSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgIssueIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Sovereign Issue Tracker</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Sovereign Issue Tracker</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30">
                   PRIORITY RADAR
                 </span>
@@ -703,12 +705,12 @@ export function QuantGitIssuesSubView({
           </div>
 
           {/* Filter Pills */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar max-w-full py-0.5">
             <button
               type="button"
               onClick={() => setFilterState('open')}
               data-testid="filter-pill-open"
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'open'
                   ? 'bg-[#10B981]/20 text-[#10B981] border border-[#10B981]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -722,7 +724,7 @@ export function QuantGitIssuesSubView({
               type="button"
               onClick={() => setFilterState('closed')}
               data-testid="filter-pill-closed"
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap ${
                 filterState === 'closed'
                   ? 'bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/40'
                   : 'bg-[#12151E] text-[#8B949E] border border-[#232938] hover:text-white'
@@ -838,14 +840,14 @@ export function QuantGitActionsSubView({
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header Hero */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b border-[#232938]">
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/10 border border-[#A78BFA]/30 text-[#A78BFA]">
               <SvgActionsIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">CI/CD Pipeline Streaming View</h1>
                 {workflows.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#10B981]/15 text-[#10B981] border border-[#10B981]/30">
                     ALL GATES PASSING
@@ -1078,14 +1080,14 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
     >
       <div className="max-w-4xl mx-auto w-full space-y-6 flex-1 flex flex-col">
         {/* Header Hero */}
-        <div className="flex items-center justify-between pb-5 border-b border-[#232938]">
+        <div className="flex items-center justify-between pb-3 sm:pb-5 border-b border-[#232938]">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] shadow-lg shadow-[#A78BFA]/10">
+            <div className="flex size-9 sm:size-10 items-center justify-center rounded-xl bg-[#A78BFA]/15 border border-[#A78BFA]/30 text-[#A78BFA] shadow-lg shadow-[#A78BFA]/10">
               <SvgCopilotIcon className="size-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
+                <h1 className="text-base sm:text-lg font-bold text-white tracking-tight">Quanty AI In-Repo Copilot</h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/20 text-[#A78BFA] border border-[#A78BFA]/30">
                   NODE B AGENT OS
                 </span>
@@ -1097,16 +1099,16 @@ export function QuantGitCopilotSubView({ onPromptSelect }: QuantGitCopilotSubVie
           </div>
         </div>
 
-        {/* Prompt Chips Bar */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          <span className="text-xs font-semibold text-[#8B949E]">Prompt Chips:</span>
+        {/* Prompt Chips Bar — one horizontally-scrollable row, never wrapped. */}
+        <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-0.5 -mx-1 px-1">
+          <span className="text-xs font-semibold text-[#8B949E] shrink-0">Prompt Chips:</span>
           {promptChips.map((chip) => (
             <button
               key={chip.label}
               type="button"
               data-testid={`prompt-chip-${chip.label.replace(/[^a-zA-Z0-9]/g, '-')}`}
               onClick={() => handleChipClick(chip.label, chip.query)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#12151E] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#A78BFA]/60 shadow-sm transition-all flex items-center gap-1.5"
+              className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#12151E] hover:bg-[#1A1F2C] text-[#C9D1D9] hover:text-white border border-[#232938] hover:border-[#A78BFA]/60 shadow-sm transition-all flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             >
               <SvgCopilotIcon className="size-3 text-[#A78BFA]" />
               <span>[{chip.label}]</span>
