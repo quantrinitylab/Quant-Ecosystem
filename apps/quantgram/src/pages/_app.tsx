@@ -1,4 +1,5 @@
 import './globals.css';
+import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { AnimatePresence } from 'framer-motion';
@@ -52,7 +53,11 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <ErrorBoundary>
+    <>
+      <Head>
+        <title>QuantGram</title>
+      </Head>
+      <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
           <MotionProvider>
@@ -71,6 +76,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </MotionProvider>
         </AuthProvider>
       </QueryProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </>
   );
 }

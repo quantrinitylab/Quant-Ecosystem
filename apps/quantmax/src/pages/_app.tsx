@@ -1,4 +1,5 @@
 import './globals.css';
+import Head from 'next/head';
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
@@ -45,7 +46,11 @@ export default function App({ Component, pageProps }: AppProps) {
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <ErrorBoundary>
+    <>
+      <Head>
+        <title>QuantMax</title>
+      </Head>
+      <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
           <ThemeProvider>
@@ -76,6 +81,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </ThemeProvider>
         </AuthProvider>
       </QueryProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import './globals.css';
+import Head from 'next/head';
 import { useEffect } from 'react';
 import {
   CommandPaletteProvider,
@@ -41,7 +42,11 @@ function QuantEditsCommandRegistrar() {
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
-    <ErrorBoundary>
+    <>
+      <Head>
+        <title>QuantCooks</title>
+      </Head>
+      <ErrorBoundary>
       <BrandProvider>
         <QueryProvider>
           <AuthProvider>
@@ -57,6 +62,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </AuthProvider>
         </QueryProvider>
       </BrandProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </>
   );
 }
