@@ -272,7 +272,7 @@ const INITIAL_SWARM_FLEET: SwarmAgentProfile[] = [
     tier: 'Command Lead',
     roleDescription: 'Leads Track 1 (Media / Cluster Parity) & Subagents C1-C5',
     heartbeat: '3s ago',
-    activeTask: 'Monitoring live EKS cluster (20/20 pods healthy in quant-staging)',
+    activeTask: 'Awaiting authorized runtime telemetry connection',
     accentColor: '#10B981',
     isOnline: true,
     capabilities: {
@@ -326,7 +326,7 @@ const INITIAL_SWARM_FLEET: SwarmAgentProfile[] = [
     tier: 'Specialized Subagent',
     roleDescription: 'Continuous ingress & microservice health watcher',
     heartbeat: '2s ago',
-    activeTask: 'Reporting 0 latency spikes across quant-staging pods',
+    activeTask: 'Awaiting authorized cluster health telemetry',
     accentColor: '#10B981',
     isOnline: true,
     capabilities: {
@@ -384,14 +384,14 @@ const INITIAL_MESSAGES: InterAgentLedgerMessage[] = [
     recipientTag: '@ALL_SWARM',
     color: '#10B981',
     timestamp: '14:28:10 UTC',
-    content: 'EKS staging health report verified: 20 pods running, 0 restarts in quant-staging. FastCDC media pipeline ready for wave 39 integration.',
+    content: 'Cluster telemetry is not connected to this UI session. No runtime health claim is displayed.',
     priority: 'normal',
     thoughtSteps: [
       'Query kubectl -n quant-staging get pods -o json',
       'Parse status.phase == "Running" across all 20 replicas',
       'Verify zero OOMKilled or CrashLoopBackOff states',
     ],
-    toolActionSnippet: 'kubectl get pods -n quant-staging --field-selector=status.phase=Running',
+    toolActionSnippet: 'Runtime telemetry connector not configured';
   },
   {
     id: 'msg-2',
@@ -423,7 +423,7 @@ const INITIAL_MESSAGES: InterAgentLedgerMessage[] = [
     thoughtSteps: [
       'Build granular access control toggle grid',
       'Wire emergency swarm kill switch with audit trail',
-      'Ensure 18/18 agents operational status banner',
+      'Ensure configured agent count is derived from the loaded fleet',
     ],
   },
   {
@@ -606,9 +606,9 @@ export function MailSwarmAgentAccessPanel({
                   <h1 className="text-xs font-bold text-white tracking-wide">
                     QuantGit Swarm Agent Access & Ledger
                   </h1>
-                  <span className="flex items-center gap-1 rounded-full bg-[#10B981]/20 px-2 py-0.5 text-[10px] font-bold text-[#10B981] border border-[#10B981]/40">
-                    <span className="size-1.5 rounded-full bg-[#10B981] animate-pulse" />
-                    18/18 Agents Operational
+                  <span className="flex items-center gap-1 rounded-full bg-[#A78BFA]/15 px-2 py-0.5 text-[10px] font-bold text-[#C4B5FD] border border-[#A78BFA]/30">
+                    <span className="size-1.5 rounded-full bg-[#A78BFA]" />
+                    {agents.filter((agent) => agent.isOnline).length}/{agents.length} configured
                   </span>
                 </div>
                 <div className="text-[10px] text-[#A1A4AC] flex items-center gap-1 mt-0.5 font-mono">
@@ -616,7 +616,7 @@ export function MailSwarmAgentAccessPanel({
                   <span>•</span>
                   <span>15 Subagents</span>
                   <span>•</span>
-                  <span className="text-[#38BDF8]">EKS 20/20 Pods Healthy</span>
+                  <span className="text-[#7D8590]">Runtime telemetry not connected</span>
                 </div>
               </div>
             </div>
