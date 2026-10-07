@@ -20,3 +20,32 @@ export type { RegistryHooks, RegistryOptions, AuditEntry } from './capability-re
 export { projectForQuanty } from './quanty-projection';
 export type { ProjectionPolicy } from './quanty-projection';
 export { ALL_CAPABILITIES, buildCapabilityRegistry, activeCapabilities } from './capabilities';
+
+// EC-02 — Cross-App Resource Contract & Context Envelope (doc 22).
+export * from './resource-types';
+export { RESOURCE_ERROR_CODES, ResourceContractError } from './resource-errors';
+export type { ResourceErrorCode } from './resource-errors';
+export {
+  createResourceRef,
+  tryCreateResourceRef,
+  isResourceRef,
+  parseResourceRef,
+  serializeResourceRef,
+  deserializeResourceRef,
+  deepLinkFor,
+  parseDeepLink,
+  isStaleVersion,
+  sameResource,
+} from './resource-ref';
+export {
+  createContextEnvelope,
+  isContextEnvelope,
+  parseContextEnvelope,
+  serializeEnvelope,
+  deserializeEnvelope,
+  assertBudget,
+  assertTenantMatch,
+  estimatePayloadBytes,
+  isTierWithin,
+  DEFAULT_ENVELOPE_BUDGET_BYTES,
+} from './context-envelope';

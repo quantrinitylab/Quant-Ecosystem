@@ -2,6 +2,9 @@
 // Cross-App Search Service - Federated Search Across All Apps
 // ============================================================================
 
+import type { QuantResourceRef } from '@quant/app-registry';
+import { tryCreateResourceRef } from '@quant/app-registry';
+
 export interface CrossAppSearchResult {
   id: string;
   app: string;
@@ -12,6 +15,25 @@ export interface CrossAppSearchResult {
   score: number;
   timestamp: number;
   metadata?: Record<string, string>;
+  /**
+   * EC-02 typed resource reference (doc 22 §2). Present when the result's
+   * app/type/id resolve against the canonical vocabulary; absent for
+   * unknown producers (search never drops results).
+   */
+  resourceRef?: QuantResourceRef;
+}
+
+/**
+ * EC-02: build a typed resource ref for a search result. Lenient —
+ * unknown app/type yields no ref rather than failing the search.
+ */
+export function searchResultToResourceRef(
+  app: string,
+  type: string,
+  id: string,
+  url?: string,
+): QuantResourceRef | null {
+  return tryCreateResourceRef({ appId: app, resourceType: type, resourceId: id, canonicalUrl: url });
 }
 
 export interface CrossAppSearchOptions {
@@ -61,6 +83,10 @@ export class CrossAppSearchService {
 
       if (titleMatch || contentMatch) {
         const score = titleMatch ? 1.0 : 0.5;
+        // EC-02: attach a typed resource ref when the doc's app/type/id
+        // resolve against the canonical vocabulary (doc 22 §2).
+        const resourceRef =
+          searchResultToResourceRef(doc.app, doc.type, doc.id, doc.url) ?? undefined;
         results.push({
           id: doc.id,
           app: doc.app,
@@ -71,6 +97,7 @@ export class CrossAppSearchService {
           score,
           timestamp: doc.indexedAt,
           metadata: doc.metadata,
+          ...(resourceRef ? { resourceRef } : {}),
         });
       }
     }
