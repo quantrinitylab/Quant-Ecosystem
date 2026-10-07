@@ -8,7 +8,9 @@
  *
  * Next.js proxy route handlers under `app/api/**` are the ONE place that is
  * allowed to `fetch` a backend URL (they ARE the proxy), so they are exempt.
- * Test files are exempt too.
+ * Server-side Next.js route handlers (`**\/route.ts`, e.g. `app/auth/[action]`)
+ * are proxies too — they never ship to the browser — so they are exempt as
+ * well. Test files are exempt too.
  *
  * Because the monorepo was "assembled from individually-plausible parts that were
  * never connected", there is a large pre-existing population of inline fetches in
@@ -68,6 +70,9 @@ export function isExempt(relPath: string): boolean {
   if (/\/app\/api\//.test(p)) return true;
   // Pages Router API routes (apps/*/src/pages/api/**) are also proxies.
   if (/\/pages\/api\//.test(p)) return true;
+  // Any other Next.js route handler (e.g. app/auth/[action]/route.ts) is
+  // server-side proxy code that never ships to the browser.
+  if (/\/route\.tsx?$/.test(p)) return true;
   // Tests and type declarations are not shipped UI surfaces.
   if (/\.(test|spec)\.[cm]?tsx?$/.test(p)) return true;
   if (/\/__tests__\//.test(p)) return true;
