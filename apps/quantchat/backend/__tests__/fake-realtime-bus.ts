@@ -83,6 +83,8 @@ export class SharedBusBackplane implements RealtimeBackplane {
   private handler: ((conversationId: string, event: RoomEvent) => void) | null = null;
   /** When set, `publish` rejects with this error (models a backplane outage). */
   failPublishWith: Error | null = null;
+  /** K25 — in-memory per-channel sequence (mirrors InProcessBackplane). */
+  private readonly memorySequence = new Map<string, number>();
 
   private readonly deliver: BusSubscriber = (conversationId, raw) => {
     if (!this.handler) return;
@@ -98,6 +100,13 @@ export class SharedBusBackplane implements RealtimeBackplane {
   constructor(bus: InMemoryBus, instanceId: string = createInstanceId()) {
     this.bus = bus;
     this.instanceId = instanceId;
+  }
+
+  /** K25 — single-node monotonic per-channel sequence (§18). */
+  async nextSequence(channel: string): Promise<number> {
+    const next = (this.memorySequence.get(channel) ?? 0) + 1;
+    this.memorySequence.set(channel, next);
+    return next;
   }
 
   async subscribe(conversationId: string): Promise<void> {

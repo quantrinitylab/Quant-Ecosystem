@@ -171,6 +171,7 @@ export interface RecordedPublish {
 export class FakeBackplane implements RealtimeBackplane {
   readonly instanceId = 'inst-test';
   readonly published: RecordedPublish[] = [];
+  private readonly memorySequence = new Map<string, number>();
 
   constructor(private readonly failures: FailureBudget = NO_FAILURES) {}
 
@@ -180,6 +181,13 @@ export class FakeBackplane implements RealtimeBackplane {
   async shutdown(): Promise<void> {}
   isHealthy(): boolean {
     return true;
+  }
+
+  /** K25 — in-memory per-channel sequence (§18). */
+  async nextSequence(channel: string): Promise<number> {
+    const next = (this.memorySequence.get(channel) ?? 0) + 1;
+    this.memorySequence.set(channel, next);
+    return next;
   }
 
   async publish(conversationId: string, event: RoomEvent): Promise<void> {

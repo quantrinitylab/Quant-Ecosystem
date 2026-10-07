@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createAppError, enableIdempotency } from '@quant/server-core';
 import { CrossAppDispatcher } from '@quant/notifications';
 import { MessageService } from '../services/message.service';
+import { publishConversationEvent } from '../services/realtime-publisher';
 
 const notifier = new CrossAppDispatcher('quantchat');
 
@@ -51,6 +52,27 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
       mediaUrl: parseResult.data.mediaUrl,
       replyToId: parseResult.data.replyToId,
       metadata: parseResult.data.metadata,
+    });
+
+    // K25 — realtime fan-out (contract §18/§19). The REST send path is the
+    // primary mutation path; publish a `chat.message.created.v1` envelope so
+    // connected sockets receive the message live instead of waiting for a
+    // poll. Realtime failure never fails this response (logged inside).
+    const sentMessage = message as unknown as {
+      id: string;
+      conversationId?: string;
+      version?: number;
+    };
+    const sendConversationId =
+      typeof sentMessage.conversationId === 'string' && sentMessage.conversationId
+        ? sentMessage.conversationId
+        : request.params.id;
+    void publishConversationEvent(fastify, sendConversationId, {
+      eventType: 'chat.message.created.v1',
+      resourceRef: sentMessage.id,
+      aggregateVersion:
+        typeof sentMessage.version === 'number' ? sentMessage.version : 1,
+      data: message,
     });
 
     // Notify conversation participants about the new message. Recipients are
@@ -118,6 +140,21 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     const service = new MessageService(prisma as never);
     const message = await service.editMessage(request.params.id, userId, parseResult.data.content);
 
+    // K25 — realtime fan-out for edits (contract §28 `chat.message.updated.v1`).
+    const edited = message as unknown as {
+      id: string;
+      conversationId?: string;
+      version?: number;
+    };
+    if (typeof edited.conversationId === 'string' && edited.conversationId) {
+      void publishConversationEvent(fastify, edited.conversationId, {
+        eventType: 'chat.message.updated.v1',
+        resourceRef: edited.id,
+        aggregateVersion: typeof edited.version === 'number' ? edited.version : 1,
+        data: message,
+      });
+    }
+
     return reply.send({ success: true, data: message });
   });
 
@@ -131,6 +168,21 @@ export default async function messagesRoutes(fastify: FastifyInstance) {
     const prisma = (fastify as unknown as { prisma: unknown }).prisma;
     const service = new MessageService(prisma as never);
     const message = await service.deleteMessage(request.params.id, userId);
+
+    // K25 — realtime fan-out for deletes (contract §28 `chat.message.deleted.v1`).
+    const deleted = message as unknown as {
+      id: string;
+      conversationId?: string;
+      version?: number;
+    };
+    if (typeof deleted.conversationId === 'string' && deleted.conversationId) {
+      void publishConversationEvent(fastify, deleted.conversationId, {
+        eventType: 'chat.message.deleted.v1',
+        resourceRef: deleted.id,
+        aggregateVersion: typeof deleted.version === 'number' ? deleted.version : 1,
+        data: { id: deleted.id, conversationId: deleted.conversationId },
+      });
+    }
 
     return reply.send({ success: true, data: message });
   });
