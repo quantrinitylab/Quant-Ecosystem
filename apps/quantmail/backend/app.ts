@@ -27,6 +27,7 @@ import attachmentRoutes from './routes/attachments';
 import e2eeRoutes from './routes/e2ee';
 import federationRoutes, { createFederationService } from './routes/federation';
 import { oauthRoutes } from './routes/oauth';
+import { quantyMcpRoutes } from './routes/quanty-mcp';
 import phoneRoutes from './routes/phone';
 import { authRoutes } from './routes/auth';
 import { twoFactorRoutes } from './routes/two-factor';
@@ -365,6 +366,7 @@ export async function buildApp(config?: AppConfig) {
   await app.register(passwordResetRoutes);
   await app.register(settingsTokenRoutes);
   await app.register(oauthRoutes);
+  await app.register(quantyMcpRoutes, { prefix: '/api/quanty/mcp' });
   await app.register(phoneRoutes);
   await app.register(emailsRoutes, {
     prefix: '/emails',

@@ -4699,6 +4699,72 @@ model QuantyGoalProposal {
   @@map("quanty_goal_proposals")
 }
 
+// ==================== QUANTY MCP CONNECTIONS (Q2) ====================
+/// External OAuth connections backing Quanty's MCP connectors (e.g. Gmail).
+/// Refresh tokens are encrypted at rest (AES-256-GCM); plaintext tokens
+/// NEVER touch this table — only the encrypted blob.
+model McpConnection {
+  id String @id @default(cuid())
+
+  /// Quant user who owns this grant. Scoped lookups only — no cross-user reads.
+  userId String @map("user_id")
+
+  /// Provider key: 'gmail' (future: 'github', 'calendar', 'notion', ...).
+  provider String
+
+  /// 'connected' | 'revoked' | 'error'
+  status String @default("connected")
+
+  /// AES-256-GCM encrypted refresh token (iv:authTag:data hex). Opaque blob.
+  encryptedTokens String @map("encrypted_tokens") @db.Text
+
+  /// Granted OAuth scopes (verbatim from the provider).
+  scopes String[]
+
+  /// Provider account identity (safe to display in UI).
+  accountEmail String? @map("account_email")
+  accountLabel String? @map("account_label")
+
+  /// Per-connection kill switch — when false, mcp.<provider>.* tools are
+  /// unavailable to the agent for this user.
+  enabled Boolean @default(true)
+
+  connectedAt     DateTime  @default(now()) @map("connected_at")
+  lastRefreshedAt DateTime? @map("last_refreshed_at")
+  lastTestedAt    DateTime? @map("last_tested_at")
+  lastTestOk      Boolean?  @map("last_test_ok")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@index([provider, status])
+  @@map("mcp_connections")
+}
+
+/// Audit trail for MCP grant lifecycle events. Written on every
+/// connect / disconnect / test / token-refresh outcome. Never stores tokens.
+model McpGrantAudit {
+  id String @id @default(cuid())
+
+  userId   String @map("user_id")
+  provider String
+
+  /// 'connected' | 'disconnected' | 'test_ok' | 'test_failed' |
+  /// 'token_refreshed' | 'refresh_failed' | 'revoked'
+  event String
+
+  /// Human-safe detail (no tokens, no codes, no secrets).
+  detail String? @db.Text
+
+  ipAddress String? @map("ip_address")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, provider])
+  @@index([createdAt])
+  @@map("mcp_grant_audit")
+}
 /// A proactive idea card proposed by Quanty (or created by the user).
 /// Ideas are proposals, never auto-created clutter: the agent suggests, the
 /// user saves or dismisses. Dismissed ideas remain queryable but are hidden

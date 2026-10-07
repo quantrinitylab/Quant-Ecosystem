@@ -40,4 +40,8 @@ export {
 export {
   buildGmailToolRegistry,
   registerGmailTools,
+  buildMcpGmailToolRegistry,
+  registerMcpGmailTools,
+  type McpConfirmGate,
+  type McpGmailProductionDeps,
 } from './gmail-registry';
