@@ -10,7 +10,7 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
   let simulatedDbTable: any[] = [];
 
   const createMockPrisma = () => {
-    return {
+    const mock = {
       legalHold: {
         create: vi.fn(async ({ data }: { data: any }) => {
           const row = {
@@ -73,7 +73,20 @@ describe('Task W33-03: PostgreSQL Persistence Migration for Legal Holds', () => 
         findFirst: vi.fn(),
         create: vi.fn(),
       },
+      // K1: mail mutations run inside `prisma.$transaction`; the double hands
+      // the callback the mock itself as the tx client and records outbox writes.
+      outboxEvent: {
+        create: vi.fn(async ({ data }: { data: any }) => ({
+          id: 'outbox-1',
+          publishedAt: null,
+          createdAt: new Date(),
+          ...data,
+        })),
+      },
+      $transaction: null as unknown as ReturnType<typeof vi.fn>,
     };
+    mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+    return mock;
   };
 
   beforeEach(() => {

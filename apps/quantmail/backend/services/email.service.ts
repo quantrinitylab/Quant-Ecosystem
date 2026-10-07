@@ -5,6 +5,7 @@ import { isSesConfigured, sendViaSes } from '../lib/ses-sender';
 import { QUANT_INTERNAL_DOMAINS, isInternalDomain, getSenderDomain } from '../lib/domains';
 import { suppressionService, SuppressionService } from './suppression.service';
 import { MailFilterService } from './mail-filter.service';
+import { emitOutbox, MailOutboxEvents } from '../lib/outbox-events';
 
 export interface PaginationOptions {
   page?: number;
@@ -207,25 +208,38 @@ export class EmailService {
       sender?.displayName || sender?.username || senderEmail.split('@')[0] || 'QuantMail User';
 
     const hasAttachments = Array.isArray(input.attachments) && input.attachments.length > 0;
-    const email = await this.prisma.email.create({
-      data: {
-        userId: input.userId,
-        toAddresses: input.toAddresses,
-        ccAddresses: input.ccAddresses ?? [],
-        bccAddresses: input.bccAddresses ?? [],
-        subject: input.subject,
-        bodyHtml: input.bodyHtml ?? '',
-        bodyPlain: input.bodyPlain ?? '',
-        fromAddress: senderEmail,
-        fromName: senderName,
-        isDraft: true,
-        threadId: input.threadId ?? null,
-        inReplyTo: input.inReplyTo ?? null,
-        hasAttachments,
-        attachments: input.attachments ?? [],
-        messageKind: toMessageKind(input.messageKind),
-        priority: toPriority(input.priority),
-      } as never,
+    // K1: draft row + outbox row in ONE transaction (doc 05 data-and-event-architecture).
+    const email = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.email.create({
+        data: {
+          userId: input.userId,
+          toAddresses: input.toAddresses,
+          ccAddresses: input.ccAddresses ?? [],
+          bccAddresses: input.bccAddresses ?? [],
+          subject: input.subject,
+          bodyHtml: input.bodyHtml ?? '',
+          bodyPlain: input.bodyPlain ?? '',
+          fromAddress: senderEmail,
+          fromName: senderName,
+          isDraft: true,
+          threadId: input.threadId ?? null,
+          inReplyTo: input.inReplyTo ?? null,
+          hasAttachments,
+          attachments: input.attachments ?? [],
+          messageKind: toMessageKind(input.messageKind),
+          priority: toPriority(input.priority),
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.draftCreated,
+        aggregateType: 'Email',
+        aggregateId: created.id,
+        payload: {
+          userId: input.userId,
+          threadId: (created as { threadId?: string | null }).threadId ?? null,
+        },
+      });
+      return created;
     });
 
     return email;
@@ -359,36 +373,51 @@ export class EmailService {
         recipientThreadId = null;
       }
 
-      const created = await this.prisma.email.create({
-        data: {
-          userId: recipient.id,
-          folderId: inboxFolder?.id ?? null,
-          fromAddress: senderEmail,
-          fromName: senderName,
-          toAddresses: input.toAddresses,
-          ccAddresses: input.ccAddresses ?? [],
-          bccAddresses: [],
-          subject: input.subject,
-          bodyHtml: input.bodyHtml ?? '',
-          bodyPlain: input.bodyPlain ?? '',
-          snippet,
-          threadId: recipientThreadId ?? input.threadId ?? null,
-          inReplyTo: input.inReplyTo ?? null,
-          hasAttachments,
-          attachments: input.attachments ?? [],
-          isRead: false,
-          isSent: false,
-          isDraft: false,
-          receivedAt: new Date(),
-          messageId: input.messageId ?? null,
-          messageKind: toMessageKind(input.messageKind),
-          deliveryStatus: 'delivered',
-          // Internal delivery is immediate: the copy lands in the recipient's
-          // mailbox the moment it is created. (Ticks only render on the
-          // sender's outbound copy; this keeps the recipient's own record
-          // honest if it is ever surfaced.)
-          deliveredAt: new Date(),
-        } as never,
+      // K1: recipient copy + outbox row in ONE transaction (doc 05).
+      const created = await this.prisma.$transaction(async (tx) => {
+        const copy = await tx.email.create({
+          data: {
+            userId: recipient.id,
+            folderId: inboxFolder?.id ?? null,
+            fromAddress: senderEmail,
+            fromName: senderName,
+            toAddresses: input.toAddresses,
+            ccAddresses: input.ccAddresses ?? [],
+            bccAddresses: [],
+            subject: input.subject,
+            bodyHtml: input.bodyHtml ?? '',
+            bodyPlain: input.bodyPlain ?? '',
+            snippet,
+            threadId: recipientThreadId ?? input.threadId ?? null,
+            inReplyTo: input.inReplyTo ?? null,
+            hasAttachments,
+            attachments: input.attachments ?? [],
+            isRead: false,
+            isSent: false,
+            isDraft: false,
+            receivedAt: new Date(),
+            messageId: input.messageId ?? null,
+            messageKind: toMessageKind(input.messageKind),
+            deliveryStatus: 'delivered',
+            // Internal delivery is immediate: the copy lands in the recipient's
+            // mailbox the moment it is created. (Ticks only render on the
+            // sender's outbound copy; this keeps the recipient's own record
+            // honest if it is ever surfaced.)
+            deliveredAt: new Date(),
+          } as never,
+        });
+        await emitOutbox(tx, {
+          event: MailOutboxEvents.messageReceived,
+          aggregateType: 'Email',
+          aggregateId: copy.id,
+          payload: {
+            userId: recipient.id,
+            threadId: (copy as { threadId?: string | null }).threadId ?? null,
+            messageId: input.messageId ?? null,
+            deliveryStatus: 'delivered',
+          },
+        });
+        return copy;
       });
       // P0 fix: run the recipient's filters on internally delivered mail.
       // Previously filters only ran (when wired at all) on the external
@@ -714,35 +743,58 @@ export class EmailService {
      */
     const messageId =
       (email as { messageId?: string | null }).messageId ?? `<${emailId}@quantmail.in>`;
-    const updated = await this.prisma.email.update({
-      where: { id: emailId },
-      data: {
-        isDraft: false,
-        isSent: true,
-        folderId: sentFolderId,
-        sentAt,
-        messageId,
-        /*
-         * A sent copy needs a timeline position, not just a send time.
-         *
-         * The unified inbox is one list ordered by `receivedAt`, and this column
-         * was left null on every message the user sent — so their own messages had
-         * no place in that order at all and never appeared beside the conversation
-         * they belong to. `sentAt` is when the message entered this mailbox, so it
-         * is the honest value. An existing `receivedAt` is never overwritten,
-         * which keeps a scheduled or re-sent message on its original timeline.
-         */
-        receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
-        deliveryStatus,
-        /*
-         * Read-receipt pipeline: the message is delivered the moment this send
-         * completes (internal recipients get their copies below; external SES
-         * delivery succeeded above). A queued/deferred send leaves
-         * `deliveredAt` null until the delivery worker's finalizeEmailState
-         * stamps it on completion.
-         */
-        ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
-      } as never,
+    // K1: sent-flip + outbox row in ONE transaction (doc 05). The event mirrors
+    // the deliveryStatus recorded here: queued (durable pipeline), submitted
+    // (handed to the provider / delivered immediately), deferred (transient
+    // provider failure, retryable). Spec: delivery-events.md.
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const flipped = await tx.email.update({
+        where: { id: emailId },
+        data: {
+          isDraft: false,
+          isSent: true,
+          folderId: sentFolderId,
+          sentAt,
+          messageId,
+          /*
+           * A sent copy needs a timeline position, not just a send time.
+           *
+           * The unified inbox is one list ordered by `receivedAt`, and this column
+           * was left null on every message the user sent — so their own messages had
+           * no place in that order at all and never appeared beside the conversation
+           * they belong to. `sentAt` is when the message entered this mailbox, so it
+           * is the honest value. An existing `receivedAt` is never overwritten,
+           * which keeps a scheduled or re-sent message on its original timeline.
+           */
+          receivedAt: (email as { receivedAt?: Date | null }).receivedAt ?? sentAt,
+          deliveryStatus,
+          /*
+           * Read-receipt pipeline: the message is delivered the moment this send
+           * completes (internal recipients get their copies below; external SES
+           * delivery succeeded above). A queued/deferred send leaves
+           * `deliveredAt` null until the delivery worker's finalizeEmailState
+           * stamps it on completion.
+           */
+          ...(deliveryStatus === 'delivered' ? { deliveredAt: sentAt } : {}),
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event:
+          deliveryStatus === 'queued'
+            ? MailOutboxEvents.outboundQueued
+            : deliveryStatus === 'deferred'
+              ? MailOutboxEvents.outboundDeferred
+              : MailOutboxEvents.outboundSubmitted,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (flipped as { threadId?: string | null }).threadId ?? null,
+          messageId,
+          deliveryStatus,
+        },
+      });
+      return flipped;
     });
 
     return updated;
@@ -778,47 +830,75 @@ export class EmailService {
       where: { userId, OR: [{ name: 'Drafts' }, { type: 'DRAFTS' }] },
     });
 
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: {
-        isDraft: true,
-        isSent: false,
-        sentAt: null,
-        deliveryStatus: 'draft',
-        folderId: draftsFolder?.id ?? null,
-      } as never,
+    // K1: undo flip + outbox row in ONE transaction (doc 05).
+    return this.prisma.$transaction(async (tx) => {
+      const undone = await tx.email.update({
+        where: { id: emailId },
+        data: {
+          isDraft: true,
+          isSent: false,
+          sentAt: null,
+          deliveryStatus: 'draft',
+          folderId: draftsFolder?.id ?? null,
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.outboundCancelled,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (undone as { threadId?: string | null }).threadId ?? null,
+        },
+      });
+      return undone;
     });
   }
 
   async receive(input: ReceiveEmailInput): Promise<Email> {
-    const email = await this.prisma.email.create({
-      data: {
-        userId: input.userId,
-        folderId: input.folderId,
-        fromAddress: input.fromAddress,
-        fromName: input.fromName ?? null,
-        toAddresses: input.toAddresses,
-        ccAddresses: input.ccAddresses ?? [],
-        bccAddresses: input.bccAddresses ?? [],
-        subject: input.subject,
-        bodyHtml: input.bodyHtml ?? '',
-        bodyPlain: input.bodyPlain ?? '',
-        snippet: input.snippet ?? '',
-        threadId: input.threadId ?? null,
-        inReplyTo: input.inReplyTo ?? null,
-        hasAttachments: input.hasAttachments ?? false,
-        attachments: input.attachments ?? [],
-        receivedAt: input.receivedAt ?? new Date(),
-        isRead: false,
-        // Additive inbound fields (QuantMail SuperHub Pillar 1, Reqs 5.1/5.3).
-        ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
-        ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
-        ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
-        ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
-      } as never,
+    // K1: inbound message row + outbox row in ONE transaction (doc 05).
+    // Called by the InboundIngestAdapter for every accepted inbound message.
+    return this.prisma.$transaction(async (tx) => {
+      const email = await tx.email.create({
+        data: {
+          userId: input.userId,
+          folderId: input.folderId,
+          fromAddress: input.fromAddress,
+          fromName: input.fromName ?? null,
+          toAddresses: input.toAddresses,
+          ccAddresses: input.ccAddresses ?? [],
+          bccAddresses: input.bccAddresses ?? [],
+          subject: input.subject,
+          bodyHtml: input.bodyHtml ?? '',
+          bodyPlain: input.bodyPlain ?? '',
+          snippet: input.snippet ?? '',
+          threadId: input.threadId ?? null,
+          inReplyTo: input.inReplyTo ?? null,
+          hasAttachments: input.hasAttachments ?? false,
+          attachments: input.attachments ?? [],
+          receivedAt: input.receivedAt ?? new Date(),
+          isRead: false,
+          // Additive inbound fields (QuantMail SuperHub Pillar 1, Reqs 5.1/5.3).
+          ...(input.authResults !== undefined ? { authResults: input.authResults } : {}),
+          ...(input.isSpam !== undefined ? { isSpam: input.isSpam } : {}),
+          ...(input.deliveryStatus !== undefined ? { deliveryStatus: input.deliveryStatus } : {}),
+          ...(input.aiCategory !== undefined ? { aiCategory: input.aiCategory } : {}),
+        } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.messageReceived,
+        aggregateType: 'Email',
+        aggregateId: email.id,
+        payload: {
+          userId: input.userId,
+          threadId: input.threadId ?? null,
+          folderId: input.folderId,
+          deliveryStatus: input.deliveryStatus ?? 'delivered',
+          isSpam: input.isSpam ?? false,
+        },
+      });
+      return email;
     });
-
-    return email;
   }
 
   async getEmail(emailId: string, userId: string): Promise<Email> {
@@ -884,7 +964,35 @@ export class EmailService {
   }
 
   async archive(emailId: string, archiveFolderId: string, userId: string): Promise<Email> {
-    return this.moveToFolder(emailId, archiveFolderId, userId);
+    const email = await this.prisma.email.findUnique({ where: { id: emailId } });
+
+    if (!email) {
+      throw createAppError('Email not found', 404, 'EMAIL_NOT_FOUND');
+    }
+
+    if (email.userId !== userId) {
+      throw createAppError('Not authorized', 403, 'FORBIDDEN');
+    }
+
+    // K1: archive move + outbox row in ONE transaction (doc 05).
+    return this.prisma.$transaction(async (tx) => {
+      const archived = await tx.email.update({
+        where: { id: emailId },
+        data: { folderId: archiveFolderId },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadArchived,
+        aggregateType: 'EmailThread',
+        aggregateId:
+          (archived as { threadId?: string | null }).threadId ?? archived.id,
+        payload: {
+          userId,
+          emailId,
+          folderId: archiveFolderId,
+        },
+      });
+      return archived;
+    });
   }
 
   async delete(emailId: string, userId: string, hard = false): Promise<Email> {
@@ -900,9 +1008,24 @@ export class EmailService {
 
     // Preserve history: deleting from the inbox moves the message to trash;
     // deleting an already-trashed message records a logical permanent deletion.
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: email.isTrash || hard ? { deletedAt: new Date() } : { deletedAt: null, isTrash: true },
+    // K1: delete/trash + outbox row in ONE transaction (doc 05).
+    const permanent = Boolean(email.isTrash || hard);
+    return this.prisma.$transaction(async (tx) => {
+      const deleted = await tx.email.update({
+        where: { id: emailId },
+        data: permanent ? { deletedAt: new Date() } : { deletedAt: null, isTrash: true },
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.messageDeleted,
+        aggregateType: 'Email',
+        aggregateId: emailId,
+        payload: {
+          userId,
+          threadId: (email as { threadId?: string | null }).threadId ?? null,
+          hard: permanent,
+        },
+      });
+      return deleted;
     });
   }
 
@@ -1282,9 +1405,25 @@ export class EmailService {
       return email;
     }
 
-    return this.prisma.email.update({
-      where: { id: emailId },
-      data: { labels: [...currentLabels, labelId] } as never,
+    // K1: label change + outbox row in ONE transaction (doc 05).
+    const nextLabels = [...currentLabels, labelId];
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.email.update({
+        where: { id: emailId },
+        data: { labels: nextLabels } as never,
+      });
+      await emitOutbox(tx, {
+        event: MailOutboxEvents.threadLabelChanged,
+        aggregateType: 'EmailThread',
+        aggregateId: (email as { threadId?: string | null }).threadId ?? emailId,
+        payload: {
+          userId,
+          emailId,
+          labelId,
+          labels: nextLabels,
+        },
+      });
+      return updated;
     });
   }
 }

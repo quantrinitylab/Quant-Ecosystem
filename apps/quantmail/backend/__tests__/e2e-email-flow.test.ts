@@ -3,7 +3,7 @@ import { EmailService } from '../services/email.service';
 import { FolderService } from '../services/folder.service';
 
 function createMockPrisma() {
-  return {
+  const mock = {
     user: {
       // EmailService.compose stamps the sender's own address on the message.
       findUnique: vi.fn().mockResolvedValue({ email: 'alice@test.com', displayName: 'Alice' }),
@@ -27,7 +27,20 @@ function createMockPrisma() {
     label: {
       findMany: vi.fn(),
     },
+    // K1: mail mutations run inside `prisma.$transaction`; the double hands the
+    // callback the mock itself as the tx client and records outbox writes.
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /**

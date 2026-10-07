@@ -63,7 +63,7 @@ function createMockPrisma(opts: {
   responder?: Record<string, unknown> | null;
   priorReplyLog?: Record<string, unknown> | null;
 }) {
-  return {
+  const mock = {
     user: {
       findUnique: vi.fn(async (a: { where: { email: string } }) =>
         a.where.email === RECIPIENT ? { id: RECIPIENT_USER_ID } : null,
@@ -110,7 +110,20 @@ function createMockPrisma(opts: {
     contact: {
       findFirst: vi.fn(async () => null),
     },
+    // K1: EmailService.receive runs inside `prisma.$transaction`; the double
+    // hands the callback the mock itself as the tx client.
+    outboxEvent: {
+      create: vi.fn(async (a: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...a.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 function createSpyIndexer(): EmailIndexerPort & { index: ReturnType<typeof vi.fn> } {

@@ -87,7 +87,20 @@ function makePrisma() {
       update: vi.fn(async ({ data }: any) => data),
       upsert: vi.fn(async ({ create }: any) => ({ id: 'c1', ...create })),
     },
+    // K1: EmailService mutations run inside `prisma.$transaction`; the double
+    // hands the callback the mock itself as the tx client and records outbox
+    // writes.
+    outboxEvent: {
+      create: vi.fn(async ({ data }: any) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  prisma.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(prisma));
   return { prisma, updates };
 }
 

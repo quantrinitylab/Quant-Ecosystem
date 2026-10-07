@@ -91,7 +91,7 @@ const RECIPIENT_USER_ID = 'user-1';
 const NEW_THREAD_ID = 'thread-1';
 
 function createMockPrisma() {
-  return {
+  const mock = {
     user: {
       findUnique: vi.fn(async (args: { where: { email: string } }) =>
         args.where.email === 'alice@quantmail.test' ? { id: RECIPIENT_USER_ID } : null,
@@ -125,7 +125,20 @@ function createMockPrisma() {
         ...args.data,
       })),
     },
+    // K1: EmailService.receive runs inside `prisma.$transaction`; the double
+    // hands the callback the mock itself as the tx client.
+    outboxEvent: {
+      create: vi.fn(async (args: { data: Record<string, unknown> }) => ({
+        id: 'outbox-1',
+        publishedAt: null,
+        createdAt: new Date(),
+        ...args.data,
+      })),
+    },
+    $transaction: null as unknown as ReturnType<typeof vi.fn>,
   };
+  mock.$transaction = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock));
+  return mock;
 }
 
 /** A spy indexer so we can assert whether index() was (or was not) invoked. */
