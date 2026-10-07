@@ -51,14 +51,15 @@ describe('QuantChat SSO Token Handoff & Session Ingestion', () => {
     const ticket = bridge.generateHandoffTicket('quantchat');
     expect(ticket).toBeTruthy();
 
-    // Verify handoff ticket extraction
-    const verified = bridge.verifyHandoffTicket(ticket!);
-    expect(verified).not.toBeNull();
-    expect(verified?.userId).toBe('user-chat-sso-1');
-    expect(verified?.token).toBe('jwt-alex-token-999');
+    // Unwrap the handoff ticket envelope (decode-only: verifies nothing by itself —
+    // the wrapped token is verified server-side via /api/auth/sso/exchange)
+    const unwrapped = bridge.decodeUnverifiedHandoffTicket(ticket!);
+    expect(unwrapped).not.toBeNull();
+    expect(unwrapped?.userId).toBe('user-chat-sso-1');
+    expect(unwrapped?.token).toBe('jwt-alex-token-999');
 
     // Ingest into quantchat session
-    persistSession(verified!.token!, verified!.token!);
+    persistSession(unwrapped!.token!, unwrapped!.token!);
     expect(localStorage.getItem('quant_access_token')).toBe('jwt-alex-token-999');
   });
 

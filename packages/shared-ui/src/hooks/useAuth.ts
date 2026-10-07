@@ -98,7 +98,7 @@ export function useAuth(): UseAuthReturn {
       if (!token) {
         try {
           const bridge = UniversalSSOTokenBridge.getInstance();
-          const consumed = bridge.consumeHandoffTicket();
+          const consumed = await bridge.consumeHandoffTicket();
           if (consumed?.ticket) {
             token = consumed.session?.token || consumed.ticket;
             storeTokens({ accessToken: token });

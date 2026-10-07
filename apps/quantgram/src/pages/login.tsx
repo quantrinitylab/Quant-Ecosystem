@@ -7,6 +7,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
+import { UniversalSSOTokenBridge } from '@quant/shared-ui';
 import { AuroraMeshCanvas } from '../components/auth/AuroraMeshCanvas';
 
 /** Only allow same-origin, absolute-path returns so ?returnTo cannot open-redirect. */
@@ -180,21 +181,21 @@ export default function LoginPage() {
       void router.replace(destination());
       return;
     }
-    // Check if we have an active session or a token in URL/Storage
-    const ssoResult =
-      typeof window !== 'undefined'
-        ? (window as any).UniversalSSOTokenBridge?.getInstance().consumeHandoffTicket()
-        : null;
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasToken =
-      urlParams.get('token') ||
-      urlParams.get('accessToken') ||
-      urlParams.get('__quant_sso_ticket') ||
-      ssoResult?.ticket;
+    // Check if we have an active session or a token in URL/Storage.
+    // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
+    // server-side and returns null for forged/tampered/expired tickets.
+    // (Uses the shared bridge import — the old (window as any) global was
+    // never set and always evaluated to undefined.)
+    (async () => {
+      const ssoResult =
+        typeof window !== 'undefined'
+          ? await UniversalSSOTokenBridge.getInstance().consumeHandoffTicket()
+          : null;
 
-    if (hasToken) {
-      void router.replace(destination());
-    }
+      if (ssoResult?.ticket) {
+        void router.replace(destination());
+      }
+    })();
   }, [isAuthenticated, isLoading, destination, router]);
 
   const handleQuantSSO = useCallback(() => {

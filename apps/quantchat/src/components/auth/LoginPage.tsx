@@ -178,9 +178,13 @@ export default function LoginPage(props: LoginPageProps) {
         const rawReturn = params.get('returnTo') || params.get('__quant_return');
 
         const bridge = UniversalSSOTokenBridge.getInstance();
+        // decodeUnverifiedHandoffTicket only UNWRAPS the client-side ticket envelope
+        // to find the wrapped token — it verifies nothing. The token is verified
+        // server-side by /api/auth/sso/exchange below (fail closed).
         const ssoToken =
-          (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
-          tokenParam;
+          (ticketParam
+            ? bridge.decodeUnverifiedHandoffTicket(ticketParam)?.token || ticketParam
+            : null) || tokenParam;
 
         if (!ssoToken) return;
 

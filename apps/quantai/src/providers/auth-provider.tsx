@@ -43,17 +43,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== 'undefined') {
         try {
           const bridge = UniversalSSOTokenBridge.getInstance();
-          const consumed = bridge.consumeHandoffTicket();
-          const params = new URLSearchParams(window.location.search);
-          const ticketParam = params.get('__quant_sso_ticket');
-          const tokenParam =
-            params.get('token') || params.get('accessToken') || params.get('access_token');
+          // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
+          // server-side and returns null for forged/tampered/expired tickets,
+          // so isAuthenticated is only set on a server-verified identity.
+          const consumed = await bridge.consumeHandoffTicket();
 
-          const resolvedToken =
-            consumed?.session?.token ||
-            consumed?.ticket ||
-            (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
-            tokenParam;
+          const resolvedToken = consumed?.session?.token;
 
           if (resolvedToken) {
             ingestSSOToken(resolvedToken);
