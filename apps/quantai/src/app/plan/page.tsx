@@ -22,6 +22,7 @@ import MessagingChannelsSection from '../../components/plan/MessagingChannelsSec
 import DevicesSection from '../../components/plan/DevicesSection';
 import NotificationsSection from '../../components/plan/NotificationsSection';
 import type { PlanSummaryData } from '../../components/plan/types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const DEFAULT_PLAN: PlanSummaryData = {
   configured: false,
@@ -36,7 +37,7 @@ export default function PlanPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/quanty/plan', { headers: getAuthHeaders() })
+    apiFetchRaw('/api/quanty/plan', { headers: getAuthHeaders() })
       .then(async (r) => {
         const j = await r.json();
         if (!cancelled) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import FeedInstructionsCard from '../../components/feed/FeedInstructionsCard';
 import FeedPostCard, { type FeedPost } from '../../components/feed/FeedPostCard';
+import { apiFetchRaw } from '@quant/api-client';
 
 const PAGE_SIZE = 20;
 
@@ -16,7 +17,7 @@ interface FeedPageData {
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
+  const res = await apiFetchRaw(path, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });

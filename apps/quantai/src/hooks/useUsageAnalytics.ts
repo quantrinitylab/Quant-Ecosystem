@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getAuthToken } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface DailyUsagePoint {
   date: string;
@@ -36,7 +37,7 @@ export function useUsageAnalytics(days = 30): UseUsageAnalyticsReturn {
         const headers: Record<string, string> = {};
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`/api/usage/daily?days=${days}`, { headers, signal });
+        const res = await apiFetchRaw(`/api/usage/daily?days=${days}`, { headers, signal });
         if (!res.ok) throw new Error(`Failed to load analytics: ${res.status}`);
 
         const json = (await res.json()) as { data?: DailyUsagePoint[] };

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { getAuthToken } from '../../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Goal {
   id: string;
@@ -34,7 +35,7 @@ function categoryLabel(category: string): string {
 
 async function api(path: string, method: string, body?: unknown): Promise<{ success: boolean; data?: any; error?: string }> {
   const token = getAuthToken();
-  const res = await fetch(path, {
+  const res = await apiFetchRaw(path, {
     method,
     headers: {
       'Content-Type': 'application/json',

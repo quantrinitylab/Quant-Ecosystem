@@ -9,6 +9,7 @@
 import React, { useEffect, useState } from 'react';
 import { getAuthHeaders } from '../../lib/auth';
 import type { ToolPolicy, ToolPolicyData } from './types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const POLICY_ORDER: ToolPolicy[] = ['allow', 'ask', 'deny'];
 
@@ -19,7 +20,7 @@ export default function PermissionsSection() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/quanty/permissions', { headers: getAuthHeaders() })
+    apiFetchRaw('/api/quanty/permissions', { headers: getAuthHeaders() })
       .then(async (r) => {
         const j = await r.json();
         if (!cancelled) {
@@ -36,7 +37,7 @@ export default function PermissionsSection() {
   const setPolicy = async (id: string, policy: ToolPolicy) => {
     setSaving(id);
     try {
-      const r = await fetch('/api/quanty/permissions', {
+      const r = await apiFetchRaw('/api/quanty/permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
         body: JSON.stringify({ tools: [{ id, policy }] }),

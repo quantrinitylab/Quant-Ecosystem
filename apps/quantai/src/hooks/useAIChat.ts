@@ -8,6 +8,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { getAuthToken, savePreservedChatState, loadPreservedChatState } from '../lib/auth';
 import type { ToolCall } from '../types/tool-calls';
+import { apiFetchRaw } from '@quant/api-client';
 
 export interface ChatMessage {
   id: string;
@@ -153,7 +154,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     (async () => {
       setIsLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/sessions?pageSize=50`, { headers: authHeaders() });
+        const res = await apiFetchRaw(`${API_BASE}/sessions?pageSize=50`, { headers: authHeaders() });
         const preserved = loadPreservedChatState();
         if (!res.ok) {
           // Unauthenticated or backend offline: restore preserved conversations if available
@@ -232,7 +233,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
   const loadMessages = useCallback(
     async (conversationId: string) => {
       try {
-        const res = await fetch(`${API_BASE}/sessions/${conversationId}/messages?pageSize=200`, {
+        const res = await apiFetchRaw(`${API_BASE}/sessions/${conversationId}/messages?pageSize=200`, {
           headers: authHeaders(),
         });
         if (!res.ok) return;
@@ -260,7 +261,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
 
   const createConversation = useCallback(async (): Promise<string | null> => {
     try {
-      const res = await fetch(`${API_BASE}/sessions`, {
+      const res = await apiFetchRaw(`${API_BASE}/sessions`, {
         method: 'POST',
         headers: authHeaders(true),
         body: JSON.stringify({ model: currentModel }),
@@ -298,7 +299,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (activeConversationId === id) setActiveConversationId(null);
       try {
-        await fetch(`${API_BASE}/sessions/${id}`, { method: 'DELETE', headers: authHeaders() });
+        await apiFetchRaw(`${API_BASE}/sessions/${id}`, { method: 'DELETE', headers: authHeaders() });
       } catch {
         // ignore — already removed locally
       }
@@ -315,7 +316,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       // Guest (local-only) conversations have no server row — keep it local.
       if (id.startsWith('guest-conv-')) return true;
       try {
-        const res = await fetch(`${API_BASE}/sessions/${encodeURIComponent(id)}/topic`, {
+        const res = await apiFetchRaw(`${API_BASE}/sessions/${encodeURIComponent(id)}/topic`, {
           method: 'POST',
           headers: authHeaders(true),
           body: JSON.stringify({ topic: cleaned }),
@@ -387,7 +388,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
         setError(null);
 
         try {
-          const res = await fetch(`${API_BASE}/sessions/${convId}/messages/stream`, {
+          const res = await apiFetchRaw(`${API_BASE}/sessions/${convId}/messages/stream`, {
             method: 'POST',
             headers: authHeaders(true),
             body: JSON.stringify({ content: trimmed }),
@@ -453,7 +454,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
           if (isFirstMessage) {
             const title = trimmed.slice(0, 60);
             patchConversation(convId, (c) => ({ ...c, title }));
-            void fetch(`${API_BASE}/sessions/${convId}`, {
+            void apiFetchRaw(`${API_BASE}/sessions/${convId}`, {
               method: 'PUT',
               headers: authHeaders(true),
               body: JSON.stringify({ title }),
@@ -508,7 +509,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
       }));
 
       const next = previous === value ? null : value;
-      void fetch(`${API_BASE}/sessions/${convId}/messages/${messageId}/feedback`, {
+      void apiFetchRaw(`${API_BASE}/sessions/${convId}/messages/${messageId}/feedback`, {
         method: 'POST',
         headers: authHeaders(true),
         body: JSON.stringify({ feedback: next }),
@@ -527,7 +528,7 @@ export function useAIChat(options: UseAIChatOptions = {}): UseAIChatReturn {
     (modelId: string) => {
       setCurrentModel(modelId);
       if (activeConversationId) {
-        void fetch(`${API_BASE}/sessions/${activeConversationId}`, {
+        void apiFetchRaw(`${API_BASE}/sessions/${activeConversationId}`, {
           method: 'PUT',
           headers: authHeaders(true),
           body: JSON.stringify({ model: modelId }),
