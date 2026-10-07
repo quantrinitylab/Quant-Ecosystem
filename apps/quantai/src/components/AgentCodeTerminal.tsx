@@ -22,7 +22,7 @@ interface AgentCodeTerminalProps {
 
 const INITIAL_BANNER = `
  ╔══════════════════════════════════════════════════════════════════════╗
- ║  ⚡ QUANTY AUTONOMOUS AGENTIC OS (Claude Code + Codex Parity)       ║
+ ║  ⚡ QUANTY AUTONOMOUS AGENTIC OS                                    ║
  ║  Workspace: ~/workspace (Monorepo Root)                              ║
  ║  Cross-App MCP Bridge: QuantMail • QuantDrive • Calendar • CodeHub   ║
  ║  Commands: /run [file] | /build | /test | /git | npm test | /help    ║
@@ -32,7 +32,7 @@ const INITIAL_BANNER = `
 export function AgentCodeTerminal({
   onArtifactGenerated,
   onOpenCanvas,
-  currentModelName = 'Claude 3.5 Sonnet / Codex',
+  currentModelName = 'Quanty',
 }: AgentCodeTerminalProps) {
   const [input, setInput] = useState('');
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);

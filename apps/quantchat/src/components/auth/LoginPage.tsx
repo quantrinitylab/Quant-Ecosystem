@@ -308,16 +308,7 @@ export default function LoginPage(props: LoginPageProps) {
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-violet-600/15 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Top Status Pill: honest E2EE description (custom X25519-ECIES + ratchet KDF, NOT Signal protocol) */}
-      <div className="relative z-10 mb-5 flex items-center justify-center">
-        <div
-          data-testid="status-pill-e2ee"
-          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-mono tracking-wide shadow-[0_0_20px_rgba(16,185,129,0.15)] backdrop-blur-md"
-        >
-          <span className="text-emerald-400 select-none leading-none">●</span>
-          <span>E2EE · X25519-ECIES + ratchet KDF (custom, not Signal protocol)</span>
-        </div>
-      </div>
+      {/* Trust badges and crypto claims removed: every word must be provable truth. */}
 
       {/* Main Glassmorphic Card Container */}
       <div className="w-full max-w-md backdrop-blur-2xl bg-[#0B101B]/80 border border-white/10 rounded-3xl p-8 shadow-2xl shadow-emerald-950/20 relative z-10">
@@ -334,9 +325,6 @@ export default function LoginPage(props: LoginPageProps) {
             <h1 className="text-2xl font-bold text-white tracking-tight">
               QuantChat Sovereign Communications
             </h1>
-            <p className="text-xs font-semibold text-emerald-400 tracking-wide mt-1">
-              End-to-End Encrypted · Zero-Knowledge Relay
-            </p>
             <p className="text-sm text-slate-400 mt-1.5">
               Sign in to QuantChat. Use your QuantMail account to continue.
             </p>
@@ -423,10 +411,6 @@ export default function LoginPage(props: LoginPageProps) {
             </button>
           </div>
 
-          <p className="text-center text-xs text-slate-400 mb-5">
-            Single-click sovereign cryptographic sign-in. Zero password transmission.
-          </p>
-
           {/* Clean Segmented Divider */}
           <div
             className="flex items-center gap-3 mb-2"
@@ -505,26 +489,6 @@ export default function LoginPage(props: LoginPageProps) {
           </div>
         </div>
 
-        {/* WhatsApp-Style Live Security Metrics Banner */}
-        <div
-          data-testid="security-metrics-banner"
-          className="mt-6 pt-5 border-t border-white/[0.08] flex items-center justify-between text-[11px] text-slate-400"
-        >
-          <div className="flex items-center gap-1.5 text-emerald-400/90">
-            <ShieldCheckIcon className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-            <span className="font-medium tracking-tight">256-Bit Quantum Resistant</span>
-          </div>
-          <span className="text-slate-600">·</span>
-          <div className="flex items-center gap-1.5 text-cyan-400/90">
-            <DevicesIcon className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
-            <span className="font-medium tracking-tight">Multi-Device Sync</span>
-          </div>
-          <span className="text-slate-600">·</span>
-          <div className="flex items-center gap-1.5 text-slate-400">
-            <LockKeyholeIcon className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-            <span className="font-medium tracking-tight">No Data Brokerage</span>
-          </div>
-        </div>
       </div>
 
       {/* Legal Links — WhatsApp / Telegram standard */}

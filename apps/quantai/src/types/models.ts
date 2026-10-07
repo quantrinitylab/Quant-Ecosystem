@@ -12,6 +12,11 @@ export interface AIModel {
   icon: string;
   description: string;
   isDefault?: boolean;
+  /**
+   * True when the model is only usable with the user's own provider API key
+   * (BYOM). Platform-served models do not set this.
+   */
+  requiresUserKey?: boolean;
 }
 
 export const AVAILABLE_MODELS: AIModel[] = [
@@ -24,6 +29,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     icon: '⭐',
     description: 'Most capable OpenAI model',
     isDefault: true,
+    requiresUserKey: true,
   },
   {
     id: 'gpt-4',
@@ -33,6 +39,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['reasoning', 'code', 'tools'],
     icon: '⚡',
     description: 'Powerful reasoning model',
+    requiresUserKey: true,
   },
   {
     id: 'claude-3.5-sonnet',
@@ -42,6 +49,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['reasoning', 'code', 'vision', 'tools', 'analysis'],
     icon: '✨',
     description: 'Best for nuanced tasks',
+    requiresUserKey: true,
   },
   {
     id: 'claude-3-opus',
@@ -51,6 +59,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['reasoning', 'creative', 'analysis'],
     icon: '🎵',
     description: 'Creative & analytical powerhouse',
+    requiresUserKey: true,
   },
   {
     id: 'llama-3-70b',
@@ -60,6 +69,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['reasoning', 'code', 'multilingual'],
     icon: '🦙',
     description: 'Open-source excellence',
+    requiresUserKey: true,
   },
   {
     id: 'gemini-pro',
@@ -69,6 +79,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     capabilities: ['reasoning', 'vision', 'code', 'multimodal'],
     icon: '💎',
     description: 'Google multimodal AI',
+    requiresUserKey: true,
   },
   {
     id: 'quant-1',

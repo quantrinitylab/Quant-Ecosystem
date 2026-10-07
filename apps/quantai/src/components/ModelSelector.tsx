@@ -107,10 +107,18 @@ export function ModelSelector({
                           </span>
                           <span
                             className="text-xs px-1.5 py-0.5 rounded-full font-medium text-white"
-                            style={{ backgroundColor: PROVIDER_COLORS[model.provider] }}
+                            style={{
+                              backgroundColor:
+                                PROVIDER_COLORS[model.provider] || '#6b7280',
+                            }}
                           >
                             {model.provider}
                           </span>
+                          {model.requiresUserKey && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full font-medium border border-amber-500/40 text-amber-400">
+                              Your key
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-[var(--foreground-secondary)] mt-0.5">
                           {model.description}

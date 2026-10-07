@@ -299,9 +299,12 @@ const HomePage: React.FC = () => {
                           <p className="text-xs text-[var(--quant-muted-foreground)] mt-1">
                             {video.channelName || 'Quant Creator'}
                           </p>
-                          <p className="text-xs text-[var(--quant-muted-foreground)]">
-                            {formatViews(displayViews)} &middot; {displayDate}
-                          </p>
+                          {/* Samples carry no engagement metadata: no fake views/dates. */}
+                          {!video.isSample && (
+                            <p className="text-xs text-[var(--quant-muted-foreground)]">
+                              {formatViews(displayViews)} &middot; {displayDate}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </motion.div>

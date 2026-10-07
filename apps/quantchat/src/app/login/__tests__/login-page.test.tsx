@@ -94,18 +94,20 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(canvasHtml).toContain('custom-canvas');
   });
 
-  it('renders Signal/Telegram-class sovereign communications typography and status pill', () => {
+  it('renders honest sign-in copy: no unprovable crypto claims', () => {
     const html = renderToString(<LoginPage />);
 
-    // Headline & Subtitle
+    // Headline kept; subtitle is a plain instruction
     expect(html).toContain('QuantChat Sovereign Communications');
-    expect(html).toContain('End-to-End Encrypted · Zero-Knowledge Relay');
+    expect(html).toContain('Sign in to QuantChat. Use your QuantMail account to continue.');
 
-    // Top status pill
-    expect(html).toContain('data-testid="status-pill-e2ee"');
-    expect(html).toContain('E2EE · X25519-ECIES + ratchet KDF (custom, not Signal protocol)');
-    expect(html).not.toContain('Signal Protocol');
-    expect(html).not.toContain('Double Ratchet');
+    // Unprovable crypto claims must be gone
+    expect(html).not.toContain('End-to-End Encrypted · Zero-Knowledge Relay');
+    expect(html).not.toContain('data-testid="status-pill-e2ee"');
+    expect(html).not.toContain('E2EE · X25519-ECIES');
+    expect(html).not.toContain('256-Bit Quantum Resistant');
+    expect(html).not.toContain('Zero password transmission');
+    expect(html).not.toContain('data-testid="security-metrics-banner"');
 
     // E2EE shield/beacon vector marks present (no tacky raw letter Q box)
     expect(html).toContain('<svg');
@@ -121,13 +123,12 @@ describe('QuantChat SSO-primary Login UI — LoginPage & Page', () => {
     expect(html).toContain('Direct Password / Email');
   });
 
-  it('renders WhatsApp-style live security metrics banner at bottom', () => {
+  it('does not render the removed security-metrics banner', () => {
     const html = renderToString(<LoginPage />);
 
-    expect(html).toContain('data-testid="security-metrics-banner"');
-    expect(html).toContain('256-Bit Quantum Resistant');
-    expect(html).toContain('Multi-Device Sync');
-    expect(html).toContain('No Data Brokerage');
+    expect(html).not.toContain('data-testid="security-metrics-banner"');
+    expect(html).not.toContain('Multi-Device Sync');
+    expect(html).not.toContain('No Data Brokerage');
   });
 
   it('enforces ZERO raw Unicode emojis across the entire login UI', () => {
