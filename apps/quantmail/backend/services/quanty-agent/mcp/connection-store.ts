@@ -63,6 +63,8 @@ export interface McpConnectionRow {
   lastRefreshedAt: Date | null;
   lastTestedAt: Date | null;
   lastTestOk: boolean | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /** Grant lifecycle events written to `mcp_grant_audit`. */
