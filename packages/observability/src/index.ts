@@ -10,7 +10,6 @@ export { CircuitBreaker } from './core/circuit-breaker';
 export { RetryHandler } from './core/retry-handler';
 export { Bulkhead } from './core/bulkhead';
 export { TimeoutManager, TimeoutError } from './core/timeout-manager';
-export { ErrorTracker } from './core/error-tracker';
 export { PerformanceProfiler } from './core/performance-profiler';
 export { SLOTracker } from './core/slo-tracker';
 export { ChaosEngine } from './core/chaos-engineering';

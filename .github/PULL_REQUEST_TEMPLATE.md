@@ -34,6 +34,5 @@ Brief description of changes, context, and problem statement.
 
 ### 5. Swarm Memory & Documentation Synchronization
 
-- [ ] Updated `AGENT_MEMORY.md` with architectural decisions, findings, or parity milestones.
 - [ ] Updated `TASK_PLANNER.md` with checked-off tasks (`- [x]`).
 - [ ] Mirrored ledgers to `C:\Users\Pc\.gemini\` as per sovereign directive.

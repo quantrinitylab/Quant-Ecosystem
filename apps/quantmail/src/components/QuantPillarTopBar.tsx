@@ -609,7 +609,7 @@ export function QuantPillarTopBar({
         ? 'drive'
         : pathname.startsWith('/contacts')
           ? 'contacts'
-          : pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')
+          : pathname.startsWith('/quantgit')
             ? 'quantgit'
             : 'mail');
 

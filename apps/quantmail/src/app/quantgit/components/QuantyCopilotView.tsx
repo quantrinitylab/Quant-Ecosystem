@@ -624,7 +624,6 @@ export function QuantyCopilotView({
                       Architecture Files
                     </div>
                     {[
-                      { name: 'AGENT_MEMORY.md', desc: 'Swarm Memory & Architecture Ledger' },
                       { name: 'TASK_PLANNER.md', desc: 'Sprint Tasks & Roadmap Tracker' },
                       {
                         name: 'apps/quantmail/src/app/quantgit/page.tsx',
@@ -693,7 +692,6 @@ export function QuantyCopilotView({
                       { token: '@quantmail-core', desc: 'Mail, drive & calendar engine' },
                       { token: '@quantchat-meet', desc: 'LiveKit WebRTC meet gateway' },
                       { token: '@quant-mobile-android', desc: 'Native Android project' },
-                      { token: '@AGENT_MEMORY.md', desc: 'Ecosystem memory ledger' },
                       { token: '@TASK_PLANNER.md', desc: 'Sprint tasks planner' },
                       { token: '@BubbleAvatar.tsx', desc: 'Living aurora mascot' },
                       { token: '@git.ts', desc: 'Git wire protocol server' },

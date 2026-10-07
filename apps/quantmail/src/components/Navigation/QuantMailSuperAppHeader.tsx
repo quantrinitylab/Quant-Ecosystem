@@ -513,7 +513,7 @@ export function QuantMailSuperAppHeader({
     if (pathname.startsWith('/calendar')) return 'calendar';
     if (pathname.startsWith('/drive')) return 'drive';
     if (pathname.startsWith('/contacts')) return 'contacts';
-    if (pathname.startsWith('/quantgit') || pathname.startsWith('/codehub') || pathname.startsWith('/repos')) {
+    if (pathname.startsWith('/quantgit')) {
       return 'quantgit';
     }
     return 'mail';

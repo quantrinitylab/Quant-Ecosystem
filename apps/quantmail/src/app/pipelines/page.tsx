@@ -89,7 +89,7 @@ export default function PipelinesPage() {
             </p>
           </div>
           <div className="hidden md:block">
-            <Button variant="secondary" onClick={() => router.push('/repos')}>
+            <Button variant="secondary" onClick={() => router.push('/quantgit')}>
               Repositories
             </Button>
           </div>
@@ -118,7 +118,7 @@ export default function PipelinesPage() {
                 title="Connect your first workflow"
                 description="Workflows run checks, builds, and deployments for each repository. Create a repository or add a CI file so your Code workspace can start automating real work."
                 actionLabel="Open repositories"
-                onAction={() => router.push('/repos')}
+                onAction={() => router.push('/quantgit')}
               />
             )}
             {!loadingWorkflows &&
@@ -170,7 +170,7 @@ export default function PipelinesPage() {
                   title="Build history will appear here"
                   description="Builds show up after a workflow is configured and triggered. Set up a repository workflow first so the system has something real to run."
                   actionLabel="Open repositories"
-                  onAction={() => router.push('/repos')}
+                  onAction={() => router.push('/quantgit')}
                 />
               ))}
             {!loadingBuilds &&
@@ -221,7 +221,7 @@ export default function PipelinesPage() {
                   title="Deployments need a release path"
                   description="Create a repository and add a deployment workflow so staging, preview, or production releases can appear here with real history."
                   actionLabel="Open repositories"
-                  onAction={() => router.push('/repos')}
+                  onAction={() => router.push('/quantgit')}
                 />
               ))}
             {!loadingDeployments &&

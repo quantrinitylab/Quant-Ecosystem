@@ -264,7 +264,7 @@ export function KeyboardProvider({ children }: { children: ReactNode }) {
       keys: ['g k', 'g p'],
       icon: 'code',
       keywords: ['git', 'repositories', 'branches', 'pull requests', 'codehub'],
-      run: go('/codehub'),
+      run: go('/quantgit'),
     },
     // ── Compose ───────────────────────────────────────────────────────────────
     {
