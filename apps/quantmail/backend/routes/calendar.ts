@@ -961,10 +961,23 @@ export default async function calendarRoutes(
       calendarId?: string;
       cursor?: string;
       limit?: string | number;
+      q?: string;
     };
   }>('/events', async (request, reply) => {
     const userId = requireUserId(request);
     const { start, end, calendarId, cursor } = request.query;
+    // K10: full-text-ish filter over title/description/location so Universal
+    // Search has a real calendar backend endpoint (case-insensitive contains).
+    const q = request.query.q?.trim();
+    const textMatch = q
+      ? {
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } },
+            { location: { contains: q, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     if (start && end && !cursor && request.query.limit === undefined) {
       const startDate = toDate(start, 'start');
       const requestedEnd = toDate(end, 'end');
@@ -980,6 +993,7 @@ export default async function calendarRoutes(
           recurrenceRule: null,
           startTime: { gte: startDate, lte: endDate },
           ...(calendarId ? { calendarId } : {}),
+          ...textMatch,
         },
         orderBy: { startTime: 'asc' },
         take: 1000,
@@ -990,6 +1004,7 @@ export default async function calendarRoutes(
           recurrenceRule: { not: null },
           startTime: { lte: endDate },
           ...(calendarId ? { calendarId } : {}),
+          ...textMatch,
         },
         take: 200,
       })) as EventRow[];
@@ -1016,7 +1031,7 @@ export default async function calendarRoutes(
 
     const limit = Math.min(250, Math.max(1, Number(request.query.limit) || 50));
     const prisma = getPrisma(fastify);
-    const where: Record<string, unknown> = { userId };
+    const where: Record<string, unknown> = { userId, ...textMatch };
     if (calendarId) where.calendarId = calendarId;
     if (start || end)
       where.startTime = {

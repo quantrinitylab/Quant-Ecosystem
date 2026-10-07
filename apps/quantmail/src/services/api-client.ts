@@ -445,6 +445,35 @@ export class QuantMailApiClient {
     }) as Promise<PaginatedResponse<Email>>;
   }
 
+  /**
+   * Omni cross-app search: emails + drive files + collaborative documents in one
+   * backend call. Backs Universal Search (K10/M13). The Next app has a dedicated
+   * `/api/search/all` route file that forwards to the backend `/search/all`.
+   *
+   * `files` are raw drive-file rows (id, name, mimeType, size, updatedAt, …),
+   * `documents` are document rows (id, title, updatedAt, snapshotStorageKey).
+   * All are the user's own — the backend scopes every leg by userId.
+   */
+  async searchAll(
+    query: string,
+    limit = 8,
+  ): Promise<
+    ApiResponse<{
+      query: string;
+      emails: Email[];
+      files: Array<{
+        id: string;
+        name: string;
+        mimeType?: string;
+        size?: number;
+        updatedAt?: string;
+      }>;
+      documents: Array<{ id: string; title: string; updatedAt?: string }>;
+    }>
+  > {
+    return this.get('/search/all', { params: { q: query, limit } as any });
+  }
+
   async composeEmail(data: ComposeEmailRequest): Promise<ApiResponse<Email>> {
     return this.post('/emails/compose', data);
   }
@@ -918,6 +947,36 @@ export class QuantMailApiClient {
     return this.delete(url);
   }
 
+  /**
+   * One event by id — backs the in-app event-detail screen (M09/K10).
+   * The backend answers 404 EVENT_NOT_FOUND for somebody else's event.
+   */
+  async getEvent(id: string): Promise<ApiResponse<CalendarEvent>> {
+    return this.get(`/events/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * RSVP to an event the caller was invited to.
+   * status is one of 'accepted' | 'declined' | 'tentative' | 'pending'.
+   */
+  async rsvpEvent(
+    id: string,
+    status: 'accepted' | 'declined' | 'tentative' | 'pending',
+  ): Promise<ApiResponse<CalendarEvent>> {
+    return this.post(`/events/${encodeURIComponent(id)}/rsvp`, { status });
+  }
+
+  /**
+   * Text search over the user's events (title, description, location).
+   * K10: real calendar backend endpoint for Universal Search.
+   */
+  async searchCalendarEvents(
+    query: string,
+    limit = 10,
+  ): Promise<ApiResponse<CalendarEvent[]>> {
+    return this.get('/events', { params: { q: query, limit } as any });
+  }
+
   async findAvailableSlots(
     date: string,
     duration: number,
@@ -972,6 +1031,15 @@ export class QuantMailApiClient {
    */
   async getFrequentContacts(limit?: number): Promise<ApiResponse<Contact[]>> {
     return this.get('/contacts/frequent', { params: { limit } });
+  }
+
+  /**
+   * Text search over the user's contacts — backs Universal Search (K10/M13).
+   * Through the Next proxy this is `/api/contacts/search` (dedicated route
+   * file), which forwards `/contacts/search` to the backend verbatim.
+   */
+  async searchContacts(query: string): Promise<ApiResponse<Contact[]>> {
+    return this.get('/contacts/search', { params: { q: query } as any });
   }
 
   async createContact(data: Partial<Contact>): Promise<ApiResponse<Contact>> {

@@ -12,6 +12,7 @@ import { AccountBadge } from './AccountBadge';
 
 type IconName =
   | 'archive'
+  | 'bell'
   | 'calendar'
   | 'chevron'
   | 'clock'
@@ -39,6 +40,12 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
       <path d="M4 7h16" />
       <path d="M5 7l1-3h12l1 3v12H5z" />
       <path d="M9 11h6" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </>
   ),
   calendar: (
@@ -244,6 +251,9 @@ const NAV_GROUPS: Array<{
       { id: 'contacts', label: 'Contacts', icon: 'contacts', path: '/contacts', desktopOnly: true },
       { id: 'drive', label: 'Drive', icon: 'drive', path: '/drive', desktopOnly: true },
       { id: 'code', label: 'QuantGit', icon: 'code', path: '/quantgit' },
+      // K10/M15: the notifications center is a screen now, not just the bell
+      // dropdown — it gets a nav entry so it is discoverable.
+      { id: 'notifications', label: 'Notifications', icon: 'bell', path: '/notifications' },
     ],
   },
   {
