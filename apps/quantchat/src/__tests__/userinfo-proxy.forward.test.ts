@@ -5,7 +5,8 @@
 //
 // Verifies the Next App Router `GET /api/auth/userinfo` handler forwards the
 // caller's `Authorization` bearer to the backend `GET /auth/me` (the OIDC-style
-// userinfo route), relays the backend status, and fails closed (502) when the
+// userinfo route), relays the backend status, and fails closed (503
+// UPSTREAM_UNAVAILABLE — never a fabricated identity) when the
 // backend is unreachable. Global `fetch` is mocked.
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -63,7 +64,7 @@ describe('userinfo proxy: GET /api/auth/userinfo', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns 502 when the backend is unreachable (no fabricated user)', async () => {
+  it('returns 503 UPSTREAM_UNAVAILABLE when the backend is unreachable (no fabricated user)', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -76,8 +77,9 @@ describe('userinfo proxy: GET /api/auth/userinfo', () => {
       headers: { authorization: 'Bearer x' },
     });
     const res = await userinfoGet(req);
-    expect(res.status).toBe(502);
-    const body = (await res.json()) as { success: boolean };
+    expect(res.status).toBe(503);
+    const body = (await res.json()) as { success: boolean; error: { code: string } };
     expect(body.success).toBe(false);
+    expect(body.error.code).toBe('UPSTREAM_UNAVAILABLE');
   });
 });

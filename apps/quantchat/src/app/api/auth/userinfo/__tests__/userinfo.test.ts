@@ -44,7 +44,7 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     expect(json.error.code).toBe('UNAUTHORIZED');
   });
 
-  it('returns 200 and decoded user identity for qchat_sess_<timestamp>_<phoneHex> token when backend is offline', async () => {
+  it('P0-A: returns 503 fail-closed for qchat_sess_<timestamp>_<phoneHex> token when backend is offline (never fabricates identity)', async () => {
     const rawPhone = '+919876543210';
     const phoneHex = Buffer.from(rawPhone).toString('hex');
     const token = `qchat_sess_${Date.now()}_${phoneHex}`;
@@ -57,20 +57,15 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
 
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data).toBeDefined();
-    expect(json.data.phoneNumber).toBe('+919876543210');
-    expect(json.data.username).toBe('User 3210');
-    expect(json.data.email).toBe('919876543210@quantchat.local');
-    expect(json.data.role).toBe('USER');
-    expect(json.data.isFallback).toBe(true);
-    expect(json.data.id).toMatch(/^user_/);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(json.data).toBeUndefined();
   });
 
-  it('returns 200 and decoded user identity for qchat_sess_<phoneHex> token when backend is offline', async () => {
+  it('P0-A: returns 503 fail-closed for qchat_sess_<phoneHex> token when backend is offline (never fabricates identity)', async () => {
     const rawPhone = '+14155552671';
     const phoneHex = Buffer.from(rawPhone).toString('hex');
     const token = `qchat_sess_${phoneHex}`;
@@ -83,17 +78,15 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
 
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.phoneNumber).toBe('+14155552671');
-    expect(json.data.username).toBe('User 2671');
-    expect(json.data.role).toBe('USER');
-    expect(json.data.isFallback).toBe(true);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(json.data).toBeUndefined();
   });
 
-  it('returns 502 for non-qchat bearer token when backend is offline', async () => {
+  it('P0-A: returns 503 fail-closed for non-qchat bearer token when backend is offline', async () => {
     const token = 'header.payload.signature_jwt_token';
 
     const req = new Request('http://localhost:3000/api/auth/userinfo', {
@@ -104,16 +97,16 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(503);
 
     const json = await res.json();
     expect(json.success).toBe(false);
     expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
     expect(json.error.message).toBe('Auth backend is unavailable');
-    expect(json.error.statusCode).toBe(502);
+    expect(json.error.statusCode).toBe(503);
   });
 
-  it('handles upstream 502/503/504 status by falling back to resilient userinfo', async () => {
+  it('P0-A: handles upstream 502/503/504 status fail-closed (no fabricated identity)', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 502,
@@ -132,12 +125,12 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(503);
 
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.phoneNumber).toBe('+919876543210');
-    expect(json.data.isFallback).toBe(true);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(json.data).toBeUndefined();
   });
 
   it('returns upstream 200 response when backend is healthy and returns user data', async () => {
@@ -229,7 +222,7 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     expect(cookies.some((c) => c.name === 'token' && c.value === 'qc_native_access_token_xyz')).toBe(true);
   });
 
-  it('handles upstream 401 with failing SSO exchange by falling back to decoded JWT identity', async () => {
+  it('P0-A: handles upstream 401 with failing SSO exchange as 401 UNAUTHORIZED (never decodes unverified JWT)', async () => {
     const fetchMock = vi.fn().mockImplementation(async (url: string | URL) => {
       const urlStr = url.toString();
       if (urlStr.includes('/auth/me')) {
@@ -269,12 +262,11 @@ describe('QuantChat Userinfo Route Resiliency', () => {
     });
 
     const res = await GET(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
 
     const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.data.id).toBe('usr_quantmail_fallback');
-    expect(json.data.email).toBe('fallback@quantmail.in');
-    expect(json.data.isFallback).toBe(true);
+    expect(json.success).toBe(false);
+    expect(json.error.code).toBe('UNAUTHORIZED');
+    expect(json.data).toBeUndefined();
   });
 });
