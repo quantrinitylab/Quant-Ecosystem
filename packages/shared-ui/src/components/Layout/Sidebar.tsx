@@ -72,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <li key={item.id}>
               <button
                 onClick={item.onClick}
-                className={`flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                className={`sidebar-nav-item flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                   item.active
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
                     : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -122,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <li key={item.id}>
             <button
               onClick={item.onClick}
-              className={`flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              className={`sidebar-nav-item flex items-center w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                 item.active
                   ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200'
                   : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-700'
