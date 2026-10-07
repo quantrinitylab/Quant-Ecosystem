@@ -391,7 +391,7 @@ const INITIAL_MESSAGES: InterAgentLedgerMessage[] = [
       'Parse status.phase == "Running" across all 20 replicas',
       'Verify zero OOMKilled or CrashLoopBackOff states',
     ],
-    toolActionSnippet: 'Runtime telemetry connector not configured';
+    toolActionSnippet: 'Runtime telemetry connector not configured',
   },
   {
     id: 'msg-2',
