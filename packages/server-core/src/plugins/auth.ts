@@ -46,17 +46,10 @@ async function authPlugin(
         }
       }
 
-      if (!token) {
-        const query = request.query as Record<string, string | undefined> | undefined;
-        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
-          token = query['token'].trim();
-        } else if (request.url && request.url.includes('?')) {
-          const queryStart = request.url.indexOf('?');
-          const params = new URLSearchParams(request.url.slice(queryStart));
-          const qToken = params.get('token');
-          if (qToken?.trim()) token = qToken.trim();
-        }
-      }
+      // Tokens are accepted only from the Authorization header and the
+      // quant_access_token cookie. Query-string tokens (?token=) are NOT
+      // accepted: they leak into access logs, browser history, and Referer
+      // headers. SSO handoff tokens are captured and scrubbed client-side.
 
       if (!token) {
         return reply.status(401).send({
@@ -157,18 +150,7 @@ async function authPlugin(
         }
       }
 
-      if (!token) {
-        const query = request.query as Record<string, string | undefined> | undefined;
-        if (typeof query?.['token'] === 'string' && query['token'].trim()) {
-          token = query['token'].trim();
-        } else if (request.url && request.url.includes('?')) {
-          const queryStart = request.url.indexOf('?');
-          const params = new URLSearchParams(request.url.slice(queryStart));
-          const qToken = params.get('token');
-          if (qToken?.trim()) token = qToken.trim();
-        }
-      }
-
+      // Same as requireAuth: query-string tokens (?token=) are never accepted.
       if (!token) return;
 
       try {
