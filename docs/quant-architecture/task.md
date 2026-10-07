@@ -292,3 +292,154 @@ New finding: append a new stable ID; preserve previous statuses and evidence.
 
 ## Core invariant
 One task ID owns one coherent change. Existing working code is preserved unless evidence shows it contradicts the target contract. Architecture, UI/UX, backend, Quanty, security, QA and cross-app connections must be tracked together rather than in isolated screen-only tickets.
+
+---
+# QuantMail Screen-by-Screen / All-Platform Execution Matrix
+> Added 2026-10-08. This is the execution spine for the full QuantMail + Calendar + Drive + Contacts + QuantGit completion. Each screen must be audited across Web, Tauri desktop, Capacitor mobile, and Flutter/mobile surfaces where that surface is supported. A screen is not DONE until UI, UX, source-of-truth, API, realtime/sync, offline, security, Quanty, cross-app links, accessibility, responsive behavior, failure states, and tests are evidenced.
+
+## QM-SCREEN-000 — Platform surface inventory + ownership map
+Status: [~] IN_PROGRESS
+Owner: Architecture/UI audit agent
+Branch: architecture/quant-company-system-v1
+Scope: apps/quantmail web, flutter_apps/workspaces/phase1/apps/quantmail/flutter, shared packages, backend routes, deployment/health, QuantMail-hosted Calendar/Drive/Contacts/QuantGit routes.
+Required: reconcile every route/screen and every platform implementation before modifying code; identify canonical source of truth and duplicate/legacy surfaces.
+Validation: repository search started; current repo contains both Next.js web and Flutter workspace surfaces plus QuantMail-hosted Calendar/Drive/QuantGit routes.
+Notes: do not assume a web screen is automatically implemented on mobile; record platform parity explicitly.
+
+## QM-SCREEN-001 — Splash / session bootstrap / signed-out boundary
+Status: [ ] TODO
+Required: cold start, warm start, expired session, refresh, offline, degraded backend, account switch, deep-link return, Quanty bootstrap, loading ownership, secure token handling, platform-specific startup behavior.
+Acceptance: no flash of authenticated content; no fabricated workspace state; bootstrap is authoritative.
+
+## QM-SCREEN-002 — Login / registration / verification / recovery / 2FA
+Status: [ ] TODO
+Scope: M00 auth family.
+Required: Web + Tauri + Capacitor/Flutter parity, responsive states, truthful security copy, safe navigation, recovery/verification contracts, 2FA lifecycle, anti-enumeration, secure handoff.
+Dependencies: QM-AUTH-002 through QM-AUTH-010.
+
+## QM-SCREEN-003 — Workspace shell / navigation / account switcher / command palette
+Status: [ ] TODO
+Required: one scroll owner, keyboard navigation, mobile drawer/bottom navigation, desktop density, route prefetch, deep links, account switching, notifications, Quanty persistent surface, accessibility.
+Dependencies: QM-WORK-001/002.
+
+## QM-SCREEN-004 — Inbox / triage / priority / bulk actions
+Status: [ ] TODO
+Required: cursor pagination, virtualized lists, unread/read, archive/delete/spam, labels/folders, bulk actions, swipe, keyboard, pull-to-refresh, smart brief only from real data, offline sync and conflict handling.
+Dependencies: QM-WORK-003.
+
+## QM-SCREEN-005 — Thread / reply / attachments / participants / related context
+Status: [ ] TODO
+Required: message state, thread ordering, reply/reply-all/forward, attachments, external sender/phishing indicators, Calendar/Drive/Contacts/QuantGit relations, Quanty evidence + draft diff, realtime and offline reconciliation.
+Dependencies: QM-WORK-004.
+
+## QM-SCREEN-006 — Compose / drafts / schedule / send verification
+Status: [ ] TODO
+Required: recipient resolution, autosave, attachment upload, Drive insertion, signatures, scheduled send, idempotency, send status, retry/unknown outcome, authoritative verification, voice Quanty flow.
+Dependencies: QM-WORK-005; QM-QUANTY-003.
+
+## QM-SCREEN-007 — Search / command palette / universal search
+Status: [ ] TODO
+Required: Mail + Calendar + Drive + Contacts + QuantGit authorization-aware federation, lexical/semantic boundaries, E2EE/local search where applicable, source hydration, stale ACL invalidation, keyboard/mobile UX.
+Dependencies: QM-WORK-006; QM-WORK-009.
+
+## QM-SCREEN-008 — Calendar home / agenda / day / week / month
+Status: [ ] TODO
+Required: timezone/DST, recurrence, reminders, attendee state, drag/drop where supported, mail relation, Drive artifacts, cross-app event creation, offline edits and conflict resolution, mobile gesture behavior.
+Dependencies: QM-WORK-007.
+
+## QM-SCREEN-009 — Calendar event create / edit / detail / RSVP
+Status: [ ] TODO
+Required: attendees, organizer permissions, recurrence, timezone, reminders, conferencing/QuantMeet links, related mail/files, cancellation, RSVP and notification semantics.
+Dependencies: QM-WORK-007.
+
+## QM-SCREEN-010 — Drive home / folders / files / recent / shared
+Status: [ ] TODO
+Required: object metadata, ACLs, uploads/downloads, resumable transfer, previews, favorites, sharing, trash/restore, offline cache, storage pressure, deletion lifecycle.
+Dependencies: QuantDrive architecture and ecosystem resource contract.
+
+## QM-SCREEN-011 — Drive upload / file preview / editor handoff
+Status: [ ] TODO
+Required: resumable uploads, malware/security scan state, signed delivery, preview capability matrix, versioning, share links, editor/Docs handoff, Quanty save/summarize actions.
+Dependencies: QM-SCREEN-010.
+
+## QM-SCREEN-012 — Contacts / people / relationship context
+Status: [ ] TODO
+Required: identity-root semantics, contact CRUD, merge/deduplication, autocomplete, avatars, groups, communication history references, privacy, block/restrict boundaries, Mail/Chat/Calendar linking.
+Dependencies: ecosystem identity/resource contracts.
+
+## QM-SCREEN-013 — QuantGit / repositories / files / commits / branches / PR/CI
+Status: [ ] TODO
+Required: repository ownership, refs, code browsing, commit/branch/PR lifecycle, CI status, secrets safety, deployment boundaries, developer profile, QuantMax/QuantCooks creator links.
+Dependencies: QuantGit architecture + creator platform.
+
+## QM-SCREEN-014 — Quanty workspace / inline / voice / cross-app task graph
+Status: [ ] TODO
+Required: persistent capsule, chat/voice, clarification, confirmation, task graph, background work, UI-control boundaries, evidence/provenance, cancellation, unknown outcome, cross-app handoff.
+Dependencies: Quanty docs 24–34.
+
+## QM-SCREEN-015 — Notifications / activity / reminders
+Status: [ ] TODO
+Required: durable notification center, grouping/dedupe, read/unread, lock-screen privacy, action reauthorization, cross-app events, quiet hours/focus.
+Dependencies: notification architecture 20; QM-WORK-008.
+
+## QM-SCREEN-016 — Settings / profile / identity / devices / sessions / security
+Status: [ ] TODO
+Required: account identity, linked devices, sessions, 2FA, recovery, privacy, Quanty grants, memory/personalization, connected apps, data export/deletion, step-up auth.
+Dependencies: QM-WORK-010.
+
+## QM-SCREEN-017 — Admin / domains / DLP / audit / organization policy
+Status: [ ] TODO
+Required: capability RBAC, tenant isolation, domain verification, DLP, audit explorer, legal hold, retention, export/deletion, incident visibility, break-glass controls.
+Dependencies: QM-WORK-011; backend integrity tasks.
+
+## QM-SCREEN-018 — Help / privacy / terms / invite / groups / SSO / legacy route disposition
+Status: [ ] TODO
+Required: reconcile extra routes; each retained route gets real contracts and platform behavior; each removed/legacy route gets explicit disposition and redirect; no dead links or theatrical data.
+Dependencies: QM-PLAT-004.
+
+## QM-SCREEN-019 — End-to-end connection graph verification
+Status: [ ] TODO
+Required verified flows:
+Mail ↔ Contacts; Mail ↔ Calendar; Mail ↔ Drive; Mail ↔ QuantGit; Calendar ↔ QuantMeet/Chat; Drive ↔ Mail/Calendar/Quanty; Contacts ↔ Chat/Calendar/Mail; QuantGit ↔ creator platform/QuantMax/QuantCooks; Quanty ↔ every owned capability; Notifications ↔ every event source.
+Acceptance: typed resource refs, source-of-truth ownership, authorization recheck, event propagation, failure behavior, no direct cross-product DB writes.
+
+## QM-SCREEN-020 — All-platform acceptance matrix
+Status: [ ] TODO
+Platforms: Web, Tauri, Capacitor/Android, Capacitor/iOS, Flutter workspace/mobile where retained.
+Widths/devices: 390, 768, 1024, 1280, 1440, 1920 plus keyboard/screen-reader/touch/reduced-motion.
+Required evidence: screenshots/video where useful, test results, network/offline behavior, accessibility, performance, deep-link/SSO, background/resume, notification behavior.
+
+---
+# New findings discovered during 2026-10-08 screen audit
+
+## QM-AUTH-011 — Never place access/session tokens in cross-app URLs
+Status: [~] IN_PROGRESS
+Owner: Architecture/UI audit agent
+Branch: architecture/quant-company-system-v1
+Finding: current login navigation code can append the access token under `token`, `accessToken`, and `__quant_sso_ticket` query parameters when the destination is external. This violates the target short-lived scoped handoff model and risks URL/history/referrer/log leakage.
+Required: replace token-in-URL navigation with server-verifiable, short-lived, audience-bound, nonce/replay-protected SSO handoff; scrub sensitive query state; destination must reauthorize.
+Scope: apps/quantmail/src/app/login/page.tsx; SSO/handoff backend and receiving clients.
+Dependencies: QM-AUTH-009.
+Validation: source audit reproduced the token query construction; no implementation claim yet.
+
+## QM-AUTH-012 — Allowlisted login result messaging
+Status: [ ] TODO
+Finding: login reads arbitrary `success` query text and renders it as success UI. Replace with allowlisted internal result codes mapped to centralized copy.
+Dependencies: QM-AUTH-004.
+
+## QM-PLAT-006 — QuantMail web/mobile implementation divergence audit
+Status: [ ] TODO
+Finding: repository contains a Next.js QuantMail surface and a separate Flutter QuantMail workspace. Their screen contracts must be reconciled before claiming all-platform completion.
+Required: shared domain contracts + platform-specific presentation, no duplicate business logic that can drift.
+
+## QM-PLAT-007 — QuantMail health/deployment evidence
+Status: [ ] TODO
+Finding: repository contains QuantMail health/deploy infrastructure; completion must verify actual route health, worker registration, readiness, queue drain/retry and deployment manifests rather than source-only confidence.
+Dependencies: QM-BACK-008; QM-BACK-007.
+
+## QM-PLAT-008 — QuantMail fabricated operational-data audit
+Status: [ ] TODO
+Finding: prior audit identified Teams/Agents surfaces with fabricated-looking teammates/PR/deploy/heartbeat/kubectl data. Re-audit current branch and either connect to real sources or remove.
+Dependencies: QM-TRUST-002.
+
+---
