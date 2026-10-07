@@ -1,2 +1,3 @@
 export * from './tool-registry'; export * from './approval-engine'; export * from './runtime'; export * from './idempotency'; export * from './command-adapter'; export * from './execution-service';
 export * from './capability-registry'; export * from './default-capabilities';
+export * from './product-tools';
