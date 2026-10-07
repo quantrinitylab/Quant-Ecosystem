@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 8.7: HeatmapOverlay — Activity density visualization for Explore tab
@@ -52,7 +53,7 @@ export function HeatmapOverlay({ visible }: HeatmapOverlayProps) {
   useEffect(() => {
     if (!visible) return;
 
-    fetch('/api/map/heatmap')
+    apiFetchRaw('/api/map/heatmap')
       .then((r) => r.json())
       .then((json) => {
         const data = json.data || json.heatmap || json;

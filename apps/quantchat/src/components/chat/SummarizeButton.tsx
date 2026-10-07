@@ -3,6 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 12.2 (Requirement 11.2): "Summarize" button for the chat header.
@@ -38,7 +39,7 @@ async function defaultFetchSummary(args: {
   conversationId: string;
   messages: Array<{ sender: string; content: string }>;
 }): Promise<SummaryResponse['data'] | null> {
-  const res = await fetch('/api/ai/summarize', {
+  const res = await apiFetchRaw('/api/ai/summarize', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

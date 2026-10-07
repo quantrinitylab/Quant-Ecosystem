@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface EncryptionStatus {
   isEncrypted: boolean;
@@ -40,7 +41,7 @@ export const E2EEncryption: React.FC<E2EEncryptionProps> = ({
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/encryption/status/${conversationId}`, {
+      const response = await apiFetchRaw(`/api/encryption/status/${conversationId}`, {
         headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
@@ -62,7 +63,7 @@ export const E2EEncryption: React.FC<E2EEncryptionProps> = ({
     if (!verificationCode.trim()) return;
     setVerifying(true);
     try {
-      const response = await fetch(`/api/encryption/verify/${conversationId}`, {
+      const response = await apiFetchRaw(`/api/encryption/verify/${conversationId}`, {
         method: 'POST',
         headers: {
           ...getAuthHeadersWithContent(),

@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Story {
   id: string;
@@ -68,7 +69,7 @@ export function useStories(): UseStoriesReturn {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/stories/feed', {
+      const response = await apiFetchRaw('/api/stories/feed', {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) {
@@ -119,7 +120,7 @@ export function useStories(): UseStoriesReturn {
 
   const viewStory = useCallback(async (storyId: string) => {
     try {
-      await fetch(`/api/stories/${storyId}/view`, {
+      await apiFetchRaw(`/api/stories/${storyId}/view`, {
         method: 'POST',
         headers: { ...getAuthHeaders() },
       });
@@ -139,7 +140,7 @@ export function useStories(): UseStoriesReturn {
   const createStory = useCallback(
     async (data: { type: string; mediaUrl?: string; text?: string; duration?: number }) => {
       try {
-        const response = await fetch('/api/stories', {
+        const response = await apiFetchRaw('/api/stories', {
           method: 'POST',
           headers: {
             ...getAuthHeadersWithContent(),
@@ -157,7 +158,7 @@ export function useStories(): UseStoriesReturn {
 
   const replyToStory = useCallback(async (storyId: string, message: string) => {
     try {
-      await fetch(`/api/stories/${storyId}/reply`, {
+      await apiFetchRaw(`/api/stories/${storyId}/reply`, {
         method: 'POST',
         headers: {
           ...getAuthHeadersWithContent(),
@@ -171,7 +172,7 @@ export function useStories(): UseStoriesReturn {
 
   const getViewers = useCallback(async (storyId: string) => {
     try {
-      const response = await fetch(`/api/stories/${storyId}/viewers`, {
+      const response = await apiFetchRaw(`/api/stories/${storyId}/viewers`, {
         headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
@@ -186,7 +187,7 @@ export function useStories(): UseStoriesReturn {
 
   const deleteStory = useCallback(async (storyId: string) => {
     try {
-      await fetch(`/api/stories/${storyId}`, {
+      await apiFetchRaw(`/api/stories/${storyId}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders() },
       });

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { logger } from '@quant/common';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AvatarConfig {
   faceShape: string;
@@ -139,7 +140,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
   const fetchCurrentAvatar = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/bitmoji/current', {
+      const response = await apiFetchRaw('/api/bitmoji/current', {
         headers: { ...getAuthHeaders() },
       });
       if (response.ok) {
@@ -206,7 +207,7 @@ export const BitmojiPage: React.FC<BitmojiPageProps> = ({ userId }) => {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      const response = await fetch('/api/bitmoji/save', {
+      const response = await apiFetchRaw('/api/bitmoji/save', {
         method: 'POST',
         headers: {
           ...getAuthHeadersWithContent(),

@@ -8,6 +8,7 @@ import { CallControls } from '../../components/CallControls';
 import { IncomingCallOverlay } from './IncomingCallOverlay';
 import { useCallState } from '../../hooks/useCallState';
 import { useCallTimer, formatCallDuration } from '../../hooks/useCallTimer';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ─── CallScreen ────────────────────────────────────────────────────────────────
 // Accepts roomId and token from URL params (e.g., /call?roomId=xxx&token=yyy)
@@ -85,7 +86,7 @@ export default function CallPage() {
     // POST /calls/end to destroy the LiveKit room
     if (roomId) {
       try {
-        await fetch('/api/calls/end', {
+        await apiFetchRaw('/api/calls/end', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roomId }),

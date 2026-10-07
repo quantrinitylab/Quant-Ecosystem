@@ -16,6 +16,7 @@ import {
   NOTIFICATION_CATEGORIES,
   type NotificationCategory,
 } from '../../lib/notification-deeplink';
+import { apiFetchRaw } from '@quant/api-client';
 
 export type NotificationCategorySettings = Record<NotificationCategory, boolean>;
 
@@ -70,7 +71,7 @@ export function saveNotificationSettings(settings: NotificationCategorySettings)
     }
   }
   // Fire-and-forget backend sync.
-  void fetch(SETTINGS_ENDPOINT, {
+  void apiFetchRaw(SETTINGS_ENDPOINT, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ categories: settings }),

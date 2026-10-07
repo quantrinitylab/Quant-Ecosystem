@@ -33,6 +33,7 @@
 // ============================================================================
 
 import { getAuthHeaders, getChatSocketUrl, getWsProtocols } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Connection state surfaced to consumers (Requirement 13.4).
  * `degraded` means the WebSocket is unreachable and the HTTP long-poll
@@ -326,7 +327,7 @@ export class ChatSocketManager {
         this.knownMessageIds.set(conversationId, known);
       }
       try {
-        const res = await fetch(
+        const res = await apiFetchRaw(
           `/api/messages/${encodeURIComponent(conversationId)}?limit=${POLL_PAGE_LIMIT}`,
           { headers },
         );

@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // Task 12.3 (Requirement 11.3): Reply suggestions.
@@ -46,7 +47,7 @@ async function defaultFetchSuggestions(args: {
   draft?: string;
   signal: AbortSignal;
 }): Promise<string[]> {
-  const res = await fetch('/api/ai/suggestions', {
+  const res = await apiFetchRaw('/api/ai/suggestions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

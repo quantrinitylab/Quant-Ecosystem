@@ -15,6 +15,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { getAuthHeaders, getAuthHeadersWithContent } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 export type MemoryMediaType = 'PHOTO' | 'VIDEO';
 
@@ -62,7 +63,7 @@ function buildQueryString(filters: MemoryFilters): string {
 }
 
 async function fetchMemories(filters: MemoryFilters): Promise<Memory[]> {
-  const res = await fetch(`/api/memories${buildQueryString(filters)}`, {
+  const res = await apiFetchRaw(`/api/memories${buildQueryString(filters)}`, {
     headers: { ...getAuthHeaders() },
   });
   if (!res.ok) throw new Error(`Failed to load memories: ${res.statusText}`);
@@ -97,7 +98,7 @@ export function useMemories(initialFilters: MemoryFilters = {}): UseMemoriesRetu
 
   const saveMutation = useMutation({
     mutationFn: async (input: SaveMemoryInput) => {
-      const res = await fetch('/api/memories', {
+      const res = await apiFetchRaw('/api/memories', {
         method: 'POST',
         headers: { ...getAuthHeadersWithContent() },
         body: JSON.stringify(input),
@@ -113,7 +114,7 @@ export function useMemories(initialFilters: MemoryFilters = {}): UseMemoriesRetu
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/memories/${id}`, {
+      const res = await apiFetchRaw(`/api/memories/${id}`, {
         method: 'DELETE',
         headers: { ...getAuthHeaders() },
       });
@@ -141,7 +142,7 @@ export function useMemories(initialFilters: MemoryFilters = {}): UseMemoriesRetu
 
   const restoreMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/memories/${id}/restore`, {
+      const res = await apiFetchRaw(`/api/memories/${id}/restore`, {
         method: 'POST',
         headers: { ...getAuthHeaders() },
       });

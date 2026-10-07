@@ -4,6 +4,7 @@
 // ============================================================================
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getAuthHeaders, getAuthHeadersWithContent, getWsAuthUrl, getWsProtocols } from '../lib/auth';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface ChatMessage {
   id: string;
@@ -138,7 +139,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
   const fetchMessages = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/messages/${conversationId}?page=${page}&limit=50`, {
+      const response = await apiFetchRaw(`/api/messages/${conversationId}?page=${page}&limit=50`, {
         headers: { ...getAuthHeaders() },
       });
       if (!response.ok) throw new Error('Failed to fetch messages');
@@ -185,7 +186,7 @@ export function useChat(options: UseChatOptions): UseChatReturn {
             JSON.stringify({ type: 'send_message', content, messageType: type, replyTo }),
           );
         } else {
-          const response = await fetch(`/api/messages/${conversationId}`, {
+          const response = await apiFetchRaw(`/api/messages/${conversationId}`, {
             method: 'POST',
             headers: { ...getAuthHeadersWithContent() },
             body: JSON.stringify({ content, type, replyTo }),

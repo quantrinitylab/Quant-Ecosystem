@@ -1,3 +1,4 @@
+import { apiFetchRaw } from '@quant/api-client';
 // ============================================================================
 // QuantChat - Web Push Client Helpers (Task 10.1, Task 10.6)
 //
@@ -174,7 +175,7 @@ export async function ensureFreshSubscription(
 /** POSTs the subscription JSON to the backend. Never throws. */
 async function persistSubscription(subscription: PushSubscriptionJSON): Promise<boolean> {
   try {
-    const response = await fetch(SUBSCRIBE_ENDPOINT, {
+    const response = await apiFetchRaw(SUBSCRIBE_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscription }),
