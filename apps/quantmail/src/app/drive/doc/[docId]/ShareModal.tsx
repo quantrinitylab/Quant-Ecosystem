@@ -43,6 +43,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const [isGeneratingLink, setIsGeneratingLink] = useState<boolean>(false);
   const [isRevokingLink, setIsRevokingLink] = useState<boolean>(false);
 
+  // Newly invited collaborators, shown immediately alongside the `collaborators`
+  // prop (P0-4b: invite must add the collaborator visibly, or show a real error).
+  const [addedCollaborators, setAddedCollaborators] = useState<
+    Array<{ id?: string; email: string; role: string }>
+  >([]);
+  const visibleCollaborators = [...collaborators, ...addedCollaborators];
+
   const directDocUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/drive/doc/${docId}` : '';
 
@@ -69,9 +76,24 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         expiresAt,
       });
 
-      if (res.data?.shareToken) {
-        const fullPublicUrl = `${window.location.origin}/documents/public/share/${res.data.shareToken}`;
-        setPublicShareToken(res.data.shareToken);
+      // P0-4a fix: the server answers { data: { token, shareUrl, ... } } — the
+      // old code read `res.data?.shareToken`, which never exists, so every
+      // successful link creation was reported as "Server did not return a
+      // share link". Read the real field, and surface real server errors
+      // instead of masking them (apiClient returns success:false envelopes,
+      // it does not throw on 4xx/5xx).
+      if (!res.success) {
+        throw new Error(res.error?.message || 'Failed to generate public share link');
+      }
+
+      const token = res.data?.token;
+      const sharePath = res.data?.shareUrl;
+      if (token) {
+        const fullPublicUrl =
+          sharePath && sharePath.startsWith('/')
+            ? `${window.location.origin}${sharePath}`
+            : `${window.location.origin}/documents/public/share/${token}`;
+        setPublicShareToken(token);
         setPublicShareUrl(fullPublicUrl);
         showToast({ text: 'Public share link generated!', type: 'success', subject: 'share-link' });
       } else {
@@ -113,7 +135,8 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
+    const email = inviteEmail.trim();
+    if (!email || !email.includes('@')) {
       showToast({
         text: 'Please enter a valid email address',
         type: 'error',
@@ -124,15 +147,40 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Send invite via API or mock
+      // P0-4b fix: this handler previously showed a fabricated "Invite sent"
+      // toast without any network call. Now it calls the real invite endpoint
+      // and reports the REAL outcome — success adds the collaborator visibly,
+      // failure shows the server's actual error.
+      const res = await apiClient.addDocumentCollaborator(docId, {
+        email,
+        role: inviteRole,
+      });
+      if (!res.success) {
+        throw new Error(res.error?.message || 'Failed to send invite');
+      }
+      const added = {
+        id: res.data?.id,
+        email: res.data?.email || email,
+        role: res.data?.role || inviteRole,
+      };
+      setAddedCollaborators((prev) =>
+        prev
+          .filter((c) => c.email.toLowerCase() !== email.toLowerCase())
+          .concat([added]),
+      );
+      setInviteEmail('');
       showToast({
-        text: `Invite sent to ${inviteEmail.trim()} as ${inviteRole}`,
+        text: `${added.email} added as ${added.role}`,
         type: 'success',
         subject: 'share-invite',
       });
-      setInviteEmail('');
-    } catch {
-      showToast({ text: 'Failed to send invite', type: 'error', subject: 'share-invite' });
+    } catch (err: any) {
+      // Never silent, never fabricated: show the real error.
+      showToast({
+        text: err?.message || 'Failed to send invite',
+        type: 'error',
+        subject: 'share-invite',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -280,6 +328,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             </select>
             <Button
               variant="primary"
+              type="submit"
               disabled={isSubmitting || !inviteEmail.trim()}
               className="text-xs whitespace-nowrap"
             >
@@ -305,7 +354,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               <span className="text-[11px] font-medium text-[#FF8C42]">Owner</span>
             </div>
 
-            {collaborators.map((c, i) => (
+            {visibleCollaborators.map((c, i) => (
               <div
                 key={c.id || i}
                 className="flex items-center justify-between p-2.5 rounded-lg bg-[#0D1117] border border-[#21262D]"

@@ -171,6 +171,7 @@ export const FileShareModal: React.FC<FileShareModalProps> = ({
             </select>
             <Button
               variant="primary"
+              type="submit"
               disabled={isSharing || !inviteEmail.trim()}
               className="text-xs whitespace-nowrap"
             >
