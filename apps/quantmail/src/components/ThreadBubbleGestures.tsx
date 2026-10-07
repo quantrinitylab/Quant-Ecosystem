@@ -26,6 +26,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -59,7 +60,7 @@ export function shouldCommitSwipeReply(offset: number): boolean {
 }
 
 const MENU_WIDTH_PX = 232;
-const MENU_HEIGHT_PX = 296;
+const MENU_HEIGHT_PX = 340;
 
 /**
  * Pure: clamp a pointer-anchored menu into the viewport. Unit-tested.
@@ -90,6 +91,12 @@ function vibrate(ms: number): void {
 export interface ThreadBubbleGestureHandlers {
   onQuoteReply: (message: Email) => void;
   onForwardMessage: (message: Email) => void;
+  /**
+   * Optional: when present the long-press/right-click menu gains a Delete
+   * item. Absent (e.g. a read-only thread) the menu simply has no Delete —
+   * "delete where allowed".
+   */
+  onDeleteMessage?: (message: Email) => void;
 }
 
 interface UseThreadBubbleGesturesOptions extends ThreadBubbleGestureHandlers {
@@ -101,7 +108,7 @@ interface MenuAnchor {
   y: number;
 }
 
-function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage }: UseThreadBubbleGesturesOptions) {
+function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage, onDeleteMessage }: UseThreadBubbleGesturesOptions) {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isPressing, setIsPressing] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
@@ -116,9 +123,9 @@ function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage }: Us
   const armedRef = useRef(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressUntilRef = useRef(0);
-  const callbacksRef = useRef({ onQuoteReply, onForwardMessage });
+  const callbacksRef = useRef({ onQuoteReply, onForwardMessage, onDeleteMessage });
   useEffect(() => {
-    callbacksRef.current = { onQuoteReply, onForwardMessage };
+    callbacksRef.current = { onQuoteReply, onForwardMessage, onDeleteMessage };
   });
 
   const clearLongPress = useCallback(() => {
@@ -269,6 +276,11 @@ function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage }: Us
     closeMenu();
   }, [message, closeMenu]);
 
+  const doDelete = useCallback(() => {
+    callbacksRef.current.onDeleteMessage?.(message);
+    closeMenu();
+  }, [message, closeMenu]);
+
   return {
     swipeOffset,
     isPressing,
@@ -280,6 +292,7 @@ function useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage }: Us
     doCopy,
     doQuoteReply,
     doForward,
+    doDelete,
     shouldSuppressClick,
     gestureProps: {
       onTouchStart: handleTouchStart,
@@ -330,6 +343,16 @@ function SmileyIcon({ className = 'size-4' }: { className?: string }) {
   );
 }
 
+function TrashIcon({ className = 'size-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
 interface ThreadBubbleMenuProps {
   anchor: MenuAnchor;
   senderName: string;
@@ -338,6 +361,8 @@ interface ThreadBubbleMenuProps {
   onQuoteReply: () => void;
   onCopy: () => void;
   onForward: () => void;
+  /** When omitted the menu has no Delete item ("delete where allowed"). */
+  onDelete?: () => void;
 }
 
 function ThreadBubbleMenu({
@@ -348,6 +373,7 @@ function ThreadBubbleMenu({
   onQuoteReply,
   onCopy,
   onForward,
+  onDelete,
 }: ThreadBubbleMenuProps) {
   const pos =
     typeof window !== 'undefined'
@@ -398,19 +424,28 @@ function ThreadBubbleMenu({
         <div className="mx-3 border-t border-[#282C35]" aria-hidden="true" />
         {(
           [
-            { label: 'Reply', Icon: ReplyArrowIcon, action: onQuoteReply },
-            { label: 'Copy', Icon: CopyIcon, action: onCopy },
-            { label: 'Forward', Icon: ForwardIcon, action: onForward },
+            { label: 'Reply', Icon: ReplyArrowIcon, action: onQuoteReply, danger: false },
+            { label: 'Copy', Icon: CopyIcon, action: onCopy, danger: false },
+            { label: 'Forward', Icon: ForwardIcon, action: onForward, danger: false },
+            // Delete only when the host allowed it — the thread view passes it
+            // through only when its own `onDelete` prop exists.
+            ...(onDelete
+              ? [{ label: 'Delete', Icon: TrashIcon, action: onDelete, danger: true } as const]
+              : []),
           ] as const
-        ).map(({ label, Icon, action }) => (
+        ).map(({ label, Icon, action, danger }) => (
           <button
             key={label}
             type="button"
             role="menuitem"
             onClick={action}
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-[#EDEDED] transition-colors hover:bg-white/[0.05] focus-visible:bg-white/[0.05] focus-visible:outline-none"
+            className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors focus-visible:outline-none ${
+              danger
+                ? 'text-rose-400 hover:bg-rose-500/10 focus-visible:bg-rose-500/10'
+                : 'text-[#EDEDED] hover:bg-white/[0.05] focus-visible:bg-white/[0.05]'
+            }`}
           >
-            <Icon className="size-4 text-[#A1A4AC]" />
+            <Icon className={`size-4 ${danger ? 'text-rose-400' : 'text-[#A1A4AC]'}`} />
             <span>{label}</span>
           </button>
         ))}
@@ -444,6 +479,7 @@ export function ThreadBubbleShell({
   isOutbound,
   onQuoteReply,
   onForwardMessage,
+  onDeleteMessage,
   children,
 }: ThreadBubbleShellProps) {
   const {
@@ -457,11 +493,21 @@ export function ThreadBubbleShell({
     doCopy,
     doQuoteReply,
     doForward,
+    doDelete,
     gestureProps,
-  } = useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage });
+  } = useThreadBubbleGestures({ message, onQuoteReply, onForwardMessage, onDeleteMessage });
 
   const progress = Math.min(1, swipeOffset / SWIPE_REPLY_THRESHOLD_PX);
   const reactionEntries = Object.entries(reactions).filter(([, count]) => count > 0);
+
+  /*
+   * Perf: swipe tracking calls `setSwipeOffset` on every touchmove, which
+   * re-renders this shell. The message body (a full letter card with HTML) is
+   * the expensive part and its element identity is stable across those
+   * renders, so memoizing it keeps the tracking path to the transform plus
+   * the indicator — no jank on long threads.
+   */
+  const stableChildren = useMemo(() => children, [children]);
 
   return (
     <div
@@ -500,7 +546,7 @@ export function ThreadBubbleShell({
         }`}
       />
 
-      {children}
+      {stableChildren}
 
       {/* Persisted reactions, rendered as chips under the bubble. */}
       {reactionEntries.length > 0 && (
@@ -565,6 +611,7 @@ export function ThreadBubbleShell({
             onQuoteReply={doQuoteReply}
             onCopy={doCopy}
             onForward={doForward}
+            onDelete={onDeleteMessage ? doDelete : undefined}
           />
         )}
       </AnimatePresence>
