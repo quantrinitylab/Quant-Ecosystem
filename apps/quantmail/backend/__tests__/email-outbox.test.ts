@@ -158,7 +158,8 @@ function createAllowAllSuppression() {
 function createWorkingPipeline() {
   return {
     enqueueSend: vi.fn(async () => 'job-1'),
-    cancelSend: vi.fn(async () => undefined),
+    cancelSend: vi.fn(async () => true),
+    getEmail: vi.fn(async () => null),
   };
 }
 
@@ -318,7 +319,7 @@ describe('K1 mail outbox spine', () => {
     it('emits mail.outbound.queued.v1 when handed to the durable pipeline', async () => {
       seedDraft(db, { toAddresses: ['a@gmail.com'] });
       const pipeline = createWorkingPipeline();
-      const service = new EmailService(db.prisma as never, pipeline, createAllowAllSuppression());
+      const service = new EmailService(db.prisma as never, pipeline as never, createAllowAllSuppression());
       await service.send('user-1', 'email-1', 'folder-sent', { delayMs: 60_000 });
 
       expect(pipeline.enqueueSend).toHaveBeenCalled();
@@ -356,7 +357,7 @@ describe('K1 mail outbox spine', () => {
     it('emits mail.outbound.cancelled.v1 when a queued send is undone', async () => {
       seedDraft(db, { isDraft: false, isSent: true, deliveryStatus: 'queued', sentAt: new Date() });
       const pipeline = createWorkingPipeline();
-      const service = new EmailService(db.prisma as never, pipeline, createAllowAllSuppression());
+      const service = new EmailService(db.prisma as never, pipeline as never, createAllowAllSuppression());
       const undone = await service.undoSend('user-1', 'email-1');
 
       expect(undone.isDraft).toBe(true);
