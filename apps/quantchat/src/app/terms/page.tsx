@@ -15,9 +15,9 @@ export default function TermsPage() {
     <LegalPage eyebrow="QuantChat · Legal" title="Terms of Service" updated="October 6, 2026">
       <LegalSection title="1. The service">
         <p>
-          QuantChat is an end-to-end encrypted messaging service operated by Quantrinity
-          (“we”, “us”). By creating an account or using QuantChat you agree to these
-          terms. If you do not agree, do not use the service.
+          QuantChat is a messaging service operated by Quantrinity (“we”, “us”).
+          By creating an account or using QuantChat you agree to these terms.
+          If you do not agree, do not use the service.
         </p>
       </LegalSection>
 
@@ -41,11 +41,11 @@ export default function TermsPage() {
         </ul>
       </LegalSection>
 
-      <LegalSection title="4. Encryption and your content">
+      <LegalSection title="4. Your content">
         <p>
-          Messages are end-to-end encrypted: only you and the people you message
-          can read them. We cannot read your message content and cannot recover
-          it for you. You remain responsible for what you send.
+          End-to-end encryption is not enabled in QuantChat yet. Messages are
+          stored on our servers in readable form so we can deliver them to you
+          and the people you message. You remain responsible for what you send.
         </p>
       </LegalSection>
 

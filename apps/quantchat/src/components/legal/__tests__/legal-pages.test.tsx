@@ -45,10 +45,11 @@ describe('legal pages', () => {
     expect(container!.querySelector('a[href="/login"]')).not.toBeNull();
   });
 
-  it('/privacy renders the Privacy Policy and the no-content-collection promise', () => {
+  it('/privacy renders the Privacy Policy with honest message-storage disclosure', () => {
     const text = renderPage(<PrivacyPage />);
     expect(text).toContain('Privacy Policy');
-    expect(text).toContain('never collect or store your message content');
+    expect(text).toContain('We store your message content so we can deliver it');
+    expect(text).toContain('End-to-end encryption is not enabled in QuantChat yet');
     expect(container!.querySelector('a[href="/login"]')).not.toBeNull();
   });
 

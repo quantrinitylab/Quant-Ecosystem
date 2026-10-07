@@ -22,17 +22,15 @@ import type { GeoPosition, FriendLocation } from '../../components/map';
 // Task 8.9: Geolocation-denied fallback (delegated to MapCanvas)
 // ============================================================================
 
-/** Convert lng/lat offsets from user center into percentage positions */
+/** Convert lng/lat offsets from the user's real center into percentage positions.
+ *  Returns null when the user's own location is unknown — pins are never
+ *  placed at invented positions. */
 function positionToPercent(
   friendPos: [number, number],
   userPos: GeoPosition | null,
-): { top: string; left: string } {
+): { top: string; left: string } | null {
   if (!userPos) {
-    // Random placement fallback
-    return {
-      top: `${20 + Math.random() * 60}%`,
-      left: `${20 + Math.random() * 60}%`,
-    };
+    return null;
   }
 
   // Simple linear mapping: each 0.01 degree ≈ ~1km
@@ -47,54 +45,20 @@ function positionToPercent(
   return { top: `${top}%`, left: `${left}%` };
 }
 
-/** Fallback friend data for demo */
-const DEMO_FRIENDS: FriendLocation[] = [
-  {
-    userId: '1',
-    username: 'Alex',
-    avatarUrl: '',
-    position: [-74.005, 40.714],
-    lastUpdated: new Date(Date.now() - 120000),
-    isOnline: true,
-    conversationId: 'conv-1',
-  },
-  {
-    userId: '2',
-    username: 'Sam',
-    avatarUrl: '',
-    position: [-74.008, 40.716],
-    lastUpdated: new Date(Date.now() - 300000),
-    isOnline: true,
-    conversationId: 'conv-2',
-  },
-  {
-    userId: '3',
-    username: 'Jordan',
-    avatarUrl: '',
-    position: [-74.002, 40.71],
-    lastUpdated: new Date(Date.now() - 600000),
-    isOnline: false,
-    conversationId: 'conv-3',
-  },
-  {
-    userId: '4',
-    username: 'Taylor',
-    avatarUrl: '',
-    position: [-74.012, 40.718],
-    lastUpdated: new Date(Date.now() - 60000),
-    isOnline: true,
-    conversationId: 'conv-4',
-  },
-  {
-    userId: '5',
-    username: 'Riley',
-    avatarUrl: '',
-    position: [-73.998, 40.708],
-    lastUpdated: new Date(Date.now() - 900000),
-    isOnline: false,
-    conversationId: 'conv-5',
-  },
-];
+/** Shape returned by GET /api/map/friends (proxied from the backend). */
+interface FriendsOnMapResponse {
+  success?: boolean;
+  data?: {
+    friends?: Array<{
+      userId: string;
+      username?: string;
+      avatarUrl?: string | null;
+      latitude: number;
+      longitude: number;
+      updatedAt?: string;
+    }>;
+  };
+}
 
 export default function MapPage() {
   const router = useRouter();
@@ -103,10 +67,49 @@ export default function MapPage() {
   const [activeTab, setActiveTab] = useState<'friends' | 'explore'>('friends');
   const [ghostMode, setGhostMode] = useState(false);
   const [userLocation, setUserLocation] = useState<GeoPosition | null>(null);
-  const [friends, setFriends] = useState<FriendLocation[]>(DEMO_FRIENDS);
+  // Starts empty and is filled only with real backend data. No demo or
+  // fallback friends: with nothing shared, the map shows an honest empty state.
+  const [friends, setFriends] = useState<FriendLocation[]>([]);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
   const broadcastIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch the caller's close friends who are currently sharing their location
+  // from the real backend (GET /api/map/friends → Fastify GET /map/friends).
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/map/friends')
+      .then((res) => (res.ok ? (res.json() as Promise<FriendsOnMapResponse>) : null))
+      .then((json) => {
+        if (cancelled || !json?.success) return;
+        const list = Array.isArray(json.data?.friends) ? json.data.friends : [];
+        setFriends(
+          list.map((f) => ({
+            userId: String(f.userId),
+            username: f.username ?? '',
+            avatarUrl: f.avatarUrl ?? '',
+            position: [Number(f.longitude), Number(f.latitude)] as [number, number],
+            lastUpdated: f.updatedAt ? new Date(f.updatedAt) : new Date(),
+            // The backend does not expose presence for map friends, and the
+            // map has no presence source — so this starts false rather than
+            // inventing an online state.
+            isOnline: false,
+          })),
+        );
+      })
+      .catch(() => {
+        // Leave the list empty: the empty state below is honest about that.
+      })
+      .finally(() => {
+        if (!cancelled) setFriendsLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Handle location acquired from MapCanvas
   const handleLocationAcquired = useCallback((pos: GeoPosition) => {
@@ -260,20 +263,39 @@ export default function MapPage() {
         onLocationAcquired={handleLocationAcquired}
         onLocationDenied={handleLocationDenied}
       >
-        {/* Friend pins (Friends tab) */}
+        {/* Friend pins (Friends tab) — rendered only from real backend data and
+            only once the user's own location is known, so pins are never
+            placed at invented positions. */}
         {activeTab === 'friends' &&
+          userLocation &&
           friends.map((friend) => {
-            const { top, left } = positionToPercent(friend.position, userLocation);
+            const pos = positionToPercent(friend.position, userLocation);
+            if (!pos) return null;
             return (
               <FriendPin
                 key={friend.userId}
                 friend={friend}
-                top={top}
-                left={left}
+                top={pos.top}
+                left={pos.left}
                 onOpenChat={handleOpenChat}
               />
             );
           })}
+
+        {/* Honest empty state: no close friends are sharing their location. */}
+        {activeTab === 'friends' && friendsLoaded && friends.length === 0 && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+            <div className="bg-[var(--quant-card)]/90 backdrop-blur-md rounded-xl px-6 py-5 mx-8 text-center shadow-lg border border-[var(--quant-border)]">
+              <p className="text-[var(--quant-foreground)] text-sm font-medium">
+                No shared locations
+              </p>
+              <p className="text-[var(--quant-muted-foreground)] text-xs mt-1">
+                When your close friends share their location, they will appear
+                here.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Heatmap overlay (Explore tab) — Task 8.7 */}
         <HeatmapOverlay visible={activeTab === 'explore'} />

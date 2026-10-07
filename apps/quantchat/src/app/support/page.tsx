@@ -21,7 +21,7 @@ const FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: 'Are my messages really private?',
-    a: 'Yes. Conversations are end-to-end encrypted — only you and the people you message can read them. We cannot read or recover message content.',
+    a: 'End-to-end encryption is not enabled in QuantChat yet. Messages are stored on our servers so they can be delivered to you and the people you message.',
   },
   {
     q: 'How do I delete my account?',
@@ -64,8 +64,8 @@ export default function SupportPage() {
       <LegalSection title="Status">
         <p>
           If QuantChat is unreachable for everyone, the problem is on our side —
-          check back shortly. Your encrypted data on your devices is unaffected
-          by service outages.
+          check back shortly. Your data on your devices is unaffected by
+          service outages.
         </p>
       </LegalSection>
     </LegalPage>
