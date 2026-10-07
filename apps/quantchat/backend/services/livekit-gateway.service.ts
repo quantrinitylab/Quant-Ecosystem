@@ -62,12 +62,22 @@ export class LiveKitGateway {
   private readonly egressClient: EgressClient;
   private readonly apiKey: string;
   private readonly apiSecret: string;
+  private readonly wsUrl: string;
 
   constructor(config: LiveKitConfig) {
     this.apiKey = config.apiKey;
     this.apiSecret = config.apiSecret;
+    this.wsUrl = config.wsUrl;
     this.roomClient = new RoomServiceClient(config.wsUrl, config.apiKey, config.apiSecret);
     this.egressClient = new EgressClient(config.wsUrl, config.apiKey, config.apiSecret);
+  }
+
+  /**
+   * Public SFU websocket URL for clients. This is connection info, not a
+   * secret — media authorization comes from the short-lived join token.
+   */
+  getServerUrl(): string {
+    return this.wsUrl;
   }
 
   async createRoom(name: string, maxParticipants = 50): Promise<LiveKitRoom> {
