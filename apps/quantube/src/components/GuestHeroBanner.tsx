@@ -9,9 +9,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 export interface GuestHeroBannerProps {
   onSignIn?: () => void;
   className?: string;
+  /**
+   * DC-P1-11: when the video catalog is genuinely empty (only sample
+   * placeholders exist), the banner copy must be honest — no "Explore
+   * trending videos" promise when there is nothing to explore.
+   */
+  catalogEmpty?: boolean;
 }
 
-export const GuestHeroBanner: React.FC<GuestHeroBannerProps> = ({ onSignIn, className = '' }) => {
+export const GuestHeroBanner: React.FC<GuestHeroBannerProps> = ({
+  onSignIn,
+  className = '',
+  catalogEmpty = false,
+}) => {
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
@@ -44,11 +54,14 @@ export const GuestHeroBanner: React.FC<GuestHeroBannerProps> = ({ onSignIn, clas
           </div>
           <div>
             <h2 className="text-lg md:text-xl font-bold text-[var(--quant-foreground,#ffffff)] tracking-tight">
-              Welcome to QuanTube — Explore trending videos, creators, and music.
+              {catalogEmpty
+                ? 'Welcome to QuanTube — no videos yet.'
+                : 'Welcome to QuanTube — explore trending videos, creators, and music.'}
             </h2>
             <p className="text-sm text-[var(--quant-muted-foreground,#a1a1aa)] mt-0.5">
-              Enjoy free, smooth video &amp; music streaming. Sign in anytime to follow creators,
-              like, and save favorites.
+              {catalogEmpty
+                ? 'The video catalog is empty right now — check back soon or be the first to upload.'
+                : 'Enjoy free, smooth video & music streaming. Sign in anytime to follow creators, like, and save favorites.'}
             </p>
           </div>
         </div>

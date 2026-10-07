@@ -49,8 +49,38 @@ const itemVariants = {
   },
 };
 
-const HomePage: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+// DC-P1-11: honest thumbnail — a labeled "No preview" placeholder when the
+// thumbnail is missing or fails to load. Never a blank/broken gray box, and
+// never a stock photo presented as the video's own thumbnail.
+function VideoThumbnail({ src, alt }: { src?: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div
+        className="w-full h-full flex flex-col items-center justify-center gap-1 bg-[var(--surface-elevated)] text-[var(--quant-muted-foreground)]"
+        role="img"
+        aria-label="No thumbnail preview available"
+        data-testid="video-thumbnail-placeholder"
+      >
+        <span className="text-3xl" aria-hidden="true">
+          🎬
+        </span>
+        <span className="text-xs font-medium">No preview</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+const HomePage: React.FC = () => {  const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categoryParam = activeCategory === 'all' ? undefined : activeCategory;
@@ -150,7 +180,7 @@ const HomePage: React.FC = () => {
     >
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6">
         {/* Engaging Guest / Unauthenticated Welcome Banner */}
-        {isGuestMode && <GuestHeroBanner />}
+        {isGuestMode && <GuestHeroBanner catalogEmpty={showingSamples} />}
 
         {/* Category Tabs */}
         <nav
@@ -160,13 +190,14 @@ const HomePage: React.FC = () => {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
-              className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap min-h-[44px] min-w-[44px] transition-colors ${
+              className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap min-h-[44px] min-w-[44px] shrink-0 transition-colors ${
                 activeCategory === cat.id
                   ? 'bg-[var(--brand-primary)] text-white'
                   : 'bg-[var(--surface-elevated)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]'
               }`}
               onClick={() => setActiveCategory(cat.id)}
               aria-pressed={activeCategory === cat.id}
+              title={cat.label}
             >
               {cat.label}
               {activeCategory === cat.id && (
@@ -229,10 +260,6 @@ const HomePage: React.FC = () => {
                   resolution?: string;
                   isSample?: boolean;
                 }) => {
-                  const thumbnailSrc =
-                    video.thumbnail ||
-                    video.thumbnailUrl ||
-                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
                   const avatarSrc =
                     video.channelAvatar ||
                     `https://api.dicebear.com/7.x/identicon/svg?seed=${video.channelName || 'creator'}`;
@@ -250,16 +277,10 @@ const HomePage: React.FC = () => {
                       }}
                       role="listitem"
                     >
-                      <div className="relative aspect-video overflow-hidden bg-black/10">
-                        <img
-                          src={thumbnailSrc}
+                      <div className="relative aspect-video overflow-hidden bg-[var(--surface-elevated)]">
+                        <VideoThumbnail
+                          src={video.thumbnail || video.thumbnailUrl}
                           alt={video.title || 'Video'}
-                          loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-                          }}
                         />
                         {video.isLive ? (
                           <span className="absolute bottom-2 left-2 bg-[var(--brand-primary)] text-white text-xs font-bold px-2 py-0.5 rounded">

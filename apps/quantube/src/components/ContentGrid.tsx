@@ -3,6 +3,7 @@
 // Responsive grid for videos/shows/music content cards with stagger animation
 // ============================================================================
 
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
 
@@ -43,6 +44,36 @@ const itemVariants = {
     transition: { type: 'spring', ...spring.gentle },
   },
 };
+
+// DC-P1-11: honest thumbnail — a labeled "No preview" placeholder when the
+// thumbnail URL is missing or fails to load. Never a blank gray box.
+function GridThumbnail({ src, alt }: { src?: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div
+        className="w-full h-full flex flex-col items-center justify-center gap-1 bg-[var(--surface-elevated)] text-[var(--quant-muted-foreground)]"
+        role="img"
+        aria-label="No thumbnail preview available"
+        data-testid="grid-thumbnail-placeholder"
+      >
+        <span className="text-2xl" aria-hidden="true">
+          🎬
+        </span>
+        <span className="text-xs font-medium">No preview</span>
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      className="w-full h-full object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export function ContentGrid({ items, layout, columns = 4, onItemClick }: ContentGridProps) {
   const gridStyle =
@@ -87,13 +118,8 @@ function GridItem({
       variants={itemVariants}
       whileHover={{ scale: 1.02, transition: { type: 'spring', ...spring.snappy } }}
     >
-      <div className="relative aspect-video">
-        <img
-          src={item.thumbnailUrl}
-          alt={item.title}
-          loading="lazy"
-          className="w-full h-full object-cover"
-        />
+      <div className="relative aspect-video bg-[var(--surface-elevated)]">
+        <GridThumbnail src={item.thumbnailUrl} alt={item.title} />
         {item.duration != null && (
           <span className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1 py-0.5 rounded">
             {formatDuration(item.duration)}
@@ -140,11 +166,9 @@ function ListItem({
       variants={itemVariants}
       whileHover={{ x: 4, transition: { type: 'spring', ...spring.snappy } }}
     >
-      <img
-        src={item.thumbnailUrl}
-        alt={item.title}
-        className="w-40 h-24 object-cover rounded flex-shrink-0"
-      />
+      <div className="relative w-40 h-24 flex-shrink-0 bg-[var(--surface-elevated)] rounded overflow-hidden">
+        <GridThumbnail src={item.thumbnailUrl} alt={item.title} />
+      </div>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <h3 className="text-sm font-medium text-[var(--quant-foreground)] truncate">
           {item.title}
