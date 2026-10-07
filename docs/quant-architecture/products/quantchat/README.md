@@ -19,6 +19,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `04-screen-deep-dive-c03-c04-c05.md` — deeper C03/C04/C05 community/channel architecture.
 - `05-screen-deep-dive-c06-camera-stories-spotlight-ar.md` — deep C06 camera, Stories, Spotlight, AR, media editor, platform UI and Muse placement architecture.
 - `06-screen-deep-dive-c07-calls.md` — deep C07 calling, WebRTC/SFU, device handoff, screen share, captions, QuantMeet escalation, recording, platform UI and Muse placement architecture.
+- `07-screen-deep-dive-c08-quantmeet.md` — deep C08 QuantMeet: lobby, join gate, meeting studio, active meeting, stage, chat, sharing, breakouts, whiteboard, captions, recording, security, Quanty copilot, post-meeting, APIs, realtime, data ownership, platform UX, tests and Muse execution.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
