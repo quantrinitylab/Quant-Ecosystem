@@ -35,7 +35,7 @@ import audioRoomsRoutes from './routes/audio-rooms';
 import voiceBotRoutes, { createVoiceBotServices } from './routes/voice-bot';
 import { ProactiveCallWorker } from './services/proactive-call-worker.service';
 import { websocketRoutes } from './routes/websocket';
-import { InMemoryE2EERelay } from './lib/e2ee-relay';
+import { createE2EERelay } from './services/e2ee-relay-factory';
 import { AutoReplyManager } from './lib/auto-reply-manager';
 import { ScheduledMessageWorker } from './services/scheduled-message-worker';
 import { createRealtimeContext } from './lib/realtime-context';
@@ -176,10 +176,14 @@ export async function buildApp(config?: AppConfig) {
   await app.register(audioRoomsRoutes, { prefix: '/audio-rooms' });
   await app.register(audioRoomsRoutes, { prefix: '/api/audio-rooms' });
 
-  const e2eeRelay = new InMemoryE2EERelay();
+  // K27: durable zero-knowledge relay by default (E2EE_RELAY=memory only for
+  // local dev/tests). Published bundles + relayed ciphertext survive restarts.
+  const e2eeRelay = createE2EERelay(
+    (app as unknown as { prisma: PrismaClient }).prisma,
+  );
   app.decorate('e2ee', e2eeRelay);
   app.addHook('onClose', async () => {
-    e2eeRelay.shutdown();
+    await e2eeRelay.shutdown();
   });
   await app.register(e2eeRoutes, { prefix: '/e2ee' });
   await app.register(e2eePreKeyRoutes, { prefix: '/e2ee' });

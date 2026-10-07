@@ -97,6 +97,9 @@ function signToken(scopes: string[], sub = 'user-123'): string {
 let app: FastifyInstance;
 
 beforeAll(async () => {
+  // K27: the seam test exercises the HTTP/auth layer, not relay persistence —
+  // keep it hermetic with the volatile relay (production uses the Prisma relay).
+  process.env['E2EE_RELAY'] = 'memory';
   app = await buildApp(testConfig);
   await app.ready();
 });
