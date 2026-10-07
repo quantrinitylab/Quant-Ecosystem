@@ -49,13 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true;
     (async () => {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlToken =
-          urlParams.get('token') ||
-          urlParams.get('accessToken') ||
-          urlParams.get('__quant_sso_ticket');
-        const ssoResult = UniversalSSOTokenBridge.getInstance().consumeHandoffTicket();
-        const finalToken = ssoResult?.ticket || urlToken;
+        // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
+        // server-side and returns null for forged/tampered/expired tickets.
+        // Only a server-verified token may establish authenticated state —
+        // raw URL token params are never trusted on their own.
+        const ssoResult = await UniversalSSOTokenBridge.getInstance().consumeHandoffTicket();
+        const finalToken = ssoResult?.session?.token;
 
         if (finalToken) {
           setAccessToken(finalToken);

@@ -32,8 +32,8 @@ vi.mock('../components/BrandProvider', () => ({
 vi.mock('@quant/shared-ui', () => ({
   UniversalSSOTokenBridge: {
     getInstance: () => ({
-      consumeHandoffTicket: vi.fn().mockReturnValue(null),
-      verifyHandoffTicket: vi.fn().mockReturnValue(null),
+      consumeHandoffTicket: vi.fn().mockResolvedValue(null),
+      decodeUnverifiedHandoffTicket: vi.fn().mockReturnValue(null),
     }),
     validateSafeReturnPath: vi.fn().mockReturnValue({ isSafe: true, sanitizedUrl: '/' }),
   },

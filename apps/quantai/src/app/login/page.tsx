@@ -110,45 +110,42 @@ function LoginForm() {
   // Auto-capture SSO tokens returned from QuantMail Account Chooser or Cross-App Jump Bridge
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const bridge = UniversalSSOTokenBridge.getInstance();
-      const consumed = bridge.consumeHandoffTicket();
-      const params = new URLSearchParams(window.location.search);
-      const ticketParam = params.get('__quant_sso_ticket');
-      const tokenParam =
-        params.get('token') || params.get('accessToken') || params.get('access_token');
-      const rawReturn =
-        consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
+    (async () => {
+      try {
+        const bridge = UniversalSSOTokenBridge.getInstance();
+        // Fail-closed: consumeHandoffTicket re-verifies the ticket's token
+        // server-side and returns null for forged/tampered/expired tickets.
+        const consumed = await bridge.consumeHandoffTicket();
+        const params = new URLSearchParams(window.location.search);
+        const rawReturn =
+          consumed?.returnPath || params.get('returnTo') || params.get('__quant_return');
 
-      const resolvedToken =
-        consumed?.session?.token ||
-        consumed?.ticket ||
-        (ticketParam ? bridge.verifyHandoffTicket(ticketParam)?.token || ticketParam : null) ||
-        tokenParam;
+        const resolvedToken = consumed?.session?.token;
 
-      if (resolvedToken) {
-        ingestSSOToken(resolvedToken);
-        try {
-          const url = scrubSsoHandoffParams(new URL(window.location.href));
-          const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
-          window.history.replaceState({}, document.title, cleanUrl);
-        } catch {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        let targetDestination = destination();
-        if (rawReturn) {
-          const decoded = decodeURIComponent(rawReturn);
-          const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
-          if (validation.isSafe && validation.sanitizedUrl !== '/login') {
-            targetDestination = validation.sanitizedUrl;
+        if (resolvedToken) {
+          ingestSSOToken(resolvedToken);
+          try {
+            const url = scrubSsoHandoffParams(new URL(window.location.href));
+            const cleanUrl = url.pathname + (url.search ? url.search : '') + url.hash;
+            window.history.replaceState({}, document.title, cleanUrl);
+          } catch {
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
+
+          let targetDestination = destination();
+          if (rawReturn) {
+            const decoded = decodeURIComponent(rawReturn);
+            const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+            if (validation.isSafe && validation.sanitizedUrl !== '/login') {
+              targetDestination = validation.sanitizedUrl;
+            }
+          }
+          router.replace(targetDestination);
         }
-        router.replace(targetDestination);
+      } catch {
+        // Sandboxed environment
       }
-    } catch {
-      // Sandboxed environment
-    }
+    })();
   }, [router, destination]);
 
   // "Continue with Quant Account" always performs a real SSO handshake with QuantMail.

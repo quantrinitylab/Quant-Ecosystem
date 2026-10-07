@@ -77,13 +77,16 @@ describe('QuantAI SSO Token Handoff & Session Ingestion', () => {
     const ticket = bridge.generateHandoffTicket('quantai');
     expect(ticket).toBeTruthy();
 
-    const verified = bridge.verifyHandoffTicket(ticket!);
-    expect(verified).not.toBeNull();
-    expect(verified?.userId).toBe('user-ai-sso-2');
-    expect(verified?.token).toBe('jwt-ai-sso-token-555');
+    // Unwrap the ticket envelope (decode-only: verifies nothing by itself —
+    // in production the wrapped token is re-verified server-side by
+    // consumeHandoffTicket before any session is established)
+    const unwrapped = bridge.decodeUnverifiedHandoffTicket(ticket!);
+    expect(unwrapped).not.toBeNull();
+    expect(unwrapped?.userId).toBe('user-ai-sso-2');
+    expect(unwrapped?.token).toBe('jwt-ai-sso-token-555');
 
     // Ingest into quantai
-    ingestSSOToken(verified!.token!);
+    ingestSSOToken(unwrapped!.token!);
     expect(getAccessToken()).toBe('jwt-ai-sso-token-555');
     expect(localStorage.getItem('quant_access_token')).toBe('jwt-ai-sso-token-555');
   });

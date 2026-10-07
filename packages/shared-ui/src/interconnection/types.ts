@@ -60,6 +60,11 @@ export interface QuantUserSession {
 
 export interface ConsumedSSOTicket {
   ticket: string;
+  /**
+   * Session built EXCLUSIVELY from the server-verified userinfo response.
+   * Present only when the wrapped token passed server-side verification —
+   * ticket claims are never trusted here.
+   */
   session?: Partial<QuantUserSession>;
   returnPath: string | null;
 }

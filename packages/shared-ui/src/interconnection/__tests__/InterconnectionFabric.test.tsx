@@ -119,15 +119,15 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       const ticket = parsed.searchParams.get('__quant_sso_ticket');
       expect(ticket).toBeTruthy();
 
-      // Verify the generated ticket contains expected claims
-      const claims = bridge.verifyHandoffTicket(ticket!);
+      // Decode the generated ticket (UNVERIFIED claims — decode only, never trusted)
+      const claims = bridge.decodeUnverifiedHandoffTicket(ticket!);
       expect(claims).not.toBeNull();
       expect(claims?.userId).toBe('user-001');
       expect(claims?.email).toBe('kundan@quantmail.in');
       expect(claims?.currentApp).toBe('quantchat');
     });
 
-    it('consumes handoff ticket, initializes session and cleans address bar without reload', () => {
+    it('consumes handoff ticket only after server-side token verification, then cleans address bar', async () => {
       const bridge = UniversalSSOTokenBridge.getInstance();
       bridge.setCurrentSession(mockUser, 3600);
 
@@ -137,14 +137,48 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
 
       const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
 
-      const consumed = bridge.consumeHandoffTicket(inboundUrl);
+      // Server accepts the wrapped token and returns the verified identity
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              id: 'user-001',
+              email: 'kundan@quantmail.in',
+              displayName: 'Kundan Singh',
+              username: 'kundansingh',
+              plan: 'pro',
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl);
       expect(consumed).not.toBeNull();
       expect(consumed?.ticket).toBe(ticket);
+      // Identity comes from the SERVER, not the ticket claims
       expect(consumed?.session?.userId).toBe('user-001');
+      expect(consumed?.session?.email).toBe('kundan@quantmail.in');
+      expect(consumed?.session?.token).toBe('mock_jwt_access_token_123');
       expect(consumed?.returnPath).toBe('https://quantmail.in/inbox');
+
+      // Verified token was stored under ecosystem keys
+      expect(localStorage.getItem('quant_access_token')).toBe('mock_jwt_access_token_123');
+
+      // The userinfo request carried the wrapped token as a Bearer credential
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/auth/userinfo',
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer mock_jwt_access_token_123' },
+        }),
+      );
 
       // Address bar replaceState was invoked to remove query ticket
       expect(replaceStateSpy).toHaveBeenCalled();
+
+      vi.unstubAllGlobals();
     });
 
     it('seamlessly propagates session to sibling domains via propagateSessionToSiblingDomains', () => {
@@ -157,6 +191,155 @@ describe('Quant Ecosystem Interconnection Fabric Suite', () => {
       expect(ssoEvents.length).toBeGreaterThan(0);
       expect(bridge.getCurrentSession()?.token).toBe('new_propagated_token_999');
       unsub();
+    });
+  });
+
+  describe('UniversalSSOTokenBridge - Handoff Ticket Fail-Closed Verification (P0)', () => {
+    /** Builds an attacker-crafted ticket: valid base64, future exp, forged claims. */
+    const makeForgedTicket = (overrides: Record<string, unknown> = {}): string => {
+      const payload = {
+        uid: 'attacker-uid',
+        email: 'attacker@evil.example',
+        name: 'Attacker',
+        tier: 'ultra',
+        app: 'quantube',
+        token: 'forged-token-xyz',
+        iat: Date.now(),
+        exp: Date.now() + 5 * 60 * 1000,
+        nonce: 'forgednonce1',
+        ...overrides,
+      };
+      return Buffer.from(JSON.stringify(payload)).toString('base64url');
+    };
+
+    const inboundUrl = (ticket: string): string =>
+      `https://quantube.quantrinity.in/watch?v=abc&__quant_sso_ticket=${ticket}`;
+
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn());
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('REJECTS a forged ticket when the server rejects the token (401)', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ success: false }), { status: 401 }),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const events: unknown[] = [];
+      const unsub = bridge.on('SESSION_INITIALIZED', (e) => events.push(e));
+
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl(makeForgedTicket()));
+
+      expect(consumed).toBeNull();
+      // Fail closed: nothing stored, no authenticated state, no SSO event
+      expect(localStorage.getItem('quant_access_token')).toBeNull();
+      expect(localStorage.getItem('quant_auth_token')).toBeNull();
+      expect(localStorage.getItem('token')).toBeNull();
+      expect(localStorage.getItem('quant_token')).toBeNull();
+      expect(localStorage.getItem('quantchat_access_token')).toBeNull();
+      expect(events.length).toBe(0);
+      unsub();
+    });
+
+    it('REJECTS a ticket whose wrapped token is expired server-side', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ success: false, error: { code: 'UNAUTHORIZED' } }), {
+          status: 401,
+        }),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const expiredTicket = makeForgedTicket({
+        uid: 'user-001',
+        email: 'kundan@quantmail.in',
+        token: 'expired-server-token',
+        exp: Date.now() - 60 * 1000, // ticket envelope also expired
+      });
+
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl(expiredTicket));
+
+      expect(consumed).toBeNull();
+      expect(localStorage.getItem('quant_access_token')).toBeNull();
+    });
+
+    it('fails closed when the userinfo endpoint is unreachable (network error)', async () => {
+      vi.mocked(fetch).mockRejectedValue(new Error('network down'));
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl(makeForgedTicket()));
+
+      expect(consumed).toBeNull();
+      expect(localStorage.getItem('quant_access_token')).toBeNull();
+    });
+
+    it('fails closed when userinfo returns 200 without a usable identity', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ success: true, data: {} }), { status: 200 }),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl(makeForgedTicket()));
+
+      expect(consumed).toBeNull();
+      expect(localStorage.getItem('quant_access_token')).toBeNull();
+    });
+
+    it('IGNORES tampered ticket claims and uses only the server-verified identity', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              id: 'real-user-7',
+              email: 'real@quantmail.in',
+              displayName: 'Real User',
+              plan: 'pro',
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      // Ticket claims an attacker identity; the wrapped token is the real one.
+      const ticket = makeForgedTicket({
+        uid: 'attacker-uid',
+        email: 'attacker@evil.example',
+        name: 'Attacker',
+        tier: 'ultra',
+        token: 'real-server-token',
+      });
+
+      const consumed = await bridge.consumeHandoffTicket(inboundUrl(ticket));
+
+      expect(consumed).not.toBeNull();
+      expect(consumed?.session?.userId).toBe('real-user-7');
+      expect(consumed?.session?.email).toBe('real@quantmail.in');
+      expect(consumed?.session?.displayName).toBe('Real User');
+      expect(consumed?.session?.token).toBe('real-server-token');
+      // Attacker claims never leak into the session or storage
+      expect(localStorage.getItem('quant_access_token')).toBe('real-server-token');
+      expect(bridge.getCurrentSession()?.userId).toBe('real-user-7');
+    });
+
+    it('decodeUnverifiedHandoffTicket decodes but never authenticates', () => {
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const claims = bridge.decodeUnverifiedHandoffTicket(makeForgedTicket({ uid: 'user-001' }));
+      expect(claims).not.toBeNull();
+      expect(claims?.userId).toBe('user-001');
+      // Decoding alone establishes no session and stores nothing
+      expect(localStorage.getItem('quant_access_token')).toBeNull();
+    });
+
+    it('returns null when no ticket is present in the URL', async () => {
+      const bridge = UniversalSSOTokenBridge.getInstance();
+      const consumed = await bridge.consumeHandoffTicket('https://quantube.quantrinity.in/watch');
+      expect(consumed).toBeNull();
+      expect(vi.mocked(fetch)).not.toHaveBeenCalled();
     });
   });
 

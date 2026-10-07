@@ -28,6 +28,21 @@ export interface SSOEventMessage {
 }
 
 /**
+ * Identity fields extracted from a server-verified userinfo response.
+ * These are the ONLY identity fields the bridge trusts — never ticket claims.
+ */
+interface VerifiedHandoffUser {
+  id: string;
+  email: string;
+  displayName: string;
+  username?: string;
+  avatarUrl?: string | null;
+  tier?: QuantUserSession['tier'];
+}
+
+const HANDOFF_TIER_VALUES: ReadonlySet<string> = new Set(['free', 'pro', 'ultra', 'enterprise']);
+
+/**
  * Universal SSO Token Bridge
  *
  * Implements frictionless cross-app authentication handoff across all 10 apps
@@ -40,6 +55,19 @@ export class UniversalSSOTokenBridge {
   private listeners: Map<SSOEventType, Set<(event: SSOEventMessage) => void>> = new Map();
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private currentSession: QuantUserSession | null = null;
+
+  /**
+   * Same-origin userinfo endpoint used to re-verify handoff tokens server-side.
+   * Every app proxies it to its backend, which verifies the JWT signature
+   * (fail closed). Override per app at bootstrap when the route differs.
+   */
+  private static handoffUserInfoUrl = '/api/auth/userinfo';
+
+  public static configureHandoffVerification(options: { userInfoUrl?: string }): void {
+    if (options.userInfoUrl && typeof options.userInfoUrl === 'string') {
+      UniversalSSOTokenBridge.handoffUserInfoUrl = options.userInfoUrl;
+    }
+  }
 
   private constructor() {
     this.initBroadcastChannel();
@@ -225,7 +253,14 @@ export class UniversalSSOTokenBridge {
   }
 
   /**
-   * Generates a client-side handoff ticket containing session claims
+   * Generates a client-side handoff ticket containing session claims.
+   *
+   * SECURITY: this ticket is an UNVERIFIED transport envelope — it is minted
+   * client-side and carries NO signature. The claims inside (uid/email/name/
+   * tier) are attacker-influenceable and must never be trusted. Its only
+   * purpose is to carry the wrapped server-issued access token across apps;
+   * receivers MUST re-verify that token server-side (consumeHandoffTicket does
+   * this fail-closed) before establishing any authenticated state.
    */
   public generateHandoffTicket(targetApp: CoreQuantAppId): string | null {
     if (!this.currentSession) return null;
@@ -257,9 +292,16 @@ export class UniversalSSOTokenBridge {
   }
 
   /**
-   * Verifies and extracts session claims from a handoff ticket
+   * Decodes (WITHOUT verifying) the claims inside a client-side handoff ticket.
+   *
+   * WARNING — UNVERIFIED: tickets are minted client-side with no signature, so
+   * the returned claims are attacker-influenceable. NEVER use them to drive
+   * authenticated UI state. Use this only to extract the wrapped candidate
+   * token for server-side verification (see consumeHandoffTicket).
+   *
+   * (Formerly `verifyHandoffTicket` — renamed because it never verified anything.)
    */
-  public verifyHandoffTicket(
+  public decodeUnverifiedHandoffTicket(
     ticket: string,
   ): (Partial<QuantUserSession> & { token?: string }) | null {
     if (!ticket || typeof ticket !== 'string') return null;
@@ -285,91 +327,165 @@ export class UniversalSSOTokenBridge {
   }
 
   /**
-   * Consumes an SSO handoff ticket from the current URL if present.
-   * Strips the ticket from the browser address bar via history.replaceState to prevent leakage.
-   * Returns the ticket, extracted session, and sanitized return path, or null.
+   * Verifies a candidate token against this app's same-origin userinfo endpoint
+   * (proxied to the backend, which verifies the JWT signature — fail closed).
+   * Returns the server-verified identity, or null when the token is rejected,
+   * the network fails, or the response carries no usable identity.
    */
-  public consumeHandoffTicket(url?: string): ConsumedSSOTicket | null {
+  private static async verifyTokenWithUserInfo(token: string): Promise<VerifiedHandoffUser | null> {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch(UniversalSSOTokenBridge.handoffUserInfoUrl, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!res.ok) return null;
+        const raw = (await res.json().catch(() => null)) as Record<string, any> | null;
+        // Accept both a bare user object and a { success, data } envelope.
+        const user = raw?.data || raw?.user || raw;
+        if (!user || typeof user !== 'object') return null;
+        const id = user.id || user.sub;
+        if (typeof id !== 'string' || !id) return null;
+        const tierValue = user.tier || user.plan;
+        return {
+          id,
+          email: typeof user.email === 'string' ? user.email : '',
+          displayName: user.displayName || user.name || user.username || '',
+          username: typeof user.username === 'string' ? user.username : undefined,
+          avatarUrl:
+            typeof user.avatarUrl === 'string' || typeof user.picture === 'string'
+              ? user.avatarUrl || user.picture
+              : null,
+          tier:
+            typeof tierValue === 'string' && HANDOFF_TIER_VALUES.has(tierValue)
+              ? (tierValue as QuantUserSession['tier'])
+              : undefined,
+        };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    } catch {
+      // Network error, timeout, or aborted — fail closed.
+      return null;
+    }
+  }
+
+  /**
+   * Consumes an SSO handoff ticket from the current URL if present — FAIL CLOSED.
+   *
+   * Strips the ticket from the browser address bar via history.replaceState to
+   * prevent leakage, then re-verifies the wrapped token against this app's
+   * server-side userinfo endpoint BEFORE any token is stored or any session
+   * state is set. The returned session is built exclusively from the
+   * server-verified identity — ticket claims (uid/email/name/tier) are never
+   * trusted and never drive authenticated state.
+   *
+   * Returns the ticket, the verified session, and the sanitized return path —
+   * or null when there is no ticket or verification fails (forged, tampered,
+   * expired, or unreachable backend). On failure nothing is stored and no
+   * session is established.
+   */
+  public async consumeHandoffTicket(url?: string): Promise<ConsumedSSOTicket | null> {
     if (typeof window === 'undefined' && !url) return null;
 
+    let ticket: string | null = null;
+    let rawReturn: string | null = null;
+    let currentUrl: URL | null = null;
     try {
-      const currentUrl = new URL(url || window.location.href);
-      const ticket =
+      currentUrl = new URL(url || window.location.href);
+      ticket =
         currentUrl.searchParams.get('__quant_sso_ticket') ||
         currentUrl.searchParams.get('token') ||
-        currentUrl.searchParams.get('accessToken');
-      const rawReturn =
+        currentUrl.searchParams.get('accessToken') ||
+        currentUrl.searchParams.get('access_token');
+      rawReturn =
         currentUrl.searchParams.get('__quant_return') || currentUrl.searchParams.get('returnTo');
-
-      if (!ticket) return null;
-
-      const verifiedSession = this.verifyHandoffTicket(ticket);
-      const tokenToStore = verifiedSession?.token || ticket;
-
-      // Safely store token in standard ecosystem keys
-      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_access_token', tokenToStore);
-      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_auth_token', tokenToStore);
-      UniversalSSOTokenBridge.safeSetItem('localStorage', 'token', tokenToStore);
-      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_token', tokenToStore);
-      UniversalSSOTokenBridge.safeSetItem('localStorage', 'quantchat_access_token', tokenToStore);
-
-      if (typeof document !== 'undefined') {
-        document.cookie =
-          'quant_access_token=' + tokenToStore + '; path=/; max-age=86400; SameSite=Lax';
-        document.cookie = 'token=' + tokenToStore + '; path=/; max-age=86400; SameSite=Lax';
-      }
-
-      if (verifiedSession && verifiedSession.userId) {
-        const session: QuantUserSession = {
-          userId: verifiedSession.userId,
-          email: verifiedSession.email || '',
-          displayName: verifiedSession.displayName || '',
-          tier: verifiedSession.tier,
-          currentApp: verifiedSession.currentApp,
-          token: tokenToStore,
-        };
-        this.setCurrentSession(session, 3600);
-        this.broadcastSSOEvent('SESSION_INITIALIZED', session.currentApp || 'quantmail');
-      }
-
-      // Validate and sanitize return path
-      let sanitizedReturn: string | null = null;
-      if (rawReturn) {
-        const decoded = decodeURIComponent(rawReturn);
-        const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
-        if (validation.isSafe) {
-          sanitizedReturn = validation.sanitizedUrl;
-        }
-      }
-
-      // Clean URL without page reload to prevent token leaking via browser history/address bar
-      try {
-        if (
-          typeof window !== 'undefined' &&
-          window.history &&
-          typeof window.history.replaceState === 'function'
-        ) {
-          currentUrl.searchParams.delete('__quant_sso_ticket');
-          currentUrl.searchParams.delete('token');
-          currentUrl.searchParams.delete('accessToken');
-          currentUrl.searchParams.delete('refreshToken');
-          currentUrl.searchParams.delete('__quant_return');
-          const cleanUrl =
-            currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + currentUrl.hash;
-          window.history.replaceState({}, document.title, cleanUrl);
-        }
-      } catch {
-        // Restricted history in sandboxed iframe
-      }
-
-      return {
-        ticket,
-        session: verifiedSession || undefined,
-        returnPath: sanitizedReturn,
-      };
     } catch {
       return null;
     }
+
+    if (!ticket) return null;
+
+    // Clean URL without page reload to prevent token leaking via browser
+    // history/address bar — done regardless of verification outcome.
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        window.history &&
+        typeof window.history.replaceState === 'function'
+      ) {
+        currentUrl.searchParams.delete('__quant_sso_ticket');
+        currentUrl.searchParams.delete('token');
+        currentUrl.searchParams.delete('accessToken');
+        currentUrl.searchParams.delete('access_token');
+        currentUrl.searchParams.delete('refreshToken');
+        currentUrl.searchParams.delete('__quant_return');
+        const cleanUrl =
+          currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + currentUrl.hash;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+    } catch {
+      // Restricted history in sandboxed iframe
+    }
+
+    // Extract the wrapped candidate token. Ticket claims are UNVERIFIED and are
+    // not used for identity — only the token goes to the server for verification.
+    const unverified = this.decodeUnverifiedHandoffTicket(ticket);
+    const candidateToken = unverified?.token || ticket;
+
+    // Server-side re-verification (fail closed): the backend verifies the JWT
+    // signature. Forged/tampered/expired tokens are rejected here.
+    const verifiedUser = await UniversalSSOTokenBridge.verifyTokenWithUserInfo(candidateToken);
+    if (!verifiedUser) return null;
+
+    // Safely store the SERVER-VERIFIED token in standard ecosystem keys
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_access_token', candidateToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_auth_token', candidateToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'token', candidateToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quant_token', candidateToken);
+    UniversalSSOTokenBridge.safeSetItem('localStorage', 'quantchat_access_token', candidateToken);
+
+    if (typeof document !== 'undefined') {
+      document.cookie =
+        'quant_access_token=' + candidateToken + '; path=/; max-age=86400; SameSite=Lax';
+      document.cookie = 'token=' + candidateToken + '; path=/; max-age=86400; SameSite=Lax';
+    }
+
+    // Session identity comes ONLY from the server-verified userinfo response.
+    // (currentApp is a non-security routing hint carried by the ticket envelope.)
+    const session: QuantUserSession = {
+      userId: verifiedUser.id,
+      email: verifiedUser.email,
+      displayName: verifiedUser.displayName,
+      username: verifiedUser.username,
+      avatarUrl: verifiedUser.avatarUrl ?? undefined,
+      tier: verifiedUser.tier,
+      currentApp: unverified?.currentApp,
+      token: candidateToken,
+    };
+    this.setCurrentSession(session, 3600);
+    this.broadcastSSOEvent('SESSION_INITIALIZED', session.currentApp || 'quantmail');
+
+    // Validate and sanitize return path
+    let sanitizedReturn: string | null = null;
+    if (rawReturn) {
+      const decoded = decodeURIComponent(rawReturn);
+      const validation = UniversalSSOTokenBridge.validateSafeReturnPath(decoded);
+      if (validation.isSafe) {
+        sanitizedReturn = validation.sanitizedUrl;
+      }
+    }
+
+    return {
+      ticket,
+      session,
+      returnPath: sanitizedReturn,
+    };
   }
 
   /**
