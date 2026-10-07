@@ -10,7 +10,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { TIMEZONES } from '../../types';
 import { generateGoogleCalendarUrl, generateIcsContent } from './booking-utils';
 import {
-  IconLock,
   IconClock,
   IconVideoCall,
   IconCalendar,
@@ -494,11 +493,6 @@ export default function PublicBookingPage(props: PageProps) {
               </span>
             </span>
           </div>
-        </div>
-
-        <div className="text-xs text-[#A1A4AC] hidden sm:flex items-center gap-2">
-          <IconLock size={13} className="text-[#A1A4AC]" />
-          <span>End-to-End Encrypted Scheduling</span>
         </div>
       </header>
 

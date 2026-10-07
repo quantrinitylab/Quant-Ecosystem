@@ -30,7 +30,8 @@ describe('QuantCalendar Calendly-Class Public Booking Engine (Tasks W39-CAL01 & 
       // Verify Brand & Public Header
       expect(html).toContain('QuantCalendar');
       expect(html).toContain('Sovereign Booking');
-      expect(html).toContain('End-to-End Encrypted Scheduling');
+      // No false end-to-end-encryption claims: booking POSTs plain JSON.
+      expect(html).not.toContain('End-to-End Encrypted Scheduling');
 
       // Verify Left Column: Host Details & Meeting Metadata
       expect(html).toContain('Host');

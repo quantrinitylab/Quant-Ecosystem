@@ -60,9 +60,9 @@ describe('app-switcher re-tap refresh', () => {
 
   it('executeContextTabClick navigates when tapping a different tab', () => {
     const push = vi.fn();
-    const tab = PILLAR_SUB_CONFIGS['mail'].tabs.find((t) => t.id === 'teams')!;
+    const tab = PILLAR_SUB_CONFIGS['mail'].tabs.find((t) => t.id === 'archive')!;
     executeContextTabClick(tab, 'mail', { pathname: '/', router: { push } });
-    expect(push).toHaveBeenCalledWith('/?tab=teams');
+    expect(push).toHaveBeenCalledWith('/?tab=archive');
     expect(dispatchedEvents).not.toContain('quant:refresh');
     expect(dispatchedEvents).toContain('quant:subtab-change');
   });

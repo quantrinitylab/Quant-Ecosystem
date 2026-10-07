@@ -58,8 +58,8 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
                   <circle cx="12" cy="15.2" r="1.4" fill="currentColor" stroke="none" />
                 </svg>
               }
-              title="End-to-end encrypted"
-              copy="Encrypted in transit and at rest. Your mail stays private."
+              title="Encrypted in transit and at rest"
+              copy="Your mail stays private."
             />
           </div>
         </div>

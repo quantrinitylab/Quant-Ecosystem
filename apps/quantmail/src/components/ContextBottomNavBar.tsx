@@ -95,26 +95,6 @@ function PriorityRadarIcon({ className }: { className?: string; active?: boolean
   );
 }
 
-function TeamsIcon({ className }: { className?: string; active?: boolean }) {
-  return (
-    <svg
-      className={className || 'size-4'}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
-
 function SentIcon({ className }: { className?: string; active?: boolean }) {
   return (
     <svg
@@ -689,23 +669,6 @@ export const PILLAR_SUB_CONFIGS: Record<ProductivityPillar, PillarContextConfig>
         queryParam: { key: 'lens', value: 'all' },
       },
       {
-        id: 'teams',
-        label: 'Teams',
-        icon: TeamsIcon,
-        description: 'Workspaces & Teams collaboration',
-        targetPath: '/',
-        queryParam: { key: 'tab', value: 'teams' },
-      },
-      {
-        id: 'agents',
-        label: 'Agents',
-        icon: CopilotQuantyIcon,
-        badgeText: 'AI',
-        description: 'QuantGit Swarm Agent Access Panel',
-        targetPath: '/',
-        queryParam: { key: 'tab', value: 'agents' },
-      },
-      {
         id: 'archive',
         label: 'Archive',
         icon: ArchiveIcon,
@@ -932,8 +895,6 @@ export function resolveActiveTab(
   if (pillar === 'mail') {
     if (pathname.startsWith('/sent') || tabParam === 'sent') return 'sent';
     if (pathname.startsWith('/archive') || tabParam === 'archive') return 'archive';
-    if (tabParam === 'agents' || lensParam === 'agents') return 'agents';
-    if (tabParam === 'teams' || lensParam === 'teams') return 'teams';
     if (lensParam === 'important' || tabParam === 'priority') return 'priority';
     return 'inbox';
   }
@@ -1001,12 +962,6 @@ export function executeContextTabClick(
     if (canWindow) {
       window.dispatchEvent(new CustomEvent('quant:copilot:open'));
       window.dispatchEvent(new CustomEvent('quant:quanty:open'));
-    }
-  }
-
-  if (tab.id === 'agents' && pillar === 'mail') {
-    if (canWindow) {
-      window.dispatchEvent(new CustomEvent('quant:agents:open'));
     }
   }
 
