@@ -28,6 +28,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `13-c01-c13-implementation-contract.md` — implementation contract mapping C01–C13 to domains, entities, commands, queries, events, state machines, realtime, offline, security, cross-app handoffs, observability and Muse execution waves.
 - `14-database-domain-schema-contract.md` — PostgreSQL domain schema contract for C01–C13, Redis/Kafka boundaries, outbox/idempotency, E2EE storage boundary, indexes, retention/deletion, migrations, security and persistence tests.
 - `15-api-event-websocket-contract.md` — endpoint-level API, event and WebSocket contract: envelopes, auth, pagination, idempotency, E2EE boundaries, reconnect/gap repair, Quanty tools, cross-app handoffs, rate limits and contract/load/security testing.
+- `16-e2ee-multidevice-cryptographic-architecture.md` — E2EE and multi-device security: device identities, prekeys, session establishment, ratchet/group-key lifecycle, encrypted media, verification, recovery, local search, Quanty plaintext boundary, threat model and cryptographic test plan.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
