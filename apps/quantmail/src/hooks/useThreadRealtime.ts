@@ -215,7 +215,6 @@ export function useThreadRealtime({
       socketRef.current = null;
       setConnected(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, enabled]);
 
   const sendTyping = useCallback((typing: boolean) => {
