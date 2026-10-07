@@ -349,9 +349,13 @@ jobs:
           #   P1001: Can't reach database server at
           #   quant-staging-postgres.cgj0y8m2azc2.us-east-1.rds.amazonaws.com:5432
           # The migration now runs as a Kubernetes Job INSIDE the cluster,
-          # using the just-built immutable backend image (its node_modules
-          # already carry the prisma 6.19.3 CLI and packages/database/prisma
-          # holds the schema + migrations). DATABASE_URL is injected from the
+          # using the just-built immutable backend image. The prisma 6.19.3
+          # CLI is a devDependency of @quant/database, so under pnpm's
+          # isolated layout it lives at
+          # packages/database/node_modules/.bin/prisma (NOT at the repo-root
+          # node_modules/.bin — the root package does not depend on prisma
+          # and nothing is hoisted). packages/database/prisma holds the
+          # schema + migrations. DATABASE_URL is injected from the
           # quant-staging-secrets Secret via secretKeyRef — the plaintext URL
           # never touches the runner, so there is nothing to mask or leak.
           aws eks update-kubeconfig --name "$EKS_CLUSTER" --region "$AWS_REGION"
@@ -391,7 +395,7 @@ jobs:
                 - name: migrate
                   image: $IMMUTABLE_IMAGE
                   imagePullPolicy: IfNotPresent
-                  command: ["node", "node_modules/.bin/prisma", "migrate", "deploy", "--schema=packages/database/prisma/schema.prisma"]
+                  command: ["node", "packages/database/node_modules/.bin/prisma", "migrate", "deploy", "--schema=packages/database/prisma/schema.prisma"]
                   env:
                   - name: DATABASE_URL
                     valueFrom:
