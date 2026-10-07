@@ -15,6 +15,9 @@ QuantChat owns communication state. It may consume other product projections thr
 ### Product and system
 - `01-unified-social-messaging-meeting-architecture.md` — unified WhatsApp/Telegram/Snapchat/Discord/QuantMeet architecture.
 - `02-screen-by-screen-deep-architecture.md` — **screen-by-screen target architecture for C01–C13**, including layout, state machines, data, realtime, offline, Quanty, safety, accessibility, failure modes, ownership and execution order.
+- `03-screen-deep-dive-c01-c02.md` — deeper C01/C02 implementation architecture.
+- `04-screen-deep-dive-c03-c04-c05.md` — deeper C03/C04/C05 community/channel architecture.
+- `05-screen-deep-dive-c06-camera-stories-spotlight-ar.md` — deep C06 camera, Stories, Spotlight, AR, media editor, platform UI and Muse placement architecture.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
