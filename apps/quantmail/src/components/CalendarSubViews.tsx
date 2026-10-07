@@ -796,61 +796,29 @@ export function CalendarMonthSubView({
 
   return (
     <div className={`flex-1 flex flex-col overflow-y-auto bg-[#090A0E] text-[#F5F5F5] p-4 sm:p-6 pb-24 space-y-6 ${className}`}>
-      {/* Month Toolbar & Steppers */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-[#12151E] border border-[#232938] rounded-2xl p-4 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={handlePrevMonth}
-              aria-label="Previous month"
-              className="size-8 grid place-items-center rounded-xl border border-[#232938] text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              <SvgChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNextMonth}
-              aria-label="Next month"
-              className="size-8 grid place-items-center rounded-xl border border-[#232938] text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              <SvgChevronRight className="size-4" />
-            </button>
-          </div>
-
-          <h2 className="text-base sm:text-lg font-bold text-[#F5F5F5] tracking-tight">
-            <span>{MONTH_NAMES[viewMonth]}</span>{' '}
-            <span className="text-[#A1A4AC] font-normal">{viewYear}</span>
-          </h2>
-
+      {/* Secondary week navigator. Month navigation lives in the shared page header. */}
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-[#64748B]">
+          Select a date or drag across days to create a multi-day event.
+        </p>
+        <div className="inline-flex items-center rounded-xl border border-[#232938] bg-[#12151E] p-1 shrink-0">
           <button
             type="button"
-            onClick={handleGoToday}
-            className="px-2.5 py-1 text-xs font-medium rounded-lg border border-[#232938] bg-[#181C26] hover:bg-[#202534] text-[#F5F5F5] transition-colors"
+            onClick={handlePrevWeek}
+            aria-label="Previous week"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
           >
-            Today
+            <SvgChevronLeft className="size-4" />
           </button>
-        </div>
-
-        {/* Week-by-Week Sliding Stepper */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#A1A4AC] font-medium hidden sm:inline">Week Sliding:</span>
-          <div className="inline-flex rounded-xl border border-[#232938] bg-[#0B0D13] p-0.5">
-            <button
-              type="button"
-              onClick={handlePrevWeek}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              ‹ Prev Week
-            </button>
-            <button
-              type="button"
-              onClick={handleNextWeek}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
-            >
-              Next Week ›
-            </button>
-          </div>
+          <span className="px-2 text-[11px] font-semibold text-[#A1A4AC]">Week</span>
+          <button
+            type="button"
+            onClick={handleNextWeek}
+            aria-label="Next week"
+            className="size-8 grid place-items-center rounded-lg text-[#A1A4AC] hover:text-white hover:bg-[#181C26] transition-colors"
+          >
+            <SvgChevronRight className="size-4" />
+          </button>
         </div>
       </div>
 
