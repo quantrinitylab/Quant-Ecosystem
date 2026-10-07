@@ -22,6 +22,35 @@ export function resetAuditLogsStore(): void {
   memoryAuditLogsStore.length = 0;
 }
 
+/** Read-only view of the in-memory audit store (test support / query fallback). */
+export function getServerAuditLogStore(): AuditLogRecord[] {
+  return memoryAuditLogsStore;
+}
+
+/**
+ * Server-side audit append — the ONLY write path for audit records.
+ *
+ * K9 (M20): the client-writable `POST /audit-logs` endpoint was closed because
+ * it let any authenticated client forge arbitrary audit records. Audit writes
+ * now happen exclusively from trusted backend code paths (e.g. the staff-gated
+ * admin mutations in `routes/admin.ts` via `recordAdminAudit`), which call this
+ * function — or `prisma.auditLog.create` directly — after a successful mutation.
+ * This function is deliberately NOT reachable over HTTP.
+ */
+export function appendServerAuditRecord(
+  entry: Omit<AuditLogRecord, 'id' | 'timestamp' | 'createdAt'>,
+): AuditLogRecord {
+  const now = new Date().toISOString();
+  const record: AuditLogRecord = {
+    id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: now,
+    createdAt: now,
+    ...entry,
+  };
+  memoryAuditLogsStore.unshift(record);
+  return record;
+}
+
 function getPrisma(fastify: FastifyInstance): any {
   return (fastify as unknown as { prisma?: unknown }).prisma;
 }
@@ -35,15 +64,6 @@ function requireUserId(request: FastifyRequest): string {
 }
 
 import { AuditService } from '../services/audit.service';
-
-const createAuditLogSchema = z.object({
-  action: z.string().trim().min(1).max(100),
-  resource: z.string().trim().min(1).max(100),
-  resourceId: z.string().optional().nullable(),
-  orgId: z.string().optional().nullable(),
-  organizationId: z.string().optional().nullable(),
-  metadata: z.record(z.unknown()).optional().default({}),
-});
 
 const listAuditLogsSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -107,63 +127,17 @@ export default async function auditLogsRoutes(fastify: FastifyInstance) {
     });
   });
 
-  // POST /audit-logs - Append an immutable audit log entry
-  fastify.post('/', async (request, reply) => {
-    const callerId = requireUserId(request);
-    const parsed = createAuditLogSchema.safeParse(request.body);
-    if (!parsed.success) {
-      throw createAppError(
-        parsed.error.errors[0]?.message || 'Invalid audit log payload',
-        400,
-        'VALIDATION_ERROR',
-      );
-    }
-
-    const now = new Date();
-    const ip = request.ip || '127.0.0.1';
-    const userAgent = (request.headers['user-agent'] as string) || 'Quant-Client/1.0';
-
-    const targetOrgId = parsed.data.orgId ?? parsed.data.organizationId ?? null;
-
-    const prisma = getPrisma(fastify);
-    if (prisma?.auditLog) {
-      try {
-        const created = await prisma.auditLog.create({
-          data: {
-            userId: callerId,
-            orgId: targetOrgId,
-            action: parsed.data.action,
-            resource: parsed.data.resource,
-            resourceId: parsed.data.resourceId ?? null,
-            metadata: (parsed.data.metadata as never) ?? {},
-            ip,
-            userAgent,
-            timestamp: now,
-            createdAt: now,
-          },
-        });
-        return reply.status(201).send({ success: true, data: created });
-      } catch {
-        // Fallback to memory store if database is offline in tests
-      }
-    }
-
-    const record: AuditLogRecord = {
-      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      userId: callerId,
-      orgId: targetOrgId,
-      action: parsed.data.action,
-      resource: parsed.data.resource,
-      resourceId: parsed.data.resourceId ?? null,
-      metadata: parsed.data.metadata ?? {},
-      ip,
-      userAgent,
-      timestamp: now.toISOString(),
-      createdAt: now.toISOString(),
-    };
-
-    memoryAuditLogsStore.unshift(record);
-    return reply.status(201).send({ success: true, data: record });
+  // POST /audit-logs — CLOSED (K9/M20). Audit records are append-only and
+  // written server-side by trusted backend code paths only. The previous
+  // handler let any authenticated client forge arbitrary audit entries
+  // (client-supplied action/resource), which contradicted the spec
+  // ("append-oriented and protected from ordinary product mutation").
+  fastify.post('/', async () => {
+    throw createAppError(
+      'Audit records are written server-side only; client-supplied audit writes are disabled',
+      405,
+      'AUDIT_LOG_CLIENT_WRITE_DISABLED',
+    );
   });
 
   // Immutability Guard: Reject any mutation or deletion of audit logs

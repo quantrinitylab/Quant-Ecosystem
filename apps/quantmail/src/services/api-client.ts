@@ -185,6 +185,109 @@ export interface AdminDeliverabilityKpi {
   successRate: number | null;
 }
 
+// ----------------------------------------------------------------------------
+// Admin console: K9 (M19 Admin Domains + M20 DLP/Audit).
+// Shapes mirror `backend/routes/admin.ts` exactly.
+// ----------------------------------------------------------------------------
+
+export interface AdminOrganization {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+}
+
+export interface AdminMailDomainDnsCheck {
+  key: 'ownership' | 'mx' | 'spf' | 'dkim' | 'dmarc';
+  label: string;
+  /** Derived from the stored cumulative verification stage — never invented. */
+  status: 'verified' | 'pending';
+}
+
+export interface AdminMailDomain {
+  id: string;
+  organizationId: string;
+  domain: string;
+  verificationStatus: string;
+  isPrimary: boolean;
+  verifiedAt: string | null;
+  createdAt: string;
+  dnsChecklist: AdminMailDomainDnsCheck[];
+}
+
+export interface AdminDnsInstructionRecord {
+  type: 'TXT' | 'MX' | 'CNAME';
+  name: string;
+  value: string;
+  priority?: number;
+  description: string;
+}
+
+export interface AdminMailDomainRegistration {
+  domain: AdminMailDomain;
+  alreadyRegistered: boolean;
+  /** Present only on a fresh registration — needed to set the DNS TXT record. */
+  verificationToken?: string;
+  instructions?: {
+    domain: string;
+    verificationToken: string;
+    records: AdminDnsInstructionRecord[];
+  };
+}
+
+export interface AdminMailDomainLiveCheck {
+  key: string;
+  label: string;
+  valid: boolean;
+  expected: string;
+  actual?: string | string[] | null;
+  error?: string | null;
+}
+
+export interface AdminMailDomainVerification {
+  domain: AdminMailDomain;
+  /** Fresh, live DNS results from the verify call. */
+  dnsChecks: AdminMailDomainLiveCheck[];
+}
+
+export interface AdminDlpPolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  ruleType: string;
+  action: string;
+  severity: string;
+  enabled: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface AdminAuditLogEntry {
+  id: string;
+  userId: string;
+  orgId: string | null;
+  action: string;
+  resource: string;
+  resourceId: string | null;
+  metadata: Record<string, unknown>;
+  ip: string | null;
+  userAgent: string | null;
+  timestamp: string;
+  createdAt: string;
+}
+
+export interface AdminAuditLogQuery {
+  page?: number;
+  limit?: number;
+  cursor?: string;
+  organizationId?: string;
+  userId?: string;
+  action?: string;
+  resource?: string;
+  from?: string;
+  to?: string;
+}
+
 // ============================================================================
 // API Client
 // ============================================================================
@@ -1300,6 +1403,60 @@ export class QuantMailApiClient {
   }
 
   // --------------------------------------------------------------------------
+  // Admin console: K9 (M19 Admin Domains + M20 DLP/Audit).
+  //
+  // Staff-gated on the backend (`backend/routes/admin.ts` — 401 unauthenticated,
+  // 403 non-staff, 400 when the organization scope is missing). Shapes mirror
+  // the backend responses exactly; every number on the admin screens comes
+  // from these calls — nothing is invented client-side.
+  // --------------------------------------------------------------------------
+
+  async getAdminOrganizations(): Promise<ApiResponse<{ organizations: AdminOrganization[] }>> {
+    return this.get('/admin/organizations');
+  }
+
+  async listAdminMailDomains(
+    organizationId: string,
+  ): Promise<ApiResponse<{ organizationId: string; domains: AdminMailDomain[] }>> {
+    return this.get('/admin/mail/domains', { params: { organizationId } });
+  }
+
+  async registerAdminMailDomain(
+    organizationId: string,
+    domain: string,
+  ): Promise<ApiResponse<AdminMailDomainRegistration>> {
+    return this.post('/admin/mail/domains', { organizationId, domain });
+  }
+
+  async verifyAdminMailDomain(
+    domainId: string,
+    organizationId: string,
+  ): Promise<ApiResponse<AdminMailDomainVerification>> {
+    return this.post(`/admin/mail/domains/${encodeURIComponent(domainId)}/verify`, {
+      organizationId,
+    });
+  }
+
+  async deleteAdminMailDomain(
+    domainId: string,
+    organizationId: string,
+  ): Promise<ApiResponse<{ removed: boolean; id: string }>> {
+    return this.delete(`/admin/mail/domains/${encodeURIComponent(domainId)}`, { organizationId });
+  }
+
+  async listAdminDlpPolicies(
+    organizationId: string,
+  ): Promise<ApiResponse<{ organizationId: string; policies: AdminDlpPolicy[] }>> {
+    return this.get('/admin/mail/dlp/policies', { params: { organizationId } });
+  }
+
+  async listAdminAuditLogs(
+    params?: AdminAuditLogQuery,
+  ): Promise<ApiResponse<AdminAuditLogEntry[]>> {
+    return this.get('/admin/audit/logs', { params: params as Record<string, string | number> });
+  }
+
+  // --------------------------------------------------------------------------
   // HTTP Methods
   // --------------------------------------------------------------------------
 
@@ -1331,8 +1488,8 @@ export class QuantMailApiClient {
     return this.request<T>('PATCH', path, body, options);
   }
 
-  private async delete<T>(path: string, options?: RequestOptions): Promise<ApiResponse<T>> {
-    return this.request<T>('DELETE', path, undefined, options);
+  private async delete<T>(path: string, body?: unknown, options?: RequestOptions): Promise<ApiResponse<T>> {
+    return this.request<T>('DELETE', path, body, options);
   }
 
   private async request<T>(
