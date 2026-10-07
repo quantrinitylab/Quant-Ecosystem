@@ -589,6 +589,40 @@ export function AppShell({
 
   const semanticTheme = effectiveTheme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
+  // Perceived app-switch speed: prefetch every pillar shell on mount so a tap
+  // never waits on the network for the route chunk. Next.js dedupes these.
+  useEffect(() => {
+    const pillars = ['/', '/calendar', '/drive', '/contacts', '/quantgit'];
+    for (const route of pillars) {
+      try {
+        router.prefetch(route);
+      } catch {
+        /* prefetch is best-effort */
+      }
+    }
+  }, [router]);
+
+  // Swiggy-grade app-switch transition: a brief blur+scale+fade on <main>
+  // while the new pillar's route loads, so the switch feels instant and
+  // premium instead of a hard cut. Fires on the same `quant:pillar-change`
+  // event the top switcher already dispatches.
+  const [isSwitching, setIsSwitching] = useState(false);
+  const switchTimer = useRef<number | null>(null);
+  useEffect(() => {
+    const onPillarChange = () => {
+      setIsSwitching(true);
+      if (switchTimer.current) window.clearTimeout(switchTimer.current);
+      // Slightly longer than the route transition so the blur lifts exactly
+      // as the new content settles — never a flash of unstyled content.
+      switchTimer.current = window.setTimeout(() => setIsSwitching(false), 380);
+    };
+    window.addEventListener('quant:pillar-change', onPillarChange);
+    return () => {
+      window.removeEventListener('quant:pillar-change', onPillarChange);
+      if (switchTimer.current) window.clearTimeout(switchTimer.current);
+    };
+  }, []);
+
   // Per-app color theming: the whole UI's accent color animates smoothly
   // when switching apps (Mail=orange, Calendar=blue, Drive=green,
   // Contacts=teal, QuantGit=purple).
@@ -961,14 +995,35 @@ export function AppShell({
             <main
               id="main-content"
               tabIndex={-1}
-              className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-                /* Reserve room for the mobile contextual bottom nav (h-16) on main
-                   suite routes. Desktop keeps its rail/context-bar layout. */
-                isMainSuiteRoute ? 'pb-16 md:pb-0' : ''
-              }`}
+              className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
+              style={{
+                // App-switch blur transition (issue #2): brief cinematic
+                // blur+scale while the new pillar loads. GPU-composited only.
+                filter: isSwitching ? 'blur(10px) saturate(1.15)' : 'none',
+                transform: isSwitching ? 'scale(0.985)' : 'scale(1)',
+                opacity: isSwitching ? 0.65 : 1,
+                transition: isSwitching
+                  ? 'filter 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out'
+                  : 'filter 0.32s cubic-bezier(0.25, 1, 0.5, 1), transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease-out',
+              }}
             >
               {animated ? <PageTransition>{children}</PageTransition> : children}
             </main>
+
+            {/*
+              Mobile Contextual Bottom Navigation — the ONE bottom bar.
+              In-flow flex child (NOT fixed): when scroll hides it, its height
+              collapses to 0 and <main> expands to reclaim the space — the
+              black-void bug is structurally impossible. See ContextBottomNavBar.
+            */}
+            {isMainSuiteRoute && (
+              <ContextBottomNavBar
+                badgeOverrides={{
+                  inbox: unreadCount > 0 ? unreadCount : undefined,
+                  teams: mailLensCounts.teams,
+                }}
+              />
+            )}
           </div>
 
           {/*
@@ -1008,18 +1063,8 @@ export function AppShell({
             <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
           )}
 
-          {/* Mobile Contextual Bottom Navigation — the ONE bottom bar:
-              per-app tabs (Inbox/Teams/Agents/Archive for Mail, per-app sets
-              for the other pillars). Mobile only; desktop layout unchanged.
-              Hidden on /thread/* and /compose where the bottom edge belongs
-              to the conversation / compose toolbar. Badges are real counts
-              only — never hardcoded. */}
-          <ContextBottomNavBar
-            badgeOverrides={{
-              inbox: unreadCount > 0 ? unreadCount : undefined,
-              teams: mailLensCounts.teams,
-            }}
-          />
+          {/* Mobile bottom nav now lives in-flow inside the column above —
+              it collapses to height 0 on scroll so content reclaims the space. */}
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />

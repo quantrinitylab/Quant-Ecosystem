@@ -133,31 +133,16 @@ type InboxFilter = 'starred' | 'attachment';
 
 const INBOX_LENSES: Array<{ key: InboxLens; label: string; hint: string }> = [
   /*
-   * Under the Inbox tab: All, Unread, Contacts, Spam lead as the primary filter lenses.
+   * User-agreed filter pills (2026-10-07): exactly All, Unread, Contacts,
+   * Spam. The category lenses (Primary/Updates/Social/Promotions/Forums/
+   * Groups/Snoozed) were removed from the chip row per explicit user feedback
+   * — they stay valid `InboxLens` keys (deep links, filter popover, URL params
+   * keep working) but no longer render as pills.
    */
   { key: 'all', label: 'All', hint: 'Every conversation, automated mail included' },
   { key: 'unread', label: 'Unread', hint: 'Conversations you have not opened yet' },
   { key: 'contacts', label: 'Contacts', hint: 'Conversations with someone in your address book' },
   { key: 'spam', label: 'Spam', hint: 'Junk and suspicious messages' },
-  { key: 'primary', label: 'Primary', hint: 'Direct person-to-person human correspondence' },
-  {
-    key: 'updates',
-    label: 'Updates',
-    hint: 'Receipts, confirmations, billing, and GitHub notices',
-  },
-  {
-    key: 'social',
-    label: 'Social',
-    hint: 'Social networks, media platforms, and community notices',
-  },
-  { key: 'promotions', label: 'Promotions', hint: 'Newsletters, marketing, deals, and discounts' },
-  {
-    key: 'forums',
-    label: 'Forums',
-    hint: 'Mailing lists, group discussions, and community digests',
-  },
-  { key: 'groups', label: 'Groups', hint: 'Conversations with multiple people or saved groups' },
-  { key: 'snoozed', label: 'Snoozed', hint: 'Conversations waiting for their wake time' },
 ];
 
 /**

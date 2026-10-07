@@ -869,16 +869,31 @@ export function QuantPillarTopBar({
     return () => ro.disconnect();
   }, [showLensStrip, currentPillar]);
 
-  // Hide-on-scroll: collapse when scrolling DOWN. Scrolling UP intentionally
-  // does NOT bring it back — the switcher reappears ONLY at the absolute top
-  // (scrollY === 0), so it never eats screen space mid-scroll.
-  // The SEARCH BAR is separate and NEVER hides — it stays pinned at top.
-  // Capture-phase document listener catches nested page scroll containers;
-  // every scroller is tracked independently via WeakMap.
+  // Hide-on-scroll: Swiggy-smooth, GPU-composited.
+  //
+  // The old implementation animated `height` (0 <-> measured), which forces a
+  // layout reflow on every frame — that is the jank the user saw. This version
+  // keeps the wrapper at a constant measured height and slides the header with
+  // `transform: translateY`, which the compositor handles without touching
+  // layout: 60fps, zero jank.
+  //
+  // Reveal policy: hide on DELIBERATE scroll-down (delta > 8px, past 120px —
+  // tiny jitters never hide it); reveal on scroll-UP (delta < -12px) or at the
+  // absolute top. The search bar below is separate and never hides.
+  //
+  // Scroll events are coalesced through requestAnimationFrame: a fast fling
+  // fires dozens of events per frame, and running the WeakMap bookkeeping on
+  // every one was measurable in profiles.
   useEffect(() => {
     const positions = new WeakMap<object, number>();
-    const onScroll = (e: Event) => {
-      const target = e.target as EventTarget | null;
+    let rafId: number | null = null;
+    let pendingTarget: EventTarget | null = null;
+
+    const processScroll = () => {
+      rafId = null;
+      const target = pendingTarget;
+      pendingTarget = null;
+      if (!target) return;
       let key: object | null = null;
       let scrollTop = 0;
       if (target === document || target === document.documentElement) {
@@ -893,11 +908,9 @@ export function QuantPillarTopBar({
       const last = positions.get(key) ?? 0;
       const delta = scrollTop - last;
       positions.set(key, scrollTop);
-      // CRITICAL: only reappear at the ABSOLUTE top (scrollY === 0).
-      // Not "about to reach" — fully at top. User was explicit.
-      // AND: the scroller that fired must be at 0 while the DOCUMENT itself
-      // is also at 0. Otherwise a nested container hitting 0 mid-page would
-      // wrongly reveal the switcher while the page is still scrolled.
+      // The scroller that fired must be at 0 while the DOCUMENT itself is also
+      // at 0 — otherwise a nested container hitting 0 mid-page would wrongly
+      // reveal the switcher while the page is still scrolled.
       const docTop = window.scrollY || document.documentElement.scrollTop || 0;
       if (scrollTop === 0 && docTop === 0) {
         setHeaderHidden(false);
@@ -905,13 +918,26 @@ export function QuantPillarTopBar({
       } else if (delta > 8 && scrollTop > 120) {
         setHeaderHidden(true);
         setSearchCompact(true);
+      } else if (delta < -12) {
+        // Scroll-up reveals the switcher (it no longer waits for the top).
+        setHeaderHidden(false);
       } else if (scrollTop > 0 && scrollTop <= 120) {
         // Small scroll: keep switcher visible but compact the search
         setSearchCompact(true);
       }
     };
+
+    const onScroll = (e: Event) => {
+      pendingTarget = e.target;
+      if (rafId === null) {
+        rafId = requestAnimationFrame(processScroll);
+      }
+    };
     document.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => document.removeEventListener('scroll', onScroll, { capture: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, []);
 
   // New pillar = fresh content at the top → always reveal the switcher.
@@ -1021,12 +1047,11 @@ export function QuantPillarTopBar({
     <div
       aria-hidden={headerHidden}
       style={{
-        height: headerHidden ? 0 : (headerHeight ?? 'auto'),
-        opacity: headerHidden ? 0 : 1,
+        // Constant measured height — never animated. The header slides inside
+        // it with a GPU-composited transform (see below): no layout reflow,
+        // no jank. `overflow: hidden` clips the slide.
+        height: headerHeight ?? 'auto',
         overflow: 'hidden',
-        transition: headerHidden
-          ? 'height 0.25s ease-in, opacity 0.2s ease-in'
-          : 'height 0.25s ease-out, opacity 0.25s ease-out',
       }}
     >
     <header
@@ -1034,6 +1059,14 @@ export function QuantPillarTopBar({
       className={`w-full flex flex-col gap-2 px-3 pt-2.5 pb-2 select-none ${className}`}
       aria-label="Super-App 5-Pillar Navigation Bar"
       style={{
+        // Swiggy-grade slide: spring cubic-bezier, ~320ms, transform+opacity
+        // only (compositor thread). translateY(-105%) fully clears the
+        // wrapper; opacity avoids a ghost edge mid-slide.
+        transform: headerHidden ? 'translateY(-105%)' : 'translateY(0)',
+        opacity: headerHidden ? 0 : 1,
+        transition:
+          'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.28s ease-out',
+        willChange: 'transform, opacity',
         // PROFESSIONAL: subtle, minimal — no flashy gradients.
         // Clean enterprise feel like Gmail/Outlook, not a game.
         // Background lives on the sticky bar above; this keeps the hairline
