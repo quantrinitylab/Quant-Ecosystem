@@ -10,6 +10,7 @@ import { LoadingState, EmptyState } from '@quant/shared-ui';
 import { useVideos } from '../hooks/useVideos';
 import { useAuth } from '../providers/auth-provider';
 import { LoadingSkeleton } from '../components/LoadingSkeleton';
+import { VideoThumbnail } from '../components/VideoThumbnail';
 import { GuestHeroBanner } from '../components/GuestHeroBanner';
 import { getGuestFeaturedVideos } from '../data/public-videos';
 
@@ -160,13 +161,17 @@ const HomePage: React.FC = () => {
           {CATEGORIES.map((cat) => (
             <button
               key={cat.id}
-              className={`relative px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap min-h-[44px] min-w-[44px] transition-colors ${
+              // DC-P1-11(a): chips must never be squeezed or clipped mid-word
+              // ("Gami", "Educa", "Ente"). flex-shrink-0 + whitespace-nowrap
+              // lets the nav scroll horizontally instead of truncating labels.
+              className={`relative flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap min-h-[44px] min-w-[44px] transition-colors ${
                 activeCategory === cat.id
                   ? 'bg-[var(--brand-primary)] text-white'
                   : 'bg-[var(--surface-elevated)] text-[var(--foreground-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]'
               }`}
               onClick={() => setActiveCategory(cat.id)}
               aria-pressed={activeCategory === cat.id}
+              title={cat.label}
             >
               {cat.label}
               {activeCategory === cat.id && (
@@ -229,10 +234,7 @@ const HomePage: React.FC = () => {
                   resolution?: string;
                   isSample?: boolean;
                 }) => {
-                  const thumbnailSrc =
-                    video.thumbnail ||
-                    video.thumbnailUrl ||
-                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
+                  const thumbnailSrc = video.thumbnail || video.thumbnailUrl || null;
                   const avatarSrc =
                     video.channelAvatar ||
                     `https://api.dicebear.com/7.x/identicon/svg?seed=${video.channelName || 'creator'}`;
@@ -250,17 +252,9 @@ const HomePage: React.FC = () => {
                       }}
                       role="listitem"
                     >
-                      <div className="relative aspect-video overflow-hidden bg-black/10">
-                        <img
-                          src={thumbnailSrc}
-                          alt={video.title || 'Video'}
-                          loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src =
-                              'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80';
-                          }}
-                        />
+                      {/* DC-P1-11(b): shimmer while loading, honest empty state when
+                          there is no thumbnail — never a dead blank tile. */}
+                      <VideoThumbnail src={thumbnailSrc} alt={video.title || 'Video'}>
                         {video.isLive ? (
                           <span className="absolute bottom-2 left-2 bg-[var(--brand-primary)] text-white text-xs font-bold px-2 py-0.5 rounded">
                             LIVE
@@ -281,7 +275,7 @@ const HomePage: React.FC = () => {
                             SAMPLE
                           </span>
                         )}
-                      </div>
+                      </VideoThumbnail>
                       <div className="p-3 flex gap-3">
                         <img
                           className="w-9 h-9 rounded-full flex-shrink-0 object-cover bg-gray-700/20"

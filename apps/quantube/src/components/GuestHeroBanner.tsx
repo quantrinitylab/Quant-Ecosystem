@@ -43,12 +43,14 @@ export const GuestHeroBanner: React.FC<GuestHeroBannerProps> = ({ onSignIn, clas
             ▶
           </div>
           <div>
+            {/* DC-P1-11(c): no content claims — every word is an instruction or a
+                provable truth. Do not say "trending" or promise videos the
+                catalog may not have. */}
             <h2 className="text-lg md:text-xl font-bold text-[var(--quant-foreground,#ffffff)] tracking-tight">
-              Welcome to QuanTube — Explore trending videos, creators, and music.
+              Welcome to QuanTube
             </h2>
             <p className="text-sm text-[var(--quant-muted-foreground,#a1a1aa)] mt-0.5">
-              Enjoy free, smooth video &amp; music streaming. Sign in anytime to follow creators,
-              like, and save favorites.
+              Sign in to follow creators, like videos, and save favorites.
             </p>
           </div>
         </div>
