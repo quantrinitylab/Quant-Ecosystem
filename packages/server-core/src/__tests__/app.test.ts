@@ -14,6 +14,8 @@ const testConfig: AppConfig = {
   jwtIssuer: 'quant-test',
   jwtAudience: 'quant-test-audience',
   env: 'test',
+  // The optional-auth probe route must bypass the global requireAuth hook.
+  publicPaths: ['/test-optional'],
 };
 
 describe('server-core app', () => {
@@ -25,6 +27,11 @@ describe('server-core app', () => {
     // Register a protected test route before starting
     app.get('/test-protected', { preHandler: app.requireAuth() }, async (request) => {
       return { userId: request.auth.userId };
+    });
+
+    // Optional-auth route: reports whether a session was resolved.
+    app.get('/test-optional', { preHandler: app.optionalAuth() }, async (request) => {
+      return { authenticated: Boolean(request.auth?.userId), userId: request.auth?.userId ?? null };
     });
 
     await app.ready();
@@ -189,6 +196,128 @@ describe('server-core app', () => {
       });
 
       expect(response.statusCode).toBe(401);
+    });
+
+    it('rejects a valid JWT passed as ?token= in the query string', async () => {
+      // P0 security: bearer tokens in the query string must not authenticate —
+      // they leak into access logs, browser history, and Referer headers.
+      const secret = new TextEncoder().encode(testConfig.jwtSecret);
+      const token = await new jose.SignJWT({
+        email: 'test@example.com',
+        username: 'testuser',
+        role: 'user',
+        scopes: ['profile:read'],
+        app: 'quantmail',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('1h')
+        .setIssuer(testConfig.jwtIssuer)
+        .setAudience(testConfig.jwtAudience)
+        .setJti('test-token-query')
+        .setSubject('user-123')
+        .sign(secret);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/test-protected?token=${token}`,
+      });
+
+      expect(response.statusCode).toBe(401);
+      const body = response.json();
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('UNAUTHORIZED');
+    });
+
+    it('accepts a valid JWT from the quant_access_token cookie', async () => {
+      const secret = new TextEncoder().encode(testConfig.jwtSecret);
+      const token = await new jose.SignJWT({
+        email: 'test@example.com',
+        username: 'testuser',
+        role: 'user',
+        scopes: ['profile:read'],
+        app: 'quantmail',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('1h')
+        .setIssuer(testConfig.jwtIssuer)
+        .setAudience(testConfig.jwtAudience)
+        .setJti('test-token-cookie')
+        .setSubject('user-123')
+        .sign(secret);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test-protected',
+        headers: {
+          cookie: `quant_access_token=${token}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().userId).toBe('user-123');
+    });
+
+    it('optionalAuth does not resolve a session from ?token=', async () => {
+      const secret = new TextEncoder().encode(testConfig.jwtSecret);
+      const token = await new jose.SignJWT({
+        email: 'test@example.com',
+        username: 'testuser',
+        role: 'user',
+        scopes: ['profile:read'],
+        app: 'quantmail',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('1h')
+        .setIssuer(testConfig.jwtIssuer)
+        .setAudience(testConfig.jwtAudience)
+        .setJti('test-token-optional-query')
+        .setSubject('user-123')
+        .sign(secret);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/test-optional?token=${token}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.authenticated).toBe(false);
+      expect(body.userId).toBeNull();
+    });
+
+    it('optionalAuth resolves a session from the Authorization header', async () => {
+      const secret = new TextEncoder().encode(testConfig.jwtSecret);
+      const token = await new jose.SignJWT({
+        email: 'test@example.com',
+        username: 'testuser',
+        role: 'user',
+        scopes: ['profile:read'],
+        app: 'quantmail',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime('1h')
+        .setIssuer(testConfig.jwtIssuer)
+        .setAudience(testConfig.jwtAudience)
+        .setJti('test-token-optional-header')
+        .setSubject('user-123')
+        .sign(secret);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/test-optional',
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.authenticated).toBe(true);
+      expect(body.userId).toBe('user-123');
     });
   });
 
