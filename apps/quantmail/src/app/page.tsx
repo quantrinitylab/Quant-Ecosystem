@@ -602,7 +602,8 @@ function EmailRow({
               number, not a decoration.
             */}
             {!thread.isRead && <UnreadCountPill count={thread.unreadCount} />}
-            {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
+            {/* P2-3: badge renders for all three mixes (mail/chat/mixed). */}
+            {<ThreadKindBadge mix={thread.kindMix} />}
             <time dateTime={new Date(thread.receivedAt).toISOString()}>
               {formatReceivedAt(thread.receivedAt)}
             </time>

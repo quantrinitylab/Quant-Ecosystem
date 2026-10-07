@@ -14,9 +14,7 @@ import { useAuth } from '../../providers/auth-provider';
 import { useConfirm } from '../../hooks/useConfirm';
 import { holidaysForMonth, type Holiday, HOLIDAYS } from '../../lib/holidays';
 import { showToast } from '../../components/InboxToast';
-import { QuantFab } from '../../components/QuantFab';
 import { useSearchParams } from 'next/navigation';
-import { IconCalendar, IconTarget, IconFlower, IconCake } from '../../components/icons';
 import type { CalendarEventLike, FormState, CalendarView, EntryType, CalendarContextTab } from './types';
 import { FULL_WEEKDAYS, MONTHS_SHORT, MONTH_NAMES } from './types';
 import {
@@ -1180,38 +1178,6 @@ function CalendarPageContent() {
             onSelectEvent={setSelectedEvent}
           />
         )}
-
-        <QuantFab
-          label="New calendar entry"
-          actions={[
-            {
-              id: 'event',
-              label: 'Event',
-              icon: <IconCalendar className="size-4 text-[#FF8C42]" />,
-              onSelect: () => openDedicatedSheet('event'),
-            },
-            {
-              id: 'task',
-              label: 'Task',
-              icon: <IconTarget className="size-4 text-[#FF8C42]" />,
-              onSelect: () => openDedicatedSheet('task'),
-            },
-            {
-              id: 'period',
-              label: 'Period Tracker',
-              tone: 'rose',
-              icon: <IconFlower className="size-4 text-rose-400" />,
-              onSelect: () => openDedicatedSheet('period'),
-            },
-            {
-              id: 'birthday',
-              label: 'Birthday',
-              tone: 'emerald',
-              icon: <IconCake className="size-4 text-emerald-400" />,
-              onSelect: () => openDedicatedSheet('birthday'),
-            },
-          ]}
-        />
 
         <CalendarEventForm
           activeSheetType={activeSheetType}

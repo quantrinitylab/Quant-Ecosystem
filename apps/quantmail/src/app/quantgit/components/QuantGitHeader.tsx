@@ -209,7 +209,10 @@ export function QuantGitHeader({
                   {currentUsername}
                 </span>
                 <span className="text-[#7D8590] text-xs shrink-0">· Repositories</span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 shrink-0">
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#A78BFA]/15 text-[#A78BFA] border border-[#A78BFA]/30 min-w-0 truncate"
+                  title="Sovereign Git"
+                >
                   SOVEREIGN GIT
                 </span>
               </div>
