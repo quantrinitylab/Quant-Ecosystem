@@ -16,6 +16,8 @@ import { BrandWordmark, appDisplayName } from './BrandWordmark';
 import { type LogoAppType } from './Interactive3DLogo';
 import { QuantumSplashIntro } from './QuantumSplashIntro';
 import { useInbox } from '../hooks/useInbox';
+import { useAuth } from '../providers/auth-provider';
+import { groupEmailsIntoThreads } from '../lib/threading';
 import type { Email } from '../types';
 import { SearchClearButton } from './SearchClearButton';
 import { QuantFab, type FabAction } from './QuantFab';
@@ -35,9 +37,11 @@ const QuantyLiveAgent = dynamic(
 import { UndoSendProvider } from './UndoSendCountdownBar';
 import { QuantPillarTopBar } from './QuantPillarTopBar';
 import { ContextBottomNavBar } from './ContextBottomNavBar';
-import { MobilePillarBottomNav } from './MobilePillarBottomNav';
-import { DesktopPillarRail } from './DesktopPillarRail';
+import { DesktopAppRail } from './DesktopAppRail';
+import { DesktopContextSidebar } from './DesktopContextSidebar';
+import { pillarForApp } from './desktopContextTabs';
 import { AccountBadge } from './AccountBadge';
+import { appThemeForPath } from '../lib/app-theme';
 
 export interface AppShellProps {
   children: ReactNode;
@@ -86,7 +90,11 @@ const focusableSelector =
 
 const PIN_STORAGE_KEY = 'quant.shell.sidebarPinned';
 
-/* Mobile bottom navigation is powered by <ContextBottomNavBar /> (Context-Specific Bottom Navigation) */
+/* Mobile bottom navigation: exactly ONE bottom bar — <ContextBottomNavBar />,
+   the contextual per-app tab bar (user decision 2026-10-07, reversing #531).
+   The 5-app switcher lives exactly once at the top (<QuantPillarTopBar />);
+   the bottom duplicate (<MobilePillarBottomNav />) and the top strip
+   (<MobileSubTabStrip />) were removed. */
 
 export function AppShell({
   children,
@@ -152,7 +160,27 @@ export function AppShell({
   const router = useRouter();
   const pathname = usePathname() ?? '/';
   const { data: inboxEmails, refetch: refetchInbox } = useInbox({ folderType: 'INBOX' });
-  const unreadCount = inboxEmails?.filter((e) => !e.isRead).length ?? 0;
+  // Defensive: AppShell is normally inside AuthProvider (see app/layout.tsx),
+  // but tests and some hosts render it standalone — useAuth() throws there.
+  let currentEmail = '';
+  try {
+    const { user: currentUser } = useAuth();
+    currentEmail = currentUser?.email || '';
+  } catch {
+    currentEmail = '';
+  }
+  /**
+   * Unread badge counts unread CONVERSATIONS (threads), not raw emails — the
+   * same definition the inbox page uses (`thread.isRead` = every message read
+   * or sent by me). Counting raw `!e.isRead` emails disagreed with the lens
+   * chips on the same screen (e.g. badge said "5 unread" while the All lens
+   * said "0 unread, 5 total") because sent-mail copies are stored unread.
+   */
+  const unreadCount = useMemo(() => {
+    if (!inboxEmails || inboxEmails.length === 0) return 0;
+    const threads = groupEmailsIntoThreads(inboxEmails, currentEmail);
+    return threads.filter((t) => !t.isRead).length;
+  }, [inboxEmails, currentEmail]);
 
   /**
    * Real per-lens counts for the mail pillar's lens strip, measured on the
@@ -561,14 +589,25 @@ export function AppShell({
 
   const semanticTheme = effectiveTheme === 'dark' ? quantMailDarkSemanticTheme : undefined;
 
+  // Per-app color theming: the whole UI's accent color animates smoothly
+  // when switching apps (Mail=orange, Calendar=blue, Drive=green,
+  // Contacts=teal, QuantGit=purple).
+  const appTheme = appThemeForPath(pathname ?? '/');
+  const appThemeStyle = {
+    '--app-accent': appTheme.accent,
+    '--app-glow': appTheme.glow,
+    '--app-ring': appTheme.ring,
+  } as React.CSSProperties;
+
   return (
     <UndoSendProvider>
       <section
-        className={`flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
+        className={`relative flex h-[100dvh] max-h-[100dvh] w-full overflow-hidden bg-[var(--background)] text-[var(--foreground)] ${className}`}
         aria-label={ariaLabel}
         data-theme={effectiveTheme}
+        data-app-theme={appTheme.id}
         data-quant-theme={effectiveTheme === 'dark' ? quantMailDarkSemanticThemeName : undefined}
-        style={semanticTheme}
+        style={{ ...semanticTheme, ...appThemeStyle }}
         /*
         No `role="application"`. It used to sit here, presumably talked into
         place by the default `aria-label` of 'Application shell', and it was the
@@ -581,6 +620,15 @@ export function AppShell({
         is what the label was for.
       */
       >
+        {/* Per-app theme wash: subtle accent gradient cross-fading on app switch */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            background: appTheme.bgWash,
+            transition: 'background 0.6s ease-in-out',
+          }}
+        />
         {/*
         Everything modal about the drawer hangs off `isDrawerPresented`, and the
         floating create button is modal-adjacent: it must not be hittable over a
@@ -589,22 +637,21 @@ export function AppShell({
         `{children}` as well as for the shell's own.
       */}
         <ShellChromeProvider isDrawerPresented={isDrawerPresented}>
-          {/* Desktop Left Pillar Rail (68px sovereign vertical dock) */}
+          {/*
+            Desktop left context sidebar (Gmail-style): Compose button + the
+            current app's contextual tabs rendered vertically. The 5-app
+            switcher moved to the slim right rail (DesktopAppRail).
+          */}
           {isMainSuiteRoute && (
-            <DesktopPillarRail
-              currentPillar={
-                currentApp === 'calendar'
-                  ? 'calendar'
-                  : currentApp === 'drive'
-                    ? 'drive'
-                    : currentApp === 'contacts'
-                      ? 'contacts'
-                      : currentApp === 'code'
-                        ? 'quantgit'
-                        : 'mail'
+            <DesktopContextSidebar
+              pillar={pillarForApp(currentApp)}
+              composeAction={
+                fabActions[0]
+                  ? { label: fabActions[0].label, onSelect: fabActions[0].onSelect }
+                  : null
               }
-              unreadCounts={{ mail: unreadCount }}
-              onQuantyClick={openQuanty}
+              badgeCounts={{ inbox: unreadCount, teams: mailLensCounts.teams }}
+              onQuantyOpen={openQuanty}
             />
           )}
 
@@ -679,9 +726,10 @@ export function AppShell({
             </>
           )}
 
-          <div
-            className={`flex min-w-0 flex-1 flex-col ${pathname.startsWith('/thread') || pathname.startsWith('/compose') ? 'pb-0' : 'pb-20 md:pb-0'}`}
-          >
+          {/* The column's bottom padding is gone: <main> below already reserves
+              pb-16 (the single h-16 bottom bar) on suite routes, so a second
+              reservation here just stacked dead space. */}
+          <div className="flex min-w-0 flex-1 flex-col">
             {/*
               The per-app header is desktop-only (`hidden md:flex`).
 
@@ -793,25 +841,7 @@ export function AppShell({
 
                   {/* Right: Compact Quant AI capsule + Quanty trigger button + Account badge */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Compact Quant AI Live Capsule */}
-                    <button
-                      type="button"
-                      onClick={openQuanty}
-                      className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#111318] border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all text-xs outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                      title="Open Quant AI Assistant"
-                      aria-label="Open Quant AI Assistant"
-                    >
-                      <span className="relative flex size-2 items-center justify-center">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
-                        <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
-                      </span>
-
-                      <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] whitespace-nowrap">
-                        <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong>{' '}
-                        <span className="hidden xl:inline">3 urgent items prioritized · </span>
-                        <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms LIVE</span>
-                      </span>
-                    </button>
+                    {/* Quant AI entry: real Quanty trigger next to it (no fabricated status) */}
 
                     {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
                     <AccountBadge compact={true} />
@@ -904,7 +934,7 @@ export function AppShell({
               </div>
             )}
 
-            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar (mobile only — desktop uses DesktopPillarRail) */}
+            {/* Super-App 5-Pillar Top Switcher or custom topBar (mobile only — desktop uses the left context sidebar + right app rail) */}
             {topBar !== undefined ? (
               topBar
             ) : isMainSuiteRoute && !customHeader ? (
@@ -932,7 +962,7 @@ export function AppShell({
               id="main-content"
               tabIndex={-1}
               className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
-                /* Reserve room for the mobile pillar bottom nav (h-16) on main
+                /* Reserve room for the mobile contextual bottom nav (h-16) on main
                    suite routes. Desktop keeps its rail/context-bar layout. */
                 isMainSuiteRoute ? 'pb-16 md:pb-0' : ''
               }`}
@@ -940,6 +970,27 @@ export function AppShell({
               {animated ? <PageTransition>{children}</PageTransition> : children}
             </main>
           </div>
+
+          {/*
+            Desktop right app rail: slim 5-app switcher (Mail/Calendar/Drive/
+            Contacts/QuantGit), Gmail's Google-apps-rail style. Desktop only.
+          */}
+          {isMainSuiteRoute && (
+            <DesktopAppRail
+              currentPillar={
+                currentApp === 'calendar'
+                  ? 'calendar'
+                  : currentApp === 'drive'
+                    ? 'drive'
+                    : currentApp === 'contacts'
+                      ? 'contacts'
+                      : currentApp === 'code'
+                        ? 'quantgit'
+                        : 'mail'
+              }
+              unreadCounts={{ mail: unreadCount }}
+            />
+          )}
 
           <QuantFab actions={fabActions} />
 
@@ -957,15 +1008,18 @@ export function AppShell({
             <QuantyLiveAgent ref={liveAgentRef} onChatSelect={handleLiveAgentChatSelect} />
           )}
 
-          {/* Context-Specific Bottom Navigation — anchored on mobile and desktop.
-              On mobile it sits ABOVE the thumb-reachable pillar bottom nav
-              (bottom-16), on desktop it keeps its bottom-0 rail-adjacent spot. */}
-          <ContextBottomNavBar badgeOverrides={{ inbox: unreadCount, teams: 3 }} />
-          {/* Mobile Pillar Bottom Navigation — thumb-reachable 5-pillar switcher
-              (Mail/Calendar/Drive/Contacts/QuantGit). Mobile only; desktop uses
-              the DesktopPillarRail. Hidden on /thread/* and /compose where the
-              bottom edge belongs to the conversation / compose toolbar. */}
-          <MobilePillarBottomNav mailUnreadCount={unreadCount} />
+          {/* Mobile Contextual Bottom Navigation — the ONE bottom bar:
+              per-app tabs (Inbox/Teams/Agents/Archive for Mail, per-app sets
+              for the other pillars). Mobile only; desktop layout unchanged.
+              Hidden on /thread/* and /compose where the bottom edge belongs
+              to the conversation / compose toolbar. Badges are real counts
+              only — never hardcoded. */}
+          <ContextBottomNavBar
+            badgeOverrides={{
+              inbox: unreadCount > 0 ? unreadCount : undefined,
+              teams: mailLensCounts.teams,
+            }}
+          />
 
           {/* Cinematic Quantum Ignition Startup Intro */}
           <QuantumSplashIntro />
