@@ -63,8 +63,6 @@ import {
 import { IconCheck, IconFilter, IconSpam, IconX } from '../components/icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateMailLists } from '../lib/offline/folders';
-import { MailTeamsCollaborationPanel } from '../components/MailTeamsCollaborationPanel';
-import { MailSwarmAgentAccessPanel } from '../components/MailSwarmAgentAccessPanel';
 import { AddFolderModal, type FolderDraft } from '../components/AddFolderModal';
 import type { ContactGroup, Email, EmailCategory } from '../types';
 
@@ -1139,10 +1137,10 @@ export default function InboxPage() {
   });
 
   const tabParam = searchParams?.get('tab');
-  const [activeTab, setActiveTab] = useState<'inbox' | 'teams' | 'agents' | 'archive'>(() => {
+  const [activeTab, setActiveTab] = useState<'inbox' | 'archive'>(() => {
     if (typeof window !== 'undefined') {
       const t = new URLSearchParams(window.location.search).get('tab');
-      if (t === 'teams' || t === 'agents' || t === 'archive') return t;
+      if (t === 'archive') return t;
     }
     return 'inbox';
   });
@@ -1150,10 +1148,7 @@ export default function InboxPage() {
   useEffect(() => {
     setActiveLens(normalizeLensParam(searchParams?.get('lens')));
     const t = searchParams?.get('tab');
-    if (t === 'teams' || t === 'agents') {
-      setActiveTab(t);
-      setShowArchivedView(false);
-    } else if (t === 'archive') {
+    if (t === 'archive') {
       setActiveTab('archive');
       setShowArchivedView(true);
     } else {
@@ -1172,13 +1167,7 @@ export default function InboxPage() {
       const customEvent = e as CustomEvent<{ pillar?: string; tabId?: string }>;
       if (customEvent.detail?.pillar === 'mail') {
         const id = customEvent.detail.tabId;
-        if (id === 'teams') {
-          setActiveTab('teams');
-          router.push('/?tab=teams');
-        } else if (id === 'agents') {
-          setActiveTab('agents');
-          router.push('/?tab=agents');
-        } else if (id === 'archive') {
+        if (id === 'archive') {
           setActiveTab('archive');
           setShowArchivedView(true);
           router.push('/?tab=archive');
@@ -2724,32 +2713,7 @@ export default function InboxPage() {
       fabLabel={activeLens === 'groups' ? 'New group' : 'Compose email'}
       aria-label="QuantMail inbox"
     >
-      {activeTab === 'teams' ? (
-        <MailTeamsCollaborationPanel
-          onBackToInbox={() => {
-            setActiveTab('inbox');
-            setShowArchivedView(false);
-            router.push('/');
-          }}
-          onNavigateTab={(tab) => {
-            setActiveTab(tab as any);
-            router.push(`/?tab=${tab}`);
-          }}
-        />
-      ) : activeTab === 'agents' ? (
-        <MailSwarmAgentAccessPanel
-          onBackToInbox={() => {
-            setActiveTab('inbox');
-            setShowArchivedView(false);
-            router.push('/');
-          }}
-          onNavigateTab={(tab) => {
-            setActiveTab(tab as any);
-            router.push(`/?tab=${tab}`);
-          }}
-        />
-      ) : (
-        <div className="inbox-workspace">
+      <div className="inbox-workspace">
         <section className="inbox-list-pane" aria-label="Inbox messages">
           <header className="inbox-hero">
             <div>
@@ -3752,7 +3716,6 @@ export default function InboxPage() {
           the full /thread/[id] view instead of selecting into a side preview.
         */}
       </div>
-      )}
 
       {/*
         Mounted only while open, and keyed on what it is editing.
