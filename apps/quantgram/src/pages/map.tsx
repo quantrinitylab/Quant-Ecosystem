@@ -29,12 +29,12 @@ export default function SocialMapPage() {
         <title>Social Map | QuantGram</title>
         <meta
           name="description"
-          content="Explore stories from creators around the globe on the QuantGram Geospatial Social Map."
+          content="View stories shared with their location on the QuantGram Social Map."
         />
       </Head>
 
       <div className="w-full h-screen max-h-screen overflow-hidden flex flex-col bg-[#090A0C]">
-        <SocialMapView currentUserId="current-user" onOpenStory={handleOpenStory} />
+        <SocialMapView onOpenStory={handleOpenStory} />
       </div>
     </>
   );
