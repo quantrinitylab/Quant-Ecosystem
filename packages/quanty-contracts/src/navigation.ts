@@ -1,0 +1,1 @@
+export interface QuantyNavigationRequest { navigationId:string; sessionId:string; taskId?:string; sourceProduct:string; targetProduct:string; destination:string; resourceRefs:string[]; requestedAction?:string; contextScope:string[]; capabilityRef?:string; expiresAt:string; traceId:string; }
