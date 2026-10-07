@@ -693,30 +693,6 @@ Complete reference for QuantMail, QuantGit, and QuantChat REST/WebSocket protoco
   },
   // --- Root Files ---
   {
-    name: 'AGENT_MEMORY.md',
-    path: 'AGENT_MEMORY.md',
-    type: 'file',
-    size: '98.5 KB',
-    lastCommit: 'docs(memory): master agent memory & swarm ledger',
-    lastCommitDate: '1 hour ago',
-    content: `# 🧠 MASTER AGENT MEMORY & SWARM LEDGER
-
-> **CRITICAL SYSTEM DIRECTIVE**: This file is the single source of truth for all sessions and new chats. Antigravity MUST read this file before replying to any message, perform 50x self-critique against hallucination, verify features with live Chrome button clicks, orchestrate Notion Agents (Opus 5 / GPT-6 Astra) to do deep coding, and write back all updates immediately.
-
-## 🌟 1. PROJECT NORTH STAR
-Quant is one account that gives you email, chat, social, video, dating, creation tools, cloud storage, and a coding platform — all controllable by a single personal AI.
-
-## 👥 SWARM FLEET (8+ AGENTS)
-- CEO Astra (Command)
-- Dev 1: Auth & Security
-- Dev 2: Sentinel & QA
-- Dev 3: Calendar & Recurrence
-- Dev 4: QuantDrive & Storage
-- Dev 5: Workspaces & Collaboration
-- Dev 6: CodeHub & Git Infrastructure
-- Dev 7: QuantAI Swarm & Shared Memory`,
-  },
-  {
     name: 'TASK_PLANNER.md',
     path: 'TASK_PLANNER.md',
     type: 'file',

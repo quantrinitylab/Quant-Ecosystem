@@ -929,7 +929,13 @@ describe('Bug 2 preservation baseline — deep @quant/auth specifier dependency 
 
   it('@quant/auth/lib/prisma exposes BOTH a named `prisma` and a default export (source contract)', () => {
     const prismaSrc = readRepo('packages/auth/src/lib/prisma.ts');
-    expect(prismaSrc, 'source must export const prisma (named)').toMatch(/export\s+const\s+prisma/);
+    // K8 consolidation: the PrismaClient singleton moved to @quant/database and this
+    // module re-exports it. Both `export const prisma` and `export { prisma } from ...`
+    // preserve the named-export seam that oauth.ts/auth.ts (default) and the e2e
+    // suites (named) rely on.
+    expect(prismaSrc, 'source must export a named prisma (const or re-export)').toMatch(
+      /export\s+(const\s+prisma|\{\s*prisma\s*\}\s*from)/
+    );
     expect(prismaSrc, 'source must export default prisma').toMatch(/export\s+default\s+prisma/);
   });
 

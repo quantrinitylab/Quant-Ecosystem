@@ -71,7 +71,7 @@ const CROSS_APP_COMMANDS: CommandPaletteItem[] = [
     group: 'Workspace',
     shortcut: 'G K',
     action: () => {
-      window.location.href = '/codehub';
+      window.location.href = '/quantgit';
     },
   },
   {

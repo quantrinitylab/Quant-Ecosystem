@@ -38,7 +38,6 @@ describe('app-theme', () => {
 
   it('resolves quantgit theme for all code routes', () => {
     expect(appThemeForPath('/quantgit').id).toBe('quantgit');
-    expect(appThemeForPath('/codehub').id).toBe('quantgit');
   });
 
   it('uses user-sketch colors: mail=orange, calendar=blue, drive=green, quantgit=purple', () => {

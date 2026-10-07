@@ -285,7 +285,7 @@ export function AppShell({
       ? 'drive'
       : pathname.startsWith('/contacts')
         ? 'contacts'
-        : pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')
+        : pathname.startsWith('/quantgit')
           ? 'code'
           : 'mail';
 
@@ -294,8 +294,7 @@ export function AppShell({
     pathname.startsWith('/calendar') ||
     pathname.startsWith('/drive') ||
     pathname.startsWith('/contacts') ||
-    pathname.startsWith('/quantgit') ||
-    pathname.startsWith('/codehub');
+    pathname.startsWith('/quantgit');
 
   const handleLogoClick = useCallback(() => {
     void refetchInbox();
@@ -306,7 +305,7 @@ export function AppShell({
     else if (pathname.startsWith('/drive') && pathname !== '/drive') router.push('/drive');
     else if (pathname.startsWith('/contacts') && pathname !== '/contacts') router.push('/contacts');
     else if (
-      (pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')) &&
+      pathname.startsWith('/quantgit') &&
       pathname !== '/quantgit'
     )
       router.push('/quantgit');
@@ -315,7 +314,6 @@ export function AppShell({
       !pathname.startsWith('/drive') &&
       !pathname.startsWith('/contacts') &&
       !pathname.startsWith('/quantgit') &&
-      !pathname.startsWith('/codehub') &&
       pathname !== '/'
     ) {
       router.push('/');
@@ -558,7 +556,6 @@ export function AppShell({
       pathname.startsWith('/compose') ||
       pathname.startsWith('/thread') ||
       pathname.startsWith('/quantgit') ||
-      pathname.startsWith('/codehub') ||
       pathname.includes('/settings')
     ) {
       return [];

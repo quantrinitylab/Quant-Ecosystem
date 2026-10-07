@@ -1031,8 +1031,6 @@ export function ContextBottomNavBar({
         : pathname.startsWith('/contacts')
           ? 'contacts'
           : pathname.startsWith('/quantgit') ||
-              pathname.startsWith('/codehub') ||
-              pathname.startsWith('/repos') ||
               pathname.startsWith('/pipelines')
             ? 'quantgit'
             : 'mail'

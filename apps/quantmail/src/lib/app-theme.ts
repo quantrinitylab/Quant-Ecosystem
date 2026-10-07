@@ -66,6 +66,6 @@ export function appThemeForPath(pathname: string): AppTheme {
   if (pathname.startsWith('/calendar')) return APP_THEMES.calendar;
   if (pathname.startsWith('/drive')) return APP_THEMES.drive;
   if (pathname.startsWith('/contacts')) return APP_THEMES.contacts;
-  if (pathname.startsWith('/quantgit') || pathname.startsWith('/codehub')) return APP_THEMES.quantgit;
+  if (pathname.startsWith('/quantgit')) return APP_THEMES.quantgit;
   return APP_THEMES.mail;
 }

@@ -11,7 +11,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from '../providers/auth-provider';
 import { AuthPending } from '@quant/shared-ui';
 
-const PUBLIC_ROUTES = new Set<string>(['/login', '/', '/explore', '/reels', '/map', '/shop']);
+const PUBLIC_ROUTES = new Set<string>(['/login', '/', '/explore', '/reels', '/map']);
 
 function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;

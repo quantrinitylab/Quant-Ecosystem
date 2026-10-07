@@ -37,9 +37,7 @@ import { useQuantyMood } from '../lib/quanty/reactions';
  * `AppShell` does not render a second trigger there.
  */
 const VIEW_LABELS: ReadonlyArray<readonly [prefix: string, label: string]> = [
-  ['/repos/', 'Looking at a QuantGit repository'],
-  ['/repos', 'Browsing QuantGit repositories'],
-  ['/codehub', 'Browsing code in QuantGit'],
+  ['/quantgit', 'Browsing QuantGit repositories'],
   ['/pipelines', 'Looking at QuantGit pipelines'],
   ['/workspaces', 'Managing workspaces'],
   ['/calendar', 'Looking at the calendar'],
