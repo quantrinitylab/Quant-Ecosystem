@@ -66,7 +66,7 @@ vi.mock('@quant/shared-ui', () => ({
   BubbleAvatar: () => <div className="bubble-avatar" />,
 }));
 
-describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integration', () => {
+describe('AppShell — Super-App 5-Pillar Top Bar & Contextual Bottom Nav Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCurrentPathname = '/';
@@ -78,16 +78,17 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
   });
 
   // ==========================================================================
-  // 1. Suite Route Pillar TopBar, Single Bottom Nav & Mobile Sub-Tab Strip
+  // 1. Suite Route Pillar TopBar & Contextual Bottom Nav
   //
   // Gmail rule: ONE nav system per viewport. Mobile gets exactly one bottom
-  // bar (the 5-pillar switcher, aria-label "App pillars"); the removed
-  // ContextBottomNavBar ("contextual navigation") must not render anywhere.
-  // Calendar/Drive/QuantGit get one Gmail-style top sub-tab strip; Mail and
-  // Contacts render their own native tab rows.
+  // bar — the contextual per-app tab bar (aria-label "<Pillar> contextual
+  // navigation"). The top holds exactly ONE 5-app switcher
+  // (QuantPillarTopBar); the old bottom duplicate (MobilePillarBottomNav,
+  // aria-label "App pillars") and the top sub-tab strip (MobileSubTabStrip)
+  // were both removed per user decision (reverses #531).
   // ==========================================================================
   describe('Mounting on Main Suite Routes', () => {
-    it('mounts QuantPillarTopBar and the single pillar bottom nav on Mail suite route (/)', () => {
+    it('mounts QuantPillarTopBar and the contextual bottom nav on Mail suite route (/)', () => {
       mockCurrentPathname = '/';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -104,17 +105,17 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Contacts');
       expect(html).toContain('QuantGit');
 
-      // Exactly ONE bottom bar: the 5-pillar switcher
-      expect(html).toContain('App pillars');
-      // The removed context bar is gone
-      expect(html).not.toContain('contextual navigation');
-      // Mail keeps its own lens row: no shell sub-tab strip
+      // Exactly ONE bottom bar: the contextual per-app tab bar
+      expect(html).toContain('Mail contextual navigation');
+      // The removed bottom app-switcher duplicate is gone
+      expect(html).not.toContain('App pillars');
+      // The removed top sub-tab strip is gone
       expect(html).not.toContain('sub-navigation');
       // <main> reserves room for the single h-16 bottom bar
       expect(html).toContain('pb-16');
     });
 
-    it('mounts the mobile sub-tab strip on Calendar route (/calendar)', () => {
+    it('mounts the contextual bottom nav on Calendar route (/calendar)', () => {
       mockCurrentPathname = '/calendar';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -126,19 +127,19 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#F59E0B');
 
-      // Gmail-style top strip replaces the removed bottom bar's navigation
-      expect(html).toContain('Calendar sub-navigation');
+      // Contextual tabs now live in the bottom bar (top strip removed)
+      expect(html).toContain('Calendar contextual navigation');
       expect(html).toContain('Feed');
       expect(html).toContain('Month');
       expect(html).toContain('Trackers');
       expect(html).toContain('Schedule');
 
-      // Single bottom bar only
-      expect(html).toContain('App pillars');
-      expect(html).not.toContain('contextual navigation');
+      // Single bottom bar only — no app-switcher duplicate, no top strip
+      expect(html).not.toContain('App pillars');
+      expect(html).not.toContain('sub-navigation');
     });
 
-    it('mounts the mobile sub-tab strip on Drive route (/drive)', () => {
+    it('mounts the contextual bottom nav on Drive route (/drive)', () => {
       mockCurrentPathname = '/drive';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -149,17 +150,17 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#38BDF8');
 
-      expect(html).toContain('Drive sub-navigation');
+      expect(html).toContain('Drive contextual navigation');
       expect(html).toContain('Home');
       expect(html).toContain('Feed');
       expect(html).toContain('AI Memory');
       expect(html).toContain('Vault');
 
-      expect(html).toContain('App pillars');
-      expect(html).not.toContain('contextual navigation');
+      expect(html).not.toContain('App pillars');
+      expect(html).not.toContain('sub-navigation');
     });
 
-    it('keeps Contacts on its own native tab row — no shell sub-tab strip', () => {
+    it('mounts the contextual bottom nav on Contacts route (/contacts)', () => {
       mockCurrentPathname = '/contacts';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -170,13 +171,13 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#10B981');
 
-      // Contacts renders its own chips: the shell adds no strip and no bar
+      // Contacts contextual tabs live in the shell bottom bar
+      expect(html).toContain('Contacts contextual navigation');
       expect(html).not.toContain('sub-navigation');
-      expect(html).not.toContain('contextual navigation');
-      expect(html).toContain('App pillars');
+      expect(html).not.toContain('App pillars');
     });
 
-    it('does NOT mount the shell sub-tab strip on QuantGit route (/quantgit) — page has its own native tab row', () => {
+    it('mounts the Gemini-approved contextual bottom nav on QuantGit route (/quantgit)', () => {
       mockCurrentPathname = '/quantgit';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -187,13 +188,16 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#A78BFA');
 
-      // QuantGit renders its own native mobile tab row (All Repos / Open PRs /
-      // Issues / CI Runs), so the shell must NOT add a second strip here.
+      // Gemini-approved QuantGit bottom tabs: Quanty AI (logo-only) → Feed →
+      // Repos → PRs → Issues. No top strip, no app-switcher duplicate.
+      expect(html).toContain('QuantGit contextual navigation');
+      expect(html).toContain('Feed');
+      expect(html).toContain('Repos');
+      expect(html).toContain('PRs');
+      expect(html).toContain('Issues');
       expect(html).not.toContain('sub-navigation');
-      expect(html).not.toContain('QuantGit sub-navigation');
 
-      expect(html).toContain('App pillars');
-      expect(html).not.toContain('contextual navigation');
+      expect(html).not.toContain('App pillars');
     });
   });
 
@@ -260,7 +264,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       );
 
       expect(html).not.toContain('Super-App 5-Pillar Navigation Bar');
-      // No bottom nav at all on /thread (pillar bar returns null there)
+      // No bottom nav at all on /thread (contextual bar returns null there)
       expect(html).not.toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
     });
@@ -274,7 +278,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       );
 
       expect(html).not.toContain('Super-App 5-Pillar Navigation Bar');
-      // No bottom nav at all on /compose (pillar bar returns null there)
+      // No bottom nav at all on /compose (contextual bar returns null there)
       expect(html).not.toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
     });
