@@ -67,7 +67,7 @@ export function showDesktopNotification(input: DesktopNotificationInput): Notifi
     const notification = new Notification(input.title, {
       body: input.body,
       tag: input.tag,
-      icon: '/quantmail-mascot.svg',
+      icon: '/quanty-ghost.png',
     });
     if (input.onActivate) {
       notification.onclick = () => {

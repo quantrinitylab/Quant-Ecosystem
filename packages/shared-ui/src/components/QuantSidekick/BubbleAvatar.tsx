@@ -1,54 +1,50 @@
 'use client';
 // ============================================================================
-// @quant/shared-ui - BubbleAvatar ("Bubble Intelligence")
+// @quant/shared-ui - BubbleAvatar ("Quanty Ghost")
 // ============================================================================
 //
-// The visual identity of QuantAI across the whole ecosystem: a liquid amber
-// droplet — one big blob, one small satellite bead orbiting up-right — that
-// visibly reacts to what the assistant is doing. This replaces the old green
-// alien: same mount points, same props, same test ids, a different character.
+// The visual identity of Quanty AI across the whole ecosystem: a white ghost
+// with a purple neon outline. This replaces the amber "Bubble Intelligence"
+// droplet — same mount points, same props, same test ids, a different
+// character (the same migration pattern as green-alien → amber-bubble).
 //
-// Design contract (from the "Bubble Intelligence" character sheet):
-//   - 35 MEANINGFUL states, each tied to something the product actually does
-//     (not just motion for motion's sake) — idle, wake up, thinking, coding,
-//     debugging, planning, listening, typing, saving, celebration, goodbye…
-//   - Amber ember ramp only (`#FFD9A0 → #FF8C42 → #E8752F`): the mascot wears
-//     the product's own accent, plus cream/gold for celebration. No new hues.
-//   - "Feels. Understands. Builds with you." — the face is simple (dot eyes,
-//     small mouth) but the *pose and props* carry the state.
+// Design contract:
+//   - 35 MEANINGFUL states, each tied to something the product actually does.
+//     States map onto 6 visual modes: float (idle), thinking, working,
+//     listening, happy, error.
+//   - The ghost itself is always white + purple. The ambient GLOW behind it
+//     adapts to the host app's theme via `--quanty-accent` (explicit `accent`
+//     prop wins, then the parent's `--app-accent` CSS var, then ghost purple).
+//   - "Feels. Understands. Builds with you."
 //
-// Rendering: Canvas 2D on a device-pixel-scaled buffer. Canvas (not WebGL) is
-// deliberate: QuantSidekick can be mounted many times per page and WebGL
-// contexts are a scarce browser resource (~16/page); a 2D painter gives the
-// same glossy look at a fraction of the cost and works in every target
-// browser. All motion is rAF-driven from refs — no per-frame React renders.
+// Rendering: DOM + CSS animations only (transform/opacity — GPU-composited,
+// 60fps). Deliberately no canvas/rAF loop: the previous painter ran a
+// per-instance requestAnimationFrame loop; CSS keyframes are cheaper, pause
+// automatically off-screen, and respect `prefers-reduced-motion` natively.
+// The mascot image is base64-inlined (5KB WebP) — zero extra HTTP requests,
+// zero layout shift.
 //
-// Lifecycle discipline (mirrors QuantMail's useLiveMark):
-//   - the loop pauses when the tab is hidden or the canvas scrolls off-screen
-//   - `prefers-reduced-motion` renders one representative frame and stops
-//   - each instance seeds its clock at random, so twenty mounted bubbles never
-//     bob or blink in lockstep
+// Animations:
+//   - idle/float: gentle vertical bob + glow pulse + eye blink every ~4.5s
+//   - thinking: faster bob, rotating conic glow ring, no blink (focused)
+//   - working: spinning dashed progress ring
+//   - listening: expanding pulse rings + blink
+//   - happy: joyful bounce + glow burst
+//   - error: horizontal shake + dimmed glow
 //
-// Accessibility: `role="img"` with a state-aware aria-label — the label is the
-// only channel a non-sighted user has for a state a sighted user reads off the
-// face. `data-state` carries the caller's raw status for styling/testing.
+// Accessibility: `role="img"` with a state-aware aria-label — the label is
+// the only channel a non-sighted user has for a state a sighted user reads
+// off the motion. `data-state` carries the caller's raw status.
 
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
+import { QUANTY_GHOST_WEBP_256 } from './quantyGhostImage';
 
 // ---------------------------------------------------------------- palette --
-const C = {
-  core: '#FFD9A0',
-  mid: '#FFB347',
-  brand: '#FF8C42',
-  deep: '#E8752F',
-  rim: '#B8541C',
-  ink: '#3A1C06',
-  cream: '#FFF6E8',
-  gold: '#FFD54A',
-  hot: '#E8452F',
-} as const;
+const GHOST_PURPLE = '#A855F7';
 
 // ------------------------------------------------------------ face types --
+// Kept for API compatibility with the previous character sheet. Geometry
+// fields are descriptive; the ghost's visual modes derive from the state name.
 type EyeKind = 'capsule' | 'arch' | 'shut' | 'bar' | 'wide' | 'star' | 'heart';
 type MouthKind = 'smile' | 'grin' | 'o' | 'gasp' | 'flat' | 'frown' | 'clench' | 'smirk' | 'wobble';
 type ChipKind =
@@ -68,40 +64,30 @@ type ChipKind =
   | 'question';
 type RingKind = 'orbit' | 'progress' | 'pulse' | 'spin';
 
-/**
- * One state of the sheet. Geometry defaults to the resting pose; motion fields
- * scale the blob's idle physics. Everything optional so a state is one line.
- */
 export interface BubbleSpec {
   eyes: EyeKind;
   eyeW?: number;
   eyeH?: number;
-  /** Where the eyes sit, in buffer units, relative to the resting centre. */
   gaze?: readonly [number, number];
-  /** Brow tilt; `1` drops the inner ends (focus/effort), `-1` raises them (worry). */
   brow?: 1 | -1;
   mouth?: MouthKind;
   chip?: ChipKind;
   ring?: RingKind;
-  /** Arc sweep 0..1 for the `progress` ring (e.g. 0.88 = almost done). */
   progress?: number;
   burst?: boolean;
   confetti?: boolean;
   rays?: boolean;
   sweat?: boolean;
-  /** Bob amplitude multiplier and speed multiplier. */
   amp?: number;
   speed?: number;
-  /** No blink while held (states that *are* an attention state). */
   noBlink?: boolean;
   /** Human label for the accessible name. */
   label: string;
 }
 
 /**
- * The 35-state sheet, in sheet order. The first five are the canonical
- * QuantSidekick statuses (`STATUS_TO_BUBBLE` maps onto them); the rest are
- * reachable by name from any surface that wants a specific beat.
+ * The 35-state sheet, in sheet order. Unchanged from the previous character —
+ * every call site keeps its state vocabulary; only the rendering changed.
  */
 export const BUBBLE_STATES = {
   // 01–05 ---------------------------------------------------------------
@@ -154,7 +140,7 @@ export const BUBBLE_STATES = {
   improving: { eyes: 'capsule', eyeH: 0.9, gaze: [0, -4], chip: 'up', label: 'improving' },
   suggesting: { eyes: 'star', eyeW: 0.8, chip: 'bulb', label: 'has a suggestion' },
   // 21–25 ---------------------------------------------------------------
-  options: { eyes: 'capsule', eyeH: 0.9, gaze: [4, -2], chip: 'stack', label: 'showing options' },
+  options: { eyes: 'capsule', eyeH: 0.9, gaze: [4, 2], chip: 'stack', label: 'showing options' },
   working: { eyes: 'bar', eyeH: 0.45, ring: 'spin', noBlink: true, label: 'working' },
   almostDone: {
     eyes: 'capsule',
@@ -221,8 +207,7 @@ export const BUBBLE_ORDER = Object.keys(BUBBLE_STATES) as readonly BubbleState[]
 
 /**
  * The five QuantSidekick statuses every existing call site uses, mapped onto
- * the sheet. `speaking` and `acting` are product words for `explaining` and
- * `working` — same face, the caller's vocabulary preserved.
+ * the sheet.
  */
 export const STATUS_TO_BUBBLE = {
   idle: 'idle',
@@ -242,6 +227,128 @@ const STATE_WORD: Record<QuantSidekickStatus, string> = {
   acting: 'working',
 };
 
+// ------------------------------------------------------- visual modes ------
+type GhostMode = 'float' | 'thinking' | 'working' | 'listening' | 'happy' | 'error';
+
+/** Every sheet state maps onto one of the six ghost visual modes. */
+const MODE_FOR_STATE: Record<BubbleState, GhostMode> = {
+  idle: 'float',
+  wakeUp: 'float',
+  lookAround: 'float',
+  recognize: 'float',
+  thinking: 'thinking',
+  thinkingDeep: 'thinking',
+  ideaSpark: 'happy',
+  understanding: 'thinking',
+  reading: 'thinking',
+  analyzing: 'thinking',
+  coding: 'working',
+  refactoring: 'working',
+  debugging: 'working',
+  fixing: 'working',
+  explaining: 'float',
+  planning: 'thinking',
+  organizing: 'float',
+  creating: 'happy',
+  improving: 'working',
+  suggesting: 'happy',
+  options: 'float',
+  working: 'working',
+  almostDone: 'working',
+  completed: 'happy',
+  success: 'happy',
+  error: 'error',
+  rethinking: 'error',
+  needInfo: 'error',
+  listening: 'listening',
+  typing: 'listening',
+  searching: 'working',
+  syncing: 'working',
+  saving: 'float',
+  celebration: 'happy',
+  goodbye: 'float',
+};
+
+function modeOf(state: QuantSidekickStatus | BubbleState): GhostMode {
+  const sheetState: BubbleState =
+    state in STATUS_TO_BUBBLE ? STATUS_TO_BUBBLE[state as QuantSidekickStatus] : (state as BubbleState);
+  return MODE_FOR_STATE[sheetState] ?? 'float';
+}
+
+/** `noUncheckedIndexedAccess`-safe spec lookup (contract preserved). */
+function specOf(state: QuantSidekickStatus | BubbleState): BubbleSpec {
+  if (state in STATUS_TO_BUBBLE) {
+    const mapped = STATUS_TO_BUBBLE[state as QuantSidekickStatus];
+    return (BUBBLE_STATES[mapped] ?? BUBBLE_STATES.idle) as BubbleSpec;
+  }
+  return (BUBBLE_STATES[state as BubbleState] ?? BUBBLE_STATES.idle) as BubbleSpec;
+}
+
+// ------------------------------------------------------------------ css ---
+const GHOST_CSS = `
+.qghost-root{position:relative;display:inline-block;line-height:0;
+  /* Glow accent resolution: explicit accent prop wins, then the host's
+     per-app/per-route accent (--app-accent, set by QuantMail's AppShell per
+     app theme), then the app's brand primary, then ghost purple.
+     The ghost itself always stays white + purple. */
+  --qghost-accent:var(--app-accent,var(--brand-primary,${GHOST_PURPLE}));}
+.qghost-glow{position:absolute;inset:-18%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,color-mix(in srgb,var(--qghost-accent) 38%,transparent),transparent 70%);
+  filter:blur(6px);opacity:.55;animation:qghost-glow-pulse 3.4s ease-in-out infinite;}
+.qghost-img{position:relative;width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;
+  box-shadow:0 0 0 2px color-mix(in srgb,var(--qghost-accent) 55%,transparent),0 8px 28px -6px color-mix(in srgb,var(--qghost-accent) 55%,transparent);}
+.qghost-bob{width:100%;height:100%;}
+.qghost-mode-float .qghost-bob{animation:qghost-float 3.4s ease-in-out infinite;}
+.qghost-mode-thinking .qghost-bob{animation:qghost-think-bob 1.6s ease-in-out infinite;}
+.qghost-mode-working .qghost-bob{animation:qghost-float 2.2s ease-in-out infinite;}
+.qghost-mode-listening .qghost-bob{animation:qghost-float 3.4s ease-in-out infinite;}
+.qghost-mode-happy .qghost-bob{animation:qghost-happy 1.8s ease-in-out infinite;}
+.qghost-mode-error .qghost-bob{animation:qghost-shake .5s ease-in-out infinite;}
+/* Eyelids — white covers over the ghost's dark oval eyes (measured at
+   736px: L x[270,330] y[245,357], R x[405,465] y[245,357]). */
+.qghost-lid{position:absolute;top:33.3%;width:8.2%;height:15.2%;background:#fdfdfd;border-radius:50%;
+  transform:scaleY(0);transform-origin:center;pointer-events:none;}
+.qghost-lid-l{left:36.7%;}
+.qghost-lid-r{left:55%;}
+.qghost-mode-float .qghost-lid,.qghost-mode-listening .qghost-lid{animation:qghost-blink 4.6s ease-in-out infinite;}
+.qghost-mode-happy .qghost-lid{animation:qghost-blink 2.8s ease-in-out infinite;}
+/* Thinking / working rings */
+.qghost-ring{position:absolute;border-radius:50%;pointer-events:none;}
+.qghost-mode-thinking .qghost-ring{inset:-7%;
+  background:conic-gradient(from 0deg,transparent 0deg,var(--qghost-accent) 70deg,transparent 140deg,transparent 200deg,var(--qghost-accent) 270deg,transparent 340deg);
+  -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%,#000 70%,transparent 71%);
+  mask:radial-gradient(circle,transparent 62%,#000 63%,#000 70%,transparent 71%);
+  animation:qghost-spin 1.8s linear infinite;opacity:.9;}
+.qghost-mode-working .qghost-ring{inset:-7%;border:2px dashed color-mix(in srgb,var(--qghost-accent) 75%,transparent);
+  animation:qghost-spin 2.4s linear infinite;opacity:.85;}
+/* Listening pulse rings */
+.qghost-mode-listening .qghost-ring{inset:-4%;border:2px solid color-mix(in srgb,var(--qghost-accent) 65%,transparent);
+  animation:qghost-ping 1.9s cubic-bezier(0,0,.2,1) infinite;}
+.qghost-mode-listening .qghost-ring2{animation-delay:.95s;}
+/* Happy burst dots */
+.qghost-spark{position:absolute;width:7%;height:7%;border-radius:50%;background:var(--qghost-accent);
+  opacity:0;pointer-events:none;}
+.qghost-mode-happy .qghost-spark{animation:qghost-spark 1.8s ease-out infinite;}
+.qghost-spark-1{left:6%;top:18%;}
+.qghost-spark-2{right:4%;top:30%;animation-delay:.3s !important;}
+.qghost-spark-3{left:12%;bottom:8%;animation-delay:.6s !important;}
+@keyframes qghost-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-4%)}}
+@keyframes qghost-think-bob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2.5%) scale(1.015)}}
+@keyframes qghost-happy{0%,100%{transform:translateY(0) scale(1)}30%{transform:translateY(-9%) scale(1.04)}55%{transform:translateY(0) scale(.985)}75%{transform:translateY(-4%) scale(1.01)}}
+@keyframes qghost-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3%)}75%{transform:translateX(3%)}}
+@keyframes qghost-blink{0%,91%,100%{transform:scaleY(0)}94%,96%{transform:scaleY(1)}}
+@keyframes qghost-glow-pulse{0%,100%{opacity:.45}50%{opacity:.75}}
+@keyframes qghost-spin{to{transform:rotate(360deg)}}
+@keyframes qghost-ping{0%{transform:scale(.92);opacity:.8}80%,100%{transform:scale(1.22);opacity:0}}
+@keyframes qghost-spark{0%{opacity:0;transform:translateY(0) scale(.6)}25%{opacity:.95}100%{opacity:0;transform:translateY(-46%) scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  .qghost-root *,.qghost-root{animation:none !important;}
+  .qghost-glow{opacity:.5;}
+}
+`;
+
+// ------------------------------------------------------------ component ---
+
 export interface BubbleAvatarProps {
   /** A QuantSidekick status or any of the 35 sheet names. */
   state?: QuantSidekickStatus | BubbleState;
@@ -251,618 +358,79 @@ export interface BubbleAvatarProps {
   label?: string;
   /**
    * Native tooltip on the root span (the old Quanty contract). Independent of
-   * the accessible name — a tooltip is a hover affordance, an aria-label is
-   * the img role's entire channel.
+   * the accessible name.
    */
   title?: string;
+  /**
+   * Glow accent color override. When omitted, the parent's `--app-accent` CSS
+   * variable applies (QuantMail sets it per app theme: mail orange, calendar
+   * blue, drive green, contacts teal, quantgit purple); otherwise ghost
+   * purple. The ghost itself always stays white + purple.
+   */
+  accent?: string;
   className?: string;
 }
 
-// --------------------------------------------------------- face geometry --
-const CX = 46;
-const CY = 55;
-const R = 26;
-const MOUTH_CY = 63.5;
-
-/** `noUncheckedIndexedAccess`-safe spec lookup. */
-function specOf(state: QuantSidekickStatus | BubbleState): BubbleSpec {
-  if (state in STATUS_TO_BUBBLE) {
-    const mapped = STATUS_TO_BUBBLE[state as QuantSidekickStatus];
-    return (BUBBLE_STATES[mapped] ?? BUBBLE_STATES.idle) as BubbleSpec;
-  }
-  return (BUBBLE_STATES[state as BubbleState] ?? BUBBLE_STATES.idle) as BubbleSpec;
-}
-
-// ------------------------------------------------------------ painters ----
-
-/** The liquid body: a circle breathing through three slow sine lobes. */
-function blobPath(ctx: CanvasRenderingContext2D, t: number, wob: number): void {
-  ctx.beginPath();
-  const N = 30;
-  for (let i = 0; i <= N; i += 1) {
-    const a = (i / N) * Math.PI * 2;
-    const w =
-      1 + 0.05 * wob * Math.sin(a * 3 + t * 1.05) + 0.028 * wob * Math.sin(a * 5 - t * 0.75);
-    const x = CX + Math.cos(a) * R * w;
-    const y = CY + Math.sin(a) * R * w * 0.97;
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.closePath();
-}
-
-/** Body + satellite: gradients, bloom, gloss. Called before the face. */
-function paintBody(ctx: CanvasRenderingContext2D, t: number, amp: number, reduced = false): void {
-  // Soft outer bloom — one shadow pass, no full-canvas blur filter.
-  ctx.save();
-  ctx.shadowColor = 'rgba(255, 140, 66, 0.55)';
-  ctx.shadowBlur = 10;
-  blobPath(ctx, t, amp);
-  const body = ctx.createRadialGradient(CX - 8, CY - 10, 3, CX, CY + 4, R * 1.25);
-  body.addColorStop(0, C.core);
-  body.addColorStop(0.35, C.mid);
-  body.addColorStop(0.75, C.brand);
-  body.addColorStop(1, C.deep);
-  ctx.fillStyle = body;
-  ctx.fill();
-  ctx.restore();
-
-  // Living AI Neural Cloud / Swirling Aurora Nebula inside the droplet
-  ctx.save();
-  blobPath(ctx, t, amp);
-  ctx.clip();
-  if (!reduced) {
-    // Cloud Layer 1: Warm luminous core cloud drifting elliptically
-    const c1x = CX + Math.sin(t * 1.1) * 7;
-    const c1y = CY + Math.cos(t * 0.9) * 5;
-    const cloud1 = ctx.createRadialGradient(c1x, c1y, 1, c1x, c1y, R * 0.7);
-    cloud1.addColorStop(0, 'rgba(255, 246, 232, 0.45)');
-    cloud1.addColorStop(0.5, 'rgba(255, 213, 74, 0.25)');
-    cloud1.addColorStop(1, 'rgba(255, 140, 66, 0)');
-    ctx.fillStyle = cloud1;
-    ctx.fillRect(0, 0, 100, 100);
-
-    // Cloud Layer 2: Swirling ethereal pearl/aurora current
-    const c2x = CX - Math.cos(t * 1.3) * 6;
-    const c2y = CY - Math.sin(t * 0.8) * 6;
-    const cloud2 = ctx.createRadialGradient(c2x, c2y, 1, c2x, c2y, R * 0.85);
-    cloud2.addColorStop(0, 'rgba(255, 220, 160, 0.35)');
-    cloud2.addColorStop(0.6, 'rgba(232, 117, 47, 0.2)');
-    cloud2.addColorStop(1, 'rgba(184, 84, 28, 0)');
-    ctx.fillStyle = cloud2;
-    ctx.fillRect(0, 0, 100, 100);
-
-    // Cloud Layer 3: Subtle energetic harmonic pulse
-    const pulsePhase = (Math.sin(t * 2.2) + 1) * 0.5;
-    const c3x = CX + Math.sin(t * 0.7 + 2) * 4;
-    const c3y = CY + Math.cos(t * 1.4) * 4;
-    const cloud3 = ctx.createRadialGradient(c3x, c3y, 0.5, c3x, c3y, R * (0.4 + pulsePhase * 0.15));
-    cloud3.addColorStop(0, `rgba(255, 255, 255, ${0.25 + pulsePhase * 0.2})`);
-    cloud3.addColorStop(0.8, 'rgba(255, 179, 71, 0.05)');
-    cloud3.addColorStop(1, 'rgba(255, 140, 66, 0)');
-    ctx.fillStyle = cloud3;
-    ctx.fillRect(0, 0, 100, 100);
-  }
-  ctx.restore();
-
-  // Rim light bottom-right (translucent light on a wet surface).
-  ctx.save();
-  blobPath(ctx, t, amp);
-  ctx.clip();
-  const rimGrad = ctx.createRadialGradient(CX + 14, CY + 16, 2, CX + 10, CY + 12, R);
-  rimGrad.addColorStop(0, 'rgba(255, 213, 74, 0.5)');
-  rimGrad.addColorStop(1, 'rgba(255, 213, 74, 0)');
-  ctx.fillStyle = rimGrad;
-  ctx.fillRect(0, 0, 100, 100);
-
-  // Specular gloss, top-left — the "liquid" tell.
-  ctx.beginPath();
-  ctx.ellipse(CX - 9, CY - 13, 9.5, 5.5, -0.6, 0, Math.PI * 2);
-  const gloss = ctx.createRadialGradient(CX - 9, CY - 13, 0.5, CX - 9, CY - 13, 10);
-  gloss.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
-  gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
-  ctx.fillStyle = gloss;
-  ctx.fill();
-
-  // A second, smaller sparkle that drifts with the bob.
-  const sx = CX + 6 + Math.sin(t * 0.9) * 2;
-  const sy = CY - 15 - Math.sin(t * 0.7) * 1.5;
-  ctx.beginPath();
-  ctx.arc(sx, sy, 1.6, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-  ctx.fill();
-  ctx.restore();
-
-  // Satellite bead, up-right, gently orbiting its anchor.
-  const bx = 76 + Math.sin(t * 0.8) * 1.8;
-  const by = 24 + Math.cos(t * 0.65) * 1.6;
-  ctx.save();
-  ctx.shadowColor = 'rgba(255, 140, 66, 0.5)';
-  ctx.shadowBlur = 6;
-  ctx.beginPath();
-  ctx.arc(bx, by, 6.2, 0, Math.PI * 2);
-  const bead = ctx.createRadialGradient(bx - 2, by - 2, 0.5, bx, by, 6.5);
-  bead.addColorStop(0, C.core);
-  bead.addColorStop(0.6, C.mid);
-  bead.addColorStop(1, C.brand);
-  ctx.fillStyle = bead;
-  ctx.fill();
-  ctx.restore();
-  ctx.beginPath();
-  ctx.arc(bx - 1.8, by - 1.8, 1.5, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-  ctx.fill();
-}
-
-/** The typing ellipsis: three warm dots pulsing in sequence. */
-function paintTyping(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
-  ctx.fillStyle = C.ink;
-  for (let i = 0; i < 3; i += 1) {
-    const phase = reduced ? (i === 1 ? 1 : 0.3) : (Math.sin(t * 3 - i * 0.9) + 1) / 2;
-    ctx.globalAlpha = 0.25 + phase * 0.75;
-    ctx.beginPath();
-    ctx.arc(CX - 6 + i * 6, MOUTH_CY + 1, 1.7 + phase * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-function paintSweat(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
-  const p = reduced ? 0.5 : (Math.sin(t * 1.6) + 1) / 2;
-  const x = CX + 13;
-  const y = 44 + p * 8;
-  ctx.save();
-  ctx.fillStyle = C.cream;
-  ctx.beginPath();
-  ctx.moveTo(x, y - 3.4);
-  ctx.quadraticCurveTo(x + 2.2, y + 0.6, x, y + 2.2);
-  ctx.quadraticCurveTo(x - 2.2, y + 0.6, x, y - 3.4);
-  ctx.fill();
-  ctx.restore();
-}
-
-function paintRays(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
-  ctx.save();
-  ctx.strokeStyle = C.gold;
-  ctx.lineWidth = 2.4;
-  ctx.lineCap = 'round';
-  const spin = reduced ? 0 : t * 0.5;
-  for (let i = 0; i < 8; i += 1) {
-    const a = spin + (i / 8) * Math.PI * 2;
-    const r1 = R + 4;
-    const r2 = R + 9;
-    ctx.beginPath();
-    ctx.moveTo(CX + Math.cos(a) * r1, CY + Math.sin(a) * r1 * 0.95);
-    ctx.lineTo(CX + Math.cos(a) * r2, CY + Math.sin(a) * r2 * 0.95);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function paintBurst(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
-  const p = reduced ? 0.6 : (t % 1.4) / 1.4;
-  ctx.save();
-  for (let i = 0; i < 7; i += 1) {
-    const a = (i / 7) * Math.PI * 2 - Math.PI / 2;
-    const d = 8 + p * 22;
-    const x = CX + Math.cos(a) * d;
-    const y = CY - 6 + Math.sin(a) * d * 0.85;
-    ctx.globalAlpha = Math.max(0, 1 - p) * 0.9;
-    ctx.beginPath();
-    ctx.arc(x, y, 2.1 * (1 - p * 0.5), 0, Math.PI * 2);
-    ctx.fillStyle = i % 2 === 0 ? C.cream : C.gold;
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-function paintConfetti(ctx: CanvasRenderingContext2D, t: number, reduced: boolean): void {
-  const colors: readonly string[] = [C.gold, C.cream, C.brand];
-  ctx.save();
-  for (let i = 0; i < 12; i += 1) {
-    const seed = i * 2.399;
-    const p = reduced ? (i * 0.13) % 1 : (t * 0.7 + i * 0.13) % 1;
-    const x = 16 + ((seed * 7.3) % 68);
-    const y = 6 + p * 88;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(seed + (reduced ? 0 : t * 2));
-    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(seed * 3);
-    ctx.fillStyle = colors[i % colors.length] ?? C.gold;
-    ctx.fillRect(-1.6, -2.6, 3.2, 5.2);
-    ctx.restore();
-  }
-  ctx.restore();
-}
-
-/** Rings: understanding orbit, progress arc, listening pulse, working spin. */
-function paintRing(
-  ctx: CanvasRenderingContext2D,
-  kind: RingKind,
-  t: number,
-  progress: number,
-  reduced: boolean,
-): void {
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 179, 71, 0.75)';
-  ctx.lineCap = 'round';
-  switch (kind) {
-    case 'orbit': {
-      ctx.lineWidth = 1.6;
-      ctx.setLineDash([4, 5]);
-      ctx.lineDashOffset = reduced ? 0 : -t * 14;
-      ctx.beginPath();
-      ctx.ellipse(CX, CY, R + 8, R + 4, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      break;
-    }
-    case 'progress': {
-      ctx.lineWidth = 3.2;
-      ctx.beginPath();
-      ctx.arc(CX, CY, R + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
-      ctx.stroke();
-      ctx.globalAlpha = 0.25;
-      ctx.beginPath();
-      ctx.arc(CX, CY, R + 7, 0, Math.PI * 2);
-      ctx.stroke();
-      break;
-    }
-    case 'pulse': {
-      for (let i = 0; i < 2; i += 1) {
-        const p = reduced ? i * 0.5 : (t * 0.6 + i * 0.5) % 1;
-        ctx.globalAlpha = (1 - p) * 0.7;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(CX, CY, R + 2 + p * 12, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      break;
-    }
-    case 'spin': {
-      ctx.lineWidth = 2.6;
-      const a0 = reduced ? 0.4 : t * 2.4;
-      ctx.beginPath();
-      ctx.arc(CX, CY, R + 7, a0, a0 + Math.PI * 1.35);
-      ctx.stroke();
-      break;
-    }
-  }
-  ctx.restore();
-}
-
-/** The floating prop card that names a concrete verb (code, search, save…). */
-function paintChip(
-  ctx: CanvasRenderingContext2D,
-  kind: ChipKind,
-  t: number,
-  reduced: boolean,
-): void {
-  const x = 74;
-  const y = 26 + (reduced ? 0 : Math.sin(t * 1.4) * 1.8);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.beginPath();
-  ctx.roundRect(-11, -9, 22, 18, 5);
-  ctx.fillStyle = 'rgba(26, 12, 3, 0.72)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255, 214, 160, 0.5)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.strokeStyle = C.cream;
-  ctx.fillStyle = C.cream;
-  ctx.lineWidth = 1.7;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  switch (kind) {
-    case 'code':
-      ctx.beginPath();
-      ctx.moveTo(-5.5, -3);
-      ctx.lineTo(-8.5, 0);
-      ctx.lineTo(-5.5, 3);
-      ctx.moveTo(5.5, -3);
-      ctx.lineTo(8.5, 0);
-      ctx.lineTo(5.5, 3);
-      ctx.moveTo(-1.8, -4);
-      ctx.lineTo(1.8, 4);
-      ctx.stroke();
-      break;
-    case 'search':
-      ctx.beginPath();
-      ctx.arc(-1.5, -1.5, 3.6, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(1.2, 1.2);
-      ctx.lineTo(5.5, 5.5);
-      ctx.stroke();
-      break;
-    case 'check':
-      ctx.beginPath();
-      ctx.moveTo(-5, 0.5);
-      ctx.lineTo(-1.5, 4);
-      ctx.lineTo(5.5, -4);
-      ctx.stroke();
-      break;
-    case 'doc':
-      ctx.beginPath();
-      ctx.roundRect(-5, -6.5, 10, 13, 1.6);
-      ctx.stroke();
-      for (let i = 0; i < 3; i += 1) {
-        ctx.beginPath();
-        ctx.moveTo(-2.8, -3 + i * 3);
-        ctx.lineTo(2.8, -3 + i * 3);
-        ctx.stroke();
-      }
-      break;
-    case 'list':
-      for (let i = 0; i < 3; i += 1) {
-        const y0 = -4.5 + i * 4.5;
-        ctx.beginPath();
-        ctx.arc(-4.6, y0, 1.1, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.moveTo(-1.6, y0);
-        ctx.lineTo(6, y0);
-        ctx.stroke();
-      }
-      break;
-    case 'grid':
-      for (let i = 0; i < 4; i += 1) {
-        ctx.beginPath();
-        ctx.roundRect(-5.5 + (i % 2) * 6.5, -5.5 + Math.floor(i / 2) * 6.5, 4.5, 4.5, 1.2);
-        ctx.fill();
-      }
-      break;
-    case 'plus':
-      ctx.beginPath();
-      ctx.moveTo(0, -5.5);
-      ctx.lineTo(0, 5.5);
-      ctx.moveTo(-5.5, 0);
-      ctx.lineTo(5.5, 0);
-      ctx.stroke();
-      break;
-    case 'up':
-      ctx.beginPath();
-      ctx.moveTo(0, 5.5);
-      ctx.lineTo(0, -5);
-      ctx.moveTo(-4, -1);
-      ctx.lineTo(0, -5.5);
-      ctx.lineTo(4, -1);
-      ctx.stroke();
-      break;
-    case 'bulb':
-      ctx.beginPath();
-      ctx.arc(0, -1.8, 3.8, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-2, 3.4);
-      ctx.lineTo(2, 3.4);
-      ctx.moveTo(-1.4, 5.6);
-      ctx.lineTo(1.4, 5.6);
-      ctx.stroke();
-      break;
-    case 'stack':
-      for (let i = 0; i < 3; i += 1) {
-        ctx.globalAlpha = 1 - i * 0.28;
-        ctx.beginPath();
-        ctx.roundRect(-5 + i * 1.6, -6 + i * 4, 10, 4.4, 1.4);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      break;
-    case 'chat':
-      ctx.beginPath();
-      ctx.roundRect(-6, -5.5, 12, 8.5, 2.6);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-2.5, 3);
-      ctx.lineTo(-4, 6);
-      ctx.lineTo(0.5, 3.2);
-      ctx.stroke();
-      for (let i = 0; i < 3; i += 1) {
-        ctx.beginPath();
-        ctx.arc(-3 + i * 3, -1.2, 0.9, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      break;
-    case 'refresh':
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.6, 0.6, Math.PI * 1.9);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(3.4, -4.4);
-      ctx.lineTo(5.6, -1.6);
-      ctx.lineTo(1.8, -1.2);
-      ctx.stroke();
-      break;
-    case 'save':
-      ctx.beginPath();
-      ctx.moveTo(0, -6);
-      ctx.lineTo(0, 2);
-      ctx.moveTo(-3.6, -1);
-      ctx.lineTo(0, 2.4);
-      ctx.lineTo(3.6, -1);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-5, 5);
-      ctx.lineTo(5, 5);
-      ctx.stroke();
-      break;
-    case 'question':
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-3, -3.4);
-      ctx.quadraticCurveTo(0, -6.4, 3, -3.6);
-      ctx.quadraticCurveTo(3, -1, 0, -0.4);
-      ctx.moveTo(0, 2.2);
-      ctx.lineTo(0, 2.6);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 5.4, 1.1, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-  }
-  ctx.restore();
-}
-
-// -------------------------------------------------------------- component --
-
 /**
- * The Bubble Intelligence avatar. Presentational only — the caller drives
- * `state` (see {@link QuantSidekick} and `useQuantSidekick`). One canvas, one
- * rAF loop, zero React renders per frame.
+ * The Quanty ghost avatar. Presentational only — the caller drives `state`.
+ * Pure CSS animations (transform/opacity); no canvas, no rAF loops.
  */
 export const BubbleAvatar: React.FC<BubbleAvatarProps> = ({
   state = 'idle',
   size = 56,
   label,
   title,
+  accent,
   className = '',
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  // The painter reads the live state through a ref so a changed prop can never
-  // restart the loop; a pop eases the transition between faces.
-  const stateRef = useRef(state);
-  stateRef.current = state;
-  const popRef = useRef(0);
-  const prevRef = useRef(state);
-  if (prevRef.current !== state) {
-    prevRef.current = state;
-    popRef.current = 1;
-  }
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return; // jsdom / test environments: attributes still verify.
-
-    const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
-    const buffer = Math.max(100, Math.ceil(size)) * dpr;
-    canvas.width = buffer;
-    canvas.height = buffer;
-    const k = buffer / 100;
-
-    const media =
-      typeof window.matchMedia === 'function'
-        ? window.matchMedia('(prefers-reduced-motion: reduce)')
-        : null;
-    let reduced = media?.matches ?? false;
-    let onScreen = true;
-    let raf: number | null = null;
-    let last = 0;
-    let t = Math.random() * 100; // desynced clocks across mounted bubbles
-
-    // Peripherals (the floating prop card, rays, confetti) are the state's
-    // *sentence*; the face is its word. Below ~32px there are only room for
-    // words — the chip is ~5 device px of ink at a 22px mount, which reads as
-    // noise beside the eyes rather than as an object. The body, bead and face
-    // still render at every size.
-    const detail = size >= 32;
-
-    const draw = () => {
-      const spec = specOf(stateRef.current);
-      const speed = spec.speed ?? 1;
-      const amp = spec.amp ?? 1;
-      popRef.current = Math.max(0, popRef.current - 0.06);
-      const pop = popRef.current;
-
-      ctx.setTransform(k, 0, 0, k, 0, 0);
-      ctx.clearRect(0, 0, 100, 100);
-
-      ctx.save();
-      // The whole character eases in on a state change and breathes on idle.
-      const breathe = reduced ? 0 : Math.sin(t * 1.3 * speed) * 1.1 * amp;
-      ctx.translate(CX, CY);
-      ctx.scale(1 + pop * 0.09, 1 - pop * 0.09 + breathe * 0.004);
-      ctx.translate(-CX, -CY);
-      ctx.translate(0, breathe);
-
-      if (spec.ring) paintRing(ctx, spec.ring, t, spec.progress ?? 1, reduced);
-      if (spec.rays && detail) paintRays(ctx, t, reduced);
-      if (spec.confetti && detail) paintConfetti(ctx, t, reduced);
-      paintBody(ctx, t, amp, reduced);
-
-      // Bubble Intelligence: pure fluid glowing amber droplet with organic wobble & satellite bead.
-      // No cartoon eyes, brows, or human mouth drawn inside the bubble.
-      if (stateRef.current === 'typing') paintTyping(ctx, t, reduced);
-      if (spec.sweat) paintSweat(ctx, t, reduced);
-      if (spec.burst) paintBurst(ctx, t, reduced);
-      if (spec.chip && detail) paintChip(ctx, spec.chip, t, reduced);
-      ctx.restore();
-    };
-
-    const step = (ts: number) => {
-      const raw = last === 0 ? 16.667 : ts - last;
-      last = ts;
-      t += (Math.min(Math.max(raw, 1), 50) / 16.667) * 0.024;
-      draw();
-      raf = requestAnimationFrame(step);
-    };
-    const start = () => {
-      if (reduced || raf !== null || !onScreen || document.hidden) return;
-      last = 0;
-      raf = requestAnimationFrame(step);
-    };
-    const stop = () => {
-      if (raf === null) return;
-      cancelAnimationFrame(raf);
-      raf = null;
-    };
-
-    draw();
-    start();
-
-    const onMedia = () => {
-      reduced = media?.matches ?? false;
-      stop();
-      draw();
-      if (!reduced) start();
-    };
-    media?.addEventListener('change', onMedia);
-    const onVis = () => {
-      if (document.hidden) stop();
-      else start();
-    };
-    document.addEventListener('visibilitychange', onVis);
-    const io =
-      typeof IntersectionObserver === 'undefined'
-        ? null
-        : new IntersectionObserver((entries) => {
-            const entry = entries[entries.length - 1];
-            if (!entry) return;
-            onScreen = entry.isIntersecting;
-            if (onScreen) start();
-            else stop();
-          });
-    io?.observe(canvas);
-
-    return () => {
-      stop();
-      io?.disconnect();
-      media?.removeEventListener('change', onMedia);
-      document.removeEventListener('visibilitychange', onVis);
-    };
-  }, [size]);
-
+  const mode = modeOf(state);
   const spec = specOf(state);
   const statusWord =
     state in STATUS_TO_BUBBLE ? STATE_WORD[state as QuantSidekickStatus] : spec.label;
 
   return (
     <span
-      className={`qbubble-root inline-block ${className}`}
+      className={`qghost-root qghost-mode-${mode} ${className}`}
       data-state={state}
       data-testid="quant-alien-avatar"
       role="img"
-      aria-label={label ?? `QuantAI assistant, ${statusWord}`}
+      aria-label={label ?? `Quanty AI assistant, ${statusWord}`}
       title={title}
-      style={{ width: size, height: size, lineHeight: 0 }}
+      style={{
+        width: size,
+        height: size,
+        ...(accent ? ({ '--qghost-accent': accent } as React.CSSProperties) : {}),
+      }}
     >
-      <canvas
-        ref={canvasRef}
-        aria-hidden="true"
-        style={{ width: size, height: size, display: 'block' }}
-      />
+      <style>{GHOST_CSS}</style>
+      <span aria-hidden="true" className="qghost-glow" />
+      {(mode === 'thinking' || mode === 'working') && (
+        <span aria-hidden="true" className="qghost-ring" />
+      )}
+      {mode === 'listening' && (
+        <>
+          <span aria-hidden="true" className="qghost-ring" />
+          <span aria-hidden="true" className="qghost-ring qghost-ring2" />
+        </>
+      )}
+      <span className="qghost-bob">
+        <img
+          src={QUANTY_GHOST_WEBP_256}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          className="qghost-img"
+        />
+        <span aria-hidden="true" className="qghost-lid qghost-lid-l" />
+        <span aria-hidden="true" className="qghost-lid qghost-lid-r" />
+      </span>
+      {mode === 'happy' && (
+        <>
+          <span aria-hidden="true" className="qghost-spark qghost-spark-1" />
+          <span aria-hidden="true" className="qghost-spark qghost-spark-2" />
+          <span aria-hidden="true" className="qghost-spark qghost-spark-3" />
+        </>
+      )}
     </span>
   );
 };

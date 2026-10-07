@@ -33,11 +33,11 @@ export const metadata: Metadata = {
   applicationName: quantMailBrandMetadata.applicationName,
   icons: {
     icon: [
-      { url: '/quantmail-mascot.svg', type: 'image/svg+xml' },
+      { url: '/quanty-ghost.png', type: 'image/png' },
       { url: '/favicon.svg', type: 'image/svg+xml' },
     ],
-    shortcut: '/quantmail-mascot.svg',
-    apple: '/quantmail-mascot.svg',
+    shortcut: '/quanty-ghost.png',
+    apple: '/quanty-ghost-apple.png',
   },
   manifest: '/manifest.json',
   themeColor: '#0d1017',
