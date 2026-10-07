@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import Head from 'next/head';
 import { useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { spring } from '@quant/brand';
@@ -65,7 +66,11 @@ export default function App({ Component, pageProps }: AppProps) {
   const variants = prefersReducedMotion ? reducedMotionTransition : pageTransition;
 
   return (
-    <ErrorBoundary>
+    <>
+      <Head>
+        <title>QuantTube</title>
+      </Head>
+      <ErrorBoundary>
       <QueryProvider>
         <AuthProvider>
           <ThemeProvider>
@@ -94,6 +99,7 @@ export default function App({ Component, pageProps }: AppProps) {
           </ThemeProvider>
         </AuthProvider>
       </QueryProvider>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </>
   );
 }
