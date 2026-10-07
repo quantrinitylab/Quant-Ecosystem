@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   PaymentEngine,
-  type PaymentMethod,
+  type EnginePaymentMethod,
   type PaymentProcessorBackend,
   type ProcessorChargeRequest,
   type ProcessorChargeResult,
-  type Transaction,
-} from './payment-engine';
-import { PaymentValidationError } from './errors';
+  type EngineTransaction,
+} from '../payment-engine';
+import { PaymentValidationError } from '../errors';
 
 /**
  * A spy payment-processor backend: records every `charge` call so tests can
@@ -46,7 +46,7 @@ describe('PaymentEngine.processPayment — bug condition (invalid amount/currenc
     readonly name: string;
     readonly amount: number;
     readonly currency: string;
-    readonly type: Transaction['type'];
+    readonly type: EngineTransaction['type'];
   }
 
   const bugCases: BugCase[] = [
@@ -192,7 +192,7 @@ describe('PaymentEngine.processPayment — preservation (valid inputs behave ide
   it('unrelated operations are unaffected: addPaymentMethod / getUserPaymentMethods / getUserTransactions', async () => {
     const engine = new PaymentEngine(new SpyProcessor({ status: 'completed' }));
 
-    const method: Omit<PaymentMethod, 'id' | 'userId'> = {
+    const method: Omit<EnginePaymentMethod, 'id' | 'userId'> = {
       type: 'card',
       details: { last4: '4242' },
       isDefault: true,

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAppError } from '@quant/server-core';
-import { recommendationEngine } from '@quant/recommendation';
+import { recommendationEngine } from '@quant/recommendations';
 
 const recommendSchema = z.object({
   limit: z.number().min(1).max(50).optional(),

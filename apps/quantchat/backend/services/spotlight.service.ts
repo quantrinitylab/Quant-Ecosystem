@@ -6,7 +6,7 @@
 //   - rankBySpotlight()         pure engagement ranking + "Featured" flag (13.7)
 //   - SpotlightService          caches the global ranking and refreshes it at
 //                               most every 15 minutes (13.6)
-//   - applyPersonalization()    optional @quant/recommendation reorder (13.8)
+//   - applyPersonalization()    optional @quant/recommendations reorder (13.8)
 //                               with graceful fallback to engagement-only.
 //
 // The expensive global engagement ranking is cached (15-minute TTL). Per-user
@@ -93,7 +93,7 @@ export function rankBySpotlight(reels: SpotlightSourceReel[]): RankedSpotlightRe
 }
 
 // ---------------------------------------------------------------------------
-// Personalization via @quant/recommendation (Task 13.8) — optional dependency.
+// Personalization via @quant/recommendations (Task 13.8) — optional dependency.
 // ---------------------------------------------------------------------------
 
 /** Minimal structural surface of the recommendation engine we rely on. */
@@ -110,14 +110,14 @@ interface RecommendationEngineLike {
 }
 
 /**
- * Attempt to load `@quant/recommendation` at runtime. Returns `null` when the
+ * Attempt to load `@quant/recommendations` at runtime. Returns `null` when the
  * package is not installed/available so callers fall back to engagement-only
  * ranking. The module specifier is typed as `string` so the optional dependency
  * does not become a hard compile-time requirement.
  */
 export async function loadRecommendationEngine(): Promise<RecommendationEngineLike | null> {
   try {
-    const moduleName: string = '@quant/recommendation';
+    const moduleName: string = '@quant/recommendations';
     const mod = (await import(moduleName)) as {
       RecommendationEngine?: new () => RecommendationEngineLike;
     };
@@ -132,7 +132,7 @@ export async function loadRecommendationEngine(): Promise<RecommendationEngineLi
 
 /**
  * Reorder an engagement-ranked feed to personalize it for a viewer using
- * `@quant/recommendation` (Task 13.8). Reels the engine surfaces are moved to
+ * `@quant/recommendations` (Task 13.8). Reels the engine surfaces are moved to
  * the front (in the engine's order); all remaining reels keep their engagement
  * order. The `isFeatured` flags are preserved unchanged (Featured is global).
  *

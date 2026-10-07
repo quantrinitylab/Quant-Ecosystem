@@ -83,6 +83,22 @@ export {
   InMemorySessionStore,
   FollowingMode,
 } from './personalization';
+// ---------------------------------------------------------------------------
+// Simple in-memory engine (K8 consolidation: merged from @quant/recommendation)
+// ---------------------------------------------------------------------------
+// Named exports only: this package already owns the `UserProfile` /
+// `ContentItem` / `Interaction` names in its canonical types / anti-rage /
+// retrieval modules, so the simple engine's local model shapes are NOT
+// re-exported here (import them from the module file directly if needed).
+export {
+  RecommendationEngine,
+  recommendationEngine,
+} from './simple-engine/simple-recommendation-engine';
+export type {
+  SimpleUserProfile,
+  SimpleContentItem,
+  SimpleInteraction,
+} from './simple-engine/simple-recommendation-engine';
 export type {
   NegativeSignal,
   SignalStore,

@@ -47,15 +47,16 @@ const repoRoot = resolve(here, '../../../..');
 // resolution chain is identical to the one buildApp()'s route imports use.
 const requireFromRoutes = createRequire(new URL('../routes/cache.ts', import.meta.url));
 
-// The 8 source-only engines whose route modules buildApp() statically imports;
-// each currently maps to a packages/<x>/ folder with NO package.json (phantom).
+// The 8 @quant/* engines whose route modules buildApp() statically imports.
+// (K8: `@quant/payment` → consolidated into `@quant/payments`, and
+// `@quant/recommendation` → consolidated into `@quant/recommendations`.)
 const PHANTOM_ENGINE_SPECIFIERS = [
   '@quant/cache',
   '@quant/cdn',
   '@quant/events',
   '@quant/ml',
-  '@quant/payment',
-  '@quant/recommendation',
+  '@quant/payments',
+  '@quant/recommendations',
   '@quant/scaling',
   '@quant/ab-testing',
 ] as const;

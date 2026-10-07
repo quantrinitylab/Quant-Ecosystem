@@ -1,9 +1,25 @@
+/**
+ * Payment engine facade — direct payment-method + charge pipeline.
+ *
+ * Adopted from `@quant/payment` (consolidated into `@quant/payments` under K8).
+ * This is the lightweight charge pipeline: validate → build transaction →
+ * charge through a pluggable `PaymentProcessorBackend` (fail-closed) →
+ * record. It complements the gateway services in this package (Stripe,
+ * Razorpay, UPI, wallets) with a framework-neutral, processor-agnostic engine
+ * that apps can drive directly.
+ *
+ * Note on naming: the interfaces here are `EnginePaymentMethod` /
+ * `EngineTransaction` (not `PaymentMethod` / `Transaction`) because
+ * `@quant/payments`' canonical `types.ts` already owns the Stripe-shaped
+ * `PaymentMethod` / `Transaction` records. The engine's shapes are a simpler,
+ * user-centric model and deliberately keep distinct names.
+ */
 import { randomUUID } from 'node:crypto';
 
 import { PaymentValidationError } from './errors';
 import { isValidCurrency } from './currency';
 
-export interface PaymentMethod {
+export interface EnginePaymentMethod {
   id: string;
   userId: string;
   type: 'card' | 'paypal' | 'crypto';
@@ -11,7 +27,7 @@ export interface PaymentMethod {
   isDefault: boolean;
 }
 
-export interface Transaction {
+export interface EngineTransaction {
   id: string;
   userId: string;
   amount: number;
@@ -27,7 +43,7 @@ export interface ProcessorChargeRequest {
   userId: string;
   amount: number;
   currency: string;
-  type: Transaction['type'];
+  type: EngineTransaction['type'];
   metadata?: Record<string, unknown>;
 }
 
@@ -78,8 +94,8 @@ export class HttpPaymentProcessorBackend implements PaymentProcessorBackend {
 }
 
 export class PaymentEngine {
-  private methods: Map<string, PaymentMethod[]> = new Map();
-  private transactions: Transaction[] = [];
+  private methods: Map<string, EnginePaymentMethod[]> = new Map();
+  private transactions: EngineTransaction[] = [];
   private readonly processor: PaymentProcessorBackend | null;
 
   constructor(processor?: PaymentProcessorBackend) {
@@ -101,9 +117,9 @@ export class PaymentEngine {
 
   async addPaymentMethod(
     userId: string,
-    method: Omit<PaymentMethod, 'id' | 'userId'>,
-  ): Promise<PaymentMethod> {
-    const newMethod: PaymentMethod = {
+    method: Omit<EnginePaymentMethod, 'id' | 'userId'>,
+  ): Promise<EnginePaymentMethod> {
+    const newMethod: EnginePaymentMethod = {
       ...method,
       id: `pm_${randomUUID()}`,
       userId,
@@ -120,9 +136,9 @@ export class PaymentEngine {
     userId: string,
     amount: number,
     currency: string,
-    type: Transaction['type'],
+    type: EngineTransaction['type'],
     metadata?: Record<string, unknown>,
-  ): Promise<Transaction> {
+  ): Promise<EngineTransaction> {
     // Validation guard (fail fast): reject invalid input BEFORE constructing or
     // persisting a Transaction and BEFORE calling processor.charge, so a rejected
     // call has no side effects. A negative amount is never valid for any type
@@ -140,7 +156,7 @@ export class PaymentEngine {
       );
     }
 
-    const transaction: Transaction = {
+    const transaction: EngineTransaction = {
       id: `tx_${randomUUID()}`,
       userId,
       amount,
@@ -178,11 +194,11 @@ export class PaymentEngine {
     return transaction;
   }
 
-  async getUserTransactions(userId: string): Promise<Transaction[]> {
+  async getUserTransactions(userId: string): Promise<EngineTransaction[]> {
     return this.transactions.filter((t) => t.userId === userId);
   }
 
-  async getUserPaymentMethods(userId: string): Promise<PaymentMethod[]> {
+  async getUserPaymentMethods(userId: string): Promise<EnginePaymentMethod[]> {
     return this.methods.get(userId) || [];
   }
 }

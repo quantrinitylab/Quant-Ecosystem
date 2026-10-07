@@ -1,15 +1,71 @@
-import { UserProfile } from '../models/user-profile';
-import { ContentItem } from '../models/content-item';
-import { Interaction } from '../models/interaction';
+/**
+ * Simple in-memory recommendation engine.
+ *
+ * Adopted from `@quant/recommendation`
+ * (consolidated into `@quant/recommendations` under K8). This is the
+ * lightweight, self-contained hybrid recommender (collaborative +
+ * content-based + popularity fallback) with a singleton `recommendationEngine`
+ * for apps that need recommendations without wiring the full retrieval →
+ * ranking → diversification pipeline (`RecommendationPipeline`, `HybridEngine`,
+ * MMoE, ...). State is in-memory; suitable for app-local personalization and
+ * as the default backend behind optional-dependency call sites.
+ *
+ * The model types below are intentionally NOT re-exported from the package
+ * barrel: `@quant/recommendations` already owns `UserProfile`, `ContentItem`
+ * and `Interaction` names in its canonical `types` / `anti-rage` / retrieval
+ * modules. The engine keeps its own simple shapes internally.
+ */
 
-type InteractionType = Interaction['type'];
+/** Simple user profile (engine-local shape). */
+export interface SimpleUserProfile {
+  userId: string;
+  interests: string[];
+  preferredCategories: string[];
+  demographics?: {
+    age?: number;
+    location?: string;
+    language?: string;
+  };
+  behavior?: {
+    activeHours?: number[];
+    deviceType?: string;
+    averageSessionDuration?: number;
+  };
+  lastUpdated: Date;
+}
+
+/** Simple content item (engine-local shape). */
+export interface SimpleContentItem {
+  id: string;
+  type: 'post' | 'video' | 'article' | 'product' | 'event';
+  title: string;
+  description?: string;
+  tags?: string[];
+  category?: string;
+  creatorId: string;
+  createdAt: Date;
+  metadata?: Record<string, any>;
+  score?: number;
+}
+
+/** Simple interaction record (engine-local shape). */
+export interface SimpleInteraction {
+  userId: string;
+  contentId: string;
+  type: 'view' | 'like' | 'share' | 'comment' | 'click' | 'purchase' | 'save';
+  value?: number;
+  timestamp: Date;
+  metadata?: Record<string, any>;
+}
+
+type InteractionType = SimpleInteraction['type'];
 
 export class RecommendationEngine {
-  private userProfiles: Map<string, UserProfile> = new Map();
-  private contentItems: Map<string, ContentItem> = new Map();
-  private interactions: Interaction[] = [];
+  private userProfiles: Map<string, SimpleUserProfile> = new Map();
+  private contentItems: Map<string, SimpleContentItem> = new Map();
+  private interactions: SimpleInteraction[] = [];
 
-  async recommendForUser(userId: string, limit: number = 10): Promise<ContentItem[]> {
+  async recommendForUser(userId: string, limit: number = 10): Promise<SimpleContentItem[]> {
     const profile = this.userProfiles.get(userId);
     if (!profile) {
       return this.getPopularContent(limit);
@@ -25,10 +81,10 @@ export class RecommendationEngine {
   }
 
   private combineRecommendations(
-    collaborative: ContentItem[],
-    contentBased: ContentItem[],
-  ): ContentItem[] {
-    const scored = new Map<string, ContentItem>();
+    collaborative: SimpleContentItem[],
+    contentBased: SimpleContentItem[],
+  ): SimpleContentItem[] {
+    const scored = new Map<string, SimpleContentItem>();
 
     for (const item of collaborative) {
       scored.set(item.id, { ...item, score: (item.score || 0) + 1 });
@@ -46,10 +102,13 @@ export class RecommendationEngine {
     return Array.from(scored.values()).sort((a, b) => (b.score || 0) - (a.score || 0));
   }
 
-  private async collaborativeFiltering(userId: string, limit: number): Promise<ContentItem[]> {
+  private async collaborativeFiltering(
+    userId: string,
+    limit: number,
+  ): Promise<SimpleContentItem[]> {
     // Find similar users based on interactions
     const similarUsers = this.findSimilarUsers(userId);
-    const recommendations: ContentItem[] = [];
+    const recommendations: SimpleContentItem[] = [];
 
     for (const similarUser of similarUsers) {
       const userInteractions = this.interactions.filter((i) => i.userId === similarUser);
@@ -64,11 +123,14 @@ export class RecommendationEngine {
     return recommendations.slice(0, limit);
   }
 
-  private async contentBasedFiltering(userId: string, limit: number): Promise<ContentItem[]> {
+  private async contentBasedFiltering(
+    userId: string,
+    limit: number,
+  ): Promise<SimpleContentItem[]> {
     const profile = this.userProfiles.get(userId);
     if (!profile) return [];
 
-    const recommendations: ContentItem[] = [];
+    const recommendations: SimpleContentItem[] = [];
 
     for (const content of this.contentItems.values()) {
       const score = this.calculateContentScore(profile, content);
@@ -80,7 +142,7 @@ export class RecommendationEngine {
     return recommendations.sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, limit);
   }
 
-  private calculateContentScore(profile: UserProfile, content: ContentItem): number {
+  private calculateContentScore(profile: SimpleUserProfile, content: SimpleContentItem): number {
     // Simple content matching (can be replaced with ML)
     let score = 0;
 
@@ -127,7 +189,7 @@ export class RecommendationEngine {
     return this.interactions.some((i) => i.userId === userId && i.contentId === contentId);
   }
 
-  private getPopularContent(limit: number): ContentItem[] {
+  private getPopularContent(limit: number): SimpleContentItem[] {
     const contentScores = new Map<string, number>();
 
     for (const interaction of this.interactions) {
@@ -173,11 +235,14 @@ export class RecommendationEngine {
     }
   }
 
-  async addContent(content: ContentItem) {
+  async addContent(content: SimpleContentItem) {
     this.contentItems.set(content.id, content);
   }
 
-  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+  async getUserProfile(userId: string): Promise<SimpleUserProfile | undefined> {
     return this.userProfiles.get(userId);
   }
 }
+
+/** Shared singleton, mirroring the `@quant/recommendation` export contract. */
+export const recommendationEngine = new RecommendationEngine();

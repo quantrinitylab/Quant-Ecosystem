@@ -38,10 +38,10 @@
       "@quant/ml/*": ["../../packages/ml/src/*"],
       "@quant/moderation": ["../../packages/moderation/src/index.ts"],
       "@quant/moderation/*": ["../../packages/moderation/src/*"],
-      "@quant/payment": ["../../packages/payment/src/index.ts"],
-      "@quant/payment/*": ["../../packages/payment/src/*"],
-      "@quant/recommendation": ["../../packages/recommendation/src/index.ts"],
-      "@quant/recommendation/*": ["../../packages/recommendation/src/*"],
+      "@quant/payments": ["../../packages/payments/src/index.ts"],
+      "@quant/payments/*": ["../../packages/payments/src/*"],
+      "@quant/recommendations": ["../../packages/recommendations/src/index.ts"],
+      "@quant/recommendations/*": ["../../packages/recommendations/src/*"],
       "@quant/scaling": ["../../packages/scaling/src/index.ts"],
       "@quant/scaling/*": ["../../packages/scaling/src/*"]
     }

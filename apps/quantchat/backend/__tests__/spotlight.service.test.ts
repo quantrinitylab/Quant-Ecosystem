@@ -116,7 +116,7 @@ describe('SpotlightService caching (Task 13.6)', () => {
 });
 
 describe('applyPersonalization fallback (Task 13.8)', () => {
-  it('returns engagement order unchanged when @quant/recommendation is unavailable', async () => {
+  it('returns engagement order unchanged when @quant/recommendations is unavailable', async () => {
     const ranked = rankBySpotlight([
       makeReel('a', { likeCount: 30 }),
       makeReel('b', { likeCount: 20 }),
