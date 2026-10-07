@@ -33,7 +33,7 @@ import { EmailSenderHeader } from '../components/EmailSenderHeader';
 import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModal';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
-import { UnreadDot } from '../components/UnreadDot';
+import { UnreadCountPill } from '../components/UnreadCountPill';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
@@ -574,7 +574,14 @@ function EmailRow({
         <div className="mail-row-copy">
           <div className="mail-row-meta">
             <div className="flex items-center gap-1.5 min-w-0">
-              <strong className="truncate text-[#F5F5F5] font-semibold">
+              {/*
+                Gmail/WhatsApp contract: an unread conversation's sender is
+                bold, a read one's is not. Weight is the read state — no badge
+                needed to say it twice.
+              */}
+              <strong
+                className={`truncate text-[#F5F5F5] ${thread.isRead ? 'font-medium' : 'font-bold'}`}
+              >
                 {groupInfo?.name ?? thread.participantsSummary}
               </strong>
               {thread.count > 1 && (
@@ -588,7 +595,13 @@ function EmailRow({
                 </span>
               )}
             </div>
-            {!thread.isRead && <UnreadDot />}
+            {/*
+              Green unread pill with the thread's REAL unread count (wired from
+              `ConversationThread.unreadCount` in `lib/threading` — never
+              hardcoded). Replaces the bare dot: WhatsApp's contract is a
+              number, not a decoration.
+            */}
+            {!thread.isRead && <UnreadCountPill count={thread.unreadCount} />}
             {thread.kindMix !== 'mail' && <ThreadKindBadge mix={thread.kindMix} />}
             <time dateTime={new Date(thread.receivedAt).toISOString()}>
               {formatReceivedAt(thread.receivedAt)}

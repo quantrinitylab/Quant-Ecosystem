@@ -158,6 +158,16 @@ function formatMessageDate(value?: string | Date): string {
 }
 
 /**
+ * Full timestamp for hover tooltips: the bubble shows the compact relative
+ * time ("2m ago") subtly at all times, and desktop hover reveals the exact
+ * date-time — WhatsApp/Telegram's contract.
+ */
+function formatFullDate(value?: string | Date): string {
+  if (!value) return '';
+  return new Date(value).toLocaleString();
+}
+
+/**
  * Read-receipt status for a message bubble, WhatsApp-style.
  *
  * Ticks only ever appear on YOUR messages (outbound) — inbound rows never get
@@ -444,6 +454,8 @@ export function ConversationalThreadView({
   const [editingGroup, setEditingGroup] = useState<ContactGroup | null>(null);
   const [addingMembersGroup, setAddingMembersGroup] = useState<ContactGroup | null>(null);
   const [confirmTrash, setConfirmTrash] = useState(false);
+  /** Single message awaiting delete confirmation from the bubble menu. */
+  const [confirmDeleteMessage, setConfirmDeleteMessage] = useState<Email | null>(null);
 
   const openReplyComposer = useCallback(() => {
     const recipient = primaryMessage?.from?.email || '';
@@ -497,6 +509,15 @@ export function ConversationalThreadView({
     },
     [router, threadSubject],
   );
+
+  /*
+   * Per-message delete from the bubble menu. Asks first — a long-press menu
+   * is one mis-tap away from data loss, and the thread header's whole-thread
+   * delete already set the confirm-before-trash precedent.
+   */
+  const deleteMessage = useCallback((message: Email) => {
+    setConfirmDeleteMessage(message);
+  }, []);
 
   const otherParticipant = useMemo(() => {
     const addresses = threadParticipants(messages, currentEmail);
@@ -1802,6 +1823,8 @@ export function ConversationalThreadView({
                 isOutbound={isOutbound}
                 onQuoteReply={startQuoteReply}
                 onForwardMessage={forwardMessage}
+                // "Delete where allowed": only when the host wired `onDelete`.
+                onDeleteMessage={onDelete ? deleteMessage : undefined}
               >
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -1899,7 +1922,7 @@ export function ConversationalThreadView({
                           ❤️
                         </span>
                       )}
-                      <span className="text-[11px] text-[#A1A4AC] font-mono">
+                      <span className="text-[11px] text-[#A1A4AC] font-mono" title={formatFullDate(message.receivedAt)}>
                         {formatMessageDate(message.receivedAt)}
                       </span>
                       {receipt && (
@@ -1968,6 +1991,7 @@ export function ConversationalThreadView({
                         className={`font-mono text-[10px] ${
                           isOutbound ? 'text-white/70' : 'text-[#A1A4AC]'
                         }`}
+                        title={formatFullDate(message.receivedAt)}
                       >
                         {formatMessageDate(message.receivedAt)}
                       </span>
@@ -2043,7 +2067,7 @@ export function ConversationalThreadView({
                               {msgFromName}
                             </span>
                             {showKindBadges && <MessageKindBadge kind={messageKind} />}
-                            <span className="text-xs text-[#A1A4AC] font-mono">
+                            <span className="text-xs text-[#A1A4AC] font-mono" title={formatFullDate(message.receivedAt)}>
                               {formatMessageDate(message.receivedAt)}
                             </span>
                             {receipt && (
@@ -2583,6 +2607,45 @@ export function ConversationalThreadView({
                 className="min-h-[44px] rounded-xl bg-rose-500 px-4 text-xs font-bold text-white"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Single-message delete, from the bubble's long-press/right-click menu. */}
+      {confirmDeleteMessage && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/80 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-title"
+            className="w-full max-w-sm rounded-2xl border border-[#3A404D] bg-[#111318] p-5"
+          >
+            <h2 id="delete-message-title" className="text-base font-bold text-white">
+              Delete this message?
+            </h2>
+            <p className="mt-2 text-xs text-[#A1A4AC]">
+              This message will be moved to Trash. The rest of the conversation stays.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteMessage(null)}
+                className="min-h-[44px] rounded-xl border border-[#282C35] px-4 text-xs font-semibold text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = confirmDeleteMessage.id;
+                  setConfirmDeleteMessage(null);
+                  if (id) onDelete?.([id]);
+                }}
+                className="min-h-[44px] rounded-xl bg-rose-500 px-4 text-xs font-bold text-white"
+              >
+                Delete
               </button>
             </div>
           </div>

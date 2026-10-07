@@ -31,6 +31,12 @@ export interface ConversationThread {
   /** `participants` rendered for one line — see `summarizeParticipants`. */
   participantsSummary: string;
   isRead: boolean;
+  /**
+   * Real unread-message count for the row's green pill: messages that are
+   * neither read nor sent by the signed-in user. Zero exactly when `isRead`
+   * is true, by the same predicate — the badge never invents a number.
+   */
+  unreadCount: number;
   isStarred: boolean;
   isPinned: boolean;
   receivedAt: string | Date;
@@ -841,6 +847,7 @@ export function groupEmailsIntoThreads(
     const messages = collapseDuplicateSends(msgList);
     const latest = messages[messages.length - 1];
     const isRead = messages.every((m) => m.isRead || isFromMe(m, currentEmail));
+    const unreadCount = messages.filter((m) => !m.isRead && !isFromMe(m, currentEmail)).length;
     const isStarred = messages.some((m) => m.isStarred);
     const isPinned = messages.some((m) => (m as { isPinned?: boolean }).isPinned);
 
@@ -863,6 +870,7 @@ export function groupEmailsIntoThreads(
       participants,
       participantsSummary: summarizeParticipants(participants),
       isRead,
+      unreadCount,
       isStarred,
       isPinned,
       receivedAt: latest.receivedAt || latest.createdAt || new Date(),

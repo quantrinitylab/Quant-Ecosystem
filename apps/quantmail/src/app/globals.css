@@ -992,6 +992,12 @@ body {
    own nor any clipping. See `EmailRow` for what the gesture had to prove. */
 .mail-row-shell { position: relative; overflow: hidden; border-radius: 0.72rem; }
 .mail-row { position: relative; display: flex; min-height: 4.85rem; align-items: center; gap: 0.7rem; border: 1px solid transparent; border-radius: 0.72rem; padding: 0.65rem 0.65rem; background: #0C0E11; cursor: pointer; transition: background 130ms ease, border-color 130ms ease; }
+/*
+ * Subtle divider between rows (P1-D chat feel): each row's own bottom edge
+ * doubles as the hairline — Gmail/WhatsApp read as one list, not floating
+ * cards. Hover/active keep their full borders, which override this.
+ */
+.mail-row { border-bottom-color: rgba(255,255,255,0.055); }
 .mail-row:hover { border-color: #2d2d30; background: #111318; }
 /*
  * The pane the row slides off. It fills the shell rather than sizing itself to the
@@ -2207,6 +2213,7 @@ body {
   gap: 0.7rem;
   min-height: 4.5rem;
   border: 1px solid transparent;
+  border-bottom-color: rgba(255,255,255,0.055);
   border-radius: 0.72rem;
   padding: 0.6rem 0.7rem;
   cursor: pointer;
