@@ -948,8 +948,8 @@ export function AppShell({
                 />
                 {/* Gmail-style sub-tab strip: the removed bottom bar's
                     navigation, relocated to a single top strip for the pillars
-                    with no native mobile tab row (calendar/drive/quantgit).
-                    Mail and Contacts render their own rows. */}
+                    with no native mobile tab row (calendar/drive).
+                    Mail, Contacts and QuantGit render their own rows. */}
                 <MobileSubTabStrip />
               </div>
             ) : null}

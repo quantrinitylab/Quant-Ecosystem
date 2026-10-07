@@ -176,7 +176,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('App pillars');
     });
 
-    it('mounts the mobile sub-tab strip on QuantGit route (/quantgit)', () => {
+    it('does NOT mount the shell sub-tab strip on QuantGit route (/quantgit) — page has its own native tab row', () => {
       mockCurrentPathname = '/quantgit';
       const html = renderToStaticMarkup(
         <AppShell sidebar={<div id="sidebar-test">Sidebar</div>}>
@@ -187,12 +187,10 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
       expect(html).toContain('#A78BFA');
 
+      // QuantGit renders its own native mobile tab row (All Repos / Open PRs /
+      // Issues / CI Runs), so the shell must NOT add a second strip here.
+      expect(html).not.toContain('sub-navigation');
       expect(html).not.toContain('QuantGit sub-navigation');
-      expect(html).toContain('Repos');
-      expect(html).toContain('PRs');
-      expect(html).toContain('Issues');
-      expect(html).toContain('Actions');
-      expect(html).toContain('Copilot');
 
       expect(html).toContain('App pillars');
       expect(html).not.toContain('contextual navigation');
