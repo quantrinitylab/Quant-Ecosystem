@@ -32,6 +32,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `17-webrtc-sfu-quantmeet-media-architecture.md` — WebRTC/SFU media plane for Calls + QuantMeet: STUN/TURN, simulcast/SVC, adaptive quality, screen share, breakouts, captions/translation, recording, device handoff, AR/3D, scaling, observability and failure recovery.
 - `18-offline-first-sync-multidevice-architecture.md` — Offline-first sync and multi-device convergence: encrypted local state, command journal, idempotency, cursor/delta sync, event gap repair, conflicts, resumable media, reconnect, storage pressure, E2EE sync and cross-app invalidation.
 - `19-search-discovery-recommendation-architecture.md` — Search/discovery architecture: local E2EE search, Meilisearch/Qdrant retrieval, authorization-aware indexing, federated ecosystem search, semantic retrieval, recommendation boundaries, invalidation, offline search and Quanty evidence retrieval.
+- `20-notification-presence-social-graph-architecture.md` — Unified notification, presence and social-graph architecture: relationship edges, block/mute/restrict, TTL presence, multi-device state, notification intents, priority/grouping/routing, cross-app fanout, affinity decay, privacy, Quanty triage and reliability.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
