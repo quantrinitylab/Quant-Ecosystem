@@ -7,8 +7,9 @@
 // states never strand the user without navigation. A failed fetch shows an
 // inline error card with retry; a successful-but-empty feed shows an empty
 // state with a create-story CTA. Story creation opens the StoryCreator
-// overlay; real posting works for http(s) media URLs, anything else shows an
-// honest "coming soon" notice because media upload has no real backend yet.
+// overlay; text stories post end-to-end (type 'text' + text body persisted).
+// Photo/video post for http(s) media URLs; anything else shows an honest
+// "coming soon" notice because media upload has no real backend yet.
 // ============================================================================
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -58,10 +59,24 @@ export default function StoriesPage() {
   const handlePostStory = async (story: CreatorStory) => {
     setCreatorNotice(null);
     const url = story.mediaUrl;
-    // Only remote (already-hosted) media can be posted today: camera/gallery
-    // captures are data URLs and the media upload service is simulated, so
-    // there is no real storage to upload them to yet.
-    if (url && /^https?:\/\//i.test(url)) {
+    // Text stories post as real TEXT rows (text body persisted by the backend);
+    // no media upload involved. Photo/video still need a real upload backend,
+    // so only already-hosted http(s) media can be posted today — anything else
+    // gets an honest "coming soon" notice instead of a silent failure.
+    const text = story.text?.trim();
+    if (story.type === 'text') {
+      if (!text) {
+        setCreatorNotice('Type something first — a text story needs words.');
+        return;
+      }
+      setPosting(true);
+      try {
+        await createStory({ type: 'text', text, duration: 5 });
+        setCreatorOpen(false);
+      } finally {
+        setPosting(false);
+      }
+    } else if (url && /^https?:\/\//i.test(url)) {
       setPosting(true);
       try {
         await createStory({ type: story.type, mediaUrl: url, duration: 5 });

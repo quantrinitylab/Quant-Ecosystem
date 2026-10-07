@@ -1177,6 +1177,7 @@ model Story {
   type         StoryType @default(IMAGE)
   mediaUrl     String?
   thumbnailUrl String?
+  textContent  String? // text-story body (StoryType.TEXT only); NULL for photo/video
   duration     Int       @default(15)
   viewCount    Int       @default(0)
   audience     String    @default("ALL") // ALL | CLOSE_FRIENDS
