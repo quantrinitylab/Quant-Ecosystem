@@ -86,18 +86,21 @@ function LoginPageInner() {
 
   if (isAuthenticated) {
     return (
-      <div className="max-w-md mx-auto mt-16 text-center">
-        <p className="text-[var(--quant-foreground)]">You are signed in.</p>
-        <Button variant="primary" className="mt-4" onClick={() => router.push(returnTo)}>
-          Continue to QuantAds
-        </Button>
+      <div className="flex min-h-dvh items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md text-center">
+          <p className="text-[var(--quant-foreground)]">You are signed in.</p>
+          <Button variant="primary" className="mt-4" onClick={() => router.push(returnTo)}>
+            Continue to QuantAds
+          </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md mx-auto mt-16">
-      <Card className="p-6">
+    <div className="flex min-h-dvh items-center justify-center px-4 py-8">
+      <div className="w-full max-w-md">
+        <Card className="p-6">
         <h1 className="text-xl font-bold mb-1">Sign in to QuantAds</h1>
         <p className="text-sm text-[var(--quant-muted-foreground)] mb-5">
           Use your QuantID — one account for the whole ecosystem.
@@ -173,7 +176,8 @@ function LoginPageInner() {
             Create a QuantID
           </a>
         </p>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

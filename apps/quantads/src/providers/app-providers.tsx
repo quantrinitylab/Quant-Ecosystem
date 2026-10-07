@@ -64,8 +64,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  // Dark-first like QuantMail: the shell declares theme="dark" and shared
+  // primitives are hardcoded dark, so the dark theme is the default.
   return (
-    <ThemeProvider defaultTheme="system">
+    <ThemeProvider defaultTheme="dark">
       <QuantSidekickProvider>
         <AuthGuard>{children}</AuthGuard>
         <CommandPaletteUI
