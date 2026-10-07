@@ -260,7 +260,21 @@ EC-03.7 — Add cross-app verification/reconciliation contract for external side
 EC-03.8 — Add contract tests for duplicate, out-of-order, replay, timeout, malformed and future-version events.
 EC-03.9 — Update signal-projector input contract to consume the canonical envelope.
 
-## 21. Definition of Done
+## 21. EC-04 implementation status
+
+The first executable EC-04 slice is now present as `@quant/ecosystem-contracts` under `packages/ecosystem-contracts`.
+
+Implemented:
+- canonical nine-app `QuantAppId` union;
+- typed `QuantResourceRef`, `QuantContextEnvelope`, `QuantEventEnvelope`;
+- governed per-app resource-type registry;
+- provenance, economy-operation and lifecycle types;
+- fail-closed reference/context validation;
+- contract tests for valid references, ownership mismatch, invalid versions and context envelopes.
+
+Remaining EC-04 work is runtime adoption: event serialization in cdc-relay, consumer inbox/idempotency utilities, schema compatibility registry, replay/DLQ controls and Quanty capability wiring.
+
+## 22. Definition of Done
 - Wire events carry the full EC-02 context.
 - Outbox remains atomic with source state.
 - At-least-once publication is explicit.
