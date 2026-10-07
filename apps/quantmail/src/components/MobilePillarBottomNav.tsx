@@ -61,6 +61,7 @@ export function executeMobilePillarTap(
     return;
   }
   // Re-tap on the active pillar: refresh current app content.
+  triggerHapticTap(10);
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(new CustomEvent('quant:refresh'));
     window.dispatchEvent(new CustomEvent('quant:pillar-retap', { detail: { pillar: tileId } }));

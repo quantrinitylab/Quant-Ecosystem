@@ -18,6 +18,7 @@ import { QuantCalendarLogo } from './QuantCalendarLogo';
 import { QuantDriveLogo } from './QuantDriveLogo';
 import { QuantContactsLogo } from './QuantContactsLogo';
 import { QuantGitLogo } from './QuantGitLogo';
+import { triggerHapticTap } from './QuantPillarTopBar';
 
 export type PillarId = 'mail' | 'calendar' | 'drive' | 'contacts' | 'quantgit';
 
@@ -181,6 +182,9 @@ export function DesktopPillarRail({
     (tile: DesktopPillarTile) => {
       onPillarSelect?.(tile.id);
       if (effectivePillar === tile.id) {
+        // Re-tap on the active pillar: refresh current view content.
+        // P1-B: 10ms haptic pulse (guarded; silent no-op where unsupported).
+        triggerHapticTap(10);
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('quant:refresh'));
           window.scrollTo({ top: 0, behavior: 'smooth' });

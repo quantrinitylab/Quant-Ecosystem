@@ -20,6 +20,7 @@
 
 import React, { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { triggerHapticTap } from './QuantPillarTopBar';
 
 export type SubTabPillar = 'calendar' | 'drive';
 
@@ -114,6 +115,7 @@ export function executeMobileSubTabClick(
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     if (options.isActive) {
       // Re-tap on the active sub-tab: refresh current view content.
+      triggerHapticTap(10);
       window.dispatchEvent(new CustomEvent('quant:refresh'));
       return;
     }

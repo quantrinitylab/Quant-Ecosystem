@@ -12,8 +12,13 @@ const mockWindow = {
 
 vi.stubGlobal('window', mockWindow);
 
+// P1-B: mock navigator.vibrate so re-tap haptic is assertable in node.
+const mockVibrate = vi.fn(() => true);
+vi.stubGlobal('navigator', { vibrate: mockVibrate } as unknown as Navigator);
+
 import { executePillarTileClick, PILLAR_TILES } from '../QuantPillarTopBar';
 import { executeMobilePillarTap } from '../MobilePillarBottomNav';
+import { executeMobileSubTabClick, MOBILE_SUB_TAB_CONFIGS } from '../MobileSubTabStrip';
 
 describe('app-switcher re-tap refresh', () => {
   beforeEach(() => {
@@ -64,5 +69,32 @@ describe('app-switcher re-tap refresh', () => {
     // Active-tab retap must refresh, never sit dead
     expect(dispatchedEvents).toContain('quant:refresh');
     expect(dispatchedEvents).toContain('quant:pillar-retap');
+    expect(mockVibrate).toHaveBeenCalledWith(10);
+  });
+
+  it('executeMobileSubTabClick vibrates 10ms on re-tap of active sub-tab (P1-B haptic)', () => {
+    const push = vi.fn();
+    const tab = MOBILE_SUB_TAB_CONFIGS['calendar'].tabs[0];
+    executeMobileSubTabClick(tab, 'calendar', {
+      pathname: '/calendar?tab=feed',
+      router: { push },
+      isActive: true,
+    });
+    // Active sub-tab re-tap must refresh, never navigate, and give haptic feedback
+    expect(push).not.toHaveBeenCalled();
+    expect(dispatchedEvents).toContain('quant:refresh');
+    expect(mockVibrate).toHaveBeenCalledWith(10);
+  });
+
+  it('executeMobileSubTabClick does NOT vibrate when switching sub-tabs', () => {
+    const push = vi.fn();
+    const tab = MOBILE_SUB_TAB_CONFIGS['calendar'].tabs[1]; // month — not the active one
+    executeMobileSubTabClick(tab, 'calendar', {
+      pathname: '/calendar?tab=feed',
+      router: { push },
+      isActive: false,
+    });
+    expect(mockVibrate).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith('/calendar?tab=month');
   });
 });
