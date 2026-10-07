@@ -1,3 +1,19 @@
+// ============================================================================
+// @quant/quant-economy — DEPRECATION NOTICE (K11 economy single-ownership)
+// ============================================================================
+//
+// DECISION (docs/quant-architecture/decisions/economy-single-ownership.md):
+// the economy domain has TWO canonical owners — `@quant/credits` (the Quant
+// Credit ledger: wallet, reserve/settle flow, pricing, plans, marketplace,
+// transfers, payouts, creator earnings, QuantTrinity policy config) and
+// `@quant/payments` (money movement: rails, billing, tax, fraud, invoices).
+// This package is deprecated and will be folded into those two owners phase by
+// phase (coins/wallet/ledger → `@quant/credits`; buy/top-up → `@quant/payments`;
+// gifting/tips/spends → `@quant/credits` transfers; store/subscriptions/boost →
+// `@quant/credits` marketplace/plans). New code must import from `@quant/credits`
+// or `@quant/payments` directly. Existing exports keep working until Phase 4.
+// ============================================================================
+
 // Types
 export type {
   CoinTransaction,
