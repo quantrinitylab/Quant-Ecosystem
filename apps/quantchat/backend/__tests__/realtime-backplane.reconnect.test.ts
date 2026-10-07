@@ -15,8 +15,9 @@
 // fake-key-prisma / fake-realtime-bus approach — these tests drive a faithful
 // EventEmitter-based fake of the ioredis surface RedisRealtimeBackplane uses
 // (`duplicate`, `on`, `subscribe`, `unsubscribe`, `publish`, `disconnect`).
-// ============================================================================
 
+// ============================================================================
+// K25 — channel names follow the contract §19 canonical form (conversation.{ref}).
 import { describe, it, expect } from 'vitest';
 import { EventEmitter } from 'node:events';
 import {
