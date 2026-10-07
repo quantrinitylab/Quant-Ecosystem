@@ -30,7 +30,13 @@ function getPrisma(fastify: FastifyInstance): PrismaClient {
 export default async function settingsTokenRoutes(fastify: FastifyInstance): Promise<void> {
   const prisma = getPrisma(fastify);
 
-  fastify.post('/settings/tokens', async (request, reply) => {
+  // Minting a personal access token creates a long-lived credential, so it is
+  // step-up guarded (K6): the session's last strong authentication must be
+  // inside the policy window, not merely alive.
+  fastify.post(
+    '/settings/tokens',
+    { preHandler: fastify.requireStepUp() },
+    async (request, reply) => {
     const userId = requireSessionUser(request);
     const input = createTokenSchema.parse(request.body);
     const now = new Date();

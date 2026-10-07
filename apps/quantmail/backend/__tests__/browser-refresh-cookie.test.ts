@@ -56,6 +56,10 @@ const loadHandlers = async () => {
     patch: registerRoute,
     put: registerRoute,
     delete: registerRoute,
+    // Step-up guard decoration (server-core auth plugin in production). These
+    // handler-level tests exercise the route logic, not the guard — the guard
+    // itself is covered by the server-core and settings-tokens suites.
+    requireStepUp: () => async () => {},
   };
   await authRoutes(app as never);
   return handlers;
