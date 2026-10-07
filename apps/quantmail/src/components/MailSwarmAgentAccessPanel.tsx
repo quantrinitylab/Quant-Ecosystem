@@ -388,8 +388,8 @@ const INITIAL_MESSAGES: InterAgentLedgerMessage[] = [
     priority: 'normal',
     thoughtSteps: [
       'Query kubectl -n quant-staging get pods -o json',
-      'Parse status.phase == "Running" across all 20 replicas',
-      'Verify zero OOMKilled or CrashLoopBackOff states',
+      'Do not infer runtime health without an authorized telemetry source',
+      'Keep runtime state unknown until telemetry is verified',
     ],
     toolActionSnippet: 'Runtime telemetry connector not configured',
   },
