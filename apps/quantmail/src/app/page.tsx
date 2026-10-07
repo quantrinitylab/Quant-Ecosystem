@@ -31,14 +31,12 @@ import { QuantMailLogo } from '../components/QuantMailLogo';
 import { SelectionHeader } from '../components/SelectionHeader';
 import { SmartReplySuggestions } from '../components/SmartReplySuggestions';
 import { EmailSenderHeader } from '../components/EmailSenderHeader';
-import { ConversationalThreadView } from '../components/ConversationalThreadView';
 import { GroupEditorModal, type GroupDraft } from '../components/GroupEditorModal';
 import { ThreadKindBadge } from '../components/MessageKindBadge';
 import { UnreadCountPill } from '../components/UnreadCountPill';
 import { useInboxKeyboard } from '../hooks/useInboxKeyboard';
 import { useMailMutations } from '../hooks/useMailMutations';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
-import { MOBILE_BREAKPOINT_PX } from '../hooks/useIsMobile';
 import { useTouchSwipe } from '../components/SwipeableEmailRow';
 import { QuantMailShortcutDock } from '../components/QuantMailShortcutDock';
 import { DockedComposer } from '../components/DockedComposer';
@@ -941,90 +939,6 @@ function EmailRow({
   );
 }
 
-function ReadingPane({
-  thread,
-  email,
-  onClose,
-  onArchive,
-  onDelete,
-  onToggleStar,
-  isSpam,
-  onNotSpam,
-}: {
-  thread?: ConversationThread | null;
-  email: Email | null;
-  onClose: () => void;
-  onArchive?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  onToggleStar?: (id: string) => void;
-  isSpam?: boolean;
-  onNotSpam?: (ids: string[]) => void;
-}) {
-  if (!email && !thread) {
-    return (
-      <section className="reading-pane reading-pane-empty" aria-label="Message preview">
-        <div className="reading-ambient" aria-hidden="true" />
-        <div className="reading-empty-content">
-          <QuantMailLogo interactive={false} />
-          <p className="reading-eyebrow mt-4">Zero-noise workspace</p>
-          <h2>
-            Choose the signal.
-            <br />
-            We&apos;ll quiet the rest.
-          </h2>
-          <p>Select a message to preview it or use keyboard shortcuts (J/K) to navigate.</p>
-          <div className="reading-shortcuts" aria-label="Preview guidance">
-            <span>
-              <kbd>J</kbd> / <kbd>K</kbd> Navigate
-            </span>
-            <span>
-              <kbd>E</kbd> Archive
-            </span>
-            <span>
-              <kbd>S</kbd> Star
-            </span>
-            <span>
-              <kbd>C</kbd> Compose
-            </span>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  const activeId = thread?.threadId || thread?.id || email?.threadId || email?.id || '';
-  const initialEmails = thread?.messages || (email ? [email] : []);
-
-  // Keyed on the selected conversation so that picking a different row always
-  // mounts a fresh thread view for it: selection unambiguously drives the
-  // preview, instead of relying on the view's internal adoption bookkeeping
-  // to notice the prop change.
-  return (
-    <motion.aside
-      key={activeId}
-      className="reading-pane overflow-hidden flex flex-col"
-      aria-label="Message preview"
-      initial={{ opacity: 0, x: 14 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -10 }}
-      transition={{ duration: 0.2 }}
-    >
-      <ConversationalThreadView
-        threadId={activeId}
-        initialEmails={initialEmails}
-        subject={thread?.subject || email?.subject || '(No Subject)'}
-        isStarred={thread?.isStarred ?? email?.isStarred ?? false}
-        onClose={onClose}
-        onArchive={onArchive ? () => onArchive(activeId) : undefined}
-        onDelete={onDelete ? () => onDelete(activeId) : undefined}
-        onStarToggle={onToggleStar ? () => onToggleStar(activeId) : undefined}
-        variant="pane"
-        isSpam={isSpam}
-        onNotSpam={onNotSpam}
-      />
-    </motion.aside>
-  );
-}
 
 /**
  * The accents a group chip can carry.
@@ -2688,15 +2602,11 @@ export default function InboxPage() {
       }
       const targetId =
         resolvedEmail?.threadId || resolvedEmail?.id || thread?.threadId || thread?.id;
-      if (
-        targetId &&
-        typeof window !== 'undefined' &&
-        // Single source of truth with shell.css's `@media (max-width: 899px)`
-        // single-pane rules: below the breakpoint the reading pane is hidden,
-        // so a tap must navigate to the full-screen thread route instead of
-        // selecting into an invisible pane.
-        !window.matchMedia(`(min-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
-      ) {
+      // Gmail-style navigation (user decision 2026-10-07): tapping an email
+      // ALWAYS opens the full thread view, on desktop and mobile alike.
+      // The old desktop split-view reading pane was removed — no more
+      // selecting into a side preview.
+      if (targetId && typeof window !== 'undefined') {
         const currentPath = window.location.pathname + window.location.search;
         router.push(`/thread/${targetId}?returnTo=${encodeURIComponent(currentPath)}`);
       }
@@ -3851,34 +3761,11 @@ export default function InboxPage() {
             <span>Ecosystem connected · SES/DKIM active</span>
           </footer>
         </section>
-
-        <ReadingPane
-          thread={selectedThread}
-          email={selectedEmail}
-          onClose={() => {
-            setSelectedEmail(null);
-            setSelectedThread(null);
-          }}
-          onArchive={(id) => void archiveEmail(id)}
-          onDelete={(id) => void deleteEmail(id)}
-          onToggleStar={(id) => void toggleStar(null, id)}
-          isSpam={
-            activeLens === 'spam' ||
-            selectedEmail?.isSpam ||
-            selectedEmail?.category === 'spam' ||
-            selectedEmail?.folderId === 'SPAM'
-          }
-          onNotSpam={async (messageIds) => {
-            const id = messageIds[0] || selectedEmail?.id || selectedThread?.id;
-            if (id) {
-              await apiClient.markNotSpam(id);
-              showToast({ text: 'Rescued from spam — moved back to inbox', type: 'success' });
-              setSelectedEmail(null);
-              setSelectedThread(null);
-              await Promise.all([refetch(), refetchSpam()]);
-            }
-          }}
-        />
+        {/*
+          Gmail-style navigation (user decision 2026-10-07): the desktop
+          split-view reading pane was removed. Tapping an email navigates to
+          the full /thread/[id] view instead of selecting into a side preview.
+        */}
       </div>
       )}
 

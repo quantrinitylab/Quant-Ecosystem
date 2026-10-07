@@ -1505,9 +1505,9 @@ export function ConversationalThreadView({
   const allExpanded = messages.length > 0 && expandedIndices.size === messages.length;
 
   return (
-    <div className={`flex flex-col h-full bg-[#090A0C] text-white select-text ${className}`}>
-      {/* Top Header Actions Bar */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 bg-[#090A0C]/95 backdrop-blur-md sticky top-0 z-20">
+    <div className={`flex flex-col h-full bg-[#090A0C] md:bg-black text-white select-text ${className}`}>
+      {/* Top Header Actions Bar — Gmail-style: no divider line on desktop */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#282C35]/90 md:border-b-0 bg-[#090A0C]/95 md:bg-black backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {onClose && (
             <button
@@ -2082,10 +2082,10 @@ export function ConversationalThreadView({
                     type="button"
                     onClick={() => toggleMessageExpand(index)}
                     aria-expanded={false}
-                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
+                    className={`group w-full max-w-[95%] sm:max-w-[88%] flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl md:rounded-none md:border-0 border text-left transition-all cursor-pointer shadow-sm select-none hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42] ${
                       isOutbound
                         ? 'border-[#FF8C42]/25 bg-[#FF8C42]/[0.04] hover:border-[#FF8C42]/40 hover:bg-[#FF8C42]/[0.07] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-                        : 'border-white/[0.08] bg-[#111318] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+                        : 'border-white/[0.08] bg-[#111318] md:bg-black md:hover:bg-white/[0.02] hover:bg-white/[0.03] hover:border-white/[0.14] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
                     }`}
                   >
                     <span className="flex items-center gap-3 min-w-0 flex-1">
@@ -2529,8 +2529,8 @@ export function ConversationalThreadView({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chatbot-Style Bottom Floating Quick Reply Bar */}
-      <div className="p-3 sm:p-4 bg-[#08090d]/95 border-t border-[#282C35]/60 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
+      {/* Chatbot-Style Bottom Floating Quick Reply Bar — Gmail-style: no divider on desktop */}
+      <div className="p-3 sm:p-4 bg-[#08090d]/95 md:bg-black border-t border-[#282C35]/60 md:border-t-0 backdrop-blur-md sticky bottom-0 z-20 space-y-2">
         {/*
           AI quick-reply chips: suggestions for the latest message. One tap
           fills the reply bar — previously imported but never rendered, so

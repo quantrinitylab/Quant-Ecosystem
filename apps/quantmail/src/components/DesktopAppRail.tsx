@@ -108,7 +108,7 @@ export function DesktopAppRail({
     <aside
       aria-label="App switcher"
       data-testid="desktop-app-rail"
-      className={`hidden md:flex flex-col items-center justify-center w-14 flex-none h-full bg-[#090A0E] border-l border-[#1E232F] py-3 z-30 select-none ${className}`}
+      className={`hidden md:flex flex-col items-center justify-center w-14 flex-none h-full bg-black py-3 z-30 select-none ${className}`}
     >
       <nav
         role="tablist"

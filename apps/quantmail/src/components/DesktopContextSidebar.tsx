@@ -106,7 +106,7 @@ export function DesktopContextSidebar({
     <aside
       aria-label={`${config.name} navigation`}
       data-testid="desktop-context-sidebar"
-      className={`hidden md:flex w-60 flex-none flex-col bg-[#090A0E] border-r border-[#1E232F] py-4 z-30 select-none ${className}`}
+      className={`hidden md:flex w-60 flex-none flex-col bg-black py-4 z-30 select-none ${className}`}
     >
       {/* Gmail-style Compose button */}
       {composeAction && (

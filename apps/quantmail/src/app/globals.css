@@ -130,6 +130,28 @@
   --quant-info: #3B82F6;
 }
 
+/*
+ * Desktop Gmail-style whole dark theme (user decision 2026-10-07).
+ * Pure black backgrounds, no visible divider lines — spacing and subtle
+ * background shifts carry the hierarchy instead of borders, exactly like
+ * Gmail's dark mode. Scoped to desktop (min-width: 900px) so the mobile
+ * theme is untouched.
+ */
+@media (min-width: 900px) {
+  :root[data-theme='dark'] {
+    --quant-background: #000000;
+    --quant-surface: #000000;
+    --quant-surface-elevated: #0a0a0a;
+    --quant-surface-subtle: #000000;
+    --quant-card: #0a0a0a;
+    --quant-popover: #0a0a0a;
+    --quant-muted: #0a0a0a;
+    --quant-border: transparent;
+    --quant-border-subtle: transparent;
+    --quant-border-strong: rgba(255, 255, 255, 0.08);
+  }
+}
+
 :root[data-theme='light'] {
   --quant-background: #f5f4f8;
   --quant-foreground: #17151d;
@@ -948,9 +970,13 @@ body {
 .sidebar-india { display: grid; width: 1.2rem; overflow: hidden; border-radius: 0.16rem; }
 .sidebar-india i { height: 0.16rem; background: #ff9933; }.sidebar-india i:nth-child(2) { background: #f5f5ef; }.sidebar-india i:nth-child(3) { background: #138808; }
 
-/* Inbox */
-.inbox-workspace { display: flex; min-height: 100%; height: 100%; overflow: hidden; background: #090A0C; }
-.inbox-list-pane { display: flex; width: min(42vw, 32rem); min-width: 24rem; flex-direction: column; border-right: 1px solid var(--quant-border-subtle); background: #0C0E11; }
+/* Inbox — Gmail-style: whole dark theme, no divider lines (user decision 2026-10-07).
+   The list pane is full-width now that the split-view reading pane is gone. */
+.inbox-workspace { display: flex; min-height: 100%; height: 100%; overflow: hidden; background: #000000; }
+.inbox-list-pane { display: flex; width: 100%; min-width: 0; flex-direction: column; border-right: 0; background: #000000; }
+@media (max-width: 899px) {
+  .inbox-list-pane { background: #0C0E11; }
+}
 .inbox-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 1.25rem; padding: 1.65rem 1.35rem 1.1rem; }
 .inbox-kicker, .reading-eyebrow { display: flex; align-items: center; gap: 0.5rem; color: #a8784c; font-size: 0.625rem; font-weight: 750; letter-spacing: 0.18em; text-transform: uppercase; }
 .inbox-kicker span { width: 1.3rem; height: 1px; background: #FF8C42; }
@@ -1102,7 +1128,10 @@ body {
 /* The count and the sync state, at 8.96px in #57575C, measured 2.69:1 — the least
    legible text on the page, and it is the line that tells you how much mail you
    are looking at. 11px in the palette's secondary tier measures 7.55:1. */
-.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 1px solid var(--quant-border-subtle); color: #A1A4AC; font-size: 0.6875rem; letter-spacing: 0.04em; }
+.inbox-list-footer { display: flex; min-height: 2.25rem; align-items: center; justify-content: space-between; padding: 0 1.2rem; border-top: 0; background: #000000; color: #A1A4AC; font-size: 0.6875rem; letter-spacing: 0.04em; }
+@media (max-width: 899px) {
+  .inbox-list-footer { border-top: 1px solid var(--quant-border-subtle); background: transparent; }
+}
 
 /* Reading surface */
 .reading-pane { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; background: #090A0C; }
