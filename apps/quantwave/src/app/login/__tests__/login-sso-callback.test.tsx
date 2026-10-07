@@ -30,7 +30,6 @@ vi.mock('../../../providers/auth-provider', () => ({
   }),
 }));
 
-// eslint-disable-next-line import/first
 import LoginPage from '../page';
 
 const TOKEN_QUERY =

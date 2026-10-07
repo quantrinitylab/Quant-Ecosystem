@@ -8,7 +8,6 @@
 // ============================================================================
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// eslint-disable-next-line import/first
 import { authSession, getAccessToken, clearAccessToken } from '../auth-session';
 
 function mockFetchOnce(json: unknown, init: { ok?: boolean; status?: number } = {}) {
