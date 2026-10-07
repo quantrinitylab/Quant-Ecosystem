@@ -18,6 +18,32 @@ export { default as prismaPlugin } from './plugins/prisma';
 export { default as healthPlugin } from './plugins/health';
 export type { HealthStatus, HealthComponentResult, HealthContributor } from './plugins/health';
 export { default as metricsPlugin } from './plugins/metrics';
+export { default as sloPlugin } from './plugins/slo';
+export type { SloPluginOptions, SloRouteMapping } from './plugins/slo';
+export { CircuitBreaker, CircuitOpenError } from './resilience/circuit-breaker';
+export type {
+  CircuitBreakerOptions,
+  CircuitBreakerSnapshot,
+  CircuitState,
+} from './resilience/circuit-breaker';
+export { DependencyRegistry } from './resilience/dependency';
+export type {
+  DependencyDefinition,
+  DependencyHealthReport,
+  DependencyProbeOutcome,
+  DependencyStatus,
+} from './resilience/dependency';
+export { SloTracker } from './resilience/slos';
+export type {
+  SloAlertHandler,
+  SloDefinition,
+  SloEvaluation,
+  SloObservation,
+  SloSeverity,
+  SloStatus,
+  SloTrackerOptions,
+  BurnRateAlert,
+} from './resilience/slos';
 export { default as requestIdPlugin } from './plugins/request-id';
 export { default as requestLoggerPlugin } from './plugins/request-logger';
 export { default as gracefulShutdownPlugin } from './plugins/graceful-shutdown';
