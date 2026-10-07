@@ -3,6 +3,7 @@
 // ============================================================================
 
 import type { Post, Reel, Story, Profile, Game, Product, ARFilter, Comment } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 /** Mirrors the backend DmService shapes (apps/quantgram/backend/services/dm.service.ts). */
 export interface DmParticipant {
@@ -63,7 +64,7 @@ class QuantGramApiClient {
     }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
-    const response = await fetch(url, {
+    const response = await apiFetchRaw(url, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,

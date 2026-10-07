@@ -19,6 +19,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { PageTransition } from '@quant/shared-ui';
 import { useAuth } from '../providers/auth-provider';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface BackendProduct {
   id: string;
@@ -122,14 +123,14 @@ const ShoppingPage: React.FC = () => {
   });
 
   const loadCatalog = useCallback(async () => {
-    const data = await readJson(await fetch('/api/shopping/products'));
+    const data = await readJson(await apiFetchRaw('/api/shopping/products'));
     const products: BackendProduct[] = data?.products ?? [];
     return products.map(mapProduct);
   }, []);
 
   const loadCart = useCallback(async (): Promise<CartItem[]> => {
     if (!isAuthenticated) return [];
-    const data = await readJson(await fetch('/api/shopping/cart'));
+    const data = await readJson(await apiFetchRaw('/api/shopping/cart'));
     return data?.lines ?? [];
   }, [isAuthenticated]);
 
@@ -176,7 +177,7 @@ const ShoppingPage: React.FC = () => {
       }
       try {
         const data = await readJson(
-          await fetch('/api/shopping/cart', {
+          await apiFetchRaw('/api/shopping/cart', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ productId: product.id, quantity: 1 }),
@@ -197,7 +198,7 @@ const ShoppingPage: React.FC = () => {
     async (productId: string) => {
       try {
         const data = await readJson(
-          await fetch(`/api/shopping/cart/${encodeURIComponent(productId)}`, {
+          await apiFetchRaw(`/api/shopping/cart/${encodeURIComponent(productId)}`, {
             method: 'DELETE',
           }),
         );
@@ -219,7 +220,7 @@ const ShoppingPage: React.FC = () => {
     }
     try {
       await readJson(
-        await fetch('/api/shopping/checkout', {
+        await apiFetchRaw('/api/shopping/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({}),

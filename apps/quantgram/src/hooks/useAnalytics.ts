@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface KPIMetric {
   label: string;
@@ -125,7 +126,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): UseAnalyticsRet
     setError(null);
     try {
       const params = buildParams();
-      const response = await fetch(`/api/analytics/dashboard?${params.toString()}`, {
+      const response = await apiFetchRaw(`/api/analytics/dashboard?${params.toString()}`, {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error('Failed to load analytics');
@@ -202,7 +203,7 @@ export function useAnalytics(options: UseAnalyticsOptions = {}): UseAnalyticsRet
       try {
         const params = buildParams();
         params.set('format', format);
-        const response = await fetch(`/api/analytics/export?${params.toString()}`);
+        const response = await apiFetchRaw(`/api/analytics/export?${params.toString()}`);
         if (!response.ok) throw new Error('Export failed');
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);

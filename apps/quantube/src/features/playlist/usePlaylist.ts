@@ -4,7 +4,7 @@
 //
 // The ONLY sanctioned call path from the `playlist/[id]` detail page to the
 // backend: a typed react-query read over the same-origin Next proxy path
-// `/api/playlists/{id}` — never an inline fetch (Req 8.7). Mirrors
+// `/api/playlists/{id}` — never an inline fetch call — Req 8.7. Mirrors
 // `features/library/useLibrary.ts` / `features/creator/useCreator.ts`: wraps
 // `useApiQuery` and is typed against the page-local `PlaylistDetailResponse`
 // contract imported from `pages/playlist/[id].tsx` (the single authoritative
