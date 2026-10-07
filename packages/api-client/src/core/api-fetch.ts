@@ -19,8 +19,8 @@ export interface ApiFetchInit {
   method?: ApiMethod;
   /** Parsed/serializable request body (objects are JSON-encoded). */
   body?: unknown;
-  /** Extra headers merged over the defaults. */
-  headers?: Record<string, string> | Headers;
+  /** Extra headers merged over the defaults (any HeadersInit form). */
+  headers?: HeadersInit;
   /** Bearer token to attach as `Authorization` (optional; cookies also work). */
   token?: string;
   /** Query string params appended to the path (GET-style). */
@@ -53,8 +53,8 @@ export interface ApiFetchRawInit {
    * Blob/File, ArrayBuffer(view)s and streams pass through untouched.
    */
   body?: unknown;
-  /** Extra headers merged over the defaults. */
-  headers?: Record<string, string> | Headers;
+  /** Extra headers merged over the defaults (any HeadersInit form). */
+  headers?: HeadersInit;
   /** Bearer token to attach as `Authorization` (optional; cookies also work). */
   token?: string;
   /** Query string params appended to the path (GET-style). */
@@ -276,8 +276,13 @@ function isJsonEncodable(value: unknown): boolean {
 }
 
 /** Normalize `Record<string,string> | Headers | undefined` to a record. */
-function normalizeHeaders(headers?: Record<string, string> | Headers): Record<string, string> {
+function normalizeHeaders(headers?: HeadersInit): Record<string, string> {
   if (!headers) return {};
+  if (Array.isArray(headers)) {
+    const out: Record<string, string> = {};
+    for (const [key, value] of headers as [string, string][]) out[key] = value;
+    return out;
+  }
   if (typeof (headers as Headers).forEach === 'function') {
     const out: Record<string, string> = {};
     (headers as Headers).forEach((value, key) => {

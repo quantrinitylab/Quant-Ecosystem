@@ -149,15 +149,27 @@ describe('apiFetchRaw', () => {
     expect(init.body).toBeUndefined();
   });
 
-  it('attaches a Bearer token and merges caller headers', async () => {
+  it('accepts HeadersInit tuple-array headers', async () => {
     await apiFetchRaw('/api/things', {
-      headers: { 'X-Custom': '1' },
+      headers: [['X-A', '1'], ['X-B', '2']] as [string, string][],
+    });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
+    expect(headers['X-A']).toBe('1');
+    expect(headers['X-B']).toBe('2');
+  });
+
+  it('attaches a Bearer token and merges caller headers', async () => {
+    const h = new Headers();
+    h.set('X-Custom', '1');
+    await apiFetchRaw('/api/things', {
+      headers: h,
       token: 'tok123',
     });
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     const headers = init.headers as Record<string, string>;
     expect(headers['Authorization']).toBe('Bearer tok123');
-    expect(headers['X-Custom']).toBe('1');
+    expect(headers['x-custom']).toBe('1'); // Headers instances lowercase names
   });
 
   it('passes credentials/cache/mode through (behavior-preserving)', async () => {
