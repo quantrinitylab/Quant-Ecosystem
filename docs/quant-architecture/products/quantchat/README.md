@@ -30,6 +30,7 @@ QuantChat owns communication state. It may consume other product projections thr
 - `15-api-event-websocket-contract.md` — endpoint-level API, event and WebSocket contract: envelopes, auth, pagination, idempotency, E2EE boundaries, reconnect/gap repair, Quanty tools, cross-app handoffs, rate limits and contract/load/security testing.
 - `16-e2ee-multidevice-cryptographic-architecture.md` — E2EE and multi-device security: device identities, prekeys, session establishment, ratchet/group-key lifecycle, encrypted media, verification, recovery, local search, Quanty plaintext boundary, threat model and cryptographic test plan.
 - `17-webrtc-sfu-quantmeet-media-architecture.md` — WebRTC/SFU media plane for Calls + QuantMeet: STUN/TURN, simulcast/SVC, adaptive quality, screen share, breakouts, captions/translation, recording, device handoff, AR/3D, scaling, observability and failure recovery.
+- `18-offline-first-sync-multidevice-architecture.md` — Offline-first sync and multi-device convergence: encrypted local state, command journal, idempotency, cursor/delta sync, event gap repair, conflicts, resumable media, reconnect, storage pressure, E2EE sync and cross-app invalidation.
 
 ### Shared ecosystem contracts
 Muse MUST read these before implementing cross-app behavior:
