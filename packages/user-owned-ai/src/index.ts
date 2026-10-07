@@ -22,7 +22,7 @@ export type {
   CreatorEarningEvent,
 } from './types.js';
 
-export { BYOMEngine, createBYOMEngine } from './byom-engine.js';
+export { BYOMEngine } from './byom-engine.js';
 export { EncryptedKeyVault, StoreKeySchema } from './encrypted-key-vault.js';
 export { DailyAllowanceService, ConsumeAllowanceSchema } from './daily-allowance.service.js';
 export { LocalFirstRouter } from './local-first-router.js';

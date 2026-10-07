@@ -1279,8 +1279,9 @@ export function QuantPillarTopBar({
       </div>
     </div>
 
-    {/* Quant AI live capsule — below search, collapsible */}
-    {!headerHidden && (
+    {/* Quant AI live capsule — below search, collapsible. Only rendered when a real
+        live status string is supplied; never fabricate a status when none exists. */}
+    {!headerHidden && !!aiLiveText && (
     <div className="w-full px-3 pt-1">
       <div className="flex items-center justify-between gap-2 w-full max-w-5xl mx-auto">
         <button
@@ -1298,15 +1299,7 @@ export function QuantPillarTopBar({
           <SparklesIcon className="size-3.5 text-[#FF8C42] group-hover:scale-110 transition-transform" />
 
           <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] group-hover:text-white truncate">
-            {aiLiveText ? (
-              <span>{aiLiveText}</span>
-            ) : (
-              <>
-                <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong> 3 urgent items prioritized
-                <span className="text-[#64748B] mx-1">·</span>
-                <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms E2EE</span>
-              </>
-            )}
+            <span>{aiLiveText}</span>
           </span>
 
           <ChevronRightIcon className="size-3 text-[#64748B] group-hover:text-[#FF8C42] group-hover:translate-x-0.5 transition-all" />

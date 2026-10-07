@@ -1,6 +1,6 @@
 import { QuantMailLogo } from '../QuantMailLogo';
 import { BrandWordmark } from '../BrandWordmark';
-import { Interactive3DLogo } from '../Interactive3DLogo';
+import { QuantAiLogo } from '../QuantAiLogo';
 import { quantMailAuthLockup } from './auth-brand-contract';
 
 interface AuthBrandPanelProps {
@@ -20,15 +20,11 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
 
       <div className="auth-mobile-brand">
         <BrandLockup compact />
-        <span className="auth-country-pill">IN / GLOBAL</span>
       </div>
 
       <div className="auth-brand-desktop">
         <header>
           <BrandLockup />
-          <span className="auth-country-pill">
-            <i /> Built in India
-          </span>
         </header>
 
         <div className="auth-brand-content">
@@ -38,46 +34,39 @@ export function AuthBrandPanel({ eyebrow, title, subtitle }: AuthBrandPanelProps
           <h2>{title}</h2>
           <p className="auth-brand-subtitle">{subtitle}</p>
 
-          <div className="auth-proof-card">
-            <div className="auth-proof-topline">
-              <div>
-                <span className="auth-proof-pulse" />
-                <strong>Morning signal</strong>
-              </div>
-              <span>QuantAI sorted</span>
-            </div>
-            <PreviewRow
-              sender="Ananya · Product"
-              subject="Launch brief is ready"
-              detail="3 decisions, summarized for you"
-              time="09:42"
-              active
+          <div className="auth-feature-cards">
+            <FeatureCard
+              icon={
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+                  <path d="M3.5 7.5 L12 13 L20.5 7.5" />
+                </svg>
+              }
+              title="Mail + chat threads"
+              copy="Email and chat in one thread."
             />
-            <PreviewRow
-              sender="Rohan · Design"
-              subject="Review: new identity system"
-              detail="Commented on the infinity mark"
-              time="08:16"
+            <FeatureCard
+              icon={<QuantAiLogo size={34} />}
+              title="AI triage"
+              copy="Quant AI surfaces what's urgent and drafts the reply."
             />
-            <PreviewRow
-              sender="Calendar"
-              subject="Founder review"
-              detail="Today · 16:30 IST"
-              time="Tue"
+            <FeatureCard
+              icon={
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
+                  <path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 v3" />
+                  <circle cx="12" cy="15.2" r="1.4" fill="currentColor" stroke="none" />
+                </svg>
+              }
+              title="End-to-end encrypted"
+              copy="Encrypted in transit and at rest. Your mail stays private."
             />
-            <div className="auth-proof-footer">
-              <span>Mail</span>
-              <span>Calendar</span>
-              <span>Drive</span>
-              <span>Git</span>
-              <span>AI</span>
-            </div>
           </div>
         </div>
 
         <footer>
-          <span>One identity. Every tool.</span>
-          <span>Private by design · 2026</span>
+          <span>One identity. Access to all Quant apps.</span>
+          <span>© 2026</span>
         </footer>
       </div>
     </div>
@@ -107,31 +96,24 @@ function BrandLockup({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function PreviewRow({
-  sender,
-  subject,
-  detail,
-  time,
-  active = false,
+function FeatureCard({
+  icon,
+  title,
+  copy,
 }: {
-  sender: string;
-  subject: string;
-  detail: string;
-  time: string;
-  active?: boolean;
+  icon: React.ReactNode;
+  title: string;
+  copy: string;
 }) {
   return (
-    <div className={`auth-preview-row ${active ? 'is-active' : ''}`}>
-      <span className="auth-preview-avatar" aria-hidden="true">
-        {sender.charAt(0)}
+    <div className="auth-feature-card">
+      <span className="auth-feature-icon" aria-hidden="true">
+        {icon}
       </span>
       <div>
-        <strong>{sender}</strong>
-        <p>
-          {subject} <span>— {detail}</span>
-        </p>
+        <strong>{title}</strong>
+        <p>{copy}</p>
       </div>
-      <time>{time}</time>
     </div>
   );
 }

@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_chat/main.dart';
 import 'package:quant_chat/models/chat_models.dart';
-import 'package:quant_chat/services/chat_mock_data.dart';
 import 'package:quant_chat/screens/chat_list_screen.dart';
 import 'package:quant_chat/screens/conversation_screen.dart';
 import 'package:quant_chat/screens/call_screen.dart';
@@ -180,26 +179,48 @@ void main() {
       expect(conv.defaultDisappearingDurationSeconds, 30);
     });
 
-    test('AudioSpaceRoom participant roles and hand-raising flags', () {
-      final room = ChatMockData.getInitialSpaceRoom();
+    test('AudioSpaceRoom holds real participant roles and hand-raising flags', () {
+      const room = AudioSpaceRoom(
+        id: 'space-test-1',
+        title: 'Test Space',
+        topic: 'Testing',
+        listenersCount: 0,
+        speakersCount: 0,
+        host: SpaceParticipant(
+          id: 'host-1',
+          name: 'Host',
+          avatarInitials: 'H',
+          role: SpaceParticipantRole.host,
+          isSpeaking: true,
+        ),
+        speakers: [],
+        listeners: [],
+      );
 
-      expect(room.id, 'space-sovereign-stage');
+      expect(room.id, 'space-test-1');
       expect(room.host.role, SpaceParticipantRole.host);
       expect(room.host.isSpeaking, isTrue);
-      expect(room.speakers.length, 3);
-      expect(room.listeners.length, 6);
-
-      final handsRaised = room.listeners.where((l) => l.isHandRaised).toList();
-      expect(handsRaised.isNotEmpty, isTrue);
+      expect(room.speakers, isEmpty);
+      expect(room.listeners, isEmpty);
     });
 
-    test('CallHistoryItem correctly formats WebRTC call logs', () {
-      final history = ChatMockData.getInitialCallHistory();
-      expect(history.length, 4);
+    test('CallHistoryItem carries real WebRTC call log fields', () {
+      const call = CallHistoryItem(
+        id: 'call-test-1',
+        contactName: 'Test Contact',
+        contactInitials: 'TC',
+        contactAvatarColor: QuantColors.sovereignCyan,
+        callType: QuantCallType.video,
+        isIncoming: false,
+        isMissed: false,
+        timestamp: '12:00',
+        duration: '02:00',
+        latencyMs: 14,
+      );
 
-      final videoCall = history.firstWhere((c) => c.callType == QuantCallType.video);
-      expect(videoCall.contactName, 'CEO Astra');
-      expect(videoCall.latencyMs, lessThan(24));
+      expect(call.contactName, 'Test Contact');
+      expect(call.callType, QuantCallType.video);
+      expect(call.latencyMs, lessThan(24));
     });
   });
 
@@ -221,7 +242,7 @@ void main() {
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('ChatListScreen renders pinned section and sticky search bar', (tester) async {
+    testWidgets('ChatListScreen renders sticky search bar and honest empty state', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -230,55 +251,38 @@ void main() {
       );
 
       expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('PINNED CONVERSATIONS'), findsOneWidget);
-      expect(find.text('ALL CONVERSATIONS'), findsOneWidget);
-      expect(find.text('CEO Astra (Notion AI Swarm)'), findsWidgets);
+
+      // No fabricated conversations: the honest empty state renders instead
+      expect(find.text('No Encrypted Conversations Found'), findsOneWidget);
+      expect(find.text('CEO Astra (Notion AI Swarm)'), findsNothing);
     });
 
-    testWidgets('ConversationScreen: 4-stage ticks, audio scrubber & speed cycling, disappearing 410', (tester) async {
-      final conv = ChatMockData.getInitialConversations().first;
+    testWidgets('ConversationScreen: app bar, composer, and honest empty message list', (tester) async {
+      const conv = const ChatConversation(
+        id: 'conv-test-widget',
+        contactId: 'contact-test-widget',
+        name: 'Test Contact',
+        avatarInitials: 'TC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
-          home: ConversationScreen(conversation: conv),
+          home: const ConversationScreen(conversation: conv),
         ),
       );
       await tester.pump();
 
       // Verify Conversation AppBar
-      expect(find.text('CEO Astra (Notion AI Swarm)'), findsOneWidget);
-      expect(find.text('Online | E2EE Active'), findsOneWidget);
+      expect(find.text('Test Contact'), findsOneWidget);
       expect(find.byIcon(Icons.call_outlined), findsOneWidget);
       expect(find.byIcon(Icons.videocam_outlined), findsOneWidget);
 
-      // Verify Disappearing mode button exists in AppBar
-      expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
-
-      // Verify Audio Player speed badge and scrubber
-      expect(find.text('1.0x'), findsOneWidget);
-      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
-
-      // Cycle audio speed: 1.0x -> 1.5x
-      await tester.tap(find.text('1.0x'));
-      await tester.pump();
-      expect(find.text('1.5x'), findsOneWidget);
-
-      // Cycle audio speed: 1.5x -> 2.0x
-      await tester.tap(find.text('1.5x'));
-      await tester.pump();
-      expect(find.text('2.0x'), findsOneWidget);
-
-      // Cycle audio speed: 2.0x -> 1.0x
-      await tester.tap(find.text('2.0x'));
-      await tester.pump();
-      expect(find.text('1.0x'), findsOneWidget);
-
-      // Verify Ephemeral message with 410 Server Destruction countdown
-      expect(find.textContaining('410 Server Destruction:'), findsOneWidget);
-
-      // Verify HTTP 410 GONE Destroyed Tombstone
-      expect(find.textContaining('HTTP 410 GONE'), findsWidgets);
+      // No fabricated message history renders
+      expect(find.textContaining('410 Server Destruction:'), findsNothing);
 
       // Verify Composer and Mic Record Button
       expect(find.byType(TextField), findsOneWidget);
@@ -287,7 +291,15 @@ void main() {
     });
 
     testWidgets('ConversationScreen: Voice Memo Recording state, waveform visualizer, discard and send', (tester) async {
-      final conv = ChatMockData.getInitialConversations().first;
+      const conv = const ChatConversation(
+        id: 'conv-test-widget',
+        contactId: 'contact-test-widget',
+        name: 'Test Contact',
+        avatarInitials: 'TC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -326,7 +338,15 @@ void main() {
     });
 
     testWidgets('WebRTCCallSheet: E2EE badge, contact info, mute, speaker, video toggle and end call', (tester) async {
-      final conv = ChatMockData.getInitialConversations().first;
+      const conv = const ChatConversation(
+        id: 'conv-test-widget',
+        contactId: 'contact-test-widget',
+        name: 'Test Contact',
+        avatarInitials: 'TC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
@@ -343,7 +363,7 @@ void main() {
 
       // Verify E2EE hardware keystore badge
       expect(find.text('Hardware Keystore E2EE | Zero-Cloud Plaintext'), findsOneWidget);
-      expect(find.text('CEO Astra (Notion AI Swarm)'), findsOneWidget);
+      expect(find.text('Test Contact'), findsOneWidget);
       expect(find.textContaining('VP9 1080p60'), findsOneWidget);
 
       // Verify interactive controls exist
@@ -370,13 +390,21 @@ void main() {
       expect(find.byIcon(Icons.videocam_off_rounded), findsOneWidget);
     });
 
-    testWidgets('CallScreen: HD WebRTC layout, floating participant grid, mute mic, speaker, switch camera, screen share', (tester) async {
-      final conv = ChatMockData.getInitialConversations().first;
+    testWidgets('CallScreen: honest empty state without fabricated participants', (tester) async {
+      const conv = const ChatConversation(
+        id: 'conv-test-widget',
+        contactId: 'contact-test-widget',
+        name: 'Test Contact',
+        avatarInitials: 'TC',
+        avatarColor: QuantColors.sovereignCyan,
+        lastMessage: '',
+        lastMessageTime: 'Now',
+      );
 
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
-          home: CallScreen(
+          home: const CallScreen(
             conversation: conv,
             callType: QuantCallType.video,
           ),
@@ -384,48 +412,13 @@ void main() {
       );
       await tester.pump();
 
-      // Verify Telemetry Header
-      expect(find.text('<18 ms E2EE'), findsOneWidget);
-      expect(find.textContaining('VP9/1080p'), findsOneWidget);
-
-      // Verify Floating Participant Strip (peers displayed)
-      expect(find.text('CEO Astra'), findsWidgets);
-      expect(find.text('Node B (OS Lead)'), findsOneWidget);
-      expect(find.text('Node C (Dev-Worker)'), findsOneWidget);
-      expect(find.text('You (Local Impeller)'), findsOneWidget);
-
-      // Verify Call Control Buttons (including speakerphone)
-      expect(find.byIcon(Icons.mic_rounded), findsWidgets);
-      expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.flip_camera_ios_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.screen_share_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.grid_view_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
-
-      // Test Mute Mic Toggle
-      await tester.tap(find.byIcon(Icons.mic_rounded).first);
-      await tester.pump();
-      expect(find.byIcon(Icons.mic_off_rounded), findsWidgets);
-
-      // Test Speaker Toggle
-      await tester.tap(find.byIcon(Icons.volume_up_rounded));
-      await tester.pump();
-      expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
-
-      // Test Screen Share Toggle
-      await tester.tap(find.byIcon(Icons.screen_share_rounded).first);
-      await tester.pump();
-      expect(find.byIcon(Icons.stop_screen_share_rounded), findsOneWidget);
-      expect(find.text('SHARING'), findsOneWidget);
-
-      // Test Floating Grid to Matrix Grid Layout Toggle
-      await tester.tap(find.byIcon(Icons.grid_view_rounded));
-      await tester.pump();
-      expect(find.byIcon(Icons.view_sidebar_rounded), findsOneWidget);
+      // No fabricated participants render
+      expect(find.text('No participants yet.'), findsOneWidget);
+      expect(find.text('CEO Astra'), findsNothing);
+      expect(find.text('Node B (OS Lead)'), findsNothing);
     });
 
-    testWidgets('AudioSpaceScreen: Live Stage, Host, screen share banner, reaction buttons', (tester) async {
+    testWidgets('AudioSpaceScreen: honest empty state without fabricated room', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -434,22 +427,8 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('LIVE STAGE'), findsOneWidget);
-      expect(find.text('STAGE SPEAKERS (4)'), findsOneWidget);
-      expect(find.text('HOST'), findsOneWidget);
-
-      // Verify Stage Screen Share button exists
-      expect(find.byIcon(Icons.screen_share_rounded), findsOneWidget);
-
-      // Tap Stage Screen Share toggle
-      await tester.tap(find.byIcon(Icons.screen_share_rounded));
-      await tester.pump();
-      expect(find.text('STAGE PRESENTATION LIVE'), findsOneWidget);
-
-      // Vector reaction buttons
-      expect(find.byIcon(Icons.thumb_up_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.local_fire_department_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.rocket_launch_rounded), findsOneWidget);
+      expect(find.text('No audio space live right now.'), findsOneWidget);
+      expect(find.text('LIVE STAGE'), findsNothing);
     });
 
     testWidgets('SettingsScreen renders hardware keystore, biometric and 120Hz toggles', (tester) async {
@@ -560,15 +539,14 @@ void main() {
       expect(find.textContaining('Docs'), findsOneWidget);
       expect(find.textContaining('Links'), findsOneWidget);
 
-      // Switch to Docs tab
+      // No fabricated shared media: galleries are honestly empty
       await tester.tap(find.textContaining('Docs'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('E2EE_Signal_Protocol_Spec_v3.pdf'), findsOneWidget);
+      expect(find.textContaining('E2EE_Signal_Protocol_Spec_v3.pdf'), findsNothing);
 
-      // Switch to Links tab
       await tester.tap(find.textContaining('Links'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Quant Ecosystem Staging Gateway'), findsOneWidget);
+      expect(find.textContaining('Quant Ecosystem Staging Gateway'), findsNothing);
 
       // Verify Mute Notifications toggle
       expect(find.text('Mute Notifications'), findsOneWidget);
@@ -576,11 +554,8 @@ void main() {
       await tester.pump();
       expect(find.text('Muted'), findsOneWidget);
 
-      // Verify Member list items and badges
-      expect(find.text('PARTICIPANTS (7)'), findsOneWidget);
-      expect(find.text('CEO Astra (Notion AI Swarm)'), findsOneWidget);
-      expect(find.text('Group Admin'), findsOneWidget);
-      expect(find.text('Admin'), findsOneWidget);
+      // No fabricated member list
+      expect(find.text('CEO Astra (Notion AI Swarm)'), findsNothing);
 
       // Verify Exit and Delete actions exist
       expect(find.text('Exit Group'), findsOneWidget);

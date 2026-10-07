@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
-import '../data/gram_repository.dart';
 import '../models/gram_models.dart';
 import 'profile_matrix_screen.dart';
 
@@ -31,7 +30,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    _reels = GramRepository.getReels();
+    // No mock data: reels load from the real backend. Honestly empty.
+    _reels = <ReelItem>[];
   }
 
   @override

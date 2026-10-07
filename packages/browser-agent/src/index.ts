@@ -23,7 +23,6 @@ export {
   createScreenshotAction,
   createWaitAction,
   createSelectAction,
-  validateAction,
   classifyAction,
 } from './actions/browser-actions.js';
 

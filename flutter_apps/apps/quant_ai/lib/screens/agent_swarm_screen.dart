@@ -7,7 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/ai_models.dart';
-import '../services/ai_mock_data.dart';
+import '../services/quant_ai_service.dart';
 
 class AgentSwarmScreen extends StatefulWidget {
   const AgentSwarmScreen({super.key});
@@ -17,64 +17,53 @@ class AgentSwarmScreen extends StatefulWidget {
 }
 
 class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
+  final QuantAiService _aiService = QuantAiService();
+  // Honest default: agent nodes come from the real backend only. No
+  // fabricated swarm topology.
   late List<AgentNode> _agents;
-  String _selectedAgentId = 'agent-ceo-astra';
+  String _selectedAgentId = '';
   bool _isSwarmPaused = false;
 
-  final List<Map<String, String>> _interAgentLedger = [
-    {
-      'time': '17:45 IST',
-      'node': 'Node C (CLI Dev-Worker)',
-      'status': 'Wave 80 Dispatched',
-      'message': 'WAVE 80 MULTIPLATFORM OMNI-PRESENCE & DEEP SCREENS SPRINT LAUNCHED: 5 Subagents fleet mobilized for quant_chat, quant_gram, quant_calendar/drive, quant_ai, and Ecosystem Sentinel.',
-    },
-    {
-      'time': '17:42 IST',
-      'node': 'CEO Astra',
-      'status': 'Orchestration Active',
-      'message': 'Executive Orchestrator directive: Enforce 100% zero raw Unicode emojis and zero Skia clipPath across all Flutter runner targets.',
-    },
-    {
-      'time': '17:40 IST',
-      'node': 'Node A (IDE Orchestrator)',
-      'status': 'Track 3 In Sync',
-      'message': 'Track 3 GitHub Parity: Smart HTTP, real git tree, issues, PR 3-way merge streaming verified.',
-    },
-    {
-      'time': '17:38 IST',
-      'node': 'Node B (IDE Peer Agent)',
-      'status': 'Track 2 In Sync',
-      'message': 'Track 2 ChatGPT Parity: Split-Screen Dual Canvas & 3D Voice Orb <120ms VAD buffers synchronized.',
-    },
-  ];
+  // Honest default: the dispatch ledger starts empty. No fabricated
+  // activity entries until the backend streams real events.
+  final List<Map<String, String>> _interAgentLedger = [];
 
   @override
   void initState() {
     super.initState();
-    _agents = List.from(AiMockData.getInitialAgentNodes());
+    _agents = <AgentNode>[];
+    _loadAgents();
   }
 
-  AgentNode get _selectedAgent => _agents.firstWhere(
-        (a) => a.id == _selectedAgentId,
-        orElse: () => _agents.first,
-      );
+  Future<void> _loadAgents() async {
+    try {
+      final agents = await _aiService.fetchActiveSwarm();
+      if (!mounted) return;
+      setState(() {
+        _agents = agents;
+        if (_agents.isNotEmpty) _selectedAgentId = _agents.first.id;
+      });
+    } catch (_) {
+      // Honest empty on failure — no fabricated nodes.
+    }
+  }
+
+  AgentNode? get _selectedAgent => _agents.isEmpty
+      ? null
+      : _agents.firstWhere(
+          (a) => a.id == _selectedAgentId,
+          orElse: () => _agents.first,
+        );
 
   void _dispatchSprintWave() {
-    setState(() {
-      _interAgentLedger.insert(0, {
-        'time': 'Just now',
-        'node': 'CEO Astra',
-        'status': 'Wave 80 Dispatched',
-        'message': 'CEO Astra dispatched parallel execution payload across Node A, Node B, and Node C. Gatekeeper sentinel verified 0 clipPath invariants.',
-      });
-    });
-
+    // Honest: swarm dispatch is not connected to a backend yet, so no
+    // fabricated dispatch event is inserted into the ledger.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         backgroundColor: QuantColors.darkSlateCard,
         content: Text(
-          'Wave 80 Dispatched: 15-Subagent Fleet synchronized across Tripartite Nodes.',
-          style: TextStyle(color: QuantColors.emeraldMatrix),
+          'Swarm dispatch is not connected to a backend yet.',
+          style: TextStyle(color: QuantColors.textSecondary),
         ),
       ),
     );
@@ -247,8 +236,45 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
     );
   }
 
-  /// Interactive Node Tree showing CEO Astra, Node A, Node B, Node C task dispatch states
+  Widget _buildEmptyState(String title, String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+      decoration: BoxDecoration(
+        color: QuantColors.darkSlateCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: QuantColors.hairlineBorder),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: QuantColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: QuantColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Interactive Node Tree — renders honestly empty when no agents are live.
   Widget _buildInteractiveDagNodeTree() {
+    if (_agents.isEmpty) {
+      return _buildEmptyState(
+        'No agents live',
+        'The swarm has no active agents right now.',
+      );
+    }
     final ceoAstra = _agents.firstWhere(
       (a) => a.role == AgentRole.ceoAstra,
       orElse: () => _agents.first,
@@ -578,6 +604,12 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
 
   Widget _buildAgentConsoleLog() {
     final agent = _selectedAgent;
+    if (agent == null) {
+      return _buildEmptyState(
+        'No agent selected',
+        'Select an agent to view its console output.',
+      );
+    }
 
     return Container(
       color: const Color(0xFF0C0E14),
@@ -670,7 +702,16 @@ class _AgentSwarmScreenState extends State<AgentSwarmScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      ..._interAgentLedger.map((entry) {
+                      if (_interAgentLedger.isEmpty)
+                        const Text(
+                          'No dispatch events yet.',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: QuantColors.textMuted,
+                          ),
+                        )
+                      else
+                        ..._interAgentLedger.map((entry) {
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 6),
                           child: Row(

@@ -183,19 +183,19 @@ describe('Mobile Shell Overhaul — Worker A', () => {
     it('orders the dock above the AI capsule on mobile, capsule first on desktop', () => {
       const html = renderToStaticMarkup(<QuantPillarTopBar activePillarOverride="mail" />);
 
-      // New DOM order (redesign): dock tablist → search bar → AI capsule.
-      // The dock still sits above the AI capsule.
+      // New DOM order: dock tablist -> search bar (fake AI capsule removed).
+      // The pill only renders with real aiLiveText; assert it is absent.
       expect(html).toContain('role="tablist"');
       expect(html).toContain('aria-label="Application Suites"');
       const dockIdx = html.indexOf('aria-label="Application Suites"');
-      const capsuleIdx = html.indexOf('Quant AI:');
+      
       expect(dockIdx).toBeGreaterThanOrEqual(0);
-      expect(capsuleIdx).toBeGreaterThanOrEqual(0);
-      expect(dockIdx).toBeLessThan(capsuleIdx);
-      // Search bar keeps its slot between dock and capsule.
+      expect(html).not.toContain('Quant AI:');
+      
+      // Search bar keeps its slot after the dock.
       const searchIdx = html.indexOf('aria-label="Voice Search"');
       expect(searchIdx).toBeGreaterThan(dockIdx);
-      expect(searchIdx).toBeLessThan(capsuleIdx);
+      
     });
 
     it('hides the duplicate lens strip where the page owns its filter row', () => {

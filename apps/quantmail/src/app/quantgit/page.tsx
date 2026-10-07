@@ -52,7 +52,6 @@ import type {
 import { QuantGitHeader } from './components/QuantGitHeader';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
-import { ReposDirectoryView } from './components/ReposDirectoryView';
 import { CodeTab } from './components/CodeTab';
 import { CommitsTab } from './components/CommitsTab';
 import { BranchesTab } from './components/BranchesTab';

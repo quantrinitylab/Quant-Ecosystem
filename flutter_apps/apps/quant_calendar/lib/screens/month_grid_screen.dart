@@ -41,22 +41,9 @@ class _MonthGridScreenState extends State<MonthGridScreen> {
   }
 
   void _generateMonthEvents() {
-    final baseEvents = CalendarEvent.sampleEvents();
-    _monthEvents = {
-      2: [baseEvents[0], baseEvents[1]],
-      5: [baseEvents[2]],
-      8: [baseEvents[3], baseEvents[4]],
-      12: [baseEvents[0]],
-      15: [baseEvents[1], baseEvents[2]],
-      19: [baseEvents[3]],
-      22: [baseEvents[4]],
-      26: [baseEvents[0], baseEvents[2]],
-      28: [baseEvents[1]],
-    };
-
-    // Ensure selected date has events if today
-    final todayDay = DateTime.now().day;
-    _monthEvents[todayDay] = baseEvents;
+    // No mock data: honestly empty until the real calendar source is wired.
+    // (The previous implementation fabricated sample events onto fixed dates.)
+    _monthEvents = <int, List<CalendarEvent>>{};
   }
 
   void _previousMonth() {

@@ -87,7 +87,6 @@ export type { ProFeature, QuantProServiceOptions } from './services/quant-pro.se
 export {
   AppleReceiptValidator,
   GooglePlayReceiptValidator,
-  createIAPValidatorsFromEnv,
 } from './services/iap-validation';
 export type { IAPValidator, FetchLike } from './services/iap-validation';
 

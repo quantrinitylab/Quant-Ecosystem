@@ -97,7 +97,7 @@ describe('AppShell — Super-App 5-Pillar Top Bar & Single Bottom Nav Integratio
 
       // QuantPillarTopBar is present
       expect(html).toContain('Super-App 5-Pillar Navigation Bar');
-      expect(html).toContain('Quant AI:');
+      expect(html).not.toContain('Quant AI:');
       expect(html).toContain('Mail');
       expect(html).toContain('Calendar');
       expect(html).toContain('Drive');

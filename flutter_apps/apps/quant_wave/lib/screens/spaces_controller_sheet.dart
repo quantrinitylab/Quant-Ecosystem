@@ -6,7 +6,6 @@
 import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
 
 /// Live Spaces Host Controller Sheet.
 /// Empowers space hosts with:
@@ -48,7 +47,8 @@ class SpacesControllerSheet extends StatefulWidget {
 
 class _SpacesControllerSheetState extends State<SpacesControllerSheet>
     with SingleTickerProviderStateMixin {
-  late WaveSpaceRoom _room;
+  // Honest default: no fabricated live room. Null until a real room is joined.
+  WaveSpaceRoom? _room;
   late AnimationController _eqController;
   final TextEditingController _searchListenerController = TextEditingController();
 
@@ -61,7 +61,7 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
   @override
   void initState() {
     super.initState();
-    _room = widget.room ?? WaveMockData.getLiveAudioSpaces().first;
+    _room = widget.room;
     _eqController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -84,8 +84,8 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
   void _toggleMuteAll() {
     setState(() {
       _isAllMuted = !_isAllMuted;
-      _room = _room.copyWith(
-        speakers: _room.speakers.map((s) {
+      _room = _room!.copyWith(
+        speakers: _room!.speakers.map((s) {
           if (s.role == SpaceParticipantRole.host) return s;
           return s.copyWith(isMuted: _isAllMuted);
         }).toList(),
@@ -107,8 +107,8 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
 
   void _toggleSpeakerMute(String speakerId) {
     setState(() {
-      _room = _room.copyWith(
-        speakers: _room.speakers.map((s) {
+      _room = _room!.copyWith(
+        speakers: _room!.speakers.map((s) {
           if (s.id == speakerId) {
             return s.copyWith(isMuted: !s.isMuted);
           }
@@ -131,10 +131,10 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
     );
 
     setState(() {
-      final updatedSpeakers = _room.speakers.where((s) => s.id != speaker.id).toList();
-      _room = _room.copyWith(
+      final updatedSpeakers = _room!.speakers.where((s) => s.id != speaker.id).toList();
+      _room = _room!.copyWith(
         speakers: updatedSpeakers,
-        listeners: [..._room.listeners, newListener],
+        listeners: [..._room!.listeners, newListener],
       );
     });
 
@@ -162,10 +162,10 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
     );
 
     setState(() {
-      final updatedListeners = _room.listeners.where((l) => l.id != listener.id).toList();
-      final updatedQueue = _room.raisedHandsQueue.where((id) => id != listener.id).toList();
-      _room = _room.copyWith(
-        speakers: [..._room.speakers, newSpeaker],
+      final updatedListeners = _room!.listeners.where((l) => l.id != listener.id).toList();
+      final updatedQueue = _room!.raisedHandsQueue.where((id) => id != listener.id).toList();
+      _room = _room!.copyWith(
+        speakers: [..._room!.speakers, newSpeaker],
         listeners: updatedListeners,
         raisedHandsQueue: updatedQueue,
       );
@@ -250,12 +250,28 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
 
   @override
   Widget build(BuildContext context) {
+    // Honest empty state: no fabricated live room.
+    if (_room == null) {
+      return Container(
+        height: MediaQuery.of(context).size.height * 0.90,
+        decoration: const BoxDecoration(
+          color: QuantColors.voidObsidian,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: const Center(
+          child: Text(
+            'No live audio space right now.',
+            style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+          ),
+        ),
+      );
+    }
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final queuedListeners = _room.listeners
-        .where((l) => l.isHandRaised || _room.raisedHandsQueue.contains(l.id))
+    final queuedListeners = _room!.listeners
+        .where((l) => l.isHandRaised || _room!.raisedHandsQueue.contains(l.id))
         .toList();
 
-    final filteredListeners = _room.listeners.where((l) {
+    final filteredListeners = _room!.listeners.where((l) {
       if (_listenerSearchQuery.isEmpty) return true;
       return l.name.toLowerCase().contains(_listenerSearchQuery.toLowerCase()) ||
           l.handle.toLowerCase().contains(_listenerSearchQuery.toLowerCase());
@@ -361,7 +377,7 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
                       ),
                     ),
                     Text(
-                      '${_room.title} • ${_room.listenerCount} Active',
+                      '${_room!.title} • ${_room!.listenerCount} Active',
                       style: const TextStyle(
                         fontSize: 11,
                         color: QuantColors.textMuted,
@@ -658,7 +674,7 @@ class _SpacesControllerSheetState extends State<SpacesControllerSheet>
           ),
         ),
         const SizedBox(height: 10),
-        for (final speaker in _room.speakers)
+        for (final speaker in _room!.speakers)
           Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

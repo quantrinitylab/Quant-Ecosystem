@@ -7,8 +7,6 @@ export * from './types';
 
 // Crypto utilities
 export {
-  generateSecureToken,
-  generateSecureCode,
   generateId,
   PasswordService,
   passwordService,
@@ -70,7 +68,7 @@ export type {
 } from './services/sign-in-with-quant-sdk';
 
 // Middleware
-export { AuthMiddleware, createAuthMiddleware } from './middleware/auth-middleware';
+export { AuthMiddleware } from './middleware/auth-middleware';
 export type {
   AuthRequest,
   AuthResponse,

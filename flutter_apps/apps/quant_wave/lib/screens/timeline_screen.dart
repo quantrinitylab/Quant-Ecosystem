@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
+
 
 class TimelineScreen extends StatefulWidget {
   const TimelineScreen({super.key});
@@ -30,7 +30,9 @@ class _TimelineScreenState extends State<TimelineScreen> {
   @override
   void initState() {
     super.initState();
-    _posts = WaveMockData.getInitialTimelinePosts();
+    // No mock data: posts load from the real backend. Honestly empty until
+    // the data seam is wired.
+    _posts = <WavePost>[];
     _quickPostController.addListener(_onComposerTextChanged);
   }
 
@@ -557,7 +559,8 @@ class _TimelineScreenState extends State<TimelineScreen> {
   }
 
   Widget _buildTrendingHashtagsBar() {
-    final hashtags = WaveMockData.getTrendingHashtags();
+    // No mock data: no fabricated trending hashtags.
+    final hashtags = <String>[];
     return Container(
       height: 44,
       padding: const EdgeInsets.symmetric(vertical: 6),

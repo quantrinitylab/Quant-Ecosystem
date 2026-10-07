@@ -4,7 +4,6 @@
 
 export 'main.dart';
 export 'models/wave_models.dart';
-export 'services/wave_mock_data.dart';
 export 'screens/timeline_screen.dart';
 export 'screens/feed_screen.dart';
 export 'screens/subwaves_screen.dart';

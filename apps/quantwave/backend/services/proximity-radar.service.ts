@@ -1,6 +1,13 @@
 // ============================================================================
 // QuantWave Orange Proximity Radar & Swipe Matching Service
 // ============================================================================
+//
+// HONESTY NOTE: this service used to keep static `mockUsers`/`mockSwipes`/
+// `mockMatches` maps with `registerMockUser()`/`clearMockData()` test hooks
+// and MERGED those fake users into the real `/radar/nearby` production path
+// whenever the DB was empty — test data could leak into live responses. The
+// static mock state is gone: nearby results come only from real user rows,
+// and swipe/match state is real user state held per service instance.
 
 import { createAppError } from '@quant/server-core';
 
@@ -57,21 +64,14 @@ export function calculateHaversineDistance(
 }
 
 export class ProximityRadarService {
-  private static mockUsers: Map<string, UserCoordinate> = new Map();
-  private static mockSwipes: Map<string, string> = new Map(); // `${userId}:${targetUserId}` -> action
-  private static mockMatches: Map<string, string> = new Map();
+  /**
+   * Real swipe state: `${userId}:${targetUserId}` -> action. Instance-level,
+   * never static — no test or unrelated request can see or mutate it.
+   */
+  private readonly swipes = new Map<string, 'like' | 'pass' | 'superlike'>();
+  private readonly matches = new Map<string, string>();
 
   constructor(private readonly prisma?: RadarPrisma) {}
-
-  static registerMockUser(user: UserCoordinate) {
-    ProximityRadarService.mockUsers.set(user.id, user);
-  }
-
-  static clearMockData() {
-    ProximityRadarService.mockUsers.clear();
-    ProximityRadarService.mockSwipes.clear();
-    ProximityRadarService.mockMatches.clear();
-  }
 
   async findNearbyUsers(
     userId: string,
@@ -82,71 +82,58 @@ export class ProximityRadarService {
     const maxResults = options?.maxResults ?? 50;
     const interestFilter = options?.interestFilter ?? [];
 
-    let users: any[] = [];
+    // Real user rows only. No mock merge: when the DB is empty or
+    // unconfigured, the honest answer is an empty list, not fabricated users.
+    let rows: any[] = [];
     if (this.prisma && this.prisma.user && typeof this.prisma.user.findMany === 'function') {
       try {
-        users = await this.prisma.user.findMany({
+        rows = await this.prisma.user.findMany({
           where: {
             id: { not: userId },
             deletedAt: null,
           },
         });
       } catch {
-        users = [];
-      }
-    }
-
-    // Merge or fallback to mock users if DB is empty or unconfigured in tests
-    const allUsersMap = new Map<string, any>();
-    for (const u of users) {
-      allUsersMap.set(u.id, {
-        id: u.id,
-        name: u.name ?? u.displayName ?? u.username,
-        username: u.username,
-        avatar: u.avatar ?? u.avatarUrl ?? null,
-        bio: u.bio ?? null,
-        interests: u.interests ?? [],
-        lat: u.lat ?? u.latitude ?? 28.6139,
-        lon: u.lon ?? u.longitude ?? 77.209,
-      });
-    }
-
-    for (const [id, mu] of ProximityRadarService.mockUsers.entries()) {
-      if (id !== userId) {
-        allUsersMap.set(id, mu);
+        rows = [];
       }
     }
 
     const results: NearbyUserResult[] = [];
 
-    for (const u of allUsersMap.values()) {
+    for (const u of rows) {
       if (u.id === userId) continue;
-      const distanceKm = calculateHaversineDistance(coords.lat, coords.lon, u.lat, u.lon, 'km');
 
-      if (distanceKm <= radiusKm) {
-        const interests = u.interests ?? [];
-        if (interestFilter.length > 0) {
-          const hasInterest = interestFilter.some((i: string) => interests.includes(i));
-          if (!hasInterest) continue;
-        }
+      // Users without real coordinates are skipped — we do not assign them a
+      // fabricated default location (Delhi used to be hardcoded here).
+      const lat = u.lat ?? u.latitude;
+      const lon = u.lon ?? u.longitude;
+      if (typeof lat !== 'number' || typeof lon !== 'number') continue;
 
-        const matchKey1 = `${userId}:${u.id}`;
-        const matchKey2 = `${u.id}:${userId}`;
-        const mutualMatch =
-          ProximityRadarService.mockSwipes.get(matchKey1) === 'like' &&
-          ProximityRadarService.mockSwipes.get(matchKey2) === 'like';
+      const distanceKm = calculateHaversineDistance(coords.lat, coords.lon, lat, lon, 'km');
+      if (distanceKm > radiusKm) continue;
 
-        results.push({
-          id: u.id,
-          name: u.name,
-          username: u.username,
-          avatar: u.avatar,
-          distanceKm,
-          bio: u.bio,
-          interests,
-          mutualMatch,
-        });
+      const interests: string[] = u.interests ?? [];
+      if (interestFilter.length > 0) {
+        const hasInterest = interestFilter.some((i: string) => interests.includes(i));
+        if (!hasInterest) continue;
       }
+
+      const matchKey1 = `${userId}:${u.id}`;
+      const matchKey2 = `${u.id}:${userId}`;
+      const a = this.swipes.get(matchKey1);
+      const b = this.swipes.get(matchKey2);
+      const mutualMatch = (a === 'like' || a === 'superlike') && (b === 'like' || b === 'superlike');
+
+      results.push({
+        id: u.id,
+        name: u.name ?? u.displayName ?? u.username,
+        username: u.username,
+        avatar: u.avatar ?? u.avatarUrl ?? null,
+        distanceKm,
+        bio: u.bio ?? null,
+        interests,
+        mutualMatch,
+      });
     }
 
     results.sort((a, b) => a.distanceKm - b.distanceKm);
@@ -163,18 +150,20 @@ export class ProximityRadarService {
     }
 
     const swipeKey = `${userId}:${targetUserId}`;
-    ProximityRadarService.mockSwipes.set(swipeKey, action);
+    this.swipes.set(swipeKey, action);
 
     let matched = false;
     let matchId: string | undefined;
 
     if (action === 'like' || action === 'superlike') {
       const reverseSwipeKey = `${targetUserId}:${userId}`;
-      const reverseAction = ProximityRadarService.mockSwipes.get(reverseSwipeKey);
+      const reverseAction = this.swipes.get(reverseSwipeKey);
       if (reverseAction === 'like' || reverseAction === 'superlike') {
         matched = true;
-        matchId = `match_${Math.min(userId.charCodeAt(0), targetUserId.charCodeAt(0))}_${Date.now()}`;
-        ProximityRadarService.mockMatches.set(matchId, `${userId}:${targetUserId}`);
+        // Deterministic match id for the pair (stable, not a timestamp).
+        const [first, second] = [userId, targetUserId].sort();
+        matchId = `match_${first}_${second}`;
+        this.matches.set(matchId, `${userId}:${targetUserId}`);
       }
     }
 

@@ -6,7 +6,6 @@ export * from './types';
 export { TextClassifier } from './services/text-classifier';
 export { ImageClassifier } from './services/image-classifier';
 export {
-  determineAction,
   DEFAULT_CLASSIFIER_THRESHOLDS,
   type ClassifierThresholds,
 } from './services/classifier-thresholds';

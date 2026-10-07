@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/ads_models.dart';
-import '../services/ads_mock_data.dart';
 
 class RtbAuctionScreen extends StatefulWidget {
   const RtbAuctionScreen({super.key});
@@ -32,11 +31,20 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
   @override
   void initState() {
     super.initState();
-    _telemetry = AdsMockData.getInitialAuctionTelemetry();
-    _bidStream = AdsMockData.getRecentBidStream();
-    _heatmapCells = AdsMockData.getHeatmapData();
-    _dspLatencies = AdsMockData.getDspLatencyMetrics();
-    _waterfallTiers = AdsMockData.getWaterfallTiers();
+    // No mock data: RTB telemetry streams from the real backend. Until the
+    // data seam is wired, every panel is honestly empty/zero.
+    _telemetry = const AuctionTelemetry(
+      qps: 0,
+      p99LatencyMs: 0,
+      averageEcpm: 0,
+      floorPrice: 0,
+      winRatePercent: 0,
+      activeBidders: 0,
+    );
+    _bidStream = <RtbBidEvent>[];
+    _heatmapCells = <EcpmHeatmapCell>[];
+    _dspLatencies = <DspLatencyMetric>[];
+    _waterfallTiers = <WaterfallTier>[];
     _floorPrice = _telemetry.floorPrice;
   }
 
@@ -122,33 +130,38 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: QuantColors.statusSuccess,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: QuantColors.statusSuccess.withOpacity(0.6),
-                      blurRadius: 6,
-                      spreadRadius: 1,
+          Expanded(
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: QuantColors.statusSuccess,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: QuantColors.statusSuccess.withOpacity(0.6),
+                        blurRadius: 6,
+                        spreadRadius: 1,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'OpenRTB 3.0 Engine: Sovereign Bidding Active',
+                    style: TextStyle(
+                      color: QuantColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              const Text(
-                'OpenRTB 3.0 Engine: Sovereign Bidding Active',
-                style: TextStyle(
-                  color: QuantColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
           Row(
             children: [
@@ -654,9 +667,10 @@ class _RtbAuctionScreenState extends State<RtbAuctionScreen> {
             ),
             child: Slider(
               value: _floorPrice,
-              min: 0.50,
+              // Honest zero floor until the backend provides a real value.
+              min: 0.0,
               max: 5.00,
-              divisions: 45,
+              divisions: 50,
               onChanged: (val) {
                 setState(() {
                   _floorPrice = val;

@@ -173,7 +173,7 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
     // Sub-View 1: Feed (CalendarFeedSubView)
     // ------------------------------------------------------------------------
     describe('Sub-View 1: Feed (CalendarFeedSubView)', () => {
-      it('renders chronological date feed with upcoming meetings, tasks, and tracker milestones', () => {
+      it('renders chronological date feed with upcoming meetings and tasks (no synthetic milestones)', () => {
         const html = renderToStaticMarkup(
           <CalendarFeedSubView
             events={mockEvents}
@@ -188,7 +188,10 @@ describe('QuantCalendar Multi-View & Trackers Suite', () => {
         expect(html).toContain('Chronological Feed');
         expect(html).toContain('Sovereign Architecture Sprint Review');
         expect(html).toContain('CalDAV Protocol Verification Task');
-        expect(html).toContain('Milestone');
+        // Synthetic feed milestones were removed — never fabricate them
+        expect(html).not.toContain('Daily Wellness &amp; Steps Milestone');
+        expect(html).not.toContain('Predicted Cycle Phase');
+        expect(html).not.toContain('Quarterly Passport / Visa Audit');
       });
 
       it('renders filter pills for feed categories', () => {

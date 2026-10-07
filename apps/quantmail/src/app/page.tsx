@@ -1456,15 +1456,17 @@ export default function InboxPage() {
   const [dockedComposerInitialSubject, setDockedComposerInitialSubject] = useState('');
   const [dockedComposerInitialBody, setDockedComposerInitialBody] = useState('');
   const [dockedComposerReplyToId, setDockedComposerReplyToId] = useState<string | undefined>(undefined);
+  const [dockedComposerInitialKind, setDockedComposerInitialKind] = useState<'mail' | 'chat'>('mail');
 
   const handleOpenCompose = useCallback(
-    (options?: { to?: string; subject?: string; body?: string; replyToId?: string }) => {
+    (options?: { to?: string; subject?: string; body?: string; replyToId?: string; kind?: 'mail' | 'chat' }) => {
       const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768;
       if (isDesktop) {
         if (options?.to !== undefined) setDockedComposerInitialTo(options.to);
         if (options?.subject !== undefined) setDockedComposerInitialSubject(options.subject);
         if (options?.body !== undefined) setDockedComposerInitialBody(options.body);
         if (options?.replyToId !== undefined) setDockedComposerReplyToId(options.replyToId);
+        setDockedComposerInitialKind(options?.kind === 'chat' ? 'chat' : 'mail');
         setIsDockedComposerOpen(true);
       } else {
         let url = '/compose';
@@ -1472,6 +1474,7 @@ export default function InboxPage() {
         if (options?.to) params.set('to', options.to);
         if (options?.subject) params.set('subject', options.subject);
         if (options?.replyToId) params.set('replyTo', options.replyToId);
+        if (options?.kind === 'chat') params.set('kind', 'chat');
         const q = params.toString();
         if (q) url += `?${q}`;
         router.push(url);
@@ -2828,15 +2831,28 @@ export default function InboxPage() {
               <h1>{heroTitle}</h1>
               <p>{heroSummary}</p>
             </div>
-            <button
-              type="button"
-              className="hero-compose"
-              onClick={() =>
-                activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
-              }
-            >
-              <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
-            </button>
+            <div className="hero-compose-row">
+              <button
+                type="button"
+                className="hero-compose"
+                onClick={() =>
+                  activeLens === 'groups' ? setGroupEditorTarget('new') : handleOpenCompose()
+                }
+              >
+                <MailIcon name="compose" /> {activeLens === 'groups' ? 'New group' : 'Compose'}
+              </button>
+              {activeLens !== 'groups' && (
+                <button
+                  type="button"
+                  className="hero-compose hero-compose-chat"
+                  onClick={() => handleOpenCompose({ kind: 'chat' })}
+                  title="Start a new chat thread"
+                  aria-label="Start a new chat"
+                >
+                  <MailIcon name="chat" /> New chat
+                </button>
+              )}
+            </div>
           </header>
 
           {/*
@@ -3993,6 +4009,7 @@ export default function InboxPage() {
         initialSubject={dockedComposerInitialSubject}
         initialBody={dockedComposerInitialBody}
         replyToId={dockedComposerReplyToId}
+        initialMessageKind={dockedComposerInitialKind}
         onSendSuccess={() => {
           refetch();
         }}
@@ -4001,6 +4018,7 @@ export default function InboxPage() {
           setDockedComposerInitialSubject('');
           setDockedComposerInitialBody('');
           setDockedComposerReplyToId(undefined);
+          setDockedComposerInitialKind('mail');
         }}
       />
 

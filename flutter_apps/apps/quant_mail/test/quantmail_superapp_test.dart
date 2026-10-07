@@ -61,11 +61,10 @@ void main() {
   });
 
   // ===========================================================================
-  // 2. QUANTMAIL SUPER-APP BAR WIDGET TESTS
+  // 2. QUANTMAIL SUPER-APP BAR (v2 SLIM HEADER) WIDGET TESTS
   // ===========================================================================
-  group('QuantMailSuperAppBar Multi-Tier Header Widget Tests', () {
-    testWidgets('Validates Brand Identity, Tier 1 Workspace Selector & Global Search Bar', (tester) async {
-      QuantPillar selectedPillar = QuantPillar.mail;
+  group('QuantMailSuperAppBar v2 Slim Header Widget Tests', () {
+    testWidgets('Renders brand, workspace selector and honest search — single nav lives outside the bar', (tester) async {
       bool workspaceTapped = false;
       bool voiceTapped = false;
       bool qrTapped = false;
@@ -76,48 +75,38 @@ void main() {
           theme: QuantTheme.obsidianDarkTheme,
           home: Scaffold(
             appBar: QuantMailSuperAppBar(
-              activePillar: selectedPillar,
-              onPillarSelected: (p) => selectedPillar = p,
+              activePillar: QuantPillar.mail,
               activeWorkspace: 'Quant Trinity Lab',
               onWorkspaceTap: () => workspaceTapped = true,
               onVoiceSearchTap: () => voiceTapped = true,
               onQrScanTap: () => qrTapped = true,
               onProfileTap: () => profileTapped = true,
-              pillarBadges: const {
-                QuantPillar.mail: 4,
-                QuantPillar.calendar: 2,
-                QuantPillar.drive: 0,
-                QuantPillar.contacts: 12,
-                QuantPillar.quantGit: 3,
-              },
             ),
           ),
         ),
       );
 
-      // 1. Brand Identity
+      // 1. Brand identity — no invented pills
       expect(find.byType(QuantMonogramLogo), findsOneWidget);
-      expect(find.text('SOVEREIGN'), findsOneWidget);
+      expect(find.text('SOVEREIGN'), findsNothing);
 
-      // 2. Tier 1: Workspace selector pill
+      // 2. Workspace selector pill
       expect(find.text('Quant Trinity Lab'), findsOneWidget);
-      expect(find.byIcon(Icons.business_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
-
       await tester.tap(find.text('Quant Trinity Lab'));
       await tester.pumpAndSettle();
       expect(workspaceTapped, isTrue);
 
-      // 3. Profile Avatar with verified beacon dot
-      expect(find.text('AM'), findsOneWidget);
-      await tester.tap(find.text('AM'));
-      await tester.pumpAndSettle();
-      expect(profileTapped, isTrue);
+      // 3. Search bar with honest placeholder (no perf claims)
+      expect(find.byType(TextField), findsOneWidget);
+      final searchField = tester.widget<TextField>(find.byType(TextField));
+      final hint = searchField.decoration?.hintText ?? '';
+      expect(hint, isNot(contains('<5ms')));
+      expect(hint, isNot(contains('FastCDC')));
 
-      // 4. Global Search Bar with Voice and QR
-      expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+      // 4. Voice, QR and profile actions
       expect(find.byIcon(Icons.mic_rounded), findsOneWidget);
       expect(find.byIcon(Icons.qr_code_scanner_rounded), findsOneWidget);
+      expect(find.text('AM'), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.mic_rounded));
       await tester.pumpAndSettle();
@@ -127,78 +116,63 @@ void main() {
       await tester.pumpAndSettle();
       expect(qrTapped, isTrue);
 
-      // 5. Tier 2: 5-Pillar Rail
+      await tester.tap(find.text('AM'));
+      await tester.pumpAndSettle();
+      expect(profileTapped, isTrue);
+
+      // 5. No Tier-2 pillar rail inside the bar (nav lives in bottom dock)
+      expect(find.text('Calendar'), findsNothing);
+      expect(find.text('QuantGit'), findsNothing);
+    });
+  });
+
+  // ===========================================================================
+  // 3. SUPER-APP HOME SCREEN (v2) INTEGRATION TESTS
+  // ===========================================================================
+  group('SuperAppHomeScreen v2 Tests', () {
+    testWidgets('Renders single bottom 5-pillar nav, lenses, honest empty state', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const SuperAppHomeScreen(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Top bar presence
+      expect(find.byType(QuantMailSuperAppBar), findsOneWidget);
+
+      // ONE nav system: 5-pillar bottom dock
       expect(find.text('Mail'), findsOneWidget);
       expect(find.text('Calendar'), findsOneWidget);
       expect(find.text('Drive'), findsOneWidget);
       expect(find.text('Contacts'), findsOneWidget);
       expect(find.text('QuantGit'), findsOneWidget);
 
-      // Badge verification
-      expect(find.text('4'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('12'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      // No Tier-3 executive clutter / fake claims
+      expect(find.text('EXECUTIVE SUITE AT A GLANCE'), findsNothing);
+      expect(find.text('PRIORITY MAIL'), findsNothing);
+      expect(find.text('FASTCDC STORAGE'), findsNothing);
+      expect(find.text('18.4 GB used'), findsNothing);
+      expect(find.text('Sub-5ms FTS5 Index'), findsNothing);
 
-      // Switch pillar to Calendar
-      await tester.tap(find.text('Calendar'));
-      await tester.pumpAndSettle();
-      expect(selectedPillar, QuantPillar.calendar);
-    });
-  });
-
-  // ===========================================================================
-  // 3. SUPER-APP HOME SCREEN FULL SUITE INTEGRATION TESTS
-  // ===========================================================================
-  group('SuperAppHomeScreen Sovereign Suite Tests', () {
-    testWidgets('Renders complete Executive Suite: Quick-Glance Tiles, Category Lenses, 56dp Dock', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: QuantTheme.obsidianDarkTheme,
-          home: const SuperAppHomeScreen(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      // Top Bar presence
-      expect(find.byType(QuantMailSuperAppBar), findsOneWidget);
-
-      // Tier 3: Executive Quick-Glance Tiles
-      expect(find.text('EXECUTIVE SUITE AT A GLANCE'), findsOneWidget);
-      expect(find.text('PRIORITY MAIL'), findsOneWidget);
-      expect(find.text('3 Urgent'), findsOneWidget);
-      expect(find.text('NEXT MEETING'), findsOneWidget);
-      expect(find.text('FASTCDC STORAGE'), findsOneWidget);
-      expect(find.text('3.4x Dedup'), findsOneWidget);
-      expect(find.text('18.4 GB used'), findsOneWidget);
-
-      // Quick Actions Rail
-      expect(find.text('Compose'), findsOneWidget);
-      expect(find.text('New Event'), findsOneWidget);
-      expect(find.text('Upload File'), findsOneWidget);
-      expect(find.text('Add Contact'), findsOneWidget);
-      expect(find.text('New Repo'), findsOneWidget);
-
-      // Mail Category Lenses
-      expect(find.text('Primary'), findsWidgets);
+      // Mail category lenses present
+      expect(find.text('Primary'), findsOneWidget);
       expect(find.text('Updates'), findsOneWidget);
       expect(find.text('Promotions'), findsOneWidget);
       expect(find.text('Forums'), findsOneWidget);
       expect(find.text('VIPs'), findsOneWidget);
 
-      // Tier 4: Contextual 56dp Bottom Navigation Dock
-      expect(find.text('Inbox'), findsOneWidget);
-      expect(find.text('Priority'), findsWidgets);
-      expect(find.text('Teams'), findsOneWidget);
-      expect(find.text('Sent'), findsOneWidget);
-      expect(find.text('Archive'), findsWidgets);
+      // Honest empty state — no fabricated threads
+      expect(find.text('No mail in Primary yet'), findsOneWidget);
+      expect(find.text('Alex Mercer'), findsNothing);
+      expect(find.text('Sundar Pichai'), findsNothing);
 
-      // Primary Floating Action Button (Compose)
+      // Primary compose action
       expect(find.byType(FloatingActionButton), findsOneWidget);
-      expect(find.byIcon(Icons.edit_note_rounded), findsWidgets);
     });
 
-    testWidgets('Switches between 5 Pillars and verifies contextual dock subviews', (tester) async {
+    testWidgets('Switches pillars; calendar and drive show honest empty states', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
@@ -207,46 +181,45 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 1. Switch to Calendar Pillar
+      // 1. Switch to Calendar pillar
       await tester.tap(find.text('Calendar'));
       await tester.pumpAndSettle();
 
-      expect(find.text('TODAY · RFC 5545 AGENDA'), findsOneWidget);
-      expect(find.text('Asia/Kolkata (IST)'), findsOneWidget);
-      expect(find.text('Agenda'), findsOneWidget);
-      expect(find.text('Month'), findsOneWidget);
-      expect(find.text('Booking'), findsOneWidget);
-      expect(find.text('QuantMeet'), findsOneWidget);
-      expect(find.text('Reminders'), findsOneWidget);
+      expect(find.text('No meetings today'), findsOneWidget);
+      expect(find.text('Sovereign Core Architecture Sync'), findsNothing);
 
-      // 2. Switch to Drive Pillar
+      // 2. Switch to Drive pillar
       await tester.tap(find.text('Drive'));
       await tester.pumpAndSettle();
 
-      expect(find.text('RECENT ENCRYPTED OBJECTS'), findsOneWidget);
-      expect(find.text('FastCDC Active'), findsOneWidget);
-      expect(find.text('My Files'), findsOneWidget);
-      expect(find.text('Shared'), findsOneWidget);
-      expect(find.text('Vault (E2EE)'), findsOneWidget);
+      expect(find.text('No files yet'), findsOneWidget);
+      expect(find.text('18.4 GB used'), findsNothing);
 
-      // 3. Switch to Contacts Pillar
-      await tester.tap(find.text('Contacts'));
+      // 3. Back to Mail pillar
+      await tester.tap(find.text('Mail'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Contacts'), findsWidgets);
-      expect(find.text('Companies'), findsOneWidget);
-      expect(find.text('AI Dedup'), findsOneWidget);
-      expect(find.text('Circles'), findsOneWidget);
+      expect(find.text('No mail in Primary yet'), findsOneWidget);
+    });
 
-      // 4. Switch to QuantGit Pillar
-      await tester.tap(find.text('QuantGit'));
+    testWidgets('Retapping the active tab resets filters (refresh)', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: QuantTheme.obsidianDarkTheme,
+          home: const SuperAppHomeScreen(),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.text('Repos'), findsOneWidget);
-      expect(find.text('PRs'), findsOneWidget);
-      expect(find.text('Issues'), findsOneWidget);
-      expect(find.text('Actions'), findsOneWidget);
-      expect(find.text('Copilot'), findsOneWidget);
+      // Switch lens to Updates
+      await tester.tap(find.text('Updates'));
+      await tester.pumpAndSettle();
+      expect(find.text('No mail in Updates yet'), findsOneWidget);
+
+      // Retap the active Mail tab -> refresh resets the lens
+      await tester.tap(find.text('Mail'));
+      await tester.pumpAndSettle();
+      expect(find.text('No mail in Primary yet'), findsOneWidget);
     });
 
     testWidgets('Opens Workspace Selector Modal and switches workspace', (tester) async {
@@ -288,10 +261,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Listening for Voice Query...'), findsOneWidget);
-      expect(find.text('Priority emails from Alex Mercer'), findsOneWidget);
+      expect(find.text('Unread mail'), findsOneWidget);
 
       // Tap query chip
-      await tester.tap(find.text('Priority emails from Alex Mercer'));
+      await tester.tap(find.text('Unread mail'));
       await tester.pumpAndSettle();
 
       // Voice modal dismissed and query inserted

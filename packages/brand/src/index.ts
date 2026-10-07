@@ -79,7 +79,6 @@ export {
   createEndorsedProductLockup,
   foundationThemes,
   generateFoundationCSS,
-  generateFoundationThemeDeclarations,
   quantrinityMasterbrand,
   quantrinityPrimitives,
 } from './foundation';

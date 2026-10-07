@@ -11,6 +11,7 @@ import { showToast } from '../../components/InboxToast';
 import { stripTrailingSignature } from '../../lib/email-body';
 import { invalidateMailLists } from '../../lib/offline/folders';
 import { apiClient } from '../../services/api-client';
+import type { MessageKind } from '../../types';
 import { UndoSendProvider } from '../../components/UndoSendCountdownBar';
 import { useEdgeSwipeBack } from '../../hooks/useEdgeSwipeBack';
 
@@ -84,6 +85,11 @@ export default function ComposePage() {
     };
   }, [draftId]);
 
+  // `?kind=chat` (from the inbox's "New chat" button) starts a chat thread
+  // instead of a letter; the kind travels to the backend compose call and to
+  // the composer itself.
+  const composeKind: MessageKind = searchParams?.get('kind') === 'chat' ? 'chat' : 'mail';
+
   const composeDraft = useCallback(
     async (data: ComposerMessageData) => {
       const toAddresses: import('../../types').EmailAddress[] = Array.isArray(data.to)
@@ -123,11 +129,14 @@ export default function ComposePage() {
             : undefined
         : undefined;
 
+      // `?kind=chat` travels via composeKind from the page's search params.
       const payload = {
         to: toAddresses,
         cc: ccAddresses,
         bcc: bccAddresses,
-        subject: data.subject,
+        subject:
+          data.subject ||
+          (composeKind === 'chat' ? `Chat with ${toAddresses.map((t) => t.email).join(', ')}` : ''),
         bodyText: data.bodyText || data.body || '',
         bodyHtml: data.bodyHtml || data.body || '',
         priority: data.priority || 'normal',
@@ -139,10 +148,9 @@ export default function ComposePage() {
         inReplyTo: replyTo || undefined,
         attachments: (data.attachments as any) || [],
         isDraft: true,
-        // This composer writes letters. Stated rather than left to the server's
-        // default so the thread's mark comes from what the sender actually chose,
-        // and so a future composer that writes chat has an obvious place to differ.
-        messageKind: 'mail' as const,
+        // Stated rather than left to the server's default so the thread's mark
+        // comes from what the sender actually chose.
+        messageKind: composeKind,
       };
       const response = currentDraftId
         ? await apiClient.updateDraft(currentDraftId, payload)
@@ -155,7 +163,7 @@ export default function ComposePage() {
       if (!currentDraftId) setCurrentDraftId(response.data.id);
       return response.data;
     },
-    [currentDraftId, replyTo],
+    [currentDraftId, replyTo, searchParams],
   );
 
   const handleSend = useCallback(
@@ -272,6 +280,7 @@ export default function ComposePage() {
           onSaveDraft={handleSaveDraft}
           onDiscard={handleDiscard}
           onAIAssist={handleAIAssist}
+          initialMessageKind={composeKind}
         />
         </div>
       </div>

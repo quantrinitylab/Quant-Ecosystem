@@ -840,25 +840,7 @@ export function AppShell({
 
                   {/* Right: Compact Quant AI capsule + Quanty trigger button + Account badge */}
                   <div className="flex items-center gap-2 shrink-0">
-                    {/* Compact Quant AI Live Capsule */}
-                    <button
-                      type="button"
-                      onClick={openQuanty}
-                      className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#111318] border border-[#232938] hover:border-[#FF8C42]/50 hover:bg-[#161922] transition-all text-xs outline-none focus-visible:ring-2 focus-visible:ring-[#FF8C42]"
-                      title="Open Quant AI Assistant"
-                      aria-label="Open Quant AI Assistant"
-                    >
-                      <span className="relative flex size-2 items-center justify-center">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF8C42] opacity-75" />
-                        <span className="relative inline-flex size-1.5 rounded-full bg-[#FF8C42] shadow-[0_0_6px_#FF8C42]" />
-                      </span>
-
-                      <span className="text-[11px] font-medium tracking-tight text-[#E2E8F0] whitespace-nowrap">
-                        <strong className="font-semibold text-[#FF8C42]">Quant AI:</strong>{' '}
-                        <span className="hidden xl:inline">3 urgent items prioritized · </span>
-                        <span className="text-emerald-400 font-mono text-[10px]">&lt;5ms LIVE</span>
-                      </span>
-                    </button>
+                    {/* Quant AI entry: real Quanty trigger next to it (no fabricated status) */}
 
                     {!hasOwnQuanty && <QuantyTrigger isOpen={isQuantyOpen} onOpen={openQuanty} />}
                     <AccountBadge compact={true} />

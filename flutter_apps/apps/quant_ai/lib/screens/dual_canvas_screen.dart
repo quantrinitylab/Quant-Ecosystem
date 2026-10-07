@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:quant_theme/quant_theme.dart';
 import '../models/ai_models.dart';
-import '../services/ai_mock_data.dart';
+import '../services/quant_ai_service.dart';
 
 class DualCanvasScreen extends StatefulWidget {
   const DualCanvasScreen({super.key});
@@ -18,6 +18,9 @@ class DualCanvasScreen extends StatefulWidget {
 }
 
 class _DualCanvasScreenState extends State<DualCanvasScreen> {
+  final QuantAiService _aiService = QuantAiService();
+  // Honest default: documents come from the real backend only. No fabricated
+  // canvas documents.
   late List<CanvasDocument> _documents;
   late int _selectedDocIndex;
   bool _isSplitView = true;
@@ -27,40 +30,38 @@ class _DualCanvasScreenState extends State<DualCanvasScreen> {
   bool _isThoughtExpanded = true;
   double _currentVersion = 3.0;
 
-  final TextEditingController _promptController = TextEditingController(
-    text: 'Refactor Impeller rendering container to add hardware-accelerated syntax highlight and execute on Impeller.',
-  );
+  final TextEditingController _promptController = TextEditingController();
   final ScrollController _chatScrollController = ScrollController();
 
-  final List<Map<String, dynamic>> _conversationMessages = [
-    {
-      'role': 'user',
-      'text': 'Refactor AcceleratedGlowContainer to strictly eliminate Skia clipPath invocations and add concentric glow borders.',
-      'time': '10:41 AM',
-    },
-    {
-      'role': 'assistant',
-      'thought': '1. Verified AST invariants for zero clipPath.\n2. Injected hardware-accelerated BoxDecoration with BorderRadius.\n3. Compiled syntax tokens with Vulkan/Metal tile caching.\n4. Simulated Impeller JIT execution with exit code 0.',
-      'thoughtDuration': '2.1s',
-      'text': 'I have refactored the Impeller canvas artifact. Skia clipPath has been 100% replaced with hardware-accelerated BoxDecoration squircle radii. The live code editor on the right pane is ready for execution with syntax tokens.',
-      'time': '10:42 AM',
-      'artifactUpdate': 'Impeller Fast Blur Shader v2.0',
-    },
-  ];
+  // Honest default: the conversation starts empty. No fabricated chat history.
+  final List<Map<String, dynamic>> _conversationMessages = [];
 
-  CodeExecutionResult? _executionResult = const CodeExecutionResult(
-    stdout: '[COMPILER] Dart AST Analysis: 0 errors, 0 warnings.\n[IMPELLER] Hardware raster cache initialized on Vulkan / Metal backend.\n[PERF] Frame render budget: 4.12ms / 8.33ms (120 FPS sustained).\n[PASS] 100% Zero-clipPath AST validation passed.\n[EXIT] Process finished with exit code 0.',
-    exitCode: 0,
-    durationMs: 4.12,
-    memoryUsageKb: 14520,
-  );
+  // Honest default: no fabricated compiler output until code is actually run.
+  CodeExecutionResult? _executionResult;
 
   @override
   void initState() {
     super.initState();
-    _documents = List.from(AiMockData.getInitialCanvasDocs());
-    _selectedDocIndex = 1; // Default to code doc
-    _currentVersion = _documents[_selectedDocIndex].version.toDouble();
+    _documents = <CanvasDocument>[];
+    _selectedDocIndex = 0;
+    _currentVersion = 1.0;
+    _loadDocuments();
+  }
+
+  Future<void> _loadDocuments() async {
+    try {
+      final docs = await _aiService.fetchCanvasDocuments();
+      if (!mounted) return;
+      setState(() {
+        _documents = docs;
+        if (_documents.isNotEmpty) {
+          _selectedDocIndex = 0;
+          _currentVersion = _documents.first.version.toDouble();
+        }
+      });
+    } catch (_) {
+      // Honest empty on failure — no fabricated documents.
+    }
   }
 
   @override
@@ -118,11 +119,12 @@ class _DualCanvasScreenState extends State<DualCanvasScreen> {
 
     setState(() {
       _isExecutingCode = false;
-      _executionResult = CodeExecutionResult(
-        stdout: '[COMPILER] Building AST targets for ${_activeDoc.title}...\n[RESOLVER] Linked 0 dependencies with zero stubs.\n[IMPELLER] 120Hz Hardware pipeline verified (zero clipPath).\n[EXEC] Execution successful in 3.84ms.\n[TEST] 14 assertion checks passed (100% green).',
-        exitCode: 0,
-        durationMs: 3.84,
-        memoryUsageKb: 12480,
+      // Honest: code execution is not wired to a real runner in this build.
+      _executionResult = const CodeExecutionResult(
+        stdout: 'Code execution is not available in this build.',
+        exitCode: 1,
+        durationMs: 0,
+        memoryUsageKb: 0,
       );
     });
 
@@ -131,8 +133,8 @@ class _DualCanvasScreenState extends State<DualCanvasScreen> {
         const SnackBar(
           backgroundColor: QuantColors.darkSlateCard,
           content: Text(
-            'Code execution completed successfully with exit code 0.',
-            style: TextStyle(color: QuantColors.emeraldMatrix),
+            'Code execution is not available in this build.',
+            style: TextStyle(color: QuantColors.textSecondary),
           ),
           duration: Duration(seconds: 2),
         ),
@@ -152,21 +154,21 @@ class _DualCanvasScreenState extends State<DualCanvasScreen> {
       });
       _promptController.clear();
 
-      // Add simulated assistant reply
+      // Honest: no simulated assistant intelligence here. Canvas edits apply
+      // when the AI backend seam is wired.
       _conversationMessages.add({
         'role': 'assistant',
-        'thought': 'Parsed intent: Canvas edit request.\nGenerated syntax-highlighted code update.\nSynchronized AST buffer.',
-        'thoughtDuration': '1.8s',
-        'text': 'Updated canvas specification according to instructions. The right pane code editor has been refreshed with syntax tokens.',
+        'text': 'Canvas editing is not connected to the AI backend yet.',
         'time': 'Just now',
-        'artifactUpdate': '${_activeDoc.title} v${_activeDoc.version + 1}',
       });
 
-      _documents[_selectedDocIndex] = _activeDoc.copyWith(
-        version: _activeDoc.version + 1,
-        diffAdditions: _activeDoc.diffAdditions + 6,
-      );
-      _currentVersion = (_activeDoc.version).toDouble();
+      if (_documents.isNotEmpty) {
+        _documents[_selectedDocIndex] = _activeDoc.copyWith(
+          version: _activeDoc.version + 1,
+          diffAdditions: _activeDoc.diffAdditions + 6,
+        );
+        _currentVersion = (_activeDoc.version).toDouble();
+      }
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -182,6 +184,38 @@ class _DualCanvasScreenState extends State<DualCanvasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Honest empty state: no fabricated documents until the backend is wired.
+    if (_documents.isEmpty) {
+      return Scaffold(
+        backgroundColor: QuantColors.voidObsidian,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Text(
+                    'No canvas documents',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: QuantColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Documents will appear here once the canvas backend is connected.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: QuantColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: QuantColors.voidObsidian,
       body: SafeArea(

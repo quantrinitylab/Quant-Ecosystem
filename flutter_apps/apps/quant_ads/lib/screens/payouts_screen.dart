@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/ads_models.dart';
-import '../services/ads_mock_data.dart';
 
 class PayoutsScreen extends StatefulWidget {
   const PayoutsScreen({super.key});
@@ -32,9 +31,16 @@ class _PayoutsScreenState extends State<PayoutsScreen> {
   @override
   void initState() {
     super.initState();
-    _payoutHistory = AdsMockData.getPayoutHistory();
-    _taxInvoices = AdsMockData.getTaxInvoices();
-    _balanceSummary = AdsMockData.getCreatorBalanceSummary();
+    // No mock data: payouts load from the real backend. Until the data seam
+    // is wired, balances are honestly zero and lists are empty.
+    _payoutHistory = <PayoutTransaction>[];
+    _taxInvoices = <TaxInvoice>[];
+    _balanceSummary = const CreatorBalanceSummary(
+      availableBalance: 0,
+      pendingBalance: 0,
+      grossRevenue: 0,
+      totalDisbursedYtd: 0,
+    );
     _availableBalance = _balanceSummary.availableBalance;
     _pendingBalance = _balanceSummary.pendingBalance;
     _autoThreshold = _balanceSummary.minimumThreshold;

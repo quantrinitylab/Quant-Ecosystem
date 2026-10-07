@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quant_core/quant_core.dart';
 import 'package:quant_theme/quant_theme.dart';
-import 'package:quant_gram/data/gram_repository.dart';
 import 'package:quant_gram/models/gram_models.dart';
 import 'package:quant_gram/screens/reels_player_screen.dart';
 import 'package:quant_gram/screens/stories_tray.dart';
-import 'package:quant_gram/screens/comments_sheet.dart';
 import 'package:quant_gram/screens/dms/dms_inbox_screen.dart';
 import 'package:quant_gram/screens/remix/sovereign_remix_studio.dart';
 import 'package:quant_gram/screens/gifts/virtual_gifts_sheet.dart';
@@ -20,26 +18,50 @@ void main() {
   // 1. DOMAIN MODELS & REPOSITORY TESTS
   // ===========================================================================
   group('QuantGram Domain Models & Repository Tests', () {
-    test('GramRepository returns non-empty reels collection with remix & audio metadata', () {
-      final reels = GramRepository.getReels();
-      expect(reels.isNotEmpty, isTrue);
-      expect(reels.length, greaterThanOrEqualTo(5));
-
-      final firstReel = reels.first;
-      expect(firstReel.creatorHandle, equals('quantrinity'));
-      expect(firstReel.isCreatorVerified, isTrue);
-      expect(firstReel.hashtags, contains('#QuantEcosystem'));
-      expect(firstReel.viewsCount, greaterThan(100000));
-      expect(firstReel.isRemixable, isTrue);
-      expect(firstReel.remixCount, greaterThan(0));
-      expect(firstReel.audioTrack.isNotEmpty, isTrue);
-      expect(firstReel.audioArtist.isNotEmpty, isTrue);
+    test('ReelItem constructs real reel data', () {
+      final reel = ReelItem(
+        id: 'reel-test-1',
+        creatorId: 'user-test-1',
+        creatorHandle: '@testcreator',
+        creatorDisplayName: 'Test Creator',
+        creatorAvatarUrl: '',
+        caption: 'A test reel',
+        hashtags: ['#test'],
+        audioTrack: 'Test Audio',
+        likesCount: 10,
+        commentsCount: 2,
+        shareCount: 1,
+        bookmarksCount: 3,
+        viewsCount: 100,
+        videoUrl: '',
+        thumbnailUrl: '',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      expect(reel.id, equals('reel-test-1'));
+      expect(reel.creatorHandle, equals('@testcreator'));
+      expect(reel.audioTrack.isNotEmpty, isTrue);
+      expect(reel.viewsCount, equals(100));
     });
 
     test('ReelItem copyWith updates mutable state correctly', () {
-      final reels = GramRepository.getReels();
-      final reel = reels.first;
-
+      final reel = ReelItem(
+        id: 'reel-test-1',
+        creatorId: 'user-test-1',
+        creatorHandle: '@testcreator',
+        creatorDisplayName: 'Test Creator',
+        creatorAvatarUrl: '',
+        caption: 'A test reel',
+        hashtags: ['#test'],
+        audioTrack: 'Test Audio',
+        likesCount: 10,
+        commentsCount: 2,
+        shareCount: 1,
+        bookmarksCount: 3,
+        viewsCount: 100,
+        videoUrl: '',
+        thumbnailUrl: '',
+        createdAt: DateTime(2026, 1, 1),
+      );
       final updated = reel.copyWith(
         isLiked: true,
         likesCount: reel.likesCount + 1,
@@ -56,23 +78,30 @@ void main() {
       expect(updated.creatorHandle, equals(reel.creatorHandle));
     });
 
-    test('GramRepository returns 24h stories with slices, gradient and unwatched states', () {
-      final stories = GramRepository.getStories();
-      expect(stories.isNotEmpty, isTrue);
-      expect(stories.first.username, equals('Your Story'));
+    test('StoryItem constructs real story data', () {
+      const story = StoryItem(
+        id: 'story-test-1',
+        userId: 'user-test-1',
+        username: 'testuser',
+        avatarUrl: '',
+        mediaUrl: '',
+        timestampText: '1h',
+      );
 
-      final unwatched = stories.where((s) => s.isUnwatched).toList();
-      expect(unwatched.isNotEmpty, isTrue);
-
-      final secondStory = stories[1];
-      expect(secondStory.slicesCount, greaterThanOrEqualTo(1));
-      expect(secondStory.expiresInHours, equals(24));
-      expect(secondStory.backgroundGradient.length, greaterThanOrEqualTo(2));
+      expect(story.id, equals('story-test-1'));
+      expect(story.expiresInHours, equals(24));
+      expect(story.backgroundGradient.length, greaterThanOrEqualTo(2));
     });
 
     test('StoryItem copyWith updates active slice and watched state', () {
-      final stories = GramRepository.getStories();
-      final story = stories[1];
+      const story = StoryItem(
+        id: 'story-test-1',
+        userId: 'user-test-1',
+        username: 'testuser',
+        avatarUrl: '',
+        mediaUrl: '',
+        timestampText: '1h',
+      );
 
       final updated = story.copyWith(
         isUnwatched: false,
@@ -84,42 +113,75 @@ void main() {
       expect(updated.username, equals(story.username));
     });
 
-    test('GramRepository returns comments with nested reply threads, pinned & verified badges', () {
-      final comments = GramRepository.getCommentsForReel('reel-1');
-      expect(comments.isNotEmpty, isTrue);
+    test('CommentItem constructs real comment data with reply threads', () {
+      const reply = CommentItem(
+        id: 'comment-reply-1',
+        reelId: 'reel-test-1',
+        userId: 'user-test-2',
+        username: 'replier',
+        avatarUrl: '',
+        text: 'A reply',
+        timestampText: '1h',
+        likesCount: 5,
+        isVerifiedCreator: true,
+        creatorHearted: true,
+      );
+      const comment = CommentItem(
+        id: 'comment-test-1',
+        reelId: 'reel-test-1',
+        userId: 'user-test-1',
+        username: 'commenter',
+        avatarUrl: '',
+        text: 'A comment',
+        timestampText: '2h',
+        likesCount: 3,
+        isCreatorPinned: true,
+        replies: [reply],
+      );
 
-      final pinned = comments.where((c) => c.isCreatorPinned).toList();
-      expect(pinned.isNotEmpty, isTrue);
-      expect(pinned.first.replies.isNotEmpty, isTrue);
-
-      // Verify verified creator badge and creator heart on replies
-      final verifiedReplies = pinned.first.replies.where((r) => r.isVerifiedCreator).toList();
-      expect(verifiedReplies.isNotEmpty, isTrue);
-      expect(verifiedReplies.first.username, equals('quantrinity'));
-      expect(verifiedReplies.first.creatorHearted, isTrue);
+      expect(comment.isCreatorPinned, isTrue);
+      expect(comment.replies.isNotEmpty, isTrue);
+      expect(comment.replies.first.isVerifiedCreator, isTrue);
+      expect(comment.replies.first.creatorHearted, isTrue);
     });
 
     test('CommentItem copyWith updates likes, pin and creatorHearted properties', () {
-      final comments = GramRepository.getCommentsForReel('reel-1');
-      final cmt = comments.first;
+      const cmt = CommentItem(
+        id: 'comment-test-1',
+        reelId: 'reel-test-1',
+        userId: 'user-test-1',
+        username: 'commenter',
+        avatarUrl: '',
+        text: 'A comment',
+        timestampText: '2h',
+        likesCount: 3,
+      );
 
       final updated = cmt.copyWith(
         isLiked: true,
         likesCount: cmt.likesCount + 1,
         creatorHearted: true,
       );
-
       expect(updated.isLiked, isTrue);
       expect(updated.likesCount, equals(cmt.likesCount + 1));
       expect(updated.creatorHearted, isTrue);
-      expect(updated.text, equals(cmt.text));
     });
 
-    test('CreatorProfile contains valid metrics and verified status', () {
-      final profile = GramRepository.getProfile();
-      expect(profile.handle, equals('quantrinity'));
-      expect(profile.isVerified, isTrue);
-      expect(profile.followersCount, greaterThan(500000));
+    test('CreatorProfile holds real profile data', () {
+      const profile = CreatorProfile(
+        id: 'user-test-1',
+        handle: '@testcreator',
+        displayName: 'Test Creator',
+        avatarUrl: '',
+        bio: 'A test bio',
+        postsCount: 12,
+        followersCount: 100,
+        followingCount: 50,
+        totalLikesCount: 500,
+      );
+      expect(profile.handle, equals('@testcreator'));
+      expect(profile.postsCount, equals(12));
+      expect(profile.followersCount, equals(100));
     });
   });
 
@@ -202,21 +264,30 @@ void main() {
     });
 
     testWidgets('StoriesTray renders horizontal story list with squircle items', (WidgetTester tester) async {
-      final stories = GramRepository.getStories();
+      const stories = [
+        StoryItem(
+          id: 'story-test-1',
+          userId: 'user-test-1',
+          username: 'testuser',
+          avatarUrl: '',
+          mediaUrl: '',
+          timestampText: '1h',
+        ),
+      ];
 
       await tester.pumpWidget(
         MaterialApp(
           theme: QuantTheme.obsidianDarkTheme,
-          home: Scaffold(
+          home: const Scaffold(
             body: StoriesTray(stories: stories),
           ),
         ),
       );
       await tester.pump();
 
+      // Renders the real story items passed in (no fabricated data).
       expect(find.byType(StoriesTray), findsOneWidget);
-      expect(find.text('Your Story'), findsOneWidget);
-      expect(find.text('quantrinity'), findsOneWidget);
+      expect(find.text('testuser'), findsOneWidget);
     });
 
     testWidgets('DmsInboxScreen renders search bar, notes strip, and filter tabs', (WidgetTester tester) async {
@@ -259,8 +330,24 @@ void main() {
     });
 
     testWidgets('SovereignRemixStudio renders 3 remix modes and controls', (WidgetTester tester) async {
-      final reels = GramRepository.getReels();
-      final reel = reels.first;
+      final reel = ReelItem(
+        id: 'reel-test-1',
+        creatorId: 'user-test-1',
+        creatorHandle: '@testcreator',
+        creatorDisplayName: 'Test Creator',
+        creatorAvatarUrl: '',
+        caption: 'A test reel',
+        hashtags: ['#test'],
+        audioTrack: 'Test Audio',
+        likesCount: 10,
+        commentsCount: 2,
+        shareCount: 1,
+        bookmarksCount: 3,
+        viewsCount: 100,
+        videoUrl: '',
+        thumbnailUrl: '',
+        createdAt: DateTime(2026, 1, 1),
+      );
 
       await tester.pumpWidget(
         MaterialApp(

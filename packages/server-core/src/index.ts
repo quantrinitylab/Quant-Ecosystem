@@ -1,6 +1,5 @@
 export { createApp } from './app';
 export {
-  assertProductionSecret,
   InsecureSecretError,
   INSECURE_DEV_JWT_SECRET,
   MIN_PRODUCTION_SECRET_LENGTH,

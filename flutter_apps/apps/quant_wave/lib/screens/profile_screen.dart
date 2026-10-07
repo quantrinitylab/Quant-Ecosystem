@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:quant_theme/quant_theme.dart';
 import 'package:quant_ui/quant_ui.dart';
 import '../models/wave_models.dart';
-import '../services/wave_mock_data.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,13 +17,14 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
-  late UserProfile _profile;
+  // Honest default: no fabricated profile. Null until the real backend loads.
+  UserProfile? _profile;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _profile = WaveMockData.getUserProfile();
+    _profile = null;
     _tabController = TabController(length: 4, vsync: this);
   }
 
@@ -35,6 +36,15 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
+    // Honest empty state: no fabricated profile.
+    if (_profile == null) {
+      return const Center(
+        child: Text(
+          'Profile is not available yet.',
+          style: TextStyle(color: QuantColors.textSecondary, fontSize: 14),
+        ),
+      );
+    }
     return Column(
       children: [
         // Profile Header Section
@@ -50,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 children: [
                   CircleAvatar(
                     radius: 32,
-                    backgroundColor: _profile.avatarColor,
+                    backgroundColor: _profile!.avatarColor,
                     child: const Text(
                       'QS',
                       style: TextStyle(
@@ -89,14 +99,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               Row(
                 children: [
                   Text(
-                    _profile.name,
+                    _profile!.name,
                     style: const TextStyle(
                       color: QuantColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  if (_profile.isVerified) ...[
+                  if (_profile!.isVerified) ...[
                     const SizedBox(width: 6),
                     const Icon(
                       Icons.verified_rounded,
@@ -108,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ),
               const SizedBox(height: 2),
               Text(
-                _profile.handle,
+                _profile!.handle,
                 style: const TextStyle(
                   color: QuantColors.textMuted,
                   fontSize: 13,
@@ -118,7 +128,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
 
               // Bio
               Text(
-                _profile.bio,
+                _profile!.bio,
                 style: const TextStyle(
                   color: QuantColors.textSecondary,
                   fontSize: 13,
@@ -133,14 +143,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   const Icon(Icons.location_on_outlined, size: 14, color: QuantColors.textMuted),
                   const SizedBox(width: 4),
                   Text(
-                    _profile.location,
+                    _profile!.location,
                     style: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
                   ),
                   const SizedBox(width: 14),
                   const Icon(Icons.calendar_today_outlined, size: 13, color: QuantColors.textMuted),
                   const SizedBox(width: 4),
                   Text(
-                    _profile.joinDate,
+                    _profile!.joinDate,
                     style: const TextStyle(color: QuantColors.textMuted, fontSize: 12),
                   ),
                 ],
@@ -150,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               // Followers / Following / Karma / Quant Credits Badges
               Row(
                 children: [
-                  _buildStatItem('Following', _profile.followingCount.toString()),
+                  _buildStatItem('Following', _profile!.followingCount.toString()),
                   const SizedBox(width: 14),
                   _buildStatItem('Followers', '18.9k'),
                   const SizedBox(width: 14),

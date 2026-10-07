@@ -519,75 +519,6 @@ export function computeLineDiff(original: string, current: string): DiffLine[] {
   return backtrack.reverse();
 }
 
-export interface BlameLineInfo {
-  sha: string;
-  author: string;
-  date: string;
-  message: string;
-}
-
-export function getMockBlame(lineNumber: number, filePath: string): BlameLineInfo {
-  if (lineNumber % 3 === 1) {
-    return {
-      sha: '948e3612',
-      author: 'Developer 6',
-      date: '2 hours ago',
-      message: `feat(core): sovereign IDE enhancement in ${filePath.split('/').pop() || filePath}`,
-    };
-  } else if (lineNumber % 3 === 2) {
-    return {
-      sha: 'a710bc4e',
-      author: 'Developer 2',
-      date: 'Yesterday',
-      message: 'test(qa): add regression coverage sentinel',
-    };
-  } else {
-    return {
-      sha: 'f189d230',
-      author: 'CEO Astra',
-      date: '3 days ago',
-      message: 'refactor(arch): zero external tracking signature',
-    };
-  }
-}
-
-export interface CommitHistoryItem {
-  sha: string;
-  author: string;
-  date: string;
-  message: string;
-}
-
-export function getMockFileHistory(filePath: string): CommitHistoryItem[] {
-  const name = filePath.split('/').pop() || 'file';
-  return [
-    {
-      sha: '948e3612a4b8',
-      author: 'Developer 6',
-      date: '2 hours ago',
-      message: `feat: implement sovereign in-browser IDE parity for ${name}`,
-    },
-    {
-      sha: 'a710bc4e921d',
-      author: 'Developer 2',
-      date: 'Yesterday',
-      message: `test: add Vitest QA sentinel coverage for ${name}`,
-    },
-    {
-      sha: 'f189d23081ca',
-      author: 'CEO Astra',
-      date: '3 days ago',
-      message: `refactor: harden architecture and security boundaries`,
-    },
-    {
-      sha: 'c3d4e5f67890',
-      author: 'Developer 1',
-      date: '5 days ago',
-      message: `Initial commit for ${name}`,
-    },
-  ];
-}
-
 export interface CodeTabProps {
   selectedRepo: Repo;
   currentBranch: string;
@@ -1654,30 +1585,17 @@ pnpm install && pnpm dev
                   ))}
                 </div>
 
-                {/* Optional Git Blame column */}
+                {/* Optional Git Blame column — no backend blame endpoint exists yet, so no fabricated rows */}
                 {isBlameActive && (
                   <div
                     data-testid="blame-gutter"
-                    className={`select-none py-3 px-2 border-r font-mono text-[11px] leading-6 shrink-0 divide-y divide-[#21262D]/60 ${
+                    className={`select-none py-3 px-2 border-r font-mono text-[11px] leading-6 shrink-0 ${
                       editorTheme === 'github-dark'
                         ? 'bg-[#161B22]/40 text-[#7D8590] border-[#30363D]'
                         : 'bg-[#F6F8FA] text-[#57606A] border-[#D0D7DE]'
                     }`}
                   >
-                    {lines.map((_, idx) => {
-                      const commit = getMockBlame(idx + 1, editingFile.path);
-                      return (
-                        <div
-                          key={idx}
-                          className="flex items-center gap-2 truncate px-1 text-[10px]"
-                          title={`${commit.sha}: ${commit.message} (${commit.author})`}
-                        >
-                          <span className="font-mono text-[#58A6FF]">{commit.sha.slice(0, 7)}</span>
-                          <span className="truncate max-w-[80px]">{commit.author}</span>
-                          <span className="text-[#8B949E] text-[9px]">{commit.date}</span>
-                        </div>
-                      );
-                    })}
+                    <div className="px-2 text-[10px] text-[#8B949E]">Blame unavailable</div>
                   </div>
                 )}
 
@@ -2060,35 +1978,10 @@ pnpm install && pnpm dev
               </div>
 
               <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                {getMockFileHistory(editingFile.path).map((hist) => (
-                  <div
-                    key={hist.sha}
-                    className="p-3 rounded-lg bg-[#0D1117] border border-[#30363D] flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-white truncate">{hist.message}</p>
-                      <p className="text-[11px] text-[#7D8590]">
-                        {hist.author} committed {hist.date}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-[11px] px-2 py-0.5 rounded bg-[#21262D] text-[#58A6FF] border border-[#30363D]">
-                        {hist.sha.slice(0, 7)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(hist.sha);
-                          showToast(`Copied commit SHA: ${hist.sha}`);
-                        }}
-                        className="hover:text-white text-[#7D8590] p-1"
-                        title="Copy full SHA"
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                <div className="p-6 text-center">
+                  <p className="text-sm font-semibold text-white">No history available</p>
+                  <p className="text-[11px] text-[#7D8590] mt-1">File history is not served by the backend yet.</p>
+                </div>
               </div>
 
               <div className="flex justify-end pt-2 border-t border-[#30363D]">

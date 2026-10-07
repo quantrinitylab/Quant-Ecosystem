@@ -161,8 +161,8 @@ void main() {
       expect(event.seriesLabel, 'Series: Day 2 of 5 (RFC 5545)');
 
       final sampleEvents = CalendarEvent.sampleEvents();
-      expect(sampleEvents.length, greaterThanOrEqualTo(5));
-      expect(sampleEvents.any((e) => e.isMultiDaySeries), isTrue);
+      // Honest default: no fabricated schedule until a real source is wired.
+      expect(sampleEvents, isEmpty);
     });
 
     test('MeetingCall: QuantMeet HD Video properties, AV1 bitrates and join URL', () {
