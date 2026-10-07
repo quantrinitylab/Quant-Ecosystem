@@ -17,6 +17,7 @@ import type {
   FactCheck,
   ApiResponse,
 } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const API_BASE = '/api';
 
@@ -105,7 +106,7 @@ class QuantSyncAPI {
     if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
     if (this.anonymousMode) headers['X-Anonymous-Mode'] = 'true';
 
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await apiFetchRaw(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,

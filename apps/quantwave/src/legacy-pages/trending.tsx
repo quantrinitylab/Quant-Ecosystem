@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface TrendingHashtag {
   id: string;
@@ -53,8 +54,8 @@ const TrendingPage: React.FC = () => {
       setLoading(true);
       const params = new URLSearchParams({ timeRange, location });
       const [hashtagsRes, postsRes] = await Promise.all([
-        fetch(`/api/trending/hashtags?${params.toString()}`),
-        fetch(`/api/trending/posts?${params.toString()}`),
+        apiFetchRaw(`/api/trending/hashtags?${params.toString()}`),
+        apiFetchRaw(`/api/trending/posts?${params.toString()}`),
       ]);
       if (!hashtagsRes.ok || !postsRes.ok) throw new Error('Failed to load trending');
       const hashtagsData = await hashtagsRes.json();
@@ -71,7 +72,7 @@ const TrendingPage: React.FC = () => {
 
   const fetchForYou = useCallback(async () => {
     try {
-      const res = await fetch('/api/trending/foryou');
+      const res = await apiFetchRaw('/api/trending/foryou');
       if (res.ok) {
         const data = await res.json();
         setForYouPosts(data.posts || []);

@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface AnalyticsOverview {
   impressions: number;
@@ -63,11 +64,11 @@ const AnalyticsPage: React.FC = () => {
       setLoading(true);
       const params = new URLSearchParams({ range: dateRange });
       const [overviewRes, metricsRes, postsRes, demoRes, heatmapRes] = await Promise.all([
-        fetch(`/api/analytics/overview?${params.toString()}`),
-        fetch(`/api/analytics/metrics?${params.toString()}`),
-        fetch(`/api/analytics/top-posts?${params.toString()}`),
-        fetch(`/api/analytics/demographics`),
-        fetch(`/api/analytics/heatmap?${params.toString()}`),
+        apiFetchRaw(`/api/analytics/overview?${params.toString()}`),
+        apiFetchRaw(`/api/analytics/metrics?${params.toString()}`),
+        apiFetchRaw(`/api/analytics/top-posts?${params.toString()}`),
+        apiFetchRaw(`/api/analytics/demographics`),
+        apiFetchRaw(`/api/analytics/heatmap?${params.toString()}`),
       ]);
       if (overviewRes.ok) setOverview(await overviewRes.json());
       if (metricsRes.ok) setDailyMetrics((await metricsRes.json()).metrics || []);

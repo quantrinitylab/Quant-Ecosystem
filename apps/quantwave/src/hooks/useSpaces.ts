@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Speaker {
   id: string;
@@ -207,7 +208,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/spaces/${spaceId}/join`, { method: 'POST' });
+        const res = await apiFetchRaw(`/api/spaces/${spaceId}/join`, { method: 'POST' });
         if (!res.ok) throw new Error('Failed to join space');
         const data = await res.json();
         setSpace({
@@ -237,7 +238,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const leave = useCallback(async () => {
     if (!space) return;
     try {
-      await fetch(`/api/spaces/${space.id}/leave`, { method: 'POST' });
+      await apiFetchRaw(`/api/spaces/${space.id}/leave`, { method: 'POST' });
     } catch {}
     if (wsRef.current) wsRef.current.close();
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
@@ -269,7 +270,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const raiseHand = useCallback(async () => {
     if (!space) return;
     setSpace((prev) => (prev ? { ...prev, hasRaisedHand: true } : null));
-    await fetch(`/api/spaces/${space.id}/hand`, {
+    await apiFetchRaw(`/api/spaces/${space.id}/hand`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ raised: true }),
@@ -279,7 +280,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const lowerHand = useCallback(async () => {
     if (!space) return;
     setSpace((prev) => (prev ? { ...prev, hasRaisedHand: false } : null));
-    await fetch(`/api/spaces/${space.id}/hand`, {
+    await apiFetchRaw(`/api/spaces/${space.id}/hand`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ raised: false }),
@@ -293,7 +294,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const inviteSpeaker = useCallback(
     async (userId: string) => {
       if (!space) return;
-      await fetch(`/api/spaces/${space.id}/invite-speaker`, {
+      await apiFetchRaw(`/api/spaces/${space.id}/invite-speaker`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -305,7 +306,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const removeSpeaker = useCallback(
     async (userId: string) => {
       if (!space) return;
-      await fetch(`/api/spaces/${space.id}/remove-speaker`, {
+      await apiFetchRaw(`/api/spaces/${space.id}/remove-speaker`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -317,7 +318,7 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
   const muteSpeaker = useCallback(
     async (userId: string) => {
       if (!space) return;
-      await fetch(`/api/spaces/${space.id}/mute-speaker`, {
+      await apiFetchRaw(`/api/spaces/${space.id}/mute-speaker`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -328,20 +329,20 @@ export function useSpaces(options: UseSpacesOptions = {}): UseSpacesReturn {
 
   const endSpace = useCallback(async () => {
     if (!space) return;
-    await fetch(`/api/spaces/${space.id}/end`, { method: 'POST' });
+    await apiFetchRaw(`/api/spaces/${space.id}/end`, { method: 'POST' });
     if (wsRef.current) wsRef.current.close();
     setSpace(null);
   }, [space]);
 
   const startRecording = useCallback(async () => {
     if (!space) return;
-    await fetch(`/api/spaces/${space.id}/recording/start`, { method: 'POST' });
+    await apiFetchRaw(`/api/spaces/${space.id}/recording/start`, { method: 'POST' });
     setSpace((prev) => (prev ? { ...prev, isRecording: true } : null));
   }, [space]);
 
   const stopRecording = useCallback(async () => {
     if (!space) return;
-    await fetch(`/api/spaces/${space.id}/recording/stop`, { method: 'POST' });
+    await apiFetchRaw(`/api/spaces/${space.id}/recording/stop`, { method: 'POST' });
     setSpace((prev) => (prev ? { ...prev, isRecording: false } : null));
   }, [space]);
 

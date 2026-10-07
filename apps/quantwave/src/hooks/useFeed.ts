@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Post {
   id: string;
@@ -83,7 +84,7 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedReturn {
       if (pageCursor) params.set('cursor', pageCursor);
       if (communityId) params.set('community', communityId);
 
-      const response = await fetch(`/api/feed?${params.toString()}`, { signal: controller.signal });
+      const response = await apiFetchRaw(`/api/feed?${params.toString()}`, { signal: controller.signal });
       if (!response.ok) throw new Error(`Feed request failed: ${response.status}`);
 
       const data = await response.json();
@@ -192,7 +193,7 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedReturn {
       return p;
     }));
     try {
-      await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+      await apiFetchRaw(`/api/posts/${postId}/like`, { method: 'POST' });
     } catch {
       setPosts(prev => prev.map(p => {
         if (p.id === postId) return { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 };
@@ -207,7 +208,7 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedReturn {
       return p;
     }));
     try {
-      await fetch(`/api/posts/${postId}/repost`, { method: 'POST' });
+      await apiFetchRaw(`/api/posts/${postId}/repost`, { method: 'POST' });
     } catch {
       setPosts(prev => prev.map(p => {
         if (p.id === postId) return { ...p, isReposted: !p.isReposted, reposts: p.isReposted ? p.reposts - 1 : p.reposts + 1 };
@@ -221,12 +222,12 @@ export function useFeed(options: UseFeedOptions = {}): UseFeedReturn {
       if (p.id === postId) return { ...p, isBookmarked: !p.isBookmarked, bookmarks: p.isBookmarked ? p.bookmarks - 1 : p.bookmarks + 1 };
       return p;
     }));
-    await fetch(`/api/posts/${postId}/bookmark`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/bookmark`, { method: 'POST' });
   }, []);
 
   const deletePost = useCallback(async (postId: string) => {
     setPosts(prev => prev.filter(p => p.id !== postId));
-    await fetch(`/api/posts/${postId}`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/posts/${postId}`, { method: 'DELETE' });
   }, []);
 
   return {

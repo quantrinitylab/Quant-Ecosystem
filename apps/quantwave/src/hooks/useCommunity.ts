@@ -4,6 +4,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Community {
   id: string;
@@ -75,7 +76,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   const fetchCommunity = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/communities/${communityId}`);
+      const res = await apiFetchRaw(`/api/communities/${communityId}`);
       if (!res.ok) throw new Error('Community not found');
       const data = await res.json();
       setCommunity(data);
@@ -92,7 +93,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
       setPostsLoading(true);
       const params = new URLSearchParams({ sort });
       if (flair) params.set('flair', flair);
-      const res = await fetch(`/api/communities/${communityId}/posts?${params.toString()}`);
+      const res = await apiFetchRaw(`/api/communities/${communityId}/posts?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setPosts(data.posts || []);
@@ -112,7 +113,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   const join = useCallback(async () => {
     setCommunity(prev => prev ? { ...prev, isJoined: true, memberCount: prev.memberCount + 1 } : null);
     try {
-      const res = await fetch(`/api/communities/${communityId}/join`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/communities/${communityId}/join`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to join');
     } catch {
       setCommunity(prev => prev ? { ...prev, isJoined: false, memberCount: prev.memberCount - 1 } : null);
@@ -122,7 +123,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   const leave = useCallback(async () => {
     setCommunity(prev => prev ? { ...prev, isJoined: false, memberCount: prev.memberCount - 1 } : null);
     try {
-      const res = await fetch(`/api/communities/${communityId}/leave`, { method: 'POST' });
+      const res = await apiFetchRaw(`/api/communities/${communityId}/leave`, { method: 'POST' });
       if (!res.ok) throw new Error('Failed to leave');
     } catch {
       setCommunity(prev => prev ? { ...prev, isJoined: true, memberCount: prev.memberCount + 1 } : null);
@@ -130,7 +131,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   }, [communityId]);
 
   const createPost = useCallback(async (data: { title: string; content: string; flairId?: string }) => {
-    const res = await fetch(`/api/communities/${communityId}/posts`, {
+    const res = await apiFetchRaw(`/api/communities/${communityId}/posts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -141,11 +142,11 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
 
   const likePost = useCallback(async (postId: string) => {
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p));
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/like`, { method: 'POST' });
   }, []);
 
   const removePost = useCallback(async (postId: string, reason: string) => {
-    await fetch(`/api/communities/${communityId}/posts/${postId}`, {
+    await apiFetchRaw(`/api/communities/${communityId}/posts/${postId}`, {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reason }),
@@ -154,7 +155,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   }, [communityId]);
 
   const banUser = useCallback(async (userId: string, reason: string, duration?: number) => {
-    await fetch(`/api/communities/${communityId}/ban`, {
+    await apiFetchRaw(`/api/communities/${communityId}/ban`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, reason, duration }),
@@ -162,7 +163,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   }, [communityId]);
 
   const updateRules = useCallback(async (rules: { title: string; description: string }[]) => {
-    const res = await fetch(`/api/communities/${communityId}/rules`, {
+    const res = await apiFetchRaw(`/api/communities/${communityId}/rules`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rules }),
@@ -173,7 +174,7 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   }, [communityId]);
 
   const addModerator = useCallback(async (userId: string) => {
-    await fetch(`/api/communities/${communityId}/moderators`, {
+    await apiFetchRaw(`/api/communities/${communityId}/moderators`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId }),
@@ -182,12 +183,12 @@ export function useCommunity(options: UseCommunityOptions): UseCommunityReturn {
   }, [communityId, fetchCommunity]);
 
   const removeModerator = useCallback(async (userId: string) => {
-    await fetch(`/api/communities/${communityId}/moderators/${userId}`, { method: 'DELETE' });
+    await apiFetchRaw(`/api/communities/${communityId}/moderators/${userId}`, { method: 'DELETE' });
     await fetchCommunity();
   }, [communityId, fetchCommunity]);
 
   const updateSettings = useCallback(async (settings: { name?: string; description?: string; category?: string }) => {
-    const res = await fetch(`/api/communities/${communityId}`, {
+    const res = await apiFetchRaw(`/api/communities/${communityId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings),

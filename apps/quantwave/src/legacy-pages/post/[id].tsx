@@ -4,6 +4,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface PostDetail {
   id: string;
@@ -62,8 +63,8 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
     try {
       setLoading(true);
       const [postRes, repliesRes] = await Promise.all([
-        fetch(`/api/posts/${postId}`),
-        fetch(`/api/posts/${postId}/replies`),
+        apiFetchRaw(`/api/posts/${postId}`),
+        apiFetchRaw(`/api/posts/${postId}/replies`),
       ]);
       if (!postRes.ok) throw new Error('Post not found');
       const postData = await postRes.json();
@@ -89,7 +90,7 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
         ? { ...prev, isLiked: !prev.isLiked, likes: prev.isLiked ? prev.likes - 1 : prev.likes + 1 }
         : null,
     );
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/like`, { method: 'POST' });
   }, [post, postId]);
 
   const handleRepost = useCallback(async () => {
@@ -103,7 +104,7 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
           }
         : null,
     );
-    await fetch(`/api/posts/${postId}/repost`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/repost`, { method: 'POST' });
   }, [post, postId]);
 
   const handleBookmark = useCallback(async () => {
@@ -117,7 +118,7 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
           }
         : null,
     );
-    await fetch(`/api/posts/${postId}/bookmark`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${postId}/bookmark`, { method: 'POST' });
   }, [post, postId]);
 
   const handleReply = useCallback(async () => {
@@ -125,7 +126,7 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
     setReplying(true);
     try {
       const targetId = replyToId || postId;
-      const res = await fetch(`/api/posts/${targetId}/reply`, {
+      const res = await apiFetchRaw(`/api/posts/${targetId}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: replyContent }),
@@ -150,7 +151,7 @@ const PostPage: React.FC<{ id?: string }> = ({ id }) => {
       });
     };
     setReplies((prev) => updateReplies(prev));
-    await fetch(`/api/posts/${replyId}/like`, { method: 'POST' });
+    await apiFetchRaw(`/api/posts/${replyId}/like`, { method: 'POST' });
   }, []);
 
   const toggleCollapse = useCallback((replyId: string) => {
