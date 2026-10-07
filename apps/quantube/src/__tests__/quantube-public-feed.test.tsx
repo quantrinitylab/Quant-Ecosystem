@@ -122,10 +122,10 @@ describe('QuanTube Public Feed & DTTube Resolution Badges', () => {
     it('renders guest welcome hero banner for unauthenticated visitors without crashing or 401', () => {
       const html = renderToStaticMarkup(<HomePage />);
 
-      // Hero banner for guest visitors
+      // Hero banner for guest visitors — honest copy when the catalog is empty
       expect(html).toContain('Welcome to QuanTube');
       expect(html).toContain('data-testid="guest-hero-banner"');
-      expect(html).toContain('Enjoy free, smooth video');
+      expect(html).toContain('no videos yet');
 
       // Featured videos rendered without requiring login
       expect(html).toContain('Sovereign Computing Keynote 2026');
