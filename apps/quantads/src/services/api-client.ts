@@ -12,6 +12,7 @@ import type {
   CustomAudience,
   ApiResponse,
 } from '../types';
+import { apiFetchRaw } from '@quant/api-client';
 
 const API_BASE = '/api';
 
@@ -45,7 +46,7 @@ class QuantAdsAPI {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const token = this.resolveToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await apiFetchRaw(`${API_BASE}${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,

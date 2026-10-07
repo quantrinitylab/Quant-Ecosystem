@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Variant {
   id: string;
@@ -71,7 +72,7 @@ const ABTestResults: React.FC<ABTestResultsProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/campaigns/ab-tests/${testId}`);
+      const response = await apiFetchRaw(`/api/campaigns/ab-tests/${testId}`);
       if (!response.ok) throw new Error('Failed to load A/B test data');
       const data = await response.json();
       setTest(data);

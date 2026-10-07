@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface FraudMetrics {
   invalidTrafficRate: number;
@@ -80,7 +81,7 @@ const FraudPage: React.FC<FraudPageProps> = ({ accountId: _accountId }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/fraud/dashboard?range=${dateRange}`);
+      const response = await apiFetchRaw(`/api/fraud/dashboard?range=${dateRange}`);
       if (!response.ok) throw new Error('Failed to load fraud data');
       const data = await response.json();
       setMetrics(data.metrics);
@@ -101,7 +102,7 @@ const FraudPage: React.FC<FraudPageProps> = ({ accountId: _accountId }) => {
 
   const blockIP = useCallback(async (ip: string) => {
     try {
-      await fetch('/api/fraud/block-ip', {
+      await apiFetchRaw('/api/fraud/block-ip', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ip }),
@@ -114,7 +115,7 @@ const FraudPage: React.FC<FraudPageProps> = ({ accountId: _accountId }) => {
 
   const resolveAlert = useCallback(async (id: string) => {
     try {
-      await fetch(`/api/fraud/alerts/${id}/resolve`, { method: 'PUT' });
+      await apiFetchRaw(`/api/fraud/alerts/${id}/resolve`, { method: 'PUT' });
       setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, resolved: true } : a)));
     } catch {}
   }, []);

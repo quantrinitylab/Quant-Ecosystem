@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Template {
   id: string;
@@ -82,7 +83,7 @@ const CreativeStudioPage: React.FC<CreativeStudioPageProps> = ({ accountId: _acc
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/creative-studio/templates');
+      const response = await apiFetchRaw('/api/creative-studio/templates');
       if (!response.ok) throw new Error('Failed to load templates');
       const data = await response.json();
       setTemplates(data.templates || []);
@@ -209,7 +210,7 @@ const CreativeStudioPage: React.FC<CreativeStudioPageProps> = ({ accountId: _acc
   const saveProject = useCallback(async () => {
     try {
       const body = { name: projectName, templateId: selectedTemplate?.id, layers };
-      const response = await fetch('/api/creative-studio/projects', {
+      const response = await apiFetchRaw('/api/creative-studio/projects', {
         method: currentProject ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(currentProject ? { ...body, id: currentProject.id } : body),
@@ -226,7 +227,7 @@ const CreativeStudioPage: React.FC<CreativeStudioPageProps> = ({ accountId: _acc
     async (format: 'png' | 'jpg' | 'svg' | 'pdf') => {
       setExporting(true);
       try {
-        const response = await fetch('/api/creative-studio/export', {
+        const response = await apiFetchRaw('/api/creative-studio/export', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ layers, format, dimensions: selectedTemplate?.dimensions }),

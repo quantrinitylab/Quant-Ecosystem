@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card, Button, LoadingState, ErrorState, EmptyState } from '@quant/shared-ui';
 import { useAuth } from '@quant/shared-ui';
+import { apiFetchRaw } from '@quant/api-client';
 
 // ============================================================================
 // QuantAds - Creator Marketplace (real identity + real credits-ledger endpoints)
@@ -41,7 +42,7 @@ interface Earnings {
 }
 
 async function getJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await apiFetchRaw(url);
   const body = await res.json().catch(() => ({}));
   if (!res.ok || body?.success === false) {
     throw new Error(body?.error?.message ?? `Request failed (${res.status})`);
@@ -93,7 +94,7 @@ export default function CreatorPage() {
       setBuyingId(listing.id);
       setNotice(null);
       try {
-        const res = await fetch('/api/creator-economy/purchase', {
+        const res = await apiFetchRaw('/api/creator-economy/purchase', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

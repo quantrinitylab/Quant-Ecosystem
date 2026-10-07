@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { spring } from '@quant/brand';
+import { apiFetchRaw } from '@quant/api-client';
 
 interface Pixel {
   id: string;
@@ -96,7 +97,7 @@ const PixelsPage: React.FC<PixelsPageProps> = ({ accountId: _accountId }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/pixels');
+      const response = await apiFetchRaw('/api/pixels');
       if (!response.ok) throw new Error('Failed to load pixels');
       const data = await response.json();
       setPixels(data.pixels || []);
@@ -115,7 +116,7 @@ const PixelsPage: React.FC<PixelsPageProps> = ({ accountId: _accountId }) => {
       try {
         const params = new URLSearchParams({ limit: '50' });
         if (eventFilter !== 'all') params.set('type', eventFilter);
-        const response = await fetch(`/api/pixels/${pixelId}/events?${params.toString()}`);
+        const response = await apiFetchRaw(`/api/pixels/${pixelId}/events?${params.toString()}`);
         if (!response.ok) throw new Error('Failed to load events');
         const data = await response.json();
         setEvents(data.events || []);
@@ -126,7 +127,7 @@ const PixelsPage: React.FC<PixelsPageProps> = ({ accountId: _accountId }) => {
 
   const fetchAttribution = useCallback(async (pixelId: string) => {
     try {
-      const response = await fetch(`/api/pixels/${pixelId}/attribution`);
+      const response = await apiFetchRaw(`/api/pixels/${pixelId}/attribution`);
       if (!response.ok) return;
       const data = await response.json();
       setAttributionModels(data.models || []);
@@ -147,7 +148,7 @@ const PixelsPage: React.FC<PixelsPageProps> = ({ accountId: _accountId }) => {
   const createPixel = useCallback(async () => {
     if (!newPixelName.trim() || !newPixelDomain.trim()) return;
     try {
-      const response = await fetch('/api/pixels', {
+      const response = await apiFetchRaw('/api/pixels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newPixelName, domain: newPixelDomain }),
@@ -171,7 +172,7 @@ const PixelsPage: React.FC<PixelsPageProps> = ({ accountId: _accountId }) => {
     for (const eventType of EVENT_TYPES.slice(0, 5)) {
       await new Promise((resolve) => setTimeout(resolve, 500));
       try {
-        const response = await fetch(`/api/pixels/${selectedPixel.id}/test`, {
+        const response = await apiFetchRaw(`/api/pixels/${selectedPixel.id}/test`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ eventType }),
