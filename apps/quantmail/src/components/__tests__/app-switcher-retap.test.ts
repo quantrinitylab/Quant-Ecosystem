@@ -18,6 +18,7 @@ vi.stubGlobal('navigator', { vibrate: mockVibrate } as unknown as Navigator);
 
 import { executePillarTileClick, PILLAR_TILES } from '../QuantPillarTopBar';
 import { executeMobilePillarTap } from '../MobilePillarBottomNav';
+import { executeMobileSubTabClick, MOBILE_SUB_TAB_CONFIGS } from '../MobileSubTabStrip';
 
 describe('app-switcher re-tap refresh', () => {
   beforeEach(() => {
@@ -68,24 +69,32 @@ describe('app-switcher re-tap refresh', () => {
     // Active-tab retap must refresh, never sit dead
     expect(dispatchedEvents).toContain('quant:refresh');
     expect(dispatchedEvents).toContain('quant:pillar-retap');
+    expect(mockVibrate).toHaveBeenCalledWith(10);
   });
 
-  it('executeContextTabClick vibrates 10ms on re-tap of active sub-tab (P1-B haptic)', () => {
+  it('executeMobileSubTabClick vibrates 10ms on re-tap of active sub-tab (P1-B haptic)', () => {
     const push = vi.fn();
-    const pillarConfig = PILLAR_SUB_CONFIGS['calendar'];
-    const tab = pillarConfig.tabs[0];
-    const targetBase = tab.targetPath || '/calendar';
-    if (!tab.queryParam) {
-      executeContextTabClick(tab, 'calendar', { pathname: targetBase, router: { push } });
-      expect(mockVibrate).toHaveBeenCalledWith(10);
-    }
+    const tab = MOBILE_SUB_TAB_CONFIGS['calendar'].tabs[0];
+    executeMobileSubTabClick(tab, 'calendar', {
+      pathname: '/calendar?tab=feed',
+      router: { push },
+      isActive: true,
+    });
+    // Active sub-tab re-tap must refresh, never navigate, and give haptic feedback
+    expect(push).not.toHaveBeenCalled();
+    expect(dispatchedEvents).toContain('quant:refresh');
+    expect(mockVibrate).toHaveBeenCalledWith(10);
   });
 
-  it('executeContextTabClick does NOT vibrate when switching sub-tabs', () => {
+  it('executeMobileSubTabClick does NOT vibrate when switching sub-tabs', () => {
     const push = vi.fn();
-    const pillarConfig = PILLAR_SUB_CONFIGS['calendar'];
-    const tab = pillarConfig.tabs[1]; // not the first tab
-    executeContextTabClick(tab, 'calendar', { pathname: '/other', router: { push } });
+    const tab = MOBILE_SUB_TAB_CONFIGS['calendar'].tabs[1]; // month — not the active one
+    executeMobileSubTabClick(tab, 'calendar', {
+      pathname: '/calendar?tab=feed',
+      router: { push },
+      isActive: false,
+    });
     expect(mockVibrate).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith('/calendar?tab=month');
   });
 });
