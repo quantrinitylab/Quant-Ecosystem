@@ -1,5 +1,11 @@
 import { createApp } from '@quant/server-core';
 import type { AppConfig } from '@quant/server-core';
+// Types-only: loads @fastify/rate-limit's `FastifyContextConfig` augmentation so
+// per-route `config: { rateLimit: ... }` (e.g. routes/economy.ts) typechecks. The
+// plugin itself is registered globally by @quant/server-core's createApp; without
+// this direct import the augmentation never enters this package's tsc program
+// (server-core's own import is elided from its emitted .d.ts).
+import type {} from '@fastify/rate-limit';
 import campaignsRoutes from './routes/campaigns';
 import adSetsRoutes from './routes/ad-sets';
 import creativesRoutes from './routes/creatives';
