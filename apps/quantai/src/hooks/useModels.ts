@@ -33,7 +33,30 @@ export function useModels(): UseModelsReturn {
         throw new Error(`Failed to fetch models: ${response.status}`);
       }
       const data = await response.json();
-      const fetched: AIModel[] = Array.isArray(data) ? data : data?.models || data?.data || [];
+      const raw: unknown[] = Array.isArray(data) ? data : data?.models || data?.data || [];
+      // Normalize BYOM registry entries (backend shape) to the AIModel shape.
+      // Everything from the bring-your-own-model registry requires the user's
+      // own provider key — mark it so the picker never implies it is served.
+      const fetched: AIModel[] = (raw as Record<string, unknown>[]).map((entry) => {
+        const caps = entry.capabilities as Record<string, unknown> | undefined;
+        const provider = String(entry.provider || 'quant');
+        return {
+          id: String(entry.id || ''),
+          name: String(entry.displayName || entry.name || entry.id || 'Model'),
+          provider: (['openai', 'anthropic', 'meta', 'google', 'quant'].includes(provider)
+            ? provider
+            : 'quant') as AIModel['provider'],
+          contextWindow: Number(entry.maxContextLength || entry.contextWindow || 4096),
+          capabilities: caps
+            ? Object.keys(caps).filter((k) => caps[k] === true)
+            : ((entry.capabilities as string[]) || []),
+          icon: String(entry.icon || '🤖'),
+          description: String(
+            entry.description || 'Bring your own API key to use this model.',
+          ),
+          requiresUserKey: provider !== 'quant',
+        };
+      });
       if (fetched.length > 0) {
         setModels(fetched);
       }

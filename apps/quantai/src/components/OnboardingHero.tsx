@@ -5,8 +5,6 @@
 // ============================================================================
 
 import React from 'react';
-import { motion } from 'framer-motion';
-import { spring } from '@quant/brand';
 
 interface OnboardingHeroProps {
   onContinueQuantSSO: () => void;
@@ -34,17 +32,6 @@ export function OnboardingHero({
       />
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-3xl mx-auto space-y-6">
-        {/* Badge */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', ...spring.snappy }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400"
-        >
-          <span className="animate-pulse">⚡</span>
-          <span>QUANT INTELLIGENCE CONTROL PLANE • v2.4</span>
-        </motion.div>
-
         {/* Headline */}
         <div className="space-y-2">
           <h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-[var(--foreground)]">
@@ -54,7 +41,7 @@ export function OnboardingHero({
             </span>
           </h2>
           <p className="text-sm md:text-base text-[var(--foreground-secondary)] max-w-2xl mx-auto leading-relaxed">
-            Full Claude Code + Codex + ChatGPT parity. Converse with multi-model AI, execute
+            Converse with multi-model AI, execute
             autonomous terminal workflows, inspect live tool trees, and preview interactive
             components in split-screen canvas.
           </p>
@@ -66,7 +53,7 @@ export function OnboardingHero({
             <div className="text-xl mb-1.5">💬</div>
             <div className="text-xs font-semibold text-[var(--foreground)]">Chat Mode</div>
             <div className="text-[11px] text-[var(--foreground-secondary)] mt-1 leading-snug">
-              ChatGPT & Claude conversational streaming, multi-model switcher & personas.
+              Conversational streaming, multi-model switcher &amp; personas.
             </div>
           </div>
 
@@ -74,7 +61,7 @@ export function OnboardingHero({
             <div className="text-xl mb-1.5">⚡</div>
             <div className="text-xs font-semibold text-[var(--foreground)]">Agent & Code Mode</div>
             <div className="text-[11px] text-[var(--foreground-secondary)] mt-1 leading-snug">
-              Claude Code / Codex CLI with terminal prompt, multi-step tree & reasoning chains.
+              Agentic terminal with prompt, multi-step tree &amp; reasoning chains.
             </div>
           </div>
 

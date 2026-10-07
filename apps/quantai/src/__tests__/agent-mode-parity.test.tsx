@@ -20,7 +20,7 @@ const { OnboardingHero } = await import('../components/OnboardingHero');
 const { AgentCodeTerminal } = await import('../components/AgentCodeTerminal');
 const { CanvasArtifactsPanel } = await import('../components/CanvasArtifactsPanel');
 
-describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
+describe('QuantAI Agent Mode Suites', () => {
   describe('OnboardingHero', () => {
     it('renders onboarding hero with Quant branding and feature grid', () => {
       const onSSO = vi.fn();
@@ -33,7 +33,9 @@ describe('QuantAI Claude Code + Codex + ChatGPT Parity Suites', () => {
         }),
       );
 
-      expect(html).toContain('QUANT INTELLIGENCE CONTROL PLANE');
+      // No invented marketing claims: parity claim and control-plane pill removed
+      expect(html).not.toContain('QUANT INTELLIGENCE CONTROL PLANE');
+      expect(html).not.toContain('ChatGPT parity');
       expect(html).toContain('Meet');
       expect(html).toContain('Quanty');
       expect(html).toContain('Continue with Quant Account');

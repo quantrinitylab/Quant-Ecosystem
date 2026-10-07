@@ -15,6 +15,8 @@ interface ContentItem {
   channelName?: string;
   artistName?: string;
   type: 'video' | 'track' | 'show' | 'short';
+  /** Samples show no engagement metadata (no fake views). */
+  isSample?: boolean;
 }
 
 interface ContentGridProps {
@@ -110,7 +112,7 @@ function GridItem({
         <p className="text-xs text-[var(--quant-muted-foreground)]">
           {item.channelName || item.artistName || ''}
         </p>
-        {item.views != null && (
+        {item.views != null && !item.isSample && (
           <p className="text-xs text-[var(--quant-muted-foreground)]">
             {formatViews(item.views)} views
           </p>
@@ -150,7 +152,7 @@ function ListItem({
         <p className="text-xs text-[var(--quant-muted-foreground)]">
           {item.channelName || item.artistName || ''}
         </p>
-        {item.views != null && (
+        {item.views != null && !item.isSample && (
           <span className="text-xs text-[var(--quant-muted-foreground)]">
             {formatViews(item.views)} views
           </span>

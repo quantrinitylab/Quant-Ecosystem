@@ -20,7 +20,7 @@ const FAQS: { q: string; a: string }[] = [
   },
   {
     q: 'Which AI models can I use?',
-    a: 'Open the model picker in chat to switch between GPT-4o, Claude 3.5 Sonnet, Gemini Pro, Llama 3, and Quant-1, depending on availability on your plan.',
+    a: 'Open the model picker in chat to switch models. Third-party models (marked "Your key") need your own provider API key; Quant-1 is served by the platform.',
   },
   {
     q: 'Is my data used for training?',
