@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import auditLogsRoutes, { resetAuditLogsStore } from '../routes/audit-logs';
+import auditLogsRoutes, {
+  resetAuditLogsStore,
+  appendServerAuditRecord,
+} from '../routes/audit-logs';
 
 async function buildTestApp(userId?: string) {
   const app = fastify();
@@ -16,12 +19,29 @@ async function buildTestApp(userId?: string) {
   return app;
 }
 
-describe('Sovereign Immutable Audit Logs Routes (Task X06)', () => {
+// K9 (M20): client-writable audit entries were closed. Tests seed the store
+// through `appendServerAuditRecord` — the server-side-only write path that
+// trusted backend code (e.g. the admin mutations in `routes/admin.ts`) uses.
+function seedServerRecord(overrides?: Partial<Parameters<typeof appendServerAuditRecord>[0]>) {
+  return appendServerAuditRecord({
+    userId: 'admin-user-1',
+    orgId: null,
+    action: 'SEED_ACTION',
+    resource: 'SEED_RESOURCE',
+    resourceId: null,
+    metadata: {},
+    ip: '127.0.0.1',
+    userAgent: 'test',
+    ...overrides,
+  });
+}
+
+describe('Sovereign Immutable Audit Logs Routes (Task X06, K9-hardened)', () => {
   beforeEach(() => {
     resetAuditLogsStore();
   });
 
-  it('POST /audit-logs records an immutable audit log entry and returns status 201', async () => {
+  it('POST /audit-logs is closed: client writes return 405 AUDIT_LOG_CLIENT_WRITE_DISABLED', async () => {
     const app = await buildTestApp('admin-user-1');
     const res = await app.inject({
       method: 'POST',
@@ -34,29 +54,19 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06)', () => {
       },
     });
 
-    expect(res.statusCode).toBe(201);
-    const body = res.json();
-    expect(body.success).toBe(true);
-    expect(body.data.action).toBe('USER_ROLE_CHANGED');
-    expect(body.data.resource).toBe('USER');
-    expect(body.data.resourceId).toBe('target-user-99');
-    expect(body.data.userId).toBe('admin-user-1');
-    expect(body.data.metadata.oldRole).toBe('MEMBER');
+    expect(res.statusCode).toBe(405);
+    expect(res.json().error.code).toBe('AUDIT_LOG_CLIENT_WRITE_DISABLED');
   });
 
-  it('GET /audit-logs lists audit log records with pagination', async () => {
-    const app = await buildTestApp('admin-user-1');
+  it('server-side records are listed by GET with pagination', async () => {
     for (let i = 1; i <= 5; i++) {
-      await app.inject({
-        method: 'POST',
-        url: '/audit-logs',
-        payload: {
-          action: `ACTION_${i}`,
-          resource: 'WORKSPACE',
-          resourceId: `ws-${i}`,
-        },
+      seedServerRecord({
+        action: `ACTION_${i}`,
+        resource: 'WORKSPACE',
+        resourceId: `ws-${i}`,
       });
     }
+    const app = await buildTestApp('admin-user-1');
 
     const res = await app.inject({
       method: 'GET',
@@ -72,17 +82,9 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06)', () => {
   });
 
   it('GET /audit-logs filters records by action and resource', async () => {
+    seedServerRecord({ action: 'EXPORT_MBOX', resource: 'EMAIL' });
+    seedServerRecord({ action: 'DELETE_FILE', resource: 'DRIVE' });
     const app = await buildTestApp('admin-user-1');
-    await app.inject({
-      method: 'POST',
-      url: '/audit-logs',
-      payload: { action: 'EXPORT_MBOX', resource: 'EMAIL' },
-    });
-    await app.inject({
-      method: 'POST',
-      url: '/audit-logs',
-      payload: { action: 'DELETE_FILE', resource: 'DRIVE' },
-    });
 
     const emailLogs = await app.inject({
       method: 'GET',
@@ -94,13 +96,9 @@ describe('Sovereign Immutable Audit Logs Routes (Task X06)', () => {
   });
 
   it('strictly rejects PUT, PATCH, and DELETE with 403 AUDIT_LOG_IMMUTABLE', async () => {
+    const record = seedServerRecord({ action: 'SECURITY_ALERT', resource: 'AUTH' });
     const app = await buildTestApp('admin-user-1');
-    const createRes = await app.inject({
-      method: 'POST',
-      url: '/audit-logs',
-      payload: { action: 'SECURITY_ALERT', resource: 'AUTH' },
-    });
-    const logId = createRes.json().data.id;
+    const logId = record.id;
 
     // Reject PUT
     const putRes = await app.inject({

@@ -1,8 +1,29 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fastify from 'fastify';
 import { errorHandlerPlugin } from '@quant/server-core';
-import auditLogsRoutes, { resetAuditLogsStore } from '../routes/audit-logs';
+import auditLogsRoutes, {
+  resetAuditLogsStore,
+  appendServerAuditRecord,
+} from '../routes/audit-logs';
 import { AuditService } from '../services/audit.service';
+
+// K9 (M20): client-writable audit entries were closed. Tenant-isolation tests
+// now seed the store through the server-side-only `appendServerAuditRecord`
+// path — the same path trusted backend code uses.
+function seedServerRecord(entry: {
+  userId: string;
+  orgId: string | null;
+  action: string;
+  resource: string;
+}) {
+  return appendServerAuditRecord({
+    ...entry,
+    resourceId: null,
+    metadata: {},
+    ip: '127.0.0.1',
+    userAgent: 'test',
+  });
+}
 
 interface TestAuthContext {
   userId?: string;
@@ -125,31 +146,26 @@ describe('Task W33-02: Tenant Authorization Hardening for Enterprise Audit Logs'
         orgId: 'tenant-alpha',
       });
 
-      // Seed audit entries for tenant-alpha
-      await appAlpha.inject({
-        method: 'POST',
-        url: '/audit-logs',
-        payload: {
-          action: 'POLICY_CREATED',
-          resource: 'RETENTION_POLICY',
-          orgId: 'tenant-alpha',
-        },
+      // Seed audit entries for tenant-alpha (server-side only path)
+      seedServerRecord({
+        userId: 'admin-alpha',
+        action: 'POLICY_CREATED',
+        resource: 'RETENTION_POLICY',
+        orgId: 'tenant-alpha',
       });
 
       // Seed audit entries for tenant-beta
+      seedServerRecord({
+        userId: 'admin-beta',
+        action: 'LEGAL_HOLD_PLACED',
+        resource: 'LEGAL_HOLD',
+        orgId: 'tenant-beta',
+      });
+
       const appBeta = await buildTestApp({
         userId: 'admin-beta',
         role: 'ADMIN',
         orgId: 'tenant-beta',
-      });
-      await appBeta.inject({
-        method: 'POST',
-        url: '/audit-logs',
-        payload: {
-          action: 'LEGAL_HOLD_PLACED',
-          resource: 'LEGAL_HOLD',
-          orgId: 'tenant-beta',
-        },
       });
 
       // Query as tenant-alpha admin
@@ -184,19 +200,16 @@ describe('Task W33-02: Tenant Authorization Hardening for Enterprise Audit Logs'
         orgId: 'tenant-cursor',
       });
 
-      // Create 5 log records
+      // Create 5 log records (server-side only path)
       const ids: string[] = [];
       for (let i = 1; i <= 5; i++) {
-        const createRes = await app.inject({
-          method: 'POST',
-          url: '/audit-logs',
-          payload: {
-            action: `EVENT_${i}`,
-            resource: 'RESOURCE',
-            orgId: 'tenant-cursor',
-          },
+        const record = seedServerRecord({
+          userId: 'admin-user-cursor',
+          action: `EVENT_${i}`,
+          resource: 'RESOURCE',
+          orgId: 'tenant-cursor',
         });
-        ids.push(createRes.json().data.id);
+        ids.push(record.id);
       }
 
       // Fetch page 1 with limit 2

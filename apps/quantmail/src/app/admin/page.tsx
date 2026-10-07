@@ -1,6 +1,7 @@
 'use client';
 
 import { resolveApp } from '@quant/app-registry';
+import Link from 'next/link';
 import { AppShell } from '../../components/AppShell';
 import { AppSidebar } from '../../components/AppSidebar';
 import { useAuth } from '../../providers/auth-provider';
@@ -39,6 +40,22 @@ const KPIS: Kpi[] = [
   { key: 'sessions', label: 'Active sessions · 24h', hint: 'GET /admin/sessions/active' },
   { key: 'storage', label: 'Drive storage used', hint: 'GET /admin/storage/summary' },
   { key: 'delivery', label: 'Mail delivery success', hint: 'GET /admin/mail/deliverability' },
+];
+
+// K9 — admin sub-sections (M19/M20). Each card links to its staff-gated screen.
+const ADMIN_SECTIONS = [
+  {
+    href: '/admin/domains',
+    code: 'M19',
+    title: 'Domains',
+    hint: 'Accepted mail domains · live DNS verification (ownership TXT, MX, SPF, DKIM, DMARC).',
+  },
+  {
+    href: '/admin/dlp-audit',
+    code: 'M20',
+    title: 'DLP & Audit',
+    hint: 'DLP policy list · read-only viewer over the append-only audit trail.',
+  },
 ];
 
 interface ServiceStatus {
@@ -162,6 +179,35 @@ export default function AdminDashboardPage() {
             <div className="mt-4 flex flex-wrap gap-2">
               {app.surfaces.map((s) => (
                 <SurfaceChip key={s} surface={s} />
+              ))}
+            </div>
+          </section>
+
+          {/* Admin sections — M19/M20 sub-consoles */}
+          <section>
+            <h2 className="mb-3 text-sm font-semibold text-[var(--quant-foreground)]">
+              Admin sections
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {ADMIN_SECTIONS.map((section) => (
+                <Link
+                  key={section.href}
+                  href={section.href}
+                  className="group rounded-2xl border border-[var(--quant-border)] bg-[var(--quant-card)] p-5 transition hover:border-[var(--brand-primary)]/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-[var(--quant-muted-foreground)]">
+                      {section.code}
+                    </span>
+                    <span className="text-[var(--quant-muted-foreground)] transition group-hover:translate-x-0.5 group-hover:text-[var(--quant-foreground)]">
+                      →
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-[var(--quant-foreground)]">
+                    {section.title}
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--quant-muted-foreground)]">{section.hint}</p>
+                </Link>
               ))}
             </div>
           </section>

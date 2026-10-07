@@ -134,6 +134,18 @@ export const ALLOWED_BACKEND_ROUTES: readonly RouteConfig[] = [
     methods: ['GET'],
   },
 
+  // ── Admin console: K9 (M19 Admin Domains + M20 DLP/Audit) ──────────────────
+  // Staff-gated on the backend (401/403 enforced there); the proxy stays an
+  // enumerated list — no blanket `admin/*` door. Organization scope travels as
+  // `?organizationId=` on GETs; DELETE takes `{ organizationId }` in the JSON
+  // body (Next only forwards search params for GET requests).
+  { pattern: /^admin\/organizations$/, methods: ['GET'] },
+  { pattern: /^admin\/mail\/domains$/, methods: ['GET', 'POST'] },
+  { pattern: /^admin\/mail\/domains\/[^/]+\/verify$/, methods: ['POST'] },
+  { pattern: /^admin\/mail\/domains\/[^/]+$/, methods: ['DELETE'] },
+  { pattern: /^admin\/mail\/dlp\/policies$/, methods: ['GET'] },
+  { pattern: /^admin\/audit\/logs$/, methods: ['GET'] },
+
   { pattern: /^threads(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^emails(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
   { pattern: /^labels(?:|(?:\/[^/]+)*)$/, methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] },
