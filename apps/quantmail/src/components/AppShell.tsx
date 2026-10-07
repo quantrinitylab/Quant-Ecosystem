@@ -934,7 +934,7 @@ export function AppShell({
               </div>
             )}
 
-            {/* Super-App 5-Pillar Top Squircle Mode Switcher or custom topBar (mobile only — desktop uses DesktopPillarRail) */}
+            {/* Super-App 5-Pillar Top Switcher or custom topBar (mobile only — desktop uses the left context sidebar + right app rail) */}
             {topBar !== undefined ? (
               topBar
             ) : isMainSuiteRoute && !customHeader ? (
